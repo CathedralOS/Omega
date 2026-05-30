@@ -36,6 +36,21 @@ pub(super) fn selected_runtime_storage_address_kind(
             *field_byte_offset,
             *target_offset,
         )),
+        SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+        } => Some(
+            runtime_frame_fixed_indexed_address_to_runtime_frame_write_kind(
+                *descriptor_offset,
+                *element_index,
+                *element_byte_size,
+                *field_byte_offset,
+                *target_offset,
+            ),
+        ),
         SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
             base_byte_offset,
             index_offset,
@@ -78,6 +93,16 @@ fn runtime_frame_indexed_address_to_runtime_frame_write_kind(
     _target_offset: usize,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeFrameIndexedAddressToRuntimeFrameWrite
+}
+
+fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_kind(
+    _descriptor_offset: usize,
+    _element_index: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _target_offset: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeFrameFixedIndexedAddressToRuntimeFrameWrite
 }
 
 fn runtime_frame_base_indexed_address_to_runtime_frame_write_kind(

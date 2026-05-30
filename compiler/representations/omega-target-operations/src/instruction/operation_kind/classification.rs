@@ -55,6 +55,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::WriteRuntimeStorageAddressToRuntimeFrame { .. }
             | Self::WriteRuntimePointeeAddressToRuntimeFrame { .. }
             | Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
+            | Self::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
             | Self::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
             | Self::WriteReturnRegisterInteger { .. } => TargetOperationDomain::RuntimeWrite,
 

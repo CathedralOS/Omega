@@ -4,7 +4,7 @@ use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
-use omega_state_values::simplify_state_expression;
+use omega_state_values::{StateValueRole, simplify_state_expression_for_role};
 
 mod argument_materialization;
 mod branches;
@@ -430,11 +430,12 @@ fn simplify_runtime_local_initializer_handle(
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == source_key.state)?;
-    let simplified = simplify_state_expression(
+    let simplified = simplify_state_expression_for_role(
         input.program,
         machine,
         state,
         statement_index,
+        StateValueRole::CallArgument,
         &expressions.to_tree(expression),
     );
     Some(expressions.insert_tree(&simplified))

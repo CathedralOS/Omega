@@ -412,6 +412,28 @@ pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
     }
 }
 
+pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
+    architecture: Architecture,
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            )
+        }
+        Architecture::X86_64 => unsupported_x86_64_encoding(),
+    }
+}
+
 pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
     architecture: Architecture,
     base_byte_offset: usize,

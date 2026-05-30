@@ -9,7 +9,9 @@ use omega_control_flow::StateKey;
 use super::super::super::storage_places::{
     resolve_fixed_array_length, resolve_fixed_array_length_in_table,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
-    resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+    resolve_runtime_frame_fixed_indexed_target,
+    resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_storage_place,
+    resolve_runtime_storage_place_in_table,
 };
 use super::fixed_array_slices::{
     literal_subslice_range_bounds, resolved_subslice_descriptor_base_in_table,
@@ -53,6 +55,38 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
         return false;
     }
 
+    if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        call.receiver,
+    ) {
+        let Some(length) = resolve_fixed_array_length_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            call.receiver,
+        ) else {
+            return false;
+        };
+
+        emit_fixed_indexed_slice_descriptor(
+            input,
+            value_source_key,
+            statement_index,
+            slot,
+            indexed_target.descriptor_offset,
+            indexed_target.element_index,
+            indexed_target.element_byte_size,
+            indexed_target.field_byte_offset,
+            length,
+            selected_instructions,
+        );
+        return true;
+    }
+
     let Some(source_place) = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
@@ -67,6 +101,35 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
             statement_index,
             &receiver,
         );
+        if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target(
+            input,
+            dispatch_index,
+            value_source_key,
+            &simplified_receiver,
+        ) {
+            let Some(length) = resolve_fixed_array_length(
+                input,
+                dispatch_index,
+                value_source_key,
+                &simplified_receiver,
+            ) else {
+                return false;
+            };
+
+            emit_fixed_indexed_slice_descriptor(
+                input,
+                value_source_key,
+                statement_index,
+                slot,
+                indexed_target.descriptor_offset,
+                indexed_target.element_index,
+                indexed_target.element_byte_size,
+                indexed_target.field_byte_offset,
+                length,
+                selected_instructions,
+            );
+            return true;
+        }
         if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target(
             input,
             dispatch_index,
@@ -185,6 +248,40 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
 }
 
 #[allow(clippy::too_many_arguments)]
+fn emit_fixed_indexed_slice_descriptor(
+    input: &InstructionSelectionInput<'_>,
+    value_source_key: StateKey,
+    statement_index: usize,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    length: usize,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_offset: slot.byte_offset,
+        },
+        source_key: value_source_key,
+        source_statement: statement_index,
+    });
+    emit_slice_descriptor_length(
+        input,
+        value_source_key,
+        statement_index,
+        slot,
+        length,
+        selected_instructions,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
 fn emit_indexed_slice_descriptor(
     input: &InstructionSelectionInput<'_>,
     value_source_key: StateKey,
@@ -295,7 +392,8 @@ fn emit_runtime_frame_slot_literal_subslice_descriptor_write_in_table(
     ) else {
         return false;
     };
-    let Some((start, end)) = literal_subslice_range_bounds(expressions, range, source.length) else {
+    let Some((start, end)) = literal_subslice_range_bounds(expressions, range, source.length)
+    else {
         return false;
     };
     // Uniform subslice: new.ptr = base.ptr + start * element_byte_size,

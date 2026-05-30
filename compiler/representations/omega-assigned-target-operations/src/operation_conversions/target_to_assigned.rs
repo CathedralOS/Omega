@@ -453,6 +453,19 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 field_byte_offset,
                 target_offset,
             },
+            omega_target_operations::TargetOperationKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            } => Self::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            },
             omega_target_operations::TargetOperationKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
                 base_byte_offset,
                 index_offset,
