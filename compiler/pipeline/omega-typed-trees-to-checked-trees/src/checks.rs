@@ -1,4 +1,5 @@
 mod borrows;
+mod capabilities;
 mod contracts;
 mod ranges;
 mod termination;
@@ -25,6 +26,12 @@ pub(crate) fn check_checked_facts(
 
     if let Err(mut termination_diagnostics) = termination::check_machine_termination(program) {
         diagnostics.append(&mut termination_diagnostics);
+    }
+
+    if let Err(mut host_call_diagnostics) =
+        capabilities::check_host_call_authorization(program, facts)
+    {
+        diagnostics.append(&mut host_call_diagnostics);
     }
 
     if diagnostics.is_empty() {

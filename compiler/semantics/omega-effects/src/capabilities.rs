@@ -1,6 +1,7 @@
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 
+pub mod analysis;
 pub mod providers;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
