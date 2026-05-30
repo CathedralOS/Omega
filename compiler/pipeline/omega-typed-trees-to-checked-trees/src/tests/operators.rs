@@ -153,6 +153,65 @@ fn records_domain_owned_operator_candidates() {
     assert!(candidates[0].is_domain_owned());
 }
 
+#[test]
+fn records_operator_uses_per_semantic_origin() {
+    let operator_symbol = SymbolHandle::from_arena_index(110);
+    let first_state = SymbolHandle::from_arena_index(111);
+    let second_state = SymbolHandle::from_arena_index(112);
+
+    let mut program = omega_typed_trees::TypedTrees::default();
+    program.push_operator(operator_with_spelling(
+        operator_symbol,
+        OperatorSpelling::Index,
+    ));
+
+    let collection = program.expression_table.insert(ExpressionNode::Integer(0));
+    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let indexed =
+        program
+            .expression_table
+            .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection,
+                index,
+            }));
+    let first_origin = omega_checked_trees::CheckedValueOrigin::StateStatement {
+        machine_symbol: SymbolHandle::from_arena_index(113),
+        state_symbol: first_state,
+        statement_index: 0,
+        role: omega_checked_trees::CheckedValueStatementRole::Expression,
+    };
+    let second_origin = omega_checked_trees::CheckedValueOrigin::StateStatement {
+        machine_symbol: SymbolHandle::from_arena_index(113),
+        state_symbol: second_state,
+        statement_index: 0,
+        role: omega_checked_trees::CheckedValueStatementRole::Expression,
+    };
+    let mut value_roots = omega_core::arena::Arena::with_capacity(2);
+    value_roots.append(omega_checked_trees::CheckedValueFact {
+        expression: indexed,
+        origin: first_origin,
+    });
+    value_roots.append(omega_checked_trees::CheckedValueFact {
+        expression: indexed,
+        origin: second_origin,
+    });
+    let values = omega_checked_trees::CheckedValueFacts::with_roots(value_roots);
+
+    let facts = build_operator_facts(&program, &values);
+
+    assert_eq!(facts.uses.len(), 2);
+    assert!(
+        facts
+            .expression_use_in_origin(indexed, first_origin)
+            .is_some()
+    );
+    assert!(
+        facts
+            .expression_use_in_origin(indexed, second_origin)
+            .is_some()
+    );
+}
+
 fn checked_values_for(
     expressions: impl IntoIterator<Item = omega_typed_trees::expression::ExpressionHandle>,
 ) -> omega_checked_trees::CheckedValueFacts {

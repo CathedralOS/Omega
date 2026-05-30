@@ -1,3 +1,4 @@
+use crate::CheckedValueOrigin;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::operator_spelling::OperatorSpelling;
 use omega_core::symbols::SymbolHandle;
@@ -14,6 +15,7 @@ pub enum CheckedOperatorResolutionStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedOperatorUseFact {
     pub expression: ExpressionHandle,
+    pub origin: CheckedValueOrigin,
     pub spelling: OperatorSpelling,
     pub selected_operator_symbol: SymbolHandle,
     pub candidates: HandleSpan<CheckedOperatorCandidateFact>,
@@ -25,6 +27,7 @@ impl Default for CheckedOperatorUseFact {
     fn default() -> Self {
         Self {
             expression: ExpressionHandle::invalid(),
+            origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Index,
             selected_operator_symbol: SymbolHandle::invalid(),
             candidates: HandleSpan::empty(),
@@ -90,6 +93,17 @@ impl CheckedOperatorFacts {
     pub fn expression_use(&self, expression: ExpressionHandle) -> Option<&CheckedOperatorUseFact> {
         self.uses.iter().find_map(|(_, operator_use)| {
             (operator_use.expression == expression).then_some(operator_use)
+        })
+    }
+
+    pub fn expression_use_in_origin(
+        &self,
+        expression: ExpressionHandle,
+        origin: CheckedValueOrigin,
+    ) -> Option<&CheckedOperatorUseFact> {
+        self.uses.iter().find_map(|(_, operator_use)| {
+            (operator_use.expression == expression && operator_use.origin == origin)
+                .then_some(operator_use)
         })
     }
 
@@ -171,6 +185,7 @@ mod tests {
         let expression = ExpressionHandle::from_arena_index(1);
         uses.append(CheckedOperatorUseFact {
             expression,
+            origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Index,
             selected_operator_symbol: SymbolHandle::from_arena_index(2),
             candidates: resolved_candidates,
@@ -179,6 +194,7 @@ mod tests {
         });
         uses.append(CheckedOperatorUseFact {
             expression: ExpressionHandle::from_arena_index(3),
+            origin: CheckedValueOrigin::default(),
             spelling: OperatorSpelling::Range,
             selected_operator_symbol: SymbolHandle::invalid(),
             candidates: ambiguous_candidates,
