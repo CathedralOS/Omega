@@ -629,6 +629,9 @@ meaning, without needing access to pointer descriptor internals.
   - state-graph-to-control-flow value, boundary, and ownership mappers now keep
     handle-preservation canaries in focused test modules instead of inline in
     the production mapper files
+  - checked-trees-to-state-graph value and boundary preservation now keep
+    state-local selection canaries in focused test modules instead of inline in
+    production preservation files
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
