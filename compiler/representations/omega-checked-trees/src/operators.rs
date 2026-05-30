@@ -3,6 +3,7 @@ use omega_core::arena::{Arena, HandleSpan};
 use omega_core::operator_spelling::OperatorSpelling;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::types::TypeReferenceHandle;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum CheckedOperatorResolutionStatus {
@@ -41,6 +42,12 @@ impl Default for CheckedOperatorUseFact {
 pub struct CheckedOperatorCandidateFact {
     pub operator_symbol: SymbolHandle,
     pub domain_symbol: SymbolHandle,
+    pub receiver_type: TypeReferenceHandle,
+    pub return_type: TypeReferenceHandle,
+    pub type_parameter_count: usize,
+    pub parameter_count: usize,
+    pub contract_count: usize,
+    pub is_boundary: bool,
 }
 
 impl CheckedOperatorCandidateFact {
@@ -48,6 +55,12 @@ impl CheckedOperatorCandidateFact {
         Self {
             operator_symbol,
             domain_symbol: SymbolHandle::invalid(),
+            receiver_type: TypeReferenceHandle::invalid(),
+            return_type: TypeReferenceHandle::invalid(),
+            type_parameter_count: 0,
+            parameter_count: 0,
+            contract_count: 0,
+            is_boundary: false,
         }
     }
 
@@ -55,11 +68,35 @@ impl CheckedOperatorCandidateFact {
         Self {
             operator_symbol,
             domain_symbol,
+            receiver_type: TypeReferenceHandle::invalid(),
+            return_type: TypeReferenceHandle::invalid(),
+            type_parameter_count: 0,
+            parameter_count: 0,
+            contract_count: 0,
+            is_boundary: false,
         }
     }
 
     pub const fn is_domain_owned(self) -> bool {
         self.domain_symbol.is_valid()
+    }
+
+    pub const fn with_signature(
+        mut self,
+        receiver_type: TypeReferenceHandle,
+        return_type: TypeReferenceHandle,
+        type_parameter_count: usize,
+        parameter_count: usize,
+        contract_count: usize,
+        is_boundary: bool,
+    ) -> Self {
+        self.receiver_type = receiver_type;
+        self.return_type = return_type;
+        self.type_parameter_count = type_parameter_count;
+        self.parameter_count = parameter_count;
+        self.contract_count = contract_count;
+        self.is_boundary = is_boundary;
+        self
     }
 }
 
@@ -170,9 +207,12 @@ mod tests {
     #[test]
     fn checked_operator_facts_constructor_keeps_use_root_explicit() {
         let mut candidates = Arena::with_capacity(3);
+        let receiver_type = TypeReferenceHandle::from_arena_index(8);
+        let return_type = TypeReferenceHandle::from_arena_index(9);
         let resolved_candidates = candidates.insert_many([CheckedOperatorCandidateFact::root(
             SymbolHandle::from_arena_index(2),
-        )]);
+        )
+        .with_signature(receiver_type, return_type, 1, 2, 3, true)]);
         let ambiguous_candidates = candidates.insert_many([
             CheckedOperatorCandidateFact::root(SymbolHandle::from_arena_index(4)),
             CheckedOperatorCandidateFact::domain(
@@ -226,6 +266,14 @@ mod tests {
         assert_eq!(facts.missing_uses().count(), 0);
         let ambiguous_use = facts.ambiguous_uses().next().expect("ambiguous use");
         assert_eq!(facts.candidates(ambiguous_use).len(), 2);
+        let resolved_use = facts.resolved_uses().next().expect("resolved use");
+        let resolved_candidate = facts.candidates(resolved_use)[0];
+        assert_eq!(resolved_candidate.receiver_type, receiver_type);
+        assert_eq!(resolved_candidate.return_type, return_type);
+        assert_eq!(resolved_candidate.type_parameter_count, 1);
+        assert_eq!(resolved_candidate.parameter_count, 2);
+        assert_eq!(resolved_candidate.contract_count, 3);
+        assert!(resolved_candidate.is_boundary);
         assert_eq!(
             facts.candidate_symbols(ambiguous_use).collect::<Vec<_>>(),
             vec![
