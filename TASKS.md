@@ -613,6 +613,13 @@ meaning, without needing access to pointer descriptor internals.
   - state-graph worker merge now groups source code arenas separately from
     source semantic arenas, and the semantic merge bundle mirrors contract,
     value, boundary, borrow, and ownership roots
+  - state-graph-to-control-flow now assembles `ControlFlowSemanticRoots` in a
+    focused stage-level semantic mapper instead of spelling proof, contract,
+    value, boundary, borrow, and ownership root construction inside the
+    top-level builders
+  - state-graph-to-control-flow now assembles `ControlFlowCode` in a focused
+    stage-level code mapper, leaving top-level builders to join code roots and
+    semantic roots instead of owning remap details
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
