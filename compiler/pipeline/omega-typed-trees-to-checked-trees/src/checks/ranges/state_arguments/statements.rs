@@ -9,6 +9,7 @@ use crate::checks::ranges::expressions::{
     expression_indexable_length, expression_integer_value, expression_name,
 };
 use crate::checks::ranges::facts::RangeFacts;
+use crate::checks::ranges::guards;
 
 pub(super) fn collect_state_argument_facts_from_statement(
     program: &omega_typed_trees::TypedTrees,
@@ -52,13 +53,32 @@ pub(super) fn collect_state_argument_facts_from_statement(
             facts.define_local(local.symbol, local.name.to_string(), length, integer);
         }
         StatementNode::Transition(transition) => {
+            // A guard established before a recursive / cyclic transition refines
+            // the facts that flow into the callee's arguments. The guard's
+            // positive form constrains the branch that is actually taken
+            // (`transition.target`), so narrow a working copy of the facts with
+            // it before deriving the target's argument facts.
+            let guarded_facts = match transition.guard {
+                omega_typed_trees::statement::TransitionGuardNode::When(guard)
+                    if guard.is_valid() =>
+                {
+                    let mut narrowed = facts.clone();
+                    guards::seed_guard_facts(program, &mut narrowed, guard);
+                    Some(narrowed)
+                }
+                _ => None,
+            };
+            let target_facts = guarded_facts.as_ref().unwrap_or(facts);
+
             collect_state_argument_facts_from_target(
                 program,
                 machine,
-                facts,
+                target_facts,
                 transition.target,
                 collected,
             );
+            // The continuation branch is taken when the guard does not hold, so
+            // it is analysed with the unrefined facts.
             collect_state_argument_facts_from_target(
                 program,
                 machine,
