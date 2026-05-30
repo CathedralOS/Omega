@@ -237,8 +237,18 @@ Goal: move beyond local first-order facts without pretending we have Lean.
 
 - [ ] Add reusable proof lemmas for length, bounds, and window transformations.
 - [ ] Add quantified or sequence-style facts for text/slice invariants.
-- [ ] Repair dynamic indexed domain-fact preservation across disjoint mutating
+- [x] Repair dynamic indexed domain-fact preservation across disjoint mutating
   calls; current unit coverage still rejects some `self.index` proofs.
+  Verified the joined-segment matcher already preserves dynamic-indexed domain
+  facts across disjoint field mutations and across disjoint literal-index element
+  mutations, while soundly invalidating same-element/unknown-index mutations.
+  Added unit coverage in `flow/domain/invalidation/matching/tests.rs`
+  (`indexed_domain_dependency_preserves_shared_dynamic_index_disjoint_field`,
+  `indexed_domain_dependency_invalidates_distinct_dynamic_index_same_field`),
+  pass canaries `domains/call_requires_domain_membership_preserved_across_disjoint_{dynamic_field,literal_element}_mutation`,
+  and soundness fail canary
+  `domains/call_requires_domain_membership_invalidated_by_same_literal_element_call`;
+  documented the conservative index-overlap policy in `flow/place/comparison.rs`.
 - [ ] Improve diagnostics when a proof-backed operator is missing a required
   fact.
 - [ ] Define boundary proof obligations for host/core primitive
