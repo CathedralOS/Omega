@@ -9,9 +9,12 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::operator_spelling::ProviderCategory;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::Item;
+use omega_syntax_trees::item::{
+    BoundaryLevel, CapabilityContract, CapabilityContractKind, Item, OperatorDefinition,
+};
 
 use crate::EffectSet;
+use crate::capabilities::host_authority::host_authority_effects;
 
 /// Package path prefixes that are permitted to declare boundary providers.
 ///
@@ -109,7 +112,129 @@ pub fn build_provider_registry(
         });
     }
 
+    populate_provider_metadata(syntax, &mut providers);
+
     BoundaryProviderRegistry { providers }
+}
+
+/// Fills `contract_ref` / `effect_set` / `target_applicability` on each
+/// registered provider from the boundary operator(s) bound to it. A provider is
+/// otherwise just a declared row; the operator that binds it via its `provider`
+/// clause is what carries the governing contract, the declared effects, and the
+/// targets it applies to. Multiple operators may bind the same provider, so we
+/// merge their contributions.
+fn populate_provider_metadata(syntax: &SyntaxTrees, providers: &mut [BoundaryProvider]) {
+    for item in syntax.root_items() {
+        match item {
+            Item::Operator(operator) => {
+                apply_operator_to_providers(syntax, operator, providers);
+            }
+            Item::Domain(domain) => {
+                for operator in syntax.items.operators(domain.operators) {
+                    apply_operator_to_providers(syntax, operator, providers);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn apply_operator_to_providers(
+    syntax: &SyntaxTrees,
+    operator: &OperatorDefinition,
+    providers: &mut [BoundaryProvider],
+) {
+    let Some(provider_path) = operator.provider else {
+        return;
+    };
+
+    let provider_name = join_path(syntax.items.identifier_path_members(provider_path));
+    let Some(provider) = providers
+        .iter_mut()
+        .find(|provider| provider.name == provider_name)
+    else {
+        return;
+    };
+
+    let contracts = syntax.items.capability_contracts(operator.contracts);
+
+    // `contract_ref`: the bound operator's contract obligation. The operator's
+    // `requires`/`ensures` clause IS the governing contract, referenced by the
+    // operator's qualified name. Falls back to a declared boundary level.
+    if provider.contract_ref.is_none() {
+        if let Some(reference) = operator_contract_ref(syntax, operator, contracts) {
+            provider.contract_ref = Some(reference);
+        }
+    }
+
+    // `effect_set`: the authority the bound operator carries. Operators declare
+    // no `effects` clause; their authority is implied by the provider category,
+    // so a host-ABI provider mints host authority while pure-compute primitives
+    // (slice indexing, pointer math, allocation) carry none.
+    provider.effect_set.insert_all(category_effects(provider.category));
+
+    // `target_applicability`: the named boundary levels the operator's contracts
+    // scope it to. An operator with no named boundary applies to all targets
+    // (empty list).
+    for level_name in boundary_target_names(contracts) {
+        if !provider.target_applicability.contains(&level_name) {
+            provider.target_applicability.push(level_name);
+        }
+    }
+}
+
+/// The contract reference governing `operator`: its qualified name when it
+/// declares a `requires`/`ensures` contract, else the named boundary level it
+/// declares, if any.
+fn operator_contract_ref(
+    syntax: &SyntaxTrees,
+    operator: &OperatorDefinition,
+    contracts: &[CapabilityContract],
+) -> Option<String> {
+    let has_proof_contract = contracts.iter().any(|contract| {
+        matches!(
+            contract.kind,
+            CapabilityContractKind::Requires | CapabilityContractKind::Ensures
+        )
+    });
+
+    if has_proof_contract {
+        return Some(join_path(syntax.items.identifier_path_members(operator.name)));
+    }
+
+    boundary_target_names(contracts).into_iter().next()
+}
+
+/// The named boundary levels declared by `contracts` (`boundary <name>`),
+/// in declaration order.
+fn boundary_target_names(contracts: &[CapabilityContract]) -> Vec<String> {
+    let mut names = Vec::new();
+    for contract in contracts {
+        let CapabilityContractKind::Boundary(level) = &contract.kind else {
+            continue;
+        };
+        let name = match level {
+            BoundaryLevel::Host => "host".to_owned(),
+            BoundaryLevel::Named(identifier) => identifier.as_str().to_owned(),
+        };
+        if !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    names
+}
+
+/// The authority effects a provider of `category` carries. Only host-ABI calls
+/// reach the host surface; the remaining categories are pure-compute primitives.
+fn category_effects(category: ProviderCategory) -> EffectSet {
+    match category {
+        ProviderCategory::HostAbiCall => host_authority_effects(),
+        ProviderCategory::SliceIndexing
+        | ProviderCategory::PointerOffset
+        | ProviderCategory::PointerAccess
+        | ProviderCategory::DescriptorConstruction
+        | ProviderCategory::Allocation => EffectSet::empty(),
+    }
 }
 
 /// Validates that every boundary operator `provider` binding resolves to a
@@ -175,4 +300,108 @@ fn join_path(members: &[Identifier]) -> String {
         .map(Identifier::as_str)
         .collect::<Vec<_>>()
         .join("::")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_core::operator_spelling::ProviderCategory;
+    use omega_source_files_to_tokens::Lexer;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    fn parse(source: &str) -> SyntaxTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        parse_syntax_trees(&tokens).expect("parse")
+    }
+
+    #[test]
+    fn host_abi_provider_metadata_comes_from_bound_operator() {
+        let syntax = parse(
+            r#"
+            provider omega::host::WriteBytes : HostAbiCall;
+
+            boundary operator omega::host::write(handle: i64, length: usize) -> usize
+            provider omega::host::WriteBytes
+            requires
+                length > 0;
+            "#,
+        );
+
+        let mut diagnostics = Vec::new();
+        let registry = build_provider_registry(&syntax, &mut diagnostics);
+        assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+
+        let provider = registry
+            .resolve("omega::host::WriteBytes")
+            .expect("provider should be registered");
+        assert_eq!(provider.category, ProviderCategory::HostAbiCall);
+
+        // contract_ref: sourced from the bound operator's `requires` clause,
+        // referenced by the operator's qualified name.
+        assert_eq!(
+            provider.contract_ref.as_deref(),
+            Some("omega::host::write")
+        );
+
+        // effect_set: a host-ABI provider carries host authority.
+        assert!(
+            !provider.effect_set.is_empty(),
+            "host-ABI provider should carry host authority effects"
+        );
+        assert_eq!(
+            provider.effect_set,
+            host_authority_effects(),
+            "host-ABI provider should carry the full host authority set"
+        );
+    }
+
+    #[test]
+    fn compute_provider_carries_no_authority() {
+        let syntax = parse(
+            r#"
+            provider omega::language::core::Slice : SliceIndexing;
+
+            boundary operator omega::language::core::index<T>(items: &[T], index: usize) -> T
+            spelling []
+            provider omega::language::core::Slice
+            requires
+                index < items.len;
+            "#,
+        );
+
+        let mut diagnostics = Vec::new();
+        let registry = build_provider_registry(&syntax, &mut diagnostics);
+        assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+
+        let provider = registry
+            .resolve("omega::language::core::Slice")
+            .expect("provider should be registered");
+        assert_eq!(provider.category, ProviderCategory::SliceIndexing);
+        assert_eq!(
+            provider.contract_ref.as_deref(),
+            Some("omega::language::core::index")
+        );
+        // Pure-compute primitive: no host authority.
+        assert!(
+            provider.effect_set.is_empty(),
+            "slice indexing provider should not carry host authority"
+        );
+    }
+
+    #[test]
+    fn unbound_provider_keeps_empty_metadata() {
+        let syntax = parse("provider omega::host::Unbound : HostAbiCall;");
+
+        let mut diagnostics = Vec::new();
+        let registry = build_provider_registry(&syntax, &mut diagnostics);
+        assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+
+        let provider = registry
+            .resolve("omega::host::Unbound")
+            .expect("provider should be registered");
+        // No operator binds it, so metadata stays at empty defaults.
+        assert_eq!(provider.contract_ref, None);
+        assert!(provider.effect_set.is_empty());
+        assert!(provider.target_applicability.is_empty());
+    }
 }
