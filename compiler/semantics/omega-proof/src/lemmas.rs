@@ -185,7 +185,7 @@ mod tests {
         assert_eq!(ProofLemma::IndexInBounds.conclusion(), LemmaFact::InBounds);
         assert_eq!(
             ProofLemma::IndexInBounds.premises(),
-            &[LemmaFact::IndexLessThanLength]
+            [LemmaFact::IndexLessThanLength].as_slice()
         );
         assert_eq!(
             ProofLemma::NonEmptyHasFirst.conclusion(),
@@ -197,11 +197,11 @@ mod tests {
     fn window_lemmas_share_within_length_premise() {
         assert_eq!(
             ProofLemma::WindowLength.premises(),
-            &[LemmaFact::WindowWithinLength]
+            [LemmaFact::WindowWithinLength].as_slice()
         );
         assert_eq!(
             ProofLemma::WindowSubrange.premises(),
-            &[LemmaFact::WindowWithinLength]
+            [LemmaFact::WindowWithinLength].as_slice()
         );
         assert_eq!(
             ProofLemma::WindowSubrange.conclusion(),
@@ -213,7 +213,7 @@ mod tests {
     fn tail_length_lemma_backs_termination_measure() {
         assert_eq!(
             ProofLemma::TailLengthDecreases.premises(),
-            &[LemmaFact::NonEmpty]
+            [LemmaFact::NonEmpty].as_slice()
         );
         assert_eq!(
             ProofLemma::TailLengthDecreases.conclusion(),
