@@ -664,6 +664,9 @@ meaning, without needing access to pointer descriptor internals.
   - state-graph executable roots now expose `StateGraphCode::with_roots` with
     canaries, and capacity construction uses that constructor instead of raw
     executable-root field assembly
+  - state-graph semantic sub-roots now expose noun-specific constructors, and
+    graph capacity construction uses those constructors instead of raw
+    fact/contract/value/boundary/borrow/ownership root field assembly
   - state-graph worker merge now groups source code arenas separately from
     source semantic arenas, and the semantic merge bundle mirrors contract,
     value, boundary, borrow, and ownership roots

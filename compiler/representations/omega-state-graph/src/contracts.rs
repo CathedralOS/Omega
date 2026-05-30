@@ -43,3 +43,17 @@ pub struct StateGraphContractRoots {
     pub calls: Arena<StateContractCall>,
     pub exits: Arena<StateContractExit>,
 }
+
+impl StateGraphContractRoots {
+    pub fn with_roots(
+        fact_refs: Arena<StateContractFactRef>,
+        calls: Arena<StateContractCall>,
+        exits: Arena<StateContractExit>,
+    ) -> Self {
+        Self {
+            fact_refs,
+            calls,
+            exits,
+        }
+    }
+}

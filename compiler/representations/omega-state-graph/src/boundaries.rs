@@ -6,6 +6,12 @@ pub struct StateGraphBoundaryRoots {
     pub edges: Arena<StateBoundaryEdge>,
 }
 
+impl StateGraphBoundaryRoots {
+    pub fn with_roots(edges: Arena<StateBoundaryEdge>) -> Self {
+        Self { edges }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBoundaryEdge {
     pub statement_index: usize,

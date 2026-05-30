@@ -70,7 +70,9 @@ preservation:
 - `omega-state-graph/src/semantics.rs` owns the `StateGraphSemanticRoots`
   bundle for preserved proof, invariant, contract, value, boundary, borrow, and
   ownership arenas. Its constructor names those noun roots explicitly so later
-  stages do not need to infer the semantic spine from field order.
+  stages do not need to infer the semantic spine from field order. Individual
+  fact, contract, value, boundary, borrow, and ownership roots should likewise
+  use their noun-specific root constructors instead of raw field assembly.
 - `merge.rs` owns worker-local graph merging and remapping of state-local
   contract, value, boundary, borrow, ownership, operation, transition, and
   metadata spans into the final graph. Worker-local source arenas should stay
