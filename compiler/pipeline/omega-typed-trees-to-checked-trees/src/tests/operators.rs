@@ -53,9 +53,10 @@ fn records_indexed_expression_operator_spelling_resolution() {
     assert_eq!(indexed_use.spelling, OperatorSpelling::Index);
     assert_eq!(indexed_use.selected_operator_symbol, index_operator_symbol);
     assert_eq!(
-        facts.candidate_symbols(indexed_use),
-        &[index_operator_symbol]
+        facts.candidate_symbols(indexed_use).collect::<Vec<_>>(),
+        vec![index_operator_symbol]
     );
+    assert!(!facts.candidates(indexed_use)[0].is_domain_owned());
     assert_eq!(
         indexed_use.status,
         omega_checked_trees::CheckedOperatorResolutionStatus::Resolved
@@ -63,8 +64,8 @@ fn records_indexed_expression_operator_spelling_resolution() {
     assert_eq!(ranged_use.spelling, OperatorSpelling::Range);
     assert_eq!(ranged_use.selected_operator_symbol, range_operator_symbol);
     assert_eq!(
-        facts.candidate_symbols(ranged_use),
-        &[range_operator_symbol]
+        facts.candidate_symbols(ranged_use).collect::<Vec<_>>(),
+        vec![range_operator_symbol]
     );
     assert_eq!(
         ranged_use.status,
@@ -108,10 +109,48 @@ fn records_ambiguous_operator_spelling_status() {
     );
     assert_eq!(indexed_use.candidate_count, 2);
     assert_eq!(
-        facts.candidate_symbols(indexed_use),
-        &[first_candidate, second_candidate]
+        facts.candidate_symbols(indexed_use).collect::<Vec<_>>(),
+        vec![first_candidate, second_candidate]
     );
     assert!(!indexed_use.selected_operator_symbol.is_valid());
+}
+
+#[test]
+fn records_domain_owned_operator_candidates() {
+    let domain_symbol = SymbolHandle::from_arena_index(100);
+    let domain_operator_symbol = SymbolHandle::from_arena_index(101);
+
+    let mut program = omega_typed_trees::TypedTrees::default();
+    let mut domain = omega_typed_trees::domain::DomainDefinition {
+        symbol: domain_symbol,
+        ..Default::default()
+    };
+    program.push_domain_operator(
+        &mut domain,
+        operator_with_spelling(domain_operator_symbol, OperatorSpelling::Index),
+    );
+    program.push_domain_definition(domain);
+
+    let collection = program.expression_table.insert(ExpressionNode::Integer(0));
+    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let indexed =
+        program
+            .expression_table
+            .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection,
+                index,
+            }));
+
+    let values = checked_values_for([indexed]);
+    let facts = build_operator_facts(&program, &values);
+    let indexed_use = facts.expression_use(indexed).expect("indexed use");
+    let candidates = facts.candidates(indexed_use);
+
+    assert_eq!(indexed_use.selected_operator_symbol, domain_operator_symbol);
+    assert_eq!(candidates.len(), 1);
+    assert_eq!(candidates[0].operator_symbol, domain_operator_symbol);
+    assert_eq!(candidates[0].domain_symbol, domain_symbol);
+    assert!(candidates[0].is_domain_owned());
 }
 
 fn checked_values_for(
