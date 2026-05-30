@@ -9,6 +9,7 @@ pub struct CheckFacts {
     pub invariants: InvariantFacts,
     pub domains: DomainFacts,
     pub effects: omega_effects::EffectPlan,
+    pub capabilities: omega_effects::CapabilityFlowPlan,
     pub flow: FlowFacts,
 }
 
@@ -21,6 +22,7 @@ impl CheckFacts {
         invariants: InvariantFacts,
         domains: DomainFacts,
         effects: omega_effects::EffectPlan,
+        capabilities: omega_effects::CapabilityFlowPlan,
         flow: FlowFacts,
     ) -> Self {
         Self {
@@ -31,6 +33,7 @@ impl CheckFacts {
             invariants,
             domains,
             effects,
+            capabilities,
             flow,
         }
     }
