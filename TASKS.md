@@ -33,6 +33,8 @@ representation machinery behind a deliberate boundary.
   surfaces.
 - Capability/authority work now has an initial checked-fact root for
   uses/returns/acquires/stores/derives flow records.
+- The checked-tree capability manifest now reports effect bits plus
+  capability-flow counts, even before population is implemented.
 - State-graph and control-flow semantic roots now preserve proof, invariant,
   contract, value, boundary, borrow, and ownership evidence as explicit noun
   roots.
@@ -62,8 +64,9 @@ levels without drowning the language in keywords.
 
 - [ ] Populate checked capability facts from typed calls, boundary signatures,
   package declarations, and host-boundary edges.
-- [ ] Add a package/report surface for theoretical blast radius: what a library
-  can use, acquire, return, store, or derive.
+- [ ] Extend the initial entry capability manifest into a package/report
+  surface for theoretical blast radius: what a library can use, acquire,
+  return, store, or derive.
 - [ ] Connect boundary/host calls to capability facts so target policy checks
   can say whether a host call is allowed for the package.
 - [ ] Add canaries for:

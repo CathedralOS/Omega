@@ -5,7 +5,7 @@ use omega_checked_trees::{
     FlowInvalidationSource, FlowStateFact,
 };
 use omega_core::symbols::SymbolHandle;
-use omega_effects::EffectSet;
+use omega_effects::{CapabilityFlowKind, EffectSet};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
@@ -107,7 +107,16 @@ pub fn capability_manifest_json(program: &CheckedTrees) -> String {
         }
         push_json_string(&mut json, effect);
     }
-    json.push_str("]\n}\n");
+    json.push_str("],\n  \"capability_flows\": {");
+    for (index, (kind, count)) in manifest.capability_flow_counts.iter().enumerate() {
+        if index > 0 {
+            json.push_str(", ");
+        }
+        push_json_string(&mut json, kind.as_str());
+        json.push_str(": ");
+        json.push_str(&count.to_string());
+    }
+    json.push_str("}\n}\n");
     json
 }
 
@@ -686,6 +695,14 @@ fn capability_manifest_text(program: &CheckedTrees) -> String {
     report.push_str("effects:       ");
     report.push_str(&format_effect_set(manifest.effects));
     report.push('\n');
+    report.push_str("\nCapability Flow Counts\n");
+    report.push_str("----------------------\n");
+    for (kind, count) in manifest.capability_flow_counts {
+        report.push_str(kind.as_str());
+        report.push_str(": ");
+        report.push_str(&count.to_string());
+        report.push('\n');
+    }
 
     report
 }
@@ -695,6 +712,7 @@ struct EntryCapabilityManifest {
     entry_machine: String,
     entry_state: String,
     effects: EffectSet,
+    capability_flow_counts: [(CapabilityFlowKind, usize); 5],
 }
 
 fn entry_capability_manifest(program: &CheckedTrees) -> EntryCapabilityManifest {
@@ -703,6 +721,7 @@ fn entry_capability_manifest(program: &CheckedTrees) -> EntryCapabilityManifest 
             entry_machine: "<missing>".to_owned(),
             entry_state: "<missing>".to_owned(),
             effects: EffectSet::empty(),
+            capability_flow_counts: capability_flow_counts(program),
         };
     };
 
@@ -719,7 +738,12 @@ fn entry_capability_manifest(program: &CheckedTrees) -> EntryCapabilityManifest 
         entry_machine: machine_name,
         entry_state: state_name,
         effects,
+        capability_flow_counts: capability_flow_counts(program),
     }
+}
+
+fn capability_flow_counts(program: &CheckedTrees) -> [(CapabilityFlowKind, usize); 5] {
+    CapabilityFlowKind::ALL.map(|kind| (kind, program.facts.capabilities.count_by_kind(kind)))
 }
 
 fn entry_machine(program: &CheckedTrees) -> Option<(SymbolHandle, String, String)> {
