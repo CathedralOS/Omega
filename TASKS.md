@@ -82,9 +82,14 @@ instruction-record data-address insertion now no-ops when the selected instructi
 encoded to zero bytes, instead of requiring each arm to remember its own width
 gate. Follow-up fixed mutable slice literal-index writes by lowering
 fixed-indexed slice descriptor targets through the descriptor's pointee word.
-Measured result: filtered runtime canaries now report 71 passing / 2 failing.
-Remaining failures are no longer relocation splatter: native dungeon samples hit
-known borrow/index proof diagnostics.
+Measured result before the dungeon proof push: filtered runtime canaries reported
+71 passing / 2 failing. Recent progress cleared the native dungeon borrow/index
+diagnostics and the call-argument value-lowering blocker for local mutable aliases
+initialized by helper calls. The two native dungeon canaries now compile and
+launch, then segfault during startup while constructing a descriptor for a nested
+fixed-array view (`rooms[0].exits.as_mut_slice()` in `Dungeon::initialize`);
+the descriptor pointer word is null. The remaining tail is descriptor lowering,
+not proof checking.
 Harness: bin is `target/debug/omega.exe`; runtime canaries run as
 `cargo test -p omega-compiler --test canary_suite _runs -- --test-threads=1`;
 regression guard `omega --target windows_x64 samples/cli_mvp/main.omg` (exit 0)
@@ -129,6 +134,10 @@ under full-suite parallelism (build-dir race); it passes run alone / with
 
 ### Slice Runtime Descriptor Semantics
 
+- [ ] Lower nested fixed-array-backed slice descriptors such as
+  `rooms[0].exits.as_mut_slice()` where the base is a slice/descriptor element
+  and the viewed field is itself a fixed array. Current native dungeon startup
+  crash writes through a null descriptor pointer for this shape.
 - [ ] Generalize subslice descriptor pointer offsets beyond fixed-array alias
   copy special cases (the `FatDescriptorAbi::subslice` seam exists; widen its
   callers past literal fixed-array bases — several `runtime_subslice_*` canaries
