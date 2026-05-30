@@ -1,9 +1,11 @@
 use omega::language::core::array;
 
 // Confirms the fixed-array surface is browsable: native fixed arrays are spelled
-// `[T; N]` (owned contiguous storage with a compile-time length), and the
-// `Array` module declares the length / slice-view contracts (`Array::as_slice`,
-// `Array::as_mut_slice`).
+// `[T; N]` (owned contiguous storage with a compile-time length), and importing
+// the core `array` module brings in the length measure and the slice-view
+// contracts (`Array::as_slice`, `Array::as_mut_slice`) with their requires/
+// ensures and the `array_views` provider binding. The program type-checks
+// cleanly with a fixed-array field present.
 
 data Main {
     cells: [i32; 3];

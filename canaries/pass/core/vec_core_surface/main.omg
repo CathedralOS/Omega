@@ -1,5 +1,11 @@
 use omega::language::core::vec;
 
+// Confirms the owned Vec surface is browsable end to end: importing the core
+// `vec` module brings in the length / capacity measures and the
+// push / with_capacity / index / as_slice / as_mut_slice boundary contracts
+// (with their requires/ensures and the `vec_views` provider binding), and the
+// program type-checks cleanly.
+
 data Main {
 }
 
