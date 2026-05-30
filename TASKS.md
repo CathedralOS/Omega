@@ -67,21 +67,36 @@ Implementation slices below build against these. Minor/easily-reversible details
 
 ## Next Up (highest leverage)
 
-**KNOWN BUG — x86_64 r12 codegen (unblocks ~68 runtime `*_canary_runs`).** Native
-Windows x64 PEs for multi-state dispatch machines crash with `0xC0000005`.
-Diagnosed (NOT environmental — `cli_mvp` runs fine): the dispatch-loop /
-state-write path loads `r12` with a 32-bit `mov r12d, imm32` (`41 BC`, 4-byte
-immediate) at sites where the relocation stage registers a 64-bit `Absolute64`
-(8-byte) relocation. The reloc's high 4 bytes spill past the immediate and
-execute as `add [rax],eax` → AV. r12 is the only register loaded 32-bit (others
-use `movabs reg64,imm64`). Fix: emit `movabs r12, imm64` (`49 BC`, 10 bytes) for
-r12 loads carrying an `Absolute64` reloc (keep the 32-bit form for small
-non-relocated dispatch indices); reconcile reloc byte_offset/width. Files:
-`omega-isa-x86_64/src/lib.rs` `append_mov_r12d_imm32` (~L748),
-`encode_dispatch_loop_enter_bytes`/`encode_dispatch_state_write_bytes` (~L74-98);
-`omega-relocations/`. Repro: build+run
-`canaries/pass/control_flow/runtime_local_scalar_comparison_value_exit` (must
-exit 76, currently AVs). Fixing this unblocks all runtime/backend verification.
+**KNOWN BUG — mislocated dispatch-guard relocation (unblocks ~68 runtime
+`*_canary_runs`).** Native Windows x64 PEs for multi-state dispatch machines
+crash with `0xC0000005`. Two diagnosis passes; the SECOND corrected the first.
+Symptom: an 8-byte `Absolute64` data-address relocation lands on a
+`mov r12d, imm32` (`41 BC`, 4-byte) `SetDispatchState` instruction; the high 4
+bytes (`01 00 00 00` of image base `0x140000000`) spill past the immediate and
+execute as `add [rax],eax` → write to addr 1 → AV. **NOT the fix:** widening
+that r12 load to `movabs` — `mov r12d` legitimately holds a small dispatch index
+immediately consumed by `cmp r12d, idx`; it is NOT itself a relocation site
+(no `SetDispatchState` reloc handler exists). **Real root cause:** the relocation
+belongs to a DIFFERENT instruction — the second `EvaluateDispatchGuard`'s storage
+load (its own `movabs r15`) — but is anchored at the previous instruction's text
+offset. Evidence (`build/backend_report.html` reloc table on the repro): relocs
+#4/#5/#6 correctly land on `49 bf` (movabs r15) storage loads; reloc #7 wrongly
+lands at offset `0xA1`, inside instruction #7's (`SetDispatchState`) `mov r12d`
+immediate, instead of instruction #8's (`EvaluateDispatchGuard`) movabs. The
+first guard places correctly; divergence is specific to the second guard right
+after a `SetDispatchState`. **Where to fix:** `omega-relocations/src/lookups.rs`
+`selected_instruction_text_offset` (the index→text-offset walk over
+`input.encoded_machine.code.instructions` for the second guard) and/or the
+`EvaluateDispatchGuard` arm in
+`omega-relocations/src/instruction_records/runtime_storage_compares.rs`
+(`insert_data_address_at_instruction_start` anchoring at the wrong
+`selected_instruction_index`). The ISA encoder (`omega-isa-x86_64`) is CORRECT —
+do not touch it. Harness: bin is `target/debug/omega.exe`; repro
+`omega.exe canaries/pass/control_flow/runtime_local_scalar_comparison_value_exit/main.omg`
+then run `build/omega-program.exe` (must exit 76, currently AVs); regression
+guard `omega.exe --target windows_x64 samples/cli_mvp/main.omg` (escapes the bug
+today); suite runtime canaries run as `pass_canaries_runs`. Fixing this unblocks
+all runtime/backend verification.
 
 **`salvage-tm-scc` branch — partial SCC/cycle termination.** Adds
 `checks/termination/cycles.rs`, SCC graph reasoning, cyclic state-arg facts, and
