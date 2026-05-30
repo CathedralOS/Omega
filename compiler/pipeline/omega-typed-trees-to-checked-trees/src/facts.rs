@@ -2,6 +2,7 @@ use crate::borrow::build_borrow_facts;
 use crate::capabilities::build_capability_facts;
 use crate::flow::{build_domain_facts, build_flow_facts};
 use crate::invariants::build_invariant_facts;
+use crate::operators::build_operator_facts;
 use crate::proof::build_proof_facts;
 use crate::semantic::build_semantic_facts;
 use crate::values::build_value_facts;
@@ -17,6 +18,7 @@ pub(crate) fn build_check_facts(
 ) -> CheckFacts {
     let borrow = build_borrow_facts(program);
     let values = build_value_facts(program);
+    let operators = build_operator_facts(program, &values);
     let proof = build_proof_facts(program, proof_plan, &borrow);
     let invariants = build_invariant_facts(program);
     let mut semantic = build_semantic_facts(program, &proof);
@@ -31,6 +33,7 @@ pub(crate) fn build_check_facts(
         values,
         invariants,
         domains,
+        operators,
         effects,
         capabilities,
         flow,

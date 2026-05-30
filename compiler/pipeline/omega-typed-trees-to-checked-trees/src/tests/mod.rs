@@ -1,6 +1,6 @@
 use super::{
-    build_borrow_facts, build_domain_facts, build_flow_facts, build_proof_facts,
-    build_semantic_facts, build_value_facts, lower_typed_trees,
+    build_borrow_facts, build_domain_facts, build_flow_facts, build_operator_facts,
+    build_proof_facts, build_semantic_facts, build_value_facts, lower_typed_trees,
 };
 use crate::flow::{StateMutationSummaryCache, call_mutated_places};
 use crate::semantic::instantiate_call_contract_place;
@@ -28,5 +28,6 @@ mod admissibility;
 mod borrow;
 mod contracts;
 mod flow;
+mod operators;
 mod termination;
 mod values;
