@@ -1,9 +1,8 @@
-use omega_core::arena::Arena;
-
 use crate::{
-    ControlFlowBorrowRoots, ControlFlowContractRoots, ControlFlowOwnershipRoots,
-    ControlFlowValueRoots, InvariantFact, ProofObligationFact, StateBoundaryEdge,
+    ControlFlowBorrowRoots, ControlFlowBoundaryRoots, ControlFlowContractRoots,
+    ControlFlowOwnershipRoots, ControlFlowValueRoots, InvariantFact, ProofObligationFact,
 };
+use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ControlFlowFactRoots {
@@ -16,7 +15,7 @@ pub struct ControlFlowSemanticRoots {
     pub facts: ControlFlowFactRoots,
     pub contracts: ControlFlowContractRoots,
     pub values: ControlFlowValueRoots,
-    pub boundary_edges: Arena<StateBoundaryEdge>,
+    pub boundaries: ControlFlowBoundaryRoots,
     pub borrow: ControlFlowBorrowRoots,
     pub ownership: ControlFlowOwnershipRoots,
 }

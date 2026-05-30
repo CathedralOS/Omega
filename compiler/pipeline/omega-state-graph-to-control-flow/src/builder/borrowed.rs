@@ -46,7 +46,9 @@ pub(crate) fn build_control_flow_plan(
             values: omega_control_flow::ControlFlowValueRoots {
                 values: remap_values(state_graph),
             },
-            boundary_edges: remap_boundary_edges(state_graph),
+            boundaries: omega_control_flow::ControlFlowBoundaryRoots {
+                edges: remap_boundary_edges(state_graph),
+            },
             borrow: omega_control_flow::ControlFlowBorrowRoots {
                 writable_roots: remap_borrow_writable_roots(state_graph),
                 access_segments: state_graph.semantics.borrow.access_segments.clone(),

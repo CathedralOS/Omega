@@ -35,22 +35,19 @@ fn append_boundary_edges(
     source_edges: &omega_core::arena::Arena<FlowBoundaryEdgeFact>,
     edges: HandleSpan<FlowBoundaryEdgeFact>,
 ) -> HandleSpan<StateBoundaryEdge> {
-    state_graph
-        .semantics
-        .boundary_edges
-        .insert_many(
-            source_edges
-                .span_or_empty(edges)
-                .iter()
-                .map(|edge| StateBoundaryEdge {
-                    statement_index: edge.statement_index,
-                    call_ordinal: edge.call_ordinal,
-                    receiver_symbol: edge.receiver_symbol,
-                    target_symbol: edge.target_symbol,
-                    boundary_trait_symbol: edge.boundary_trait_symbol,
-                    boundary_signature_symbol: edge.boundary_signature_symbol,
-                }),
-        )
+    state_graph.semantics.boundaries.edges.insert_many(
+        source_edges
+            .span_or_empty(edges)
+            .iter()
+            .map(|edge| StateBoundaryEdge {
+                statement_index: edge.statement_index,
+                call_ordinal: edge.call_ordinal,
+                receiver_symbol: edge.receiver_symbol,
+                target_symbol: edge.target_symbol,
+                boundary_trait_symbol: edge.boundary_trait_symbol,
+                boundary_signature_symbol: edge.boundary_signature_symbol,
+            }),
+    )
 }
 
 pub(crate) fn remap_state_boundary_summary(
@@ -61,7 +58,8 @@ pub(crate) fn remap_state_boundary_summary(
     StateBoundarySummary {
         edges: target
             .semantics
-            .boundary_edges
+            .boundaries
+            .edges
             .insert_many(source_edges.span_or_empty(summary.edges).iter().cloned()),
     }
 }
@@ -141,7 +139,8 @@ mod tests {
 
         let edges = state_graph
             .semantics
-            .boundary_edges
+            .boundaries
+            .edges
             .span_or_empty(summary.edges);
         assert_eq!(edges.len(), 1);
         assert_eq!(edges[0].statement_index, 7);

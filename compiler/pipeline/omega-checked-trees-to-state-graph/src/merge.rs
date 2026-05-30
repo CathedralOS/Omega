@@ -35,7 +35,7 @@ pub(crate) fn merge_machine_graph(
         facts: _,
         contracts,
         values,
-        boundary_edges,
+        boundaries,
         borrow,
         ownership,
     } = semantics;
@@ -47,7 +47,7 @@ pub(crate) fn merge_machine_graph(
         contract_calls: &contracts.calls,
         contract_exits: &contracts.exits,
         values: &values.values,
-        boundary_edges: &boundary_edges,
+        boundary_edges: &boundaries.edges,
         borrow_writable_roots: &borrow.writable_roots,
         borrow_access_segments: &borrow.access_segments,
         borrow_argument_accesses: &borrow.argument_accesses,

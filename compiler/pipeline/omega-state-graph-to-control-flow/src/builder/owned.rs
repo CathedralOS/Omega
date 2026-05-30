@@ -63,7 +63,9 @@ pub(crate) fn build_control_flow_plan_owned(
             values: omega_control_flow::ControlFlowValueRoots {
                 values: semantics.values.values.map(remap_value_owned),
             },
-            boundary_edges: semantics.boundary_edges.map(remap_boundary_edge_owned),
+            boundaries: omega_control_flow::ControlFlowBoundaryRoots {
+                edges: semantics.boundaries.edges.map(remap_boundary_edge_owned),
+            },
             borrow: omega_control_flow::ControlFlowBorrowRoots {
                 writable_roots: semantics
                     .borrow

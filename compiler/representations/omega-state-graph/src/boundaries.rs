@@ -1,5 +1,10 @@
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateGraphBoundaryRoots {
+    pub edges: Arena<StateBoundaryEdge>,
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBoundaryEdge {
