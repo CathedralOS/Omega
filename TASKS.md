@@ -35,6 +35,8 @@ representation machinery behind a deliberate boundary.
   uses/returns/acquires/stores/derives flow records.
 - The checked-tree capability manifest now reports effect bits plus
   capability-flow counts, even before population is implemented.
+- Boundary-trait calls now populate initial `uses` capability-flow facts from
+  checked-flow boundary edge evidence.
 - State-graph and control-flow semantic roots now preserve proof, invariant,
   contract, value, boundary, borrow, and ownership evidence as explicit noun
   roots.
@@ -62,8 +64,8 @@ representation machinery behind a deliberate boundary.
 Goal: make authority flow visible at package, language, and host-boundary
 levels without drowning the language in keywords.
 
-- [ ] Populate checked capability facts from typed calls, boundary signatures,
-  package declarations, and host-boundary edges.
+- [ ] Broaden checked capability fact population beyond boundary-trait `uses`
+  into returns, acquires, stores, derives, package declarations, and host calls.
 - [ ] Extend the initial entry capability manifest into a package/report
   surface for theoretical blast radius: what a library can use, acquire,
   return, store, or derive.
