@@ -1,5 +1,57 @@
 use omega_core::symbols::SymbolHandle;
 
+/// The reserved binder naming a call's return value inside an `ensures` clause.
+pub(crate) const RESULT_BINDER: &str = "result";
+
+/// Render the label of the value a call produces, used to substitute the
+/// `result` binder of the callee's `ensures` clause into caller terms. This is
+/// the call expression itself (`receiver.target(args)` or `target(args)`), so a
+/// fact like `ensures result in String::Utf8` becomes a domain fact on the
+/// concrete call result at the call site.
+fn call_result_label(
+    program: &omega_typed_trees::TypedTrees,
+    call_site: &crate::CallSite<'_>,
+) -> String {
+    let argument_list = |arguments| {
+        program
+            .expression_table
+            .expression_handles(arguments)
+            .iter()
+            .map(|argument| program.expression_table.display_name(*argument))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+
+    match call_site {
+        crate::CallSite::Statement(call) => {
+            let arguments = argument_list(call.arguments);
+            let receiver = omega_typed_trees::expression::display_name_path(
+                program.expression_table.name_path_members(call.receiver),
+                "::",
+            );
+            if receiver.is_empty() {
+                format!("{}({arguments})", call.target)
+            } else {
+                format!("{receiver}.{}({arguments})", call.target)
+            }
+        }
+        crate::CallSite::Expression(call) => {
+            let arguments = argument_list(call.arguments);
+            if call.receiver.is_valid() {
+                format!(
+                    "{}.{}({arguments})",
+                    program.expression_table.display_name(call.receiver),
+                    call.target
+                )
+            } else {
+                format!("{}({arguments})", call.target)
+            }
+        }
+        // A named transition target carries no single call result to bind.
+        crate::CallSite::TransitionNamed(_) => RESULT_BINDER.to_owned(),
+    }
+}
+
 pub(crate) fn instantiate_call_contract_expression_label(
     program: &omega_typed_trees::TypedTrees,
     caller_state_symbol: SymbolHandle,
@@ -193,6 +245,23 @@ pub(crate) fn instantiate_call_contract_expression_label(
         omega_typed_trees::expression::ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             let first_member = members.first().map(|member| member.as_str());
+
+            // The `result` binder refers to the value the call produces, not to
+            // any parameter. An `ensures result in Domain` on the callee must
+            // flow the domain fact onto the call's result value at the call site,
+            // so substitute `result` with the call expression's own label. Only
+            // a single-segment `result` that does not shadow a real parameter is
+            // treated as the binder.
+            if first_member == Some(RESULT_BINDER)
+                && members.len() == 1
+                && !program
+                    .state_parameters(target_state)
+                    .iter()
+                    .any(|parameter| parameter.name.as_str() == RESULT_BINDER)
+            {
+                return call_result_label(program, call_site);
+            }
+
             let arguments = crate::call_site_argument_expressions(program, call_site);
             let mut argument_index = 0usize;
 
