@@ -67,7 +67,8 @@ noun preserved in a focused file:
   executable control-flow shape lives under `ControlFlowCode`, while preserved
   semantic evidence lives under `ControlFlowSemanticRoots`. The plan
   constructor should keep those roots explicit instead of relying on ad hoc
-  field assembly.
+  field assembly, and `ControlFlowCode::with_roots` should be the join point
+  for executable expression/machine/state/operation/transition roots.
 - `omega-control-flow/src/semantics.rs` owns the `ControlFlowSemanticRoots`
   bundle for preserved proof, invariant, contract, value, boundary, borrow, and
   ownership arenas. Its constructor names those noun roots explicitly, and this

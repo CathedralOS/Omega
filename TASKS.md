@@ -678,6 +678,9 @@ meaning, without needing access to pointer descriptor internals.
   - state-graph-to-control-flow now assembles `ControlFlowCode` in a focused
     stage-level code mapper, leaving top-level builders to join code roots and
     semantic roots instead of owning remap details
+  - control-flow executable roots now expose `ControlFlowCode::with_roots`
+    with canaries, and state-graph-to-control-flow uses that constructor
+    instead of raw executable-root field assembly
   - control-flow-to-abstract boundary lowering now keeps source/host boundary
     link construction separate from its canaries, leaving the lowering file
     focused on production logic
