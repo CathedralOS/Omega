@@ -112,6 +112,30 @@ The checker must know that `i` and `j` refer to disjoint places. That fact may
 come from arithmetic, from a domain, or from a helper machine that establishes
 `i != j`.
 
+## Owners And Borrowed Views
+
+A borrowed view (a slice over an array, a `&str` over a `String`, or a slice over
+a `Vec`) keeps the owner pinned for the view's lifetime. While such a view is
+active the checker rejects any write to the owner that overlaps the borrowed
+window:
+
+```omega
+let view: &[Entry] = self.entries.as_slice();
+self.entries[0].value = 7; // rejected: view is still active
+let first: Entry = view[0];
+```
+
+Disjoint windows are allowed when disjointness is provable from compile-time
+bounds. A subslice `view[1..]` does not conflict with a write to
+`self.entries[0]`, because index `0` is provably outside the `1..` window.
+
+The same rule applies to `Vec`: a `Vec` mutation or reallocation
+(`push`, `pop`, or anything that may move the backing storage) must reject while
+a slice view derived from that `Vec` is still active, because the view may be
+invalidated by the reallocation. This is the borrow-conflict rule for `Vec`; its
+canary is parked under `canaries/pending/borrow/vec_view_invalidated_by_push`
+until the `Vec` runtime/lowering is ready to exercise it end to end.
+
 ## Relationship To Drops
 
 Ownership decides who must clean up a value. The cleanup machinery itself is
