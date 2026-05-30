@@ -11,8 +11,5 @@ pub(crate) fn lower_typed_trees(
 
     checks::check_checked_facts(&program, &facts)?;
 
-    Ok(CheckedTrees {
-        typed: program,
-        facts,
-    })
+    Ok(CheckedTrees::with_roots(program, facts))
 }

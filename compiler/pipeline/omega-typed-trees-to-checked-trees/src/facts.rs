@@ -22,14 +22,7 @@ pub(crate) fn build_check_facts(
     let domains = build_domain_facts(program, &semantic);
     let flow = build_flow_facts(program, &borrow, &proof, &mut semantic, &domains, &effects);
 
-    CheckFacts {
-        semantic,
-        proof,
-        values,
-        borrow,
-        invariants,
-        domains,
-        effects,
-        flow,
-    }
+    CheckFacts::with_roots(
+        semantic, borrow, proof, values, invariants, domains, effects, flow,
+    )
 }
