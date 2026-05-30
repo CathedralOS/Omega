@@ -1,0 +1,27 @@
+// PASS canary: a mutating call through the owner that writes a DISJOINT field is
+// accepted while a borrowed view of a different field is live. The owner-
+// mutation-through-call rule reuses the loan-overlap engine, so a call whose
+// summarized writes do not overlap the live view's place does not conflict.
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    left: [Entry; 2];
+    right: [Entry; 2];
+}
+
+machine Main::main(&mut self) {
+    let view: &[Entry] = self.left.as_slice();
+    self.touch_right();
+    self.read_alias(view);
+}
+
+machine Main::touch_right(&mut self) {
+    self.right[0] = Entry { value: 1 };
+}
+
+machine Main::read_alias(&mut self, entries: &[Entry]) {
+    let first: Entry = entries[0];
+}
