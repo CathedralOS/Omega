@@ -31,6 +31,8 @@ representation machinery behind a deliberate boundary.
 - Checked facts now group proof, invariant/domain, value, borrow, flow,
   boundary, ownership, and admissibility evidence behind named roots and query
   surfaces.
+- Capability/authority work now has an initial checked-fact root for
+  uses/returns/acquires/stores/derives flow records.
 - State-graph and control-flow semantic roots now preserve proof, invariant,
   contract, value, boundary, borrow, and ownership evidence as explicit noun
   roots.
@@ -58,10 +60,8 @@ representation machinery behind a deliberate boundary.
 Goal: make authority flow visible at package, language, and host-boundary
 levels without drowning the language in keywords.
 
-- [ ] Define the durable capability facts we want to track: uses, returns,
-  acquires, stores, and derives.
-- [ ] Decide whether capability facts live primarily under checked facts,
-  effects, boundary roots, or a new capability root.
+- [ ] Populate checked capability facts from typed calls, boundary signatures,
+  package declarations, and host-boundary edges.
 - [ ] Add a package/report surface for theoretical blast radius: what a library
   can use, acquire, return, store, or derive.
 - [ ] Connect boundary/host calls to capability facts so target policy checks

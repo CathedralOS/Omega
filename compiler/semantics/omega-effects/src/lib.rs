@@ -1,3 +1,5 @@
+mod capabilities;
+
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
@@ -5,6 +7,8 @@ use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallE
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TableCall};
+
+pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
 
 pub type EffectBits = u64;
 
