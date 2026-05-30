@@ -1,0 +1,7 @@
+machine WindowShrinkIndexOutOfLength {
+    entry(values: &[u8]) {
+        let window: &[u8] = values[0..3];
+        let value: u8 = window[3];
+        return;
+    }
+}
