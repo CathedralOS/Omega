@@ -8,6 +8,9 @@ use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TableCall};
 
+pub use capabilities::providers::{
+    BoundaryProvider, BoundaryProviderRegistry, build_provider_registry, validate_provider_bindings,
+};
 pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
 
 pub type EffectBits = u64;

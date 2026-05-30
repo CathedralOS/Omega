@@ -1,0 +1,16 @@
+// Frozen Wave 0 decision #4: a boundary operator may bind a registered provider
+// declared by a whitelisted package (here, the language core). The binding
+// resolves to the registered provider, so the program is accepted.
+
+provider omega::language::core::canary_allocation : Allocation;
+
+boundary operator Region::allocate(size: usize) -> usize
+provider omega::language::core::canary_allocation
+requires
+    size > 0;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

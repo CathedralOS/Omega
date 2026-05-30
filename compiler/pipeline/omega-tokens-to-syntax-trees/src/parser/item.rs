@@ -2,7 +2,7 @@ use crate::parser::capability::parse_capability_definition;
 use crate::parser::data::{parse_data_definition, parse_enum_definition};
 use crate::parser::domain::parse_domain_definition;
 use crate::parser::export_item::parse_export_item;
-use crate::parser::input::{Input, ParseResult};
+use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::invariant::parse_invariant_definition;
 use crate::parser::library::parse_library_definition;
 use crate::parser::machine::parse_machine;
@@ -13,8 +13,9 @@ use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
 use crate::parser::use_item::parse_use_item;
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::Item;
-use omega_tokens::KeywordKind;
+use omega_syntax_trees::item::{Item, ProviderDeclaration};
+use omega_syntax_trees::operator_spelling::ProviderCategory;
+use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_item<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -92,6 +93,12 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Operator(item), rest));
     }
 
+    if input.at_contextual("provider") {
+        let input = input.take_contextual("provider")?;
+        let (item, rest) = parse_provider_declaration(syntax_trees, input)?;
+        return Ok((Item::Provider(item), rest));
+    }
+
     if input.at_keyword(KeywordKind::Platform) {
         let input = input.take_keyword(KeywordKind::Platform, "platform")?;
         let (item, rest) = parse_platform(syntax_trees, input)?;
@@ -128,8 +135,35 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`measure`",
         "`operator`",
         "`platform`",
+        "`provider`",
         "`trait`",
         "`boundary operator`",
         "`boundary trait`",
     ]))
+}
+
+/// Parses `provider <QualifiedName> : <Category>;` (frozen Wave 0 decision #4).
+fn parse_provider_declaration<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ProviderDeclaration> {
+    let (name, input) = parse_path_handle_span(input, |member| {
+        syntax_trees.items.append_identifier_path_member(member)
+    })?;
+    let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
+    let (category_name, input) = input.take_identifier()?;
+    let category = ProviderCategory::from_name(category_name.as_str()).ok_or_else(|| {
+        input.error_here(format!(
+            "unknown provider category `{}`; expected one of {}",
+            category_name.as_str(),
+            ProviderCategory::ALL
+                .iter()
+                .map(|category| category.name())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ))
+    })?;
+    let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+
+    Ok((ProviderDeclaration { name, category }, input))
 }

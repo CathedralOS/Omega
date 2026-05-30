@@ -1,0 +1,12 @@
+// The bundled `omega::language::core::slice` surface now binds its `index` and
+// `range` boundary operators to the `[]` / `[..]` spellings and to a registered
+// `omega::language::core::slice_indexing` provider. Importing it must still
+// compile cleanly end to end.
+
+use omega::language::core::slice;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
