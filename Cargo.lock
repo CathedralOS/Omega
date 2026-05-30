@@ -287,6 +287,7 @@ dependencies = [
  "omega-checked-trees-to-state-graph",
  "omega-control-flow",
  "omega-core",
+ "omega-effects",
  "omega-emission-planning",
  "omega-image",
  "omega-image-emission",

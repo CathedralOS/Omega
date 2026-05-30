@@ -527,6 +527,35 @@ impl ArtifactWriter {
             }
         }
 
+        output.push_str("\n## Capability Blast Radius\n");
+        if boundary_report.capability_blast_radius.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, radius) in boundary_report.capability_blast_radius.iter() {
+                let provider = if radius.approved_provider {
+                    "approved provider"
+                } else {
+                    "in-package provider"
+                };
+                let effects = if radius.authority_effects.is_empty() {
+                    "none".to_owned()
+                } else {
+                    radius.authority_effects.join(", ")
+                };
+                output.push_str(&format!(
+                    "- capability `{}` [{}] authority {{{}}} uses {} acquires {} returns {} stores {} derives {}\n",
+                    radius.capability,
+                    provider,
+                    effects,
+                    radius.uses,
+                    radius.acquires,
+                    radius.returns,
+                    radius.stores,
+                    radius.derives,
+                ));
+            }
+        }
+
         self.write_html_report("10_boundary.html", "boundary", &output)
     }
 }
@@ -827,6 +856,23 @@ pub struct BoundaryReport {
     pub targets: Arena<BoundaryTarget>,
     pub contracts: Arena<BoundaryContract>,
     pub unchecked_policies: Arena<UncheckedBoundaryPolicy>,
+    pub capability_blast_radius: Arena<CapabilityBlastRadius>,
+}
+
+/// Theoretical blast radius for a single boundary capability: the host-authority
+/// effects it can mint, whether it is an approved provider edge or an in-package
+/// (application-minted) provider, and the authority-flow verbs it participates in
+/// (chapter 18, "Capabilities And Authority Flow").
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CapabilityBlastRadius {
+    pub capability: String,
+    pub authority_effects: Vec<String>,
+    pub approved_provider: bool,
+    pub uses: usize,
+    pub returns: usize,
+    pub acquires: usize,
+    pub stores: usize,
+    pub derives: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

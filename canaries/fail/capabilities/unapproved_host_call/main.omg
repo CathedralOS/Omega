@@ -1,0 +1,28 @@
+// An unapproved host call. Ordinary application code implements its own
+// `LocalDisk` boundary trait in-package and mints `filesystem_io` authority
+// directly, rather than going through a toolchain/whitelisted provider. The
+// host-call authorization gate must reject this as an unapproved host call.
+
+boundary trait LocalDisk {
+    machine write_bytes(path: String)
+    effects
+        filesystem_io;
+}
+
+data Disk {
+    id: i32;
+}
+
+machine Disk::write_bytes(path: String) satisfies LocalDisk
+effects
+    filesystem_io
+{
+}
+
+data Main {
+    disk: Disk;
+}
+
+machine Main::main(&mut self) {
+    self.disk.write_bytes("/etc/passwd");
+}
