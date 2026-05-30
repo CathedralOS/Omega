@@ -40,10 +40,9 @@ pub(super) fn check_expression(
             check_expression(program, machine, state, facts, cast.value, diagnostics)
         }
         ExpressionNode::Indexed(indexed) => {
-            // TODO(stitch): once spelling-based operator dispatch resolves `[]`
-            // to its `Slice::index` boundary operator, source this indexing
-            // obligation from that spelled operator's `requires` clause instead
-            // of the hard-coded bounds check. (Ranges lane owns this file.)
+            // Operators lane: `check_indexed_access` now sources the `[]` / `[..]`
+            // bounds obligation from the spelled boundary operator's `requires`
+            // clause (see `validation.rs`), discharged by the bounds proof below.
             check_indexed_access(program, machine, state, facts, indexed, diagnostics);
             check_expression(
                 program,

@@ -28,25 +28,15 @@ pub(super) fn operator_signature_key(
 /// normalized over type parameters) without the operator name. Used by the
 /// spelling-overlap ambiguity rule, where the spelling already serves as the
 /// first-level discriminator.
+///
+/// Delegates to the shared `operator_operand_signature` in `omega-typed-trees`
+/// so declaration-level ambiguity validation and expression-level spelling
+/// dispatch normalize operand types identically.
 pub(super) fn operator_operand_key(
     program: &TypedTrees,
     operator: &omega_typed_trees::operator::OperatorDefinition,
 ) -> String {
-    let mut type_parameters = TypeParameterNormalizer::new(
-        program
-            .operator_type_parameters(operator)
-            .iter()
-            .map(|parameter| parameter.symbol)
-            .collect(),
-    );
-    program
-        .operator_parameters(operator)
-        .iter()
-        .map(|parameter| {
-            canonical_type_reference(program, parameter.type_reference, &mut type_parameters)
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
+    omega_typed_trees::operator::operator_operand_signature(program, operator)
 }
 
 pub(super) fn operator_name(
