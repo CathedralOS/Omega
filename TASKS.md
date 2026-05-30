@@ -610,6 +610,9 @@ meaning, without needing access to pointer descriptor internals.
     under explicit value roots
   - state-graph and control-flow semantic roots now group source boundary
     edges under explicit boundary roots
+  - state-graph worker merge now groups source code arenas separately from
+    source semantic arenas, and the semantic merge bundle mirrors contract,
+    value, boundary, borrow, and ownership roots
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
