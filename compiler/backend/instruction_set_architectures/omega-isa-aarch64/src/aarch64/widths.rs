@@ -375,6 +375,17 @@ pub fn runtime_frame_indexed_address_to_runtime_frame_write_width(
     24 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset)
 }
 
+pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width(
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    let source_offset = element_index
+        .saturating_mul(element_byte_size)
+        .saturating_add(field_byte_offset);
+    16 + add_constant_width(source_offset)
+}
+
 pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width(
     base_byte_offset: usize,
     element_byte_size: usize,

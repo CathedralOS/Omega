@@ -205,6 +205,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
+                    | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
                     | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
                     | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. }

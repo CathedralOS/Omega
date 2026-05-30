@@ -24,6 +24,7 @@ pub(super) fn collect_runtime_storage_address_relocations(
         }
         SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
         | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
+        | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
         | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. } => {
             context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
             true

@@ -19,6 +19,7 @@ use super::primitives::{
 use super::widths::{
     runtime_frame_base_indexed_address_to_runtime_frame_write_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
+    runtime_frame_fixed_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_machine_indexed_integer_write_width,
@@ -454,6 +455,31 @@ pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
         &mut bytes,
         descriptor_offset,
         index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    bytes.extend(encode_store_x_to_x(16, 20, target_offset)?);
+    Ok(bytes)
+}
+
+pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        runtime_frame_fixed_indexed_address_to_runtime_frame_write_width(
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+        ),
+    );
+    append_runtime_frame_fixed_index_target_address(
+        &mut bytes,
+        descriptor_offset,
+        element_index,
         element_byte_size,
         field_byte_offset,
     )?;

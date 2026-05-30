@@ -9,6 +9,7 @@ use omega_checked_trees::expression::{
 use omega_control_flow::StateKey;
 
 use super::super::super::storage_places::{
+    resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
@@ -175,6 +176,25 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
             index_offset: indexed_target.index_offset,
             element_byte_size: indexed_target.element_byte_size,
             field_byte_offset: indexed_target.field_byte_offset,
+            data,
+            byte_length: value.len(),
+        });
+    }
+
+    if data.is_valid()
+        && let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+        && indexed_target.byte_count == input.runtime_abi.string_descriptor_size()
+        && let Some(field_byte_offset) = indexed_target.pointee_field_byte_offset()
+    {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeString {
+            pointer_byte_offset: indexed_target.descriptor_offset,
+            field_byte_offset,
             data,
             byte_length: value.len(),
         });
