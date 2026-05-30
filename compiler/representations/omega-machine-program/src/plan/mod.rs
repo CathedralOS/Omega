@@ -8,3 +8,26 @@ impl Default for MachineProgram {
         Self::with_capacity(omega_target::NativeTarget::host(), 0, 0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{MachineProgram, MachineProgramCode, MachineSemanticSummary};
+    use omega_core::arena::Arena;
+    use omega_target::NativeTarget;
+
+    #[test]
+    fn plan_constructor_keeps_code_and_semantic_roots_explicit() {
+        let target = NativeTarget::host();
+        let code = MachineProgramCode {
+            functions: Arena::with_capacity(1),
+            instructions: Arena::with_capacity(2),
+        };
+        let semantics = MachineSemanticSummary::with_capacity(3, 4, 5, 6, 7, 8);
+
+        let program = MachineProgram::with_roots(target, code.clone(), semantics.clone());
+
+        assert_eq!(program.target, target);
+        assert_eq!(program.code, code);
+        assert_eq!(program.semantics, semantics);
+    }
+}
