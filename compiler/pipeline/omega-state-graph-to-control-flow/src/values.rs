@@ -7,8 +7,8 @@ use omega_state_graph::StateGraph;
 use crate::handles::remap_value_span;
 
 pub(crate) fn remap_values(state_graph: &StateGraph) -> Arena<StateValueFact> {
-    let mut values = Arena::with_capacity(state_graph.semantics.values.len());
-    for (_, value) in state_graph.semantics.values.iter() {
+    let mut values = Arena::with_capacity(state_graph.semantics.values.values.len());
+    for (_, value) in state_graph.semantics.values.values.iter() {
         values.append(remap_value(value));
     }
     values

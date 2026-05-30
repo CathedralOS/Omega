@@ -4,11 +4,13 @@ use omega_abstract_operations::{
 use omega_control_flow::{ControlFlowPlan, StateValueOrigin, StateValueStatementRole};
 
 pub(super) fn build_abstract_value_summary(control_flow: &ControlFlowPlan) -> AbstractValueSummary {
-    let mut summary = AbstractValueSummary::with_capacity(control_flow.semantics.values.len());
+    let mut summary =
+        AbstractValueSummary::with_capacity(control_flow.semantics.values.values.len());
 
     for (_, state) in control_flow.states.iter() {
         for value in control_flow
             .semantics
+            .values
             .values
             .span_or_empty(state.values.values)
         {
@@ -81,7 +83,7 @@ mod tests {
             key,
             ..StateFlow::default()
         };
-        control_flow.semantics.values.append_to_span(
+        control_flow.semantics.values.values.append_to_span(
             &mut state.values.values,
             StateValueFact {
                 machine_symbol,

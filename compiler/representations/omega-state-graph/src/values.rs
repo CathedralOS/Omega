@@ -1,8 +1,13 @@
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::ExpressionHandle;
 
 pub type StateValueHandle = Handle<StateValueFact>;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateGraphValueRoots {
+    pub values: Arena<StateValueFact>,
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum StateValueStatementRole {
