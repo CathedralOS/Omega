@@ -1,6 +1,8 @@
+mod lexicographic;
 mod nat;
 mod patterns;
 mod slice;
+mod struct_view;
 
 use omega_typed_trees::expression::ExpressionHandle;
 
@@ -42,5 +44,11 @@ fn state_has_proven_supported_self_loop(
             nat::state_has_proven_self_loop(program, state, decreases)
         }
         RankingOrder::SliceLength => slice::state_has_proven_self_loop(program, state, decreases),
+        RankingOrder::CustomStructView(field) => {
+            struct_view::state_has_proven_self_loop(program, state, decreases, &field)
+        }
+        RankingOrder::Lexicographic(fields) => {
+            lexicographic::state_has_proven_self_loop(program, state, decreases, &fields)
+        }
     }
 }

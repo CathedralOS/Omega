@@ -122,6 +122,21 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 }
             }
         }
+        Item::Measure(measure) => {
+            count_identifier_members(
+                syntax_trees.items.identifier_path_members(measure.name),
+                counts,
+            );
+            if measure.parameter.is_valid() {
+                count_state_parameter(syntax_trees, measure.parameter, counts);
+            }
+            if measure.return_type.is_valid() {
+                count_type_reference_handle(syntax_trees, measure.return_type, counts);
+            }
+            for expression in syntax_trees.expressions.expression_handles(measure.body) {
+                count_expression_handle(syntax_trees, *expression, counts);
+            }
+        }
         Item::Operator(operator) => count_operator(syntax_trees, operator, counts),
         Item::Use(use_item) => count_identifier_members(
             syntax_trees.items.identifier_path_members(use_item.path),

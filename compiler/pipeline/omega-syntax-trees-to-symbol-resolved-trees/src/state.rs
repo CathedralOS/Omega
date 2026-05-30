@@ -195,7 +195,7 @@ pub(crate) fn lower_state_parameters(
     Ok(span)
 }
 
-fn lower_state_parameter(
+pub(crate) fn lower_state_parameter(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     parameter: syntax::item::StateParameterHandle,

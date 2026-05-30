@@ -4,6 +4,7 @@ mod expression;
 mod invariant;
 mod lowerer;
 mod machine;
+mod measure;
 mod name;
 mod operator;
 mod platform;

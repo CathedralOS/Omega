@@ -5,6 +5,7 @@ mod invariant;
 mod item;
 mod lowerer;
 mod machine;
+mod measure;
 mod name;
 mod operator;
 mod platform;

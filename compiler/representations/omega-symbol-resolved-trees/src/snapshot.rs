@@ -48,6 +48,11 @@ impl SymbolResolvedTreesSnapshot {
                     .iter()
                     .map(|machine| machine_snapshot(symbol_resolved_trees, machine))
                     .collect(),
+                measures: symbol_resolved_trees
+                    .measures
+                    .iter()
+                    .map(|measure| measure_snapshot(symbol_resolved_trees, measure))
+                    .collect(),
                 operators: symbol_resolved_trees
                     .operators
                     .iter()
@@ -102,9 +107,43 @@ pub struct SymbolResolvedRootsSnapshot {
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
+    pub measures: Vec<MeasureDefinitionSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub platforms: Vec<PlatformSnapshot>,
     pub traits: Vec<TraitSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MeasureDefinitionSnapshot {
+    pub has_symbol: bool,
+    pub name: Vec<String>,
+    pub has_parameter: bool,
+    pub has_return_type: bool,
+    pub lexicographic: bool,
+    pub component_count: usize,
+}
+
+fn measure_snapshot(
+    program: &SymbolResolvedTrees,
+    measure: &crate::measure::MeasureDefinition,
+) -> MeasureDefinitionSnapshot {
+    MeasureDefinitionSnapshot {
+        has_symbol: measure.symbol.is_valid(),
+        name: program
+            .measure_path_members(measure.name)
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        has_parameter: measure.parameter.is_some(),
+        has_return_type: measure.return_type.is_some(),
+        lexicographic: measure.lexicographic,
+        component_count: program
+            .tables
+            .bodies
+            .expressions
+            .expression_handles(measure.body)
+            .len(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
