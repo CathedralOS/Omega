@@ -14,6 +14,30 @@ pub(super) struct FixedArraySliceSource {
     pub(super) element_byte_size: usize,
 }
 
+/// Resolve the base of a subslice-descriptor write to a `{place, length,
+/// element_byte_size}` source.
+///
+/// This is the widening seam for the fat-descriptor subslice unlock. Today it
+/// resolves literal fixed-array-backed views (`x.as_slice()[start..end]`); the
+/// returned [`FixedArraySliceSource`] carries the element byte size so callers
+/// can offset the descriptor pointer uniformly via
+/// `FatDescriptorAbi::subslice`, regardless of how the base length was proven.
+pub(super) fn resolved_subslice_descriptor_base_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    expressions: &ExpressionTable,
+    value: ExpressionHandle,
+) -> Option<FixedArraySliceSource> {
+    literal_fixed_array_slice_source_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    )
+}
+
 pub(super) fn literal_fixed_array_slice_source_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -96,6 +120,21 @@ fn fixed_array_subslice_source(
         length,
         element_byte_size: source.element_byte_size,
     })
+}
+
+/// Resolve a literal subslice range to `(start, end)` against a base of
+/// `source_length` elements, validating `start <= end <= source_length`.
+///
+/// Unlike [`literal_subslice_bounds`], which returns `(start, length)`, this
+/// returns the half-open `[start, end)` pair expected by
+/// `FatDescriptorAbi::subslice`. Open ends default to the base length.
+pub(super) fn literal_subslice_range_bounds(
+    expressions: &ExpressionTable,
+    range: &TableRangeExpression,
+    source_length: usize,
+) -> Option<(usize, usize)> {
+    let (start, length) = literal_subslice_bounds(expressions, range, source_length)?;
+    Some((start, start + length))
 }
 
 pub(super) fn literal_subslice_bounds(

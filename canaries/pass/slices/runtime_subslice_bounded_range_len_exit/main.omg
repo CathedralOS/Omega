@@ -1,0 +1,28 @@
+use platform::console;
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    entries: [Entry; 5];
+}
+
+machine Main::main(&mut self) {
+    let view: &[Entry] = self.entries.as_slice();
+    let middle: &[Entry] = view[1..4];
+
+    transition middle.len == 3 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(215);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(216);
+    }
+}
