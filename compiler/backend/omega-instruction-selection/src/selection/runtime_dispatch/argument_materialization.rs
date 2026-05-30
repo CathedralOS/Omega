@@ -315,11 +315,12 @@ fn emit_runtime_fixed_array_slice_argument_materialization(
         source_key,
         source_statement: statement_index,
     });
+    let descriptor = input.runtime_abi.slice_descriptor();
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
             target_region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: slot.byte_offset + input.runtime_abi.pointer_size,
-            byte_size: input.runtime_abi.pointer_size,
+            byte_offset: slot.byte_offset + descriptor.len_offset(),
+            byte_size: descriptor.len_size(),
             value: length as i64,
         },
         source_key,

@@ -1,5 +1,5 @@
 use crate::packing::{PlannedField, pack_fields};
-use crate::sizing::primitive_type_layout;
+use crate::sizing::{fat_descriptor_layout, primitive_type_layout};
 use crate::{
     DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout,
     TypeLayoutDescriptor, VariantLayout,
@@ -365,10 +365,7 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn slice_layout(&self) -> TypeLayout {
-        TypeLayout {
-            size: self.target.pointer_size * 2,
-            alignment: self.target.pointer_alignment,
-        }
+        fat_descriptor_layout(self.target)
     }
 
     fn layout_type_reference_handle(

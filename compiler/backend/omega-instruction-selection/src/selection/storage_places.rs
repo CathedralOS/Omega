@@ -47,15 +47,16 @@ fn runtime_slice_descriptor_member_place(
     member_name: Option<&str>,
     member_count: usize,
 ) -> Option<RuntimeStoragePlace> {
-    if byte_size != input.runtime_abi.slice_descriptor_size() || member_count != 1 {
+    let descriptor = input.runtime_abi.slice_descriptor();
+    if byte_size != descriptor.total_size() || member_count != 1 {
         return None;
     }
 
     match member_name {
         Some("len") => Some(RuntimeStoragePlace {
             region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset: root_offset.checked_add(input.runtime_abi.pointer_size)?,
-            byte_count: input.runtime_abi.pointer_size,
+            byte_offset: root_offset.checked_add(descriptor.len_offset())?,
+            byte_count: descriptor.len_size(),
         }),
         _ => None,
     }
@@ -1551,9 +1552,10 @@ fn descriptor_layout(
             };
         }
         TypeLayoutDescriptor::Slice { .. } => {
+            let descriptor = input.runtime_abi.slice_descriptor();
             return TypeLayout {
-                size: input.runtime_abi.string_descriptor_size(),
-                alignment: input.runtime_abi.pointer_alignment,
+                size: descriptor.total_size(),
+                alignment: descriptor.align(),
             };
         }
         TypeLayoutDescriptor::Named { symbol, name } => {
@@ -1655,9 +1657,12 @@ fn primitive_layout(
             size: input.runtime_abi.pointer_size,
             alignment: input.runtime_abi.pointer_alignment,
         },
-        PrimitiveType::String => TypeLayout {
-            size: input.runtime_abi.string_descriptor_size(),
-            alignment: input.runtime_abi.pointer_alignment,
-        },
+        PrimitiveType::String => {
+            let descriptor = input.runtime_abi.text_descriptor();
+            TypeLayout {
+                size: descriptor.total_size(),
+                alignment: descriptor.align(),
+            }
+        }
     }
 }
