@@ -620,6 +620,9 @@ meaning, without needing access to pointer descriptor internals.
   - state-graph-to-control-flow now assembles `ControlFlowCode` in a focused
     stage-level code mapper, leaving top-level builders to join code roots and
     semantic roots instead of owning remap details
+  - control-flow-to-abstract boundary lowering now keeps source/host boundary
+    link construction separate from its canaries, leaving the lowering file
+    focused on production logic
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
