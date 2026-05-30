@@ -1,10 +1,81 @@
-use omega_artifacts::{BoundaryContract, BoundaryReport, BoundaryTarget, UncheckedBoundaryPolicy};
+use omega_artifacts::{
+    BoundaryContract, BoundaryReport, BoundaryTarget, CapabilityBlastRadius,
+    UncheckedBoundaryPolicy,
+};
+use omega_checked_trees::CheckedTrees;
 use omega_core::arena::HandleSpan;
+use omega_core::symbols::SymbolHandle;
+use omega_effects::{CapabilityFlowKind, build_host_authority_registry};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{
     BoundaryLevel, BoundaryMode, CapabilityContractKind, CapabilityMember, Item,
 };
+
+/// Adds the capability blast-radius section to a boundary report, describing the
+/// theoretical authority each boundary capability can mint and the authority-flow
+/// verbs it participates in (chapter 18, "Capabilities And Authority Flow").
+pub(crate) fn append_capability_blast_radius(report: &mut BoundaryReport, checked: &CheckedTrees) {
+    let registry = build_host_authority_registry(checked);
+
+    for trait_definition in checked.traits() {
+        if !trait_definition.is_boundary {
+            continue;
+        }
+
+        let provider = registry.provider(trait_definition.symbol);
+        let authority_effects = provider
+            .map(|provider| {
+                provider
+                    .effects
+                    .names()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let approved_provider = provider.map(|provider| provider.whitelisted).unwrap_or(true);
+
+        report.capability_blast_radius.insert(CapabilityBlastRadius {
+            capability: trait_definition.name.to_string(),
+            authority_effects,
+            approved_provider,
+            uses: capability_verb_count(checked, trait_definition.symbol, CapabilityFlowKind::Uses),
+            returns: capability_verb_count(
+                checked,
+                trait_definition.symbol,
+                CapabilityFlowKind::Returns,
+            ),
+            acquires: capability_verb_count(
+                checked,
+                trait_definition.symbol,
+                CapabilityFlowKind::Acquires,
+            ),
+            stores: capability_verb_count(
+                checked,
+                trait_definition.symbol,
+                CapabilityFlowKind::Stores,
+            ),
+            derives: capability_verb_count(
+                checked,
+                trait_definition.symbol,
+                CapabilityFlowKind::Derives,
+            ),
+        });
+    }
+}
+
+fn capability_verb_count(
+    checked: &CheckedTrees,
+    capability_symbol: SymbolHandle,
+    kind: CapabilityFlowKind,
+) -> usize {
+    checked
+        .facts
+        .capabilities
+        .flows()
+        .filter(|flow| flow.kind == kind && flow.capability_symbol == capability_symbol)
+        .count()
+}
 
 pub(super) fn build_boundary_report(syntax: &SyntaxTrees) -> BoundaryReport {
     let mut report = BoundaryReport::default();

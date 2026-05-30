@@ -4,7 +4,9 @@ use crate::pipeline::artifacts::{
     write_resolved_snapshot, write_state_graph_snapshot, write_syntax_snapshot, write_timings,
     write_typed_snapshot,
 };
-use crate::pipeline::boundary_report::write_boundary_report;
+use crate::pipeline::boundary_report::{
+    write_boundary_report, write_boundary_report_with_capabilities,
+};
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::compile_report::CompileReport;
 use crate::pipeline::output::write_output;
@@ -63,6 +65,7 @@ impl Compiler {
         write_syntax_snapshot(&self.options, &syntax)?;
         write_boundary_report(&self.options, &syntax.syntax_trees)?;
         validate_boundary_providers(&syntax.syntax_trees)?;
+        let syntax_trees = syntax.syntax_trees.clone();
 
         let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
         write_resolved_snapshot(&self.options, &resolved)?;
@@ -72,6 +75,11 @@ impl Compiler {
 
         let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
         write_checked_snapshot(&self.options, &checked.program)?;
+        write_boundary_report_with_capabilities(
+            &self.options,
+            &syntax_trees,
+            &checked.program,
+        )?;
         let backend_surface = build_backend_surface_report(&checked.program);
 
         let state_graph = checked_trees_to_state_graph(&checked, workers.handle(), &mut timings)?;

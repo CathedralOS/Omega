@@ -8,6 +8,13 @@ use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TableCall};
 
+pub use capabilities::analysis::{
+    UnapprovedHostCall, audit_host_calls, build_host_authority_registry,
+};
+pub use capabilities::host_authority::{
+    HOST_AUTHORITY_EFFECT_NAMES, HostAuthorityProvider, HostAuthorityRegistry, HostCallAuthorization,
+    authority_effects, host_authority_effects, requires_host_authority,
+};
 pub use capabilities::providers::{
     BoundaryProvider, BoundaryProviderRegistry, build_provider_registry, validate_provider_bindings,
 };
