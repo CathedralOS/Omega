@@ -94,3 +94,6 @@ pub(crate) fn remap_borrow_summary(
         weakenings: remap_borrow_weakening_span(summary.weakenings),
     }
 }
+
+#[cfg(test)]
+mod tests;

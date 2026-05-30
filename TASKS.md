@@ -632,6 +632,9 @@ meaning, without needing access to pointer descriptor internals.
   - state-graph-to-control-flow value, boundary, and ownership mappers now keep
     handle-preservation canaries in focused test modules instead of inline in
     the production mapper files
+  - state-graph-to-control-flow borrow and contract summary mappers now have
+    focused handle-preservation canaries, closing the remaining unguarded
+    state-local semantic summary categories in that stage
   - checked-trees-to-state-graph value and boundary preservation now keep
     state-local selection canaries in focused test modules instead of inline in
     production preservation files

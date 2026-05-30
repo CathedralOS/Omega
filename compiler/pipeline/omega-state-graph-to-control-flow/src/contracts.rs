@@ -50,3 +50,6 @@ pub(crate) fn remap_contract_summary(
         exits: remap_contract_exit_span(contracts.exits),
     }
 }
+
+#[cfg(test)]
+mod tests;
