@@ -16,6 +16,26 @@ pub enum AcceptanceDimension {
     Termination,
 }
 
+impl AcceptanceDimension {
+    pub const ALL: [Self; 5] = [
+        Self::Borrow,
+        Self::Proof,
+        Self::Effects,
+        Self::Boundaries,
+        Self::Termination,
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Borrow => "borrow",
+            Self::Proof => "proof",
+            Self::Effects => "effects",
+            Self::Boundaries => "boundaries",
+            Self::Termination => "termination",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum AcceptanceCheckVerdict {
     #[default]

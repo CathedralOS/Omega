@@ -575,6 +575,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked operation admissibility summaries now expose aggregate evidence,
     diagnostic, and rejected-check counts through the shared `AcceptanceView`
     query surface
+  - checked operation admissibility dimensions now have a canonical order and
+    stable names so future diagnostic attachment can avoid hand-maintained
+    borrow/proof/effect/boundary/termination lists
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model

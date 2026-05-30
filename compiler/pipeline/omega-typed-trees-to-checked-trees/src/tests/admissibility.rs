@@ -33,7 +33,10 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert!(state_acceptance.is_accepted());
     let state_summary = state_acceptance.summary();
     assert!(state_summary.is_accepted());
-    assert_eq!(state_summary.checks().len(), 5);
+    assert_eq!(
+        state_summary.checks().len(),
+        omega_checked_trees::AcceptanceDimension::ALL.len()
+    );
     assert_eq!(state_summary.rejected_checks().count(), 0);
     assert_eq!(state_summary.rejected_check_count(), 0);
     assert_eq!(state_acceptance.rejected_check_count(), 0);
@@ -79,7 +82,10 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert!(call_acceptance.is_accepted());
     let call_summary = call_acceptance.summary();
     assert!(call_summary.is_accepted());
-    assert_eq!(call_summary.checks().len(), 5);
+    assert_eq!(
+        call_summary.checks().len(),
+        omega_checked_trees::AcceptanceDimension::ALL.len()
+    );
     assert_eq!(call_summary.rejected_checks().count(), 0);
     assert!(call_summary.borrow.evidence_count > 0);
     assert_eq!(call_summary.proof.evidence_count, 1);
@@ -170,6 +176,17 @@ fn acceptance_summary_derives_rejection_from_dimension_records() {
 }
 
 #[test]
+fn acceptance_dimensions_have_canonical_iteration_order_and_names() {
+    let dimensions = omega_checked_trees::AcceptanceDimension::ALL;
+
+    assert_eq!(dimensions.len(), 5);
+    assert_eq!(
+        dimensions.map(omega_checked_trees::AcceptanceDimension::as_str),
+        ["borrow", "proof", "effects", "boundaries", "termination"]
+    );
+}
+
+#[test]
 fn exposes_exit_acceptance_through_shared_view_surface() {
     let source = r#"
         data Player {
@@ -238,5 +255,8 @@ fn assert_acceptance_view_is_queryable(view: &impl omega_checked_trees::Acceptan
     assert_eq!(view.diagnostic_count(), summary.diagnostic_count());
     assert_eq!(view.rejected_check_count(), summary.rejected_check_count());
     assert_eq!(view.has_diagnostics(), summary.has_diagnostics());
-    assert_eq!(summary.checks().len(), 5);
+    assert_eq!(
+        summary.checks().len(),
+        omega_checked_trees::AcceptanceDimension::ALL.len()
+    );
 }
