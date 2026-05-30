@@ -32,8 +32,7 @@ pub(crate) fn merge_machine_graph(
         transitions,
     } = code;
     let StateGraphSemanticRoots {
-        proof_obligations: _,
-        invariants: _,
+        facts: _,
         contracts,
         values,
         boundary_edges,
