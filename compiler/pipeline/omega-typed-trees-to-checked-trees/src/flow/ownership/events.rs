@@ -5,10 +5,10 @@ pub(in crate::flow::ownership) fn append_move_event_for_place(
     place: CanonicalPlace,
     source: FlowOwnershipEventSource,
 ) {
-    ctx.moves.append(FlowMoveEventFact {
+    ctx.ownership.moves.append(FlowMoveEventFact {
         source,
         root: place.root,
-        segments: ctx.ownership_segments.insert_many(place.segments),
+        segments: ctx.ownership.segments.insert_many(place.segments),
     });
 }
 
@@ -17,9 +17,9 @@ pub(in crate::flow::ownership) fn append_drop_event_for_place(
     place: CanonicalPlace,
     source: FlowOwnershipEventSource,
 ) {
-    ctx.drops.append(FlowDropEventFact {
+    ctx.ownership.drops.append(FlowDropEventFact {
         source,
         root: place.root,
-        segments: ctx.ownership_segments.insert_many(place.segments),
+        segments: ctx.ownership.segments.insert_many(place.segments),
     });
 }

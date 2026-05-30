@@ -29,14 +29,14 @@ pub(super) fn append_state_statement_flow_facts(
         .enumerate()
     {
         *active_constraints = filter_expired_borrow_loans(
-            &mut ctx.borrow_weakenings,
-            &mut ctx.constraint_refs,
+            &mut ctx.borrow_lifetimes.weakenings,
+            &mut ctx.contexts.constraint_refs,
             *active_constraints,
             borrow,
             statement_index,
             FlowBorrowWeakeningReason::LastUseExpired,
         );
-        ctx.statements.append(FlowStatementFact {
+        ctx.control.statements.append(FlowStatementFact {
             statement_index,
             entry_semantic_contexts: *active_contexts,
             entry_constraints: *active_constraints,
@@ -64,7 +64,9 @@ pub(super) fn append_state_statement_flow_facts(
                 active_constraints,
                 borrow_call,
             );
-            ctx.calls.append_to_span(&mut state_calls, call_flow);
+            ctx.control
+                .calls
+                .append_to_span(&mut state_calls, call_flow);
         }
 
         while let Some(loan) = borrow_loans.get(loan_index) {
@@ -81,13 +83,15 @@ pub(super) fn append_state_statement_flow_facts(
                 borrow_state.loans.start().generation(),
             );
 
-            ctx.borrow_activations.append(FlowBorrowActivationFact {
-                source: FlowInvalidationSource::Statement { statement_index },
-                loan: loan_handle,
-            });
+            ctx.borrow_lifetimes
+                .activations
+                .append(FlowBorrowActivationFact {
+                    source: FlowInvalidationSource::Statement { statement_index },
+                    loan: loan_handle,
+                });
 
             append_constraint_ref(
-                &mut ctx.constraint_refs,
+                &mut ctx.contexts.constraint_refs,
                 active_constraints,
                 FlowConstraintKind::BorrowLoan { loan: loan_handle },
             );
@@ -104,24 +108,24 @@ pub(super) fn append_state_statement_flow_facts(
                 program,
                 semantic,
                 domains,
-                &mut ctx.semantic_context_refs,
-                &mut ctx.invalidation_segments,
-                &mut ctx.invalidations,
+                &mut ctx.contexts.semantic_context_refs,
+                &mut ctx.invalidations.segments,
+                &mut ctx.invalidations.events,
                 *active_contexts,
                 &[place],
                 FlowInvalidationSource::Statement { statement_index },
             );
             *active_constraints = project_constraint_refs_to_active_contexts(
-                &mut ctx.constraint_refs,
+                &mut ctx.contexts.constraint_refs,
                 *active_constraints,
                 *active_contexts,
-                &ctx.semantic_context_refs,
+                &ctx.contexts.semantic_context_refs,
             );
         }
 
         *active_constraints = filter_reassigned_borrow_loans(
-            &mut ctx.borrow_weakenings,
-            &mut ctx.constraint_refs,
+            &mut ctx.borrow_lifetimes.weakenings,
+            &mut ctx.contexts.constraint_refs,
             *active_constraints,
             borrow,
             program,

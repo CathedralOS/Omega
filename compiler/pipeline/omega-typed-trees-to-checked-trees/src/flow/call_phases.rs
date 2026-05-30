@@ -16,8 +16,9 @@ pub(super) fn build_call_entry_contexts(
     active_constraints: HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
 ) -> CallFlowContexts {
-    let contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, active_contexts);
-    let mut constraints = clone_constraint_refs(&mut ctx.constraint_refs, active_constraints);
+    let contexts = clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, active_contexts);
+    let mut constraints =
+        clone_constraint_refs(&mut ctx.contexts.constraint_refs, active_constraints);
     if let Some((borrow_call_handle, _)) = borrow.calls.iter().find(|(_, call)| {
         call.statement_index == borrow_call.statement_index
             && call.call_ordinal == borrow_call.call_ordinal
@@ -25,7 +26,7 @@ pub(super) fn build_call_entry_contexts(
             && call.receiver_symbol == borrow_call.receiver_symbol
     }) {
         append_constraint_ref(
-            &mut ctx.constraint_refs,
+            &mut ctx.contexts.constraint_refs,
             &mut constraints,
             FlowConstraintKind::BorrowCall {
                 call: borrow_call_handle,
@@ -33,7 +34,7 @@ pub(super) fn build_call_entry_contexts(
         );
     }
     append_contiguous_borrow_access_constraints(
-        &mut ctx.constraint_refs,
+        &mut ctx.contexts.constraint_refs,
         &mut constraints,
         borrow_call.accesses,
     );
@@ -72,8 +73,9 @@ pub(super) fn build_call_exit_contexts(
     post_contexts: HandleSpan<FlowSemanticContextRef>,
     post_constraints: HandleSpan<FlowConstraintRef>,
 ) -> CallFlowContexts {
-    let mut contexts = clone_flow_contexts(&mut ctx.semantic_context_refs, post_contexts);
-    let mut constraints = clone_constraint_refs(&mut ctx.constraint_refs, post_constraints);
+    let mut contexts = clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, post_contexts);
+    let mut constraints =
+        clone_constraint_refs(&mut ctx.contexts.constraint_refs, post_constraints);
     append_call_contract_contexts(
         semantic,
         ctx,
@@ -114,10 +116,15 @@ fn append_call_contract_contexts(
     constraints: &mut HandleSpan<FlowConstraintRef>,
     point: ProgramPoint,
 ) {
-    append_flow_contexts_for_points(semantic, &mut ctx.semantic_context_refs, contexts, &[point]);
+    append_flow_contexts_for_points(
+        semantic,
+        &mut ctx.contexts.semantic_context_refs,
+        contexts,
+        &[point],
+    );
     append_semantic_constraints_for_points(
         semantic,
-        &mut ctx.constraint_refs,
+        &mut ctx.contexts.constraint_refs,
         constraints,
         &[point],
     );

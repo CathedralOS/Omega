@@ -57,7 +57,7 @@ fn append_boundary_edges_for_trait(
             .iter()
             .filter(|signature| signature.name == target_state.name)
         {
-            ctx.boundary_edges.append_to_span(
+            ctx.boundaries.edges.append_to_span(
                 span,
                 FlowBoundaryEdgeFact {
                     statement_index: borrow_call.statement_index,

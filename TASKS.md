@@ -592,6 +592,10 @@ meaning, without needing access to pointer descriptor internals.
   - checked flow queries now split constraint projection from state/call
     sequencing lookups, so borrow/proof call checks can lean on narrower query
     seams
+  - checked-flow construction now uses the same grouped contexts,
+    invalidations, borrow-lifetime, ownership, boundary, and control roots as
+    the published `FlowFacts` representation instead of carrying a flat arena
+    pile during assembly
   - state-graph and control-flow semantic roots now group ownership segments,
     moves, and drops under explicit ownership roots instead of leaving the
     ownership noun spread across flat semantic fields

@@ -26,7 +26,7 @@ pub(in crate::flow) fn apply_call_invalidations(
         borrow_call,
         &mut ctx.state_mutation_summary_cache,
     );
-    let invalidations_start = ctx.invalidations.len();
+    let invalidations_start = ctx.invalidations.events.len();
     let post_contexts = if call_may_mutate_contract_state(program, borrow, borrow_call) {
         if mutated_places.is_empty() {
             HandleSpan::empty()
@@ -35,9 +35,9 @@ pub(in crate::flow) fn apply_call_invalidations(
                 program,
                 semantic,
                 domains,
-                &mut ctx.semantic_context_refs,
-                &mut ctx.invalidation_segments,
-                &mut ctx.invalidations,
+                &mut ctx.contexts.semantic_context_refs,
+                &mut ctx.invalidations.segments,
+                &mut ctx.invalidations.events,
                 active_contexts,
                 &mutated_places,
                 FlowInvalidationSource::Call {
@@ -48,15 +48,15 @@ pub(in crate::flow) fn apply_call_invalidations(
             )
         }
     } else {
-        clone_flow_contexts(&mut ctx.semantic_context_refs, active_contexts)
+        clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, active_contexts)
     };
     let post_constraints = project_constraint_refs_to_active_contexts(
-        &mut ctx.constraint_refs,
+        &mut ctx.contexts.constraint_refs,
         active_constraints,
         post_contexts,
-        &ctx.semantic_context_refs,
+        &ctx.contexts.semantic_context_refs,
     );
-    let invalidations = appended_span_since(&ctx.invalidations, invalidations_start);
+    let invalidations = appended_span_since(&ctx.invalidations.events, invalidations_start);
 
     CallInvalidationResult {
         post_contexts,
