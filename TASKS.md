@@ -142,6 +142,10 @@ meaning, without needing access to pointer descriptor internals.
   - state-graph and control-flow roots now expose explicit `with_roots`
     constructors with canaries, and state-graph-to-control-flow joins code and
     semantic roots through that constructor seam instead of raw struct literals
+  - state-graph and control-flow semantic roots now expose explicit
+    fact/contract/value/boundary/borrow/ownership constructors with canaries,
+    and graph-to-control-flow remapping assembles preserved semantic evidence
+    through that noun-root seam
   - checked-flow now emits initial conservative move/drop events for path-like
     assignment/local-initializer moves and state-exit local drops
   - checked-flow now emits conservative call-source move events for direct

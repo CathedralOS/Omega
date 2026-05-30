@@ -46,23 +46,23 @@ impl StateGraph {
                 operations: Arena::with_capacity(operation_capacity),
                 transitions: Arena::with_capacity(transition_capacity),
             },
-            StateGraphSemanticRoots {
-                facts: StateGraphFactRoots {
+            StateGraphSemanticRoots::with_roots(
+                StateGraphFactRoots {
                     proof_obligations: Arena::with_capacity(proof_obligation_capacity),
                     invariants: Arena::with_capacity(invariant_capacity),
                 },
-                contracts: StateGraphContractRoots {
+                StateGraphContractRoots {
                     fact_refs: Arena::with_capacity(contract_fact_ref_capacity),
                     calls: Arena::with_capacity(contract_call_capacity),
                     exits: Arena::with_capacity(contract_exit_capacity),
                 },
-                values: StateGraphValueRoots {
+                StateGraphValueRoots {
                     values: Arena::with_capacity(value_capacity),
                 },
-                boundaries: StateGraphBoundaryRoots {
+                StateGraphBoundaryRoots {
                     edges: Arena::with_capacity(boundary_edge_capacity),
                 },
-                borrow: StateGraphBorrowRoots {
+                StateGraphBorrowRoots {
                     writable_roots: Arena::with_capacity(borrow_writable_root_capacity),
                     access_segments: Arena::with_capacity(borrow_access_segment_capacity),
                     argument_accesses: Arena::with_capacity(borrow_argument_access_capacity),
@@ -71,12 +71,12 @@ impl StateGraph {
                     activations: Arena::with_capacity(borrow_activation_capacity),
                     weakenings: Arena::with_capacity(borrow_weakening_capacity),
                 },
-                ownership: StateGraphOwnershipRoots {
+                StateGraphOwnershipRoots {
                     segments: Arena::with_capacity(ownership_segment_capacity),
                     moves: Arena::with_capacity(move_event_capacity),
                     drops: Arena::with_capacity(drop_event_capacity),
                 },
-            },
+            ),
         )
     }
 }
