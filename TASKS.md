@@ -578,6 +578,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked operation admissibility dimensions now have a canonical order and
     stable names so future diagnostic attachment can avoid hand-maintained
     borrow/proof/effect/boundary/termination lists
+  - checked operation admissibility types now split dimensions, check records,
+    summaries, shared view behavior, and state/statement/call/exit wrappers
+    into focused modules instead of one mixed `types.rs`
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
