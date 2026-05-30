@@ -19,8 +19,14 @@ pub(in crate::checks::ranges) fn expression_indexable_length(
             fixed_array_expression_length(program, facts, call.receiver)
         }
         ExpressionNode::Indexed(indexed) => {
-            let length = expression_indexable_length(program, facts, indexed.collection)?;
-            range_result_length(program, facts, indexed.index, length)
+            match expression_indexable_length(program, facts, indexed.collection) {
+                // Known-length base: the subslice length is bounded by the base.
+                Some(length) => range_result_length(program, facts, indexed.index, length),
+                // Unknown-length base (e.g. a slice parameter): a window over
+                // constant `a..b` bounds still has the derivable exact length
+                // `b - a`, a first-class length fact for a shrunk window.
+                None => fixed_range_window_length(program, facts, indexed.index),
+            }
         }
         ExpressionNode::Member(member) => {
             facts.field_length(member.member_symbol, Some(member.member.as_str()))
@@ -54,6 +60,28 @@ fn range_result_length(
         return None;
     }
     Some(end.saturating_sub(start))
+}
+
+/// Derives the exact length of a window `[a..b]` taken over a base whose own
+/// length is unknown. With both bounds constant-folded the window has exactly
+/// `b - a` elements regardless of the base length (window-shrinking length
+/// fact). An open-ended range (`a..`) has no derivable length without the base.
+fn fixed_range_window_length(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    index: ExpressionHandle,
+) -> Option<usize> {
+    let ExpressionNode::Range(range) = program.expression_table.expression(index) else {
+        return None;
+    };
+    let (start, end) = provable_range_bounds(program, facts, range)?;
+    let end = end?;
+    let start = usize::try_from(start).ok()?;
+    let end = usize::try_from(end).ok()?;
+    if start > end {
+        return None;
+    }
+    Some(end - start)
 }
 
 fn fixed_array_expression_length(

@@ -4,7 +4,9 @@ use omega_typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableIndexedExpression, TableRangeExpression,
 };
 use omega_typed_trees::machine::Machine;
-use omega_typed_trees::operator::candidates_for_spelling;
+use omega_typed_trees::operator::{
+    candidates_for_spelling, operator_contract_label, operator_requires_clauses,
+};
 use omega_typed_trees::signature::SignatureContractKind;
 use omega_typed_trees::state::State;
 
@@ -37,6 +39,31 @@ struct OperatorBoundsObligation {
     /// True when a governing spelled operator exists but lacks any `requires`
     /// contract, which is a contract gap the access cannot rely on.
     operator_without_requires: bool,
+    /// When the obligation is operator-sourced, the human-readable attribution
+    /// for a failed bound, e.g.
+    /// "cannot prove `requires start <= end && end <= items.len` for Slice::range".
+    /// `None` when no governing operator carries a `requires` contract, in which
+    /// case the literal-shape fact diagnostics stand on their own.
+    attribution: Option<String>,
+}
+
+/// Builds the operator-contract attribution clause appended to a failed bounds
+/// diagnostic: `for <operator label> contract `requires <clauses>``.
+fn operator_attribution(
+    program: &omega_typed_trees::TypedTrees,
+    spelling: OperatorSpelling,
+) -> Option<String> {
+    let operators = program.operators();
+    let label = operator_contract_label(operators, spelling)?;
+    let clauses = operator_requires_clauses(operators, spelling);
+    if clauses.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "cannot prove `requires {}` for {}",
+        clauses.join(" && "),
+        label
+    ))
 }
 
 fn index_bounds_obligation(
@@ -53,6 +80,7 @@ fn index_bounds_obligation(
         return OperatorBoundsObligation {
             sourced_from_operator: false,
             operator_without_requires: false,
+            attribution: None,
         };
     }
 
@@ -66,6 +94,9 @@ fn index_bounds_obligation(
     OperatorBoundsObligation {
         sourced_from_operator: any_requires,
         operator_without_requires: !any_requires,
+        attribution: any_requires
+            .then(|| operator_attribution(program, spelling))
+            .flatten(),
     }
 }
 
@@ -94,6 +125,9 @@ pub(super) fn check_indexed_access(
         )));
     }
     let _ = obligation.sourced_from_operator;
+    // When the obligation is operator-sourced, every bounds failure below is
+    // attributed to the governing operator contract (e.g. `Slice::range`).
+    let attribution = obligation.attribution.as_deref();
 
     if let Some(length) = expression_indexable_length(program, facts, indexed.collection) {
         check_known_length_index(
@@ -102,6 +136,7 @@ pub(super) fn check_indexed_access(
             indexed.collection,
             indexed.index,
             length,
+            attribution,
             diagnostics,
         );
     } else if expression_is_slice(program, machine, state, indexed.collection) {
@@ -112,8 +147,19 @@ pub(super) fn check_indexed_access(
             facts,
             indexed.collection,
             indexed.index,
+            attribution,
             diagnostics,
         );
+    }
+}
+
+/// Appends the operator-contract attribution clause to a bounds-failure message
+/// when the obligation is operator-sourced. Without an attribution the refined
+/// fact-based message stands alone.
+fn with_attribution(message: String, attribution: Option<&str>) -> String {
+    match attribution {
+        Some(attribution) => format!("{message}; {attribution}"),
+        None => message,
     }
 }
 
@@ -123,12 +169,19 @@ fn check_known_length_index(
     collection: ExpressionHandle,
     index: ExpressionHandle,
     length: usize,
+    attribution: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match program.expression_table.expression(index) {
-        ExpressionNode::Range(range) => {
-            check_known_length_range_index(program, facts, index, range, length, diagnostics)
-        }
+        ExpressionNode::Range(range) => check_known_length_range_index(
+            program,
+            facts,
+            index,
+            range,
+            length,
+            attribution,
+            diagnostics,
+        ),
         _ => {
             let Some(index_value) = expression_integer_value(program, facts, index) else {
                 let collection_label = program.expression_table.display_name(collection);
@@ -139,19 +192,25 @@ fn check_known_length_index(
                 if facts.index_upper_bound_is_proven(&index_label, length) {
                     return;
                 }
-                diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove index `{}` is within length {}",
-                    index_label, length
+                diagnostics.push(Diagnostic::error(with_attribution(
+                    format!(
+                        "cannot prove index `{}` is within length {}",
+                        index_label, length
+                    ),
+                    attribution,
                 )));
                 return;
             };
             let valid =
                 index_value >= 0 && usize::try_from(index_value).is_ok_and(|index| index < length);
             if !valid {
-                diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove index `{}` is within length {}",
-                    program.expression_table.display_name(index),
-                    length
+                diagnostics.push(Diagnostic::error(with_attribution(
+                    format!(
+                        "cannot prove index `{}` is within length {}",
+                        program.expression_table.display_name(index),
+                        length
+                    ),
+                    attribution,
                 )));
             }
         }
@@ -165,6 +224,7 @@ fn check_unknown_length_slice_index(
     facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     index: ExpressionHandle,
+    attribution: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match program.expression_table.expression(index) {
@@ -173,10 +233,13 @@ fn check_unknown_length_slice_index(
                 return;
             }
             let failure = unknown_length_range_failure(program, facts, collection, range);
-            diagnostics.push(Diagnostic::error(format!(
-                "cannot prove subslice range {} `{}` is within unknown slice length",
-                failure.label(),
-                program.expression_table.display_name(index)
+            diagnostics.push(Diagnostic::error(with_attribution(
+                format!(
+                    "cannot prove subslice range {} `{}` is within unknown slice length",
+                    failure.label(),
+                    program.expression_table.display_name(index)
+                ),
+                attribution,
             )));
         }
         _ => {
@@ -185,9 +248,12 @@ fn check_unknown_length_slice_index(
             if unknown_length_index_is_proven(program, facts, collection, index) {
                 return;
             }
-            diagnostics.push(Diagnostic::error(format!(
-                "cannot prove index `{}` is within unknown slice length of `{}` in {}::{}",
-                index_label, collection_label, machine.name, state.name
+            diagnostics.push(Diagnostic::error(with_attribution(
+                format!(
+                    "cannot prove index `{}` is within unknown slice length of `{}` in {}::{}",
+                    index_label, collection_label, machine.name, state.name
+                ),
+                attribution,
             )));
         }
     }
@@ -199,25 +265,32 @@ fn check_known_length_range_index(
     index: ExpressionHandle,
     range: &TableRangeExpression,
     length: usize,
+    attribution: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some((start, end)) = provable_range_bounds(program, facts, range) else {
         let failure = known_length_range_value_failure(program, facts, range);
-        diagnostics.push(Diagnostic::error(format!(
-            "cannot prove subslice range {} `{}` is within slice length {}",
-            failure.label(),
-            program.expression_table.display_name(index),
-            length
+        diagnostics.push(Diagnostic::error(with_attribution(
+            format!(
+                "cannot prove subslice range {} `{}` is within slice length {}",
+                failure.label(),
+                program.expression_table.display_name(index),
+                length
+            ),
+            attribution,
         )));
         return;
     };
 
     if let Some(failure) = known_length_range_bound_failure(start, end, length) {
-        diagnostics.push(Diagnostic::error(format!(
-            "cannot prove subslice range {} `{}` is within slice length {}",
-            failure.label(),
-            program.expression_table.display_name(index),
-            length
+        diagnostics.push(Diagnostic::error(with_attribution(
+            format!(
+                "cannot prove subslice range {} `{}` is within slice length {}",
+                failure.label(),
+                program.expression_table.display_name(index),
+                length
+            ),
+            attribution,
         )));
     }
 }
