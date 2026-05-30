@@ -94,6 +94,9 @@ meaning, without needing access to pointer descriptor internals.
   - machine-program roots now expose the same `with_roots` constructor, and
     machine-instruction/program conversions assemble code roots and semantic
     roots explicitly instead of mutating semantics after construction
+  - encoded-machine-byte roots now expose the same `with_roots` constructor,
+    and machine emission builds encoded code roots and preserved semantic roots
+    through separate helpers before joining them
   - abstract-operations-to-target-operations now builds target code roots and
     target semantic roots through separate stage helpers before joining them
     with `TargetOperationPlan::with_roots`

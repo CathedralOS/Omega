@@ -16,3 +16,17 @@ pub struct EncodedMachinePlan {
     pub code: EncodedMachineCode,
     pub semantics: EncodedMachineSemanticSummary,
 }
+
+impl EncodedMachinePlan {
+    pub fn with_roots(
+        target: NativeTarget,
+        code: EncodedMachineCode,
+        semantics: EncodedMachineSemanticSummary,
+    ) -> Self {
+        Self {
+            target,
+            code,
+            semantics,
+        }
+    }
+}

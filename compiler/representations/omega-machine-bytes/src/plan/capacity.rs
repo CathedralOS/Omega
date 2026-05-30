@@ -9,15 +9,15 @@ impl EncodedMachinePlan {
         instruction_capacity: usize,
         byte_capacity: usize,
     ) -> Self {
-        Self {
+        Self::with_roots(
             target,
-            code: EncodedMachineCode {
+            EncodedMachineCode {
                 functions: Arena::with_capacity(function_capacity),
                 instructions: Arena::with_capacity(instruction_capacity),
                 bytes: Arena::with_capacity(byte_capacity),
                 byte_count: 0,
             },
-            semantics: EncodedMachineSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0),
-        }
+            EncodedMachineSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0),
+        )
     }
 }
