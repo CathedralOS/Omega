@@ -1,6 +1,6 @@
 use omega_typed_trees::expression::{ExpressionHandle, TableRangeExpression};
 
-use super::expressions::expression_integer_value;
+use super::expressions::{expression_integer_value, normalize_exclusive_end};
 use super::facts::RangeFacts;
 
 #[derive(Clone, Copy)]
@@ -9,6 +9,9 @@ pub(super) enum SubsliceRangeFailure {
     EndBound,
     Ordering,
     Bounds,
+    /// An inclusive range `a..=b` whose normalized exclusive end `b + 1`
+    /// overflows (the `..=` overflow edge, e.g. `..=usize::MAX`).
+    InclusiveOverflow,
 }
 
 impl SubsliceRangeFailure {
@@ -18,6 +21,7 @@ impl SubsliceRangeFailure {
             Self::EndBound => "end bound",
             Self::Ordering => "ordering",
             Self::Bounds => "bounds",
+            Self::InclusiveOverflow => "inclusive end overflow",
         }
     }
 }
@@ -30,8 +34,16 @@ pub(super) fn known_length_range_value_failure(
     if range.start.is_valid() && expression_integer_value(program, facts, range.start).is_none() {
         return SubsliceRangeFailure::StartBound;
     }
-    if range.end.is_valid() && expression_integer_value(program, facts, range.end).is_none() {
-        return SubsliceRangeFailure::EndBound;
+    if range.end.is_valid() {
+        match expression_integer_value(program, facts, range.end) {
+            None => return SubsliceRangeFailure::EndBound,
+            // The end value is known, so the only way `provable_range_bounds`
+            // can fail on the end is the inclusive `b + 1` overflow edge.
+            Some(end) if normalize_exclusive_end(end, range.end_inclusive).is_none() => {
+                return SubsliceRangeFailure::InclusiveOverflow;
+            }
+            Some(_) => {}
+        }
     }
     SubsliceRangeFailure::Bounds
 }
@@ -73,14 +85,26 @@ pub(super) fn unknown_length_range_failure(
             }
         }
         (false, true) => {
-            if !range_bound_is_proven(program, facts, &collection_label, range.end) {
+            if !range_end_is_proven(
+                program,
+                facts,
+                &collection_label,
+                range.end,
+                range.end_inclusive,
+            ) {
                 SubsliceRangeFailure::EndBound
             } else {
                 SubsliceRangeFailure::Bounds
             }
         }
         (true, true) => {
-            if !range_bound_is_proven(program, facts, &collection_label, range.end) {
+            if !range_end_is_proven(
+                program,
+                facts,
+                &collection_label,
+                range.end,
+                range.end_inclusive,
+            ) {
                 return SubsliceRangeFailure::EndBound;
             }
 
@@ -108,4 +132,24 @@ fn range_bound_is_proven(
     facts.range_bound_is_proven(collection_label, &bound_label)
         || expression_integer_value(program, facts, bound)
             .is_some_and(|bound| facts.range_bound_value_is_proven(collection_label, bound))
+}
+
+/// Mirrors `proofs::range_end_within_unknown_length_is_proven` for diagnostic
+/// classification: exclusive ends use range-bound vocabulary (`b <= len`),
+/// inclusive ends use the strict index vocabulary (`b < len`).
+fn range_end_is_proven(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    collection_label: &str,
+    end: ExpressionHandle,
+    end_inclusive: bool,
+) -> bool {
+    if end_inclusive {
+        let end_label = program.expression_table.display_name(end);
+        facts.index_is_proven(collection_label, &end_label)
+            || expression_integer_value(program, facts, end)
+                .is_some_and(|end| facts.index_value_is_proven(collection_label, end))
+    } else {
+        range_bound_is_proven(program, facts, collection_label, end)
+    }
 }

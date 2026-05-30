@@ -150,6 +150,7 @@ fn simple_local_binding_value_from_table(
                     .then(|| simple_local_binding_value_from_table(table, range.end))
                     .flatten()
                     .map(Box::new),
+                end_inclusive: range.end_inclusive,
             },
         ))),
         ExpressionNode::Call(call) => Some(Expression::Call(Box::new(CallExpression {

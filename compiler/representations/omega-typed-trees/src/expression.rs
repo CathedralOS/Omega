@@ -327,7 +327,11 @@ impl ExpressionTable {
                     .is_valid()
                     .then(|| self.copy_from(source, range.end))
                     .unwrap_or_else(ExpressionHandle::invalid);
-                self.insert(ExpressionNode::Range(TableRangeExpression { start, end }))
+                self.insert(ExpressionNode::Range(TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive: range.end_inclusive,
+                }))
             }
             ExpressionNode::StructLiteral(struct_literal) => {
                 let fields = self.copy_struct_literal_fields(source, struct_literal.fields);
@@ -995,7 +999,11 @@ impl ExpressionTable {
                     .is_valid()
                     .then(|| self.insert_copy(range.end))
                     .unwrap_or_else(ExpressionHandle::invalid);
-                self.insert(ExpressionNode::Range(TableRangeExpression { start, end }))
+                self.insert(ExpressionNode::Range(TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive: range.end_inclusive,
+                }))
             }
             ExpressionNode::StructLiteral(struct_literal) => {
                 let fields = self.copy_own_struct_literal_fields(struct_literal.fields);
@@ -1150,7 +1158,11 @@ impl ExpressionTable {
                     .as_ref()
                     .map(|end| self.insert_tree(end))
                     .unwrap_or_else(ExpressionHandle::invalid);
-                self.insert(ExpressionNode::Range(TableRangeExpression { start, end }))
+                self.insert(ExpressionNode::Range(TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive: range.end_inclusive,
+                }))
             }
             Expression::StructLiteral(struct_literal) => {
                 let fields = self.insert_struct_field_span_from_tree(&struct_literal.fields);
@@ -1225,6 +1237,7 @@ impl ExpressionTable {
                     .end
                     .is_valid()
                     .then(|| Box::new(self.to_tree(range.end))),
+                end_inclusive: range.end_inclusive,
             })),
             ExpressionNode::StructLiteral(struct_literal) => {
                 Expression::StructLiteral(StructLiteral {
@@ -1381,12 +1394,14 @@ pub struct TableIndexedExpression {
 pub struct TableRangeExpression {
     pub start: ExpressionHandle,
     pub end: ExpressionHandle,
+    pub end_inclusive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RangeExpression {
     pub start: Option<Box<Expression>>,
     pub end: Option<Box<Expression>>,
+    pub end_inclusive: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

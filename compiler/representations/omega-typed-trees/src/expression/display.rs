@@ -88,11 +88,14 @@ impl ExpressionNode {
 
 impl RangeExpression {
     pub fn display_name(&self) -> String {
+        let separator = if self.end_inclusive { "..=" } else { ".." };
         match (&self.start, &self.end) {
-            (Some(start), Some(end)) => format!("{}..{}", start.display_name(), end.display_name()),
-            (Some(start), None) => format!("{}..", start.display_name()),
-            (None, Some(end)) => format!("..{}", end.display_name()),
-            (None, None) => "..".to_string(),
+            (Some(start), Some(end)) => {
+                format!("{}{}{}", start.display_name(), separator, end.display_name())
+            }
+            (Some(start), None) => format!("{}{}", start.display_name(), separator),
+            (None, Some(end)) => format!("{}{}", separator, end.display_name()),
+            (None, None) => separator.to_string(),
         }
     }
 }

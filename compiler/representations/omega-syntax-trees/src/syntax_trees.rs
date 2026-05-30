@@ -808,6 +808,7 @@ impl SyntaxTrees {
                 ExpressionNode::Range(crate::expression::TableRangeExpression {
                     start: self.copy_expression_handle(other, range.start),
                     end: self.copy_expression_handle(other, range.end),
+                    end_inclusive: range.end_inclusive,
                 })
             }
             ExpressionNode::SelfValue => ExpressionNode::SelfValue,
