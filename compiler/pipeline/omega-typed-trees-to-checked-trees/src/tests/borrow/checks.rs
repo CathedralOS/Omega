@@ -510,6 +510,131 @@ fn rejects_direct_assignment_while_local_alias_is_active() {
 }
 
 #[test]
+fn rejects_mutating_call_through_owner_while_view_is_active() {
+    // A `&mut self` call that writes the owner field is a *call* statement, not
+    // an assignment. The Vec-views / owner-mutation-through-a-call rule must
+    // reject it while a borrowed view of that field is still live. This is the
+    // call-statement analogue of the array/slice/string owner-write rule and the
+    // mechanism behind the Vec `push`-while-borrowed rejection.
+    let source = r#"
+        data Entry {
+            value: i32;
+        }
+
+        data Main {
+            entries: [Entry; 2];
+        }
+
+        machine Main::main(&mut self) {
+            let view: &[Entry] = self.entries.as_slice();
+            self.clear_entries();
+            self.read_alias(view);
+        }
+
+        machine Main::clear_entries(&mut self) {
+            self.entries[0] = Entry { value: 0 };
+        }
+
+        machine Main::read_alias(&self, entries: &[Entry]) {
+            let count: usize = entries.len;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    let diagnostics = check_checked_facts(&typed, &facts)
+        .expect_err("a mutating call through the owner must conflict with a live view");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("while local borrow `view` is still active"),
+        "expected owner-mutation-through-call conflict, got:\n{combined}"
+    );
+}
+
+#[test]
+fn accepts_mutating_call_through_owner_on_disjoint_field() {
+    // A mutating call through the owner that writes a DISJOINT field is accepted
+    // while a borrowed view of a different field is live. The call-mutation rule
+    // reuses the loan-overlap engine, so a call whose summarized writes do not
+    // overlap the live view's place does not conflict.
+    let source = r#"
+        data Entry {
+            value: i32;
+        }
+
+        data Main {
+            left: [Entry; 2];
+            right: [Entry; 2];
+        }
+
+        machine Main::main(&mut self) {
+            let view: &[Entry] = self.left.as_slice();
+            self.touch_right();
+            self.read_alias(view);
+        }
+
+        machine Main::touch_right(&mut self) {
+            self.right[0] = Entry { value: 1 };
+        }
+
+        machine Main::read_alias(&self, entries: &[Entry]) {
+            let count: usize = entries.len;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    check_checked_facts(&typed, &facts)
+        .expect("a mutating call on a disjoint field should not conflict with the view");
+}
+
+#[test]
 fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
     let source = r#"
         data Main {

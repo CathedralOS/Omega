@@ -1,3 +1,4 @@
+use super::type_references::{classify_operator_result_ownership, OperatorResultOwnership};
 use super::*;
 
 pub(super) fn append_move_events_for_expression(
@@ -111,4 +112,48 @@ pub(super) fn append_move_events_for_expression(
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => {}
     }
+}
+
+/// Whether a `let`-initializer expression produces a freshly owned value through
+/// a boundary/slice/string/collection operator call (as opposed to borrowing a
+/// view or reading an existing place).
+///
+/// Used to decide whether an owned binding's initializer warrants a move event
+/// into the bound local. Operator results are classified through
+/// [`classify_operator_result_ownership`], keeping operator-result ownership
+/// policy in one place; a place-like initializer is excluded because its
+/// transfer is already recorded by the source-side move.
+pub(in crate::flow::ownership) fn initializer_produces_owned_value(
+    program: &omega_typed_trees::TypedTrees,
+    initializer: ExpressionHandle,
+) -> bool {
+    if !initializer.is_valid() {
+        return false;
+    }
+
+    let target_symbol = match program.expression_table.expression(initializer) {
+        ExpressionNode::Call(call) => call.target_symbol,
+        _ => return false,
+    };
+
+    operator_definition_for_call(program, target_symbol)
+        .map(|operator| {
+            classify_operator_result_ownership(program, operator.return_type)
+                == OperatorResultOwnership::OwnedValue
+        })
+        .unwrap_or(false)
+}
+
+/// Resolve the boundary/operator definition a call dispatches to, if any.
+fn operator_definition_for_call(
+    program: &omega_typed_trees::TypedTrees,
+    target_symbol: SymbolHandle,
+) -> Option<&omega_typed_trees::operator::OperatorDefinition> {
+    if !target_symbol.is_valid() {
+        return None;
+    }
+    program
+        .operators()
+        .iter()
+        .find(|operator| operator.symbol == target_symbol)
 }
