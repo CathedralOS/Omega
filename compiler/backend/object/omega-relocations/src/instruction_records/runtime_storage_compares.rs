@@ -1,21 +1,8 @@
 use super::super::offsets::runtime_storage_compare_right_address_offset;
 use super::context::InstructionRelocationContext;
 use super::runtime_values::collect_runtime_value_operand_relocations;
-use omega_target::Architecture;
+use omega_instruction_selection::dispatch_guard_compare_static_width;
 use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
-
-/// Byte width of the `EvaluateDispatchGuard` / `DispatchGuardCompareStatic` lowering.
-///
-/// Mirrors `omega_instruction_selection::dispatch_guard_compare_static_width`. On x86_64 the
-/// guard comparison is folded into the following `DispatchCaseEnter` and the guard itself emits
-/// zero bytes (so it carries no relocatable storage-address immediate); on AArch64 it emits a
-/// real storage-load sequence whose 64-bit address immediate must be relocated.
-fn dispatch_guard_compare_static_width(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => omega_isa_aarch64::aarch64::dispatch_guard_compare_static_width(),
-        Architecture::X86_64 => 0,
-    }
-}
 
 pub(super) fn collect_runtime_storage_compare_relocations(
     context: &mut InstructionRelocationContext<'_, '_>,
