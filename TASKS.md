@@ -86,9 +86,10 @@ surfacing) are left to the owning slice.
   registry with whitelist/resolution gates (O), dynamic-indexed domain-fact
   preservation coverage + soundness docs (Pd), and capability verb population +
   blast-radius manifest + host-call authorization (Cap), plus the first
-  expression-level operator spelling facts for `[]` and range indexing.
-  Remaining: contract-producing operator dispatch, ambiguity diagnostics, lemma
-  consumption, runtime descriptor generalization, and native/asm-emission depth.
+  expression-level operator spelling facts for `[]` and range indexing, plus
+  receiver-aware checked candidate narrowing. Remaining: contract-producing
+  operator dispatch, ambiguity diagnostics, lemma consumption, runtime
+  descriptor generalization, and native/asm-emission depth.
 - Pipeline architecture docs now define semantic ownership and include the
   stage-by-stage ownership matrix.
 - Syntax, symbol-resolved, typed, checked, state-graph, control-flow, abstract,
@@ -250,8 +251,8 @@ without hidden runtime tags.
   `items[index]` and `items[range]` have visible checked-tree spelling
   resolution status. (done: checked operator facts record spelling, selected
   symbol, arena-backed scoped candidates, candidate count,
-  missing/resolved/ambiguous status, semantic origin, and summary/query
-  surfaces.)
+  missing/resolved/ambiguous status, semantic origin, receiver-aware narrowing,
+  and summary/query surfaces.)
 - [ ] Model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec`
   operator contracts.
 - [ ] Design boundary implementation bindings for core operators without
