@@ -587,6 +587,10 @@ meaning, without needing access to pointer descriptor internals.
   - checked operation admissibility now exposes an `AcceptanceView` trait so
     states, statements, calls, and exits share one query surface for summary,
     verdict, and acceptance checks
+  - checked state admissibility now exposes state-local statements, calls, and
+    exits through one `StateOperationAcceptance` stream implementing
+    `AcceptanceView`, so callers can ask whether each executable operation is
+    acceptable without separately walking proof/borrow/flow sub-arenas
   - checked operation admissibility now supports dimension-level queries so
     callers can ask for the borrow/proof/effect/boundary/termination check
     without matching summary fields by hand

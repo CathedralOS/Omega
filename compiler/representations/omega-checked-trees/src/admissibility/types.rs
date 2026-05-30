@@ -8,4 +8,7 @@ pub use check::{AcceptanceCheck, AcceptanceCheckProvenance, AcceptanceCheckVerdi
 pub use dimension::AcceptanceDimension;
 pub use summary::{AcceptanceSummary, AcceptanceVerdict};
 pub use view::AcceptanceView;
-pub use wrappers::{CallAcceptance, ExitAcceptance, StateAcceptance, StatementAcceptance};
+pub use wrappers::{
+    CallAcceptance, ExitAcceptance, StateAcceptance, StateOperationAcceptance,
+    StateOperationAcceptanceKind, StatementAcceptance,
+};

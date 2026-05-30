@@ -59,6 +59,7 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert_eq!(state_summary.proof.evidence_count, 1);
     assert_eq!(state_acceptance.statements().len(), 1);
     assert_eq!(state_acceptance.calls().len(), 1);
+    assert_eq!(state_acceptance.operations().count(), 2);
 
     let statement_acceptance = state_acceptance
         .statement(0)
@@ -101,6 +102,24 @@ fn exposes_checked_operation_acceptance_from_one_query_surface() {
     assert!(!call_acceptance.requires_constraints().is_empty());
     assert_eq!(call_acceptance.requires().len(), 1);
     assert!(call_acceptance.boundary_edges().is_empty());
+
+    let operations: Vec<_> = state_acceptance.operations().collect();
+    assert_eq!(
+        operations
+            .iter()
+            .map(omega_checked_trees::StateOperationAcceptance::kind)
+            .collect::<Vec<_>>(),
+        vec![
+            omega_checked_trees::StateOperationAcceptanceKind::Statement,
+            omega_checked_trees::StateOperationAcceptanceKind::Call,
+        ]
+    );
+    assert!(operations.iter().all(|operation| operation.is_accepted()));
+    assert!(operations[0].as_statement().is_some());
+    assert!(operations[0].as_call().is_none());
+    assert!(operations[1].as_call().is_some());
+    assert_eq!(operations[0].statement_index(), 0);
+    assert_eq!(operations[1].statement_index(), 0);
 }
 
 #[test]
@@ -229,6 +248,22 @@ fn exposes_exit_acceptance_through_shared_view_surface() {
     assert!(exit_acceptance.is_accepted());
     assert_eq!(exit_acceptance.ensures().len(), 1);
     assert_eq!(exit_acceptance.summary().proof.evidence_count, 1);
+
+    let operations: Vec<_> = state_acceptance.operations().collect();
+    assert_eq!(operations.len(), 2);
+    assert_eq!(
+        operations
+            .iter()
+            .map(omega_checked_trees::StateOperationAcceptance::kind)
+            .collect::<Vec<_>>(),
+        vec![
+            omega_checked_trees::StateOperationAcceptanceKind::Statement,
+            omega_checked_trees::StateOperationAcceptanceKind::Exit,
+        ]
+    );
+    assert!(operations[0].as_statement().is_some());
+    assert!(operations[1].as_exit().is_some());
+    assert_eq!(operations[1].summary().proof.evidence_count, 1);
 }
 
 fn parse_typed_trees(source: &str) -> omega_typed_trees::TypedTrees {
