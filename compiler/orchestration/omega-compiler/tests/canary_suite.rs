@@ -3145,6 +3145,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/subslice_local_bound_facts_compile",
     "slices/subslice_range_surface_compile",
     "slices/window_shrink_exact_length_index_compile",
+    "slices/window_shrink_unknown_base_index_compile",
     "slices/window_subslice_within_exact_length_compile",
     "slices/runtime_subslice_range_len_exit",
     "slices/runtime_subslice_bounded_range_len_exit",

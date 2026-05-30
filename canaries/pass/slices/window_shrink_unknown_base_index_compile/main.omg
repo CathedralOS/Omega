@@ -1,0 +1,16 @@
+data Main {
+    values: [u8; 8];
+}
+
+machine Main::main(&mut self) -> u8 {
+    let view: &[u8] = self.values.as_slice();
+    transition {
+        _ -> choose(view)
+    }
+
+    state choose(&mut self, items: &[u8]) -> u8 {
+        let window: &[u8] = items[0..3];
+        let value: u8 = window[2];
+        value
+    }
+}
