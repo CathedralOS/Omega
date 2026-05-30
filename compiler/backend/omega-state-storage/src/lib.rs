@@ -38,7 +38,8 @@ impl StateStoragePlanningContext {
             .and_then(|state| {
                 self.control_flow
                     .semantics
-                    .borrow_writable_roots
+                    .borrow
+                    .writable_roots
                     .span(state.borrow.writable_roots)
             })
             .and_then(|roots| roots.iter().find(|root| root.symbol == symbol))

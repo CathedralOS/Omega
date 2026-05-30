@@ -1,4 +1,4 @@
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -95,4 +95,15 @@ pub struct StateBorrowSummary {
     pub active_loans: HandleSpan<StateBorrowLoan>,
     pub activations: HandleSpan<StateBorrowActivation>,
     pub weakenings: HandleSpan<StateBorrowWeakening>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateGraphBorrowRoots {
+    pub writable_roots: Arena<StateBorrowWritableRoot>,
+    pub access_segments: Arena<omega_facts::PlaceSegment>,
+    pub argument_accesses: Arena<StateBorrowArgumentAccess>,
+    pub calls: Arena<StateBorrowCall>,
+    pub loans: Arena<StateBorrowLoan>,
+    pub activations: Arena<StateBorrowActivation>,
+    pub weakenings: Arena<StateBorrowWeakening>,
 }

@@ -191,7 +191,8 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
 
     for borrow_call in graph
         .semantics
-        .borrow_calls
+        .borrow
+        .calls
         .span_or_empty(state.borrow.calls)
     {
         label.push('\n');
@@ -201,7 +202,8 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
 
     for loan in graph
         .semantics
-        .borrow_loans
+        .borrow
+        .loans
         .span_or_empty(state.borrow.active_loans)
     {
         label.push('\n');
@@ -211,7 +213,8 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
 
     for activation in graph
         .semantics
-        .borrow_activations
+        .borrow
+        .activations
         .span_or_empty(state.borrow.activations)
     {
         label.push('\n');
@@ -221,7 +224,8 @@ fn state_label(graph: &StateGraph, machine: &MachineGraph, state: &StateNode) ->
 
     for weakening in graph
         .semantics
-        .borrow_weakenings
+        .borrow
+        .weakenings
         .span_or_empty(state.borrow.weakenings)
     {
         label.push('\n');
@@ -287,7 +291,8 @@ fn borrow_call_label(
 ) -> String {
     let accesses = graph
         .semantics
-        .borrow_argument_accesses
+        .borrow
+        .argument_accesses
         .span_or_empty(call.accesses)
         .iter()
         .map(|access| borrow_access_label(graph, machine, state, access))
@@ -342,7 +347,7 @@ fn borrow_activation_label(
     state: &StateNode,
     activation: &StateBorrowActivation,
 ) -> String {
-    let loan = graph.semantics.borrow_loans.get(activation.loan);
+    let loan = graph.semantics.borrow.loans.get(activation.loan);
     format!(
         "activation {} -> {}",
         borrow_event_source_label(graph, activation.source),
@@ -356,7 +361,7 @@ fn borrow_weakening_label(
     state: &StateNode,
     weakening: &StateBorrowWeakening,
 ) -> String {
-    let loan = graph.semantics.borrow_loans.get(weakening.loan);
+    let loan = graph.semantics.borrow.loans.get(weakening.loan);
     format!(
         "weakening {} -> {} ({})",
         borrow_event_source_label(graph, weakening.source),
@@ -375,7 +380,8 @@ fn borrow_place_label(
     let mut label = symbol_name_for_state(graph, machine, state, root_symbol);
     for segment in graph
         .semantics
-        .borrow_access_segments
+        .borrow
+        .access_segments
         .span_or_empty(segments)
     {
         match segment {

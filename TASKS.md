@@ -595,6 +595,9 @@ meaning, without needing access to pointer descriptor internals.
   - state-graph and control-flow semantic roots now group ownership segments,
     moves, and drops under explicit ownership roots instead of leaving the
     ownership noun spread across flat semantic fields
+  - state-graph and control-flow semantic roots now group borrow writable
+    roots, access segments, argument accesses, calls, loans, activations, and
+    weakenings under explicit borrow roots
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model

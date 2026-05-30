@@ -11,7 +11,7 @@ pub(crate) fn state_borrow_calls(
 ) -> HandleSpan<StateBorrowCall> {
     let mut state_calls = HandleSpan::empty();
     for call in program.facts.borrow.calls.span_or_empty(calls) {
-        let accesses = state_graph.semantics.borrow_argument_accesses.insert_many(
+        let accesses = state_graph.semantics.borrow.argument_accesses.insert_many(
             program
                 .facts
                 .borrow
@@ -20,7 +20,7 @@ pub(crate) fn state_borrow_calls(
                 .iter()
                 .map(|access| StateBorrowArgumentAccess {
                     root_symbol: access.root_symbol,
-                    segments: state_graph.semantics.borrow_access_segments.insert_many(
+                    segments: state_graph.semantics.borrow.access_segments.insert_many(
                         program
                             .facts
                             .borrow
@@ -38,7 +38,7 @@ pub(crate) fn state_borrow_calls(
                 }),
         );
 
-        state_graph.semantics.borrow_calls.append_to_span(
+        state_graph.semantics.borrow.calls.append_to_span(
             &mut state_calls,
             StateBorrowCall {
                 statement_index: call.statement_index,

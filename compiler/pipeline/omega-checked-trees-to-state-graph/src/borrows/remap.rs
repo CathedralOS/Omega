@@ -15,7 +15,7 @@ pub(crate) fn remap_state_borrow_summary(
     source_weakenings: &Arena<StateBorrowWeakening>,
     borrow: &StateBorrowSummary,
 ) -> StateBorrowSummary {
-    let writable_roots = target.semantics.borrow_writable_roots.insert_many(
+    let writable_roots = target.semantics.borrow.writable_roots.insert_many(
         source_writable_roots
             .span_or_empty(borrow.writable_roots)
             .iter()
@@ -70,13 +70,13 @@ fn append_remapped_borrow_calls(
     let mut remapped_calls = HandleSpan::empty();
 
     for call in source_calls.span_or_empty(calls) {
-        let accesses = target.semantics.borrow_argument_accesses.insert_many(
+        let accesses = target.semantics.borrow.argument_accesses.insert_many(
             source_argument_accesses
                 .span_or_empty(call.accesses)
                 .iter()
                 .map(|access| StateBorrowArgumentAccess {
                     root_symbol: access.root_symbol,
-                    segments: target.semantics.borrow_access_segments.insert_many(
+                    segments: target.semantics.borrow.access_segments.insert_many(
                         source_access_segments
                             .span_or_empty(access.segments)
                             .iter()
@@ -86,7 +86,7 @@ fn append_remapped_borrow_calls(
                 }),
         );
 
-        target.semantics.borrow_calls.append_to_span(
+        target.semantics.borrow.calls.append_to_span(
             &mut remapped_calls,
             StateBorrowCall {
                 statement_index: call.statement_index,
@@ -111,14 +111,14 @@ fn append_remapped_borrow_loans(
     let mut remapped_loans = HandleSpan::empty();
 
     for loan in source_loans.span_or_empty(loans) {
-        target.semantics.borrow_loans.append_to_span(
+        target.semantics.borrow.loans.append_to_span(
             &mut remapped_loans,
             StateBorrowLoan {
                 statement_index: loan.statement_index,
                 last_use_statement_index: loan.last_use_statement_index,
                 owner_symbol: loan.owner_symbol,
                 root_symbol: loan.root_symbol,
-                segments: target.semantics.borrow_access_segments.insert_many(
+                segments: target.semantics.borrow.access_segments.insert_many(
                     source_access_segments
                         .span_or_empty(loan.segments)
                         .iter()
@@ -149,7 +149,7 @@ fn append_remapped_borrow_activations(
             activation.loan,
             &mut loan_map,
         );
-        target.semantics.borrow_activations.append_to_span(
+        target.semantics.borrow.activations.append_to_span(
             &mut remapped,
             StateBorrowActivation {
                 source: activation.source.clone(),
@@ -179,7 +179,7 @@ fn append_remapped_borrow_weakenings(
             weakening.loan,
             &mut loan_map,
         );
-        target.semantics.borrow_weakenings.append_to_span(
+        target.semantics.borrow.weakenings.append_to_span(
             &mut remapped,
             StateBorrowWeakening {
                 source: weakening.source.clone(),
@@ -207,12 +207,12 @@ fn remapped_loan_handle(
     }
 
     let loan = source_loans.get(source_loan);
-    let mapped = target.semantics.borrow_loans.append(StateBorrowLoan {
+    let mapped = target.semantics.borrow.loans.append(StateBorrowLoan {
         statement_index: loan.statement_index,
         last_use_statement_index: loan.last_use_statement_index,
         owner_symbol: loan.owner_symbol,
         root_symbol: loan.root_symbol,
-        segments: target.semantics.borrow_access_segments.insert_many(
+        segments: target.semantics.borrow.access_segments.insert_many(
             source_access_segments
                 .span_or_empty(loan.segments)
                 .iter()

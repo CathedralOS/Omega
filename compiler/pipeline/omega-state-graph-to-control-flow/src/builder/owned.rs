@@ -56,21 +56,27 @@ pub(crate) fn build_control_flow_plan_owned(
             contract_exits: semantics.contract_exits.map(remap_contract_exit_owned),
             values: semantics.values.map(remap_value_owned),
             boundary_edges: semantics.boundary_edges.map(remap_boundary_edge_owned),
-            borrow_writable_roots: semantics
-                .borrow_writable_roots
-                .map(remap_borrow_writable_root_owned),
-            borrow_access_segments: semantics.borrow_access_segments,
-            borrow_argument_accesses: semantics
-                .borrow_argument_accesses
-                .map(remap_borrow_argument_access_owned),
-            borrow_calls: semantics.borrow_calls.map(remap_borrow_call_owned),
-            borrow_loans: semantics.borrow_loans.map(remap_borrow_loan_owned),
-            borrow_activations: semantics
-                .borrow_activations
-                .map(remap_borrow_activation_owned),
-            borrow_weakenings: semantics
-                .borrow_weakenings
-                .map(remap_borrow_weakening_owned),
+            borrow: omega_control_flow::ControlFlowBorrowRoots {
+                writable_roots: semantics
+                    .borrow
+                    .writable_roots
+                    .map(remap_borrow_writable_root_owned),
+                access_segments: semantics.borrow.access_segments,
+                argument_accesses: semantics
+                    .borrow
+                    .argument_accesses
+                    .map(remap_borrow_argument_access_owned),
+                calls: semantics.borrow.calls.map(remap_borrow_call_owned),
+                loans: semantics.borrow.loans.map(remap_borrow_loan_owned),
+                activations: semantics
+                    .borrow
+                    .activations
+                    .map(remap_borrow_activation_owned),
+                weakenings: semantics
+                    .borrow
+                    .weakenings
+                    .map(remap_borrow_weakening_owned),
+            },
             ownership: omega_control_flow::ControlFlowOwnershipRoots {
                 segments: semantics.ownership.segments,
                 moves: semantics.ownership.moves.map(remap_move_event_owned),

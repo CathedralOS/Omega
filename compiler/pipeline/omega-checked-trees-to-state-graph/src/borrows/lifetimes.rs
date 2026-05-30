@@ -53,7 +53,7 @@ pub(crate) fn state_borrow_lifetime_summary(
         {
             let loan =
                 ensure_state_borrow_loan(state_graph, program, activation.loan, &mut loan_map);
-            state_graph.semantics.borrow_activations.append_to_span(
+            state_graph.semantics.borrow.activations.append_to_span(
                 &mut activations,
                 StateBorrowActivation {
                     source: remap_flow_borrow_event_source(activation.source),
@@ -71,7 +71,7 @@ pub(crate) fn state_borrow_lifetime_summary(
         {
             let loan =
                 ensure_state_borrow_loan(state_graph, program, weakening.loan, &mut loan_map);
-            state_graph.semantics.borrow_weakenings.append_to_span(
+            state_graph.semantics.borrow.weakenings.append_to_span(
                 &mut weakenings,
                 StateBorrowWeakening {
                     source: remap_flow_borrow_event_source(weakening.source),
@@ -117,12 +117,12 @@ fn ensure_state_borrow_loan(
     }
 
     let loan = program.facts.borrow.loans.get(source_loan);
-    let mapped = state_graph.semantics.borrow_loans.append(StateBorrowLoan {
+    let mapped = state_graph.semantics.borrow.loans.append(StateBorrowLoan {
         statement_index: loan.statement_index,
         last_use_statement_index: loan.last_use_statement_index,
         owner_symbol: loan.owner_symbol,
         root_symbol: loan.root_symbol,
-        segments: state_graph.semantics.borrow_access_segments.insert_many(
+        segments: state_graph.semantics.borrow.access_segments.insert_many(
             program
                 .facts
                 .borrow
