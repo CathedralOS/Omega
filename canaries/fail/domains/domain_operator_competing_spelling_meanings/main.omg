@@ -1,0 +1,27 @@
+// Chapter 8: competing domain meanings for one spelling are a compile error.
+// Both `Quantity::Additive` and `Quantity::Saturating` classify the same target
+// type `Quantity` and bind the `+` spelling to an `add` meaning over the same
+// `(Quantity, Quantity)` operand types. No provable fact can select between the
+// two domain meanings, so the spelling is ambiguous and rejected.
+
+data Quantity {
+    value: i32;
+}
+
+domain Quantity::Additive {
+    self.value >= 0;
+
+    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+}
+
+domain Quantity::Saturating {
+    self.value >= 0;
+
+    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
