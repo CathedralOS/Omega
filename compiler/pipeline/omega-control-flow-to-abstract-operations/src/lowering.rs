@@ -13,7 +13,10 @@ use semantics::build_abstract_semantic_summary;
 pub(crate) fn build_abstract_operation_plan(
     input: &AbstractOperationLoweringInput<'_>,
 ) -> AbstractOperationPlan {
-    let mut plan = build_instruction_plan(&InstructionSelectionInput::from(input));
-    plan.semantics = build_abstract_semantic_summary(input);
-    plan
+    let instruction_plan = build_instruction_plan(&InstructionSelectionInput::from(input));
+
+    AbstractOperationPlan::with_roots(
+        instruction_plan.code,
+        build_abstract_semantic_summary(input),
+    )
 }
