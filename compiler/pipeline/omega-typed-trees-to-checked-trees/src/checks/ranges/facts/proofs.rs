@@ -64,10 +64,17 @@ impl RangeFacts<'_> {
         collection: &str,
         index: i64,
     ) -> bool {
-        index >= 0
-            && self
-                .minimum_length(collection)
-                .is_some_and(|length| index < length)
+        if index < 0 {
+            return false;
+        }
+        // A `minimum_length` floor proves a literal index in-range because the
+        // collection has *at least* that many elements. An `exact_length`
+        // additionally pins the length precisely; either lower-bound on the
+        // length suffices for the strict `index < len` index obligation.
+        self.minimum_length(collection)
+            .into_iter()
+            .chain(self.exact_length(collection))
+            .any(|length| index < length)
     }
 
     pub(in crate::checks::ranges) fn prove_at_most(&mut self, lower: String, upper: String) {
@@ -119,10 +126,16 @@ impl RangeFacts<'_> {
         collection: &str,
         bound: i64,
     ) -> bool {
-        bound >= 0
-            && self
-                .minimum_length(collection)
-                .is_some_and(|length| bound <= length)
+        if bound < 0 {
+            return false;
+        }
+        // A range bound is the *exclusive* end of a subslice, so it is valid up
+        // to and including the length (`bound <= len`). A `minimum_length` floor
+        // proves `bound <= floor <= len`; an `exact_length` proves it precisely.
+        self.minimum_length(collection)
+            .into_iter()
+            .chain(self.exact_length(collection))
+            .any(|length| bound <= length)
     }
 
     pub(in crate::checks::ranges) fn prove_minimum_length(
@@ -152,5 +165,116 @@ impl RangeFacts<'_> {
             .find_map(|(known_collection, minimum_length)| {
                 (known_collection == collection).then_some(*minimum_length)
             })
+    }
+
+    /// Records an exact-length fact: `collection` provably has exactly
+    /// `length` elements (e.g. the subslice `a..b` over constant bounds has
+    /// length `b - a`). A zero/negative length carries no useful obligation
+    /// vocabulary, so it is dropped.
+    pub(in crate::checks::ranges) fn prove_exact_length(
+        &mut self,
+        collection: String,
+        length: i64,
+    ) {
+        if length < 0 {
+            return;
+        }
+
+        if let Some((_, known_length)) = self
+            .exact_lengths
+            .iter_mut()
+            .find(|(known_collection, _)| known_collection == &collection)
+        {
+            // An exact length should be stable; if a second derivation disagrees
+            // keep the tighter (smaller) value so proofs stay sound.
+            *known_length = (*known_length).min(length);
+            return;
+        }
+
+        self.exact_lengths.push((collection, length));
+    }
+
+    pub(in crate::checks::ranges) fn exact_length(&self, collection: &str) -> Option<i64> {
+        self.exact_lengths
+            .iter()
+            .find_map(|(known_collection, length)| {
+                (known_collection == collection).then_some(*length)
+            })
+    }
+
+    /// Records a window-shrinking fact: `child` is a subslice of `parent` and is
+    /// therefore no longer than it. `bounds` are the child's constant `[start,
+    /// end)` offsets into the parent when known. The relation is the basis for
+    /// conservative subslice-overlap reasoning (two windows of the same base are
+    /// assumed to overlap unless proven disjoint).
+    pub(in crate::checks::ranges) fn prove_window_parent(
+        &mut self,
+        child: String,
+        parent: String,
+        bounds: Option<(i64, i64)>,
+    ) {
+        if child == parent {
+            return;
+        }
+        if let Some((known_parent, known_bounds)) =
+            self.window_parents
+                .iter_mut()
+                .find_map(|(known_child, known_parent, known_bounds)| {
+                    (known_child == &child).then_some((known_parent, known_bounds))
+                })
+        {
+            *known_parent = parent;
+            *known_bounds = bounds.or(*known_bounds);
+            return;
+        }
+        self.window_parents.push((child, parent, bounds));
+    }
+
+    /// The recorded parent (base) collection a window was carved from, if any.
+    pub(in crate::checks::ranges) fn window_parent(&self, child: &str) -> Option<&str> {
+        self.window_parents
+            .iter()
+            .find_map(|(known_child, known_parent, _)| {
+                (known_child == child).then_some(known_parent.as_str())
+            })
+    }
+
+    /// The recorded `[start, end)` offsets of a window into its base, if known.
+    fn window_bounds(&self, child: &str) -> Option<(i64, i64)> {
+        self.window_parents
+            .iter()
+            .find_map(|(known_child, _, bounds)| (known_child == child).then_some(*bounds))
+            .flatten()
+    }
+
+    /// Conservative subslice overlap: two windows/indices of the *same* base are
+    /// assumed to overlap unless they are provably disjoint. Distinct bases never
+    /// overlap; identical labels always overlap.
+    ///
+    /// The sharpened provable-disjoint cases derive each side's resolved `[start,
+    /// end)` over the shared base from the recorded window bounds (literal vs.
+    /// literal, disjoint windows). Any side with unknown bounds falls back to the
+    /// conservative assumption that the windows overlap.
+    pub(in crate::checks::ranges) fn windows_may_overlap(&self, left: &str, right: &str) -> bool {
+        if left == right {
+            return true;
+        }
+
+        let left_base = self.window_parent(left).unwrap_or(left);
+        let right_base = self.window_parent(right).unwrap_or(right);
+        if left_base != right_base {
+            // Different bases: subslices/indices cannot alias. Provably disjoint.
+            return false;
+        }
+
+        // Same base. Default conservative: assume overlap unless both resolved
+        // windows are known and provably disjoint (`left.end <= right.start` or
+        // the symmetric case).
+        match (self.window_bounds(left), self.window_bounds(right)) {
+            (Some((left_start, left_end)), Some((right_start, right_end))) => {
+                !(left_end <= right_start || right_end <= left_start)
+            }
+            _ => true,
+        }
     }
 }

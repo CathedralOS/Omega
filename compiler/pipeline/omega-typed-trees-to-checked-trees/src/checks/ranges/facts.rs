@@ -14,6 +14,19 @@ pub(super) struct RangeFacts<'field> {
     proven_orderings: Vec<(String, String)>,
     proven_range_bounds: Vec<(String, String)>,
     minimum_lengths: Vec<(String, i64)>,
+    /// Exact-length facts: a collection whose length is provably an exact value.
+    /// A subslice `a..b` over constant bounds has exact length `b - a`; this is
+    /// strictly stronger than a `minimum_length` floor because it also bounds
+    /// the length from above, letting a literal index `i < len` be proven and a
+    /// range bound `b <= len` be discharged against the precise length.
+    exact_lengths: Vec<(String, i64)>,
+    /// Window-shrinking facts: `(child, parent, bounds)` records that `child` is
+    /// a subslice of `parent` and is therefore no longer than `parent`. `bounds`
+    /// holds the child's constant-folded `[start, end)` offsets into the parent
+    /// when both are known, enabling provable-disjoint overlap reasoning between
+    /// two windows of the same base. A `None` bounds is the conservative case
+    /// (offsets unknown — assume overlap with any sibling).
+    window_parents: Vec<(String, String, Option<(i64, i64)>)>,
     boolean_locals: Vec<(
         SymbolHandle,
         String,
@@ -33,6 +46,8 @@ impl<'field> RangeFacts<'field> {
             proven_orderings: Vec::new(),
             proven_range_bounds: Vec::new(),
             minimum_lengths: Vec::new(),
+            exact_lengths: Vec::new(),
+            window_parents: Vec::new(),
             boolean_locals: Vec::new(),
         }
     }
