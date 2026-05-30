@@ -58,7 +58,8 @@ pub fn simplify_state_expression_for_role(
     expression: &Expression,
 ) -> Expression {
     let bindings = simple_local_bindings(program, state, statement_index);
-    let preserve_call_locals = role == StateValueRole::TransitionArgument;
+    let preserve_call_locals =
+        matches!(role, StateValueRole::CallArgument | StateValueRole::TransitionArgument);
     simplify_expression_with_bindings(
         program,
         machine,
