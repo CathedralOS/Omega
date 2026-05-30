@@ -5,7 +5,7 @@ use omega_core::symbols::SymbolHandle;
 use crate::{
     AcceptanceSummary, AcceptanceVerdict, AcceptanceView, CallAcceptance, CheckedTrees,
     ExitAcceptance, FlowCallFact, FlowExitFact, FlowStateFact, FlowStatementFact, StateAcceptance,
-    StatementAcceptance,
+    StateOperationAcceptance, StatementAcceptance,
     admissibility::helpers::{effect_evidence_count, machine_decrease_count},
 };
 
@@ -140,5 +140,22 @@ impl<'facts> StateAcceptance<'facts> {
                 facts: self.facts,
                 exit,
             })
+    }
+
+    pub fn operations(&self) -> impl Iterator<Item = StateOperationAcceptance<'facts>> + '_ {
+        let facts = self.facts;
+        let statements = self.statements().iter().map(move |statement| {
+            StateOperationAcceptance::Statement(StatementAcceptance { facts, statement })
+        });
+        let calls = self
+            .calls()
+            .iter()
+            .map(move |call| StateOperationAcceptance::Call(CallAcceptance { facts, call }));
+        let exits = self
+            .exits()
+            .iter()
+            .map(move |exit| StateOperationAcceptance::Exit(ExitAcceptance { facts, exit }));
+
+        statements.chain(calls).chain(exits)
     }
 }

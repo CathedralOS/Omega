@@ -1,5 +1,12 @@
 use crate::{CheckFacts, FlowCallFact, FlowExitFact, FlowStateFact, FlowStatementFact};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateOperationAcceptanceKind {
+    Statement,
+    Call,
+    Exit,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct StateAcceptance<'facts> {
     pub(crate) facts: &'facts CheckFacts,
@@ -22,4 +29,11 @@ pub struct CallAcceptance<'facts> {
 pub struct ExitAcceptance<'facts> {
     pub(crate) facts: &'facts CheckFacts,
     pub(crate) exit: &'facts FlowExitFact,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum StateOperationAcceptance<'facts> {
+    Statement(StatementAcceptance<'facts>),
+    Call(CallAcceptance<'facts>),
+    Exit(ExitAcceptance<'facts>),
 }
