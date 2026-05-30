@@ -78,115 +78,16 @@ struct StateGraphOwnershipCapacity {
 
 impl StateGraphCapacity {
     pub(crate) fn for_program(program: &CheckedTrees) -> Self {
-        let mut capacity = Self {
-            code: StateGraphCodeCapacity {
-                expressions: ExpressionTableCapacity::default(),
-                machines: program.machines().len(),
-                contained_machines: program.machine_contained_objects.len(),
-                machine_owned_data: program.machine_owned_data.len(),
-                states: 0,
-                state_parameters: program.state_parameters.len(),
-                operations: program.statement_table.statement_count(),
-                transitions: program.statement_table.transition_target_count(),
-            },
-            semantics: StateGraphSemanticCapacity {
-                facts: StateGraphFactCapacity {
-                    proof_obligations: program.facts.proof.obligations.len(),
-                    invariants: program.facts.invariants.definitions.len(),
-                },
-                contracts: StateGraphContractCapacity {
-                    contract_fact_refs: program.facts.proof.contract_fact_refs.len(),
-                    contract_calls: program.facts.proof.contract_calls.len(),
-                    contract_exits: program.facts.proof.contract_exits.len(),
-                },
-                values: StateGraphValueCapacity {
-                    values: program.facts.values.values.len(),
-                },
-                boundaries: StateGraphBoundaryCapacity {
-                    boundary_edges: program.facts.flow.boundaries.edges.len(),
-                },
-                borrow: StateGraphBorrowCapacity {
-                    borrow_writable_roots: program.facts.borrow.writable_roots.len(),
-                    borrow_access_segments: program.facts.borrow.access_segments.len(),
-                    borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
-                    borrow_calls: program.facts.borrow.calls.len(),
-                    borrow_loans: program.facts.borrow.loans.len(),
-                    borrow_activations: program.facts.flow.borrow_lifetimes.activations.len(),
-                    borrow_weakenings: program.facts.flow.borrow_lifetimes.weakenings.len(),
-                },
-                ownership: StateGraphOwnershipCapacity {
-                    ownership_segments: program.facts.flow.ownership.segments.len(),
-                    move_events: program.facts.flow.ownership.moves.len(),
-                    drop_events: program.facts.flow.ownership.drops.len(),
-                },
-            },
-        };
-
-        for machine in program.machines() {
-            capacity.code.states = capacity
-                .code
-                .states
-                .saturating_add(estimated_machine_segment_capacity(program, machine));
-            capacity
-                .code
-                .expressions
-                .saturating_add_assign(machine_expression_capacity(program, machine));
+        Self {
+            code: StateGraphCodeCapacity::for_program(program),
+            semantics: StateGraphSemanticCapacity::for_program(program),
         }
-
-        capacity
     }
 
     pub(crate) fn for_machine(program: &CheckedTrees, machine: &Machine) -> Self {
-        let state_capacity = estimated_machine_segment_capacity(program, machine);
-        let statement_capacity = machine_statement_count(program, machine);
-        let state_parameter_capacity = program
-            .machine_states(machine)
-            .iter()
-            .map(|state| program.state_parameters(state).len())
-            .sum();
-
         Self {
-            code: StateGraphCodeCapacity {
-                expressions: machine_expression_capacity(program, machine),
-                machines: 1,
-                contained_machines: program.machine_contained_objects(machine).len(),
-                machine_owned_data: program.machine_owned_data(machine).len(),
-                states: state_capacity,
-                state_parameters: state_parameter_capacity,
-                operations: statement_capacity,
-                transitions: statement_capacity,
-            },
-            semantics: StateGraphSemanticCapacity {
-                facts: StateGraphFactCapacity {
-                    proof_obligations: 0,
-                    invariants: 0,
-                },
-                contracts: StateGraphContractCapacity {
-                    contract_fact_refs: machine_contract_fact_ref_count(program, machine),
-                    contract_calls: machine_contract_call_count(program, machine),
-                    contract_exits: machine_contract_exit_count(program, machine),
-                },
-                values: StateGraphValueCapacity {
-                    values: machine_value_count(program, machine),
-                },
-                boundaries: StateGraphBoundaryCapacity {
-                    boundary_edges: machine_boundary_edge_count(program, machine),
-                },
-                borrow: StateGraphBorrowCapacity {
-                    borrow_writable_roots: program.facts.borrow.writable_roots.len(),
-                    borrow_access_segments: program.facts.borrow.access_segments.len(),
-                    borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
-                    borrow_calls: program.facts.borrow.calls.len(),
-                    borrow_loans: program.facts.borrow.loans.len(),
-                    borrow_activations: program.facts.flow.borrow_lifetimes.activations.len(),
-                    borrow_weakenings: program.facts.flow.borrow_lifetimes.weakenings.len(),
-                },
-                ownership: StateGraphOwnershipCapacity {
-                    ownership_segments: program.facts.flow.ownership.segments.len(),
-                    move_events: program.facts.flow.ownership.moves.len(),
-                    drop_events: program.facts.flow.ownership.drops.len(),
-                },
-            },
+            code: StateGraphCodeCapacity::for_machine(program, machine),
+            semantics: StateGraphSemanticCapacity::for_machine(program, machine),
         }
     }
 
@@ -218,6 +119,117 @@ impl StateGraphCapacity {
             self.code.operations,
             self.code.transitions,
         )
+    }
+}
+
+impl StateGraphCodeCapacity {
+    fn for_program(program: &CheckedTrees) -> Self {
+        let mut capacity = Self {
+            expressions: ExpressionTableCapacity::default(),
+            machines: program.machines().len(),
+            contained_machines: program.machine_contained_objects.len(),
+            machine_owned_data: program.machine_owned_data.len(),
+            states: 0,
+            state_parameters: program.state_parameters.len(),
+            operations: program.statement_table.statement_count(),
+            transitions: program.statement_table.transition_target_count(),
+        };
+
+        for machine in program.machines() {
+            capacity.states = capacity
+                .states
+                .saturating_add(estimated_machine_segment_capacity(program, machine));
+            capacity
+                .expressions
+                .saturating_add_assign(machine_expression_capacity(program, machine));
+        }
+
+        capacity
+    }
+
+    fn for_machine(program: &CheckedTrees, machine: &Machine) -> Self {
+        let statement_capacity = machine_statement_count(program, machine);
+
+        Self {
+            expressions: machine_expression_capacity(program, machine),
+            machines: 1,
+            contained_machines: program.machine_contained_objects(machine).len(),
+            machine_owned_data: program.machine_owned_data(machine).len(),
+            states: estimated_machine_segment_capacity(program, machine),
+            state_parameters: machine_state_parameter_count(program, machine),
+            operations: statement_capacity,
+            transitions: statement_capacity,
+        }
+    }
+}
+
+impl StateGraphSemanticCapacity {
+    fn for_program(program: &CheckedTrees) -> Self {
+        Self {
+            facts: StateGraphFactCapacity {
+                proof_obligations: program.facts.proof.obligations.len(),
+                invariants: program.facts.invariants.definitions.len(),
+            },
+            contracts: StateGraphContractCapacity {
+                contract_fact_refs: program.facts.proof.contract_fact_refs.len(),
+                contract_calls: program.facts.proof.contract_calls.len(),
+                contract_exits: program.facts.proof.contract_exits.len(),
+            },
+            values: StateGraphValueCapacity {
+                values: program.facts.values.values.len(),
+            },
+            boundaries: StateGraphBoundaryCapacity {
+                boundary_edges: program.facts.flow.boundaries.edges.len(),
+            },
+            borrow: StateGraphBorrowCapacity::for_program(program),
+            ownership: StateGraphOwnershipCapacity::for_program(program),
+        }
+    }
+
+    fn for_machine(program: &CheckedTrees, machine: &Machine) -> Self {
+        Self {
+            facts: StateGraphFactCapacity {
+                proof_obligations: 0,
+                invariants: 0,
+            },
+            contracts: StateGraphContractCapacity {
+                contract_fact_refs: machine_contract_fact_ref_count(program, machine),
+                contract_calls: machine_contract_call_count(program, machine),
+                contract_exits: machine_contract_exit_count(program, machine),
+            },
+            values: StateGraphValueCapacity {
+                values: machine_value_count(program, machine),
+            },
+            boundaries: StateGraphBoundaryCapacity {
+                boundary_edges: machine_boundary_edge_count(program, machine),
+            },
+            borrow: StateGraphBorrowCapacity::for_program(program),
+            ownership: StateGraphOwnershipCapacity::for_program(program),
+        }
+    }
+}
+
+impl StateGraphBorrowCapacity {
+    fn for_program(program: &CheckedTrees) -> Self {
+        Self {
+            borrow_writable_roots: program.facts.borrow.writable_roots.len(),
+            borrow_access_segments: program.facts.borrow.access_segments.len(),
+            borrow_argument_accesses: program.facts.borrow.argument_accesses.len(),
+            borrow_calls: program.facts.borrow.calls.len(),
+            borrow_loans: program.facts.borrow.loans.len(),
+            borrow_activations: program.facts.flow.borrow_lifetimes.activations.len(),
+            borrow_weakenings: program.facts.flow.borrow_lifetimes.weakenings.len(),
+        }
+    }
+}
+
+impl StateGraphOwnershipCapacity {
+    fn for_program(program: &CheckedTrees) -> Self {
+        Self {
+            ownership_segments: program.facts.flow.ownership.segments.len(),
+            move_events: program.facts.flow.ownership.moves.len(),
+            drop_events: program.facts.flow.ownership.drops.len(),
+        }
     }
 }
 
@@ -259,6 +271,14 @@ pub(crate) fn machine_statement_count(program: &CheckedTrees, machine: &Machine)
                 .statements(state.statement_nodes)
                 .len()
         })
+        .sum()
+}
+
+fn machine_state_parameter_count(program: &CheckedTrees, machine: &Machine) -> usize {
+    program
+        .machine_states(machine)
+        .iter()
+        .map(|state| program.state_parameters(state).len())
         .sum()
 }
 
