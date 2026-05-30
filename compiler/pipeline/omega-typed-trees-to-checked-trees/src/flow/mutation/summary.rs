@@ -12,19 +12,19 @@ pub(crate) struct StateMutationSummary {
     pub(crate) writes: Vec<CanonicalPlace>,
 }
 
-pub(crate) fn instantiate_call_mutation_summary_places(
+pub(crate) fn instantiate_known_call_mutation_summary_places(
     program: &omega_typed_trees::TypedTrees,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
     cache: &mut StateMutationSummaryCache,
-) -> Vec<CanonicalPlace> {
+) -> Option<Vec<CanonicalPlace>> {
     let Some(target_state) = find_state(program, borrow_call.target_symbol) else {
-        return Vec::new();
+        return None;
     };
     let summary_places = state_mutation_summary_places(program, cache, target_state);
     if summary_places.is_empty() {
-        return Vec::new();
+        return Some(Vec::new());
     }
 
     let mut instantiated = Vec::new();
@@ -41,7 +41,7 @@ pub(crate) fn instantiate_call_mutation_summary_places(
         }
     }
 
-    instantiated
+    Some(instantiated)
 }
 
 fn state_mutation_summary_places<'cache>(
