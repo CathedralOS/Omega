@@ -8,13 +8,13 @@ impl MachineInstructionPlan {
         function_capacity: usize,
         instruction_capacity: usize,
     ) -> Self {
-        Self {
+        Self::with_roots(
             target,
-            code: MachineInstructionCode {
+            MachineInstructionCode {
                 functions: Arena::with_capacity(function_capacity),
                 instructions: Arena::with_capacity(instruction_capacity),
             },
-            semantics: MachineInstructionSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0),
-        }
+            MachineInstructionSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0),
+        )
     }
 }

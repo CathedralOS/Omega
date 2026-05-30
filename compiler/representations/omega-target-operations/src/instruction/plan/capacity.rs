@@ -10,16 +10,16 @@ impl TargetOperationPlan {
         operand_capacity: usize,
         runtime_value_operand_capacity: usize,
     ) -> Self {
-        Self {
+        Self::with_roots(
             target,
-            code: crate::instruction::plan::TargetOperationCode {
+            crate::instruction::plan::TargetOperationCode {
                 functions: Arena::with_capacity(function_capacity),
                 instructions: Arena::with_capacity(instruction_capacity),
                 operands: Arena::with_capacity(operand_capacity),
                 runtime_value_operands: Arena::with_capacity(runtime_value_operand_capacity),
                 host_bindings: Arena::new(),
             },
-            semantics: TargetSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0),
-        }
+            TargetSemanticSummary::with_capacity(0, 0, 0, 0, 0, 0),
+        )
     }
 }
