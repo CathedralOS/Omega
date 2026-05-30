@@ -34,9 +34,7 @@ pub(crate) fn merge_machine_graph(
     let StateGraphSemanticRoots {
         proof_obligations: _,
         invariants: _,
-        contract_fact_refs,
-        contract_calls,
-        contract_exits,
+        contracts,
         values,
         boundary_edges,
         borrow,
@@ -46,9 +44,9 @@ pub(crate) fn merge_machine_graph(
     let source_arenas = SourceStateArenas {
         expressions: &expressions,
         state_parameters: &state_parameters,
-        contract_fact_refs: &contract_fact_refs,
-        contract_calls: &contract_calls,
-        contract_exits: &contract_exits,
+        contract_fact_refs: &contracts.fact_refs,
+        contract_calls: &contracts.calls,
+        contract_exits: &contracts.exits,
         values: &values,
         boundary_edges: &boundary_edges,
         borrow_writable_roots: &borrow.writable_roots,

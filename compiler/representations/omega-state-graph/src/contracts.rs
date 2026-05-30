@@ -1,4 +1,4 @@
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -35,4 +35,11 @@ pub struct StateContractExit {
 pub struct StateContractSummary {
     pub calls: HandleSpan<StateContractCall>,
     pub exits: HandleSpan<StateContractExit>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateGraphContractRoots {
+    pub fact_refs: Arena<StateContractFactRef>,
+    pub calls: Arena<StateContractCall>,
+    pub exits: Arena<StateContractExit>,
 }

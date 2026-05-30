@@ -2,8 +2,8 @@ use omega_core::arena::Arena;
 use omega_typed_trees::expression::{ExpressionTable, ExpressionTableCapacity};
 
 use crate::{
-    StateGraph, StateGraphBorrowRoots, StateGraphCode, StateGraphOwnershipRoots,
-    StateGraphSemanticRoots,
+    StateGraph, StateGraphBorrowRoots, StateGraphCode, StateGraphContractRoots,
+    StateGraphOwnershipRoots, StateGraphSemanticRoots,
 };
 
 impl StateGraph {
@@ -48,9 +48,11 @@ impl StateGraph {
             semantics: StateGraphSemanticRoots {
                 proof_obligations: Arena::with_capacity(proof_obligation_capacity),
                 invariants: Arena::with_capacity(invariant_capacity),
-                contract_fact_refs: Arena::with_capacity(contract_fact_ref_capacity),
-                contract_calls: Arena::with_capacity(contract_call_capacity),
-                contract_exits: Arena::with_capacity(contract_exit_capacity),
+                contracts: StateGraphContractRoots {
+                    fact_refs: Arena::with_capacity(contract_fact_ref_capacity),
+                    calls: Arena::with_capacity(contract_call_capacity),
+                    exits: Arena::with_capacity(contract_exit_capacity),
+                },
                 values: Arena::with_capacity(value_capacity),
                 boundary_edges: Arena::with_capacity(boundary_edge_capacity),
                 borrow: StateGraphBorrowRoots {
