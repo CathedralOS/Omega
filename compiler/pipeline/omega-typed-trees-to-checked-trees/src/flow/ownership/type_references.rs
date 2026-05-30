@@ -16,6 +16,72 @@ pub(in crate::flow::ownership) fn expression_requires_ownership(
         .unwrap_or(true)
 }
 
+/// The ownership disposition of a value produced by a slice/string/collection
+/// operator result.
+///
+/// This is the seam the ownership lane uses to keep operator semantics in one
+/// place and to host a future user-defined copy/drop policy: today the result
+/// of a view operator borrows, the result of a conversion owns, and an in-place
+/// mutation produces no transferable value. A later policy lookup (per element
+/// type, per operator) plugs in here without touching the event emitters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::flow::ownership) enum OperatorResultOwnership {
+    /// The result is a borrowed view into storage owned elsewhere
+    /// (`as_slice`, `as_mut_slice`, `as_view`, subslice/`Str::range`, ...).
+    BorrowedView,
+    /// The result is freshly owned storage that must be moved/dropped
+    /// (`Vec::with_capacity`, `String::with_capacity`, ...).
+    OwnedValue,
+    /// The result carries no transferable ownership: either unit (an in-place
+    /// mutation like `Vec::push`/`String::push_str`) or a copy primitive
+    /// (`Slice::Length`, `Slice::index` of a scalar, ...).
+    NoTransfer,
+}
+
+/// Classify the ownership disposition of a boundary/slice/string operator's
+/// *result*, given the operator's return type.
+///
+/// The return type is authoritative for the three built-in dispositions:
+/// a reference return is a borrowed view, an owned aggregate return is owned,
+/// and unit / copy-primitive returns transfer nothing. This mirrors
+/// [`type_requires_ownership`] but is expressed in operator-result terms so the
+/// move/borrow/drop emitters and a future copy/drop policy share one decision.
+pub(in crate::flow::ownership) fn classify_operator_result_ownership(
+    program: &omega_typed_trees::TypedTrees,
+    return_type: omega_typed_trees::types::TypeReferenceHandle,
+) -> OperatorResultOwnership {
+    if !return_type.is_valid() {
+        return OperatorResultOwnership::NoTransfer;
+    }
+
+    match program.type_reference_table.type_reference(return_type) {
+        // `&[T]`, `&mut [T]`, `&string`, `&T` — a borrowed view/window.
+        omega_typed_trees::types::TypeReferenceNode::Reference { .. } => {
+            OperatorResultOwnership::BorrowedView
+        }
+        // Unit results (`Vec::push`, `String::push_str`) transfer nothing.
+        omega_typed_trees::types::TypeReferenceNode::Unit => {
+            OperatorResultOwnership::NoTransfer
+        }
+        // A constrained result classifies by its base type.
+        omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            classify_operator_result_ownership(program, *base_type)
+        }
+        // Any other aggregate/owned return classifies as owned vs copy by the
+        // shared ownership rule (e.g. `Vec<T>` owns, `usize`/`u8` copy).
+        omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Generic { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Named { .. } => {
+            if type_requires_ownership(program, return_type) {
+                OperatorResultOwnership::OwnedValue
+            } else {
+                OperatorResultOwnership::NoTransfer
+            }
+        }
+    }
+}
+
 pub(in crate::flow::ownership) fn type_requires_ownership(
     program: &omega_typed_trees::TypedTrees,
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
