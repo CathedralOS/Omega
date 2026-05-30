@@ -661,6 +661,9 @@ meaning, without needing access to pointer descriptor internals.
     under explicit value roots
   - state-graph and control-flow semantic roots now group source boundary
     edges under explicit boundary roots
+  - state-graph executable roots now expose `StateGraphCode::with_roots` with
+    canaries, and capacity construction uses that constructor instead of raw
+    executable-root field assembly
   - state-graph worker merge now groups source code arenas separately from
     source semantic arenas, and the semantic merge bundle mirrors contract,
     value, boundary, borrow, and ownership roots
