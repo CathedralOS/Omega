@@ -37,13 +37,60 @@ domain String::NonEmpty {
     self.len > 0;
 }
 
-// `NoNul` and `Utf8` are ESTABLISHED at validating boundary constructors and
-// carried as facts; they are declared here but not proved sequence-wide.
+// `NoNul` and `Utf8` are byte-shape domains over the FULL extent of the text:
+// `Utf8` means every byte is part of a well-formed UTF-8 sequence; `NoNul` means
+// no byte is `0x00`. Deriving either inline would require a sequence-wide byte
+// scan on every use, which the frozen Wave 0 decision (chapter 18) rejects as too
+// expensive. They are therefore declared with NO cheap classifier body: they can
+// only be ESTABLISHED at a validating boundary (below), then carried as ordinary
+// domain facts and consumed by `requires ... in String::Utf8` without re-proof.
 domain String::NoNul {
 }
 
 domain String::Utf8 {
 }
+
+// Validating boundary constructors / validators.
+//
+// These boundary operators are the ONLY way to obtain a `String::Utf8` or
+// `String::NoNul` fact. Each scans its bytes ONCE at the host edge and then
+// ESTABLISHES the domain membership through an `ensures` contract. After the
+// boundary, the membership flows like any other domain fact; the checker never
+// re-scans bytes per use, and ordinary code cannot mint these memberships
+// without flowing through one of these boundaries.
+//
+// The in-place validators (`validate_utf8` / `validate_no_nul`) establish the
+// fact on their `&mut String` argument; the membership is carried on that place
+// afterwards. This is the working establishment path (the boundary's `ensures`
+// attaches the fact to the named argument place via the existing call-contract
+// machinery).
+boundary operator String::validate_utf8(text: &mut String) -> ()
+ensures
+    text in String::Utf8;
+
+boundary operator String::validate_no_nul(text: &mut String) -> ()
+ensures
+    text in String::NoNul;
+
+// The constructor form (validate-and-build from a borrowed byte window) is the
+// browsable boundary surface for producing a freshly-validated owned `String`.
+// It documents the intended `&[u8] -> String` constructor shape and establishes
+// the domain membership on its `result`.
+//
+// TODO(text-domains stitch): establishing a fact on the *return value* needs a
+// `result` binder in the call-contract place substitution (proof lane,
+// `semantic_places/substitution.rs`), which only maps `self` and named
+// parameters today. Until that hook lands, code that needs a carried `Utf8` /
+// `NoNul` fact should build the `String` and then call the in-place validator
+// above. The return-style `ensures result in ...` here is declared as the target
+// surface but does not yet flow the fact to the binding.
+boundary operator String::from_utf8(bytes: &[u8]) -> String
+ensures
+    result in String::Utf8;
+
+boundary operator String::from_no_nul(bytes: &[u8]) -> String
+ensures
+    result in String::NoNul;
 
 // Borrowed text window (`&string`) measures and operators.
 
