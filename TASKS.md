@@ -402,6 +402,9 @@ meaning, without needing access to pointer descriptor internals.
   - control-flow-to-abstract-operations now builds `AbstractSemanticSummary`
     through a dedicated semantic-root builder and assigns the summary as a unit
     instead of patching semantic sub-arenas in the top-level lowering function
+  - control-flow-to-abstract-operations now joins instruction-selection code
+    roots and preserved semantic roots through `AbstractOperationPlan::with_roots`
+    instead of mutating the plan's semantic field after construction
   - target-to-assigned lowering now builds assigned executable code through a
     dedicated `code.rs` root builder, leaving `builder.rs` as the stage
     conveyor that assembles target identity, code, and preserved semantics
