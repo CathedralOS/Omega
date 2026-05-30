@@ -17,21 +17,70 @@ pub(super) fn state_has_proven_self_loop(
     state: &omega_typed_trees::state::State,
     decreases: ExpressionHandle,
 ) -> bool {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| patterns::guarded_self_loop(program, state, statement))
+        .any(|self_loop| {
+            edge_decrease_proven(
+                program,
+                state,
+                state,
+                self_loop.guard,
+                self_loop.arguments,
+                decreases,
+            )
+        })
+}
+
+/// Prove that the Nat-descending measure strictly decreases across a single
+/// guarded transition edge from `source` to `target`. For a self-loop this is
+/// the classic countdown / distance proof; for a mutually-recursive cycle the
+/// target differs from the source, so the decreasing argument is located by the
+/// matching parameter name in the *target* state.
+pub(super) fn edge_decrease_proven(
+    program: &omega_typed_trees::TypedTrees,
+    source: &omega_typed_trees::state::State,
+    target: &omega_typed_trees::state::State,
+    guard: ExpressionHandle,
+    arguments: &[ExpressionHandle],
+    decreases: ExpressionHandle,
+) -> bool {
     match program.expression_table.expression(decreases) {
-        ExpressionNode::Name(_) => state_has_proven_countdown_self_loop(program, state, decreases),
+        ExpressionNode::Name(_) => {
+            countdown_edge(program, source, target, guard, arguments, decreases)
+        }
         ExpressionNode::Member(_) => {
-            state_has_proven_member_countdown_self_loop(program, state, decreases)
+            member_countdown_edge(program, source, target, guard, arguments, decreases)
         }
         ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Subtract) => {
-            state_has_proven_distance_self_loop(program, state, *binary)
+            distance_edge(program, source, target, guard, arguments, *binary)
         }
         _ => false,
     }
 }
 
-fn state_has_proven_countdown_self_loop(
+/// Index of the non-self parameter with the given name in a state's parameter
+/// list (the positional argument slot for that parameter on an incoming edge).
+fn target_argument_index(
     program: &omega_typed_trees::TypedTrees,
-    state: &omega_typed_trees::state::State,
+    target: &omega_typed_trees::state::State,
+    name: &str,
+) -> Option<usize> {
+    program
+        .state_parameters(target)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| parameter.name.as_str() == name)
+}
+
+fn countdown_edge(
+    program: &omega_typed_trees::TypedTrees,
+    source: &omega_typed_trees::state::State,
+    target: &omega_typed_trees::state::State,
+    guard: ExpressionHandle,
+    arguments: &[ExpressionHandle],
     decreases: ExpressionHandle,
 ) -> bool {
     let ExpressionNode::Name(decreases_path) = program.expression_table.expression(decreases)
@@ -44,115 +93,95 @@ fn state_has_proven_countdown_self_loop(
         .last()
         .map(|member| member.as_str())
         .unwrap_or_default();
-    let Some((parameter, argument_index)) = program
-        .state_parameters(state)
+    let Some(parameter) = program
+        .state_parameters(source)
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .enumerate()
-        .find_map(|(index, parameter)| {
-            (parameter.symbol == decreases_path.symbol || parameter.name.as_str() == decrease_name)
-                .then_some((parameter, index))
+        .find(|parameter| {
+            parameter.symbol == decreases_path.symbol || parameter.name.as_str() == decrease_name
         })
     else {
         return false;
     };
+    let Some(argument_index) = target_argument_index(program, target, parameter.name.as_str())
+    else {
+        return false;
+    };
+    let Some(argument) = arguments.get(argument_index).copied() else {
+        return false;
+    };
 
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter_map(|statement| patterns::guarded_self_loop(program, state, statement))
-        .any(|self_loop| {
-            let Some(argument) = self_loop.arguments.get(argument_index).copied() else {
-                return false;
-            };
-
-            guard_is_positive_parameter(program, self_loop.guard, parameter)
-                && argument_is_parameter_minus_one(program, argument, parameter)
-        })
+    guard_is_positive_parameter(program, guard, parameter)
+        && argument_is_parameter_minus_one(program, argument, parameter)
 }
 
-fn state_has_proven_member_countdown_self_loop(
+fn member_countdown_edge(
     program: &omega_typed_trees::TypedTrees,
-    state: &omega_typed_trees::state::State,
+    source: &omega_typed_trees::state::State,
+    target: &omega_typed_trees::state::State,
+    guard: ExpressionHandle,
+    arguments: &[ExpressionHandle],
     decreases: ExpressionHandle,
 ) -> bool {
     let ExpressionNode::Member(member) = program.expression_table.expression(decreases) else {
         return false;
     };
-    let Some((parameter, argument_index)) =
-        patterns::parameter_and_argument_index_matched_by_expression(
-            program,
-            state,
-            member.receiver,
-        )
+    let Some(parameter) =
+        patterns::parameter_matched_by_expression(program, source, member.receiver)
     else {
         return false;
     };
+    let Some(argument_index) = target_argument_index(program, target, parameter.name.as_str())
+    else {
+        return false;
+    };
+    let Some(argument) = arguments.get(argument_index).copied() else {
+        return false;
+    };
 
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter_map(|statement| patterns::guarded_self_loop(program, state, statement))
-        .any(|self_loop| {
-            let Some(argument) = self_loop.arguments.get(argument_index).copied() else {
-                return false;
-            };
-
-            guard_is_positive_parameter_member(
-                program,
-                self_loop.guard,
-                parameter,
-                member.member.as_str(),
-            ) && argument_rebuilds_parameter_with_member_minus_one(
-                program,
-                argument,
-                parameter,
-                member.member.as_str(),
-            )
-        })
+    guard_is_positive_parameter_member(program, guard, parameter, member.member.as_str())
+        && argument_rebuilds_parameter_with_member_minus_one(
+            program,
+            argument,
+            parameter,
+            member.member.as_str(),
+        )
 }
 
-fn state_has_proven_distance_self_loop(
+fn distance_edge(
     program: &omega_typed_trees::TypedTrees,
-    state: &omega_typed_trees::state::State,
+    source: &omega_typed_trees::state::State,
+    target: &omega_typed_trees::state::State,
+    guard: ExpressionHandle,
+    arguments: &[ExpressionHandle],
     decreases: omega_typed_trees::expression::TableBinaryExpression,
 ) -> bool {
     let Some(limit_parameter) =
-        patterns::parameter_matched_by_expression(program, state, decreases.left)
+        patterns::parameter_matched_by_expression(program, source, decreases.left)
     else {
         return false;
     };
     let Some(index_parameter) =
-        patterns::parameter_matched_by_expression(program, state, decreases.right)
+        patterns::parameter_matched_by_expression(program, source, decreases.right)
     else {
         return false;
     };
-    let Some(limit_index) = patterns::non_self_parameter_index(program, state, limit_parameter)
+    let Some(limit_index) = target_argument_index(program, target, limit_parameter.name.as_str())
     else {
         return false;
     };
-    let Some(index_index) = patterns::non_self_parameter_index(program, state, index_parameter)
+    let Some(index_index) = target_argument_index(program, target, index_parameter.name.as_str())
     else {
+        return false;
+    };
+    let Some(limit_argument) = arguments.get(limit_index).copied() else {
+        return false;
+    };
+    let Some(index_argument) = arguments.get(index_index).copied() else {
         return false;
     };
 
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter_map(|statement| patterns::guarded_self_loop(program, state, statement))
-        .any(|self_loop| {
-            let Some(limit_argument) = self_loop.arguments.get(limit_index).copied() else {
-                return false;
-            };
-            let Some(index_argument) = self_loop.arguments.get(index_index).copied() else {
-                return false;
-            };
-
-            guard_is_index_below_limit(program, self_loop.guard, index_parameter, limit_parameter)
-                && patterns::expression_is_parameter(program, limit_argument, limit_parameter)
-                && argument_is_parameter_plus_one(program, index_argument, index_parameter)
-        })
+    guard_is_index_below_limit(program, guard, index_parameter, limit_parameter)
+        && patterns::expression_is_parameter(program, limit_argument, limit_parameter)
+        && argument_is_parameter_plus_one(program, index_argument, index_parameter)
 }

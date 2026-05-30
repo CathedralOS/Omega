@@ -6,31 +6,6 @@ pub(super) struct GuardedSelfLoop<'program> {
     pub(super) arguments: &'program [ExpressionHandle],
 }
 
-pub(super) fn state_has_direct_self_loop(
-    program: &omega_typed_trees::TypedTrees,
-    state: &omega_typed_trees::state::State,
-) -> bool {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .any(|statement| {
-            let StatementNode::Transition(transition) = statement else {
-                return false;
-            };
-
-            branch_targets_state(
-                program.statement_table.transition_target(transition.target),
-                state.symbol,
-            ) || branch_targets_state(
-                program
-                    .statement_table
-                    .transition_target(transition.continuation),
-                state.symbol,
-            )
-        })
-}
-
 pub(super) fn guarded_self_loop<'program>(
     program: &'program omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,
@@ -51,6 +26,42 @@ pub(super) fn guarded_self_loop<'program>(
     }
 
     Some(GuardedSelfLoop {
+        guard,
+        arguments: program.statement_table.expression_handles(*arguments),
+    })
+}
+
+/// A guarded transition edge whose target is a specific state (used for
+/// cyclic / mutually-recursive edges where the target differs from the source).
+pub(super) struct GuardedEdge<'program> {
+    pub(super) guard: ExpressionHandle,
+    pub(super) arguments: &'program [ExpressionHandle],
+}
+
+/// Match a guarded transition from `state` whose target is exactly
+/// `target_symbol`. Unlike [`guarded_self_loop`], the target may be a different
+/// state, which is what lets cycle reasoning prove a decrease across a
+/// back-edge of a mutually-recursive cycle.
+pub(super) fn guarded_edge_to<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    statement: &StatementNode,
+    target_symbol: omega_core::symbols::SymbolHandle,
+) -> Option<GuardedEdge<'program>> {
+    let StatementNode::Transition(transition) = statement else {
+        return None;
+    };
+    let TransitionGuardNode::When(guard) = transition.guard else {
+        return None;
+    };
+    let target = program.statement_table.transition_target(transition.target);
+    let TransitionTargetNode::Named { path, arguments } = target else {
+        return None;
+    };
+    if path.symbol != target_symbol {
+        return None;
+    }
+
+    Some(GuardedEdge {
         guard,
         arguments: program.statement_table.expression_handles(*arguments),
     })
@@ -160,14 +171,4 @@ pub(super) fn expression_matches_parameter(
                 if member.member.as_str() == "len"
                     && expression_is_parameter(program, member.receiver, parameter)
         )
-}
-
-fn branch_targets_state(
-    target: &TransitionTargetNode,
-    state_symbol: omega_core::symbols::SymbolHandle,
-) -> bool {
-    matches!(
-        target,
-        TransitionTargetNode::Named { path, .. } if path.symbol == state_symbol
-    )
 }

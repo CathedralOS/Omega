@@ -1,0 +1,27 @@
+data Main {
+}
+
+machine Main::main(&mut self) -> usize {
+    transition {
+        _ -> self.ping(4)
+    }
+}
+
+machine Main::ping(&mut self, remaining: usize)
+terminates {
+    decreases remaining -> Nat::Descending;
+}
+-> usize
+{
+    transition remaining > 0 {
+        true -> pong(remaining - 1)
+        false -> 0
+    }
+
+    state pong(&mut self, remaining: usize) -> usize {
+        transition remaining > 0 {
+            true -> ping(remaining - 1)
+            false -> 0
+        }
+    }
+}

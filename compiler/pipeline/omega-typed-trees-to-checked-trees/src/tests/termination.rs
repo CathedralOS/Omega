@@ -320,3 +320,90 @@ fn accepts_terminating_slice_length_order_with_shrinking_subslice() {
 
     lower_typed_trees(typed).expect("termination slice length proof should succeed");
 }
+
+#[test]
+fn accepts_terminating_mutually_recursive_states_with_decreases() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) -> usize {
+        transition {
+            _ -> self.ping(4)
+        }
+    }
+
+    machine Main::ping(&mut self, remaining: usize)
+    terminates {
+        decreases remaining -> Nat::Descending;
+    }
+    -> usize
+    {
+        transition remaining > 0 {
+            true -> pong(remaining - 1)
+            false -> 0
+        }
+
+        state pong(&mut self, remaining: usize) -> usize {
+            transition remaining > 0 {
+                true -> ping(remaining - 1)
+                false -> 0
+            }
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    lower_typed_trees(typed).expect("mutual recursion decrease proof should succeed");
+}
+
+#[test]
+fn rejects_terminating_mutually_recursive_states_without_decrease() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) -> usize {
+        transition {
+            _ -> self.ping(4)
+        }
+    }
+
+    machine Main::ping(&mut self, remaining: usize)
+    terminates {
+        decreases remaining -> Nat::Descending;
+    }
+    -> usize
+    {
+        transition remaining > 0 {
+            true -> pong(remaining)
+            false -> 0
+        }
+
+        state pong(&mut self, remaining: usize) -> usize {
+            transition remaining > 0 {
+                true -> ping(remaining)
+                false -> 0
+            }
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed).expect_err("termination check should fail");
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause"))
+    );
+}
