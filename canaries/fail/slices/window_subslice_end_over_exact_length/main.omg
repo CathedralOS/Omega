@@ -1,7 +1,14 @@
-machine WindowSubsliceEndOverLength {
-    entry(values: &[u8]) {
-        let window: &[u8] = values[0..3];
-        let inner: &[u8] = window[1..5];
-        return;
-    }
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 8];
+}
+
+machine Main::main(&mut self) -> usize {
+    let view: &[Entry] = self.entries.as_slice();
+    let window: &[Entry] = view[2..5];
+    let inner: &[Entry] = window[1..5];
+    inner.len
 }

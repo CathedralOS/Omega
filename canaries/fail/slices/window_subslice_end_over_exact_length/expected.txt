@@ -1,1 +1,1 @@
-cannot prove subslice range end bound `window[1..5]` is within slice length 3
+cannot prove subslice range end bound `1..5` is within slice length 3
