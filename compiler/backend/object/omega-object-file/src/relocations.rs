@@ -14,10 +14,12 @@ pub struct RelocationRecordSet {
 }
 
 impl RelocationRecordSet {
+    pub fn with_roots(records: Arena<RelocationRecord>) -> Self {
+        Self { records }
+    }
+
     pub fn with_capacity(record_capacity: usize) -> Self {
-        Self {
-            records: Arena::with_capacity(record_capacity),
-        }
+        Self::with_roots(Arena::with_capacity(record_capacity))
     }
 }
 
@@ -32,11 +34,12 @@ impl RelocationPlan {
         Self::with_record_capacity(target, 0)
     }
 
+    pub fn with_roots(target: NativeTarget, record_set: RelocationRecordSet) -> Self {
+        Self { target, record_set }
+    }
+
     pub fn with_record_capacity(target: NativeTarget, record_capacity: usize) -> Self {
-        Self {
-            target,
-            record_set: RelocationRecordSet::with_capacity(record_capacity),
-        }
+        Self::with_roots(target, RelocationRecordSet::with_capacity(record_capacity))
     }
 
     pub fn push_record(&mut self, record: RelocationRecord) -> Handle<RelocationRecord> {
@@ -82,4 +85,31 @@ pub enum RelocationKind {
     Aarch64Branch26,
     X86_64Absolute64,
     X86_64Relative32,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{RelocationPlan, RelocationRecord, RelocationRecordSet};
+    use omega_core::arena::Arena;
+    use omega_target::NativeTarget;
+
+    #[test]
+    fn relocation_record_set_constructor_keeps_record_root_explicit() {
+        let records = Arena::<RelocationRecord>::with_capacity(3);
+
+        let record_set = RelocationRecordSet::with_roots(records.clone());
+
+        assert_eq!(record_set.records, records);
+    }
+
+    #[test]
+    fn relocation_plan_constructor_keeps_target_and_record_roots_explicit() {
+        let target = NativeTarget::linux_arm64();
+        let record_set = RelocationRecordSet::with_capacity(2);
+
+        let plan = RelocationPlan::with_roots(target, record_set.clone());
+
+        assert_eq!(plan.target, target);
+        assert_eq!(plan.record_set, record_set);
+    }
 }

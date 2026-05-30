@@ -63,8 +63,9 @@ Must not own:
 - `omega-relocations/src/instruction_records/runtime_values.rs` owns recursive runtime-value operand relocation extraction.
 - `omega-object-file/src/relocations.rs` owns relocation-plan and relocation-record data:
   patch records live under `RelocationRecordSet`, keeping artifact relocation
-  shape explicit at the plan root. Callers should use `RelocationPlan`
-  helpers such as `with_target`, `with_record_capacity`, `push_record`,
+  shape explicit at the plan root. Root construction should join target and
+  record-set roots through `RelocationPlan::with_roots`, while callers should
+  use helpers such as `with_target`, `with_record_capacity`, `push_record`,
   `record_count`, and `records` instead of constructing or walking the record
   arena directly.
 - `omega-object-file/src/container.rs` owns compatibility object-container serialization orchestration.
