@@ -13,16 +13,16 @@ pub(crate) fn remap_code_roots(state_graph: &StateGraph) -> ControlFlowCode {
     let (machines, contained_machines, machine_owned_data) = remap_machines(state_graph);
     let (states, state_parameters) = remap_states(state_graph);
 
-    ControlFlowCode {
-        expressions: state_graph.expressions.clone(),
+    ControlFlowCode::with_roots(
+        state_graph.expressions.clone(),
         machines,
         contained_machines,
         machine_owned_data,
         states,
         state_parameters,
-        operations: remap_operations(state_graph),
-        transitions: remap_transitions(state_graph),
-    }
+        remap_operations(state_graph),
+        remap_transitions(state_graph),
+    )
 }
 
 pub(crate) fn remap_code_roots_owned(code: StateGraphCode) -> ControlFlowCode {
@@ -37,16 +37,16 @@ pub(crate) fn remap_code_roots_owned(code: StateGraphCode) -> ControlFlowCode {
         transitions,
     } = code;
 
-    ControlFlowCode {
+    ControlFlowCode::with_roots(
         expressions,
-        machines: machines.map(remap_machine_owned),
-        contained_machines: contained_machines.map(remap_contained_owned),
-        machine_owned_data: machine_owned_data.map(remap_owned_data_owned),
-        states: states.map(remap_state_owned),
-        state_parameters: remap_parameters_owned(state_parameters),
-        operations: operations.map(remap_operation_owned),
-        transitions: transitions.map(remap_transition_owned),
-    }
+        machines.map(remap_machine_owned),
+        contained_machines.map(remap_contained_owned),
+        machine_owned_data.map(remap_owned_data_owned),
+        states.map(remap_state_owned),
+        remap_parameters_owned(state_parameters),
+        operations.map(remap_operation_owned),
+        transitions.map(remap_transition_owned),
+    )
 }
 
 fn remap_parameters_owned(
