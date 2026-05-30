@@ -1,6 +1,6 @@
 use crate::RelocationPlanningInput;
 use crate::instruction_records::collect_instruction_relocations;
-use crate::lookups::selected_instruction_text_offset;
+use crate::lookups::{selected_instruction_text_offset, selected_instruction_text_width};
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_object_file::{RelocationPlan, object_symbol_handle_by_name};
@@ -52,12 +52,15 @@ fn collect_function_relocations(
             function,
             selected_instruction_index,
         )?;
+        let selected_text_width =
+            selected_instruction_text_width(input, selected_instruction_index);
 
         collect_instruction_relocations(
             input,
             function_symbol_handle,
             selected_instruction_index,
             selected_text_offset,
+            selected_text_width,
             instruction,
             relocation_plan,
         );
