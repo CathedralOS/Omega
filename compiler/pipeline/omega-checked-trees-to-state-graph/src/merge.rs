@@ -1,15 +1,14 @@
 use omega_checked_trees::expression::ExpressionTable;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
-    MachineGraph, Operation, StateBoundaryEdge, StateContractCall, StateContractExit,
-    StateContractFactRef, StateDropEvent, StateGraph, StateGraphCode, StateGraphSemanticRoots,
-    StateMoveEvent, StateNode, StateParameterNode, StateValueFact, TransitionEdge,
+    MachineGraph, Operation, StateBoundaryEdge, StateGraph, StateGraphCode,
+    StateGraphSemanticRoots, StateNode, StateParameterNode, StateValueFact, TransitionEdge,
 };
 
 use crate::borrows::{SourceBorrowArenas, remap_state_borrow_summary};
 use crate::boundaries::remap_state_boundary_summary;
-use crate::contracts::remap_state_contract_summary;
-use crate::ownership::remap_state_ownership_summary;
+use crate::contracts::{SourceContractArenas, remap_state_contract_summary};
+use crate::ownership::{SourceOwnershipArenas, remap_state_ownership_summary};
 use crate::remap::{append_remapped_operations, append_remapped_transitions};
 use crate::values::remap_state_value_summary;
 
@@ -46,7 +45,7 @@ pub(crate) fn merge_machine_graph(
             transitions: &transitions,
         },
         semantics: SourceStateSemanticArenas {
-            contracts: SourceStateContractArenas {
+            contracts: SourceContractArenas {
                 fact_refs: &contracts.fact_refs,
                 calls: &contracts.calls,
                 exits: &contracts.exits,
@@ -62,7 +61,7 @@ pub(crate) fn merge_machine_graph(
                 activations: &borrow.activations,
                 weakenings: &borrow.weakenings,
             },
-            ownership: SourceStateOwnershipArenas {
+            ownership: SourceOwnershipArenas {
                 segments: &ownership.segments,
                 moves: &ownership.moves,
                 drops: &ownership.drops,
@@ -108,23 +107,11 @@ struct SourceStateCodeArenas<'a> {
 }
 
 struct SourceStateSemanticArenas<'a> {
-    contracts: SourceStateContractArenas<'a>,
+    contracts: SourceContractArenas<'a>,
     values: &'a Arena<StateValueFact>,
     boundaries: &'a Arena<StateBoundaryEdge>,
     borrow: SourceBorrowArenas<'a>,
-    ownership: SourceStateOwnershipArenas<'a>,
-}
-
-struct SourceStateContractArenas<'a> {
-    fact_refs: &'a Arena<StateContractFactRef>,
-    calls: &'a Arena<StateContractCall>,
-    exits: &'a Arena<StateContractExit>,
-}
-
-struct SourceStateOwnershipArenas<'a> {
-    segments: &'a Arena<omega_facts::PlaceSegment>,
-    moves: &'a Arena<StateMoveEvent>,
-    drops: &'a Arena<StateDropEvent>,
+    ownership: SourceOwnershipArenas<'a>,
 }
 
 fn append_remapped_states(
@@ -156,24 +143,14 @@ fn append_remapped_states(
             source.code.transitions,
             state.transitions,
         );
-        let contracts = remap_state_contract_summary(
-            target,
-            source.semantics.contracts.fact_refs,
-            source.semantics.contracts.calls,
-            source.semantics.contracts.exits,
-            &state.contracts,
-        );
+        let contracts =
+            remap_state_contract_summary(target, &source.semantics.contracts, &state.contracts);
         let values = remap_state_value_summary(target, source.semantics.values, &state.values);
         let boundaries =
             remap_state_boundary_summary(target, source.semantics.boundaries, &state.boundaries);
         let borrow = remap_state_borrow_summary(target, &source.semantics.borrow, &state.borrow);
-        let ownership = remap_state_ownership_summary(
-            target,
-            source.semantics.ownership.segments,
-            source.semantics.ownership.moves,
-            source.semantics.ownership.drops,
-            &state.ownership,
-        );
+        let ownership =
+            remap_state_ownership_summary(target, &source.semantics.ownership, &state.ownership);
         target.states.append_to_span(
             &mut remapped_states,
             StateNode {

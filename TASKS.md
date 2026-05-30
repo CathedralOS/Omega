@@ -641,6 +641,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked-trees-to-state-graph borrow merge now passes source borrow arenas
     as one semantic root bundle instead of threading writable roots, access
     segments, calls, loans, activations, and weakenings as loose arguments
+  - checked-trees-to-state-graph contract and ownership merge now use the same
+    source-root bundle pattern, so state merge coordinates semantic categories
+    instead of spelling out each category's internal arenas
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
