@@ -24,6 +24,28 @@ pub struct SymbolResolvedRoots {
     pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
 }
 
+impl SymbolResolvedRoots {
+    pub fn with_roots(
+        data_definitions: OrderedRootArena<crate::data::DataDefinition>,
+        domain_definitions: OrderedRootArena<crate::domain::DomainDefinition>,
+        invariant_definitions: OrderedRootArena<crate::invariant::InvariantDefinition>,
+        machines: OrderedRootArena<crate::machine::Machine>,
+        operators: OrderedRootArena<operator::OperatorDefinition>,
+        platforms: OrderedRootArena<crate::platform::Platform>,
+        traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
+    ) -> Self {
+        Self {
+            data_definitions,
+            domain_definitions,
+            invariant_definitions,
+            machines,
+            operators,
+            platforms,
+            traits,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolResolvedTableStorage {
     pub declarations: SymbolResolvedDeclarationStorage,
@@ -68,6 +90,18 @@ pub struct SymbolResolvedBodyStorage {
 }
 
 impl SymbolResolvedTrees {
+    pub fn with_roots(
+        roots: SymbolResolvedRoots,
+        tables: SymbolResolvedTableStorage,
+        symbols: SymbolTable,
+    ) -> Self {
+        Self {
+            roots,
+            tables,
+            symbols,
+        }
+    }
+
     pub fn data_members(&self, span: HandleSpan<data::DataMember>) -> &[data::DataMember] {
         self.tables.declarations.data_members.span_or_empty(span)
     }
@@ -311,5 +345,57 @@ impl Deref for SymbolResolvedTrees {
 impl DerefMut for SymbolResolvedTrees {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.roots
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees, data, domain,
+        invariant, machine, operator, platform, trait_definition,
+    };
+    use omega_core::arena::OrderedRootArena;
+    use omega_core::symbols::SymbolTable;
+
+    #[test]
+    fn symbol_resolved_roots_constructor_keeps_top_level_roots_explicit() {
+        let data_definitions = OrderedRootArena::<data::DataDefinition>::default();
+        let domain_definitions = OrderedRootArena::<domain::DomainDefinition>::default();
+        let invariant_definitions = OrderedRootArena::<invariant::InvariantDefinition>::default();
+        let machines = OrderedRootArena::<machine::Machine>::default();
+        let operators = OrderedRootArena::<operator::OperatorDefinition>::default();
+        let platforms = OrderedRootArena::<platform::Platform>::default();
+        let traits = OrderedRootArena::<trait_definition::TraitDefinition>::default();
+
+        let roots = SymbolResolvedRoots::with_roots(
+            data_definitions.clone(),
+            domain_definitions.clone(),
+            invariant_definitions.clone(),
+            machines.clone(),
+            operators.clone(),
+            platforms.clone(),
+            traits.clone(),
+        );
+
+        assert_eq!(roots.data_definitions, data_definitions);
+        assert_eq!(roots.domain_definitions, domain_definitions);
+        assert_eq!(roots.invariant_definitions, invariant_definitions);
+        assert_eq!(roots.machines, machines);
+        assert_eq!(roots.operators, operators);
+        assert_eq!(roots.platforms, platforms);
+        assert_eq!(roots.traits, traits);
+    }
+
+    #[test]
+    fn symbol_resolved_trees_constructor_keeps_roots_tables_and_symbols_explicit() {
+        let roots = SymbolResolvedRoots::default();
+        let tables = SymbolResolvedTableStorage::default();
+        let symbols = SymbolTable::default();
+
+        let trees = SymbolResolvedTrees::with_roots(roots.clone(), tables.clone(), symbols.clone());
+
+        assert_eq!(trees.roots, roots);
+        assert_eq!(trees.tables, tables);
+        assert_eq!(trees.symbols, symbols);
     }
 }

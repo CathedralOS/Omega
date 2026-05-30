@@ -45,7 +45,13 @@ impl Lowerer {
     pub(crate) fn finish(mut self) -> Result<SymbolResolvedTrees, Diagnostic> {
         crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
         self.symbol_resolved_trees.rebuild_tables();
-        Ok(self.symbol_resolved_trees)
+        let SymbolResolvedTrees {
+            roots,
+            tables,
+            symbols,
+        } = self.symbol_resolved_trees;
+
+        Ok(SymbolResolvedTrees::with_roots(roots, tables, symbols))
     }
 }
 

@@ -54,7 +54,41 @@ pub struct TypedTreeRoots {
     pub traits: HandleSpan<trait_definition::TraitDefinition>,
 }
 
+impl TypedTreeRoots {
+    pub fn with_roots(
+        data_definitions: HandleSpan<data::DataDefinition>,
+        domain_definitions: HandleSpan<domain::DomainDefinition>,
+        invariant_definitions: HandleSpan<invariant::InvariantDefinition>,
+        machines: HandleSpan<machine::Machine>,
+        operators: HandleSpan<crate::operator::OperatorDefinition>,
+        platforms: HandleSpan<platform::Platform>,
+        traits: HandleSpan<trait_definition::TraitDefinition>,
+    ) -> Self {
+        Self {
+            data_definitions,
+            domain_definitions,
+            invariant_definitions,
+            machines,
+            operators,
+            platforms,
+            traits,
+        }
+    }
+}
+
 impl TypedTrees {
+    pub fn with_roots(
+        roots: TypedTreeRoots,
+        tables: TypedTreeTables,
+        symbols: SymbolTable,
+    ) -> Self {
+        Self {
+            roots,
+            tables,
+            symbols,
+        }
+    }
+
     pub fn push_data_definition(&mut self, data_definition: data::DataDefinition) {
         self.tables
             .data_definitions
@@ -520,5 +554,57 @@ impl Deref for TypedTrees {
 impl DerefMut for TypedTrees {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.tables
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        TypedTreeRoots, TypedTreeTables, TypedTrees, data, domain, invariant, machine, operator,
+        platform, trait_definition,
+    };
+    use omega_core::arena::HandleSpan;
+    use omega_core::symbols::SymbolTable;
+
+    #[test]
+    fn typed_tree_roots_constructor_keeps_top_level_roots_explicit() {
+        let data_definitions = HandleSpan::<data::DataDefinition>::default();
+        let domain_definitions = HandleSpan::<domain::DomainDefinition>::default();
+        let invariant_definitions = HandleSpan::<invariant::InvariantDefinition>::default();
+        let machines = HandleSpan::<machine::Machine>::default();
+        let operators = HandleSpan::<operator::OperatorDefinition>::default();
+        let platforms = HandleSpan::<platform::Platform>::default();
+        let traits = HandleSpan::<trait_definition::TraitDefinition>::default();
+
+        let roots = TypedTreeRoots::with_roots(
+            data_definitions,
+            domain_definitions,
+            invariant_definitions,
+            machines,
+            operators,
+            platforms,
+            traits,
+        );
+
+        assert_eq!(roots.data_definitions, data_definitions);
+        assert_eq!(roots.domain_definitions, domain_definitions);
+        assert_eq!(roots.invariant_definitions, invariant_definitions);
+        assert_eq!(roots.machines, machines);
+        assert_eq!(roots.operators, operators);
+        assert_eq!(roots.platforms, platforms);
+        assert_eq!(roots.traits, traits);
+    }
+
+    #[test]
+    fn typed_trees_constructor_keeps_roots_tables_and_symbols_explicit() {
+        let roots = TypedTreeRoots::default();
+        let tables = TypedTreeTables::default();
+        let symbols = SymbolTable::default();
+
+        let trees = TypedTrees::with_roots(roots.clone(), tables.clone(), symbols.clone());
+
+        assert_eq!(trees.roots, roots);
+        assert_eq!(trees.tables, tables);
+        assert_eq!(trees.symbols, symbols);
     }
 }

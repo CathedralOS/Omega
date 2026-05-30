@@ -75,7 +75,13 @@ pub(crate) struct Lowerer<'source> {
 impl Lowerer<'_> {
     pub(crate) fn finish(mut self) -> Result<TypedTrees, Diagnostic> {
         self.typed_trees.symbols = self.source_trees.symbols.clone();
-        Ok(self.typed_trees)
+        let TypedTrees {
+            roots,
+            tables,
+            symbols,
+        } = self.typed_trees;
+
+        Ok(TypedTrees::with_roots(roots, tables, symbols))
     }
 }
 

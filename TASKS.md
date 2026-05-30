@@ -373,6 +373,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked invariant and domain facts now expose root constructors, and
     typed-to-checked invariant/domain production joins their semantic arenas
     through those root seams
+  - symbol-resolved and typed tree representations now expose explicit root
+    constructors, and their lowering finish points rejoin roots, tables, and
+    symbol tables through those seams
   - typed-to-checked now builds initial checked value facts for decreases
     clauses, initializers, statement values, call arguments, transition
     guards/targets, and nested expression children

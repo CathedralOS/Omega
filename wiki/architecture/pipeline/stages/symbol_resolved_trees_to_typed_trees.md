@@ -54,8 +54,11 @@ Must not own:
 
 The implementation should make typed semantic surfaces visible by file:
 
-- `program.rs` owns stage entry and the top-level lowering conveyor. Behavior
-  coverage belongs in `program/tests.rs`, not inline with the entrypoint.
+- `lowerer.rs` owns stage entry and the top-level lowering conveyor. Behavior
+  coverage belongs in `lowerer/tests.rs`, not inline with the entrypoint.
+- `TypedTrees::with_roots` and `TypedTreeRoots::with_roots` are the
+  representation seams for joining typed top-level root spans, typed tables,
+  and the inherited symbol table.
 - `expression.rs` owns the typed-expression lowering entry surface.
 - `expression/table.rs` owns only the recursive expression-table export surface.
   `expression/table/lowerer.rs` owns the `ExpressionTableLowerer` context that

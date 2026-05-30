@@ -50,8 +50,11 @@ Must not own:
 
 The implementation should stay split by identity task:
 
-- `program.rs` owns stage entry and the top-level lowering conveyor. Integration
-  coverage belongs in `program/tests.rs`, not inline with the entrypoint.
+- `lowerer.rs` owns stage entry and the top-level lowering conveyor. Integration
+  coverage belongs in `lowerer/tests.rs`, not inline with the entrypoint.
+- `SymbolResolvedTrees::with_roots` and `SymbolResolvedRoots::with_roots` are
+  the representation seams for joining resolved root arenas, resolved tables,
+  and the published symbol table.
 - `symbols/symbol_table.rs` creates the root symbol tree and reserves top-level
   child order. `symbols/symbol_table/children.rs` is only the declaration-child
   export surface; `symbols/symbol_table/children/{builtin,data,machines,operators,platforms,traits}.rs`
