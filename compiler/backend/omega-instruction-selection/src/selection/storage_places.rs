@@ -502,7 +502,7 @@ pub(super) fn resolve_runtime_frame_indexed_target(
         runtime_frame_slot_for_expression(input, dispatch_index, source_key, indexed.collection)?;
     // Dynamic indexing for inline frame arrays needs a base-offset lowering path rather than the
     // descriptor-based slice/view path used by runtime frame indexed targets.
-    if collection_slot.type_descriptor.fixed_array().is_some() {
+    if runtime_frame_slot_is_inline_fixed_array_storage(input, collection_slot) {
         return None;
     }
     let descriptor_place = resolve_runtime_storage_place(
@@ -599,7 +599,7 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
     )?;
     // Dynamic indexing for inline frame arrays needs a base-offset lowering path rather than the
     // descriptor-based slice/view path used by runtime frame indexed targets.
-    if collection_slot.type_descriptor.fixed_array().is_some() {
+    if runtime_frame_slot_is_inline_fixed_array_storage(input, collection_slot) {
         return None;
     }
     let descriptor_place = resolve_runtime_storage_place_in_table(
@@ -1168,6 +1168,16 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<RuntimeFrameFixedIndexedTarget> {
+    if let Some(target) = resolve_runtime_frame_fixed_indexed_storage_path_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(target);
+    }
+
     let fixed = fixed_indexed_target_path_in_table(expressions, expression)?;
     let collection_slot = runtime_frame_slot_for_expression_in_table(
         input,
@@ -1176,7 +1186,7 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target_in_table(
         expressions,
         fixed.collection,
     )?;
-    if inline_fixed_array_element_type(&collection_slot.type_descriptor).is_some() {
+    if runtime_frame_slot_is_inline_fixed_array_storage(input, collection_slot) {
         return None;
     }
     let descriptor_place = resolve_runtime_storage_place_in_table(
@@ -1218,6 +1228,53 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target_in_table(
     })
 }
 
+fn resolve_runtime_frame_fixed_indexed_storage_path_target_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeFrameFixedIndexedTarget> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    let element_index = path
+        .member_index(0)
+        .or_else(|| root_member_fixed_index(path.member(0)?))?;
+    let collection_slot =
+        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+            slot_matches_table_path(slot, &path)
+        })?;
+    if runtime_frame_slot_is_inline_fixed_array_storage(input, collection_slot) {
+        return None;
+    }
+
+    let element_descriptor = collection_slot.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let root_field = FieldLayout {
+        symbol: collection_slot.symbol,
+        name: collection_slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, field_layout) =
+        resolve_nested_field_layout_with_pairs(&input.layouts, &root_field, path.suffix(1).iter())?;
+
+    Some(RuntimeFrameFixedIndexedTarget {
+        descriptor_offset: collection_slot.byte_offset,
+        element_index,
+        element_byte_size: element_layout.size,
+        field_byte_offset,
+        byte_count: field_layout.size,
+    })
+}
+
+fn root_member_fixed_index(member: &omega_checked_trees::name::Identifier) -> Option<usize> {
+    let (_, suffix) = member.as_str().rsplit_once('[')?;
+    suffix.strip_suffix(']')?.parse().ok()
+}
+
 pub(super) fn resolve_runtime_frame_fixed_indexed_target(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -1227,7 +1284,7 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target(
     let fixed = fixed_indexed_target_path(expression)?;
     let collection_slot =
         runtime_frame_slot_for_expression(input, dispatch_index, source_key, fixed.collection)?;
-    if inline_fixed_array_element_type(&collection_slot.type_descriptor).is_some() {
+    if runtime_frame_slot_is_inline_fixed_array_storage(input, collection_slot) {
         return None;
     }
     let descriptor_place =
@@ -1606,6 +1663,14 @@ fn inline_fixed_array_element_type(
         TypeLayoutDescriptor::FixedArray { element_type, .. } => Some(element_type),
         _ => None,
     }
+}
+
+fn runtime_frame_slot_is_inline_fixed_array_storage(
+    input: &InstructionSelectionInput<'_>,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+) -> bool {
+    inline_fixed_array_element_type(&slot.type_descriptor).is_some()
+        && slot.byte_size != input.runtime_abi.slice_descriptor().total_size()
 }
 
 fn builtin_type_layout(

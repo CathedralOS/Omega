@@ -21,7 +21,7 @@ use super::super::text_writes::{
 use super::super::writes::{
     RuntimeStaticValues, emit_runtime_frame_slot_slice_descriptor_write_in_table,
     runtime_frame_slot_target_expression, runtime_storage_copy,
-    select_runtime_frame_slot_value_write_in_table,
+    runtime_storage_fixed_indexed_source_copy, select_runtime_frame_slot_value_write_in_table,
 };
 use super::mutation::{
     select_runtime_resolved_mutation_write,
@@ -527,8 +527,8 @@ fn select_runtime_leaf_branch_mutation_writes(
             input,
             expansion.dispatch_index,
             operation.source_key,
-            operation.source_key,
-            operation.source_key,
+            expansion.source_key,
+            expansion.source_key,
             operation.statement_index,
             &expressions,
             resolved_target,
@@ -546,7 +546,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             input,
             expansion.dispatch_index,
             operation.source_key,
-            operation.source_key,
+            expansion.source_key,
             operation.statement_index,
             &expressions,
             resolved_target,
@@ -690,7 +690,7 @@ fn runtime_leaf_storage_copy(
     target: &Expression,
     value: &Expression,
 ) -> Option<SelectedInstructionKind> {
-    runtime_storage_copy(
+    runtime_storage_fixed_indexed_source_copy(
         input,
         expansion.dispatch_index,
         expansion.source_key,
@@ -700,4 +700,16 @@ fn runtime_leaf_storage_copy(
         target,
         value,
     )
+    .or_else(|| {
+        runtime_storage_copy(
+            input,
+            expansion.dispatch_index,
+            expansion.source_key,
+            expansion.source_key,
+            operation_machine,
+            operation_state,
+            target,
+            value,
+        )
+    })
 }
