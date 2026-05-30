@@ -15,13 +15,14 @@ pub(super) fn append_state_exit_facts(
         (exit.machine_symbol == machine_symbol && exit.state_symbol == state_symbol).then_some(exit)
     }) {
         let entry_exit_contexts =
-            clone_flow_contexts(&mut ctx.semantic_context_refs, active_contexts);
-        let entry_constraints = clone_constraint_refs(&mut ctx.constraint_refs, active_constraints);
+            clone_flow_contexts(&mut ctx.contexts.semantic_context_refs, active_contexts);
+        let entry_constraints =
+            clone_constraint_refs(&mut ctx.contexts.constraint_refs, active_constraints);
         let mut ensures_contexts = omega_core::arena::HandleSpan::empty();
         let mut ensures_constraints = omega_core::arena::HandleSpan::empty();
         append_flow_contexts_for_points(
             semantic,
-            &mut ctx.semantic_context_refs,
+            &mut ctx.contexts.semantic_context_refs,
             &mut ensures_contexts,
             &[ProgramPoint::Exit {
                 machine_symbol,
@@ -31,7 +32,7 @@ pub(super) fn append_state_exit_facts(
         );
         append_semantic_constraints_for_points(
             semantic,
-            &mut ctx.constraint_refs,
+            &mut ctx.contexts.constraint_refs,
             &mut ensures_constraints,
             &[ProgramPoint::Exit {
                 machine_symbol,
@@ -40,7 +41,7 @@ pub(super) fn append_state_exit_facts(
             }],
         );
 
-        ctx.exits.append_to_span(
+        ctx.control.exits.append_to_span(
             &mut state_exits,
             FlowExitFact {
                 machine_symbol,
