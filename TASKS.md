@@ -67,8 +67,7 @@ Implementation slices below build against these. Minor/easily-reversible details
 
 ## Next Up (highest leverage)
 
-**EMISSION — zero-byte-instruction relocation bug (partially fixed; ~26 runtime
-canaries still red).** Root cause (confirmed): some instructions lower to ZERO
+**EMISSION — runtime canary tail failures after zero-byte relocation fix.** Root cause (confirmed): some instructions lower to ZERO
 bytes on x86_64 (e.g. `EvaluateDispatchGuard`/`CompareRuntimeText`, whose compare
 folds into the following `cmp`/`movabs`), yet the relocation pass still emitted an
 `Absolute64` storage-address relocation anchored at the zero-byte instruction's
@@ -81,10 +80,11 @@ runtime_text_compare.rs`). Result so far: runtime `*_canary_runs` went 12→46
 passing. Follow-up central guard landed in `omega-relocations`: every
 instruction-record data-address insertion now no-ops when the selected instruction
 encoded to zero bytes, instead of requiring each arm to remember its own width
-gate. Measured result: filtered runtime canaries now report 68 passing / 5
-failing. Remaining failures are no longer relocation splatter: mutable slice
-element writes return the unmutated exit branch, slice iteration lacks an index
-proof, and native dungeon samples hit known borrow/index proof diagnostics.
+gate. Follow-up fixed mutable slice literal-index writes by lowering
+fixed-indexed slice descriptor targets through the descriptor's pointee word.
+Measured result: filtered runtime canaries now report 70 passing / 3 failing.
+Remaining failures are no longer relocation splatter: slice iteration lacks an
+index proof, and native dungeon samples hit known borrow/index proof diagnostics.
 Harness: bin is `target/debug/omega.exe`; runtime canaries run as
 `cargo test -p omega-compiler --test canary_suite _runs -- --test-threads=1`;
 regression guard `omega --target windows_x64 samples/cli_mvp/main.omg` (exit 0)
