@@ -218,8 +218,7 @@ Omega/
 - `foundation/` stays dependency-light. If it needs semantic or target details,
   it is in the wrong layer.
 - Source-preserving syntax data belongs in `representations/`; source-to-syntax
-  transforms belong in `pipeline/`. Do not add a `frontend/` layer unless a
-  concrete formatter/lossless-CST subsystem earns its own home.
+  transforms belong in `pipeline/`.
 - `packages/` owns manifests, package graphs, and loading. It does not own
   language semantics.
 - Source discovery/loading should remain an orchestration subsystem, not parser
