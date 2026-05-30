@@ -250,7 +250,8 @@ without hidden runtime tags.
   `items[index]` and `items[range]` have visible checked-tree spelling
   resolution status. (done: checked operator facts record spelling, selected
   symbol, arena-backed scoped candidates, candidate count,
-  missing/resolved/ambiguous status, and summary/query surfaces.)
+  missing/resolved/ambiguous status, semantic origin, and summary/query
+  surfaces.)
 - [ ] Model `items[index]` and `items[1..]` as core `Slice`/`Array`/`Vec`
   operator contracts.
 - [ ] Design boundary implementation bindings for core operators without
