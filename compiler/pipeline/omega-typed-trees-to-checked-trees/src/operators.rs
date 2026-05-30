@@ -157,7 +157,7 @@ fn operator_use_fact(
     let candidate_span = candidate_facts.insert_many(
         candidates
             .iter()
-            .map(|candidate| candidate.as_checked_candidate()),
+            .map(|candidate| candidate.as_checked_candidate(program)),
     );
     let selected_operator_symbol = match candidates.as_slice() {
         [candidate] => candidate.operator.symbol,
@@ -186,12 +186,24 @@ struct OperatorCandidate<'program> {
 }
 
 impl OperatorCandidate<'_> {
-    fn as_checked_candidate(&self) -> CheckedOperatorCandidateFact {
-        if let Some(domain) = self.domain {
+    fn as_checked_candidate(&self, program: &TypedTrees) -> CheckedOperatorCandidateFact {
+        let candidate = if let Some(domain) = self.domain {
             CheckedOperatorCandidateFact::domain(self.operator.symbol, domain.symbol)
         } else {
             CheckedOperatorCandidateFact::root(self.operator.symbol)
-        }
+        };
+        candidate.with_signature(
+            program
+                .operator_parameters(self.operator)
+                .first()
+                .map(|parameter| parameter.type_reference)
+                .unwrap_or_else(TypeReferenceHandle::invalid),
+            self.operator.return_type,
+            program.operator_type_parameters(self.operator).len(),
+            program.operator_parameters(self.operator).len(),
+            program.operator_contracts(self.operator).len(),
+            self.operator.is_boundary,
+        )
     }
 }
 

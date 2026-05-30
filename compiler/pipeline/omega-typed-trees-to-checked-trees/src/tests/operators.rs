@@ -372,6 +372,15 @@ fn narrows_index_operator_candidates_by_receiver_type() {
         matching_operator_symbol
     );
     assert_eq!(indexed_use.candidate_count, 1);
+    let candidate = facts.candidates(indexed_use)[0];
+    assert_eq!(
+        candidate.receiver_type,
+        reference_to_slice_of_type_parameter
+    );
+    assert_eq!(candidate.type_parameter_count, 1);
+    assert_eq!(candidate.parameter_count, 2);
+    assert_eq!(candidate.contract_count, 0);
+    assert!(!candidate.is_boundary);
     assert_eq!(
         facts.candidate_symbols(indexed_use).collect::<Vec<_>>(),
         vec![matching_operator_symbol]
@@ -501,6 +510,9 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
         indexed_use.selected_operator_symbol,
         matching_operator_symbol
     );
+    let candidate = facts.candidates(indexed_use)[0];
+    assert_eq!(candidate.receiver_type, reference_to_slice_of_i32);
+    assert_eq!(candidate.parameter_count, 1);
     assert_eq!(
         facts.candidate_symbols(indexed_use).collect::<Vec<_>>(),
         vec![matching_operator_symbol]
