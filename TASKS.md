@@ -581,6 +581,9 @@ meaning, without needing access to pointer descriptor internals.
   - checked operation admissibility types now split dimensions, check records,
     summaries, shared view behavior, and state/statement/call/exit wrappers
     into focused modules instead of one mixed `types.rs`
+  - checked state admissibility now keeps aggregate borrow/proof/boundary
+    evidence counting in a focused helper module, leaving `state.rs` closer to
+    lookup and view assembly
   - `omega-typed-trees` expression representation now keeps display/rendering
     helpers and table canaries in focused expression submodules, leaving the
     root expression file closer to the arena-backed data model
