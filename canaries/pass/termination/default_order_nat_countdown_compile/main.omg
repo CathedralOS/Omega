@@ -1,0 +1,16 @@
+data Main {}
+
+machine Main::main(&mut self) {
+    let value: usize = self.countdown(2);
+}
+
+machine Main::countdown(&mut self, remaining: usize)
+terminates {
+    decreases remaining;
+}
+{
+    transition remaining > 0 {
+        true -> self.countdown(remaining - 1)
+        false -> 0
+    }
+}

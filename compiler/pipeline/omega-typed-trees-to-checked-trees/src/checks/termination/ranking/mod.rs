@@ -7,17 +7,30 @@ mod struct_view;
 use omega_typed_trees::expression::ExpressionHandle;
 
 use super::graph;
-use super::order::RankingOrder;
+use super::order::{OrderResolution, RankingOrder};
 
-pub(super) fn machine_has_proven_supported_decrease(
+/// The outcome of attempting to prove a terminating machine's `decreases`
+/// clause, distinguishing the cases the caller renders as different diagnostics.
+pub(super) enum DecreaseOutcome {
+    /// The decrease was proven across every cyclic edge.
+    Proven,
+    /// The order resolved, but the decrease could not be proven.
+    Unproven,
+    /// A plain `decreases value` clause whose decreasing value has no single
+    /// obvious well-founded order; the explicit `-> Order` form is required.
+    /// Carries the candidate orders to suggest.
+    AmbiguousOrder { candidates: Vec<&'static str> },
+}
+
+pub(super) fn machine_decrease_outcome(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
-) -> bool {
+) -> DecreaseOutcome {
     let decreases = program
         .expression_table
         .expression_handles(machine.decreases);
     if decreases.len() != 1 {
-        return false;
+        return DecreaseOutcome::Unproven;
     }
     let decreases = decreases[0];
 
@@ -25,25 +38,34 @@ pub(super) fn machine_has_proven_supported_decrease(
     // The decreases clause is declared on the machine signature, so its names
     // resolve against the machine's root (entry) state.
     let Some(root_state) = states.first() else {
-        return true;
+        return DecreaseOutcome::Proven;
     };
     let decrease_order = program.machine_decrease_order(machine.decrease_order);
-    let Some(order) = RankingOrder::from_path(program, root_state, decreases, decrease_order)
-    else {
-        return false;
+    let order = match RankingOrder::resolve(program, root_state, decreases, decrease_order) {
+        OrderResolution::Resolved(order) => order,
+        OrderResolution::AmbiguousDefault { candidates } => {
+            return DecreaseOutcome::AmbiguousOrder { candidates };
+        }
+        OrderResolution::Unsupported => return DecreaseOutcome::Unproven,
     };
 
     let adjacency = graph::machine_adjacency(program, machine);
     let components = graph::strongly_connected_components(&adjacency);
 
-    components
+    let proven = components
         .iter()
         .filter(|component| graph::component_is_cyclic(&adjacency, component))
         .all(|component| {
             component_has_proven_decrease(
                 program, machine, &adjacency, component, decreases, &order,
             )
-        })
+        });
+
+    if proven {
+        DecreaseOutcome::Proven
+    } else {
+        DecreaseOutcome::Unproven
+    }
 }
 
 /// A cyclic component terminates when the measure strictly decreases across

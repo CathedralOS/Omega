@@ -1,5 +1,5 @@
 use omega_typed_trees::data::DataMember;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::measure::MeasureDefinition;
 
 /// The well-founded ordering selected for a `decreases value -> Order` clause.
@@ -21,14 +21,50 @@ pub(super) enum RankingOrder {
     Lexicographic(Vec<omega_typed_trees::name::Identifier>),
 }
 
+/// The result of resolving the ordering for a `decreases` clause: either a
+/// concrete [`RankingOrder`], or a reason it could not be resolved that lets the
+/// caller emit a precise diagnostic.
+pub(super) enum OrderResolution {
+    /// A well-founded order was selected.
+    Resolved(RankingOrder),
+    /// The clause omitted `-> Order` and the decreasing value has no single
+    /// obvious well-founded interpretation, so an explicit order is required.
+    /// The stored hint names the candidate orders the user could choose from.
+    AmbiguousDefault { candidates: Vec<&'static str> },
+    /// An explicit `-> Order` was supplied but does not name a supported or
+    /// declared, well-formed measure.
+    Unsupported,
+}
+
 impl RankingOrder {
-    pub(super) fn from_path(
+    /// Resolve the ordering for a `decreases value -> order` clause. When `order`
+    /// is empty (plain `decreases value`, no explicit `-> Order`), the order is
+    /// inferred from the decreasing value's type when that interpretation is
+    /// unambiguous; otherwise an [`OrderResolution::AmbiguousDefault`] is
+    /// returned so the caller can ask for the explicit form. The explicit
+    /// `decreases value -> Type::Name` path is unchanged.
+    pub(super) fn resolve(
+        program: &omega_typed_trees::TypedTrees,
+        state: &omega_typed_trees::state::State,
+        decreases: ExpressionHandle,
+        order: &[omega_typed_trees::name::Identifier],
+    ) -> OrderResolution {
+        if order.is_empty() {
+            return infer_default_order(program, state, decreases);
+        }
+        match Self::from_path(program, state, decreases, order) {
+            Some(resolved) => OrderResolution::Resolved(resolved),
+            None => OrderResolution::Unsupported,
+        }
+    }
+
+    fn from_path(
         program: &omega_typed_trees::TypedTrees,
         state: &omega_typed_trees::state::State,
         decreases: ExpressionHandle,
         order: &[omega_typed_trees::name::Identifier],
     ) -> Option<Self> {
-        if order.is_empty() || path_matches(order, &["Nat", "Descending"]) {
+        if path_matches(order, &["Nat", "Descending"]) {
             return Some(Self::NatDescending);
         }
         if path_matches(order, &["Slice", "Length"]) {
@@ -74,6 +110,120 @@ impl RankingOrder {
             }
         }
     }
+}
+
+/// Infer the well-founded order for a plain `decreases value` clause (no
+/// explicit `-> Order`) from the shape and type of the decreasing value.
+///
+/// Inference only succeeds when the value has a single obvious well-founded
+/// reading:
+///   * a `usize`/nat-like scalar (or `slice.len`) counts down via descending
+///     naturals;
+///   * a slice parameter decreases by its length;
+///   * a bounded distance `upper - lower` (e.g. `limit - index`) descends
+///     through the naturals as the lower bound rises toward the upper bound.
+///
+/// Anything else (an unrecognized expression, or a value whose type offers no
+/// obvious interpretation) is reported as ambiguous so the caller can require
+/// the explicit `-> Order` form.
+fn infer_default_order(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    decreases: ExpressionHandle,
+) -> OrderResolution {
+    match program.expression_table.expression(decreases) {
+        // `decreases upper - lower` — a named bounded distance. As `lower` rises
+        // toward the fixed `upper`, the distance descends through the naturals.
+        // This is the named bounded-distance ranking that replaces hand-rolled
+        // subtraction proofs; it maps onto the existing Nat-descending distance
+        // prover.
+        ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Subtract) => {
+            OrderResolution::Resolved(RankingOrder::NatDescending)
+        }
+        // `decreases value` where `value` is a nat-like scalar counts down; where
+        // it is a slice it decreases by length. A `value.len` member is already
+        // nat-like.
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+            match decreasing_value_kind(program, state, decreases) {
+                Some(DecreasingValueKind::Nat) => {
+                    OrderResolution::Resolved(RankingOrder::NatDescending)
+                }
+                Some(DecreasingValueKind::Slice) => {
+                    OrderResolution::Resolved(RankingOrder::SliceLength)
+                }
+                None => OrderResolution::AmbiguousDefault {
+                    candidates: vec!["Nat::Descending", "Slice::Length"],
+                },
+            }
+        }
+        _ => OrderResolution::AmbiguousDefault {
+            candidates: vec!["Nat::Descending", "Slice::Length"],
+        },
+    }
+}
+
+/// The well-founded interpretation a plain decreasing value's type admits.
+enum DecreasingValueKind {
+    /// A `usize`/nat-like scalar that counts down through the naturals.
+    Nat,
+    /// A slice that decreases by its length.
+    Slice,
+}
+
+fn decreasing_value_kind(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    decreases: ExpressionHandle,
+) -> Option<DecreasingValueKind> {
+    // `value.len` (or any member named `len`) is a nat-like scalar.
+    if let ExpressionNode::Member(member) = program.expression_table.expression(decreases) {
+        if member.member.as_str() == "len" {
+            return Some(DecreasingValueKind::Nat);
+        }
+    }
+
+    let parameter = state_parameter_of_expression(program, state, decreases)?;
+    // The checker identifies types by display name. Slice types render with a
+    // bracketed element type (`&[Entry]`, `[usize]`); nat-like scalars render as
+    // their bare name.
+    let type_name = program
+        .type_reference_table
+        .display_name(parameter.type_reference);
+    if type_name.contains('[') {
+        return Some(DecreasingValueKind::Slice);
+    }
+    if is_nat_like_type(type_name.as_str()) {
+        return Some(DecreasingValueKind::Nat);
+    }
+    None
+}
+
+/// A type whose values descend through the naturals: unsigned / bounded
+/// integers. Signed integers are excluded because `value - 1` is not
+/// well-founded without a positivity interpretation, so they are treated as
+/// ambiguous and require the explicit `-> Order`.
+fn is_nat_like_type(name: &str) -> bool {
+    matches!(name, "usize" | "u8" | "u16" | "u32" | "u64" | "nat")
+}
+
+fn state_parameter_of_expression<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    state: &'program omega_typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<&'program omega_typed_trees::signature::StateParameter> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let last = program
+        .expression_table
+        .name_path_members(path.members)
+        .last()
+        .map(|member| member.as_str());
+    program.state_parameters(state).iter().find(|parameter| {
+        !parameter.is_self
+            && (parameter.symbol == path.symbol
+                || last.is_some_and(|name| parameter.name.as_str() == name))
+    })
 }
 
 enum MeasureBodyShape {
