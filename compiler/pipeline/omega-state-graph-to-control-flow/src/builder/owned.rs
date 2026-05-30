@@ -45,10 +45,13 @@ pub(crate) fn build_control_flow_plan_owned(
             transitions: transitions.map(remap_transition_owned),
         },
         semantics: omega_control_flow::ControlFlowSemanticRoots {
-            proof_obligations: semantics
-                .proof_obligations
-                .map(remap_proof_obligation_owned),
-            invariants: semantics.invariants.map(remap_invariant_owned),
+            facts: omega_control_flow::ControlFlowFactRoots {
+                proof_obligations: semantics
+                    .facts
+                    .proof_obligations
+                    .map(remap_proof_obligation_owned),
+                invariants: semantics.facts.invariants.map(remap_invariant_owned),
+            },
             contracts: omega_control_flow::ControlFlowContractRoots {
                 fact_refs: semantics
                     .contracts

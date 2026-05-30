@@ -34,8 +34,10 @@ pub(crate) fn build_control_flow_plan(
             transitions: remap_transitions(state_graph),
         },
         semantics: omega_control_flow::ControlFlowSemanticRoots {
-            proof_obligations: remap_proof_obligations(state_graph),
-            invariants: remap_invariants(state_graph),
+            facts: omega_control_flow::ControlFlowFactRoots {
+                proof_obligations: remap_proof_obligations(state_graph),
+                invariants: remap_invariants(state_graph),
+            },
             contracts: omega_control_flow::ControlFlowContractRoots {
                 fact_refs: remap_contract_fact_refs(state_graph),
                 calls: remap_contract_calls(state_graph),
