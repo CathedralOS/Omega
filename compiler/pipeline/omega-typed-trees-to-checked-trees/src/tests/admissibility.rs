@@ -1,4 +1,5 @@
 use super::*;
+use omega_checked_trees::AcceptanceView;
 
 #[test]
 fn exposes_checked_operation_acceptance_from_one_query_surface() {
