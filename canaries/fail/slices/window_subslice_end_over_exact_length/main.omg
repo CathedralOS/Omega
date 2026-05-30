@@ -1,0 +1,7 @@
+machine WindowSubsliceEndOverLength {
+    entry(values: &[u8]) {
+        let window: &[u8] = values[0..3];
+        let inner: &[u8] = window[1..5];
+        return;
+    }
+}

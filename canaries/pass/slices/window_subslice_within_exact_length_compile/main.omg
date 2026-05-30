@@ -1,0 +1,8 @@
+machine WindowSubsliceWithinExactLength {
+    entry(values: &[u8]) {
+        let window: &[u8] = values[0..4];
+        let inner: &[u8] = window[1..3];
+        let value: u8 = inner[1];
+        return;
+    }
+}
