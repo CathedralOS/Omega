@@ -696,6 +696,9 @@ meaning, without needing access to pointer descriptor internals.
     through one stage-local helper while noun modules keep conversion policy,
     eliminating repeated allocate/clone/remap loops across facts, contracts,
     values, boundaries, borrows, and ownership
+  - state-graph-to-control-flow handle remapping now splits generic
+    handle/span mechanics from noun-specific code, borrow, boundary, contract,
+    ownership, and value handle conversions
   - state-graph-to-control-flow now assembles `ControlFlowCode` in a focused
     stage-level code mapper, leaving top-level builders to join code roots and
     semantic roots instead of owning remap details

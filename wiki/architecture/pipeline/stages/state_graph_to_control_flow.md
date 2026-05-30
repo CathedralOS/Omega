@@ -98,7 +98,10 @@ noun preserved in a focused file:
 - `arena_remap.rs` owns the shared borrowed-arena remapping loop. Noun modules
   still own conversion policy; the helper only preserves arena shape while
   applying those conversions.
-- `handles.rs` owns handle-span remapping helpers only.
+- `handles.rs` owns only generic handle/span remapping mechanics and re-exports
+  noun-specific remappers from `handles/{code,borrows,boundaries,contracts,ownership,values}.rs`.
+  This keeps handle conversion searchable by the same semantic categories as
+  the remapped arenas.
 
 ## Known Gaps
 
