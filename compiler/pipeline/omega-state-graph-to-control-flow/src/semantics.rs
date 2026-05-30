@@ -30,14 +30,14 @@ use crate::ownership::{
 use crate::values::{remap_value_owned, remap_values};
 
 pub(crate) fn remap_semantic_roots(state_graph: &StateGraph) -> ControlFlowSemanticRoots {
-    ControlFlowSemanticRoots {
-        facts: remap_fact_roots(state_graph),
-        contracts: remap_contract_roots(state_graph),
-        values: remap_value_roots(state_graph),
-        boundaries: remap_boundary_roots(state_graph),
-        borrow: remap_borrow_roots(state_graph),
-        ownership: remap_ownership_roots(state_graph),
-    }
+    ControlFlowSemanticRoots::with_roots(
+        remap_fact_roots(state_graph),
+        remap_contract_roots(state_graph),
+        remap_value_roots(state_graph),
+        remap_boundary_roots(state_graph),
+        remap_borrow_roots(state_graph),
+        remap_ownership_roots(state_graph),
+    )
 }
 
 pub(crate) fn remap_semantic_roots_owned(
@@ -52,14 +52,14 @@ pub(crate) fn remap_semantic_roots_owned(
         ownership,
     } = semantics;
 
-    ControlFlowSemanticRoots {
-        facts: remap_fact_roots_owned(facts),
-        contracts: remap_contract_roots_owned(contracts),
-        values: remap_value_roots_owned(values),
-        boundaries: remap_boundary_roots_owned(boundaries),
-        borrow: remap_borrow_roots_owned(borrow),
-        ownership: remap_ownership_roots_owned(ownership),
-    }
+    ControlFlowSemanticRoots::with_roots(
+        remap_fact_roots_owned(facts),
+        remap_contract_roots_owned(contracts),
+        remap_value_roots_owned(values),
+        remap_boundary_roots_owned(boundaries),
+        remap_borrow_roots_owned(borrow),
+        remap_ownership_roots_owned(ownership),
+    )
 }
 
 fn remap_fact_roots(state_graph: &StateGraph) -> ControlFlowFactRoots {

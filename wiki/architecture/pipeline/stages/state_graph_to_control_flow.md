@@ -70,7 +70,8 @@ noun preserved in a focused file:
   field assembly.
 - `omega-control-flow/src/semantics.rs` owns the `ControlFlowSemanticRoots`
   bundle for preserved proof, invariant, contract, value, boundary, borrow, and
-  ownership arenas.
+  ownership arenas. Its constructor names those noun roots explicitly, and this
+  stage should use that constructor when preserving graph semantic evidence.
 - `machines.rs` remaps machine, contained-machine, and owned-data metadata.
 - `states.rs` remaps state nodes and state parameters while preserving state
   contract, value, boundary, borrow, ownership, operation, transition, and effect summaries.
