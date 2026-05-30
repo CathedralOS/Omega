@@ -4,14 +4,11 @@ use omega_control_flow::{
 use omega_core::arena::Arena;
 use omega_state_graph::StateGraph;
 
+use crate::arena_remap::remap_arena;
 use crate::handles::remap_value_span;
 
 pub(crate) fn remap_values(state_graph: &StateGraph) -> Arena<StateValueFact> {
-    let mut values = Arena::with_capacity(state_graph.semantics.values.values.len());
-    for (_, value) in state_graph.semantics.values.values.iter() {
-        values.append(remap_value_owned(value.clone()));
-    }
-    values
+    remap_arena(&state_graph.semantics.values.values, remap_value_owned)
 }
 
 pub(crate) fn remap_value_owned(value: omega_state_graph::StateValueFact) -> StateValueFact {

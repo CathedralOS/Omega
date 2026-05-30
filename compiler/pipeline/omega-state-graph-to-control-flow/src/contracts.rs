@@ -6,6 +6,8 @@ use omega_control_flow::{
 use omega_core::arena::Arena;
 use omega_state_graph::StateGraph;
 
+use crate::arena_remap::remap_arena;
+
 pub(crate) use conversions::{
     remap_contract_call_owned, remap_contract_exit_owned, remap_contract_fact_ref_owned,
 };
@@ -13,33 +15,24 @@ pub(crate) use conversions::{
 use crate::handles::{remap_contract_call_span, remap_contract_exit_span};
 
 pub(crate) fn remap_contract_fact_refs(state_graph: &StateGraph) -> Arena<StateContractFactRef> {
-    let mut refs = Arena::with_capacity(state_graph.semantics.contracts.fact_refs.len());
-
-    for (_, reference) in state_graph.semantics.contracts.fact_refs.iter() {
-        refs.append(remap_contract_fact_ref_owned(reference.clone()));
-    }
-
-    refs
+    remap_arena(
+        &state_graph.semantics.contracts.fact_refs,
+        remap_contract_fact_ref_owned,
+    )
 }
 
 pub(crate) fn remap_contract_calls(state_graph: &StateGraph) -> Arena<StateContractCall> {
-    let mut calls = Arena::with_capacity(state_graph.semantics.contracts.calls.len());
-
-    for (_, call) in state_graph.semantics.contracts.calls.iter() {
-        calls.append(remap_contract_call_owned(call.clone()));
-    }
-
-    calls
+    remap_arena(
+        &state_graph.semantics.contracts.calls,
+        remap_contract_call_owned,
+    )
 }
 
 pub(crate) fn remap_contract_exits(state_graph: &StateGraph) -> Arena<StateContractExit> {
-    let mut exits = Arena::with_capacity(state_graph.semantics.contracts.exits.len());
-
-    for (_, exit) in state_graph.semantics.contracts.exits.iter() {
-        exits.append(remap_contract_exit_owned(exit.clone()));
-    }
-
-    exits
+    remap_arena(
+        &state_graph.semantics.contracts.exits,
+        remap_contract_exit_owned,
+    )
 }
 
 pub(crate) fn remap_contract_summary(

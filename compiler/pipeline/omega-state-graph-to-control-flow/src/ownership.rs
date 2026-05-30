@@ -4,6 +4,7 @@ use omega_control_flow::{
 use omega_core::arena::Arena;
 use omega_state_graph::StateGraph;
 
+use crate::arena_remap::remap_arena;
 use crate::handles::{remap_drop_event_span, remap_move_event_span};
 
 pub(crate) fn remap_move_event_owned(event: omega_state_graph::StateMoveEvent) -> StateMoveEvent {
@@ -23,23 +24,17 @@ pub(crate) fn remap_drop_event_owned(event: omega_state_graph::StateDropEvent) -
 }
 
 pub(crate) fn remap_move_events(state_graph: &StateGraph) -> Arena<StateMoveEvent> {
-    let mut moves = Arena::with_capacity(state_graph.semantics.ownership.moves.len());
-
-    for (_, event) in state_graph.semantics.ownership.moves.iter() {
-        moves.append(remap_move_event_owned(event.clone()));
-    }
-
-    moves
+    remap_arena(
+        &state_graph.semantics.ownership.moves,
+        remap_move_event_owned,
+    )
 }
 
 pub(crate) fn remap_drop_events(state_graph: &StateGraph) -> Arena<StateDropEvent> {
-    let mut drops = Arena::with_capacity(state_graph.semantics.ownership.drops.len());
-
-    for (_, event) in state_graph.semantics.ownership.drops.iter() {
-        drops.append(remap_drop_event_owned(event.clone()));
-    }
-
-    drops
+    remap_arena(
+        &state_graph.semantics.ownership.drops,
+        remap_drop_event_owned,
+    )
 }
 
 pub(crate) fn remap_ownership_summary(
