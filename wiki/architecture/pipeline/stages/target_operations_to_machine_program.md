@@ -20,7 +20,11 @@ Primary responsibility: compose target-operation assignment and symbolic machine
 - `omega-machine-program/src/plan/` owns the aggregate machine-program
   artifact root: functions and instructions live under `MachineProgramCode`.
   `plan/code.rs` owns root structs and `plan/capacity.rs` owns capacity
-  construction.
+  construction through `MachineProgram::with_roots`.
+- `omega-machine-instructions/src/conversions.rs` owns the transitional
+  conversion between symbolic machine instructions and `MachineProgram`; it
+  must assemble code roots and preserved semantic roots explicitly instead of
+  mutating semantic fields after construction.
 - `omega-machine-program/src/semantics.rs` owns aggregate machine-program
   semantic aliases. `MachineSemanticSummary` is the preserved backend semantic
   spine, not a new duplicate values/boundaries/ownership container.
