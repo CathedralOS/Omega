@@ -94,7 +94,7 @@ fn copies_target_boundary_policy_checks_to_assigned_plan() {
     let mut target_operations = TargetOperationPlan::default();
     target_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .policy_checks
         .insert(AbstractBoundaryPolicyCheck {
             boundary_policy: "omega::host::targets::linux".into(),
@@ -106,18 +106,14 @@ fn copies_target_boundary_policy_checks_to_assigned_plan() {
 
     let check = assigned_operations
         .semantics
-        .boundary_edges
+        .boundaries
         .policy_checks
         .iter()
         .next()
         .map(|(_, check)| check)
         .expect("assigned boundary policy check");
     assert_eq!(
-        assigned_operations
-            .semantics
-            .boundary_edges
-            .policy_checks
-            .len(),
+        assigned_operations.semantics.boundaries.policy_checks.len(),
         1
     );
     assert_eq!(check.verdict, AbstractBoundaryPolicyVerdict::Accepted);

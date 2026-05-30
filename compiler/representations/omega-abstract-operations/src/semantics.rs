@@ -3,19 +3,19 @@ use crate::{AbstractBoundarySummary, AbstractOwnershipSummary, AbstractValueSumm
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AbstractSemanticSummary {
     pub values: AbstractValueSummary,
-    pub boundary_edges: AbstractBoundarySummary,
+    pub boundaries: AbstractBoundarySummary,
     pub ownership: AbstractOwnershipSummary,
 }
 
 impl AbstractSemanticSummary {
     pub fn with_roots(
         values: AbstractValueSummary,
-        boundary_edges: AbstractBoundarySummary,
+        boundaries: AbstractBoundarySummary,
         ownership: AbstractOwnershipSummary,
     ) -> Self {
         Self {
             values,
-            boundary_edges,
+            boundaries,
             ownership,
         }
     }

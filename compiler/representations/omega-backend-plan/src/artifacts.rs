@@ -33,7 +33,7 @@ impl BackendArtifactRoots {
     }
 
     pub fn boundary_summary(&self) -> &EncodedMachineBoundarySummary {
-        &self.encoded_machine.semantics.boundary_edges
+        &self.encoded_machine.semantics.boundaries
     }
 
     pub fn ownership_summary(&self) -> &EncodedMachineOwnershipSummary {
@@ -55,7 +55,7 @@ mod tests {
         artifacts
             .encoded_machine
             .semantics
-            .boundary_edges
+            .boundaries
             .policy_checks
             .insert(AbstractBoundaryPolicyCheck {
                 boundary_policy: Arc::from("omega::core::Slice::Index"),
@@ -64,11 +64,7 @@ mod tests {
             });
 
         assert_eq!(
-            artifacts
-                .semantic_summary()
-                .boundary_edges
-                .policy_checks
-                .len(),
+            artifacts.semantic_summary().boundaries.policy_checks.len(),
             1
         );
         assert_eq!(artifacts.boundary_summary().policy_checks.len(), 1);
