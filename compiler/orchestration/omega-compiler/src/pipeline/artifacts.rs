@@ -285,6 +285,11 @@ pub(super) fn write_backend_report(
             &plan.control_flow,
         ),
     )?;
+    // Plain-text twin of the HTML report. The HTML wraps the same text in a
+    // graph/`<pre>` shell, which makes it awkward to grep; the `.txt` keeps the
+    // full backend report (state guards, dispatch loop, codegen) directly
+    // readable for debugging.
+    write_phase_text(options, "backend_report.txt", &report)?;
     write_phase_diagram(
         options,
         "backend_report.html",
@@ -401,6 +406,7 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "09_backend_report.txt",
             "09_backend_report.html",
             "09_native_plan.txt",
+            "backend_report.txt",
             "08_abstract_operations.html",
             "09_target_operations.html",
             "10_assigned_target_operations.html",
