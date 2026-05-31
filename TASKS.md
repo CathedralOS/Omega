@@ -73,6 +73,21 @@ diagnosed-not-fixed (see below). The two highest-value backend fixes, both with 
 confirmed root cause, are ready to drive (with a human in the loop — autonomous
 solo agents reliably DIAGNOSE these but keep failing to LAND them):
 
+DIAGNOSIS CORRECTION (latest session): the prior "fix resolve_guard_operand_layout
+via lower_guard_leaf" lead is on the WRONG function. The repro canary
+(`runtime_direct_boolean_conjunction_exit`, a TUPLE transition
+`transition (col0,col1,...) { (2,_,false,_) -> ambush() }`, exits 10 = first arm
+instead of 21) does NOT go through `lower_guard_conjunction`/`lower_guard_leaf` —
+instrumenting those produced ZERO output on a confirmed rebuild. The exercised
+path is: `omega-instruction-selection/src/selection/runtime_dispatch/guards.rs`
+→ `build_dispatch_guard_conjunctions` (omega-state-guards `model.rs`) →
+`build_dispatch_guard_conjunction_row` (omega-state-guards `builder.rs`) →
+`guard_operands`/`resolve_guard_operand_layout`. NEXT SESSION: instrument
+`build_dispatch_guard_conjunction_row` (and the per-column `guard_operands` it
+calls) to see which tuple column's operand resolves to storage `Unknown` and why,
+then fix THAT. `lower_guard_conjunction`/`lower_guard_leaf` appear to be a separate
+(single-guard, non-tuple) entry and are a dead end for this repro.
+
 1. **Dispatch-guard zero-width fix (~7 wrong-exit canaries).** REPRO CONFIRMED:
    `cargo run -p omega-cli -- canaries/pass/dungeon/runtime_direct_boolean_conjunction_exit/main.omg`
    then run `.../build/omega-program.exe` → exits 10, want 21. Root cause (full
