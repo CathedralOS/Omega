@@ -90,43 +90,6 @@ even produce a guard expression, or is `edge.expressions.guard` Always/invalid �
 `build_state_guard` yields a NoOp guard → every arm enters unconditionally (which
 matches "first arm always wins")?
 
-=== DIAGNOSIS v4 — ROOT CAUSE FOUND + FIRST FIX VERIFIED (instrumented both producer and consumer) ===
-PRIMARY BUG (proven, fix verified to resolve guard lookup): the dispatch-loop edge
-builder `collect_state_dispatch_edges` in
-`omega-runtime-dispatch-loop/src/loop_plan/collection.rs` looks up each edge's guard
-with `state_guards.guard_for_source(source_key, edge_order)` where `source_key` is the
-loop-INVARIANT entry key (`let source_key = entry_state_key(...)` at line ~32,
-computed ONCE before the `for (_, state) in state_dispatch.states` loop). But a
-`StateKey` does NOT disambiguate dispatch states — instrumentation showed BOTH the
-entry (dispatch_index=1) and the `route` state (dispatch_index=2) have the SAME
-`StateKey{machine:2,state:13}`; the distinguishing field is `dispatch_index`. So
-every non-entry state's guards are looked up under the entry key and NOT FOUND →
-`guard_lowering` defaults to `NoOp` → `guard_can_emit_directly`=true → the And-splitter
-in edges.rs is skipped → guard emitted as nothing → first arm wins (exit 10).
-FIX (verified to fix the lookup): change line ~58 to
-`state_guards.guard_for_dispatch(state.dispatch_index, edge_order)`
-(`guard_for_dispatch` keys on `source_dispatch_index` + `statement_order`, which IS
-unique per dispatch state). After this change, instrumentation confirmed all 7
-`route` guards resolve with correct lowerings (order0=CompareStaticValue,
-orders1-5=NeedsRuntimeExpression).
-SECOND BUG (newly surfaced, NOT yet fixed): with guards now found, the repro exits 0
-instead of 21 — the And-split / per-column operand path in edges.rs
-(`lower_guard_conjunction` → `guard_operands` → `resolve_guard_operand_layout`) was
-previously DEAD (guards never found) and now runs but doesn't produce a matching
-comparison for arm4 `(2,_,false,_)`. Also suspicious: `guard_for_dispatch(2,6)` (the
-`_` wildcard arm) returned `NeedsRuntimeExpression` whereas the producer built
-`(disp=2,order=6)=Always/NoOp` — possible producer/consumer edge-index (statement_order
-vs edge_order) misalignment OR a guard_for_dispatch first-match collision. Resolve
-that index question FIRST next session (it may mean every arm's guard is off-by-one).
-The first fix was REVERTED (not committed) because it changes the canary from wrong-10
-to wrong-0 and the full canary suite couldn't be run this session (degraded tool
-channel) to check for regressions across the ~57 passing runtime canaries. Re-apply
-the collection.rs one-liner, then debug the edges.rs And-split/operand path + the
-edge-index alignment, then add the loud zero-width emission-filter guard, then run the
-full `_runs` suite. Repro: `target/debug/omega.exe
-canaries/pass/dungeon/runtime_direct_boolean_conjunction_exit/main.omg` then run
-`.../build/omega-program.exe` (want 21). CLI bin = `omega`.
-
 === DIAGNOSIS v3 — ANSWERED (instrumented build_state_guard this session) ===
 The tuple arms DO produce guard expressions, but they lower to a binary `And`.
 Per-arm instrumented output on the 7-arm `route` transition:
