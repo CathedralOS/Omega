@@ -88,14 +88,41 @@ the real per-edge entry is `build_state_guard` in
 SESSION, resolve this FIRST: do the tuple-pattern arms (`(2,_,false,_)->ambush()`)
 even produce a guard expression, or is `edge.expressions.guard` Always/invalid →
 `build_state_guard` yields a NoOp guard → every arm enters unconditionally (which
-matches "first arm always wins")? If so the bug is UPSTREAM of operand layout — in
-how tuple/multi-column transition patterns lower to dispatch-edge guard
-expressions (state-dispatch / control-flow), NOT in `omega-state-guards` operand
-resolution. Instrument `build_state_guard` (print `source_guard` validity, `kind`,
-`operator`, `lowering`) running `target/debug/omega.exe` (CLI bin is `omega`, NOT
-`omega-cli` — that binary does not exist) on the repro, stderr to an absolute path.
-`lower_guard_conjunction`/`lower_guard_leaf` are a confirmed dead path (zero
-instrumented output for this repro).
+matches "first arm always wins")?
+
+=== DIAGNOSIS v3 — ANSWERED (instrumented build_state_guard this session) ===
+The tuple arms DO produce guard expressions, but they lower to a binary `And`.
+Per-arm instrumented output on the 7-arm `route` transition:
+  arm0 `(0,_,_,_)`    -> RuntimeEquality Equal  -> CompareStaticValue (works)
+  arm1 `(1,true,_,_)` -> RuntimeExpression And   -> NeedsRuntimeExpression
+  arms2-5 (multi-col) -> RuntimeExpression And   -> NeedsRuntimeExpression
+  arm6 `_`            -> Always -> NoOp
+`guard_lowering()` (builder.rs:101) has no `And` arm → `NeedsRuntimeExpression`;
+emission drops that to ZERO width → multi-column arms enter unconditionally → first
+arm (gate/exit 10) wins instead of ambush/21. BUT the consumer
+`select_dispatch_guard_instructions` (omega-instruction-selection/.../runtime_dispatch/
+edges.rs) ALREADY decomposes And: behind `if !guard_can_emit_directly(edge)` it calls
+`lower_guard_conjunction` (edges.rs:128) + the conjunct selector (:175), and
+`guard_can_emit_directly` (edges.rs:279) returns FALSE for NeedsRuntimeExpression
+(line 309) so they should run; the clause loop at edges.rs:139-168 emits multiple
+per-column compares correctly. OPEN CONTRADICTION (the actual fix target): a prior
+session saw ZERO calls to `lower_guard_conjunction`, so the splitter falls through
+producing nothing. Prime suspect: `lower_guard_conjunction` returns EMPTY because its
+`plan.guard_for_dispatch(source_dispatch_index, edge.order)` key (dispatch_index +
+`edge.order`) doesn't match the build-time key (`state.dispatch_index` +
+`statement_order`); OR `RuntimeDispatchLoopEdge.guard_lowering` was copied such that
+`guard_can_emit_directly` is true and skips the splitter.
+NEXT (fix, ~1-2 instrumented iters): eprintln in edges.rs
+`select_dispatch_guard_instructions` printing `guard_can_emit_directly(edge)`,
+`edge.guard_lowering`, `edge.order`, and `lower_guard_conjunction(...).is_empty()`
+for the `route` edges; reconcile the lookup key so the And decomposes into per-column
+clauses; THEN add a loud error in the emission filter
+(`omega-machine-emission/src/layout.rs` ~L97 + `instruction_bytes.rs` ~L166) so a
+zero-width EvaluateDispatchGuard can never silently vanish again. Repro: build+run
+`canaries/pass/dungeon/runtime_direct_boolean_conjunction_exit` (want 21). CLI bin is
+`omega` (`target/debug/omega.exe`), NOT `omega-cli`. (`lower_guard_conjunction`/
+`lower_guard_leaf` themselves are correct — they DO decompose And; the gap is purely
+why edges.rs gets no clauses from them.)
 
 1. **Dispatch-guard zero-width fix (~7 wrong-exit canaries).** REPRO CONFIRMED:
    `cargo run -p omega-cli -- canaries/pass/dungeon/runtime_direct_boolean_conjunction_exit/main.omg`
