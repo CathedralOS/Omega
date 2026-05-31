@@ -82,11 +82,20 @@ instrumenting those produced ZERO output on a confirmed rebuild. The exercised
 path is: `omega-instruction-selection/src/selection/runtime_dispatch/guards.rs`
 → `build_dispatch_guard_conjunctions` (omega-state-guards `model.rs`) →
 `build_dispatch_guard_conjunction_row` (omega-state-guards `builder.rs`) →
-`guard_operands`/`resolve_guard_operand_layout`. NEXT SESSION: instrument
-`build_dispatch_guard_conjunction_row` (and the per-column `guard_operands` it
-calls) to see which tuple column's operand resolves to storage `Unknown` and why,
-then fix THAT. `lower_guard_conjunction`/`lower_guard_leaf` appear to be a separate
-(single-guard, non-tuple) entry and are a dead end for this repro.
+`guard_operands`. CORRECTION: there is NO `build_dispatch_guard_conjunction_row`;
+the real per-edge entry is `build_state_guard` in
+`omega-state-guards/src/builder.rs` (looped in `build_state_guard_plan`). NEXT
+SESSION, resolve this FIRST: do the tuple-pattern arms (`(2,_,false,_)->ambush()`)
+even produce a guard expression, or is `edge.expressions.guard` Always/invalid →
+`build_state_guard` yields a NoOp guard → every arm enters unconditionally (which
+matches "first arm always wins")? If so the bug is UPSTREAM of operand layout — in
+how tuple/multi-column transition patterns lower to dispatch-edge guard
+expressions (state-dispatch / control-flow), NOT in `omega-state-guards` operand
+resolution. Instrument `build_state_guard` (print `source_guard` validity, `kind`,
+`operator`, `lowering`) running `target/debug/omega.exe` (CLI bin is `omega`, NOT
+`omega-cli` — that binary does not exist) on the repro, stderr to an absolute path.
+`lower_guard_conjunction`/`lower_guard_leaf` are a confirmed dead path (zero
+instrumented output for this repro).
 
 1. **Dispatch-guard zero-width fix (~7 wrong-exit canaries).** REPRO CONFIRMED:
    `cargo run -p omega-cli -- canaries/pass/dungeon/runtime_direct_boolean_conjunction_exit/main.omg`
