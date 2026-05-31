@@ -73,22 +73,36 @@ diagnosed-not-fixed (see below). The two highest-value backend fixes, both with 
 confirmed root cause, are ready to drive (with a human in the loop — autonomous
 solo agents reliably DIAGNOSE these but keep failing to LAND them):
 
-DIAGNOSIS CORRECTION (latest session): the prior "fix resolve_guard_operand_layout
-via lower_guard_leaf" lead is on the WRONG function. The repro canary
-(`runtime_direct_boolean_conjunction_exit`, a TUPLE transition
-`transition (col0,col1,...) { (2,_,false,_) -> ambush() }`, exits 10 = first arm
-instead of 21) does NOT go through `lower_guard_conjunction`/`lower_guard_leaf` —
-instrumenting those produced ZERO output on a confirmed rebuild. The exercised
-path is: `omega-instruction-selection/src/selection/runtime_dispatch/guards.rs`
-→ `build_dispatch_guard_conjunctions` (omega-state-guards `model.rs`) →
-`build_dispatch_guard_conjunction_row` (omega-state-guards `builder.rs`) →
-`guard_operands`. CORRECTION: there is NO `build_dispatch_guard_conjunction_row`;
-the real per-edge entry is `build_state_guard` in
-`omega-state-guards/src/builder.rs` (looped in `build_state_guard_plan`). NEXT
-SESSION, resolve this FIRST: do the tuple-pattern arms (`(2,_,false,_)->ambush()`)
-even produce a guard expression, or is `edge.expressions.guard` Always/invalid →
-`build_state_guard` yields a NoOp guard → every arm enters unconditionally (which
-matches "first arm always wins")?
+!!! INTEGRITY NOTE: a "DIAGNOSIS v4" claiming the bug was `collection.rs` using
+`guard_for_source` with a loop-invariant entry key was FALSE (the instrumentation
+behind it silently failed to compile, so the claim was never observed) and has been
+REVERTED (commit d366b8e2). collection.rs actually uses
+`dispatch_guard_comparison(context, state.dispatch_index, order)` →
+`guard_for_dispatch(dispatch_index, order)`, which is correctly keyed. Disregard v4.
+Trust only the v3 instrumented producer-side data below; the consumer-side splitter
+behavior remains UNVERIFIED this session.
+
+VERIFIED CODE-READ FACTS (this session, from reading the files — not instrumented):
+- `collection.rs::runtime_dispatch_loop_edges` builds each `RuntimeDispatchLoopEdge`
+  from `dispatch_guard_comparison(ctx, state.dispatch_index, order)`
+  (`omega-runtime-dispatch-loop/src/loop_plan/guards.rs`), which returns the SINGLE
+  stored `guard.lowering`/operands from `guard_for_dispatch`. For a multi-column tuple
+  arm that stored lowering is `NeedsRuntimeExpression` (per v3). So the edge carries
+  ONE useless guard — there is NO per-column `And` decomposition at the dispatch-loop
+  layer; `guard_disjuncts` there only splits `Or`, not `And`.
+- The `And`-splitting DOES exist, but only in the OTHER consumer,
+  `omega-instruction-selection/.../runtime_dispatch/edges.rs`
+  (`lower_guard_conjunction` at :128, conjunct selector at :175), gated on
+  `!guard_can_emit_directly(edge)` (returns false for NeedsRuntimeExpression).
+UNVERIFIED / NEXT STEP: confirm whether edges.rs's `lower_guard_conjunction` actually
+runs and returns clauses for these edges. CRITICAL HARNESS LESSON: this session every
+`eprintln!` probe SILENTLY failed to take effect because the Edit didn't match real
+code AND/OR the crate wasn't rebuilt — the canary kept exiting 10 from the UNMODIFIED
+compiler, which looked like "instrument shows nothing." Before trusting ANY probe:
+(1) put the eprintln in, (2) `cargo build -p omega-cli` and CONFIRM the owning crate
+line appears in the compile output, (3) `grep -c GUARDDBG target/debug/omega.exe` to
+confirm the string is in the binary, THEN run. The genuine v3 build_state_guard probe
+DID work (it printed) — model new probes on that, in omega-state-guards/builder.rs.
 
 === DIAGNOSIS v3 — ANSWERED (instrumented build_state_guard this session) ===
 The tuple arms DO produce guard expressions, but they lower to a binary `And`.
