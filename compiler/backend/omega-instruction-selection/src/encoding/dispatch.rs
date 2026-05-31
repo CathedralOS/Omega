@@ -69,21 +69,22 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     expected_value: i64,
     skip_byte_distance: isize,
     operator: StateGuardOperator,
-) -> Result<[u8; 20], Diagnostic> {
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_dispatch_guard_compare_static_bytes(
+        Architecture::Aarch64 => Ok(aarch64::encode_dispatch_guard_compare_static_bytes(
+            byte_offset,
+            byte_size,
+            expected_value,
+            skip_byte_distance,
+            operator,
+        )?
+        .to_vec()),
+        Architecture::X86_64 => x86_64::encode_dispatch_guard_compare_static_bytes(
             byte_offset,
             byte_size,
             expected_value,
             skip_byte_distance,
             operator,
         ),
-        Architecture::X86_64 => unsupported_x86_64_guard_compare_static_encoding(),
     }
-}
-
-fn unsupported_x86_64_guard_compare_static_encoding() -> Result<[u8; 20], Diagnostic> {
-    Err(Diagnostic::error(
-        "X86_64 dispatch instruction encoding is not implemented",
-    ))
 }

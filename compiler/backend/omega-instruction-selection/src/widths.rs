@@ -88,7 +88,7 @@ pub fn dispatch_case_leave_width(architecture: Architecture) -> usize {
 pub fn dispatch_guard_compare_static_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::dispatch_guard_compare_static_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::dispatch_guard_compare_static_width(),
     }
 }
 

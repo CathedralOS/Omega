@@ -103,6 +103,39 @@ pub fn encode_dispatch_case_leave_bytes(loop_byte_distance: isize) -> Result<Vec
     Ok(bytes)
 }
 
+pub fn dispatch_guard_compare_static_width() -> usize {
+    // mov r15, imm64 (10) + load r10, [r15+disp32] (7)
+    // + mov r11, imm64 (10) + cmp r10, r11 (3) + jcc rel32 (6)
+    36
+}
+
+pub fn encode_dispatch_guard_compare_static_bytes(
+    byte_offset: usize,
+    byte_size: usize,
+    expected_value: i64,
+    skip_byte_distance: isize,
+    operator: StateGuardOperator,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot compare {byte_size}-byte dispatch guards yet"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(dispatch_guard_compare_static_width());
+    // Storage base; the imm64 (at instruction start + 2) is relocated to the
+    // guard's storage-region data symbol by the relocation planner.
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_load_reg_from_r15(&mut bytes, Reg64::R10, byte_offset, byte_size)?;
+    append_mov_reg_imm64(&mut bytes, Reg64::R11, expected_value as u64);
+    append_cmp_r10_r11(&mut bytes, byte_size)?;
+    // `skip_byte_distance` is measured from instruction start + 16 (the AArch64
+    // conditional-branch position). On x86_64 the jcc ends at instruction start
+    // + 36, so adjust the relative target by the 20-byte difference.
+    append_failure_branch(&mut bytes, operator, skip_byte_distance - 20)?;
+    debug_assert_eq!(bytes.len(), dispatch_guard_compare_static_width());
+    Ok(bytes)
+}
+
 pub fn host_call_sequence_width<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
