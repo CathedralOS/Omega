@@ -79,6 +79,83 @@ pub fn encode_runtime_pointee_string_write(
     Ok(bytes)
 }
 
+pub const RUNTIME_TEXT_STORED_PLACE_APPEND_TARGET_IMM_OFFSET: usize = 10;
+pub const RUNTIME_TEXT_STORED_PLACE_APPEND_SOURCE_IMM_OFFSET: usize = 33;
+
+pub fn runtime_text_stored_place_append_width() -> usize {
+    86
+}
+
+/// Appends a stored source string (a `{ptr,len}` descriptor in `source_region`)
+/// to the end of a target string that lives in a fixed output `buffer`, updating
+/// the target descriptor. r14=buffer base, r15=target region base, the source
+/// region base is loaded into rcx. The copy itself is a `rep movsb` (rsi/rdi are
+/// preserved around it). `buffer_offset` is unused (the append point is the
+/// target's current length).
+pub fn encode_runtime_text_stored_place_append(
+    source_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_text_stored_place_append_width());
+    append_mov_r14_imm64(&mut bytes, 0); // buffer base (reloc @ +2)
+    append_mov_r15_imm64(&mut bytes, 0); // target region base (reloc @ +12)
+    append_load_r11_from_r15(&mut bytes, target_offset + 8)?; // r11 = current length
+    append_mov_r10_r14(&mut bytes); // r10 = buffer base
+    append_add_r10_r11(&mut bytes); // r10 = dest = buffer + current length
+    debug_assert_eq!(bytes.len(), RUNTIME_TEXT_STORED_PLACE_APPEND_SOURCE_IMM_OFFSET);
+    append_mov_rcx_imm64(&mut bytes, 0); // source region base (reloc @ +2)
+    append_load_rax_from_rcx(&mut bytes, source_offset)?; // rax = source pointer
+    append_load_rcx_from_rcx(&mut bytes, source_offset + 8)?; // rcx = source length
+    append_add_r11_rcx(&mut bytes); // r11 = new length = current + source
+    append_store_r14_to_r15(&mut bytes, target_offset)?; // descriptor.ptr = buffer
+    append_store_r11_to_r15(&mut bytes, target_offset + 8)?; // descriptor.len = new length
+    append_push_rsi_rdi(&mut bytes);
+    append_mov_rsi_rax(&mut bytes); // rsi = source pointer
+    append_mov_rdi_r10(&mut bytes); // rdi = dest
+    append_rep_movsb(&mut bytes); // copy rcx bytes
+    append_pop_rdi_rsi(&mut bytes);
+    debug_assert_eq!(bytes.len(), runtime_text_stored_place_append_width());
+    Ok(bytes)
+}
+
+pub const RUNTIME_TEXT_STORED_SUFFIX_APPEND_SOURCE_IMM_OFFSET: usize = 10;
+pub const RUNTIME_TEXT_STORED_SUFFIX_APPEND_TARGET_IMM_OFFSET: usize = 59;
+
+pub fn runtime_text_stored_suffix_append_width() -> usize {
+    90
+}
+
+/// Writes a stored source string into `buffer + buffer_offset` and sets the
+/// target descriptor to `{ buffer, source_len + length_delta }`. Used to build a
+/// string whose first `length_delta` bytes are an already-present prefix.
+pub fn encode_runtime_text_stored_suffix_append(
+    buffer_offset: usize,
+    source_offset: usize,
+    target_offset: usize,
+    length_delta: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_text_stored_suffix_append_width());
+    append_mov_r14_imm64(&mut bytes, 0); // buffer base (reloc @ +2)
+    append_mov_rcx_imm64(&mut bytes, 0); // source region base (reloc @ +12)
+    append_load_rax_from_rcx(&mut bytes, source_offset)?; // rax = source pointer
+    append_load_rcx_from_rcx(&mut bytes, source_offset + 8)?; // rcx = source length
+    append_mov_r11_rcx(&mut bytes); // r11 = saved source length
+    append_mov_r10_r14(&mut bytes); // r10 = buffer base
+    append_add_r10_imm32(&mut bytes, buffer_offset)?; // r10 = dest = buffer + buffer_offset
+    append_push_rsi_rdi(&mut bytes);
+    append_mov_rsi_rax(&mut bytes); // rsi = source pointer
+    append_mov_rdi_r10(&mut bytes); // rdi = dest
+    append_rep_movsb(&mut bytes); // copy rcx bytes
+    append_pop_rdi_rsi(&mut bytes);
+    debug_assert_eq!(bytes.len(), RUNTIME_TEXT_STORED_SUFFIX_APPEND_TARGET_IMM_OFFSET);
+    append_mov_r15_imm64(&mut bytes, 0); // target region base (reloc @ +2)
+    append_store_r14_to_r15(&mut bytes, target_offset)?; // descriptor.ptr = buffer
+    append_add_r11_imm32(&mut bytes, length_delta)?; // r11 = source_len + length_delta
+    append_store_r11_to_r15(&mut bytes, target_offset + 8)?; // descriptor.len
+    debug_assert_eq!(bytes.len(), runtime_text_stored_suffix_append_width());
+    Ok(bytes)
+}
+
 pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width() -> usize {
     // mov r14,imm64(frame) (10) + mov r15,[r14+desc] (7) + add r15,const (7)
     // + mov [r14+target],r15 (7)
@@ -1919,6 +1996,93 @@ fn append_push_r10(bytes: &mut Vec<u8>) {
 
 fn append_pop_r10(bytes: &mut Vec<u8>) {
     bytes.extend([0x41, 0x5a]); // pop r10
+}
+
+// --- Helpers for the runtime-length text-append memcpy (`rep movsb`) ---
+
+fn append_mov_rcx_imm64(bytes: &mut Vec<u8>, value: u64) {
+    bytes.extend([0x48, 0xb9]); // mov rcx, imm64
+    bytes.extend(value.to_le_bytes());
+}
+
+fn append_load_rax_from_rcx(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x48, 0x8b, 0x81]); // mov rax, [rcx + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_rcx_from_rcx(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x48, 0x8b, 0x89]); // mov rcx, [rcx + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_mov_r10_r14(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x89, 0xf2]); // mov r10, r14
+}
+
+fn append_add_r10_r11(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x01, 0xda]); // add r10, r11
+}
+
+fn append_add_r10_imm32(bytes: &mut Vec<u8>, value: usize) -> Result<(), Diagnostic> {
+    let value = i32::try_from(value)
+        .map_err(|_| Diagnostic::error(format!("X86_64 encoder cannot add offset `{value}` to r10")))?;
+    bytes.extend([0x49, 0x81, 0xc2]); // add r10, imm32
+    bytes.extend(value.to_le_bytes());
+    Ok(())
+}
+
+fn append_add_r11_rcx(bytes: &mut Vec<u8>) {
+    bytes.extend([0x49, 0x01, 0xcb]); // add r11, rcx
+}
+
+fn append_add_r11_imm32(bytes: &mut Vec<u8>, value: usize) -> Result<(), Diagnostic> {
+    let value = i32::try_from(value)
+        .map_err(|_| Diagnostic::error(format!("X86_64 encoder cannot add offset `{value}` to r11")))?;
+    bytes.extend([0x49, 0x81, 0xc3]); // add r11, imm32
+    bytes.extend(value.to_le_bytes());
+    Ok(())
+}
+
+fn append_mov_r11_rcx(bytes: &mut Vec<u8>) {
+    bytes.extend([0x49, 0x89, 0xcb]); // mov r11, rcx
+}
+
+fn append_load_r11_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4d, 0x8b, 0x9f]); // mov r11, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_store_r11_to_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4d, 0x89, 0x9f]); // mov [r15 + disp32], r11
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_mov_rsi_rax(bytes: &mut Vec<u8>) {
+    bytes.extend([0x48, 0x89, 0xc6]); // mov rsi, rax
+}
+
+fn append_mov_rdi_r10(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4c, 0x89, 0xd7]); // mov rdi, r10
+}
+
+fn append_rep_movsb(bytes: &mut Vec<u8>) {
+    bytes.extend([0xf3, 0xa4]); // rep movsb (copy rcx bytes [rsi]->[rdi], DF=0)
+}
+
+fn append_push_rsi_rdi(bytes: &mut Vec<u8>) {
+    bytes.extend([0x56, 0x57]); // push rsi ; push rdi
+}
+
+fn append_pop_rdi_rsi(bytes: &mut Vec<u8>) {
+    bytes.extend([0x5f, 0x5e]); // pop rdi ; pop rsi
 }
 
 fn append_mov_r12d_imm32(bytes: &mut Vec<u8>, value: u32) -> Result<(), Diagnostic> {

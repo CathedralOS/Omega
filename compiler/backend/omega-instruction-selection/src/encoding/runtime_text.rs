@@ -92,7 +92,12 @@ pub fn encode_runtime_text_stored_suffix_append(
             target_offset,
             length_delta,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_text_stored_suffix_append(
+            buffer_offset,
+            source_offset,
+            target_offset,
+            length_delta,
+        ),
     }
 }
 
@@ -108,7 +113,10 @@ pub fn encode_runtime_text_stored_place_append(
             source_offset,
             target_offset,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            let _ = buffer_offset;
+            x86_64::encode_runtime_text_stored_place_append(source_offset, target_offset)
+        }
     }
 }
 
