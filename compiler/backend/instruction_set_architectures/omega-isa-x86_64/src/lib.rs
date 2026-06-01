@@ -545,6 +545,37 @@ pub fn encode_runtime_machine_indexed_integer_write(
     Ok(bytes)
 }
 
+pub fn runtime_pointee_integer_write_width(_field_byte_offset: usize, _byte_size: usize) -> usize {
+    // mov r15,imm64 (10) + mov r15,[r15+ptr] (7) + mov rax,imm64 (10) + store [r15+field] (7)
+    34
+}
+
+pub fn encode_runtime_pointee_integer_write(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot store {byte_size}-byte pointee integers yet"
+        )));
+    }
+    let mut bytes =
+        Vec::with_capacity(runtime_pointee_integer_write_width(field_byte_offset, byte_size));
+    // r15 = frame base (imm64 at +2 relocated to the frame symbol); then load the
+    // stored pointer in place and store the value through it.
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?;
+    append_mov_rax_imm64(&mut bytes, value as u64);
+    append_store_rax_to_r15(&mut bytes, field_byte_offset, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_pointee_integer_write_width(field_byte_offset, byte_size)
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_frame_indexed_integer_write_width(
     _element_byte_size: usize,
     _field_byte_offset: usize,
@@ -1034,6 +1065,13 @@ fn append_load_al_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<()
 fn append_load_r15_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x4d, 0x8b, 0xbe]); // mov r15, [r14 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_r15_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4d, 0x8b, 0xbf]); // mov r15, [r15 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }

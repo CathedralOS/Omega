@@ -105,7 +105,12 @@ pub fn encode_runtime_pointee_integer_write(
             byte_size,
             value,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_pointee_integer_write(
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_size,
+            value,
+        ),
     }
 }
 

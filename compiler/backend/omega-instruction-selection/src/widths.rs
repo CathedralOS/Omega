@@ -275,7 +275,9 @@ pub fn runtime_pointee_integer_write_width(
         Architecture::Aarch64 => {
             aarch64::runtime_pointee_integer_write_width(field_byte_offset, byte_size)
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_pointee_integer_write_width(field_byte_offset, byte_size)
+        }
     }
 }
 
