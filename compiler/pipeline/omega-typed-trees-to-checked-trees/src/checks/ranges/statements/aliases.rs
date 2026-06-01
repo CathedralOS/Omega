@@ -1,6 +1,5 @@
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
-use super::super::expressions::expression_name;
 use super::super::facts::RangeFacts;
 
 pub(super) fn seed_local_alias_facts(
@@ -9,26 +8,54 @@ pub(super) fn seed_local_alias_facts(
     value: ExpressionHandle,
     name: Option<&str>,
 ) {
-    let ExpressionNode::Name(_) = program.expression_table.expression(value) else {
-        // Aliasing only applies when the bound value is a bare name.
-        return;
-    };
-    let (symbol, source_name) = match expression_name(program, value) {
-        Some(pair) => pair,
-        None => return,
-    };
-    let _ = symbol;
-    let source_label = source_name.unwrap_or_default();
     let target_label = name.unwrap_or_default().to_string();
-    if source_label.is_empty() || target_label.is_empty() {
+    if target_label.is_empty() {
         return;
     }
 
-    let alias_collection_name = source_label.to_string();
+    // The local inherits the proven index/range facts of whatever stable place
+    // the value aliases. The source label must be the full display name (e.g.
+    // `room.exit_count`), since that is how the facts were keyed when seeded.
+    let Some(source_label) = alias_source_label(program, value) else {
+        return;
+    };
+    if source_label.is_empty() || source_label == target_label {
+        return;
+    }
 
-    let target = target_label.clone();
-    facts.alias_collection(&alias_collection_name, &target);
-    facts.alias_index(&alias_collection_name, &target);
+    // The alias is a full-extent view/copy of its source, so record it as a
+    // window of the source with unknown (full) bounds. This makes overlap
+    // reasoning treat the two as sharing a base, so `alias_collection` transfers
+    // the source's proven index/range facts rather than discarding them as a
+    // provably-disjoint pair of differently-named collections.
+    facts.prove_window_parent(target_label.clone(), source_label.clone(), None);
+    facts.alias_collection(&source_label, &target_label);
+    facts.alias_index(&source_label, &target_label);
+}
+
+/// Resolves the place a bound value aliases, for index/range fact inheritance.
+///
+/// A local bound to a bare place (`let y = x`, `let i = room.exit_count`)
+/// aliases that place. A local bound to `recv.as_slice()` / `.as_mut_slice()`
+/// is a full-length view of `recv`, so it aliases the receiver collection.
+/// Returns `None` for values that do not alias a stable place (literals,
+/// arithmetic, other calls), which carry no transferable element-position facts.
+fn alias_source_label(
+    program: &omega_typed_trees::TypedTrees,
+    value: ExpressionHandle,
+) -> Option<String> {
+    match program.expression_table.expression(value) {
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+            Some(program.expression_table.display_name(value))
+        }
+        ExpressionNode::Mutable(inner) => alias_source_label(program, *inner),
+        ExpressionNode::Call(call)
+            if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
+        {
+            Some(program.expression_table.display_name(call.receiver))
+        }
+        _ => None,
+    }
 }
 
 /// Seeds window-shrinking facts when a local is bound to a subslice `base[a..b]`.
