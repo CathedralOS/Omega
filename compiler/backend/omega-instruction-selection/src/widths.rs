@@ -790,8 +790,20 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width(
         }
         Architecture::X86_64 => {
             let _ = (base_byte_offset, element_byte_size, field_byte_offset);
-            0
+            x86_64::runtime_frame_base_indexed_address_to_runtime_frame_write_width()
         }
+    }
+}
+
+/// Relocation imm offset (pre-`+2`) of the second runtime-frame base load in the
+/// frame-base-indexed address write, when the architecture loads the frame base
+/// more than once. `None` when a single load is reused (aarch64).
+pub fn runtime_frame_base_indexed_address_target_frame_offset(
+    architecture: Architecture,
+) -> Option<usize> {
+    match architecture {
+        Architecture::Aarch64 => None,
+        Architecture::X86_64 => Some(x86_64::FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET),
     }
 }
 

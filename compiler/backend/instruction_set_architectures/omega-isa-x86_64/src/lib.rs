@@ -32,7 +32,47 @@ pub fn return_register_integer_write_width() -> usize {
 }
 
 pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width() -> usize {
-    0
+    // mov r14,imm64(frame) (10) + mov r11,[r14+idx] (7) + imul r11,r11,elem (7)
+    // + add r14,r11 (3) + add r14,base+field (7) + mov r15,imm64(frame) (10)
+    // + mov [r15+target],r14 (7)
+    51
+}
+
+/// Relocation imm offset (pre-`+2`) of the frame base loaded for the target slot
+/// store in `encode_runtime_frame_base_indexed_address_to_runtime_frame_write`.
+pub const FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET: usize = 34;
+
+/// Computes the address of an inline frame-base-indexed element
+/// (`frame + base + index*elem + field`) and stores that pointer into the
+/// runtime-frame slot at `target_offset` -- the lowering of `arr.as_slice()` /
+/// `as_mut_slice()` into a `{ptr,len}` descriptor's pointer field. The frame
+/// base is loaded twice (source address in r14, target base in r15); both
+/// `mov r*,imm64` immediates are relocated to the runtime-frame symbol.
+pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes =
+        Vec::with_capacity(runtime_frame_base_indexed_address_to_runtime_frame_write_width());
+    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
+    append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index
+    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
+    append_add_r14_r11(&mut bytes); // r14 = frame + index*elem
+    append_add_r14_imm32(&mut bytes, base_byte_offset + field_byte_offset)?; // + base + field
+    debug_assert_eq!(
+        bytes.len(),
+        FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET
+    );
+    append_mov_r15_imm64(&mut bytes, 0); // frame base for the target slot (reloc @ +2)
+    append_store_r14_to_r15(&mut bytes, target_offset)?; // frame[target] = element address
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_frame_base_indexed_address_to_runtime_frame_write_width()
+    );
+    Ok(bytes)
 }
 
 pub fn encode_return_register_integer_write_bytes(
@@ -1760,6 +1800,10 @@ fn append_add_r14_imm32(bytes: &mut Vec<u8>, value: usize) -> Result<(), Diagnos
     bytes.extend([0x49, 0x81, 0xc6]);
     bytes.extend(value.to_le_bytes());
     Ok(())
+}
+
+fn append_add_r14_r11(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x01, 0xde]); // add r14, r11
 }
 
 fn append_load_al_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
