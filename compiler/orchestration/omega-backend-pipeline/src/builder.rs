@@ -103,7 +103,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             )
         },
     ));
-    let runtime_state_call_edges = dispatch_state_call_edges(state_calls.as_ref());
+    let runtime_state_call_edges = dispatch_state_call_edges(state_calls.as_ref(), &control_flow);
     let runtime_flow = if runtime_state_call_edges.is_empty() {
         seed_runtime_flow
     } else {
@@ -365,22 +365,88 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     Ok(backend_plan)
 }
 
-fn dispatch_state_call_edges(state_calls: &StateCallPlan) -> Vec<RuntimeStateCallEdge> {
+fn dispatch_state_call_edges(
+    state_calls: &StateCallPlan,
+    control_flow: &ControlFlowPlan,
+) -> Vec<RuntimeStateCallEdge> {
     state_calls
         .calls
         .iter()
         .filter_map(|(_, state_call)| {
+            // Lower a statement state call as a dispatch transition (rather than
+            // inline-expanding it) when it has no arguments OR when its callee
+            // contains a loop. Inlining a callee that loops would unroll it, which
+            // mishandles the loop-carried variable; dispatching makes the callee's
+            // states real dispatch cases (the loop a back-edge) with stable
+            // parameter slots. Acyclic calls keep inlining (works, and the
+            // dispatch path doesn't yet carry return values for them).
             (state_call.required
                 && state_call.role == StateCallRole::Statement
                 && state_call.lowering == StateCallLowering::InlineBranching
-                && state_call.argument_count == 0)
-                .then_some(RuntimeStateCallEdge {
-                    source_key: state_call.source_key,
-                    statement_index: state_call.statement_index,
-                    target_key: state_call.target_key,
-                })
+                && (state_call.argument_count == 0
+                    || state_call_target_loops(control_flow, state_call.target_key)))
+            .then_some(RuntimeStateCallEdge {
+                source_key: state_call.source_key,
+                statement_index: state_call.statement_index,
+                target_key: state_call.target_key,
+            })
         })
         .collect()
+}
+
+/// Whether the called state's machine contains a loop reachable from it — i.e.
+/// some state is reachable from itself by following intra-machine transitions
+/// (a back-edge). Cross-machine (`Nested`) transitions are call boundaries and
+/// are not followed. Used to decide a call must dispatch rather than inline.
+fn state_call_target_loops(control_flow: &ControlFlowPlan, start: omega_control_flow::StateKey) -> bool {
+    fn visit(
+        control_flow: &ControlFlowPlan,
+        key: omega_control_flow::StateKey,
+        on_path: &mut Vec<omega_control_flow::StateKey>,
+        finished: &mut Vec<omega_control_flow::StateKey>,
+    ) -> bool {
+        if on_path.contains(&key) {
+            return true;
+        }
+        if finished.contains(&key) {
+            return false;
+        }
+        on_path.push(key);
+        let state = control_flow
+            .states
+            .iter()
+            .map(|(_, state)| state)
+            .find(|state| state.key == key);
+        let mut loops = false;
+        if let Some(state) = state {
+            for transition in control_flow
+                .transitions
+                .span(state.transitions)
+                .into_iter()
+                .flatten()
+            {
+                match transition.target {
+                    omega_control_flow::PlannedTransitionTarget::SelfTarget => {
+                        loops = true;
+                    }
+                    omega_control_flow::PlannedTransitionTarget::State { key: target, .. } => {
+                        loops = visit(control_flow, target, on_path, finished);
+                    }
+                    _ => {}
+                }
+                if loops {
+                    break;
+                }
+            }
+        }
+        on_path.pop();
+        if !loops {
+            finished.push(key);
+        }
+        loops
+    }
+
+    visit(control_flow, start, &mut Vec::new(), &mut Vec::new())
 }
 
 fn state_calls_cover_runtime_flow(

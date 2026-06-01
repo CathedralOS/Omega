@@ -1988,6 +1988,41 @@ fn runtime_mutable_parameter_read_modify_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_called_machine_loop_search_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_called_machine_loop_search_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-called-machine-loop-search-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime called machine loop search canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime called machine loop search canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a called machine whose state loops over a slice (a cyclic state call \
+         with arguments) to lower as a dispatch back-edge -- not inline-unroll -- and exit 70, \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_state_loop_indexed_search_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_state_loop_indexed_search_exit");
     let main_path = canary.join("main.omg");
