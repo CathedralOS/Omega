@@ -912,7 +912,12 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_width(
             target_offset,
             byte_count,
         ),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_storage_copy_from_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        ),
     }
 }
 
