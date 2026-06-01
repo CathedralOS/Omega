@@ -473,6 +473,78 @@ pub fn encode_runtime_machine_integer_write(
     Ok(bytes)
 }
 
+pub fn runtime_machine_indexed_integer_write_width(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    _element_byte_size: usize,
+    _byte_size: usize,
+) -> usize {
+    // mov r15,imm64 (10) [+ mov r10,imm64 (10) for RuntimeFrame index]
+    // + mov rax,[base+index_off] (7) + imul rax,rax,imm32 (7)
+    // + add r15,rax (3) + mov rax,imm64 (10) + store [r15+disp] (7).
+    match index_region {
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 54,
+        omega_target_operations::RuntimeStorageRegion::Machine => 44,
+    }
+}
+
+/// For x86_64 the runtime-frame index base is loaded by the second instruction
+/// (`mov r10, imm64`), which begins 10 bytes into the sequence; the relocation
+/// planner adds the +2 immediate offset itself.
+pub fn runtime_machine_indexed_integer_runtime_frame_address_offset() -> usize {
+    10
+}
+
+pub fn encode_runtime_machine_indexed_integer_write(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot store {byte_size}-byte machine indexed integers yet"
+        )));
+    }
+    let element_scale = i32::try_from(element_byte_size).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot scale machine index by element size `{element_byte_size}`"
+        ))
+    })?;
+    let store_displacement = base_byte_offset + field_byte_offset;
+    let mut bytes = Vec::with_capacity(runtime_machine_indexed_integer_write_width(
+        index_region,
+        element_byte_size,
+        byte_size,
+    ));
+    // r15 = machine storage base (imm64 at +2 relocated to the machine symbol).
+    append_mov_r15_imm64(&mut bytes, 0);
+    // rax = index, loaded from the runtime frame or from machine storage.
+    match index_region {
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
+            // r10 = runtime-frame base (imm64 at +12 relocated to the frame symbol).
+            append_mov_r10_imm64(&mut bytes, 0);
+            append_load_rax_from_r10(&mut bytes, index_offset)?;
+        }
+        omega_target_operations::RuntimeStorageRegion::Machine => {
+            append_load_rax_from_r15(&mut bytes, index_offset)?;
+        }
+    }
+    // rax = index * element_byte_size; r15 = machine base + scaled index.
+    append_imul_rax_imm32(&mut bytes, element_scale);
+    append_add_r15_rax(&mut bytes);
+    // Store the value at [r15 + base + field]. rax is free again after the add.
+    append_mov_rax_imm64(&mut bytes, value as u64);
+    append_store_rax_to_r15(&mut bytes, store_displacement, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_indexed_integer_write_width(index_region, element_byte_size, byte_size)
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_machine_string_write_width(_byte_length: usize) -> usize {
     44
 }
@@ -825,6 +897,30 @@ fn append_load_r8_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<()
     bytes.extend([0x4d, 0x8b, 0x82]);
     bytes.extend(displacement.to_le_bytes());
     Ok(())
+}
+
+fn append_load_rax_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x49, 0x8b, 0x82]); // mov rax, [r10 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_imul_rax_imm32(bytes: &mut Vec<u8>, value: i32) {
+    bytes.extend([0x48, 0x69, 0xc0]); // imul rax, rax, imm32
+    bytes.extend(value.to_le_bytes());
+}
+
+fn append_add_r15_rax(bytes: &mut Vec<u8>) {
+    // add r15, rax -- REX.W+REX.B (0x49), opcode 0x01, ModRM 11 reg=rax(000) rm=r15(111) = 0xc7
+    bytes.extend([0x49, 0x01, 0xc7]);
 }
 
 fn append_load_rax_from_r14(
