@@ -1705,6 +1705,59 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
     Ok(bytes)
 }
 
+pub fn runtime_storage_copy_from_runtime_frame_indexed_width(
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    // mov r15,imm64 (10) + mov r14,[r15+desc] (7) + mov r11,[r15+idx] (7)
+    // + imul r11,r11,elem (7) + add r14,r11 (3) + per chunk: load rax (7) + store rax (7).
+    34 + runtime_storage_copy_chunk_count(0, 0, byte_count) * 14
+}
+
+/// Copies `byte_count` bytes from a runtime-frame slice element field
+/// (`*(frame[descriptor]) + index*elem + field`, where `index` is read from
+/// `frame[index_offset]`) into `frame[target_offset]`. The runtime-index sibling
+/// of `encode_runtime_storage_copy_from_runtime_frame_fixed_indexed`.
+pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_storage_copy_from_runtime_frame_indexed_width(
+        element_byte_size,
+        field_byte_offset,
+        target_offset,
+        byte_count,
+    ));
+    // r15 = frame base (reloc @ +2). r14 = slice data pointer + index*element, so
+    // the copy source is [r14 + field + offset]; target is [r15 + target + offset].
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_load_r14_from_r15(&mut bytes, descriptor_offset)?;
+    append_load_r11_from_r15(&mut bytes, index_offset)?;
+    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
+    append_add_r14_r11(&mut bytes);
+    for_each_runtime_copy_chunk(field_byte_offset, target_offset, byte_count, |offset, chunk_size| {
+        append_load_rax_from_r14(&mut bytes, field_byte_offset + offset, chunk_size)?;
+        append_store_rax_to_r15(&mut bytes, target_offset + offset, chunk_size)?;
+        Ok(())
+    })?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count
+        )
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_value_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
