@@ -1530,6 +1530,50 @@ pub fn encode_runtime_storage_copy(
     Ok(bytes)
 }
 
+pub fn runtime_storage_copy_to_runtime_pointee_width(
+    source_offset: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    // mov r14,imm64(source) (10) + mov r15,imm64(frame) (10)
+    // + mov r15,[r15+ptr] (7) + per-chunk load/store (14 each).
+    27 + runtime_storage_copy_chunk_count(source_offset, field_byte_offset, byte_count) * 14
+}
+
+/// Copies `byte_count` bytes from the source storage region (`source_offset`)
+/// into the memory pointed at by a frame pointer slot
+/// (`*(frame[pointer_byte_offset]) + field_byte_offset`). r14 holds the source
+/// base (relocated to the source region), r15 the dereferenced target pointer
+/// (loaded after relocating the frame base).
+pub fn encode_runtime_storage_copy_to_runtime_pointee(
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_storage_copy_to_runtime_pointee_width(
+        source_offset,
+        field_byte_offset,
+        byte_count,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0); // source base (reloc @ +2)
+    append_mov_r15_imm64(&mut bytes, 0); // frame base (reloc @ +12)
+    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = target pointer
+    // The chunk planner aligns on source/target offsets; use field_byte_offset as
+    // the target base so chunking matches the relocation-free store displacements.
+    for_each_runtime_copy_chunk(
+        source_offset,
+        field_byte_offset,
+        byte_count,
+        |offset, chunk_size| {
+            append_load_rax_from_r14(&mut bytes, source_offset + offset, chunk_size)?;
+            append_store_rax_to_r15(&mut bytes, field_byte_offset + offset, chunk_size)?;
+            Ok(())
+        },
+    )?;
+    Ok(bytes)
+}
+
 pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
     _element_index: usize,
     _element_byte_size: usize,
