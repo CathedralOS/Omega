@@ -251,7 +251,13 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
                 literal,
             )
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_text_literal_append_to_runtime_frame_indexed_width(
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            )
+        }
     }
 }
 
@@ -607,7 +613,11 @@ pub fn runtime_frame_indexed_string_write_width(
             field_byte_offset,
             byte_length,
         ),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_frame_indexed_string_write_width(
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+        ),
     }
 }
 

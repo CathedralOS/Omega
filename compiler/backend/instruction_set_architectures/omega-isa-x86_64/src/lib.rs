@@ -644,6 +644,124 @@ pub fn runtime_text_storage_compare_width_x86(literal_len: usize) -> usize {
         .unwrap_or(0)
 }
 
+// --- Frame-indexed String descriptor write + literal append ---
+//
+// The String descriptor lives at `*(frame+descriptor_offset) + index*elem +
+// field` (a slice element reached through the slice's data pointer). Both
+// encoders share a fixed 34-byte address-computation prefix that leaves the
+// element address in rax:
+//   mov r14,imm64(frame) (10, reloc@+2) ; mov rax,[r14+descriptor] (7)
+//   mov r11,[r14+index] (7) ; imul r11,r11,elem (7) ; add rax,r11 (3)
+// so the second relocated immediate (data/buffer) always sits at offset 36.
+const FRAME_INDEXED_STRING_PREFIX_WIDTH: usize = 34;
+pub const RUNTIME_FRAME_INDEXED_STRING_DATA_IMM_OFFSET: usize = FRAME_INDEXED_STRING_PREFIX_WIDTH;
+
+fn append_frame_indexed_element_address_into_rax(
+    bytes: &mut Vec<u8>,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+) -> Result<(), Diagnostic> {
+    append_mov_r14_imm64(bytes, 0); // frame base (reloc @ +2)
+    append_load_rax_from_r14(bytes, descriptor_offset, 8)?; // rax = slice data ptr
+    append_load_r11_from_r14(bytes, index_offset)?; // r11 = index
+    append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
+    append_add_rax_r11(bytes); // rax = element address
+    debug_assert_eq!(bytes.len(), FRAME_INDEXED_STRING_PREFIX_WIDTH);
+    Ok(())
+}
+
+pub fn runtime_frame_indexed_string_write_width(
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_length: usize,
+) -> usize {
+    // prefix (34) + mov r15,imm64 (10) + store r15 (7) + mov r11,imm64 (10) + store r11 (7)
+    FRAME_INDEXED_STRING_PREFIX_WIDTH + 34
+}
+
+pub fn encode_runtime_frame_indexed_string_write(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_frame_indexed_string_write_width(
+        element_byte_size,
+        field_byte_offset,
+        byte_length,
+    ));
+    append_frame_indexed_element_address_into_rax(
+        &mut bytes,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+    )?;
+    // r15 = string literal data ptr (reloc @ prefix+2); store {ptr, len}.
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_store_r15_to_rax(&mut bytes, field_byte_offset)?;
+    append_mov_reg_imm64(&mut bytes, Reg64::R11, byte_length as u64);
+    append_store_r11_to_rax(&mut bytes, field_byte_offset + 8)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_frame_indexed_string_write_width(element_byte_size, field_byte_offset, byte_length)
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    // prefix (34) + mov r15,imm64 buffer (10) + mov r11,[rax+field+8] len (7)
+    // + per byte: mov cl,imm8 (2) + mov [r15+r11],cl (4) + inc r11 (3) = 9
+    // + store r15->[rax+field] ptr (7) + store r11->[rax+field+8] len (7)
+    FRAME_INDEXED_STRING_PREFIX_WIDTH + 17 + literal.len() * 9 + 14
+}
+
+pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_text_literal_append_to_runtime_frame_indexed_width(
+        element_byte_size,
+        field_byte_offset,
+        literal,
+    ));
+    append_frame_indexed_element_address_into_rax(
+        &mut bytes,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+    )?;
+    // r15 = buffer (reloc @ prefix+2); r11 = current len from the indexed descriptor.
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_load_r11_from_rax(&mut bytes, field_byte_offset + 8)?;
+    // append bytes at buffer[len]; r11 advances per byte.
+    for byte in literal.as_bytes() {
+        bytes.extend([0xb1, *byte]); // mov cl, imm8
+        bytes.extend([0x43, 0x88, 0x0c, 0x1f]); // mov [r15+r11], cl
+        bytes.extend([0x49, 0xff, 0xc3]); // inc r11
+    }
+    // descriptor.ptr = buffer (r15); descriptor.len = r11 (already grown).
+    append_store_r15_to_rax(&mut bytes, field_byte_offset)?;
+    append_store_r11_to_rax(&mut bytes, field_byte_offset + 8)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_text_literal_append_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+            literal
+        )
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_value_compare_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,
@@ -1641,6 +1759,27 @@ fn append_add_r15_rax(bytes: &mut Vec<u8>) {
 fn append_add_rax_r11(bytes: &mut Vec<u8>) {
     // add rax, r11 -- REX.W+REX.R (0x4c), opcode 0x01, ModRM 11 reg=r11(011) rm=rax(000) = 0xd8
     bytes.extend([0x4c, 0x01, 0xd8]);
+}
+
+fn append_store_r15_to_rax(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4c, 0x89, 0xb8]); // mov [rax + disp32], r15
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_store_r11_to_rax(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4c, 0x89, 0x98]); // mov [rax + disp32], r11
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_r11_from_rax(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4c, 0x8b, 0x98]); // mov r11, [rax + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
 }
 
 fn append_mov_rax_r15(bytes: &mut Vec<u8>) {

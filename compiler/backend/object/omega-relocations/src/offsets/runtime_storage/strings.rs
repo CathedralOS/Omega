@@ -24,7 +24,12 @@ pub(crate) fn runtime_frame_indexed_string_data_address_offset(
         Architecture::Aarch64 => {
             runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
         }
-        Architecture::X86_64 => 8,
+        // x86_64 lays the {ptr,len} store after a fixed 34-byte indexed-address
+        // prefix; the literal-pointer `mov r15,imm64` begins there.
+        Architecture::X86_64 => {
+            let _ = (element_byte_size, field_byte_offset);
+            34
+        }
     }
 }
 
