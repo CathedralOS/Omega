@@ -995,6 +995,60 @@ pub fn encode_runtime_storage_copy(
     Ok(bytes)
 }
 
+pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
+    _element_index: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    // mov r15,imm64 (10) + mov r14,[r15+desc] (7) + per chunk: load rax (7) + store rax (7).
+    17 + runtime_storage_copy_chunk_count(0, 0, byte_count) * 14
+}
+
+pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let source_offset = element_index
+        .checked_mul(element_byte_size)
+        .and_then(|offset| offset.checked_add(field_byte_offset))
+        .ok_or_else(|| {
+            Diagnostic::error("X86_64 MVP encoder cannot address overflowing fixed indexed copy")
+        })?;
+    let mut bytes = Vec::with_capacity(runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
+        element_index,
+        element_byte_size,
+        field_byte_offset,
+        target_offset,
+        byte_count,
+    ));
+    // r15 = frame base (imm64 at +2 relocated). r14 = slice data pointer from the
+    // descriptor; copy source [r14 + source_offset] -> target [r15 + target_offset].
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_load_r14_from_r15(&mut bytes, descriptor_offset)?;
+    for_each_runtime_copy_chunk(source_offset, target_offset, byte_count, |offset, chunk_size| {
+        append_load_rax_from_r14(&mut bytes, source_offset + offset, chunk_size)?;
+        append_store_rax_to_r15(&mut bytes, target_offset + offset, chunk_size)?;
+        Ok(())
+    })?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_frame_fixed_indexed_width(
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count
+        )
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_value_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
@@ -1331,6 +1385,13 @@ fn append_load_rax_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
 fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_r14_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4d, 0x8b, 0xb7]); // mov r14, [r15 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
