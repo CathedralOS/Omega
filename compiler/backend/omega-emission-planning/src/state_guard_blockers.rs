@@ -142,7 +142,7 @@ fn runtime_transition_target_name(
     target: &RuntimeTransitionTarget,
 ) -> String {
     match target {
-        RuntimeTransitionTarget::State { key } => input
+        RuntimeTransitionTarget::State { key, .. } => input
             .control_flow
             .state_names_by_key(*key)
             .map(|(machine, state)| format!("{machine}.{state}"))

@@ -5,6 +5,22 @@ use omega_core::arena::{Arena, HandleSpan};
 
 pub use builder::{build_runtime_flow_plan, build_runtime_flow_plan_with_state_calls};
 
+/// Identifies which specialized COPY of a source state a runtime node belongs to.
+///
+/// The control-flow plan is canonical: one state per source state. The runtime
+/// flow may CLONE a called machine's states once per call-context so each call
+/// site gets its own statically-wired continuation (specialization "B"). A clone
+/// shares the canonical `StateKey` (so its operations/parameters/frame layout
+/// resolve normally) but carries a distinct `CallContext` so edges, dispatch
+/// indices, and labels can tell the copies apart. `ROOT` is the entry machine and
+/// any un-cloned state.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct CallContext(pub u32);
+
+impl CallContext {
+    pub const ROOT: Self = Self(0);
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeFlowPlan {
     pub states: Arena<RuntimeState>,
@@ -32,6 +48,7 @@ impl RuntimeFlowPlan {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeState {
     pub key: StateKey,
+    pub context: CallContext,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -42,6 +59,9 @@ pub struct RuntimeCycle {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeEdge {
     pub from: StateKey,
+    /// The call-context copy of `from` this edge belongs to. Distinguishes edges
+    /// of different clones of the same source state.
+    pub from_context: CallContext,
     pub statement_index: usize,
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
@@ -53,6 +73,7 @@ impl Default for RuntimeEdge {
     fn default() -> Self {
         Self {
             from: StateKey::default(),
+            from_context: CallContext::ROOT,
             statement_index: 0,
             target: RuntimeTransitionTarget::None,
             continuation: RuntimeTransitionTarget::None,
@@ -71,10 +92,20 @@ pub struct RuntimeStateCallEdge {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeTransitionTarget {
-    State { key: StateKey },
+    State { key: StateKey, context: CallContext },
     Terminal,
     None,
     Unknown,
+}
+
+impl RuntimeTransitionTarget {
+    /// A target referring to the canonical (un-cloned) copy of `key`.
+    pub fn root_state(key: StateKey) -> Self {
+        Self::State {
+            key,
+            context: CallContext::ROOT,
+        }
+    }
 }
 
 impl Default for RuntimeTransitionTarget {

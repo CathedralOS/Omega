@@ -281,7 +281,7 @@ fn state_call_is_dispatched(context: &RuntimeDispatchBodyContext, state_call: &S
                 edge.statement_index == state_call.statement_index
                     && matches!(
                         edge.target,
-                        RuntimeTransitionTarget::State { key } if key == state_call.target_key
+                        RuntimeTransitionTarget::State { key, .. } if key == state_call.target_key
                     )
             })
         })

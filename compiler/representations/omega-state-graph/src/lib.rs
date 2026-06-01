@@ -25,7 +25,7 @@ pub use transitions::*;
 pub use values::*;
 
 pub use runtime_flow::{
-    RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge,
+    CallContext, RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge,
     RuntimeTransitionTarget, build_runtime_flow_plan, build_runtime_flow_plan_with_state_calls,
 };
 pub use semantics::*;

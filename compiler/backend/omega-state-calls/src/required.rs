@@ -106,7 +106,7 @@ fn runtime_transition_target(
 ) -> RuntimeTransitionTarget {
     match target {
         PlannedTransitionTarget::None => RuntimeTransitionTarget::None,
-        PlannedTransitionTarget::State { key, .. } => RuntimeTransitionTarget::State { key: *key },
+        PlannedTransitionTarget::State { key, .. } => RuntimeTransitionTarget::root_state(*key),
         PlannedTransitionTarget::Nested {
             receiver_symbol,
             state_symbol,
@@ -116,7 +116,7 @@ fn runtime_transition_target(
         } => {
             if *receiver_symbol == machine.symbol || receiver.as_str() == "self" {
                 return resolve_local_or_attached_state(context, machine, *state_symbol, state)
-                    .map(|key| RuntimeTransitionTarget::State { key })
+                    .map(RuntimeTransitionTarget::root_state)
                     .unwrap_or(RuntimeTransitionTarget::Unknown);
             }
 
@@ -128,12 +128,10 @@ fn runtime_transition_target(
                 *state_symbol,
                 state,
             )
-            .map(|key| RuntimeTransitionTarget::State { key })
+            .map(RuntimeTransitionTarget::root_state)
             .unwrap_or(RuntimeTransitionTarget::Unknown)
         }
-        PlannedTransitionTarget::SelfTarget => {
-            RuntimeTransitionTarget::State { key: current_state }
-        }
+        PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::root_state(current_state),
         PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
     }
 }

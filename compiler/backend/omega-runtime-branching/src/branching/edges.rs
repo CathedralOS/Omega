@@ -150,7 +150,7 @@ fn runtime_transition_target(
 ) -> RuntimeTransitionTarget {
     match target {
         PlannedTransitionTarget::None => RuntimeTransitionTarget::None,
-        PlannedTransitionTarget::State { key, .. } => RuntimeTransitionTarget::State { key: *key },
+        PlannedTransitionTarget::State { key, .. } => RuntimeTransitionTarget::root_state(*key),
         PlannedTransitionTarget::Nested {
             receiver_symbol,
             state_symbol,
@@ -162,11 +162,11 @@ fn runtime_transition_target(
                     .control_flow
                     .state_key_by_symbols(current_state.machine, *state_symbol)
                 {
-                    return RuntimeTransitionTarget::State { key };
+                    return RuntimeTransitionTarget::root_state(key);
                 }
 
                 return resolve_attached_machine_state_key(context, machine, *state_symbol)
-                    .map(|key| RuntimeTransitionTarget::State { key })
+                    .map(RuntimeTransitionTarget::root_state)
                     .unwrap_or(RuntimeTransitionTarget::Unknown);
             }
 
@@ -180,12 +180,10 @@ fn runtime_transition_target(
                 .and_then(|contained| {
                     resolve_attached_data_state_key(context, &contained.type_name, *state_symbol)
                 })
-                .map(|key| RuntimeTransitionTarget::State { key })
+                .map(RuntimeTransitionTarget::root_state)
                 .unwrap_or(RuntimeTransitionTarget::Unknown)
         }
-        PlannedTransitionTarget::SelfTarget => {
-            RuntimeTransitionTarget::State { key: current_state }
-        }
+        PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::root_state(current_state),
         PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
     }
 }

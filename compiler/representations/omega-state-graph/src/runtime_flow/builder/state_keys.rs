@@ -1,11 +1,17 @@
+use crate::CallContext;
 use omega_control_flow::StateKey;
 
 const INLINE_RUNTIME_STATE_COUNT: usize = 32;
 
+/// A runtime-flow node: a source state together with the call-context copy it
+/// belongs to. Cloning specializes a called machine per context, so dedup and
+/// cycle detection must distinguish `(key, context)` pairs rather than bare keys.
+pub(super) type RuntimeNode = (StateKey, CallContext);
+
 pub(super) struct StateKeyBuffer {
-    inline: [Option<StateKey>; INLINE_RUNTIME_STATE_COUNT],
+    inline: [Option<RuntimeNode>; INLINE_RUNTIME_STATE_COUNT],
     len: usize,
-    overflow: Vec<StateKey>,
+    overflow: Vec<RuntimeNode>,
 }
 
 impl StateKeyBuffer {
@@ -17,16 +23,16 @@ impl StateKeyBuffer {
         }
     }
 
-    pub(super) fn contains(&self, key: &StateKey) -> bool {
+    pub(super) fn contains(&self, node: &RuntimeNode) -> bool {
         self.inline
             .iter()
             .take(self.len.min(INLINE_RUNTIME_STATE_COUNT))
             .flatten()
-            .any(|candidate| candidate == key)
-            || self.overflow.contains(key)
+            .any(|candidate| candidate == node)
+            || self.overflow.contains(node)
     }
 
-    pub(super) fn iter(&self) -> impl Iterator<Item = &StateKey> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = &RuntimeNode> {
         self.inline
             .iter()
             .take(self.len.min(INLINE_RUNTIME_STATE_COUNT))
@@ -34,11 +40,11 @@ impl StateKeyBuffer {
             .chain(self.overflow.iter())
     }
 
-    pub(super) fn push(&mut self, key: StateKey) {
+    pub(super) fn push(&mut self, node: RuntimeNode) {
         if self.len < INLINE_RUNTIME_STATE_COUNT {
-            self.inline[self.len] = Some(key);
+            self.inline[self.len] = Some(node);
         } else {
-            self.overflow.push(key);
+            self.overflow.push(node);
         }
 
         self.len += 1;
@@ -57,7 +63,7 @@ impl StateKeyBuffer {
         }
     }
 
-    pub(super) fn last(&self) -> Option<StateKey> {
+    pub(super) fn last(&self) -> Option<RuntimeNode> {
         if self.len == 0 {
             return None;
         }
