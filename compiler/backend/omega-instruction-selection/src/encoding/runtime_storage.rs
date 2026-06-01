@@ -249,7 +249,17 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
             operator,
             right,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_frame_base_indexed_binary_write(
+            runtime_value_operands,
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
     }
 }
 

@@ -36,12 +36,11 @@ pub(crate) fn runtime_frame_base_indexed_binary_left_operand_offset(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    omega_instruction_selection::runtime_frame_base_indexed_integer_write_width(
+    omega_instruction_selection::runtime_frame_base_indexed_binary_left_operand_offset(
         architecture,
         base_byte_offset,
         element_byte_size,
         field_byte_offset,
-        0,
     )
 }
 
@@ -73,9 +72,11 @@ mod tests {
             runtime_storage_binary_left_operand_offset(Architecture::X86_64),
             10
         );
+        // x86_64 computes the indexed target address into r14 before the value
+        // operands: mov r14,imm64 (10) + mov r15,[r14+idx] (7) + imul (7) + add (3).
         assert_eq!(
             runtime_frame_base_indexed_binary_left_operand_offset(Architecture::X86_64, 4, 8, 12),
-            0
+            27
         );
     }
 }
