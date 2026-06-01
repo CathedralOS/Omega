@@ -53,7 +53,12 @@ pub(crate) fn runtime_text_indexed_literal_append_buffer_address_offset(
         Architecture::Aarch64 => {
             runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 4
         }
-        Architecture::X86_64 => 8,
+        // x86_64 appends after the same fixed 34-byte indexed-address prefix; the
+        // buffer-pointer `mov r15,imm64` begins there.
+        Architecture::X86_64 => {
+            let _ = (element_byte_size, field_byte_offset);
+            34
+        }
     }
 }
 
