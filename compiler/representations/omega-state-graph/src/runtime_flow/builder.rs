@@ -15,6 +15,13 @@ pub(super) struct RuntimeFlowBuilder<'plan> {
     runtime_flow: RuntimeFlowPlan,
     active_states: StateKeyBuffer,
     reached_states: StateKeyBuffer,
+    /// Next call-context id to hand out (`ROOT`/0 is the entry machine). Each
+    /// dispatched call site is specialized under a fresh context.
+    next_context: u32,
+    /// Upper bound on minted contexts. An acyclic call graph specializes a
+    /// bounded number of copies; exceeding this means the call graph is
+    /// (transitively) recursive, which specialization cannot lower.
+    context_budget: u32,
 }
 
 impl<'plan> RuntimeFlowBuilder<'plan> {
@@ -39,6 +46,13 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             ),
             active_states: StateKeyBuffer::with_capacity(state_capacity),
             reached_states: StateKeyBuffer::with_capacity(state_capacity),
+            next_context: CallContext::ROOT.0 + 1,
+            // Generous: real (acyclic) programs need at most one context per
+            // call-path. The bound only fires on genuine call recursion or a
+            // pathological specialization blow-up.
+            context_budget: (state_capacity as u32)
+                .saturating_mul(64)
+                .saturating_add(1024),
         }
     }
 
@@ -159,9 +173,8 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 self.statement_call_arguments(state_key, call_edge.statement_index);
 
             // The callee is specialized in a fresh call-context so this call site
-            // gets its own clone with its own continuation. `next_callee_context`
-            // returns `context` (no clone) until specialization is enabled.
-            let callee_context = self.next_callee_context(context);
+            // gets its own clone with its own statically-wired continuation.
+            let callee_context = self.next_callee_context(context)?;
 
             self.visit_transition(
                 state_key,
@@ -182,12 +195,25 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         Ok(true)
     }
 
-    /// The call-context a callee should be specialized under. Until per-call-site
-    /// specialization is switched on this returns the caller's context unchanged
-    /// (no clone), so every node stays in `CallContext::ROOT` and the runtime flow
-    /// is byte-identical to the pre-specialization behavior.
-    fn next_callee_context(&mut self, caller_context: CallContext) -> CallContext {
-        caller_context
+    /// Mint a fresh call-context for a dispatched callee so it is specialized as
+    /// its own clone (distinct dispatch cases + frame slots) wired back to this
+    /// call site's continuation. Errors if the context budget is exhausted, which
+    /// indicates a recursive call graph specialization cannot lower.
+    fn next_callee_context(
+        &mut self,
+        _caller_context: CallContext,
+    ) -> Result<CallContext, Diagnostic> {
+        if self.next_context >= self.context_budget {
+            return Err(Diagnostic::error(
+                "state-call specialization exceeded its budget: the call graph is \
+                 (transitively) recursive. A machine that needs to repeat must do so \
+                 with a loop (a self-transition), not by calling itself.",
+            ));
+        }
+
+        let context = CallContext(self.next_context);
+        self.next_context += 1;
+        Ok(context)
     }
 
     /// The argument expression handles (in the control-flow expression table) of
