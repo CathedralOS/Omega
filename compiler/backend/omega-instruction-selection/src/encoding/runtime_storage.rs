@@ -479,7 +479,15 @@ pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
                 target_offset,
             )
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            )
+        }
     }
 }
 

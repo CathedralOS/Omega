@@ -42,6 +42,42 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width() -> usiz
 /// store in `encode_runtime_frame_base_indexed_address_to_runtime_frame_write`.
 pub const FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET: usize = 34;
 
+pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width() -> usize {
+    // mov r14,imm64(frame) (10) + mov r15,[r14+desc] (7) + add r15,const (7)
+    // + mov [r14+target],r15 (7)
+    31
+}
+
+/// Computes the address of a descriptor-based element at a constant index
+/// (`*(frame[descriptor]) + element_index*elem + field`) and stores that pointer
+/// into the runtime-frame slot at `target_offset`. The frame base is loaded once
+/// (r14) and reused for the store, so a single `mov r14,imm64` relocation suffices.
+pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes =
+        Vec::with_capacity(runtime_frame_fixed_indexed_address_to_runtime_frame_write_width());
+    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
+    append_load_r15_from_r14(&mut bytes, descriptor_offset)?; // r15 = data pointer
+    let displacement = element_index
+        .checked_mul(element_byte_size)
+        .and_then(|scaled| scaled.checked_add(field_byte_offset))
+        .ok_or_else(|| {
+            Diagnostic::error("X86_64 fixed indexed address offset overflow")
+        })?;
+    append_add_r15_imm32(&mut bytes, displacement)?; // r15 = element address
+    append_store_r15_to_r14(&mut bytes, target_offset)?; // frame[target] = address
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_frame_fixed_indexed_address_to_runtime_frame_write_width()
+    );
+    Ok(bytes)
+}
+
 /// Computes the address of an inline frame-base-indexed element
 /// (`frame + base + index*elem + field`) and stores that pointer into the
 /// runtime-frame slot at `target_offset` -- the lowering of `arr.as_slice()` /
@@ -1848,6 +1884,24 @@ fn append_load_r15_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
 fn append_load_r15_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x4d, 0x8b, 0xbf]); // mov r15, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_add_r15_imm32(bytes: &mut Vec<u8>, value: usize) -> Result<(), Diagnostic> {
+    let value = i32::try_from(value).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot add offset `{value}` to r15"
+        ))
+    })?;
+    bytes.extend([0x49, 0x81, 0xc7]); // add r15, imm32
+    bytes.extend(value.to_le_bytes());
+    Ok(())
+}
+
+fn append_store_r15_to_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4d, 0x89, 0xbe]); // mov [r14 + disp32], r15
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
