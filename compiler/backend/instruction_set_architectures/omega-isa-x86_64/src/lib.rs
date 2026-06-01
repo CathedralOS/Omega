@@ -42,6 +42,43 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width() -> usiz
 /// store in `encode_runtime_frame_base_indexed_address_to_runtime_frame_write`.
 pub const FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET: usize = 34;
 
+pub fn runtime_pointee_string_write_width(
+    _field_byte_offset: usize,
+    _byte_length: usize,
+) -> usize {
+    // mov r14,imm64(literal) (10) + mov r15,imm64(frame) (10)
+    // + mov r15,[r15+ptr] (7) + mov [r15+field],r14 (7)
+    // + mov r14,len (10) + mov [r15+field+8],r14 (7)
+    51
+}
+
+/// Writes a `{ptr,len}` string descriptor through a pointer stored in the frame:
+/// `*(frame[pointer_byte_offset]) + field_byte_offset = { literal, byte_length }`.
+/// The literal `mov` is emitted first so its relocation lands at the instruction
+/// start (matching the shared relocation contract); the frame base relocation
+/// follows at offset 10.
+pub fn encode_runtime_pointee_string_write(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_pointee_string_write_width(
+        field_byte_offset,
+        byte_length,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0); // string literal pointer (reloc @ +2)
+    append_mov_r15_imm64(&mut bytes, 0); // frame base (reloc @ +12)
+    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = stored pointer
+    append_store_r14_to_r15(&mut bytes, field_byte_offset)?; // descriptor.ptr = literal
+    append_mov_r14_imm64(&mut bytes, byte_length as u64);
+    append_store_r14_to_r15(&mut bytes, field_byte_offset + 8)?; // descriptor.len
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_pointee_string_write_width(field_byte_offset, byte_length)
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width() -> usize {
     // mov r14,imm64(frame) (10) + mov r15,[r14+desc] (7) + add r15,const (7)
     // + mov [r14+target],r15 (7)
