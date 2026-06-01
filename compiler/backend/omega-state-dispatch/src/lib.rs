@@ -77,7 +77,7 @@ fn build_dispatch_state(
         .edges
         .iter()
         .map(|(_, edge)| edge)
-        .filter(|edge| edge.from == dispatch_target.key)
+        .filter(|edge| edge_leaves(edge, dispatch_target))
     {
         edges.insert(DispatchEdge {
             statement_index: edge.statement_index,
@@ -107,6 +107,16 @@ pub fn state_dispatch_label(key: StateKey) -> String {
     )
 }
 
+/// Whether `edge` leaves the specific clone `dispatch_target` represents -- both
+/// the source state and its call-context must match, so clones of one source
+/// state do not steal each other's edges.
+fn edge_leaves(
+    edge: &omega_state_graph::RuntimeEdge,
+    dispatch_target: &context::StateDispatchTarget,
+) -> bool {
+    edge.from == dispatch_target.key && edge.from_context == dispatch_target.context
+}
+
 fn append_terminal_continuation_edges(
     context: &StateDispatchContext,
     dispatch_target: &context::StateDispatchTarget,
@@ -117,16 +127,21 @@ fn append_terminal_continuation_edges(
         .edges
         .iter()
         .map(|(_, edge)| edge)
-        .any(|edge| edge.from == dispatch_target.key);
+        .any(|edge| edge_leaves(edge, dispatch_target));
     if has_outgoing_edges {
         return;
     }
 
     for (_, edge) in context.runtime_flow.edges.iter() {
-        let RuntimeTransitionTarget::State { key, .. } = &edge.target else {
+        let RuntimeTransitionTarget::State { key, context: target_context } = &edge.target else {
             continue;
         };
-        if key.machine != dispatch_target.key.machine {
+        // Only the call edge that ENTERED this clone's context carries this
+        // terminal state's return point. Matching the callee context (not just
+        // the machine) keeps each clone returning to its own call site.
+        if key.machine != dispatch_target.key.machine
+            || *target_context != dispatch_target.context
+        {
             continue;
         }
         let RuntimeTransitionTarget::State { .. } = &edge.continuation else {
@@ -160,7 +175,7 @@ fn dispatch_edge_capacity(
         .edges
         .iter()
         .map(|(_, edge)| edge)
-        .filter(|edge| edge.from == dispatch_target.key)
+        .filter(|edge| edge_leaves(edge, dispatch_target))
         .count();
     if outgoing_count > 0 {
         return outgoing_count;
@@ -174,8 +189,9 @@ fn dispatch_edge_capacity(
         .filter(|edge| {
             matches!(
                 edge.target,
-                RuntimeTransitionTarget::State { key, .. }
+                RuntimeTransitionTarget::State { key, context }
                     if key.machine == dispatch_target.key.machine
+                        && context == dispatch_target.context
             )
         })
         .filter(|edge| matches!(edge.continuation, RuntimeTransitionTarget::State { .. }))
@@ -183,7 +199,11 @@ fn dispatch_edge_capacity(
 }
 
 fn target_dispatch_index(context: &StateDispatchContext, target: &RuntimeTransitionTarget) -> u32 {
-    let RuntimeTransitionTarget::State { key, .. } = target else {
+    let RuntimeTransitionTarget::State {
+        key,
+        context: target_context,
+    } = target
+    else {
         return 0;
     };
 
@@ -191,7 +211,7 @@ fn target_dispatch_index(context: &StateDispatchContext, target: &RuntimeTransit
         .targets
         .iter()
         .map(|(_, target)| target)
-        .find(|target| target.key == *key)
+        .find(|target| target.key == *key && target.context == *target_context)
         .map(|target| target.dispatch_index)
         .unwrap_or(0)
 }

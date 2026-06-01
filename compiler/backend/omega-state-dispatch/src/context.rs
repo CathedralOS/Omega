@@ -1,6 +1,6 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
-use omega_state_graph::RuntimeFlowPlan;
+use omega_state_graph::{CallContext, RuntimeFlowPlan};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -15,6 +15,7 @@ impl StateDispatchContext {
         targets.insert_many(runtime_flow.states.iter().map(|(handle, state)| {
             StateDispatchTarget {
                 key: state.key,
+                context: state.context,
                 dispatch_index: handle.arena_index(),
             }
         }));
@@ -29,5 +30,8 @@ impl StateDispatchContext {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct StateDispatchTarget {
     pub(super) key: StateKey,
+    /// The call-context clone this dispatch case represents. Distinguishes
+    /// specialized copies of the same source state.
+    pub(super) context: CallContext,
     pub(super) dispatch_index: u32,
 }
