@@ -350,7 +350,11 @@ pub fn encode_runtime_pointee_string_write(
             field_byte_offset,
             byte_length,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_pointee_string_write(
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_length,
+        ),
     }
 }
 

@@ -11,7 +11,9 @@ pub(crate) fn string_descriptor_machine_address_offset(architecture: Architectur
 pub(crate) fn string_descriptor_pointee_address_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
+        // The literal `mov r14,imm64` occupies bytes 0..10, so the frame base
+        // `mov r15,imm64` begins at offset 10 (its immediate is relocated at +2).
+        Architecture::X86_64 => 10,
     }
 }
 
