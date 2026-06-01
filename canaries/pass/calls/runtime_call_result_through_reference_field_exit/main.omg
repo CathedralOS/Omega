@@ -1,0 +1,52 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    value: i32;
+    tag: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Console;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) {
+    self.fill(&mut self.bag);
+
+    transition self.bag.cells[2].value == 7 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(183);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(184);
+    }
+}
+
+machine Main::fill(&mut self, bag: &mut Bag) {
+    let cell: &mut Cell = self.pick(bag);
+    cell.value = self.compute();
+}
+
+machine Main::pick(&mut self, bag: &mut Bag) -> &mut Cell {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    transition {
+        _ -> &mut cells[2]
+    }
+}
+
+machine Main::compute(&mut self) -> i32 {
+    transition {
+        _ -> 7
+    }
+}

@@ -11,8 +11,8 @@ use super::super::super::bindings::resolve_leaf_binding_expression_handle;
 use super::super::super::lookups::state_mutation_for_statement;
 use super::super::super::storage_places::resolve_runtime_storage_place_in_table;
 use super::super::super::storage_places::{
-    resolve_machine_owned_place, resolve_machine_owned_place_in_table, static_integer_value,
-    static_integer_value_in_table,
+    resolve_machine_owned_place, resolve_machine_owned_place_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, static_integer_value, static_integer_value_in_table,
 };
 use super::super::guards::select_runtime_leaf_branch_guards;
 use super::super::text_writes::{
@@ -385,6 +385,22 @@ fn select_runtime_leaf_assignment_value_target_copy(
     else {
         return;
     };
+    // A pointee target (a field reached through a reference, e.g. `room.label`
+    // where `room: &mut Room`) is written through the pointer by the statement's
+    // own mutation operation. The flat result-slot copy below resolves such a
+    // target to the reference slot itself, so it would clobber the pointer rather
+    // than the pointee -- skip it and let the mutation write through the pointer.
+    if resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &input.state_storage.expressions,
+        mutation.target,
+    )
+    .is_some()
+    {
+        return;
+    }
     let Some(target_place) = resolve_runtime_storage_place_in_table(
         input,
         expansion.dispatch_index,
