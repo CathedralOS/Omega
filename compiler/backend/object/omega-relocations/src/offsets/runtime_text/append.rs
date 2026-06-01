@@ -38,7 +38,9 @@ pub(crate) fn runtime_text_literal_append_target_address_offset(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
+        // x86_64 loads the descriptor base via the second `mov r-, imm64`, whose
+        // immediate sits 10 bytes in (insert_data_address adds the +2 itself).
+        Architecture::X86_64 => 10,
     }
 }
 

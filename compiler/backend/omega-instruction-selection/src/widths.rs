@@ -170,7 +170,7 @@ pub fn runtime_text_literal_segment_write_width(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_segment_write_width(literal),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_text_literal_segment_write_width(literal),
     }
 }
 
@@ -219,7 +219,7 @@ pub fn runtime_text_stored_place_append_to_runtime_pointee_width(
 pub fn runtime_text_literal_append_width(architecture: Architecture, literal: &str) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_append_width(literal),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_text_literal_append_width(literal),
     }
 }
 

@@ -390,6 +390,78 @@ pub fn runtime_text_literal_compare_width(literal: &str) -> usize {
     10 + literal.len() * 15 + 36
 }
 
+// Write a literal's bytes into a runtime text buffer at a fixed byte offset
+// (the first segment of a concatenation). r15 = buffer (reloc @ +2); store each
+// literal byte at [r15 + byte_offset + i].
+pub fn runtime_text_literal_segment_write_width(literal: &str) -> usize {
+    10 + literal.len() * 8
+}
+
+pub fn encode_runtime_text_literal_segment_write(
+    byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_text_literal_segment_write_width(literal));
+    append_mov_r15_imm64(&mut bytes, 0); // buffer base (reloc @ +2)
+    for (i, byte) in literal.as_bytes().iter().enumerate() {
+        let disp = disp32(byte_offset + i)?;
+        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
+        bytes.extend(disp.to_le_bytes());
+        bytes.push(*byte);
+    }
+    debug_assert_eq!(bytes.len(), runtime_text_literal_segment_write_width(literal));
+    Ok(bytes)
+}
+
+// Append a literal to a runtime text buffer, growing the {ptr,len} descriptor.
+// r15 = buffer (reloc @ +2); r14 = descriptor base (reloc @ +12 via offset 10);
+// rax = current len; store literal bytes at [r15 + len + i]; then
+// descriptor.ptr = buffer, descriptor.len += literal.len.
+pub const RUNTIME_TEXT_LITERAL_APPEND_TARGET_IMM_OFFSET: usize = 10;
+
+pub fn runtime_text_literal_append_width(literal: &str) -> usize {
+    // mov r15,imm64 (10) + mov r14,imm64 (10) + mov rax,[r14+len] (7) = 27
+    // + per byte: mov cl,imm8 (2) + mov [r15+rax],cl (4) + inc rax (3) = 9
+    // + mov [r14+ptr],r15 (7) + mov [r14+len],rax (7) = 14
+    27 + literal.len() * 9 + 14
+}
+
+pub fn encode_runtime_text_literal_append(
+    target_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let ptr_disp = disp32(target_offset)?;
+    let len_disp = disp32(target_offset + 8)?;
+    let lit_len = i32::try_from(literal.len()).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot append literal of length `{}` yet",
+            literal.len()
+        ))
+    })?;
+    let mut bytes = Vec::with_capacity(runtime_text_literal_append_width(literal));
+    append_mov_r15_imm64(&mut bytes, 0); // buffer base (reloc @ +2)
+    append_mov_r14_imm64(&mut bytes, 0); // descriptor base (reloc @ +12)
+    // rax = current length.
+    bytes.extend([0x49, 0x8b, 0x86]); // mov rax, [r14 + len_disp]
+    bytes.extend(len_disp.to_le_bytes());
+    // append bytes at buffer[rax]; rax advances per byte.
+    for byte in literal.as_bytes() {
+        bytes.extend([0xb1, *byte]); // mov cl, imm8
+        bytes.extend([0x41, 0x88, 0x0c, 0x07]); // mov [r15+rax], cl
+        bytes.extend([0x48, 0xff, 0xc0]); // inc rax
+    }
+    // descriptor.ptr = buffer (r15).
+    bytes.extend([0x4d, 0x89, 0xbe]); // mov [r14 + ptr_disp], r15
+    bytes.extend(ptr_disp.to_le_bytes());
+    // descriptor.len = original_len + literal.len.  rax currently = len + lit.len
+    // (advanced once per byte), so just store rax.
+    let _ = lit_len;
+    bytes.extend([0x49, 0x89, 0x86]); // mov [r14 + len_disp], rax
+    bytes.extend(len_disp.to_le_bytes());
+    debug_assert_eq!(bytes.len(), runtime_text_literal_append_width(literal));
+    Ok(bytes)
+}
+
 pub fn runtime_text_literal_compare_branch_next_offset(byte_index: usize) -> usize {
     10 + byte_index * 15 + 15
 }

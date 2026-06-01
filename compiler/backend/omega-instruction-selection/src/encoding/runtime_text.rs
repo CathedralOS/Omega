@@ -72,7 +72,9 @@ pub fn encode_runtime_text_literal_segment_write(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_text_literal_segment_write(byte_offset, literal)
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_text_literal_segment_write(byte_offset, literal)
+        }
     }
 }
 
@@ -164,7 +166,10 @@ pub fn encode_runtime_text_literal_append(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_text_literal_append(buffer_offset, target_offset, literal)
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            let _ = buffer_offset;
+            x86_64::encode_runtime_text_literal_append(target_offset, literal)
+        }
     }
 }
 
