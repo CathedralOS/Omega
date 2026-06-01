@@ -99,10 +99,47 @@ pub fn runtime_text_literal_compare_width(architecture: Architecture, literal: &
     }
 }
 
-pub fn runtime_text_storage_compare_width(architecture: Architecture) -> usize {
+pub fn runtime_text_storage_compare_width(architecture: Architecture, literal_len: usize) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::runtime_text_storage_compare_width(),
-        Architecture::X86_64 => 0,
+        Architecture::Aarch64 => {
+            let _ = literal_len;
+            aarch64::runtime_text_storage_compare_width()
+        }
+        Architecture::X86_64 => x86_64::runtime_text_storage_compare_width_x86(literal_len),
+    }
+}
+
+/// Byte offset within a `CompareRuntimeTextStorage` of the failure branch the
+/// emitter must target with the compare-failure distance.
+pub fn runtime_text_storage_compare_failure_branch_offset(
+    architecture: Architecture,
+    literal_len: usize,
+) -> usize {
+    match architecture {
+        // AArch64's per-byte mismatch conditional branch ends 40 bytes in.
+        Architecture::Aarch64 => {
+            let _ = literal_len;
+            40
+        }
+        Architecture::X86_64 => {
+            x86_64::runtime_text_storage_compare_failure_branch_offset(literal_len)
+        }
+    }
+}
+
+/// Byte offset of the delimiter-failure branch (aarch64 uses `width - 4`; on
+/// x86_64 both failure paths funnel through the same trampoline jmp).
+pub fn runtime_text_storage_compare_delimiter_branch_offset(
+    architecture: Architecture,
+    literal_len: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_text_storage_compare_width().saturating_sub(4)
+        }
+        Architecture::X86_64 => {
+            x86_64::runtime_text_storage_compare_failure_branch_offset(literal_len)
+        }
     }
 }
 

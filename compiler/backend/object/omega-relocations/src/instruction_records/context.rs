@@ -28,6 +28,10 @@ impl InstructionRelocationContext<'_, '_> {
         self.object_symbol_handle(self.input.data.objects.get(data).symbol.as_ref())
     }
 
+    pub(super) fn data_object_byte_count(&self, data: TargetDataObjectHandle) -> usize {
+        self.input.data.objects.get(data).bytes.len()
+    }
+
     pub(super) fn storage_region_symbol_handle(
         &self,
         region: RuntimeStorageRegion,

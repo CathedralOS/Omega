@@ -109,8 +109,9 @@ fn machine_instruction_width(
         SelectedInstructionKind::CompareRuntimeTextLiteral { literal, .. } => {
             runtime_text_literal_compare_width(input.target.architecture, literal)
         }
-        SelectedInstructionKind::CompareRuntimeTextStorage { .. } => {
-            runtime_text_storage_compare_width(input.target.architecture)
+        SelectedInstructionKind::CompareRuntimeTextStorage { buffer, .. } => {
+            let literal_len = input.data.objects.get(*buffer).bytes.len();
+            runtime_text_storage_compare_width(input.target.architecture, literal_len)
         }
         SelectedInstructionKind::CompareRuntimeStorage { .. } => {
             runtime_storage_compare_width(input.target.architecture)

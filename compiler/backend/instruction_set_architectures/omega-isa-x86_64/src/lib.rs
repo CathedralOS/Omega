@@ -427,6 +427,151 @@ pub fn encode_runtime_text_literal_compare(
     Ok(bytes)
 }
 
+// Compare a stored String (descriptor {ptr,len} at source storage) against a
+// data-section literal of known length.
+//
+// The lowering wraps this compare as: write the optimistic result (text_ok=1) ->
+// COMPARE -> write the failure result (text_ok=0). On a MATCH we must branch
+// PAST the trailing "write 0" (keeping the optimistic 1); on a MISMATCH we fall
+// through into it. So MATCH jumps to the external distance ("next guarded effect
+// end") and MISMATCH falls through. Every internal match path funnels through a
+// single terminal `jmp rel32` so emission only needs one branch offset.
+//
+// r15 = literal buffer (reloc @ instruction start +2); r14 = source base (reloc);
+// rax = stored.ptr; r9 = stored.len; r8 = index; cl = scratch byte.
+//
+// Layout: [setup + compare loop + trailing delimiter check] ... fail: (fall
+// through) ; match: jmp rel32(external)   <- terminal 5 bytes; rel32 end == width.
+pub fn encode_runtime_text_storage_compare_bytes(
+    source_offset: usize,
+    literal_len: usize,
+    match_branch_distance: isize,
+    _branch_when_equal: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let literal_len_i = i32::try_from(literal_len).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot compare literal of length `{literal_len}` yet"
+        ))
+    })?;
+    let mut bytes = Vec::new();
+    let mut fail_fixups: Vec<usize> = Vec::new();
+    let mut success_fixups: Vec<usize> = Vec::new();
+
+    // r15 = literal base (reloc@+2); r14 = source base (reloc).
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_load_rax_from_r14(&mut bytes, source_offset, 8)?; // rax = stored.ptr
+    bytes.extend([0x4d, 0x8b, 0x8e]); // mov r9, [r14 + disp32]  (stored.len)
+    bytes.extend(disp32(source_offset + 8)?.to_le_bytes());
+
+    let mut jcc_fail = |bytes: &mut Vec<u8>, opcode: u8| {
+        bytes.push(0x0f);
+        bytes.push(opcode);
+        fail_fixups.push(bytes.len());
+        bytes.extend([0, 0, 0, 0]);
+    };
+    // stored.len < literal_len  => not equal.
+    bytes.extend([0x49, 0x81, 0xf9]); // cmp r9, imm32
+    bytes.extend(literal_len_i.to_le_bytes());
+    jcc_fail(&mut bytes, 0x82); // jb fail
+    bytes.extend([0x4d, 0x31, 0xc0]); // xor r8, r8 (index = 0)
+
+    let loop_start = bytes.len();
+    bytes.extend([0x49, 0x81, 0xf8]); // cmp r8, imm32 (literal_len)
+    bytes.extend(literal_len_i.to_le_bytes());
+    let to_trailing = {
+        bytes.extend([0x0f, 0x83]); // jae rel32 -> trailing check
+        let at = bytes.len();
+        bytes.extend([0, 0, 0, 0]);
+        at
+    };
+    bytes.extend([0x42, 0x8a, 0x0c, 0x00]); // mov cl, [rax+r8]
+    bytes.extend([0x43, 0x3a, 0x0c, 0x07]); // cmp cl, [r15+r8]
+    jcc_fail(&mut bytes, 0x85); // jne fail
+    bytes.extend([0x49, 0xff, 0xc0]); // inc r8
+    {
+        bytes.push(0xe9); // jmp loop_start
+        let at = bytes.len();
+        bytes.extend([0, 0, 0, 0]);
+        bytes[at..at + 4].copy_from_slice(&((loop_start as isize - (at as isize + 4)) as i32).to_le_bytes());
+    }
+
+    // trailing: if stored.len == literal_len -> success; else stored[len] must
+    // be a line delimiter for equality (input had a trailing terminator).
+    let trailing = bytes.len();
+    bytes[to_trailing..to_trailing + 4]
+        .copy_from_slice(&((trailing as isize - (to_trailing as isize + 4)) as i32).to_le_bytes());
+    bytes.extend([0x49, 0x81, 0xf9]); // cmp r9, imm32 (literal_len)
+    bytes.extend(literal_len_i.to_le_bytes());
+    {
+        bytes.extend([0x0f, 0x84]); // je success
+        success_fixups.push(bytes.len());
+        bytes.extend([0, 0, 0, 0]);
+    }
+    bytes.extend([0x42, 0x8a, 0x0c, 0x00]); // mov cl, [rax+r8] (stored[literal_len])
+    let mut je_success = |bytes: &mut Vec<u8>, imm: u8| {
+        bytes.extend([0x80, 0xf9, imm]); // cmp cl, imm8
+        bytes.extend([0x0f, 0x84]); // je success
+        success_fixups.push(bytes.len());
+        bytes.extend([0, 0, 0, 0]);
+    };
+    je_success(&mut bytes, 0x0a); // '\n'
+    je_success(&mut bytes, 0x0d); // '\r'
+    je_success(&mut bytes, 0x00); // '\0'
+    {
+        bytes.push(0xe9); // jmp fail (no delimiter -> not equal)
+        fail_fixups.push(bytes.len());
+        bytes.extend([0, 0, 0, 0]);
+    }
+
+    // MISMATCH trampoline: fall through to the instruction end (the following
+    // "write text_ok = 0"). `fail_fixups` are the internal mismatch branches; we
+    // route them just before the terminal match jmp and then let them reach the
+    // end via a short jmp.
+    let mismatch = bytes.len();
+    bytes.push(0xe9);
+    let mismatch_jmp_at = bytes.len();
+    bytes.extend([0, 0, 0, 0]);
+    for fixup in &fail_fixups {
+        bytes[*fixup..*fixup + 4]
+            .copy_from_slice(&((mismatch as isize - (*fixup as isize + 4)) as i32).to_le_bytes());
+    }
+
+    // MATCH trampoline: single jmp to the external "next guarded effect end"
+    // distance, skipping the trailing "write 0". Its rel32 ends at the
+    // instruction width, which is the offset emission anchors the distance to.
+    let matched = bytes.len();
+    for fixup in &success_fixups {
+        bytes[*fixup..*fixup + 4]
+            .copy_from_slice(&((matched as isize - (*fixup as isize + 4)) as i32).to_le_bytes());
+    }
+    bytes.push(0xe9); // jmp match target (rel32)
+    let match_jmp_at = bytes.len();
+    bytes.extend((match_branch_distance as i32).to_le_bytes());
+
+    let width = bytes.len();
+    // mismatch path jumps to the instruction end (the trailing write-0).
+    bytes[mismatch_jmp_at..mismatch_jmp_at + 4]
+        .copy_from_slice(&((width as isize - (mismatch_jmp_at as isize + 4)) as i32).to_le_bytes());
+    debug_assert_eq!(match_jmp_at + 4, width, "match jmp must terminate the instruction");
+
+    Ok(bytes)
+}
+
+/// Byte offset (within a `CompareRuntimeTextStorage`) of the rel32 displacement
+/// end of the terminal failure `jmp` -- i.e. the instruction width. Emission
+/// anchors the failure branch distance here.
+pub fn runtime_text_storage_compare_failure_branch_offset(literal_len: usize) -> usize {
+    runtime_text_storage_compare_width_x86(literal_len)
+}
+
+pub fn runtime_text_storage_compare_width_x86(literal_len: usize) -> usize {
+    // Encode once with placeholder distance to recover the authoritative width.
+    encode_runtime_text_storage_compare_bytes(0, literal_len, 0, false)
+        .map(|bytes| bytes.len())
+        .unwrap_or(0)
+}
+
 pub fn runtime_value_compare_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,

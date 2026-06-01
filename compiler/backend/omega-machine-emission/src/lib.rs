@@ -18,5 +18,6 @@ pub(crate) struct MachineEmissionContext<'plan> {
     pub target: NativeTarget,
     pub assigned_target_operations: &'plan AssignedTargetOperationPlan,
     pub host_abi: &'plan HostAbiPlan,
+    pub data: &'plan omega_target_operations::TargetDataPlan,
     pub terminal_dispatch_index: u32,
 }

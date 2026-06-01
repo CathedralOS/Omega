@@ -21,6 +21,7 @@ pub(crate) fn build_encoded_machine_code(
                 target: input.target,
                 assigned_target_operations: input.assigned_target_operations,
                 host_abi: input.host_abi,
+                data: input.data,
                 terminal_dispatch_index: input.terminal_dispatch_index,
             },
             input.machine_instructions,

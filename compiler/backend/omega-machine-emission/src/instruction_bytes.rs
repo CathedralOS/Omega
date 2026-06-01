@@ -243,28 +243,42 @@ fn insert_fixed_machine_instruction_bytes(
             Ok(true)
         }
         SelectedInstructionKind::CompareRuntimeTextStorage {
+            buffer,
             source_offset,
             operator,
             ..
         } => {
-            let storage_compare_width =
-                omega_instruction_selection::runtime_text_storage_compare_width(
+            let literal_len = emission_context
+                .data
+                .objects
+                .get(*buffer)
+                .bytes
+                .len();
+            let compare_failure_offset =
+                omega_instruction_selection::runtime_text_storage_compare_failure_branch_offset(
                     emission_context.target.architecture,
+                    literal_len,
+                );
+            let delimiter_failure_offset =
+                omega_instruction_selection::runtime_text_storage_compare_delimiter_branch_offset(
+                    emission_context.target.architecture,
+                    literal_len,
                 );
             let bytes = omega_instruction_selection::encode_runtime_text_storage_compare_bytes(
                 emission_context.target.architecture,
                 *source_offset,
+                literal_len,
                 branch_distances::byte_distance_to_next_guarded_effect_end(
                     emission_context,
                     laid_out_instructions,
                     machine_instruction_index,
-                    40,
+                    compare_failure_offset,
                 )?,
                 branch_distances::byte_distance_to_next_guarded_effect_end(
                     emission_context,
                     laid_out_instructions,
                     machine_instruction_index,
-                    storage_compare_width.saturating_sub(4),
+                    delimiter_failure_offset,
                 )?,
                 *operator == StateGuardOperator::NotEqual,
             )?;

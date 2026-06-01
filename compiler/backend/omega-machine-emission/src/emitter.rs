@@ -12,6 +12,7 @@ pub struct MachineEmissionInput<'plan, 'machine> {
         &'plan omega_assigned_target_operations::AssignedTargetOperationPlan,
     pub machine_instructions: &'machine MachineInstructionPlan,
     pub host_abi: &'plan omega_calling_conventions::HostAbiPlan,
+    pub data: &'plan omega_target_operations::TargetDataPlan,
     pub terminal_dispatch_index: u32,
 }
 
@@ -42,6 +43,7 @@ mod tests {
         let target = NativeTarget::host();
         let assigned_target_operations = AssignedTargetOperationPlan::default();
         let host_abi = build_host_abi_plan(target);
+        let data = omega_target_operations::TargetDataPlan::default();
         let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
         let instructions =
             machine_instructions
@@ -94,6 +96,7 @@ mod tests {
             assigned_target_operations: &assigned_target_operations,
             machine_instructions: &machine_instructions,
             host_abi: &host_abi,
+            data: &data,
             terminal_dispatch_index: 0,
         })
         .expect("machine emission should preserve semantic summaries");
