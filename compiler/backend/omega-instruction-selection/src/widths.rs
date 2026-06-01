@@ -635,15 +635,12 @@ pub fn runtime_machine_indexed_string_write_width(
             field_byte_offset,
             byte_length,
         ),
-        Architecture::X86_64 => {
-            let _ = (
-                base_byte_offset,
-                element_byte_size,
-                field_byte_offset,
-                byte_length,
-            );
-            0
-        }
+        Architecture::X86_64 => x86_64::runtime_machine_indexed_string_write_width(
+            base_byte_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_length,
+        ),
     }
 }
 
@@ -657,7 +654,7 @@ pub fn runtime_machine_indexed_string_runtime_frame_address_offset(
         }
         Architecture::X86_64 => {
             let _ = base_byte_offset;
-            0
+            x86_64::MACHINE_INDEXED_STRING_FRAME_IMM_OFFSET
         }
     }
 }
@@ -676,7 +673,7 @@ pub fn runtime_machine_indexed_string_data_address_offset(
         ),
         Architecture::X86_64 => {
             let _ = (base_byte_offset, element_byte_size, field_byte_offset);
-            0
+            x86_64::MACHINE_INDEXED_STRING_DATA_IMM_OFFSET
         }
     }
 }

@@ -37,15 +37,10 @@ pub(crate) fn runtime_machine_indexed_string_runtime_frame_address_offset(
     architecture: Architecture,
     base_byte_offset: usize,
 ) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            omega_instruction_selection::runtime_machine_indexed_string_runtime_frame_address_offset(
-                architecture,
-                base_byte_offset,
-            )
-        }
-        Architecture::X86_64 => 8,
-    }
+    omega_instruction_selection::runtime_machine_indexed_string_runtime_frame_address_offset(
+        architecture,
+        base_byte_offset,
+    )
 }
 
 pub(crate) fn runtime_machine_indexed_string_data_address_offset(
@@ -54,15 +49,10 @@ pub(crate) fn runtime_machine_indexed_string_data_address_offset(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            omega_instruction_selection::runtime_machine_indexed_string_data_address_offset(
-                architecture,
-                base_byte_offset,
-                element_byte_size,
-                field_byte_offset,
-            )
-        }
-        Architecture::X86_64 => 8,
-    }
+    omega_instruction_selection::runtime_machine_indexed_string_data_address_offset(
+        architecture,
+        base_byte_offset,
+        element_byte_size,
+        field_byte_offset,
+    )
 }
