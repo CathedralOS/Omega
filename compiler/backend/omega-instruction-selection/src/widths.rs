@@ -436,7 +436,39 @@ pub fn runtime_frame_base_indexed_binary_write_width(
             operator,
             right,
         ),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_frame_base_indexed_binary_write_width(
+            runtime_value_operands,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+    }
+}
+
+/// Byte offset of the left value operand within a frame-base-indexed binary
+/// write (i.e. the length of the target-address-computation prefix).
+pub fn runtime_frame_base_indexed_binary_left_operand_offset(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            // aarch64 reuses the integer-write prefix length (its store tail is a
+            // separate trailing instruction, unlike x86_64's interleaved layout).
+            aarch64::runtime_frame_base_indexed_integer_write_width(
+                base_byte_offset,
+                element_byte_size,
+                field_byte_offset,
+                0,
+            )
+        }
+        Architecture::X86_64 => {
+            let _ = (base_byte_offset, element_byte_size, field_byte_offset);
+            x86_64::runtime_frame_base_indexed_binary_left_operand_offset()
+        }
     }
 }
 
