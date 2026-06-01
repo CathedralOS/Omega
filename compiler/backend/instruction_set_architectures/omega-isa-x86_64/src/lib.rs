@@ -1534,7 +1534,10 @@ pub fn runtime_value_operand_width(
         .frame_fixed_indexed(operand)
         .is_some()
     {
-        32
+        // Constant element index folds into the load displacement, so the shape
+        // matches the pointee case: mov r15,imm64 (10) + mov rax,[r15+desc] (7)
+        // + load dest,[rax+const] (7).
+        24
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
@@ -1597,13 +1600,26 @@ fn append_runtime_value_operand(
         append_mov_rax_r15(bytes);
         append_add_rax_r11(bytes);
         append_load_reg_from_rax(bytes, destination, base_byte_offset + field_byte_offset, byte_size)
-    } else if runtime_value_operands
-        .frame_fixed_indexed(operand)
-        .is_some()
+    } else if let Some((
+        descriptor_offset,
+        element_index,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.frame_fixed_indexed(operand)
     {
-        Err(Diagnostic::error(
-            "X86_64 runtime fixed indexed value operand is not implemented yet",
-        ))
+        // Descriptor-based access with a constant element index: r15 = frame base
+        // (relocated), rax = the slice data pointer, then load through it at the
+        // constant displacement `element_index*element + field`.
+        append_mov_r15_imm64(bytes, 0);
+        append_load_rax_from_r15(bytes, descriptor_offset)?;
+        let displacement = element_index
+            .checked_mul(element_byte_size)
+            .and_then(|scaled| scaled.checked_add(field_byte_offset))
+            .ok_or_else(|| {
+                Diagnostic::error("X86_64 fixed indexed value operand offset overflow")
+            })?;
+        append_load_reg_from_rax(bytes, destination, displacement, byte_size)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         // Every comparison/operation accumulates its result in r10, so evaluating
         // the right operand clobbers the left result. Stash left on the stack
@@ -1633,6 +1649,14 @@ fn append_runtime_binary_operation(
         StateGuardOperator::Or => bytes.extend([0x4d, 0x09, 0xda]),  // or r10, r11
         StateGuardOperator::Subtract => bytes.extend([0x4d, 0x29, 0xda]), // sub r10, r11
         StateGuardOperator::Multiply => bytes.extend([0x4d, 0x0f, 0xaf, 0xd3]), // imul r10, r11
+        StateGuardOperator::Max => {
+            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+            bytes.extend([0x4d, 0x0f, 0x4c, 0xd3]); // cmovl r10, r11 (signed: keep larger)
+        }
+        StateGuardOperator::Min => {
+            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+            bytes.extend([0x4d, 0x0f, 0x4f, 0xd3]); // cmovg r10, r11 (signed: keep smaller)
+        }
         StateGuardOperator::Modulo => {
             bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
             bytes.extend([0x48, 0x31, 0xd2]); // xor rdx, rdx
@@ -1673,6 +1697,7 @@ fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
         | StateGuardOperator::Or
         | StateGuardOperator::Subtract => 3,
         StateGuardOperator::Multiply => 4,
+        StateGuardOperator::Max | StateGuardOperator::Min => 7, // cmp (3) + cmov (4)
         StateGuardOperator::Modulo => 12,
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
