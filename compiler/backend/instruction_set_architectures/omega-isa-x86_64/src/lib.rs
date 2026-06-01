@@ -762,6 +762,69 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     Ok(bytes)
 }
 
+// --- Machine-indexed String descriptor write ---
+//
+// Writes {ptr,len} into a machine-owned array element `machine[base + index*elem
+// + field]` (the array is inline, so no pointer deref -- unlike the frame slice
+// variant). The index lives in a runtime-frame slot. Fixed prefix leaves the
+// element address in r15:
+//   mov r15,imm64(machine) (10, reloc@+2) ; mov r14,imm64(frame) (10, reloc@+12)
+//   mov r11,[r14+index] (7) ; imul r11,r11,elem (7) ; add r15,r11 (3)
+// so the runtime-frame reloc imm is at offset 12 and the literal reloc at 39.
+const MACHINE_INDEXED_STRING_PREFIX_WIDTH: usize = 37;
+pub const MACHINE_INDEXED_STRING_FRAME_IMM_OFFSET: usize = 10;
+pub const MACHINE_INDEXED_STRING_DATA_IMM_OFFSET: usize = MACHINE_INDEXED_STRING_PREFIX_WIDTH;
+
+pub fn runtime_machine_indexed_string_write_width(
+    _base_byte_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_length: usize,
+) -> usize {
+    // prefix (37) + mov r14,imm64 literal (10) + store r14 (7)
+    // + mov r14,imm64 len (10) + store r14 (7)
+    MACHINE_INDEXED_STRING_PREFIX_WIDTH + 34
+}
+
+pub fn encode_runtime_machine_indexed_string_write(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_machine_indexed_string_write_width(
+        base_byte_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_length,
+    ));
+    // r15 = machine base (reloc @ +2); r14 = frame base (reloc @ +12).
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index
+    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
+    append_add_r15_r11(&mut bytes); // r15 = machine_base + index*elem
+    debug_assert_eq!(bytes.len(), MACHINE_INDEXED_STRING_PREFIX_WIDTH);
+    let store_offset = base_byte_offset + field_byte_offset;
+    // descriptor.ptr = string literal (r14, reloc @ prefix+2).
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_store_r14_to_r15(&mut bytes, store_offset)?;
+    // descriptor.len = byte_length.
+    append_mov_r14_imm64(&mut bytes, byte_length as u64);
+    append_store_r14_to_r15(&mut bytes, store_offset + 8)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_indexed_string_write_width(
+            base_byte_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_length
+        )
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_value_compare_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     left: RuntimeValueOperandHandle,
