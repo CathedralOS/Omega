@@ -324,6 +324,16 @@ pub fn runtime_pointee_integer_write_width(
     }
 }
 
+/// Bytes inserted between the left and right operand evaluations of a binary
+/// write so the left result survives the right evaluation. Zero on aarch64 (it
+/// uses distinct result registers); on x86_64 it is a single `push r10`.
+pub fn runtime_binary_right_operand_gap(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => x86_64::BINARY_RIGHT_OPERAND_PUSH_WIDTH,
+    }
+}
+
 pub fn runtime_storage_binary_write_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,

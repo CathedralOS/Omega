@@ -1264,6 +1264,12 @@ pub fn encode_runtime_storage_address_to_runtime_frame_write(
     Ok(bytes)
 }
 
+/// Bytes inserted between the left and right operand evaluations of a binary
+/// write on x86_64: a single `push r10` that preserves the left result while the
+/// right operand is evaluated (both accumulate in r10). Relocation planning adds
+/// this to the right operand's start offset.
+pub const BINARY_RIGHT_OPERAND_PUSH_WIDTH: usize = 2;
+
 pub fn runtime_storage_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
@@ -1271,8 +1277,13 @@ pub fn runtime_storage_binary_write_width(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
+    // 10 (mov r14,imm64) + left + push r10 (2) + right + mov r11,r10 (3)
+    // + pop r10 (2) + operation + store.
     10 + runtime_value_operand_width(runtime_value_operands, left)
+        + 2
         + runtime_value_operand_width(runtime_value_operands, right)
+        + 3
+        + 2
         + runtime_binary_operation_width(operator)
         + 7.max(store_width(byte_size))
 }
@@ -1298,8 +1309,13 @@ pub fn encode_runtime_storage_binary_write(
     // `mov r14, imm64` and `mov r15, imm64` are both 10 bytes with the relocated
     // immediate at +2, so the target relocation offset is unchanged.
     append_mov_r14_imm64(&mut bytes, 0);
+    // Each operand's evaluation accumulates in r10, so the right operand would
+    // clobber the left result. Stash left on the stack across the right eval.
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R11, right)?;
+    append_push_r10(&mut bytes);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
+    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
+    append_pop_r10(&mut bytes); // restore left -> r10
     append_runtime_binary_operation(&mut bytes, operator)?;
     append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
     Ok(bytes)
@@ -1321,7 +1337,10 @@ pub fn runtime_frame_base_indexed_binary_write_width(
 ) -> usize {
     runtime_frame_base_indexed_binary_left_operand_offset()
         + runtime_value_operand_width(runtime_value_operands, left)
+        + 2 // push r10
         + runtime_value_operand_width(runtime_value_operands, right)
+        + 3 // mov r11, r10
+        + 2 // pop r10
         + runtime_binary_operation_width(operator)
         + 7.max(store_width(byte_size))
 }
@@ -1353,8 +1372,13 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     append_imul_r15_imm32(&mut bytes, element_scale(element_byte_size)?);
     append_add_r14_r15(&mut bytes);
     debug_assert_eq!(bytes.len(), runtime_frame_base_indexed_binary_left_operand_offset());
+    // Stash the left result across the right operand's evaluation (both accumulate
+    // in r10). r14 (target address) survives push/pop and operand evaluation.
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
-    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R11, right)?;
+    append_push_r10(&mut bytes);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
+    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
+    append_pop_r10(&mut bytes); // restore left -> r10
     append_runtime_binary_operation(&mut bytes, operator)?;
     append_store_r10_to_r14(&mut bytes, store_displacement, byte_size)?;
     Ok(bytes)
@@ -1475,7 +1499,8 @@ pub fn runtime_value_operand_width(
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
             + runtime_binary_operation_width(operator)
-            + 3
+            // push r10 (2) + mov r11,r10 (3) + pop r10 (2) + mov dest,r10 (3)
+            + 10
     } else {
         0
     }
@@ -1540,8 +1565,14 @@ fn append_runtime_value_operand(
             "X86_64 runtime fixed indexed value operand is not implemented yet",
         ))
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
+        // Every comparison/operation accumulates its result in r10, so evaluating
+        // the right operand clobbers the left result. Stash left on the stack
+        // across the right evaluation, then combine.
         append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, left)?;
-        append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R11, right)?;
+        append_push_r10(bytes);
+        append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, right)?;
+        append_mov_reg_reg(bytes, Reg64::R11, Reg64::R10); // right -> r11
+        append_pop_r10(bytes); // restore left -> r10
         append_runtime_binary_operation(bytes, operator)?;
         append_mov_reg_reg(bytes, destination, Reg64::R10);
         Ok(())
@@ -1698,6 +1729,14 @@ fn append_mov_reg_reg(bytes: &mut Vec<u8>, destination: Reg64, source: Reg64) {
         (Reg64::R11, Reg64::R10) => bytes.extend([0x4d, 0x89, 0xd3]),
         (Reg64::R11, Reg64::R11) => bytes.extend([0x4d, 0x89, 0xdb]),
     }
+}
+
+fn append_push_r10(bytes: &mut Vec<u8>) {
+    bytes.extend([0x41, 0x52]); // push r10
+}
+
+fn append_pop_r10(bytes: &mut Vec<u8>) {
+    bytes.extend([0x41, 0x5a]); // pop r10
 }
 
 fn append_mov_r12d_imm32(bytes: &mut Vec<u8>, value: u32) -> Result<(), Diagnostic> {
