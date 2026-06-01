@@ -573,7 +573,16 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
                 byte_count,
             )
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
     }
 }
 
