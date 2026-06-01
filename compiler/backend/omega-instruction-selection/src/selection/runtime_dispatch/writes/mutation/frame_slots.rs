@@ -157,6 +157,21 @@ fn select_runtime_frame_slot_address_write_in_table(
     slot: &omega_runtime_storage::RuntimeFrameSlot,
     value: ExpressionHandle,
 ) -> Option<SelectedInstructionKind> {
+    // `&mut <place>` / `&<place>` (e.g. `&mut cells[index]`): bind the reference
+    // slot to the *address* of the referenced place rather than copying the
+    // referent. Without this the place is mis-lowered as a copy through the
+    // still-uninitialized reference slot.
+    if let ExpressionNode::Mutable(inner) = expressions.expression(value) {
+        return select_runtime_frame_slot_place_address_write_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            slot,
+            *inner,
+        );
+    }
+
     let ExpressionNode::Call(call) = expressions.expression(value) else {
         return None;
     };
@@ -225,6 +240,105 @@ fn select_runtime_frame_slot_address_write_in_table(
         value_source_key,
         expressions,
         call.receiver,
+    )?;
+    Some(
+        SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+            source_region: source_place.region,
+            source_offset: source_place.byte_offset,
+            target_offset: slot.byte_offset,
+        },
+    )
+}
+
+/// Writes the address of the referenced place `referent` (the target of a `&` /
+/// `&mut`) into the reference slot. Resolves the place through the same target
+/// shapes as a read — fixed/runtime slice index, inline-array index, pointee
+/// field, or a plain storage place — and emits the matching address-to-frame
+/// write so the slot ends up holding the element address, not a copy of it.
+fn select_runtime_frame_slot_place_address_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    expressions: &ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    referent: ExpressionHandle,
+) -> Option<SelectedInstructionKind> {
+    if let Some(target) = resolve_runtime_frame_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        referent,
+    ) {
+        return Some(
+            SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
+                descriptor_offset: target.descriptor_offset,
+                element_index: target.element_index,
+                element_byte_size: target.element_byte_size,
+                field_byte_offset: target.field_byte_offset,
+                target_offset: slot.byte_offset,
+            },
+        );
+    }
+
+    if let Some(target) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        referent,
+    ) {
+        return Some(
+            SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+                descriptor_offset: target.descriptor_offset,
+                index_offset: target.index_offset,
+                element_byte_size: target.element_byte_size,
+                field_byte_offset: target.field_byte_offset,
+                target_offset: slot.byte_offset,
+            },
+        );
+    }
+
+    if let Some(target) = resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        referent,
+    ) {
+        return Some(
+            SelectedInstructionKind::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame {
+                base_byte_offset: target.base_byte_offset,
+                index_offset: target.index_offset,
+                element_byte_size: target.element_byte_size,
+                field_byte_offset: target.field_byte_offset,
+                target_offset: slot.byte_offset,
+            },
+        );
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        referent,
+    ) {
+        return Some(
+            SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame {
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                field_byte_offset: pointer_target.field_byte_offset,
+                target_offset: slot.byte_offset,
+            },
+        );
+    }
+
+    let source_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        referent,
     )?;
     Some(
         SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
