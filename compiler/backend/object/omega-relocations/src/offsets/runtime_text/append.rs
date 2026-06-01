@@ -6,7 +6,7 @@ pub(crate) fn runtime_text_stored_suffix_source_address_offset(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
+        Architecture::X86_64 => omega_isa_x86_64::RUNTIME_TEXT_STORED_SUFFIX_APPEND_SOURCE_IMM_OFFSET,
     }
 }
 
@@ -15,21 +15,21 @@ pub(crate) fn runtime_text_stored_suffix_target_address_offset(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => 52,
-        Architecture::X86_64 => 16,
+        Architecture::X86_64 => omega_isa_x86_64::RUNTIME_TEXT_STORED_SUFFIX_APPEND_TARGET_IMM_OFFSET,
     }
 }
 
 pub(crate) fn runtime_text_stored_place_source_address_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 28,
-        Architecture::X86_64 => 8,
+        Architecture::X86_64 => omega_isa_x86_64::RUNTIME_TEXT_STORED_PLACE_APPEND_SOURCE_IMM_OFFSET,
     }
 }
 
 pub(crate) fn runtime_text_stored_place_target_address_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
+        Architecture::X86_64 => omega_isa_x86_64::RUNTIME_TEXT_STORED_PLACE_APPEND_TARGET_IMM_OFFSET,
     }
 }
 

@@ -177,14 +177,14 @@ pub fn runtime_text_literal_segment_write_width(
 pub fn runtime_text_stored_suffix_append_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_stored_suffix_append_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_text_stored_suffix_append_width(),
     }
 }
 
 pub fn runtime_text_stored_place_append_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_stored_place_append_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_text_stored_place_append_width(),
     }
 }
 
