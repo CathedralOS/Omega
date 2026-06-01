@@ -628,16 +628,35 @@ fn resolve_state_call_target(
     target_state: &Identifier,
 ) -> Option<ResolvedStateCall> {
     if !has_receiver || receiver_symbol == machine.symbol {
+        let is_self_call = has_receiver && receiver_symbol == machine.symbol;
+
         if let Some(key) =
             resolve_state_key_in_machine(control_flow, machine.symbol, target_symbol, target_state)
         {
+            // A `self.X()` that resolves to the CURRENT state is a degenerate
+            // self-call: the internal state is a trampoline whose intent is the
+            // sibling method (a machine attached to the same data type) of the
+            // same name -- internal states are entered by a bare transition
+            // `-> X()`, never by `self.X()`. Bind the sibling machine instead so
+            // it is not (mis)read as recursion.
+            if is_self_call
+                && key == source_key
+                && let Some(machine_key) =
+                    resolve_attached_machine_state_key(control_flow, machine, target_symbol)
+            {
+                return Some(ResolvedStateCall {
+                    key: machine_key,
+                    resolution: StateCallResolution::NamedMachine,
+                });
+            }
+
             return Some(ResolvedStateCall {
                 key,
                 resolution: StateCallResolution::Local,
             });
         }
 
-        if has_receiver && receiver_symbol == machine.symbol {
+        if is_self_call {
             return resolve_attached_machine_state_key(control_flow, machine, target_symbol).map(
                 |key| ResolvedStateCall {
                     key,
