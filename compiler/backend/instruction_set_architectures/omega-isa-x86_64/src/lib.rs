@@ -672,6 +672,167 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
     Ok(bytes)
 }
 
+// --- Runtime text line read (Windows stdin via GetStdHandle + ReadFile) ---
+//
+// Self-contained instruction reading ONE logical line. Stdin is read one byte
+// at a time (a bulk ReadFile would consume bytes belonging to the next
+// read_line); the loop calls ReadFile with count=1 until a \n/\r/\0 delimiter,
+// EOF (0 bytes), or capacity, then stores {ptr, len} at the target descriptor.
+//
+// Win64 callee-saved r13/r14/r15 survive the ReadFile call:
+//   r14 = buffer base   r13 = stdin handle   r15 = line length / write index
+//
+// Branch displacements are resolved by post-patching recorded label positions,
+// so the four relocation offsets are read back from the encoder rather than
+// hand-computed; see `runtime_text_line_read_relocation_offsets`.
+
+/// Byte offsets (within the instruction) of the four relocations the planner
+/// must patch: buffer imm64, GetStdHandle call rel32, ReadFile call rel32,
+/// and the target-descriptor imm64. Computed by encoding once with a dummy
+/// target so the layout is authoritative (no hand-maintained constants).
+pub struct RuntimeTextLineReadLayout {
+    pub get_std_handle_call_offset: usize,
+    pub read_file_call_offset: usize,
+    pub target_imm_offset: usize,
+    pub width: usize,
+}
+
+fn build_runtime_text_line_read(
+    target_offset: usize,
+    capacity: u32,
+) -> Result<(Vec<u8>, RuntimeTextLineReadLayout), Diagnostic> {
+    let target_ptr_disp = disp32(target_offset)?;
+    let target_len_disp = disp32(target_offset + 8)?;
+    let mut bytes = Vec::with_capacity(128);
+
+    // r14 = buffer (imm64 at +2 relocated to the buffer data symbol).
+    bytes.extend([0x49, 0xbe]);
+    bytes.extend(0u64.to_le_bytes());
+    // sub rsp, 56.
+    bytes.extend([0x48, 0x83, 0xec, 0x38]);
+    // mov ecx, -10 (STD_INPUT_HANDLE).
+    bytes.push(0xb9);
+    bytes.extend((-10i32).to_le_bytes());
+    // call GetStdHandle (rel32).
+    bytes.push(0xe8);
+    let get_std_handle_call_offset = bytes.len();
+    bytes.extend([0, 0, 0, 0]);
+    // r13 = handle; r15 = 0.
+    bytes.extend([0x49, 0x89, 0xc5]); // mov r13, rax
+    bytes.extend([0x4d, 0x31, 0xff]); // xor r15, r15
+
+    let loop_start = bytes.len();
+    bytes.extend([0x4c, 0x89, 0xe9]); // mov rcx, r13 (handle)
+    bytes.extend([0x4b, 0x8d, 0x14, 0x3e]); // lea rdx, [r14+r15]
+    bytes.extend([0x41, 0xb8, 0x01, 0x00, 0x00, 0x00]); // mov r8d, 1
+    bytes.extend([0x4c, 0x8d, 0x4c, 0x24, 0x28]); // lea r9, [rsp+40]
+    bytes.extend([0x48, 0xc7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // mov qword [rsp+32], 0
+    bytes.push(0xe8); // call ReadFile (rel32)
+    let read_file_call_offset = bytes.len();
+    bytes.extend([0, 0, 0, 0]);
+    bytes.extend([0x8b, 0x44, 0x24, 0x28]); // mov eax, [rsp+40]  (bytesRead)
+
+    // Forward jumps to `done`, patched after `done` is known.
+    let mut done_fixups: Vec<usize> = Vec::new();
+    let mut jcc_done = |bytes: &mut Vec<u8>, opcode: u8| {
+        bytes.push(0x0f);
+        bytes.push(opcode);
+        done_fixups.push(bytes.len());
+        bytes.extend([0, 0, 0, 0]);
+    };
+    bytes.extend([0x85, 0xc0]); // test eax, eax
+    jcc_done(&mut bytes, 0x84); // je done (EOF)
+    bytes.extend([0x43, 0x8a, 0x04, 0x3e]); // mov al, [r14+r15] (byte read)
+    bytes.extend([0x3c, 0x0a]); // cmp al, '\n'
+    jcc_done(&mut bytes, 0x84);
+    bytes.extend([0x3c, 0x0d]); // cmp al, '\r'
+    jcc_done(&mut bytes, 0x84);
+    bytes.extend([0x3c, 0x00]); // cmp al, 0
+    jcc_done(&mut bytes, 0x84);
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15 (accept the byte)
+    // cmp r15, capacity ; jb loop  (keep reading while length < capacity, else
+    // fall through to done so we never overrun the buffer).
+    bytes.extend([0x49, 0x81, 0xff]); // cmp r15, imm32
+    bytes.extend(capacity.to_le_bytes());
+    bytes.extend([0x0f, 0x82]); // jb rel32
+    let loop_jmp_disp = bytes.len();
+    bytes.extend([0, 0, 0, 0]);
+    {
+        let rel = loop_start as isize - (loop_jmp_disp as isize + 4);
+        bytes[loop_jmp_disp..loop_jmp_disp + 4]
+            .copy_from_slice(&(rel as i32).to_le_bytes());
+    }
+
+    // done:
+    let done = bytes.len();
+    for fixup in done_fixups {
+        let rel = done as isize - (fixup as isize + 4);
+        bytes[fixup..fixup + 4].copy_from_slice(&(rel as i32).to_le_bytes());
+    }
+    // add rsp, 56.
+    bytes.extend([0x48, 0x83, 0xc4, 0x38]);
+    // r12 = target descriptor base (imm64 relocated). Use r12? no -- r12 is the
+    // dispatch-state register; use r13 (handle no longer needed).
+    // mov r13, imm64(target). The relocation planner anchors at the instruction
+    // start and adds the +2 immediate offset itself, so record the start.
+    let target_mov_offset = bytes.len();
+    bytes.extend([0x49, 0xbd]);
+    bytes.extend(0u64.to_le_bytes());
+    // mov [r13+target_offset], r14  (descriptor.ptr = buffer).
+    bytes.extend([0x4d, 0x89, 0xb5]);
+    bytes.extend(target_ptr_disp.to_le_bytes());
+    // mov [r13+target_offset+8], r15 (descriptor.len = line length).
+    bytes.extend([0x4d, 0x89, 0xbd]);
+    bytes.extend(target_len_disp.to_le_bytes());
+
+    let width = bytes.len();
+    Ok((
+        bytes,
+        RuntimeTextLineReadLayout {
+            get_std_handle_call_offset,
+            read_file_call_offset,
+            target_imm_offset: target_mov_offset,
+            width,
+        },
+    ))
+}
+
+fn runtime_text_line_read_layout() -> RuntimeTextLineReadLayout {
+    // Capacity/target do not affect the layout (all immediates are fixed width),
+    // so encode once with placeholders to recover the authoritative offsets.
+    build_runtime_text_line_read(0, 1)
+        .expect("runtime text line read layout encodes")
+        .1
+}
+
+pub fn runtime_text_line_read_width(_byte_capacity: usize) -> usize {
+    runtime_text_line_read_layout().width
+}
+
+pub fn runtime_text_line_read_get_std_handle_call_offset() -> usize {
+    runtime_text_line_read_layout().get_std_handle_call_offset
+}
+
+pub fn runtime_text_line_read_read_file_call_offset() -> usize {
+    runtime_text_line_read_layout().read_file_call_offset
+}
+
+pub fn runtime_text_line_read_target_imm_offset() -> usize {
+    runtime_text_line_read_layout().target_imm_offset
+}
+
+pub fn encode_runtime_text_line_read(
+    target_offset: usize,
+    byte_capacity: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let capacity = u32::try_from(byte_capacity).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
+        ))
+    })?;
+    Ok(build_runtime_text_line_read(target_offset, capacity)?.0)
+}
+
 pub fn runtime_machine_string_write_width(_byte_length: usize) -> usize {
     44
 }

@@ -269,7 +269,9 @@ pub fn encode_runtime_text_line_read(
                 *supervisor_call,
             ),
         },
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_text_line_read(target_offset, byte_capacity)
+        }
     }
 }
 

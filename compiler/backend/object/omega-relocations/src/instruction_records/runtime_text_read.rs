@@ -1,11 +1,13 @@
+use super::super::lookups::find_host_binding;
 use super::super::offsets::{
-    external_call_relocation_kind, runtime_text_line_read_import_call_offset,
-    runtime_text_line_read_target_address_offset,
+    external_call_relocation_kind, runtime_text_line_read_get_std_handle_call_offset,
+    runtime_text_line_read_import_call_offset, runtime_text_line_read_target_address_offset,
 };
 use super::context::InstructionRelocationContext;
 use super::queries::selected_host_text_read;
-use omega_calling_conventions::HostBindingMechanism;
+use omega_calling_conventions::{HostBindingMechanism, HostOperation, HostOperationKey};
 use omega_object_file::{RelocationRecord, object_symbol_handle_by_name};
+use omega_target::Architecture;
 use omega_target_operations::SelectedInstructionKind;
 
 pub(super) fn collect_runtime_text_read_relocations(
@@ -30,21 +32,57 @@ pub(super) fn collect_runtime_text_read_relocations(
         target_symbol,
     );
 
-    if let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism {
-        context
-            .relocation_plan
-            .record_set
-            .records
-            .insert(RelocationRecord {
-                function_symbol_handle: context.function_symbol_handle,
-                selected_instruction_index: context.selected_instruction_index,
-                text_offset: runtime_text_line_read_import_call_offset(
-                    context.input.target.architecture,
-                    context.selected_text_offset,
-                ),
-                byte_width: 4,
-                symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
-                kind: external_call_relocation_kind(context.input.target.architecture),
-            });
+    let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
+        return;
+    };
+    let external_kind = external_call_relocation_kind(context.input.target.architecture);
+
+    // The x86_64 line read first calls GetStdHandle(STD_INPUT_HANDLE) to obtain
+    // the stdin handle, then calls ReadFile. Emit a call relocation for the
+    // GetStdHandle import too (aarch64 needs no separate handle call).
+    if context.input.target.architecture == Architecture::X86_64 {
+        let get_std_handle_key =
+            HostOperationKey::new(read.operation_key.capability, HostOperation::GetStdHandle);
+        if let Some(handle_binding) = find_host_binding(context.input, get_std_handle_key)
+            && let HostBindingMechanism::Import {
+                symbol: handle_symbol,
+                ..
+            } = &handle_binding.mechanism
+        {
+            context
+                .relocation_plan
+                .record_set
+                .records
+                .insert(RelocationRecord {
+                    function_symbol_handle: context.function_symbol_handle,
+                    selected_instruction_index: context.selected_instruction_index,
+                    text_offset: runtime_text_line_read_get_std_handle_call_offset(
+                        context.input.target.architecture,
+                        context.selected_text_offset,
+                    ),
+                    byte_width: 4,
+                    symbol_handle: object_symbol_handle_by_name(
+                        &context.input.object,
+                        handle_symbol.as_ref(),
+                    ),
+                    kind: external_kind,
+                });
+        }
     }
+
+    context
+        .relocation_plan
+        .record_set
+        .records
+        .insert(RelocationRecord {
+            function_symbol_handle: context.function_symbol_handle,
+            selected_instruction_index: context.selected_instruction_index,
+            text_offset: runtime_text_line_read_import_call_offset(
+                context.input.target.architecture,
+                context.selected_text_offset,
+            ),
+            byte_width: 4,
+            symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),
+            kind: external_kind,
+        });
 }

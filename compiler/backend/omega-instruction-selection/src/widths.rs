@@ -723,7 +723,7 @@ pub fn runtime_text_line_read_width(
                 aarch64::runtime_text_line_read_syscall_width(byte_capacity, *number)
             }
         },
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_text_line_read_width(byte_capacity),
     }
 }
 
@@ -740,14 +740,24 @@ pub fn runtime_text_line_read_target_address_offset(
                 aarch64::runtime_text_line_read_syscall_target_address_offset(*number)
             }
         },
-        Architecture::X86_64 => 8,
+        Architecture::X86_64 => x86_64::runtime_text_line_read_target_imm_offset(),
     }
 }
 
 pub fn runtime_text_line_read_import_call_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_line_read_import_call_offset(),
-        Architecture::X86_64 => 0,
+        // x86_64 ReadFile call rel32 displacement.
+        Architecture::X86_64 => x86_64::runtime_text_line_read_read_file_call_offset(),
+    }
+}
+
+/// x86_64-only: rel32 displacement offset of the GetStdHandle call within the
+/// runtime line-read instruction (aarch64 has no separate handle call).
+pub fn runtime_text_line_read_get_std_handle_call_offset(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => x86_64::runtime_text_line_read_get_std_handle_call_offset(),
     }
 }
 

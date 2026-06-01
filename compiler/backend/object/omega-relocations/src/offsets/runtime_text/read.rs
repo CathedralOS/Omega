@@ -15,3 +15,17 @@ pub(crate) fn runtime_text_line_read_import_call_offset(
     selected_text_offset
         + omega_instruction_selection::runtime_text_line_read_import_call_offset(architecture)
 }
+
+/// x86_64-only: absolute text offset of the GetStdHandle call rel32 displacement
+/// (the stdin handle acquisition that precedes ReadFile). aarch64 returns the
+/// instruction start (it has no separate handle call; callers gate on the
+/// Import binding mechanism only for x86_64).
+pub(crate) fn runtime_text_line_read_get_std_handle_call_offset(
+    architecture: Architecture,
+    selected_text_offset: usize,
+) -> usize {
+    selected_text_offset
+        + omega_instruction_selection::runtime_text_line_read_get_std_handle_call_offset(
+            architecture,
+        )
+}
