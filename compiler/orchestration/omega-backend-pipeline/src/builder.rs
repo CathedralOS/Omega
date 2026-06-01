@@ -330,6 +330,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 assigned_target_operations: &backend_plan.assigned_target_operations,
                 machine_instructions: &backend_plan.machine_instructions,
                 host_abi: &backend_plan.host_abi,
+                data: &backend_plan.data,
                 terminal_dispatch_index: backend_plan.runtime_dispatch_loop.terminal_dispatch_index,
             })
         })?;

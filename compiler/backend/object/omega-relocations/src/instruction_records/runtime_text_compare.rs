@@ -34,11 +34,20 @@ pub(super) fn collect_runtime_text_compare_relocations(
             // (a `movabs r15`/`mov r12d` storage load), so emitting these two Absolute64
             // relocations would splatter 8-byte addresses across that instruction and crash with
             // `0xC0000005`. Only anchor when the comparison occupies real bytes.
-            if runtime_text_storage_compare_width(context.input.target.architecture) != 0 {
+            let literal_len = context.data_object_byte_count(*buffer);
+            if runtime_text_storage_compare_width(context.input.target.architecture, literal_len)
+                != 0
+            {
                 let buffer_symbol = context.data_object_symbol_handle(*buffer);
                 let source_symbol = context.storage_region_symbol_handle(*source_region);
                 context.insert_data_address_at_instruction_start(buffer_symbol);
-                context.insert_data_address_at_relative_offset(8, source_symbol);
+                // Source-base `mov` immediate position: aarch64's second adrp is 8
+                // bytes in; x86_64's second `mov r-,imm64` immediate is 10 bytes in.
+                let source_relative_offset = match context.input.target.architecture {
+                    omega_target::Architecture::Aarch64 => 8,
+                    omega_target::Architecture::X86_64 => 10,
+                };
+                context.insert_data_address_at_relative_offset(source_relative_offset, source_symbol);
             }
             true
         }

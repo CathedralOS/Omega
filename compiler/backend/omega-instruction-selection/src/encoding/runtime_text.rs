@@ -24,21 +24,32 @@ pub fn encode_runtime_text_literal_compare(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_text_storage_compare_bytes(
     architecture: Architecture,
     source_offset: usize,
+    literal_len: usize,
     compare_failure_branch_distance: isize,
     delimiter_failure_branch_distance: isize,
     branch_when_equal: bool,
-) -> Result<[u8; 84], Diagnostic> {
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_text_storage_compare_bytes(
+        Architecture::Aarch64 => {
+            let _ = literal_len;
+            Ok(aarch64::encode_runtime_text_storage_compare_bytes(
+                source_offset,
+                compare_failure_branch_distance,
+                delimiter_failure_branch_distance,
+                branch_when_equal,
+            )?
+            .to_vec())
+        }
+        Architecture::X86_64 => x86_64::encode_runtime_text_storage_compare_bytes(
             source_offset,
+            literal_len,
             compare_failure_branch_distance,
-            delimiter_failure_branch_distance,
             branch_when_equal,
         ),
-        Architecture::X86_64 => unsupported_x86_64_runtime_text_storage_compare_encoding(),
     }
 }
 
