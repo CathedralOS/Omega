@@ -1,0 +1,57 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    id: i32;
+    tag: i32;
+}
+
+data Lookup {
+    rooms: [Room; 4];
+    result: i32;
+}
+
+data Main {
+    console: Console;
+    lookup: Lookup;
+}
+
+machine Main::main(&mut self) {
+    self.lookup.search(12);
+
+    transition self.lookup.result == 122 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Lookup::search(&mut self, wanted: i32) {
+    self.rooms[0].id = 10; self.rooms[0].tag = 100;
+    self.rooms[1].id = 11; self.rooms[1].tag = 111;
+    self.rooms[2].id = 12; self.rooms[2].tag = 122;
+    self.rooms[3].id = 13; self.rooms[3].tag = 133;
+    let view: &[Room] = self.rooms.as_slice();
+
+    transition {
+        _ -> find_at(view, wanted, 0)
+    }
+
+    state find_at(&mut self, view: &[Room], wanted: i32, index: usize) {
+        let matched: bool = view[index].id == wanted;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < 4;
+        transition {
+            matched -> store(view[index].tag)
+            has_next -> find_at(view, wanted, next_index)
+            _ -> store(0)
+        }
+    }
+
+    state store(&mut self, value: i32) {
+        self.result = value;
+    }
+}

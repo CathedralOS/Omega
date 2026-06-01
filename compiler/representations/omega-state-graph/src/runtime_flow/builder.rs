@@ -138,6 +138,13 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             let continuation =
                 self.continuation_after_statement_call(state_key, transition_span, call_edge)?;
 
+            // Carry the call's argument expressions onto the dispatch edge so the
+            // callee's parameter slots are materialized when the dispatch loop
+            // enters it -- the same mechanism intra-machine transitions use. This
+            // lets a call with arguments dispatch (and a cyclic callee loop via a
+            // back-edge) instead of being inline-unrolled.
+            let target_arguments = self.statement_call_arguments(state_key, call_edge.statement_index);
+
             self.visit_transition(
                 state_key,
                 call_edge.statement_index,
@@ -145,11 +152,37 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                     key: call_edge.target_key,
                 },
                 continuation,
-                TransitionExpressionRefs::default(),
+                TransitionExpressionRefs {
+                    target_arguments,
+                    ..TransitionExpressionRefs::default()
+                },
             )?;
         }
 
         Ok(true)
+    }
+
+    /// The argument expression handles (in the control-flow expression table) of
+    /// the state call statement at `statement_index` within `state_key`.
+    fn statement_call_arguments(
+        &self,
+        state_key: StateKey,
+        statement_index: usize,
+    ) -> omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
+        let Ok(state) = self.state_flow_by_key(state_key) else {
+            return omega_core::arena::HandleSpan::empty();
+        };
+        self.control_flow
+            .operations
+            .span(state.operations)
+            .into_iter()
+            .flatten()
+            .find(|operation| operation.statement_index == statement_index)
+            .and_then(|operation| match operation.expressions {
+                omega_control_flow::OperationExpressionRefs::Call { arguments } => Some(arguments),
+                _ => None,
+            })
+            .unwrap_or_else(omega_core::arena::HandleSpan::empty)
     }
 
     fn continuation_after_statement_call(
