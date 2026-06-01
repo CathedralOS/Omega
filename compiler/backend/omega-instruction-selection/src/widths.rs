@@ -446,13 +446,12 @@ pub fn runtime_machine_indexed_integer_write_width(
             byte_size,
         ),
         Architecture::X86_64 => {
-            let _ = (
-                base_byte_offset,
+            let _ = base_byte_offset;
+            x86_64::runtime_machine_indexed_integer_write_width(
+                index_region,
                 element_byte_size,
-                field_byte_offset,
                 byte_size,
-            );
-            0
+            )
         }
     }
 }
@@ -467,7 +466,7 @@ pub fn runtime_machine_indexed_integer_runtime_frame_address_offset(
         }
         Architecture::X86_64 => {
             let _ = base_byte_offset;
-            0
+            x86_64::runtime_machine_indexed_integer_runtime_frame_address_offset()
         }
     }
 }
