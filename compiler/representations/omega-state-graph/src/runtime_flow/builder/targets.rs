@@ -1,5 +1,5 @@
 use super::RuntimeFlowBuilder;
-use crate::RuntimeTransitionTarget;
+use crate::{CallContext, RuntimeTransitionTarget};
 use omega_control_flow::{PlannedTransitionTarget, StateKey};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -10,22 +10,27 @@ impl RuntimeFlowBuilder<'_> {
         &mut self,
         target: RuntimeTransitionTarget,
     ) -> Result<(), Diagnostic> {
-        if let RuntimeTransitionTarget::State { key, .. } = target {
-            self.visit_state(key)?;
+        if let RuntimeTransitionTarget::State { key, context } = target {
+            self.visit_state(key, context)?;
         }
 
         Ok(())
     }
 
+    /// Resolve a planned transition target to a runtime target within `context`.
+    /// Intra-machine transitions (including self-transitions and resolved nested
+    /// targets) stay in the caller's context, so a clone's internal control flow
+    /// keeps pointing at that same clone's copies.
     pub(super) fn runtime_target(
         &self,
         machine_symbol: SymbolHandle,
         target: &PlannedTransitionTarget,
+        context: CallContext,
     ) -> RuntimeTransitionTarget {
         match target {
             PlannedTransitionTarget::None => RuntimeTransitionTarget::None,
             PlannedTransitionTarget::State { key, .. } => {
-                RuntimeTransitionTarget::State { key: *key }
+                RuntimeTransitionTarget::State { key: *key, context }
             }
             PlannedTransitionTarget::Nested {
                 receiver_symbol,
@@ -37,7 +42,7 @@ impl RuntimeFlowBuilder<'_> {
                 if *receiver_symbol == machine_symbol || receiver.as_str() == "self" {
                     return self
                         .resolve_local_or_attached_state(machine_symbol, *state_symbol, state)
-                        .map(|key| RuntimeTransitionTarget::State { key })
+                        .map(|key| RuntimeTransitionTarget::State { key, context })
                         .unwrap_or(RuntimeTransitionTarget::Unknown);
                 }
 
@@ -48,11 +53,16 @@ impl RuntimeFlowBuilder<'_> {
                     *state_symbol,
                     state,
                 )
-                .map(|key| RuntimeTransitionTarget::State { key })
+                .map(|key| RuntimeTransitionTarget::State { key, context })
                 .unwrap_or(RuntimeTransitionTarget::Unknown)
             }
             PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
-                key: self.active_states.last().unwrap_or_default(),
+                key: self
+                    .active_states
+                    .last()
+                    .map(|(key, _)| key)
+                    .unwrap_or_default(),
+                context,
             },
             PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
         }
