@@ -770,7 +770,10 @@ pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            let _ = (element_index, element_byte_size, field_byte_offset);
+            x86_64::runtime_frame_fixed_indexed_address_to_runtime_frame_write_width()
+        }
     }
 }
 
