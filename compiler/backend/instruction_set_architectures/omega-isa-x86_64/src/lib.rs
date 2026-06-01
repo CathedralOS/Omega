@@ -545,6 +545,102 @@ pub fn encode_runtime_machine_indexed_integer_write(
     Ok(bytes)
 }
 
+pub fn runtime_frame_indexed_integer_write_width(
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+) -> usize {
+    // mov r14,imm64 (10) + mov r15,[r14+desc] (7) + mov r11,[r14+idx] (7)
+    // + imul r11,r11,elem (7) + add r15,r11 (3) + mov rax,imm64 (10) + store [r15+field] (7)
+    51
+}
+
+pub fn encode_runtime_frame_indexed_integer_write(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot store {byte_size}-byte frame indexed integers yet"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(runtime_frame_indexed_integer_write_width(
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    ));
+    // r14 = frame base (imm64 at +2 relocated to the frame symbol). The descriptor
+    // holds the slice data pointer; r15 = data ptr + index*element.
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_load_r15_from_r14(&mut bytes, descriptor_offset)?;
+    append_load_r11_from_r14(&mut bytes, index_offset)?;
+    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
+    append_add_r15_r11(&mut bytes);
+    append_mov_rax_imm64(&mut bytes, value as u64);
+    append_store_rax_to_r15(&mut bytes, field_byte_offset, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_frame_indexed_integer_write_width(element_byte_size, field_byte_offset, byte_size)
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_frame_base_indexed_integer_write_width(
+    _base_byte_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+) -> usize {
+    // mov r14,imm64 (10) + mov r11,[r14+idx] (7) + imul r11,r11,elem (7)
+    // + mov r15,r14 (3) + add r15,r11 (3) + mov rax,imm64 (10) + store [r15+base+field] (7)
+    47
+}
+
+pub fn encode_runtime_frame_base_indexed_integer_write(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot store {byte_size}-byte frame base-indexed integers yet"
+        )));
+    }
+    let store_displacement = base_byte_offset + field_byte_offset;
+    let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_integer_write_width(
+        base_byte_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    ));
+    // r14 = frame base (imm64 at +2 relocated to the frame symbol). The array base
+    // lives inline in the frame at base_byte_offset; r15 = frame base + index*element.
+    append_mov_r14_imm64(&mut bytes, 0);
+    append_load_r11_from_r14(&mut bytes, index_offset)?;
+    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
+    append_mov_r15_r14(&mut bytes);
+    append_add_r15_r11(&mut bytes);
+    append_mov_rax_imm64(&mut bytes, value as u64);
+    append_store_rax_to_r15(&mut bytes, store_displacement, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_frame_base_indexed_integer_write_width(
+            base_byte_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size
+        )
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_machine_string_write_width(_byte_length: usize) -> usize {
     44
 }
@@ -933,6 +1029,28 @@ fn append_load_al_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<()
     bytes.extend([0x41, 0x8a, 0x87]);
     bytes.extend(displacement.to_le_bytes());
     Ok(())
+}
+
+fn append_load_r15_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4d, 0x8b, 0xbe]); // mov r15, [r14 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_r11_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4d, 0x8b, 0x9e]); // mov r11, [r14 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_mov_r15_r14(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x89, 0xf7]); // mov r15, r14
+}
+
+fn append_add_r15_r11(bytes: &mut Vec<u8>) {
+    bytes.extend([0x4d, 0x01, 0xdf]); // add r15, r11
 }
 
 fn append_load_rdx_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
