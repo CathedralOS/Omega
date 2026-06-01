@@ -32,6 +32,13 @@ impl StateKeyBuffer {
             || self.overflow.contains(node)
     }
 
+    /// Whether any node on the path has this source state key, regardless of
+    /// call-context. Re-reaching a state key through a call chain (transition
+    /// back-edges are handled separately) means the call graph is recursive.
+    pub(super) fn contains_key(&self, key: &StateKey) -> bool {
+        self.iter().any(|(candidate, _)| candidate == key)
+    }
+
     pub(super) fn iter(&self) -> impl Iterator<Item = &RuntimeNode> {
         self.inline
             .iter()

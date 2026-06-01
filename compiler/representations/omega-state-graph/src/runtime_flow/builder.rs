@@ -22,6 +22,12 @@ pub(super) struct RuntimeFlowBuilder<'plan> {
     /// bounded number of copies; exceeding this means the call graph is
     /// (transitively) recursive, which specialization cannot lower.
     context_budget: u32,
+    /// The continuation a clone returns to when it terminates, indexed by context
+    /// id. `ROOT` returns `Terminal` (the program ends); a callee returns to the
+    /// continuation its call site specified. This is what lets a tail-call chain
+    /// (a clone whose body ends in another call) thread the original caller's
+    /// continuation all the way down.
+    context_entry_continuation: Vec<crate::RuntimeTransitionTarget>,
 }
 
 impl<'plan> RuntimeFlowBuilder<'plan> {
@@ -53,7 +59,17 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             context_budget: (state_capacity as u32)
                 .saturating_mul(64)
                 .saturating_add(1024),
+            // Index 0 == ROOT: the entry machine terminates the program.
+            context_entry_continuation: vec![crate::RuntimeTransitionTarget::Terminal],
         }
+    }
+
+    /// The continuation a clone in `context` returns to on termination.
+    fn entry_continuation(&self, context: CallContext) -> crate::RuntimeTransitionTarget {
+        self.context_entry_continuation
+            .get(context.0 as usize)
+            .copied()
+            .unwrap_or(crate::RuntimeTransitionTarget::Terminal)
     }
 
     pub(super) fn finish(self) -> RuntimeFlowPlan {
@@ -119,8 +135,14 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
 
                 (
                     transition.statement_index,
-                    self.runtime_target(state_key.machine, &transition.target, context),
-                    self.runtime_target(state_key.machine, &transition.continuation, context),
+                    self.inherit_terminal(
+                        self.runtime_target(state_key.machine, &transition.target, context),
+                        context,
+                    ),
+                    self.inherit_terminal(
+                        self.runtime_target(state_key.machine, &transition.continuation, context),
+                        context,
+                    ),
                     transition.expressions,
                 )
             };
@@ -172,9 +194,22 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             let target_arguments =
                 self.statement_call_arguments(state_key, call_edge.statement_index);
 
+            // Re-entering a callee state already on the active path (through a
+            // call chain) is genuine call recursion -- specialization would clone
+            // it forever. Reject it cleanly before the cloning DFS overflows.
+            if self.active_states.contains_key(&call_edge.target_key) {
+                return Err(Diagnostic::error(format!(
+                    "{} calls into a recursive cycle (target {}); specialization \
+                     cannot lower a call graph that (transitively) calls itself. \
+                     Express the repetition as a loop (a self-transition) instead.",
+                    self.state_key_display(state_key),
+                    self.state_key_display(call_edge.target_key)
+                )));
+            }
+
             // The callee is specialized in a fresh call-context so this call site
-            // gets its own clone with its own statically-wired continuation.
-            let callee_context = self.next_callee_context(context)?;
+            // gets its own clone, wired to return to `continuation` when it ends.
+            let callee_context = self.next_callee_context(continuation)?;
 
             self.visit_transition(
                 state_key,
@@ -196,12 +231,13 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
     }
 
     /// Mint a fresh call-context for a dispatched callee so it is specialized as
-    /// its own clone (distinct dispatch cases + frame slots) wired back to this
-    /// call site's continuation. Errors if the context budget is exhausted, which
-    /// indicates a recursive call graph specialization cannot lower.
+    /// its own clone (distinct dispatch cases + frame slots), recording the
+    /// continuation it returns to when it terminates. Errors if the context
+    /// budget is exhausted, which indicates a recursive call graph specialization
+    /// cannot lower.
     fn next_callee_context(
         &mut self,
-        _caller_context: CallContext,
+        return_continuation: crate::RuntimeTransitionTarget,
     ) -> Result<CallContext, Diagnostic> {
         if self.next_context >= self.context_budget {
             return Err(Diagnostic::error(
@@ -213,6 +249,8 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
 
         let context = CallContext(self.next_context);
         self.next_context += 1;
+        debug_assert_eq!(self.context_entry_continuation.len(), context.0 as usize);
+        self.context_entry_continuation.push(return_continuation);
         Ok(context)
     }
 
@@ -263,10 +301,29 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
 
         // The continuation lives in the caller's machine, so it inherits the
         // caller's context -- this is what wires a clone's terminal back to the
-        // specific call site that entered it.
+        // specific call site that entered it. When the call is a tail call (no
+        // local continuation), the caller in turn returns to ITS entry
+        // continuation, threading the original caller's continuation down the
+        // chain.
         Ok(continuation_transition
             .map(|transition| self.runtime_target(state_key.machine, &transition.target, context))
-            .unwrap_or(crate::RuntimeTransitionTarget::Terminal))
+            .map(|target| self.inherit_terminal(target, context))
+            .unwrap_or_else(|| self.entry_continuation(context)))
+    }
+
+    /// Resolve a `Terminal` target to the clone's entry continuation, so a clone
+    /// returns to its call site instead of ending the program. Non-terminal
+    /// targets pass through unchanged.
+    fn inherit_terminal(
+        &self,
+        target: crate::RuntimeTransitionTarget,
+        context: CallContext,
+    ) -> crate::RuntimeTransitionTarget {
+        if matches!(target, crate::RuntimeTransitionTarget::Terminal) {
+            self.entry_continuation(context)
+        } else {
+            target
+        }
     }
 
     fn visit_transition(

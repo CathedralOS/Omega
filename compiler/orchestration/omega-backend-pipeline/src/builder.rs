@@ -382,9 +382,9 @@ fn dispatch_state_call_edges(
             // dispatch path doesn't yet carry return values for them).
             (state_call.required
                 && state_call.role == StateCallRole::Statement
-                && state_call.lowering == StateCallLowering::InlineBranching
-                && (state_call.argument_count == 0
-                    || state_call_target_loops(control_flow, state_call.target_key)))
+                && ((state_call.lowering == StateCallLowering::InlineBranching
+                    && state_call.argument_count == 0)
+                    || state_call_target_loops(control_flow, state_calls, state_call.target_key)))
             .then_some(RuntimeStateCallEdge {
                 source_key: state_call.source_key,
                 statement_index: state_call.statement_index,
@@ -394,13 +394,21 @@ fn dispatch_state_call_edges(
         .collect()
 }
 
-/// Whether the called state's machine contains a loop reachable from it — i.e.
-/// some state is reachable from itself by following intra-machine transitions
-/// (a back-edge). Cross-machine (`Nested`) transitions are call boundaries and
-/// are not followed. Used to decide a call must dispatch rather than inline.
-fn state_call_target_loops(control_flow: &ControlFlowPlan, start: omega_control_flow::StateKey) -> bool {
+/// Whether a loop (a back-edge: some state reachable from itself) is reachable
+/// from the called state, following BOTH intra-machine transitions AND state
+/// calls into other machines. A call must dispatch if its callee transitively
+/// reaches a loop -- otherwise an inlined ancestor would unroll the chain and the
+/// loop's dispatch back-edge would be unreachable. With per-call-context
+/// specialization the whole reachable chain is cloned and dispatched, so the
+/// callee's terminal still returns to this call site's continuation.
+fn state_call_target_loops(
+    control_flow: &ControlFlowPlan,
+    state_calls: &StateCallPlan,
+    start: omega_control_flow::StateKey,
+) -> bool {
     fn visit(
         control_flow: &ControlFlowPlan,
+        state_calls: &StateCallPlan,
         key: omega_control_flow::StateKey,
         on_path: &mut Vec<omega_control_flow::StateKey>,
         finished: &mut Vec<omega_control_flow::StateKey>,
@@ -412,13 +420,13 @@ fn state_call_target_loops(control_flow: &ControlFlowPlan, start: omega_control_
             return false;
         }
         on_path.push(key);
-        let state = control_flow
+        let mut loops = false;
+        if let Some(state) = control_flow
             .states
             .iter()
             .map(|(_, state)| state)
-            .find(|state| state.key == key);
-        let mut loops = false;
-        if let Some(state) = state {
+            .find(|state| state.key == key)
+        {
             for transition in control_flow
                 .transitions
                 .span(state.transitions)
@@ -426,15 +434,26 @@ fn state_call_target_loops(control_flow: &ControlFlowPlan, start: omega_control_
                 .flatten()
             {
                 match transition.target {
-                    omega_control_flow::PlannedTransitionTarget::SelfTarget => {
-                        loops = true;
-                    }
+                    omega_control_flow::PlannedTransitionTarget::SelfTarget => loops = true,
                     omega_control_flow::PlannedTransitionTarget::State { key: target, .. } => {
-                        loops = visit(control_flow, target, on_path, finished);
+                        loops = visit(control_flow, state_calls, target, on_path, finished);
                     }
                     _ => {}
                 }
                 if loops {
+                    break;
+                }
+            }
+        }
+        // Follow state calls made from this state into their callee, so a loop
+        // reached only through a call chain still forces dispatch.
+        if !loops {
+            for (_, call) in state_calls.calls.iter() {
+                if call.required
+                    && call.source_key == key
+                    && visit(control_flow, state_calls, call.target_key, on_path, finished)
+                {
+                    loops = true;
                     break;
                 }
             }
@@ -446,7 +465,7 @@ fn state_call_target_loops(control_flow: &ControlFlowPlan, start: omega_control_
         loops
     }
 
-    visit(control_flow, start, &mut Vec::new(), &mut Vec::new())
+    visit(control_flow, state_calls, start, &mut Vec::new(), &mut Vec::new())
 }
 
 fn state_calls_cover_runtime_flow(
