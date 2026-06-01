@@ -1,0 +1,37 @@
+boundary trait Console {
+    machine write_line(text: String)
+    effects
+        stdout_io;
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Cell { tag: String; n: i32; }
+data Bag { cells: [Cell; 8]; }
+data Main { console: Console; bag: Bag; }
+
+machine Main::main(&mut self) {
+    self.fill(&mut self.bag);
+    let cells: &[Cell] = self.bag.cells.as_slice();
+    self.console.write_line(cells[2].tag);
+    self.console.exit_process(0);
+}
+
+machine Main::fill(&mut self, bag: &mut Bag) {
+    let c: &mut Cell = self.pick(bag);
+    c.tag = self.make_tag();
+}
+
+machine Main::pick(&mut self, bag: &mut Bag) -> &mut Cell {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    transition {
+        _ -> &mut cells[2]
+    }
+}
+
+machine Main::make_tag(&mut self) -> String {
+    transition {
+        _ -> "MK_TAG"
+    }
+}
