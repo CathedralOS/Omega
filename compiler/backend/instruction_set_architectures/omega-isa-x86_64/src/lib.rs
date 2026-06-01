@@ -660,6 +660,17 @@ pub fn runtime_value_operand_width(
         10
     } else if let Some((_, _, byte_size)) = runtime_value_operands.storage(operand) {
         10 + load_width(byte_size)
+    } else if runtime_value_operands.pointee(operand).is_some() {
+        // mov r15,imm64 (10) + mov rax,[r15+ptr_off] (7) + load dest,[rax+field] (7)
+        24
+    } else if runtime_value_operands.frame_indexed(operand).is_some() {
+        // mov r15,imm64 (10) + mov rax,[r15+desc] (7) + mov r11,[r15+idx] (7)
+        // + imul r11,r11,elem (7) + add rax,r11 (3) + load dest,[rax+field] (7)
+        41
+    } else if runtime_value_operands.frame_base_indexed(operand).is_some() {
+        // mov r15,imm64 (10) + mov r11,[r15+idx] (7) + imul r11,r11,elem (7)
+        // + mov rax,r15 (3) + add rax,r11 (3) + load dest,[rax+base+field] (7)
+        37
     } else if runtime_value_operands
         .frame_fixed_indexed(operand)
         .is_some()
@@ -687,6 +698,45 @@ fn append_runtime_value_operand(
     } else if let Some((_, byte_offset, byte_size)) = runtime_value_operands.storage(operand) {
         append_mov_r15_imm64(bytes, 0);
         append_load_reg_from_r15(bytes, destination, byte_offset, byte_size)
+    } else if let Some((pointer_byte_offset, field_byte_offset, byte_size)) =
+        runtime_value_operands.pointee(operand)
+    {
+        // r15 = frame base (relocated). rax = the stored pointer; load through it.
+        append_mov_r15_imm64(bytes, 0);
+        append_load_rax_from_r15(bytes, pointer_byte_offset)?;
+        append_load_reg_from_rax(bytes, destination, field_byte_offset, byte_size)
+    } else if let Some((
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.frame_indexed(operand)
+    {
+        // r15 = frame base (relocated). rax = slice data pointer from the descriptor;
+        // r11 = index; rax += index*element + ... then load [rax + field].
+        append_mov_r15_imm64(bytes, 0);
+        append_load_rax_from_r15(bytes, descriptor_offset)?;
+        append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 8)?;
+        append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
+        append_add_rax_r11(bytes);
+        append_load_reg_from_rax(bytes, destination, field_byte_offset, byte_size)
+    } else if let Some((
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.frame_base_indexed(operand)
+    {
+        // r15 = frame base (relocated). The base lives inline in the frame at
+        // base_byte_offset; rax = frame base, then add scaled index + base + field.
+        append_mov_r15_imm64(bytes, 0);
+        append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 8)?;
+        append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
+        append_mov_rax_r15(bytes);
+        append_add_rax_r11(bytes);
+        append_load_reg_from_rax(bytes, destination, base_byte_offset + field_byte_offset, byte_size)
     } else if runtime_value_operands
         .frame_fixed_indexed(operand)
         .is_some()
@@ -918,9 +968,58 @@ fn append_imul_rax_imm32(bytes: &mut Vec<u8>, value: i32) {
     bytes.extend(value.to_le_bytes());
 }
 
+fn append_imul_r11_imm32(bytes: &mut Vec<u8>, value: i32) {
+    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
+    bytes.extend(value.to_le_bytes());
+}
+
 fn append_add_r15_rax(bytes: &mut Vec<u8>) {
     // add r15, rax -- REX.W+REX.B (0x49), opcode 0x01, ModRM 11 reg=rax(000) rm=r15(111) = 0xc7
     bytes.extend([0x49, 0x01, 0xc7]);
+}
+
+fn append_add_rax_r11(bytes: &mut Vec<u8>) {
+    // add rax, r11 -- REX.W+REX.R (0x4c), opcode 0x01, ModRM 11 reg=r11(011) rm=rax(000) = 0xd8
+    bytes.extend([0x4c, 0x01, 0xd8]);
+}
+
+fn append_mov_rax_r15(bytes: &mut Vec<u8>) {
+    // mov rax, r15 -- REX.W+REX.R(no)+REX.B(r15 src as r/m): 0x4c 0x89 0xf8
+    bytes.extend([0x4c, 0x89, 0xf8]);
+}
+
+fn element_scale(element_byte_size: usize) -> Result<i32, Diagnostic> {
+    i32::try_from(element_byte_size).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot scale runtime index by element size `{element_byte_size}`"
+        ))
+    })
+}
+
+fn append_load_reg_from_rax(
+    bytes: &mut Vec<u8>,
+    destination: Reg64,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match (destination, byte_size) {
+        // mov r10{b,d,}, [rax + disp32] -- ModRM mod=10 reg=r10(010) rm=rax(000) = 0x90
+        (Reg64::R10, 1) => bytes.extend([0x44, 0x8a, 0x90]),
+        (Reg64::R10, 4) => bytes.extend([0x44, 0x8b, 0x90]),
+        (Reg64::R10, 8) => bytes.extend([0x4c, 0x8b, 0x90]),
+        // mov r11{b,d,}, [rax + disp32] -- ModRM mod=10 reg=r11(011) rm=rax(000) = 0x98
+        (Reg64::R11, 1) => bytes.extend([0x44, 0x8a, 0x98]),
+        (Reg64::R11, 4) => bytes.extend([0x44, 0x8b, 0x98]),
+        (Reg64::R11, 8) => bytes.extend([0x4c, 0x8b, 0x98]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot load {byte_size}-byte runtime operands yet"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
 }
 
 fn append_load_rax_from_r14(
