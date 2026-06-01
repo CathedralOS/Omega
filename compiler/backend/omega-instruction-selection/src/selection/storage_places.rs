@@ -1683,8 +1683,16 @@ fn runtime_frame_slot_is_inline_fixed_array_storage(
     input: &InstructionSelectionInput<'_>,
     slot: &omega_runtime_storage::RuntimeFrameSlot,
 ) -> bool {
-    inline_fixed_array_element_type(&slot.type_descriptor).is_some()
-        && slot.byte_size != input.runtime_abi.slice_descriptor().total_size()
+    // A direct (non-reference) fixed array is stored inline when the slot holds
+    // the whole array rather than a slice descriptor. Compare against the array's
+    // own layout size rather than the descriptor size: a previous heuristic keyed
+    // off `byte_size != slice_descriptor_size`, which misclassified inline arrays
+    // that happen to be exactly the descriptor size (e.g. `[T; 2]` with 8-byte T)
+    // as descriptors, dereferencing the inline element data as a wild pointer.
+    if inline_fixed_array_element_type(&slot.type_descriptor).is_none() {
+        return false;
+    }
+    slot.byte_size == descriptor_layout(input, &slot.type_descriptor).size
 }
 
 fn builtin_type_layout(
