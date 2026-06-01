@@ -1,0 +1,71 @@
+// A loop lives inside a called machine that is itself reached through another
+// called machine: Main::main -> Helper::run -> Lookup::search -> find_at (loop).
+// Per-call-context specialization must clone the whole chain and thread main's
+// continuation down through the tail calls so the loop's result flows back and
+// the program exits 70 (result == 122). Before specialization this exited 0.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    id: i32;
+    tag: i32;
+}
+
+data Lookup {
+    rooms: [Room; 4];
+    result: i32;
+}
+
+data Helper {
+    lookup: Lookup;
+}
+
+data Main {
+    console: Console;
+    helper: Helper;
+}
+
+machine Main::main(&mut self) {
+    self.helper.run(12);
+
+    transition self.helper.lookup.result == 122 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Helper::run(&mut self, wanted: i32) {
+    self.lookup.search(wanted);
+}
+
+machine Lookup::search(&mut self, wanted: i32) {
+    self.rooms[0].id = 10; self.rooms[0].tag = 100;
+    self.rooms[1].id = 11; self.rooms[1].tag = 111;
+    self.rooms[2].id = 12; self.rooms[2].tag = 122;
+    self.rooms[3].id = 13; self.rooms[3].tag = 133;
+    let view: &[Room] = self.rooms.as_slice();
+
+    transition {
+        _ -> find_at(view, wanted, 0)
+    }
+
+    state find_at(&mut self, view: &[Room], wanted: i32, index: usize) {
+        let matched: bool = view[index].id == wanted;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < 4;
+        transition {
+            matched -> store(view[index].tag)
+            has_next -> find_at(view, wanted, next_index)
+            _ -> store(0)
+        }
+    }
+
+    state store(&mut self, value: i32) {
+        self.result = value;
+    }
+}
