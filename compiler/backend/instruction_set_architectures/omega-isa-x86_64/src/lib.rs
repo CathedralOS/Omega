@@ -534,11 +534,16 @@ pub fn encode_runtime_storage_binary_write(
         operator,
         right,
     ));
-    append_mov_r15_imm64(&mut bytes, 0);
+    // Hold the target base in r14, not r15: evaluating the operands below
+    // reloads r15 with each source base, which would otherwise clobber the
+    // target pointer before the store. r14 is untouched by operand evaluation.
+    // `mov r14, imm64` and `mov r15, imm64` are both 10 bytes with the relocated
+    // immediate at +2, so the target relocation offset is unchanged.
+    append_mov_r14_imm64(&mut bytes, 0);
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R11, right)?;
     append_runtime_binary_operation(&mut bytes, operator)?;
-    append_store_r10_to_r15(&mut bytes, target_offset, byte_size)?;
+    append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
     Ok(bytes)
 }
 
@@ -909,6 +914,27 @@ fn append_store_r10_to_r15(
 fn append_store_r14_to_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x4d, 0x89, 0xb7]);
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_store_r10_to_r14(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match byte_size {
+        // mov [r14+disp32], r10{b,d,} -- ModRM reg=r10, r/m=r14
+        1 => bytes.extend([0x45, 0x88, 0x96]),
+        4 => bytes.extend([0x45, 0x89, 0x96]),
+        8 => bytes.extend([0x4d, 0x89, 0x96]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot store {byte_size}-byte runtime values yet"
+            )));
+        }
+    }
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
