@@ -180,7 +180,14 @@ pub fn encode_runtime_frame_indexed_integer_write(
             byte_size,
             value,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_frame_indexed_integer_write(
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        ),
     }
 }
 
@@ -202,7 +209,14 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
             byte_size,
             value,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_frame_base_indexed_integer_write(
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        ),
     }
 }
 

@@ -381,7 +381,11 @@ pub fn runtime_frame_indexed_integer_write_width(
             field_byte_offset,
             byte_size,
         ),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_frame_indexed_integer_write_width(
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        ),
     }
 }
 
@@ -399,7 +403,12 @@ pub fn runtime_frame_base_indexed_integer_write_width(
             field_byte_offset,
             byte_size,
         ),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_frame_base_indexed_integer_write_width(
+            base_byte_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        ),
     }
 }
 
