@@ -119,6 +119,10 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             })?
             .len();
 
+        // A state with no transitions is terminal; otherwise track whether any
+        // transition is unconditional (no guard) so we know if every runtime path
+        // is covered.
+        let mut has_unconditional = transition_count == 0;
         for transition_index in 0..transition_count {
             let (statement_index, target, continuation, expressions) = {
                 let transition = self
@@ -147,6 +151,10 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 )
             };
 
+            if !expressions.guard.is_valid() {
+                has_unconditional = true;
+            }
+
             self.visit_transition(
                 state_key,
                 context,
@@ -154,6 +162,23 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 target,
                 continuation,
                 expressions,
+            )?;
+        }
+
+        // If every transition is guarded, no edge is taken when none of the
+        // guards hold -- in the dispatch loop that re-enters this same state
+        // forever. Add an unconditional fall-through (tried last, after the
+        // guarded edges) to the clone's return point, matching the inline path's
+        // "no transition matched -> the machine returns" behavior.
+        if !has_unconditional {
+            let fall_through = self.entry_continuation(context);
+            self.visit_transition(
+                state_key,
+                context,
+                0,
+                fall_through,
+                crate::RuntimeTransitionTarget::None,
+                TransitionExpressionRefs::default(),
             )?;
         }
 
