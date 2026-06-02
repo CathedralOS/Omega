@@ -79,9 +79,23 @@ fn state_value_has_planned_storage_write(
         return true;
     }
 
+    // A binary call argument (e.g. `self.carve(.., 100 + index)`) is not
+    // materialized into a frame slot at the call site -- the call is inlined and
+    // the argument expression is folded into the callee body's writes (under the
+    // callee's source key). When the call resolves to a target state, the inlined
+    // body is responsible for lowering the argument value, so the call-site value
+    // is materialized.
+    if value.role == StateValueRole::CallArgument
+        && runtime_call_argument_is_inlined(input, value.source_key, value.statement_index)
+    {
+        return true;
+    }
+
     if !matches!(
         value.role,
-        StateValueRole::AssignmentValue | StateValueRole::TransitionArgument
+        StateValueRole::AssignmentValue
+            | StateValueRole::TransitionArgument
+            | StateValueRole::CallArgument
     ) {
         return false;
     }
@@ -125,6 +139,19 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
                 )
             })
+}
+
+fn runtime_call_argument_is_inlined(
+    input: &EmissionPlanningInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    input.state_calls.calls.iter().any(|(_, state_call)| {
+        state_call.required
+            && state_call.target_key.is_valid()
+            && state_call.statement_index == statement_index
+            && state_key_matches_statement_source(state_call.source_key, source_key)
+    })
 }
 
 fn runtime_transition_arguments_are_materialized(
