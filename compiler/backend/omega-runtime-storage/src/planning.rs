@@ -63,6 +63,9 @@ pub fn build_runtime_storage_plan_with_workers(
             invariant_names: _,
             frame_slots,
             writes,
+            // Scratch is reserved later on the aggregate plan (stacking phase).
+            frame_scratch_base: _,
+            frame_scratch_size: _,
         } = body_plan;
         plan.frame_slots.insert_many(frame_slots.into_items());
         for write in writes.into_items() {
@@ -82,11 +85,15 @@ pub fn build_runtime_storage_plan_with_workers(
 }
 
 pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
-    plan.frame_slots
+    let slots_extent = plan
+        .frame_slots
         .iter()
         .map(|(_, slot)| slot.byte_offset + slot.byte_size)
         .max()
-        .unwrap_or(0)
+        .unwrap_or(0);
+    // Include the reserved argument-staging scratch region, which lives ABOVE all
+    // real slots (see stack_runtime_storage_by_call_context).
+    slots_extent.max(plan.frame_scratch_base + plan.frame_scratch_size)
 }
 
 pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {

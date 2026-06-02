@@ -408,6 +408,22 @@ fn stack_runtime_storage_by_call_context(
         contexts.get(dispatch_index as usize).copied().unwrap_or(0) as usize
     };
 
+    // The largest single state's frame (PRE-stacking, every body lays out from 0)
+    // bounds any one transition's packed argument footprint, so it is a safe size
+    // for the argument-staging scratch reserved below.
+    let max_state_extent = storage
+        .frame_slots
+        .iter()
+        .map(|(_, slot)| slot.byte_offset + slot.byte_size)
+        .max()
+        .unwrap_or(0);
+    let scratch_alignment = storage
+        .frame_slots
+        .iter()
+        .map(|(_, slot)| slot.alignment.max(1))
+        .max()
+        .unwrap_or(1);
+
     let context_count = max_context as usize + 1;
     let mut sizes = vec![0usize; context_count];
     let mut alignments = vec![1usize; context_count];
@@ -431,6 +447,15 @@ fn stack_runtime_storage_by_call_context(
         let slot = storage.frame_slots.get_mut(handle);
         let base = bases[context_of(slot.dispatch_index)];
         slot.byte_offset = slot.byte_offset.saturating_add(base);
+    }
+
+    // Reserve a scratch region ABOVE every stacked context. Argument materialization
+    // stages a same-context transition's arguments here (source -> scratch -> target)
+    // when the source and target slots overlap, so a write cannot clobber a source
+    // that a later argument still needs (a slice/scalar copy cycle).
+    if max_state_extent > 0 {
+        storage.frame_scratch_base = next_base.next_multiple_of(scratch_alignment);
+        storage.frame_scratch_size = max_state_extent;
     }
 }
 

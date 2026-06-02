@@ -14,6 +14,13 @@ pub struct RuntimeStoragePlan {
     pub invariant_names: Arena<Identifier>,
     pub frame_slots: Arena<RuntimeFrameSlot>,
     pub writes: Arena<RuntimeStorageWrite>,
+    /// Byte offset of a reserved frame SCRATCH region used to stage transition
+    /// arguments when a same-call-context transition's source and target slots
+    /// overlap (a parallel-copy cycle). 0 means no scratch reserved.
+    pub frame_scratch_base: usize,
+    /// Size of the reserved scratch region (0 if none). The scratch occupies
+    /// `[frame_scratch_base, frame_scratch_base + frame_scratch_size)`.
+    pub frame_scratch_size: usize,
 }
 
 impl RuntimeStoragePlan {
@@ -28,6 +35,8 @@ impl RuntimeStoragePlan {
             invariant_names: Arena::with_capacity(invariant_name_capacity),
             frame_slots: Arena::with_capacity(frame_slot_capacity),
             writes: Arena::with_capacity(write_capacity),
+            frame_scratch_base: 0,
+            frame_scratch_size: 0,
         }
     }
 
