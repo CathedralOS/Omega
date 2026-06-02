@@ -869,6 +869,27 @@ fn select_runtime_binary_mutation_write(
         });
     }
 
+    // `slice[const].field = left OP right` where `slice` is a {ptr,len} descriptor
+    // in the frame: write through the descriptor's data pointer (deref + index*elem
+    // + field), so a slice taken from a runtime &mut pointer reaches the real
+    // referent rather than a constant-folded static place.
+    if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) && let Some(field_byte_offset) = indexed_target.pointee_field_byte_offset()
+    {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
+            pointer_byte_offset: indexed_target.descriptor_offset,
+            field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            left,
+            operator,
+            right,
+        });
+    }
+
     let target_place = resolve_runtime_storage_place(
         input,
         dispatch_index,

@@ -1540,6 +1540,64 @@ pub fn encode_runtime_storage_binary_write(
     Ok(bytes)
 }
 
+/// Address-computation prefix before the value operands in a pointee binary
+/// write: `mov r14,imm64(frame)` (10) + `mov r14,[r14+ptr]` (7) -- r14 then holds
+/// the dereferenced runtime pointer (the target base) across operand evaluation.
+pub fn runtime_pointee_binary_operand_start_width() -> usize {
+    17
+}
+
+pub fn runtime_pointee_binary_write_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    // 17 (frame base + deref ptr) + left + push r10 (2) + right + mov r11,r10 (3)
+    // + pop r10 (2) + operation + store.
+    runtime_pointee_binary_operand_start_width()
+        + runtime_value_operand_width(runtime_value_operands, left)
+        + 2
+        + runtime_value_operand_width(runtime_value_operands, right)
+        + 3
+        + 2
+        + runtime_binary_operation_width(operator)
+        + 7.max(store_width(byte_size))
+}
+
+/// `*(frame[pointer_byte_offset]) + field_byte_offset = left OP right`, where the
+/// operands resolve against the runtime frame. The dereferenced target pointer is
+/// held in r14 (untouched by operand evaluation, which reloads r15/r10/r11).
+pub fn encode_runtime_pointee_binary_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_pointee_binary_write_width(
+        runtime_value_operands,
+        byte_size,
+        left,
+        operator,
+        right,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0); // frame base (imm64 @ +2 relocated)
+    append_load_r14_from_r14(&mut bytes, pointer_byte_offset)?; // r14 = runtime pointer (target base)
+    debug_assert_eq!(bytes.len(), runtime_pointee_binary_operand_start_width());
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
+    append_push_r10(&mut bytes);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
+    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
+    append_pop_r10(&mut bytes); // restore left -> r10
+    append_runtime_binary_operation(&mut bytes, operator)?;
+    append_store_r10_to_r14(&mut bytes, field_byte_offset, byte_size)?;
+    Ok(bytes)
+}
+
 /// Length of the address-computation prefix that precedes the value operands in
 /// a frame-base-indexed binary write: `mov r14,imm64(frame)` (10) +
 /// `mov r15,[r14+idx]` (7) + `imul r15,r15,elem` (7) + `add r14,r15` (3).
@@ -2279,6 +2337,13 @@ fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
 fn append_load_r14_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x4d, 0x8b, 0xb7]); // mov r14, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_r14_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4d, 0x8b, 0xb6]); // mov r14, [r14 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
