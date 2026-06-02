@@ -41,8 +41,17 @@ pub fn build_state_guard_plan(
             continue;
         };
 
+        // A dispatch state may be a SEGMENT (segment_index > 0) of a control-flow
+        // state split at its dispatched-call boundaries; only the unsplit state
+        // (segment 0) is in the control-flow plan, and a segment's guard operands
+        // resolve against that state's places. Map to segment 0 for the lookups.
+        let control_key = StateKey {
+            segment_index: 0,
+            ..state.key
+        };
+
         for (statement_order, edge) in edges.iter().enumerate() {
-            if control_flow.state_by_key(state.key).is_none() {
+            if control_flow.state_by_key(control_key).is_none() {
                 continue;
             }
             plan.guards.insert(build_state_guard(
@@ -55,7 +64,7 @@ pub fn build_state_guard_plan(
                 entry_machine,
                 machine,
                 &mut normalized_expressions,
-                state.key,
+                control_key,
                 state.dispatch_index,
                 statement_order,
                 edge.statement_index,

@@ -87,9 +87,20 @@ pub(super) fn build_dispatch_body(
         dispatch_state.key,
     ));
     let mut type_references = TypeReferenceTable::new();
+    // A dispatch state may be one SEGMENT of a control-flow state that was split
+    // at its dispatched-call boundaries (segment_index > 0). Its body is the slice
+    // of the control-flow state's operations owned by this segment; the operations
+    // keep the control-flow (segment 0) source key so downstream host-call /
+    // mutation / slot lookups still resolve.
+    let control_key = StateKey {
+        segment_index: 0,
+        ..dispatch_state.key
+    };
+    let segment = segment_filter(context, dispatch_state.key);
     append_state_body_operations(
         context,
-        dispatch_state.key,
+        control_key,
+        segment,
         &mut operations,
         &mut expressions,
         &mut invariant_names,
@@ -133,9 +144,70 @@ fn estimated_body_invariant_name_capacity(
         .sum()
 }
 
+/// The slice of a control-flow state's operations owned by one segment, plus
+/// whether it is the tail segment (the one that runs the state's transition).
+/// `None` means the state has no dispatched calls and is not segmented.
+#[derive(Debug, Clone, Copy)]
+struct SegmentSlice {
+    /// Inclusive lower and upper statement-index bounds for this segment's ops.
+    low: usize,
+    high: usize,
+    is_tail: bool,
+}
+
+/// Compute which operations of `segment_key`'s control-flow state belong to this
+/// segment. A state is split at each DISPATCHED call: segment `i` owns the ops up
+/// to and including call `i` (call `i` itself is dispatched, not emitted), the
+/// tail segment owns everything after the last call (including its transition).
+fn segment_filter(
+    context: &RuntimeDispatchBodyContext,
+    segment_key: StateKey,
+) -> Option<SegmentSlice> {
+    let control_key = StateKey {
+        segment_index: 0,
+        ..segment_key
+    };
+    let mut boundaries: Vec<usize> = context
+        .state_calls
+        .calls
+        .iter()
+        .map(|(_, state_call)| state_call)
+        .filter(|state_call| {
+            state_call.source_key == control_key && state_call_is_dispatched(context, state_call)
+        })
+        .map(|state_call| state_call.statement_index)
+        .collect();
+    if boundaries.is_empty() {
+        return None;
+    }
+    boundaries.sort_unstable();
+    boundaries.dedup();
+
+    let count = boundaries.len();
+    let segment = segment_key.segment_index;
+    if segment >= count {
+        Some(SegmentSlice {
+            low: boundaries[count - 1] + 1,
+            high: usize::MAX,
+            is_tail: true,
+        })
+    } else {
+        Some(SegmentSlice {
+            low: if segment == 0 {
+                0
+            } else {
+                boundaries[segment - 1] + 1
+            },
+            high: boundaries[segment],
+            is_tail: false,
+        })
+    }
+}
+
 fn append_state_body_operations(
     context: &RuntimeDispatchBodyContext,
     state_key: StateKey,
+    segment: Option<SegmentSlice>,
     operations: &mut Arena<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
     invariant_names: &mut Arena<Identifier>,
@@ -153,6 +225,12 @@ fn append_state_body_operations(
     };
 
     for operation in state_operations {
+        // Skip operations outside this segment's statement-index window.
+        if let Some(slice) = segment
+            && (operation.statement_index < slice.low || operation.statement_index > slice.high)
+        {
+            continue;
+        }
         if host_call_for_statement(context, state_key, operation.statement_index).is_some() {
             operations.insert(body_operation(
                 state_key,
@@ -246,23 +324,28 @@ fn append_state_body_operations(
         }
     }
 
-    for (_, state_call) in context.state_calls.calls.iter() {
-        if state_call.source_key == state_key
-            && matches!(
-                state_call.role,
-                omega_state_calls::StateCallRole::TransitionArgument
-                    | omega_state_calls::StateCallRole::TransitionGuard
-            )
-        {
-            append_state_call_body_operation(
-                context,
-                state_call,
-                operations,
-                expressions,
-                invariant_names,
-                type_references,
-                visiting,
-            );
+    // Transition guards/arguments are evaluated when the state takes its
+    // transition, which only the TAIL segment does. Skip them for earlier
+    // segments (an unsegmented state -- `None` -- always runs them).
+    if segment.is_none_or(|slice| slice.is_tail) {
+        for (_, state_call) in context.state_calls.calls.iter() {
+            if state_call.source_key == state_key
+                && matches!(
+                    state_call.role,
+                    omega_state_calls::StateCallRole::TransitionArgument
+                        | omega_state_calls::StateCallRole::TransitionGuard
+                )
+            {
+                append_state_call_body_operation(
+                    context,
+                    state_call,
+                    operations,
+                    expressions,
+                    invariant_names,
+                    type_references,
+                    visiting,
+                );
+            }
         }
     }
 
@@ -270,20 +353,31 @@ fn append_state_body_operations(
 }
 
 fn state_call_is_dispatched(context: &RuntimeDispatchBodyContext, state_call: &StateCall) -> bool {
+    // The call's dispatch edge lives on whichever SEGMENT of the source state
+    // dispatches it (segment_index varies), so match the source state ignoring
+    // segment_index and look for the edge across any of its segments/clones.
     context
         .state_dispatch
         .states
         .iter()
-        .find(|(_, state)| state.key == state_call.source_key)
-        .and_then(|(_, state)| context.state_dispatch.edges.span(state.edges))
-        .is_some_and(|edges| {
-            edges.iter().any(|edge| {
-                edge.statement_index == state_call.statement_index
-                    && matches!(
-                        edge.target,
-                        RuntimeTransitionTarget::State { key, .. } if key == state_call.target_key
-                    )
-            })
+        .filter(|(_, state)| {
+            state.key.machine == state_call.source_key.machine
+                && state.key.state == state_call.source_key.state
+        })
+        .any(|(_, state)| {
+            context
+                .state_dispatch
+                .edges
+                .span(state.edges)
+                .is_some_and(|edges| {
+                    edges.iter().any(|edge| {
+                        edge.statement_index == state_call.statement_index
+                            && matches!(
+                                edge.target,
+                                RuntimeTransitionTarget::State { key, .. } if key == state_call.target_key
+                            )
+                    })
+                })
         })
 }
 
@@ -310,6 +404,7 @@ fn append_state_call_body_operation(
         append_state_body_operations(
             context,
             state_call.target_key,
+            None,
             operations,
             expressions,
             invariant_names,
@@ -335,6 +430,7 @@ fn append_state_call_body_operation(
         append_state_body_operations(
             context,
             state_call.target_key,
+            None,
             operations,
             expressions,
             invariant_names,

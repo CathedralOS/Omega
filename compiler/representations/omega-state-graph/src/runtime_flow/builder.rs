@@ -110,8 +110,21 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             return Ok(());
         }
 
-        self.machine_flow_by_symbol(state_key.machine)?;
-        let state = self.state_flow_by_key(state_key)?;
+        // A state that interleaves dispatched calls with inline operations is
+        // lowered as a chain of SEGMENT sub-states (same machine+state+context,
+        // increasing `segment_index`). A dispatch case runs all its inline ops
+        // before dispatching, so each dispatched call must end a segment: segment
+        // `i` runs the ops up to and including call `i`, dispatches it, and returns
+        // into segment `i+1`; the final segment runs the trailing ops and the
+        // state's real transition. Segments share a context, so they share the
+        // state's frame (params land at identical offsets) -- the call's arguments
+        // and the trailing ops both resolve against the original state's locals.
+        let control_key = StateKey {
+            segment_index: 0,
+            ..state_key
+        };
+        self.machine_flow_by_symbol(control_key.machine)?;
+        let state = self.state_flow_by_key(control_key)?;
         let transition_span = state.transitions;
         self.runtime_flow.states.insert(RuntimeState {
             key: state_key,
@@ -120,7 +133,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         self.reached_states.push(node);
         self.active_states.push(node);
 
-        if self.visit_state_call_edges(state_key, context, transition_span)? {
+        if self.visit_state_segment_call(state_key, control_key, context)? {
             self.active_states.pop();
 
             return Ok(());
@@ -221,113 +234,80 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         Ok(())
     }
 
-    fn visit_state_call_edges(
+    /// If this segment (`state_key.segment_index`) of `control_key` dispatches a
+    /// call, emit that one call edge (returning into the next segment) and return
+    /// `true`. Returns `false` when there is no call for this segment (the state
+    /// has no dispatched calls, or this is the tail segment past the last call),
+    /// so the caller runs the state's transitions instead.
+    fn visit_state_segment_call(
         &mut self,
         state_key: StateKey,
+        control_key: StateKey,
         context: CallContext,
-        transition_span: omega_core::arena::HandleSpan<TransitionFlow>,
     ) -> Result<bool, Diagnostic> {
         let mut call_edges: Vec<RuntimeStateCallEdge> = self
             .state_calls
             .iter()
             .copied()
-            .filter(|edge| edge.source_key == state_key)
+            .filter(|edge| edge.source_key == control_key)
             .collect();
         if call_edges.is_empty() {
             return Ok(false);
         }
-        // Multiple statement calls in one state run SEQUENTIALLY (in source
-        // order), so they must CHAIN: call N returns into call N+1, and only the
-        // last returns to the state's own continuation. Emitting them as parallel
-        // dispatch edges that all return to the final continuation is wrong -- the
-        // dispatch loop only ever takes the first, silently skipping the rest.
         call_edges.sort_by_key(|edge| edge.statement_index);
 
+        let segment = state_key.segment_index;
+        if segment >= call_edges.len() {
+            // Tail segment: past the last call. Run the trailing inline ops and
+            // the state's real transition (handled by the caller).
+            return Ok(false);
+        }
+        let call_edge = call_edges[segment];
+
         // Reject genuine call recursion (a state whose calls transitively call
-        // back into it) up front, so the cloning DFS cannot overflow. This is a
-        // STATIC check over call + transition edges -- unlike the old dynamic
-        // `active_states` check it does not follow continuations, so chaining a
-        // state's sequential calls (where a call's continuation is the next
-        // sibling call) is not mistaken for recursion.
-        for call_edge in &call_edges {
-            if self.call_target_recurses_into(call_edge.target_key, state_key) {
-                return Err(Diagnostic::error(format!(
-                    "{} calls into a recursive cycle (target {}); specialization \
-                     cannot lower a call graph that (transitively) calls itself. \
-                     Express the repetition as a loop (a self-transition) instead.",
-                    self.state_key_display(state_key),
-                    self.state_key_display(call_edge.target_key)
-                )));
-            }
+        // back into it) up front, so the cloning DFS cannot overflow. STATIC check
+        // over call + transition edges; it does not follow continuations.
+        if self.call_target_recurses_into(call_edge.target_key, control_key) {
+            return Err(Diagnostic::error(format!(
+                "{} calls into a recursive cycle (target {}); specialization \
+                 cannot lower a call graph that (transitively) calls itself. \
+                 Express the repetition as a loop (a self-transition) instead.",
+                self.state_key_display(control_key),
+                self.state_key_display(call_edge.target_key)
+            )));
         }
 
-        // What the LAST call returns to: the state's own continuation (its
-        // transition, or its clone's entry continuation if it is a tail call).
-        let final_continuation = self.continuation_after_statement_call(
+        // The call returns into the NEXT segment of the SAME state. Segments share
+        // a context (hence the state's frame), so nothing is re-materialized on
+        // return -- the trailing ops read the state's own locals directly.
+        let next_segment_target = crate::RuntimeTransitionTarget::State {
+            key: StateKey {
+                segment_index: segment + 1,
+                ..control_key
+            },
+            context,
+        };
+        let callee_context =
+            self.next_callee_context(next_segment_target, omega_core::arena::HandleSpan::empty())?;
+        let call_target = crate::RuntimeTransitionTarget::State {
+            key: call_edge.target_key,
+            context: callee_context,
+        };
+        // The call's arguments resolve against THIS segment's frame, which is the
+        // state's frame (shared across segments), so params declared in the state
+        // are visible here even though earlier segments dispatched first.
+        let target_arguments = self.statement_call_arguments(control_key, call_edge.statement_index);
+        self.visit_transition(
             state_key,
             context,
-            transition_span,
-            *call_edges.last().expect("call_edges is non-empty"),
+            call_edge.statement_index,
+            call_target,
+            next_segment_target,
+            TransitionExpressionRefs {
+                target_arguments,
+                ..TransitionExpressionRefs::default()
+            },
         )?;
-
-        // Build each call's specialized-clone target in REVERSE so call N's
-        // continuation is call N+1's already-minted target.
-        let mut targets =
-            vec![crate::RuntimeTransitionTarget::None; call_edges.len()];
-        for index in (0..call_edges.len()).rev() {
-            let continuation = if index + 1 < call_edges.len() {
-                targets[index + 1]
-            } else {
-                final_continuation
-            };
-            // When this call's clone terminates it returns into the next chained
-            // call, so its entry arguments are that call's arguments.
-            let return_arguments = if index + 1 < call_edges.len() {
-                self.statement_call_arguments(state_key, call_edges[index + 1].statement_index)
-            } else {
-                omega_core::arena::HandleSpan::empty()
-            };
-            let callee_context = self.next_callee_context(continuation, return_arguments)?;
-            targets[index] = crate::RuntimeTransitionTarget::State {
-                key: call_edges[index].target_key,
-                context: callee_context,
-            };
-        }
-
-        // Emit each call edge with its chained continuation. Carry the call's
-        // argument expressions so the callee's parameter slots are materialized
-        // when entered. The dispatch loop takes the first edge; each call returns
-        // (via its continuation) into the next, then the last into the state's
-        // continuation.
-        for index in 0..call_edges.len() {
-            let continuation = if index + 1 < call_edges.len() {
-                targets[index + 1]
-            } else {
-                final_continuation
-            };
-            let target_arguments =
-                self.statement_call_arguments(state_key, call_edges[index].statement_index);
-            // When this call returns into the NEXT chained call, that call's
-            // arguments ride along as the continuation arguments so they are
-            // materialized as the dispatch loop enters it.
-            let continuation_arguments = if index + 1 < call_edges.len() {
-                self.statement_call_arguments(state_key, call_edges[index + 1].statement_index)
-            } else {
-                omega_core::arena::HandleSpan::empty()
-            };
-            self.visit_transition(
-                state_key,
-                context,
-                call_edges[index].statement_index,
-                targets[index],
-                continuation,
-                TransitionExpressionRefs {
-                    target_arguments,
-                    continuation_arguments,
-                    ..TransitionExpressionRefs::default()
-                },
-            )?;
-        }
 
         Ok(true)
     }
@@ -432,40 +412,6 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 _ => None,
             })
             .unwrap_or_else(omega_core::arena::HandleSpan::empty)
-    }
-
-    fn continuation_after_statement_call(
-        &self,
-        state_key: StateKey,
-        context: CallContext,
-        transition_span: omega_core::arena::HandleSpan<TransitionFlow>,
-        call_edge: RuntimeStateCallEdge,
-    ) -> Result<crate::RuntimeTransitionTarget, Diagnostic> {
-        let transitions = self
-            .control_flow
-            .transitions
-            .span(transition_span)
-            .ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "{} has an invalid transition span",
-                    self.state_key_display(state_key)
-                ))
-            })?;
-        let continuation_transition = transitions
-            .iter()
-            .find(|transition| transition.statement_index > call_edge.statement_index)
-            .or_else(|| transitions.first());
-
-        // The continuation lives in the caller's machine, so it inherits the
-        // caller's context -- this is what wires a clone's terminal back to the
-        // specific call site that entered it. When the call is a tail call (no
-        // local continuation), the caller in turn returns to ITS entry
-        // continuation, threading the original caller's continuation down the
-        // chain.
-        Ok(continuation_transition
-            .map(|transition| self.runtime_target(state_key.machine, &transition.target, context))
-            .map(|target| self.inherit_terminal(target, context))
-            .unwrap_or_else(|| self.entry_continuation(context)))
     }
 
     /// Resolve a `Terminal` target to the clone's entry continuation, so a clone
