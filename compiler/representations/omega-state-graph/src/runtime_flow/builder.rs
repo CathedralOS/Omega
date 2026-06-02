@@ -28,6 +28,12 @@ pub(super) struct RuntimeFlowBuilder<'plan> {
     /// (a clone whose body ends in another call) thread the original caller's
     /// continuation all the way down.
     context_entry_continuation: Vec<crate::RuntimeTransitionTarget>,
+    /// The arguments to materialize when a clone returns into its entry
+    /// continuation, indexed by context id. For a chained sequential call this is
+    /// the NEXT call's arguments (machine-owned, so frame-independent); for a true
+    /// tail call it is empty.
+    context_entry_arguments:
+        Vec<omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle>>,
 }
 
 impl<'plan> RuntimeFlowBuilder<'plan> {
@@ -61,6 +67,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 .saturating_add(1024),
             // Index 0 == ROOT: the entry machine terminates the program.
             context_entry_continuation: vec![crate::RuntimeTransitionTarget::Terminal],
+            context_entry_arguments: vec![omega_core::arena::HandleSpan::empty()],
         }
     }
 
@@ -70,6 +77,18 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             .get(context.0 as usize)
             .copied()
             .unwrap_or(crate::RuntimeTransitionTarget::Terminal)
+    }
+
+    /// The arguments to materialize when a clone in `context` returns into its
+    /// entry continuation (the next chained call's arguments, or empty).
+    fn entry_arguments(
+        &self,
+        context: CallContext,
+    ) -> omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
+        self.context_entry_arguments
+            .get(context.0 as usize)
+            .copied()
+            .unwrap_or_else(omega_core::arena::HandleSpan::empty)
     }
 
     pub(super) fn finish(self) -> RuntimeFlowPlan {
@@ -137,17 +156,28 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                         ))
                     })?;
 
+                let raw_target =
+                    self.runtime_target(state_key.machine, &transition.target, context);
+                // A terminal target returns into the clone's entry continuation;
+                // if that is the next chained call, its arguments ride along.
+                let expressions = if matches!(raw_target, crate::RuntimeTransitionTarget::Terminal)
+                {
+                    TransitionExpressionRefs {
+                        target_arguments: self.entry_arguments(context),
+                        ..transition.expressions
+                    }
+                } else {
+                    transition.expressions
+                };
+
                 (
                     transition.statement_index,
-                    self.inherit_terminal(
-                        self.runtime_target(state_key.machine, &transition.target, context),
-                        context,
-                    ),
+                    self.inherit_terminal(raw_target, context),
                     self.inherit_terminal(
                         self.runtime_target(state_key.machine, &transition.continuation, context),
                         context,
                     ),
-                    transition.expressions,
+                    expressions,
                 )
             };
 
@@ -172,13 +202,17 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         // "no transition matched -> the machine returns" behavior.
         if !has_unconditional {
             let fall_through = self.entry_continuation(context);
+            let fall_through_arguments = self.entry_arguments(context);
             self.visit_transition(
                 state_key,
                 context,
                 0,
                 fall_through,
                 crate::RuntimeTransitionTarget::None,
-                TransitionExpressionRefs::default(),
+                TransitionExpressionRefs {
+                    target_arguments: fall_through_arguments,
+                    ..TransitionExpressionRefs::default()
+                },
             )?;
         }
 
@@ -193,7 +227,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         context: CallContext,
         transition_span: omega_core::arena::HandleSpan<TransitionFlow>,
     ) -> Result<bool, Diagnostic> {
-        let call_edges: Vec<RuntimeStateCallEdge> = self
+        let mut call_edges: Vec<RuntimeStateCallEdge> = self
             .state_calls
             .iter()
             .copied()
@@ -202,27 +236,21 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         if call_edges.is_empty() {
             return Ok(false);
         }
+        // Multiple statement calls in one state run SEQUENTIALLY (in source
+        // order), so they must CHAIN: call N returns into call N+1, and only the
+        // last returns to the state's own continuation. Emitting them as parallel
+        // dispatch edges that all return to the final continuation is wrong -- the
+        // dispatch loop only ever takes the first, silently skipping the rest.
+        call_edges.sort_by_key(|edge| edge.statement_index);
 
-        for call_edge in call_edges {
-            let continuation = self.continuation_after_statement_call(
-                state_key,
-                context,
-                transition_span,
-                call_edge,
-            )?;
-
-            // Carry the call's argument expressions onto the dispatch edge so the
-            // callee's parameter slots are materialized when the dispatch loop
-            // enters it -- the same mechanism intra-machine transitions use. This
-            // lets a call with arguments dispatch (and a cyclic callee loop via a
-            // back-edge) instead of being inline-unrolled.
-            let target_arguments =
-                self.statement_call_arguments(state_key, call_edge.statement_index);
-
-            // Re-entering a callee state already on the active path (through a
-            // call chain) is genuine call recursion -- specialization would clone
-            // it forever. Reject it cleanly before the cloning DFS overflows.
-            if self.active_states.contains_key(&call_edge.target_key) {
+        // Reject genuine call recursion (a state whose calls transitively call
+        // back into it) up front, so the cloning DFS cannot overflow. This is a
+        // STATIC check over call + transition edges -- unlike the old dynamic
+        // `active_states` check it does not follow continuations, so chaining a
+        // state's sequential calls (where a call's continuation is the next
+        // sibling call) is not mistaken for recursion.
+        for call_edge in &call_edges {
+            if self.call_target_recurses_into(call_edge.target_key, state_key) {
                 return Err(Diagnostic::error(format!(
                     "{} calls into a recursive cycle (target {}); specialization \
                      cannot lower a call graph that (transitively) calls itself. \
@@ -231,22 +259,71 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                     self.state_key_display(call_edge.target_key)
                 )));
             }
+        }
 
-            // The callee is specialized in a fresh call-context so this call site
-            // gets its own clone, wired to return to `continuation` when it ends.
-            let callee_context = self.next_callee_context(continuation)?;
+        // What the LAST call returns to: the state's own continuation (its
+        // transition, or its clone's entry continuation if it is a tail call).
+        let final_continuation = self.continuation_after_statement_call(
+            state_key,
+            context,
+            transition_span,
+            *call_edges.last().expect("call_edges is non-empty"),
+        )?;
 
+        // Build each call's specialized-clone target in REVERSE so call N's
+        // continuation is call N+1's already-minted target.
+        let mut targets =
+            vec![crate::RuntimeTransitionTarget::None; call_edges.len()];
+        for index in (0..call_edges.len()).rev() {
+            let continuation = if index + 1 < call_edges.len() {
+                targets[index + 1]
+            } else {
+                final_continuation
+            };
+            // When this call's clone terminates it returns into the next chained
+            // call, so its entry arguments are that call's arguments.
+            let return_arguments = if index + 1 < call_edges.len() {
+                self.statement_call_arguments(state_key, call_edges[index + 1].statement_index)
+            } else {
+                omega_core::arena::HandleSpan::empty()
+            };
+            let callee_context = self.next_callee_context(continuation, return_arguments)?;
+            targets[index] = crate::RuntimeTransitionTarget::State {
+                key: call_edges[index].target_key,
+                context: callee_context,
+            };
+        }
+
+        // Emit each call edge with its chained continuation. Carry the call's
+        // argument expressions so the callee's parameter slots are materialized
+        // when entered. The dispatch loop takes the first edge; each call returns
+        // (via its continuation) into the next, then the last into the state's
+        // continuation.
+        for index in 0..call_edges.len() {
+            let continuation = if index + 1 < call_edges.len() {
+                targets[index + 1]
+            } else {
+                final_continuation
+            };
+            let target_arguments =
+                self.statement_call_arguments(state_key, call_edges[index].statement_index);
+            // When this call returns into the NEXT chained call, that call's
+            // arguments ride along as the continuation arguments so they are
+            // materialized as the dispatch loop enters it.
+            let continuation_arguments = if index + 1 < call_edges.len() {
+                self.statement_call_arguments(state_key, call_edges[index + 1].statement_index)
+            } else {
+                omega_core::arena::HandleSpan::empty()
+            };
             self.visit_transition(
                 state_key,
                 context,
-                call_edge.statement_index,
-                crate::RuntimeTransitionTarget::State {
-                    key: call_edge.target_key,
-                    context: callee_context,
-                },
+                call_edges[index].statement_index,
+                targets[index],
                 continuation,
                 TransitionExpressionRefs {
                     target_arguments,
+                    continuation_arguments,
                     ..TransitionExpressionRefs::default()
                 },
             )?;
@@ -260,9 +337,63 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
     /// continuation it returns to when it terminates. Errors if the context
     /// budget is exhausted, which indicates a recursive call graph specialization
     /// cannot lower.
+    /// Whether the callee `target` can transitively reach the calling state
+    /// `origin` again by following CALL and intra-machine TRANSITION edges. If so
+    /// the call graph is recursive (`origin` calls `target` ... calls `origin`),
+    /// which per-call-context specialization would clone forever. This deliberately
+    /// does NOT follow continuation edges, so a state's chained sequential calls
+    /// (call N's continuation is call N+1) are not mistaken for recursion.
+    fn call_target_recurses_into(&self, target: StateKey, origin: StateKey) -> bool {
+        let mut stack = vec![target];
+        let mut visited: Vec<StateKey> = Vec::new();
+        while let Some(state) = stack.pop() {
+            if state == origin {
+                return true;
+            }
+            if visited.contains(&state) {
+                continue;
+            }
+            visited.push(state);
+
+            if let Some(flow) = self
+                .control_flow
+                .states
+                .iter()
+                .map(|(_, flow)| flow)
+                .find(|flow| flow.key == state)
+            {
+                for transition in self
+                    .control_flow
+                    .transitions
+                    .span(flow.transitions)
+                    .into_iter()
+                    .flatten()
+                {
+                    if let omega_control_flow::PlannedTransitionTarget::State { key, .. } =
+                        transition.target
+                    {
+                        stack.push(key);
+                    }
+                }
+            }
+
+            for call in self
+                .state_calls
+                .iter()
+                .filter(|call| call.source_key == state)
+            {
+                stack.push(call.target_key);
+            }
+        }
+        false
+    }
+
     fn next_callee_context(
         &mut self,
         return_continuation: crate::RuntimeTransitionTarget,
+        return_arguments: omega_core::arena::HandleSpan<
+            omega_checked_trees::expression::ExpressionHandle,
+        >,
     ) -> Result<CallContext, Diagnostic> {
         if self.next_context >= self.context_budget {
             return Err(Diagnostic::error(
@@ -276,6 +407,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         self.next_context += 1;
         debug_assert_eq!(self.context_entry_continuation.len(), context.0 as usize);
         self.context_entry_continuation.push(return_continuation);
+        self.context_entry_arguments.push(return_arguments);
         Ok(context)
     }
 

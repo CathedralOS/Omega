@@ -160,7 +160,13 @@ fn append_terminal_continuation_edges(
             target: edge.continuation,
             continuation_dispatch_index: 0,
             continuation: RuntimeTransitionTarget::None,
-            expressions: Default::default(),
+            // When this terminal returns into the next chained call, materialize
+            // that call's arguments (carried on the entering edge as the
+            // continuation arguments) into the callee's parameter slots.
+            expressions: omega_control_flow::TransitionExpressionRefs {
+                target_arguments: edge.expressions.continuation_arguments,
+                ..Default::default()
+            },
             forms_cycle: false,
         });
     }
