@@ -383,12 +383,20 @@ fn stack_runtime_storage_by_call_context(
     storage: &mut omega_runtime_storage::RuntimeStoragePlan,
     runtime_flow: &RuntimeFlowPlan,
 ) {
-    // dispatch_index == the state's arena index in the runtime flow.
-    let contexts: Vec<u32> = runtime_flow
-        .states
-        .iter()
-        .map(|(_, state)| state.context.0)
-        .collect();
+    // A frame slot's `dispatch_index` is the state's ARENA INDEX in the runtime
+    // flow (see omega-state-dispatch: `dispatch_index = handle.arena_index()`).
+    // Index `contexts` by that arena index explicitly -- iteration position is NOT
+    // guaranteed to equal arena index, and conflating them assigns a state's slots
+    // to the wrong context's region (a caller and a dispatched callee then overlap
+    // and clobber each other's live values).
+    let mut contexts: Vec<u32> = Vec::new();
+    for (handle, state) in runtime_flow.states.iter() {
+        let index = handle.arena_index() as usize;
+        if index >= contexts.len() {
+            contexts.resize(index + 1, 0);
+        }
+        contexts[index] = state.context.0;
+    }
     let Some(&max_context) = contexts.iter().max() else {
         return;
     };
