@@ -219,12 +219,18 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             expressions,
             argument,
         ) && place.byte_count == slot.byte_size
+            && !matches!(expressions.expression(argument), ExpressionNode::Mutable(_))
         {
             // Same-sized place: copy the value into the parameter slot. A
             // size MISMATCH (e.g. a 16-byte String place feeding an 8-byte
             // `&mut String` reference parameter) is NOT a copy -- it falls
             // through to the address-write strategy below, which stores the
             // referent's address into the pointer slot.
+            //
+            // A `&mut x` argument (a `Mutable` expression) is ALSO never a value
+            // copy, even when the referent happens to be pointer-sized (e.g.
+            // `&mut SomeEightByteStruct`): it must store the referent's ADDRESS, so
+            // it likewise falls through to the address-write strategy below.
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimeStorage {
                     source_region: place.region,
