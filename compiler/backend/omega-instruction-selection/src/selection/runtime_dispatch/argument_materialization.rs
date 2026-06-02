@@ -49,6 +49,45 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             .saturating_add(4),
     );
 
+    // Decide whether to STAGE the arguments through a scratch region. A same-call
+    // -context transition's source and target frames OVERLAP (states in one context
+    // share a frame region), so writing one parameter slot can clobber another
+    // argument's still-unread source -- a slice/scalar copy cycle. When any target
+    // slot overlaps another argument's frame source, copy every argument to scratch
+    // first (source -> scratch, all reads safe) then scratch -> target (all writes
+    // safe), instead of writing targets directly.
+    let stage = input.runtime_storage.frame_scratch_base != 0 && {
+        let mut ranges: Vec<((usize, usize), Option<(usize, usize)>)> = Vec::new();
+        for (parameter_index, parameter) in
+            input.control_flow.state_parameters(target_state).iter().enumerate()
+        {
+            let Some(argument) = target_arguments.get(parameter_index).copied() else {
+                break;
+            };
+            let Some(slot) = runtime_parameter_slot(input, target_dispatch_index, parameter) else {
+                continue;
+            };
+            let target = (slot.byte_offset, slot.byte_offset + slot.byte_size);
+            let source = argument_source_frame_range(
+                input,
+                source_key,
+                statement_index,
+                source_dispatch_index,
+                argument,
+                aliases,
+                alias_expressions,
+            );
+            ranges.push((target, source));
+        }
+        ranges.iter().enumerate().any(|(i, (target, _))| {
+            ranges.iter().enumerate().any(|(j, (_, source))| {
+                i != j && source.is_some_and(|source| ranges_overlap(*target, source))
+            })
+        })
+    };
+    let mut scratch_cursor = input.runtime_storage.frame_scratch_base;
+    let mut staged_copies: Vec<(usize, usize, usize)> = Vec::new();
+
     for (parameter_index, parameter) in input
         .control_flow
         .state_parameters(target_state)
@@ -60,6 +99,24 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         };
         let Some(slot) = runtime_parameter_slot(input, target_dispatch_index, parameter) else {
             continue;
+        };
+        // When staging, redirect this argument's write to a scratch slot (a clone of
+        // the real slot at a packed scratch offset) and remember the scratch->target
+        // copy to emit after every source has been read.
+        let scratch_slot;
+        let slot = if stage {
+            scratch_cursor = scratch_cursor.next_multiple_of(slot.alignment.max(1));
+            let scratch_offset = scratch_cursor;
+            scratch_cursor += slot.byte_size;
+            staged_copies.push((scratch_offset, slot.byte_offset, slot.byte_size));
+            scratch_slot = {
+                let mut redirected = slot.clone();
+                redirected.byte_offset = scratch_offset;
+                redirected
+            };
+            &scratch_slot
+        } else {
+            slot
         };
 
         resolved_argument_expressions.clear();
@@ -243,6 +300,70 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             });
         }
     }
+
+    // Phase B of staging: every argument is now in scratch (all sources were read
+    // in phase A). Copy each from scratch into its real parameter slot. Scratch is
+    // disjoint from all real slots, so these copies cannot clobber one another.
+    for (scratch_offset, target_offset, byte_count) in staged_copies {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorage {
+                source_region: RuntimeStorageRegion::RuntimeFrame,
+                source_offset: scratch_offset,
+                target_region: RuntimeStorageRegion::RuntimeFrame,
+                target_offset,
+                byte_count,
+            },
+            source_key,
+            source_statement: statement_index,
+        });
+    }
+}
+
+/// The frame byte range an argument READS from, if it resolves to a runtime-frame
+/// place (so a parameter-slot write could clobber it). `None` for immediates and
+/// non-frame (machine-owned/static) sources, which cannot be clobbered.
+#[allow(clippy::too_many_arguments)]
+fn argument_source_frame_range(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    source_dispatch_index: u32,
+    raw_argument: ExpressionHandle,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
+) -> Option<(usize, usize)> {
+    let mut scratch = ExpressionTable::with_expression_capacity(
+        alias_expressions.expression_count().saturating_add(4),
+    );
+    let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(alias_expressions, aliases, &mut scratch);
+    let copied_argument = scratch.copy_from(&input.control_flow.expressions, raw_argument);
+    let resolved = resolve_runtime_alias_binding_handle(
+        copied_argument,
+        source_key,
+        copied_aliases.bindings(),
+        &mut scratch,
+    );
+    let argument_source_key = resolved.source_key;
+    let argument = resolve_prior_local_initializers_in_table(
+        input,
+        argument_source_key,
+        statement_index,
+        &mut scratch,
+        resolved.expression,
+    );
+    let place = resolve_runtime_storage_place_in_table(
+        input,
+        source_dispatch_index,
+        argument_source_key,
+        &scratch,
+        argument,
+    )?;
+    (place.region == RuntimeStorageRegion::RuntimeFrame)
+        .then_some((place.byte_offset, place.byte_offset + place.byte_count))
+}
+
+fn ranges_overlap(a: (usize, usize), b: (usize, usize)) -> bool {
+    a.0 < b.1 && b.0 < a.1
 }
 
 pub(super) fn static_runtime_argument_value(expression: &ExpressionNode) -> Option<i64> {
