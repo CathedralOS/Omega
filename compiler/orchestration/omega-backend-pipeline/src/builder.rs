@@ -232,6 +232,14 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 runtime_storage_workers,
             )
         });
+    // Each dispatch body lays its frame slots out from offset 0, so a caller's
+    // slots and a dispatched callee's slots would otherwise share offsets and
+    // clobber each other (e.g. a `&mut` out-parameter that is live across the
+    // call). Give each call-context (a specialized clone) a disjoint frame
+    // region, stacked so any caller/callee pair is disjoint. States in the same
+    // context still share their range (they are never simultaneously live), so
+    // entry-only programs are unchanged.
+    stack_runtime_storage_by_call_context(&mut backend_plan.runtime_storage, &runtime_flow);
     backend_plan.state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
         build_state_guard_plan(
             &program,
@@ -363,6 +371,59 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.phase_timings = phase_timings;
 
     Ok(backend_plan)
+}
+
+/// Give each call-context (specialized clone) a disjoint frame region so a
+/// caller's live slots survive the dispatched calls it makes. Slots are built
+/// per dispatch body from offset 0; this shifts every slot by its context's
+/// cumulative base. States within one context keep sharing their range (they are
+/// never simultaneously live), and the entry context (`ROOT`) stays at base 0, so
+/// programs without dispatched calls are unchanged.
+fn stack_runtime_storage_by_call_context(
+    storage: &mut omega_runtime_storage::RuntimeStoragePlan,
+    runtime_flow: &RuntimeFlowPlan,
+) {
+    // dispatch_index == the state's arena index in the runtime flow.
+    let contexts: Vec<u32> = runtime_flow
+        .states
+        .iter()
+        .map(|(_, state)| state.context.0)
+        .collect();
+    let Some(&max_context) = contexts.iter().max() else {
+        return;
+    };
+    if max_context == 0 {
+        // Only the entry context: every body already lays out from 0.
+        return;
+    }
+    let context_of = |dispatch_index: u32| -> usize {
+        contexts.get(dispatch_index as usize).copied().unwrap_or(0) as usize
+    };
+
+    let context_count = max_context as usize + 1;
+    let mut sizes = vec![0usize; context_count];
+    let mut alignments = vec![1usize; context_count];
+    for (_, slot) in storage.frame_slots.iter() {
+        let context = context_of(slot.dispatch_index);
+        sizes[context] = sizes[context].max(slot.byte_offset + slot.byte_size);
+        alignments[context] = alignments[context].max(slot.alignment.max(1));
+    }
+
+    // Stack contexts into disjoint regions (ROOT first, at base 0). Context ids
+    // are minted parent-before-child, so any caller precedes its callees.
+    let mut bases = vec![0usize; context_count];
+    let mut next_base = 0usize;
+    for context in 0..context_count {
+        bases[context] = next_base.next_multiple_of(alignments[context]);
+        next_base = bases[context] + sizes[context];
+    }
+
+    let handles: Vec<_> = storage.frame_slots.iter().map(|(handle, _)| handle).collect();
+    for handle in handles {
+        let slot = storage.frame_slots.get_mut(handle);
+        let base = bases[context_of(slot.dispatch_index)];
+        slot.byte_offset = slot.byte_offset.saturating_add(base);
+    }
 }
 
 fn dispatch_state_call_edges(

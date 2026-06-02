@@ -161,10 +161,13 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             argument_source_key,
             expressions,
             argument,
-        ) {
-            if place.byte_count != slot.byte_size {
-                continue;
-            }
+        ) && place.byte_count == slot.byte_size
+        {
+            // Same-sized place: copy the value into the parameter slot. A
+            // size MISMATCH (e.g. a 16-byte String place feeding an 8-byte
+            // `&mut String` reference parameter) is NOT a copy -- it falls
+            // through to the address-write strategy below, which stores the
+            // referent's address into the pointer slot.
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimeStorage {
                     source_region: place.region,
