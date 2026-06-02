@@ -26,11 +26,19 @@ pub(super) fn state_flow_by_key<'plan>(
 ) -> Result<&'plan StateFlow, String> {
     let machine = machine_flow_by_symbol(context, key.machine)?;
 
+    // A scheduled state may be a SEGMENT (segment_index > 0) of a control-flow
+    // state that the runtime flow split at its dispatched-call boundaries. The
+    // control-flow plan only holds the unsplit state (segment 0), so match on
+    // machine+state and ignore segment_index -- segments share the parent's flow.
     context
         .control_flow
         .states
         .span(machine.states)
-        .and_then(|states| states.iter().find(|state| state.key == key))
+        .and_then(|states| {
+            states
+                .iter()
+                .find(|state| state.key.state == key.state && state.key.machine == key.machine)
+        })
         .ok_or_else(|| {
             format!(
                 "state key {}.{}#{} was not present in the control-flow plan",
