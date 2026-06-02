@@ -1,0 +1,31 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+enum CellId { Empty, R00, R01, R02, R03 }
+data Room { cell: CellId; tag: i32; }
+data Level { rooms: [Room; 4]; room_count: usize; }
+data Builder { }
+data Main { console: Console; builder: Builder; level: Level; }
+
+machine Main::main(&mut self) {
+    self.builder.build(&mut self.level);
+    transition self.level.rooms[2].tag == 103 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+machine Builder::build(&mut self, level: &mut Level) {
+    level.room_count = 4;
+    transition { _ -> carve_at(level, 0) }
+    state carve_at(&mut self, level: &mut Level, index: usize) {
+        self.carve(level, 100 + index);
+        let next: usize = index + 1;
+        transition next < 4 { true -> carve_at(level, next) false -> {} }
+    }
+}
+machine Builder::carve(&mut self, level: &mut Level, tag: i32) {
+    let rooms: &mut [Room] = level.rooms.as_mut_slice();
+    rooms[2].tag = tag;
+}
