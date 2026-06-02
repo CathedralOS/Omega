@@ -166,7 +166,7 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
     if !buffer.is_valid() {
         return false;
     };
-    let target_place = resolve_runtime_storage_place(
+    let mut target_place = resolve_runtime_storage_place(
         input,
         dispatch_index,
         source_key,
@@ -187,6 +187,21 @@ pub(in crate::selection) fn runtime_text_builder_write_without_aliases_emit(
     );
     let target_pointee =
         resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, &resolved_target);
+    // A `&mut String` alias parameter resolves both as a storage place (its
+    // pointer slot -- pointer-sized, not string-sized) and as a string pointee
+    // (the descriptor it points at). The text write targets the pointee, so drop
+    // the pointer-sized place; otherwise the string-size guard below rejects the
+    // whole write because the alias slot is not a string descriptor.
+    let string_descriptor_size = input.runtime_abi.string_descriptor_size();
+    if target_place
+        .as_ref()
+        .is_some_and(|place| place.byte_count != string_descriptor_size)
+        && target_pointee
+            .as_ref()
+            .is_some_and(|pointee| pointee.pointee_byte_size == string_descriptor_size)
+    {
+        target_place = None;
+    }
     if target_place.is_none()
         && target_pointee.is_none()
         && target_indexed.is_none()
