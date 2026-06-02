@@ -738,7 +738,7 @@ pub fn runtime_storage_address_to_runtime_frame_write_width(architecture: Archit
 pub fn runtime_pointee_address_to_runtime_frame_write_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_pointee_address_to_runtime_frame_write_width(),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => x86_64::runtime_pointee_address_to_runtime_frame_write_width(),
     }
 }
 

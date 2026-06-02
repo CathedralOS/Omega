@@ -166,6 +166,35 @@ pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width() -> usi
 /// (`*(frame[descriptor]) + element_index*elem + field`) and stores that pointer
 /// into the runtime-frame slot at `target_offset`. The frame base is loaded once
 /// (r14) and reused for the store, so a single `mov r14,imm64` relocation suffices.
+/// Computes the address of a field reached through a RUNTIME pointer stored in the
+/// frame (`*(frame[pointer_byte_offset]) + field_byte_offset`) and stores that
+/// pointer into the runtime-frame slot at `target_offset` -- the lowering of
+/// `ptr.field.as_[mut_]slice()`'s descriptor pointer where `ptr` is a `&mut`
+/// reference parameter. Same shape as the fixed-indexed-address write but the
+/// displacement is just the field offset (no element index*size).
+pub fn runtime_pointee_address_to_runtime_frame_write_width() -> usize {
+    // mov r14,imm64(frame) (10) + mov r15,[r14+ptr] (7) + add r15,const (7)
+    // + mov [r14+target],r15 (7)
+    31
+}
+
+pub fn encode_runtime_pointee_address_to_runtime_frame_write(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_pointee_address_to_runtime_frame_write_width());
+    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
+    append_load_r15_from_r14(&mut bytes, pointer_byte_offset)?; // r15 = runtime pointer value
+    append_add_r15_imm32(&mut bytes, field_byte_offset)?; // r15 = pointer + field
+    append_store_r15_to_r14(&mut bytes, target_offset)?; // frame[target] = address
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_pointee_address_to_runtime_frame_write_width()
+    );
+    Ok(bytes)
+}
+
 pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
     descriptor_offset: usize,
     element_index: usize,
