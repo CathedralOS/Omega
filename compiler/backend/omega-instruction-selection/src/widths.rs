@@ -378,7 +378,16 @@ pub fn runtime_pointee_binary_write_width(
             operator,
             right,
         ),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            let _ = field_byte_offset;
+            x86_64::runtime_pointee_binary_write_width(
+                runtime_value_operands,
+                byte_size,
+                left,
+                operator,
+                right,
+            )
+        }
     }
 }
 
@@ -388,7 +397,10 @@ pub fn runtime_pointee_operand_start_width(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_pointee_operand_start_width(field_byte_offset),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            let _ = field_byte_offset;
+            x86_64::runtime_pointee_binary_operand_start_width()
+        }
     }
 }
 

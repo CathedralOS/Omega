@@ -71,7 +71,14 @@ pub(super) fn collect_runtime_storage_write_relocations(
                 context.input.assigned_target_operations,
                 *left,
             );
-            collect_runtime_value_operand_relocations(context, left_offset + left_width, *right);
+            // The encoder stashes the left result (push r10) between the operands;
+            // the right operand's bytes start after that gap.
+            let right_offset = left_offset
+                + left_width
+                + omega_instruction_selection::runtime_binary_right_operand_gap(
+                    context.input.target.architecture,
+                );
+            collect_runtime_value_operand_relocations(context, right_offset, *right);
             true
         }
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
