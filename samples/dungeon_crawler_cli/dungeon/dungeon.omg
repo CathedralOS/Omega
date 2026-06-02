@@ -130,82 +130,8 @@ machine Dungeon::initialize(
 ) {
     self.player_system.create("Wanderer", &mut self.player);
     self.rng.seed(seed, &mut self.random);
-    let rooms: &mut [Room] = self.level.rooms.as_mut_slice();
-    self.current_cell = CellId::R00;
-    self.level.start_cell = CellId::R00;
-    self.level.room_count = 4;
-    self.level.deepest_depth = 2;
-
-    rooms[0].cell = CellId::R00;
-    rooms[0].depth = 0;
-    rooms[0].branch = 0;
-    rooms[0].label = "Gate";
-    rooms[0].description = "The old gate room breathes cold air from below.";
-    rooms[0].exit_count = 2;
-    rooms[0].discovered = true;
-    rooms[0].event.kind = RoomEventKind::Nothing;
-    rooms[0].event.consumed = true;
-    rooms[0].event.reward.kind = RewardKind::None;
-
-    let gate_exits: &mut [Exit] = rooms[0].exits.as_mut_slice();
-    gate_exits[0] = Exit { command: "north", direction: Direction::North, destination: CellId::R01 };
-    gate_exits[1] = Exit { command: "east", direction: Direction::East, destination: CellId::R02 };
-
-    rooms[1].cell = CellId::R01;
-    rooms[1].depth = 1;
-    rooms[1].branch = 0;
-    rooms[1].label = "Fountain Room";
-    rooms[1].description = "A quiet shrine chamber hums with pale water-light.";
-    rooms[1].exit_count = 2;
-    rooms[1].discovered = false;
-    rooms[1].event.kind = RoomEventKind::FountainOfLife;
-    rooms[1].event.consumed = false;
-    rooms[1].event.reward.kind = RewardKind::None;
-
-    let fountain_exits: &mut [Exit] = rooms[1].exits.as_mut_slice();
-    fountain_exits[0] = Exit { command: "south", direction: Direction::South, destination: CellId::R00 };
-    fountain_exits[1] = Exit { command: "north", direction: Direction::North, destination: CellId::R03 };
-
-    rooms[2].cell = CellId::R02;
-    rooms[2].depth = 1;
-    rooms[2].branch = 1;
-    rooms[2].label = "Ambush Hall";
-    rooms[2].description = "A narrow hall where loose stone crunches underfoot.";
-    rooms[2].exit_count = 2;
-    rooms[2].discovered = false;
-    rooms[2].event.kind = RoomEventKind::Enemy;
-    rooms[2].event.consumed = false;
-    rooms[2].event.enemy.kind = EnemyKind::Bat;
-    rooms[2].event.enemy.name = "Cave Bat";
-    rooms[2].event.enemy.max_health = 8;
-    rooms[2].event.enemy.health = 8;
-    rooms[2].event.enemy.attack = 3;
-    rooms[2].event.enemy.defense = 0;
-    rooms[2].event.enemy.xp_reward = 5;
-    rooms[2].event.enemy.depth = 1;
-    rooms[2].event.reward.kind = RewardKind::None;
-
-    let ambush_exits: &mut [Exit] = rooms[2].exits.as_mut_slice();
-    ambush_exits[0] = Exit { command: "west", direction: Direction::West, destination: CellId::R00 };
-    ambush_exits[1] = Exit { command: "east", direction: Direction::East, destination: CellId::R03 };
-
-    rooms[3].cell = CellId::R03;
-    rooms[3].depth = 2;
-    rooms[3].branch = 0;
-    rooms[3].label = "Treasure Vault";
-    rooms[3].description = "A cracked vault glitters with coins trapped under dust.";
-    rooms[3].exit_count = 2;
-    rooms[3].discovered = false;
-    rooms[3].event.kind = RoomEventKind::Treasure;
-    rooms[3].event.consumed = false;
-    rooms[3].event.reward.kind = RewardKind::GoldAndItem;
-    rooms[3].event.reward.gold = 24;
-    rooms[3].event.reward.item = ItemKind::HealingCharm;
-
-    let vault_exits: &mut [Exit] = rooms[3].exits.as_mut_slice();
-    vault_exits[0] = Exit { command: "south", direction: Direction::South, destination: CellId::R01 };
-    vault_exits[1] = Exit { command: "west", direction: Direction::West, destination: CellId::R02 };
-
+    self.generator.generate(seed, &mut self.level);
+    self.current_cell = self.level.start_cell;
     self.mode = GameMode::Exploring;
 }
 
