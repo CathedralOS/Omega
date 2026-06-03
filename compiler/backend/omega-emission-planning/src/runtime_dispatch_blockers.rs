@@ -136,7 +136,11 @@ fn first_unsupported_dispatch_guard(
 
 fn dispatch_loop_guard_can_emit(edge: &RuntimeDispatchLoopEdge) -> bool {
     match edge.guard_lowering {
-        StateGuardLowering::NoOp => true,
+        // ForwardBranchSkip / BranchArmsEnd are only ever produced for inline leaf
+        // arms, never as a dispatch-edge guard, so they are trivially emittable here.
+        StateGuardLowering::NoOp
+        | StateGuardLowering::ForwardBranchSkip
+        | StateGuardLowering::BranchArmsEnd => true,
         StateGuardLowering::CompareStaticValue => {
             edge.guard_has_storage
                 && matches!(

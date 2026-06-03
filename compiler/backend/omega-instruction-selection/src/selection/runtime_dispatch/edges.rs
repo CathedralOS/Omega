@@ -278,7 +278,11 @@ fn transition_guard_for_edge(
 
 fn guard_can_emit_directly(edge: &RuntimeDispatchLoopEdge) -> bool {
     match edge.guard_lowering {
-        StateGuardLowering::NoOp => true,
+        // ForwardBranchSkip / BranchArmsEnd never appear as a dispatch-edge guard
+        // (leaf-arm only); treat them as trivially emittable.
+        StateGuardLowering::NoOp
+        | StateGuardLowering::ForwardBranchSkip
+        | StateGuardLowering::BranchArmsEnd => true,
         StateGuardLowering::CompareStaticValue => {
             edge.guard_has_storage
                 && matches!(

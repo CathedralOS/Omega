@@ -1,10 +1,62 @@
 use crate::MachineEmissionContext;
 use crate::layout::LaidOutMachineInstruction;
+use omega_assigned_target_operations::{SelectedInstructionKind, StateGuardLowering};
 use omega_control_flow::StateKey;
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_instructions::MachineInstructionKind;
 use omega_target::Architecture;
+
+/// Distance (in bytes, from the start of the current instruction) to the next
+/// `BranchArmsEnd` marker -- the target of a `ForwardBranchSkip` jump emitted after
+/// a matched arm's body in a multi-arm guarded transition.
+pub(crate) fn byte_distance_to_branch_arms_end(
+    input: MachineEmissionContext<'_>,
+    machine_instructions: &[LaidOutMachineInstruction],
+    machine_instruction_index: usize,
+) -> Result<isize, Diagnostic> {
+    let Some(current) = machine_instructions.get(machine_instruction_index) else {
+        return Ok(0);
+    };
+    let target = machine_instructions
+        .iter()
+        .skip(machine_instruction_index + 1)
+        .find(|instruction| is_branch_arms_end_marker(input, instruction))
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "cannot encode forward branch skip at byte {}: missing BranchArmsEnd marker",
+                current.offset
+            ))
+        })?;
+    Ok(target.offset as isize - current.offset as isize)
+}
+
+fn is_branch_arms_end_marker(
+    input: MachineEmissionContext<'_>,
+    instruction: &LaidOutMachineInstruction,
+) -> bool {
+    let handle = Handle::from_arena_index(instruction.selected_instruction_index);
+    if !input
+        .assigned_target_operations
+        .code
+        .instructions
+        .is_valid(handle)
+    {
+        return false;
+    }
+    matches!(
+        input
+            .assigned_target_operations
+            .code
+            .instructions
+            .get(handle)
+            .kind,
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::BranchArmsEnd,
+            ..
+        }
+    )
+}
 
 pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
     architecture: Architecture,

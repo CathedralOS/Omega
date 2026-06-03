@@ -1,0 +1,40 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Selector {
+    result: i32;
+}
+
+data Main {
+    console: Console;
+    selector: Selector;
+}
+
+machine Main::main(&mut self) {
+    self.selector.pick(1);
+
+    transition self.selector.result == 20 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+// A value switch on a runtime parameter lowers to inline-leaf arms. The matched
+// arm (`1 -> store(20)`) must skip the remaining sibling arms; without the
+// forward skip-jump, the `_ -> store(30)` fallback would run too and clobber the
+// result to 30.
+machine Selector::pick(&mut self, choice: usize) {
+    transition choice {
+        0 -> store(10)
+        1 -> store(20)
+        _ -> store(30)
+    }
+
+    state store(&mut self, value: i32) {
+        self.result = value;
+    }
+}

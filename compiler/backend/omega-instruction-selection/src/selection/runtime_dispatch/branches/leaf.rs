@@ -66,12 +66,21 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
 
     order_return_value_fallbacks_first(&mut matching_expansions);
 
+    let multi_arm = matching_expansions.len() > 1;
     for expansion in matching_expansions {
         select_runtime_leaf_branch_expansion(
             input,
             expansion,
+            multi_arm,
             scratch,
             runtime_value_operands,
+            selected_instructions,
+        );
+    }
+    if multi_arm {
+        push_branch_arms_end_marker(
+            operation.source_key,
+            operation.statement_index,
             selected_instructions,
         );
     }
@@ -97,12 +106,21 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
 
     order_return_value_fallbacks_first(&mut matching_expansions);
 
+    let multi_arm = matching_expansions.len() > 1;
     for expansion in matching_expansions {
         select_runtime_leaf_branch_expansion(
             input,
             expansion,
+            multi_arm,
             scratch,
             runtime_value_operands,
+            selected_instructions,
+        );
+    }
+    if multi_arm {
+        push_branch_arms_end_marker(
+            operation.source_key,
+            operation.statement_index,
             selected_instructions,
         );
     }
@@ -136,6 +154,7 @@ fn order_return_value_fallbacks_first(expansions: &mut [&RuntimeLeafBranchExpans
 fn select_runtime_leaf_branch_expansion(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
+    multi_arm: bool,
     scratch: &mut LeafBranchSelectionScratch,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -177,6 +196,28 @@ fn select_runtime_leaf_branch_expansion(
             selected_instructions.pop();
         }
     } else if !guards_were_empty {
+        // In a MULTI-arm transition, a matched (guarded) arm must skip the remaining
+        // sibling arms, whose bodies would otherwise run and clobber this arm's
+        // effect. Emit a forward jump to the transition's `BranchArmsEnd` marker.
+        // The jump carries the leaf state's key (NOT expansion.source_key) so it is
+        // not mistaken for the guard's failure-branch site boundary; the trailing
+        // NoOp keeps expansion.source_key and stays the jne's landing target -- now
+        // sitting AFTER the jump, so the jne auto-skips past it.
+        if multi_arm {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::EvaluateDispatchGuard {
+                    guard_lowering: omega_abstract_operations::StateGuardLowering::ForwardBranchSkip,
+                    operator: omega_abstract_operations::StateGuardOperator::Equal,
+                    storage_region: RuntimeStorageRegion::Machine,
+                    byte_offset: 0,
+                    byte_size: 0,
+                    expected_value: 0,
+                    has_storage: false,
+                },
+                source_key: expansion.leaf_key,
+                source_statement: expansion.target_statement_index,
+            });
+        }
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::EvaluateDispatchGuard {
                 guard_lowering: omega_abstract_operations::StateGuardLowering::NoOp,
@@ -191,6 +232,28 @@ fn select_runtime_leaf_branch_expansion(
             source_statement: expansion.statement_index,
         });
     }
+}
+
+/// Emit the `BranchArmsEnd` marker that terminates a multi-arm guarded transition's
+/// arms; it is the target of every `ForwardBranchSkip` emitted for that transition.
+fn push_branch_arms_end_marker(
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: omega_abstract_operations::StateGuardLowering::BranchArmsEnd,
+            operator: omega_abstract_operations::StateGuardOperator::Equal,
+            storage_region: RuntimeStorageRegion::Machine,
+            byte_offset: 0,
+            byte_size: 0,
+            expected_value: 0,
+            has_storage: false,
+        },
+        source_key,
+        source_statement: statement_index,
+    });
 }
 
 fn select_runtime_leaf_branch_completion_dispatch(
