@@ -441,6 +441,15 @@ fn append_state_call_body_operation(
         return;
     }
 
+    // The callee has transitions, so its return value is materialised by the branch
+    // expansion. But its NON-transition body (local initializers such as
+    // `let cells = self.bag.cells.as_mut_slice();`, and mutations through its `&mut`
+    // params) still has to be emitted -- exactly like the InlineLeaf / no-transition
+    // branches above. Without it, a machine returning `&mut cells[index]` reads an
+    // uninitialized slice descriptor for the returned address -> bad pointer ->
+    // segfault. Insert the StateCall op FIRST so its arg->param aliases are bound
+    // before the recursed body operations resolve against them; the branch expansion
+    // still materialises the transition/return.
     operations.insert(body_operation(
         state_call.source_key,
         state_call.statement_index,
@@ -452,6 +461,16 @@ fn append_state_call_body_operation(
             lowering: state_call.lowering,
         },
     ));
+    append_state_body_operations(
+        context,
+        state_call.target_key,
+        None,
+        operations,
+        expressions,
+        invariant_names,
+        type_references,
+        visiting,
+    );
 }
 
 fn append_state_call_result_operation(

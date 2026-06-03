@@ -2196,6 +2196,43 @@ fn runtime_reference_returned_slice_element_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_reference_returned_slice_element_through_param_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_reference_returned_slice_element_through_param_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-reference-returned-slice-element-through-param-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("reference-returning called machine canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("reference-returning called machine canary should run");
+
+    // The called machine `pick` returns `&mut cells[2]`; its `let cells = ...
+    // as_mut_slice()` descriptor init must be materialised, otherwise the returned
+    // address is computed from an uninitialized descriptor and the write segfaults.
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a called machine returning `&mut slice[index]` to materialise its \
+         slice-descriptor local and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_mutable_local_indexed_parameter_write_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_mutable_local_indexed_parameter_write_exit");
     let main_path = canary.join("main.omg");
@@ -3325,6 +3362,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_call_enum_field_with_mut_arg",
     "calls/runtime_call_enum_sequence",
     "calls/runtime_call_enum_value",
+    "calls/runtime_reference_returned_slice_element_through_param_exit",
     "calls/runtime_mutable_machine_owned_parameter_write_exit",
     "calls/runtime_mutable_local_indexed_parameter_write_exit",
     "calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit",
