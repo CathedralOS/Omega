@@ -1,0 +1,44 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    n: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Console;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) {
+    self.fill();
+
+    transition self.bag.cells[2].n == 5 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::fill(&mut self) {
+    let c: &mut Cell = self.pick(&mut self.bag);
+    c.n = 5;
+}
+
+// A called machine that returns a reference to a slice element. Its local
+// `let cells = bag.cells.as_mut_slice()` descriptor init must be emitted; if it is
+// dropped, the returned `&mut cells[2]` address is computed from an uninitialized
+// descriptor -> bad pointer -> segfault when the caller writes through it.
+machine Main::pick(&mut self, bag: &mut Bag) -> &mut Cell {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    transition {
+        _ -> &mut cells[2]
+    }
+}
