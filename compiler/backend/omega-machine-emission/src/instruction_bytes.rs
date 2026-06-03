@@ -194,6 +194,26 @@ fn insert_fixed_machine_instruction_bytes(
             }
             Ok(true)
         }
+        // Forward skip-jump after a matched arm body: a plain unconditional jump to
+        // the transition's `BranchArmsEnd` marker, encoded with the same `jmp rel32`
+        // as a dispatch-case leave.
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::ForwardBranchSkip,
+            ..
+        } => {
+            let bytes = omega_instruction_selection::encode_dispatch_case_leave_bytes(
+                emission_context.target.architecture,
+                branch_distances::byte_distance_to_branch_arms_end(
+                    emission_context,
+                    laid_out_instructions,
+                    machine_instruction_index,
+                )?,
+            )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
         SelectedInstructionKind::CompareRuntimeStorage {
             left_offset,
             right_offset,

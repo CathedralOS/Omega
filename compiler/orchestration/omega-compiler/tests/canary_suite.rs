@@ -2835,6 +2835,41 @@ fn runtime_ordered_room_dispatch_loop_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_guarded_inline_leaf_arm_skip_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_guarded_inline_leaf_arm_skip_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-guarded-inline-leaf-arm-skip-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime guarded inline leaf arm skip canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime guarded inline leaf arm skip canary should run");
+
+    // The matched value-switch arm (`1 -> store(20)`) must skip its sibling arms;
+    // exit 71 would mean the `_ -> store(30)` fallback clobbered the result to 30.
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected guarded inline leaf arm to survive sibling clobber (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_ordered_room_dispatch_real_show_states_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_ordered_room_dispatch_real_show_states_exit");
     let main_path = canary.join("main.omg");
@@ -3306,6 +3341,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dungeon/runtime_ordered_room_dispatch_large_machine_exit",
     "dungeon/runtime_ordered_room_dispatch_loop_exit",
     "dungeon/runtime_ordered_room_dispatch_real_show_states_exit",
+    "dungeon/runtime_guarded_inline_leaf_arm_skip_exit",
     "calls/runtime_contained_call_value",
     "rewards/runtime_contained_reward_table_roll_item",
     "control_flow/runtime_nested_branch_assignment_prelude_value",

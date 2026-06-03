@@ -25,4 +25,12 @@ pub enum StateGuardLowering {
     CompareRuntimeValue,
     #[default]
     NeedsRuntimeExpression,
+    /// An unconditional forward jump emitted after a MATCHED arm's body in a
+    /// multi-arm guarded transition, to skip the remaining sibling arms (which
+    /// would otherwise execute and clobber this arm's effect). Jumps to the next
+    /// `BranchArmsEnd` marker.
+    ForwardBranchSkip,
+    /// A zero-byte marker placed after all arms of a multi-arm guarded transition;
+    /// the target of every `ForwardBranchSkip` for that transition.
+    BranchArmsEnd,
 }

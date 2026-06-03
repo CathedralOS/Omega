@@ -106,6 +106,12 @@ fn machine_instruction_width(
             has_storage: true,
             ..
         } => dispatch_guard_compare_static_width(input.target.architecture),
+        // A forward skip-jump is a plain unconditional `jmp rel32` -- same shape as a
+        // dispatch-case leave, so it reuses that width/encoder.
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::ForwardBranchSkip,
+            ..
+        } => dispatch_case_leave_width(input.target.architecture),
         SelectedInstructionKind::CompareRuntimeTextLiteral { literal, .. } => {
             runtime_text_literal_compare_width(input.target.architecture, literal)
         }
