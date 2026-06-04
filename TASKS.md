@@ -71,10 +71,17 @@ Implementation slices below build against these. Minor/easily-reversible details
 `3nat`), newline-separated proof facts, field `+=` assignment, relax scope syntax
 (`relax target { ... }`), relaxed borrow parameter spelling (`&mut relaxed T`),
 trait `default machine` syntax, and top-level
-`host <target> provides <Trait> { machine -> syscall N; }` provider metadata now
-compile in the active pass suite. Full canary suite was last green locally at
-106 passed after the trait default promotion; rerun after the host-provider
-checkpoint.
+`host <target> provides <Trait> { machine -> syscall N; }` provider metadata,
+plus `wire data` schemas with encoding, numbered fields, reserved tags, and
+version blocks now compile in the active pass suite. Full canary suite was last
+green locally at 106 passed after the host-provider checkpoint; rerun after the
+wire-data checkpoint.
+
+**Wire data semantics follow-up.** Current `wire data` support is syntax
+metadata only: schemas are parsed/snapshotted and preserved in syntax trees, but
+semantic lowering ignores them. Need schema validation, duplicate/reserved tag
+diagnostics, version compatibility rules, and encoder/decoder generation before
+wire schemas are operational.
 
 **Host-provider semantics follow-up.** Current host-provider support is
 syntax-preserving metadata: it parses and snapshots syscall mapping rows, but

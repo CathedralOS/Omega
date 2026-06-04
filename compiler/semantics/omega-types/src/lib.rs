@@ -154,7 +154,11 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
                     );
                 }
             }
-            Item::Provider(_) | Item::HostProvider(_) | Item::Export(_) | Item::Use(_) => {}
+            Item::Provider(_)
+            | Item::HostProvider(_)
+            | Item::WireData(_)
+            | Item::Export(_)
+            | Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Measure(measure) => {
                 insert_declaration(

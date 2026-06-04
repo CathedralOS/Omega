@@ -66,6 +66,7 @@ pub(crate) fn lower_item(
         | syntax::item::Item::Export(_)
         | syntax::item::Item::Library(_)
         | syntax::item::Item::Target(_)
+        | syntax::item::Item::WireData(_)
         | syntax::item::Item::Use(_) => {}
     }
 

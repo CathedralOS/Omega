@@ -370,6 +370,7 @@ fn item_kind(item: &Item) -> &'static str {
         Item::Operator(_) => "operator",
         Item::Package(_) => "package",
         Item::HostProvider(_) => "host_provider",
+        Item::WireData(_) => "wire_data",
         Item::Trait(_) => "trait",
         _ => "state",
     }
@@ -536,6 +537,19 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 value.target.as_str(),
                 boundary_trait,
                 value.mappings.len()
+            )
+        }
+        Item::WireData(value) => {
+            let encoding = value
+                .encoding
+                .as_ref()
+                .map(|encoding| encoding.as_str())
+                .unwrap_or("default");
+            format!(
+                "wire data {}\nencoding: {}\nmembers: {}",
+                value.name.as_str(),
+                encoding,
+                value.members.len()
             )
         }
         Item::Export(value) => {

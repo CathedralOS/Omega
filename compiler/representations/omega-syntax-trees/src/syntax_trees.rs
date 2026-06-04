@@ -12,7 +12,8 @@ use crate::item::{
     MeasureDefinition, OperatorDefinition, Platform, ProofFact, ProofMembershipFact, State,
     StateHandle, StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
     TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
-    TypeParameter, UseItem,
+    TypeParameter, UseItem, WireDataDefinition, WireDataField, WireDataMember, WireDataReserved,
+    WireDataVersion,
 };
 use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssignment, TableCall, TableLocalData,
@@ -115,6 +116,7 @@ impl SyntaxTrees {
             | Item::Provider(_)
             | Item::HostProvider(_)
             | Item::Target(_)
+            | Item::WireData(_)
             | Item::Use(_) => {}
         }
 
@@ -187,6 +189,9 @@ impl SyntaxTrees {
                 Item::Trait(self.copy_trait_definition(other, trait_definition))
             }
             Item::Target(target) => Item::Target(self.copy_target_definition(other, target)),
+            Item::WireData(wire_data) => {
+                Item::WireData(self.copy_wire_data_definition(other, wire_data))
+            }
         }
     }
 
@@ -353,6 +358,18 @@ impl SyntaxTrees {
         }
     }
 
+    fn copy_wire_data_definition(
+        &mut self,
+        other: &SyntaxTrees,
+        wire_data: &WireDataDefinition,
+    ) -> WireDataDefinition {
+        WireDataDefinition {
+            name: wire_data.name.clone(),
+            encoding: wire_data.encoding.clone(),
+            members: self.copy_wire_data_member_span(other, wire_data.members),
+        }
+    }
+
     fn copy_type_parameter_span(
         &mut self,
         other: &SyntaxTrees,
@@ -483,6 +500,31 @@ impl SyntaxTrees {
                 value: mapping.value,
             },
             |this, mapping| this.items.append_host_provider_mapping(mapping),
+        )
+    }
+
+    fn copy_wire_data_member_span(
+        &mut self,
+        other: &SyntaxTrees,
+        span: HandleSpan<WireDataMember>,
+    ) -> HandleSpan<WireDataMember> {
+        self.copy_mapped_span(
+            other.items.wire_data_members(span),
+            |this, member| match member {
+                WireDataMember::Field(field) => WireDataMember::Field(WireDataField {
+                    number: field.number,
+                    name: field.name.clone(),
+                    type_reference: this.copy_type_reference_handle(other, field.type_reference),
+                }),
+                WireDataMember::Reserved(reserved) => WireDataMember::Reserved(WireDataReserved {
+                    number: reserved.number,
+                }),
+                WireDataMember::Version(version) => WireDataMember::Version(WireDataVersion {
+                    name: version.name.clone(),
+                    members: this.copy_wire_data_member_span(other, version.members),
+                }),
+            },
+            |this, member| this.items.append_wire_data_member(member),
         )
     }
 

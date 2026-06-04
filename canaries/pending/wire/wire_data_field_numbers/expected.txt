@@ -1,1 +1,0 @@
-expected one of `use`, `export`, `data`, `domain`, `enum`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `operator`, `platform`, `provider`, `trait`, `boundary operator`, `boundary trait`, found identifier `wire`

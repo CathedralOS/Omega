@@ -5,6 +5,7 @@ use crate::identifier::Identifier;
 use crate::item::{
     BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember,
     HostProviderMappingKind, Item, LibraryFunction, ProofFact, StateParameterNode, StateSignature,
+    WireDataMember,
 };
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use crate::syntax_trees::SyntaxTrees;
@@ -132,6 +133,11 @@ pub enum ItemSnapshot {
         host: Option<TargetHostSnapshot>,
         boundary_policies: Vec<BoundaryPolicySnapshot>,
     },
+    WireData {
+        name: IdentifierSnapshot,
+        encoding: Option<IdentifierSnapshot>,
+        members: Vec<WireDataMemberSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -237,6 +243,23 @@ pub struct HostProviderMappingSnapshot {
     pub machine: IdentifierSnapshot,
     pub kind: &'static str,
     pub value: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WireDataMemberSnapshot {
+    Field {
+        number: i64,
+        name: IdentifierSnapshot,
+        type_reference: TypeReferenceSnapshot,
+    },
+    Reserved {
+        number: i64,
+    },
+    Version {
+        name: IdentifierSnapshot,
+        members: Vec<WireDataMemberSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -722,7 +745,37 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 })
                 .collect(),
         },
+        Item::WireData(value) => ItemSnapshot::WireData {
+            name: snapshot_identifier(&value.name),
+            encoding: value.encoding.as_ref().map(snapshot_identifier),
+            members: snapshot_wire_data_members(syntax_trees, value.members),
+        },
     }
+}
+
+fn snapshot_wire_data_members(
+    syntax_trees: &SyntaxTrees,
+    members: omega_core::arena::HandleSpan<WireDataMember>,
+) -> Vec<WireDataMemberSnapshot> {
+    syntax_trees
+        .items
+        .wire_data_members(members)
+        .iter()
+        .map(|member| match member {
+            WireDataMember::Field(field) => WireDataMemberSnapshot::Field {
+                number: field.number,
+                name: snapshot_identifier(&field.name),
+                type_reference: snapshot_type_reference_handle(syntax_trees, field.type_reference),
+            },
+            WireDataMember::Reserved(reserved) => WireDataMemberSnapshot::Reserved {
+                number: reserved.number,
+            },
+            WireDataMember::Version(version) => WireDataMemberSnapshot::Version {
+                name: snapshot_identifier(&version.name),
+                members: snapshot_wire_data_members(syntax_trees, version.members),
+            },
+        })
+        .collect()
 }
 
 fn snapshot_operator(
