@@ -19,6 +19,10 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
 ) -> Result<(TransitionGuardNode, Input<'tokens, 'source>), ParseError> {
     let (pattern_input, rest) =
         input.split_at_top_level_punctuation(PunctuationKind::Arrow, "expected `->`")?;
+    if looks_like_version_match_arm(pattern_input) {
+        return Err(pattern_input.error_here("version match arms are not implemented yet"));
+    }
+
     if subject.len() == 1
         && let Some(guard) = parse_data_destructure_guard(syntax_trees, pattern_input, subject[0])?
     {
@@ -143,6 +147,24 @@ where
         }
     }
     Ok((values, input))
+}
+
+fn looks_like_version_match_arm(input: Input<'_, '_>) -> bool {
+    let semantic_tokens = input
+        .tokens
+        .iter()
+        .filter(|token| !token.is_non_semantic())
+        .collect::<Vec<_>>();
+
+    semantic_tokens.windows(3).any(|tokens| {
+        tokens[0].punctuation() == Some(PunctuationKind::ColonColon)
+            && tokens[1]
+                .lexeme
+                .as_str()
+                .strip_prefix('v')
+                .is_some_and(|suffix| suffix.chars().all(|ch| ch.is_ascii_digit()))
+            && tokens[2].punctuation() == Some(PunctuationKind::LeftParen)
+    })
 }
 
 fn parse_transition_match_component<'tokens, 'source, T>(
