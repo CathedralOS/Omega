@@ -32,6 +32,7 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
         symbol: machine_symbol,
         name: Identifier::generated("Game"),
         attached_data: None,
+        type_parameters: Default::default(),
         contains: Default::default(),
         owned_data: Default::default(),
         satisfies: Default::default(),
