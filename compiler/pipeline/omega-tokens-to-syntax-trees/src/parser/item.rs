@@ -28,6 +28,16 @@ pub(super) fn parse_item<'tokens, 'source>(
         return parse_item(syntax_trees, input);
     }
 
+    if input.at_contextual("repr") {
+        let input = input.take_contextual("repr")?;
+        let input = input.take_contextual("native")?;
+        let input = input.take_keyword(KeywordKind::Data, "data")?;
+        // `repr native` explicitly requests the compiler's current native
+        // field layout, so no extra representation marker is needed yet.
+        let (item, rest) = parse_data_definition(syntax_trees, input)?;
+        return Ok((Item::Data(item), rest));
+    }
+
     if input.at_contextual("module") {
         let input = input.take_contextual("module")?;
         let (item, rest) = parse_module_declaration(syntax_trees, input)?;
