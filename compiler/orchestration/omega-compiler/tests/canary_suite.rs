@@ -4054,6 +4054,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "constraints/multi_fact_contract_without_separators",
     "constraints/proof_machine_order_fact",
     "constraints/nat_proof_literal_suffix",
+    "constraints/contract_range_membership_unimplemented",
     "constraints/scalar_ensures_field_contract_surface",
     "constraints/scalar_requires_satisfied_by_literal",
     "control_flow/runtime_integer_literal_dispatch_exit",
@@ -4254,12 +4255,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "concurrency/spawn_statement_block",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected identifier, found keyword `self`",
-        },
-    },
-    PendingCanary {
-        path: "constraints/contract_range_membership_unimplemented",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected identifier, found numeric literal `1`",
         },
     },
     PendingCanary {
