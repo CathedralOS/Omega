@@ -4073,6 +4073,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/float_literal_suffix",
     "expressions/integer_literal_suffix",
     "generics/const_machine_value_params",
+    "generics/generic_data_instantiation",
+    "generics/generic_data_type_param",
     "generics/generic_machine_multiple_type_params",
     "generics/generic_machine_type_param_signature",
     "generics/generic_machine_where_machine_requirement",
@@ -4286,18 +4288,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "generics/const_data_param",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `>`, found identifier `N`",
-        },
-    },
-    PendingCanary {
-        path: "generics/generic_data_instantiation",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "references unknown data type `T`",
-        },
-    },
-    PendingCanary {
-        path: "generics/generic_data_type_param",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "references unknown data type `A`",
         },
     },
     PendingCanary {

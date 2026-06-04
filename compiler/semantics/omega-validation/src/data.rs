@@ -1,5 +1,7 @@
 use crate::symbols::TopLevelSymbols;
-use crate::{TypeReferenceOwner, validate_type_reference_handle};
+use crate::type_references::{
+    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
@@ -11,6 +13,7 @@ pub(crate) fn validate_data_field_types(
 ) {
     for data_definition in program.data_definitions() {
         let data_members = program.data_members(data_definition);
+        let type_parameters = program.data_type_parameters(data_definition);
         validate_data_member_names(data_definition, data_members, diagnostics);
         validate_data_shape(data_definition, data_members, diagnostics);
 
@@ -19,7 +22,7 @@ pub(crate) fn validate_data_field_types(
                 continue;
             };
 
-            validate_type_reference_handle(
+            validate_type_reference_handle_with_type_parameters(
                 program,
                 field.type_reference,
                 symbols,
@@ -29,6 +32,7 @@ pub(crate) fn validate_data_field_types(
                     field: field.name.as_str(),
                     generic_depth: 0,
                 },
+                type_parameters,
             );
         }
     }
