@@ -2,9 +2,7 @@ use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::statement::parse_statement_handle;
 use crate::parser::transition::parse_transition_block_handles;
-use crate::parser::type_reference::{
-    parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
-};
+use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
@@ -261,20 +259,17 @@ fn parse_parameter_type_reference<'tokens, 'source>(
         return Ok((type_reference, false, input));
     }
 
-    let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
-    let (borrowed_mutable, input) = if input.at_contextual("mut") {
-        (true, input.take_contextual("mut")?)
-    } else {
-        (false, input)
-    };
-    let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
+    let (type_reference, input) =
+        parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
+    let borrowed_mutable = matches!(
+        syntax_trees.type_references.type_reference(type_reference),
+        omega_syntax_trees::types::TypeReferenceNode::Reference {
+            is_mutable: true,
+            ..
+        }
+    );
     Ok((
-        syntax_trees.type_references.insert(
-            omega_syntax_trees::types::TypeReferenceNode::Reference {
-                referee: type_reference,
-                is_mutable: borrowed_mutable,
-            },
-        ),
+        type_reference,
         borrowed_mutable,
         input,
     ))

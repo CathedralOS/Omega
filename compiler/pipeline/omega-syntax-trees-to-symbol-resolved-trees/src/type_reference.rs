@@ -20,10 +20,12 @@ pub(crate) fn lower_type_reference_handle(
         syntax::types::TypeReferenceNode::Reference {
             referee,
             is_mutable,
+            is_relaxed,
         } => Ok(TypeReference::Reference(ReferenceTypeReference {
             storage: ReferenceTypeReferenceStorage {
                 referee: lower_type_reference_child(lowerer, syntax_trees, *referee)?,
                 is_mutable: *is_mutable,
+                is_relaxed: *is_relaxed,
             },
         })),
         syntax::types::TypeReferenceNode::Constrained {

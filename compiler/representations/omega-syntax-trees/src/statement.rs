@@ -91,6 +91,7 @@ pub enum StatementNode {
     Call(TableCall),
     Expression(crate::expression::ExpressionHandle),
     LocalData(TableLocalData),
+    Relax(TableRelax),
     Transition(TableTransition),
 }
 
@@ -138,6 +139,21 @@ impl Default for TableLocalData {
             name: Identifier::default(),
             type_reference: crate::types::TypeReferenceHandle::invalid(),
             initial_value: crate::expression::ExpressionHandle::invalid(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableRelax {
+    pub target: crate::expression::ExpressionHandle,
+    pub statements: HandleSpan<StatementHandle>,
+}
+
+impl Default for TableRelax {
+    fn default() -> Self {
+        Self {
+            target: crate::expression::ExpressionHandle::invalid(),
+            statements: HandleSpan::empty(),
         }
     }
 }

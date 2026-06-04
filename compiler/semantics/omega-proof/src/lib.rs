@@ -429,6 +429,7 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
         TypeReferenceNode::Reference {
             referee,
             is_mutable,
+            ..
         } => {
             let qualifier = if *is_mutable { "mut " } else { "" };
             format!(

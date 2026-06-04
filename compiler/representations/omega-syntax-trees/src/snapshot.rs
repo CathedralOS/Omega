@@ -291,6 +291,10 @@ pub enum StatementSnapshot {
         type_reference: TypeReferenceSnapshot,
         initial_value: ExpressionSnapshot,
     },
+    Relax {
+        target: ExpressionSnapshot,
+        statements: Vec<StatementSnapshot>,
+    },
     Transition {
         target: TransitionTargetSnapshot,
         continuation: Option<TransitionTargetSnapshot>,
@@ -325,6 +329,7 @@ pub enum TypeReferenceSnapshot {
     Reference {
         referee: Box<TypeReferenceSnapshot>,
         is_mutable: bool,
+        is_relaxed: bool,
     },
     Constrained {
         base_type: Box<TypeReferenceSnapshot>,
@@ -950,6 +955,15 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             type_reference: snapshot_type_reference_handle(syntax_trees, value.type_reference),
             initial_value: snapshot_expression_handle(syntax_trees, value.initial_value),
         },
+        StatementNode::Relax(value) => StatementSnapshot::Relax {
+            target: snapshot_expression_handle(syntax_trees, value.target),
+            statements: syntax_trees
+                .items
+                .statements(value.statements)
+                .iter()
+                .map(|handle| snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle)))
+                .collect(),
+        },
         StatementNode::Transition(value) => StatementSnapshot::Transition {
             target: snapshot_transition_target(
                 syntax_trees,
@@ -1009,9 +1023,11 @@ fn snapshot_type_reference_handle(
         TypeReferenceNode::Reference {
             referee,
             is_mutable,
+            is_relaxed,
         } => TypeReferenceSnapshot::Reference {
             referee: Box::new(snapshot_type_reference_handle(syntax_trees, *referee)),
             is_mutable: *is_mutable,
+            is_relaxed: *is_relaxed,
         },
         TypeReferenceNode::Constrained {
             base_type,

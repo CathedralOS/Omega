@@ -42,6 +42,7 @@ pub struct ReferenceTypeReference {
 pub struct ReferenceTypeReferenceStorage {
     pub referee: Handle<TypeReference>,
     pub is_mutable: bool,
+    pub is_relaxed: bool,
 }
 
 impl Default for ReferenceTypeReferenceStorage {
@@ -49,6 +50,7 @@ impl Default for ReferenceTypeReferenceStorage {
         Self {
             referee: Handle::invalid(),
             is_mutable: false,
+            is_relaxed: false,
         }
     }
 }
@@ -401,6 +403,7 @@ impl TypeReferenceTable {
                 self.insert(TypeReferenceNode::Reference {
                     referee,
                     is_mutable: reference.is_mutable,
+                    is_relaxed: reference.is_relaxed,
                 })
             }
             TypeReference::Constrained(constrained) => {
@@ -482,6 +485,7 @@ pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
         is_mutable: bool,
+        is_relaxed: bool,
     },
     Constrained {
         base_type: TypeReferenceHandle,

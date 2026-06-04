@@ -968,6 +968,7 @@ fn type_descriptor(
         TypeReferenceNode::Reference {
             referee,
             is_mutable,
+            ..
         } => omega_layout::TypeLayoutDescriptor::Reference {
             referee: Box::new(type_descriptor(table, *referee)),
             is_mutable: *is_mutable,

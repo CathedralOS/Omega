@@ -66,6 +66,9 @@ fn lower_statement_node(
                 },
             }))
         }
+        syntax::statement::StatementNode::Relax(relax) => Ok(Statement::Expression(
+            lower_statement_expression(lowerer, syntax_trees, relax.target)?,
+        )),
         syntax::statement::StatementNode::Transition(transition) => {
             Ok(Statement::Transition(Transition {
                 target: lower_transition_target_node(lowerer, syntax_trees, transition.target)?,

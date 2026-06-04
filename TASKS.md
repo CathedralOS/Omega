@@ -69,7 +69,16 @@ Implementation slices below build against these. Minor/easily-reversible details
 
 **Recent canary promotions.** Numeric literal suffixes (`3i32`, `3.0real`,
 `3nat`), newline-separated proof facts, and field `+=` assignment now compile in
-the active pass suite. Full canary suite is green locally: 106 passed.
+the active pass suite. Relax scope syntax (`relax target { ... }`) and relaxed
+borrow parameter spelling (`&mut relaxed T`) now parse/lower and are promoted to
+pass canaries. Full canary suite is green locally: 106 passed.
+
+**Relax semantics follow-up.** Current relax support is intentionally structural:
+syntax is preserved, relaxed reference metadata flows through typed trees, and
+relax scopes flatten during syntax-to-resolved lowering after resolving the target.
+The invariant-weakening semantics still need a checked-tree/proof pass that marks
+which place is relaxed, verifies exclusivity, and restores obligations at scope
+exit.
 
 **Runtime frame aliasing bug found while bringing up dungeon.** A slice
 descriptor parameter can overwrite the inline array storage it points into when

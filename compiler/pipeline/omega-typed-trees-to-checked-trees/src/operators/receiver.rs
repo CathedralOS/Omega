@@ -53,13 +53,16 @@ fn type_reference_matches(
             TypeReferenceNode::Reference {
                 referee: actual_referee,
                 is_mutable: actual_mutable,
+                is_relaxed: actual_relaxed,
             },
             TypeReferenceNode::Reference {
                 referee: expected_referee,
                 is_mutable: expected_mutable,
+                is_relaxed: expected_relaxed,
             },
         ) => {
             actual_mutable == expected_mutable
+                && actual_relaxed == expected_relaxed
                 && type_reference_matches(
                     program,
                     *actual_referee,

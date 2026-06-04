@@ -646,6 +646,7 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::Reference {
                 referee,
                 is_mutable,
+                ..
             } => TypeLayoutDescriptor::Reference {
                 referee: Box::new(self.type_descriptor(*referee)),
                 is_mutable: *is_mutable,

@@ -7,8 +7,9 @@ impl TypeReferenceNode {
             TypeReferenceNode::Reference {
                 referee,
                 is_mutable,
+                is_relaxed,
             } => {
-                let qualifier = if *is_mutable { "mut " } else { "" };
+                let qualifier = reference_qualifier(*is_mutable, *is_relaxed);
                 format!("&{qualifier}{}", table.display_name(*referee))
             }
             TypeReferenceNode::Constrained {
@@ -59,8 +60,9 @@ impl TypeReferenceNode {
             TypeReferenceNode::Reference {
                 referee,
                 is_mutable,
+                is_relaxed,
             } => {
-                let qualifier = if *is_mutable { "mut " } else { "" };
+                let qualifier = reference_qualifier(*is_mutable, *is_relaxed);
                 format!(
                     "&{qualifier}{}",
                     table.display_name_with_constraints(*referee, expressions)
@@ -109,6 +111,15 @@ impl TypeReferenceNode {
             TypeReferenceNode::Named { name, .. } => name.to_string(),
             TypeReferenceNode::Unit => "()".to_owned(),
         }
+    }
+}
+
+fn reference_qualifier(is_mutable: bool, is_relaxed: bool) -> &'static str {
+    match (is_mutable, is_relaxed) {
+        (true, true) => "mut relaxed ",
+        (true, false) => "mut ",
+        (false, true) => "relaxed ",
+        (false, false) => "",
     }
 }
 
