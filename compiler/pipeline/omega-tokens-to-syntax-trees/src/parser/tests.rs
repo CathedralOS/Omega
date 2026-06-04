@@ -442,6 +442,52 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
 }
 
 #[test]
+fn parses_asm_jmp_block_as_transition_statement() {
+    let source = r#"
+        data Main {
+            value: i32;
+        }
+
+        machine Main::main(&mut self) {
+            asm {
+                jmp other()
+            }
+
+            state other() {}
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let entry = parsed
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state");
+    let state = parsed.items.state(entry);
+    let statement = parsed
+        .items
+        .statements(state.statements)
+        .first()
+        .copied()
+        .expect("asm transition");
+    assert!(matches!(
+        parsed.statements.statement(statement),
+        StatementNode::Transition(_)
+    ));
+}
+
+#[test]
 fn parses_executable_domain_membership_intersection_expression() {
     let source = r#"
         data Player {
