@@ -352,6 +352,10 @@ pub enum TransitionTargetSnapshot {
     Invalid {
         handle: u32,
     },
+    Unary {
+        operator: String,
+        operand: Box<ExpressionSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -411,6 +415,10 @@ pub enum ExpressionSnapshot {
     },
     Invalid {
         handle: u32,
+    },
+    Unary {
+        operator: String,
+        operand: Box<ExpressionSnapshot>,
     },
 }
 
@@ -879,6 +887,10 @@ fn expression_snapshot(program: &TypedTrees, expression: ExpressionHandle) -> Ex
         },
         ExpressionNode::String(value) => ExpressionSnapshot::String {
             value: value.to_string(),
+        },
+        ExpressionNode::Unary(unary) => ExpressionSnapshot::Unary {
+            operator: unary.operator.display_name().to_owned(),
+            operand: Box::new(expression_snapshot(program, unary.operand)),
         },
     }
 }

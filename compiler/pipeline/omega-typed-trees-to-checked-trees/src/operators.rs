@@ -104,6 +104,9 @@ fn collect_expression_operator_use(
         ExpressionNode::Mutable(inner) => {
             collect_expression_operator_use(program, *inner, origin, seen, uses, candidates);
         }
+        ExpressionNode::Unary(unary) => {
+            collect_expression_operator_use(program, unary.operand, origin, seen, uses, candidates);
+        }
         ExpressionNode::Range(range) => {
             collect_expression_operator_use(program, range.start, origin, seen, uses, candidates);
             collect_expression_operator_use(program, range.end, origin, seen, uses, candidates);

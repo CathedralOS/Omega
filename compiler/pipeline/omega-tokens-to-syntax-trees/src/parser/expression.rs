@@ -2,7 +2,8 @@ use crate::parser::context::ExpressionContext;
 use crate::parser::input::{Input, ParseResult};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableUnaryExpression,
+    UnaryOperator,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -227,6 +228,20 @@ fn parse_unary_expression_handle<'tokens, 'source>(
         }
 
         return parse_unary_expression_handle(syntax_trees, input, context);
+    }
+
+    if input.at_punctuation(PunctuationKind::Exclamation) {
+        let input = input.take_punctuation(PunctuationKind::Exclamation, "!")?;
+        let (operand, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
+        return Ok((
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Unary(TableUnaryExpression {
+                    operator: UnaryOperator::LogicalNot,
+                    operand,
+                })),
+            rest,
+        ));
     }
 
     parse_postfix_expression_handle(syntax_trees, input, context)

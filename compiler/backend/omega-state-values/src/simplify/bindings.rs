@@ -167,6 +167,13 @@ fn simple_local_binding_value_from_table(
         }))),
         ExpressionNode::Mutable(inner) => simple_local_binding_value_from_table(table, *inner)
             .map(|value| Expression::Mutable(Box::new(value))),
+        ExpressionNode::Unary(unary) => simple_local_binding_value_from_table(table, unary.operand)
+            .map(|operand| {
+                Expression::Unary(Box::new(omega_checked_trees::expression::UnaryExpression {
+                    operator: unary.operator,
+                    operand,
+                }))
+            }),
         ExpressionNode::Name(path) => {
             Some(Expression::Name(NamePath::resolved_with_member_symbols(
                 table.name_path_members(path.members).to_vec(),

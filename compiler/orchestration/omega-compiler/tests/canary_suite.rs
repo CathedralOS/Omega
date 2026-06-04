@@ -4031,6 +4031,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "operators/core_operator_spelling_surface",
     "operators/slice_index_via_spelling_compile",
     "operators/accepted_core_provider_binding",
+    "operators/unary_logical_not",
     "traits/trait_composition_satisfies",
     "traits/trait_declaration_bundle",
     "traits/trait_satisfies_machine_signature",
@@ -4380,12 +4381,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "modules/pub_visibility_modifier",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "found keyword `pub`",
-        },
-    },
-    PendingCanary {
-        path: "operators/unary_logical_not",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected expression",
         },
     },
     PendingCanary {

@@ -124,7 +124,8 @@ fn classify_runtime_text_source(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::StructLiteral(_)
-        | ExpressionNode::String(_) => RuntimeTextSource::OtherExpression,
+        | ExpressionNode::String(_)
+        | ExpressionNode::Unary(_) => RuntimeTextSource::OtherExpression,
     }
 }
 

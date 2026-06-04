@@ -198,7 +198,8 @@ fn classify_runtime_text_builder_segment(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Mutable(_)
         | ExpressionNode::Range(_)
-        | ExpressionNode::StructLiteral(_) => RuntimeTextBuilderSegmentKind::OtherExpression,
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::Unary(_) => RuntimeTextBuilderSegmentKind::OtherExpression,
     }
 }
 
@@ -219,6 +220,7 @@ fn is_obvious_runtime_text_value(table: &ExpressionTable, expression: Expression
                 && (contains_runtime_text_anchor(table, binary.left)
                     || contains_runtime_text_anchor(table, binary.right))
         }
+        ExpressionNode::Unary(unary) => is_obvious_runtime_text_value(table, unary.operand),
         _ => false,
     }
 }
@@ -239,6 +241,7 @@ fn is_runtime_text_segment_like(table: &ExpressionTable, expression: ExpressionH
                 && is_runtime_text_segment_like(table, binary.right)
         }
         ExpressionNode::Mutable(inner) => is_runtime_text_segment_like(table, *inner),
+        ExpressionNode::Unary(unary) => is_runtime_text_segment_like(table, unary.operand),
         ExpressionNode::Range(_) => false,
         ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
@@ -257,6 +260,7 @@ fn contains_runtime_text_anchor(table: &ExpressionTable, expression: ExpressionH
                 || contains_runtime_text_anchor(table, binary.right)
         }
         ExpressionNode::Mutable(inner) => contains_runtime_text_anchor(table, *inner),
+        ExpressionNode::Unary(unary) => contains_runtime_text_anchor(table, unary.operand),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
@@ -293,6 +297,7 @@ fn classify_runtime_text_write(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Mutable(_)
         | ExpressionNode::Range(_)
-        | ExpressionNode::StructLiteral(_) => RuntimeTextWriteKind::OtherExpression,
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::Unary(_) => RuntimeTextWriteKind::OtherExpression,
     }
 }

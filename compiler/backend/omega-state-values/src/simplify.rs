@@ -15,7 +15,7 @@ use crate::StateValueRole;
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{
     BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression,
-    StructLiteral, StructLiteralField,
+    StructLiteral, StructLiteralField, UnaryOperator,
 };
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::state::State;
@@ -173,6 +173,18 @@ fn simplify_expression_with_bindings(
                 bindings,
                 preserve_call_locals,
             )))
+        }
+        Expression::Unary(unary) => {
+            let operand = simplify_expression_with_bindings(
+                program,
+                machine,
+                &unary.operand,
+                bindings,
+                preserve_call_locals,
+            );
+            match unary.operator {
+                UnaryOperator::LogicalNot => boolean_not(operand),
+            }
         }
         Expression::Name(path) => bindings
             .find_path_binding(path)

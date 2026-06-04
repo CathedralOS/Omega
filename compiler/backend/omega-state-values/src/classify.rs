@@ -20,5 +20,6 @@ pub(super) fn value_kind(table: &ExpressionTable, expression: ExpressionHandle) 
         ExpressionNode::Mutable(_) => StateValueKind::MutablePlace,
         ExpressionNode::Range(_) => StateValueKind::Binary,
         ExpressionNode::StructLiteral(_) => StateValueKind::Struct,
+        ExpressionNode::Unary(_) => StateValueKind::Binary,
     }
 }

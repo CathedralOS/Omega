@@ -134,6 +134,7 @@ fn expression_is_place_like(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::String(_)
-        | ExpressionNode::StructLiteral(_) => false,
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::Unary(_) => false,
     }
 }

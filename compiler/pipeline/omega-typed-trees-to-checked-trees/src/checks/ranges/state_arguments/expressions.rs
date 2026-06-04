@@ -98,6 +98,15 @@ pub(super) fn collect_state_argument_facts_from_expression(
                 program, machine, facts, *inner, collected,
             );
         }
+        ExpressionNode::Unary(unary) => {
+            collect_state_argument_facts_from_expression(
+                program,
+                machine,
+                facts,
+                unary.operand,
+                collected,
+            );
+        }
         ExpressionNode::Range(range) => {
             collect_state_argument_facts_from_expression(
                 program,

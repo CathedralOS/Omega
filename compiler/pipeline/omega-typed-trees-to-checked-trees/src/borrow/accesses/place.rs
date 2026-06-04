@@ -118,6 +118,7 @@ pub(crate) fn borrow_access_place(
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
-        | ExpressionNode::StructLiteral(_) => None,
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::Unary(_) => None,
     }
 }

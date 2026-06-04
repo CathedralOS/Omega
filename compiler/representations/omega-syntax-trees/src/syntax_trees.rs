@@ -860,6 +860,13 @@ impl SyntaxTrees {
                 })
             }
             ExpressionNode::String(value) => ExpressionNode::String(value.clone()),
+            ExpressionNode::Unary(unary) => {
+                let operand = self.copy_expression_handle(other, unary.operand);
+                ExpressionNode::Unary(crate::expression::TableUnaryExpression {
+                    operator: unary.operator,
+                    operand,
+                })
+            }
         };
 
         self.expressions.insert(expression)

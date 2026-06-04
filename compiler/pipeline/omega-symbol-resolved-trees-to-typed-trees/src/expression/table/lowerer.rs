@@ -156,6 +156,15 @@ impl<'program, 'target> ExpressionTableLowerer<'program, 'target> {
                         value.shared_text(),
                     )))
             }
+            resolved::expression::ExpressionNode::Unary(unary) => {
+                let operand = self.lower(unary.operand)?;
+                Ok(self.target.insert(typed::expression::ExpressionNode::Unary(
+                    typed::expression::TableUnaryExpression {
+                        operator: lower_unary_operator(unary.operator),
+                        operand,
+                    },
+                )))
+            }
         }
     }
 
@@ -227,5 +236,15 @@ impl<'program, 'target> ExpressionTableLowerer<'program, 'target> {
         }
         let value = self.lower(membership.value)?;
         lower_domain_membership_expression(program, self.target, value, membership.domain_symbol)
+    }
+}
+
+fn lower_unary_operator(
+    operator: resolved::expression::UnaryOperator,
+) -> typed::expression::UnaryOperator {
+    match operator {
+        resolved::expression::UnaryOperator::LogicalNot => {
+            typed::expression::UnaryOperator::LogicalNot
+        }
     }
 }

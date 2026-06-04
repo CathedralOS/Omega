@@ -56,6 +56,7 @@ pub(super) fn collect_read_accesses(
         ExpressionNode::Mutable(inner_expression) => {
             collect_read_accesses(collection, *inner_expression)
         }
+        ExpressionNode::Unary(unary) => collect_read_accesses(collection, unary.operand),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in collection
                 .program

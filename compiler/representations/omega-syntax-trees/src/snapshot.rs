@@ -410,6 +410,10 @@ pub enum ExpressionSnapshot {
     String {
         text: String,
     },
+    Unary {
+        operator: &'static str,
+        operand: Box<ExpressionSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1110,6 +1114,10 @@ fn snapshot_expression_handle(
         },
         ExpressionNode::String(value) => ExpressionSnapshot::String {
             text: value.as_str().to_owned(),
+        },
+        ExpressionNode::Unary(unary) => ExpressionSnapshot::Unary {
+            operator: unary.operator.display_name(),
+            operand: Box::new(snapshot_expression_handle(syntax_trees, unary.operand)),
         },
     }
 }

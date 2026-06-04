@@ -120,6 +120,7 @@ fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle
         | ExpressionNode::Name(_) => true,
         ExpressionNode::Range(_) => false,
         ExpressionNode::Mutable(inner) => is_boolean_fact_expression(program, *inner),
+        ExpressionNode::Unary(unary) => is_boolean_fact_expression(program, unary.operand),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)

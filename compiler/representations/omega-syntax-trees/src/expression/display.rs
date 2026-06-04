@@ -1,6 +1,6 @@
 use crate::expression::{
     BinaryOperator, ExpressionNode, ExpressionTable, TableBinaryExpression, TableCallExpression,
-    TableCastExpression,
+    TableCastExpression, TableUnaryExpression, UnaryOperator,
 };
 use crate::identifier::Identifier;
 
@@ -54,6 +54,7 @@ impl ExpressionNode {
             Self::SelfValue => "self".to_owned(),
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Self::String(value) => format!("{:?}", value.as_str()),
+            Self::Unary(unary) => unary.display_name(table),
         }
     }
 }
@@ -65,6 +66,16 @@ impl TableBinaryExpression {
             table.display_name(self.left),
             self.operator.display_name(),
             table.display_name(self.right)
+        )
+    }
+}
+
+impl TableUnaryExpression {
+    pub fn display_name(&self, table: &ExpressionTable) -> String {
+        format!(
+            "{}{}",
+            self.operator.display_name(),
+            table.display_name(self.operand)
         )
     }
 }
@@ -119,6 +130,14 @@ impl BinaryOperator {
             Self::ShiftLeft => "<<",
             Self::ShiftRight => ">>",
             Self::Subtract => "-",
+        }
+    }
+}
+
+impl UnaryOperator {
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::LogicalNot => "!",
         }
     }
 }

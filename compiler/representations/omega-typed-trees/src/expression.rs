@@ -28,6 +28,7 @@ pub enum Expression {
     Range(Box<RangeExpression>),
     StructLiteral(StructLiteral),
     String(Arc<str>),
+    Unary(Box<UnaryExpression>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -341,6 +342,13 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::String(value) => self.insert(ExpressionNode::String(value.clone())),
+            ExpressionNode::Unary(unary) => {
+                let operand = self.copy_from(source, unary.operand);
+                self.insert(ExpressionNode::Unary(TableUnaryExpression {
+                    operator: unary.operator,
+                    operand,
+                }))
+            }
         }
     }
 
@@ -1013,6 +1021,13 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::String(value) => self.insert(ExpressionNode::String(value)),
+            ExpressionNode::Unary(unary) => {
+                let operand = self.insert_copy(unary.operand);
+                self.insert(ExpressionNode::Unary(TableUnaryExpression {
+                    operator: unary.operator,
+                    operand,
+                }))
+            }
         }
     }
 
@@ -1172,6 +1187,13 @@ impl ExpressionTable {
                 }))
             }
             Expression::String(value) => self.insert(ExpressionNode::String(value.clone())),
+            Expression::Unary(unary) => {
+                let operand = self.insert_tree(&unary.operand);
+                self.insert(ExpressionNode::Unary(TableUnaryExpression {
+                    operator: unary.operator,
+                    operand,
+                }))
+            }
         }
     }
 
@@ -1253,6 +1275,10 @@ impl ExpressionTable {
                 })
             }
             ExpressionNode::String(value) => Expression::String(value.clone()),
+            ExpressionNode::Unary(unary) => Expression::Unary(Box::new(UnaryExpression {
+                operator: unary.operator,
+                operand: self.to_tree(unary.operand),
+            })),
         }
     }
 
@@ -1363,6 +1389,7 @@ pub enum ExpressionNode {
     Range(TableRangeExpression),
     StructLiteral(TableStructLiteral),
     String(Arc<str>),
+    Unary(TableUnaryExpression),
 }
 
 impl Default for ExpressionNode {
@@ -1376,6 +1403,18 @@ pub struct TableBinaryExpression {
     pub left: ExpressionHandle,
     pub operator: BinaryOperator,
     pub right: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnaryExpression {
+    pub operator: UnaryOperator,
+    pub operand: Expression,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableUnaryExpression {
+    pub operator: UnaryOperator,
+    pub operand: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1724,6 +1763,11 @@ pub enum BinaryOperator {
     ShiftLeft,
     ShiftRight,
     Subtract,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnaryOperator {
+    LogicalNot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

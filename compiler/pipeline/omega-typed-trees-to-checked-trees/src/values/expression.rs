@@ -51,6 +51,9 @@ impl ValueFactBuilder<'_> {
             ExpressionNode::Mutable(value) => {
                 self.collect_nested_expression(expression, *value);
             }
+            ExpressionNode::Unary(unary) => {
+                self.collect_nested_expression(expression, unary.operand);
+            }
             ExpressionNode::Range(range) => {
                 self.collect_nested_expression(expression, range.start);
                 self.collect_nested_expression(expression, range.end);

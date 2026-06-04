@@ -60,6 +60,9 @@ pub(super) fn check_expression(
         ExpressionNode::Mutable(inner) => {
             check_expression(program, machine, state, facts, *inner, diagnostics)
         }
+        ExpressionNode::Unary(unary) => {
+            check_expression(program, machine, state, facts, unary.operand, diagnostics)
+        }
         ExpressionNode::Range(range) => {
             if range.start.is_valid() {
                 check_expression(program, machine, state, facts, range.start, diagnostics);

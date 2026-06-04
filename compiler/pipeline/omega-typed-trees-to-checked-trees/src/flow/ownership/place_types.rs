@@ -32,7 +32,8 @@ pub(in crate::flow::ownership) fn expression_type_reference_in_state(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::String(_)
-        | ExpressionNode::StructLiteral(_) => None,
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::Unary(_) => None,
     }
 }
 

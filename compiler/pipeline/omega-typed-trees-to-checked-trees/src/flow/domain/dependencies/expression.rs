@@ -128,6 +128,14 @@ pub(super) fn collect_dependency_paths_from_expression(
                 dependencies,
             );
         }
+        ExpressionNode::Unary(unary) => {
+            collect_dependency_paths_from_expression(
+                program,
+                unary.operand,
+                self_type_symbol,
+                dependencies,
+            );
+        }
         ExpressionNode::Name(_) => {
             if let Some(place) = canonical_place_from_expression(program, expression) {
                 dependencies.push(place.segments);
