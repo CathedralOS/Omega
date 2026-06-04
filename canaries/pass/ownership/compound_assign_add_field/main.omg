@@ -1,0 +1,14 @@
+// Chapter 2: mutable-borrow examples use compound assignment
+// (`self.health += amount;`), which lowers to an ordinary assignment with an
+// additive read of the same place.
+data Player {
+    health: i32;
+}
+
+machine Player::heal(&mut self, amount: i32) {
+    self.health += amount;
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

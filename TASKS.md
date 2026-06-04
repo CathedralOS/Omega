@@ -67,6 +67,10 @@ Implementation slices below build against these. Minor/easily-reversible details
 
 ## Next Up (highest leverage)
 
+**Recent canary promotions.** Numeric literal suffixes (`3i32`, `3.0real`,
+`3nat`), newline-separated proof facts, and field `+=` assignment now compile in
+the active pass suite. Full canary suite is green locally: 106 passed.
+
 **Runtime frame aliasing bug found while bringing up dungeon.** A slice
 descriptor parameter can overwrite the inline array storage it points into when
 state parameter slots are reused across a call/transition boundary. Repro shape:
@@ -75,6 +79,14 @@ by-value runtime-frame parameter and the callee's `rooms` descriptor slot is
 assigned over `level.rooms`. The visible copy range is only the 16-byte
 descriptor, so current scratch staging misses the hidden pointee range. Fix in
 frame-slot assignment/staging so descriptor payload source ranges are first-class.
+
+**Dungeon sample is functional by bypassing unstable room lookup.** Native dungeon
+now drives movement, treasure, combat, fountain, side-room gold, inventory, repeat
+use/fight, invalid input, and exits without crashing. This is a sample hardening
+fix, not the deeper compiler fix: `RoomLookup::find_room_mut`/dynamic slice search
+still misroutes mutable room references, so keep a dedicated canary/backlog item
+for mutable slice-returned room lookup before moving generated-room events back
+onto `Room` data.
 
 **RESUME POINT (next session).** main `d20d1c06`, synced, clean. Wave A landed
 (Cv/Tm/Cap/R/B). Wave B-1: E3 Stdin host binding landed; DB dispatch-branch
@@ -369,10 +381,9 @@ under full-suite parallelism (build-dir race); it passes run alone / with
   (focused on intended diagnostics), `pending` = desired behavior known but
   implementation behind. Promote pending quickly when fixed; don't let
   compile-only pass canaries imply runtime support.
-- Known red (see "Next Up"): `pass_canaries_compile` + stdin canaries abort on
-  the missing `Stdin.read` host binding; ~26 `*_canary_runs` still fault on the
-  remaining zero-byte-instruction relocation arms; a few fail to compile on the
-  unimplemented x86_64 runtime value operand. Runtime canaries currently 46 pass.
+- Current local suite status: `cargo test -p omega-compiler --test canary_suite`
+  passes all active canaries. Keep this line current when backend/runtime work
+  moves canaries between `pass`, `fail`, and `pending`.
 
 ### Docs
 

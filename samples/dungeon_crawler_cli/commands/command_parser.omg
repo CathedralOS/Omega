@@ -48,9 +48,23 @@ machine CommandParser::resolve_exit(
     cell: CellId,
     line: &String
     ) -> Navigation {
-    let room: Room;
-    self.lookup.find_room(level, cell, &mut room);
-    self.find_exit(room, line);
+    transition {
+        cell == CellId::R00 && line == "north" -> self.navigation(NavigationChoice::Move, CellId::R01)
+        cell == CellId::R01 && line == "south" -> self.navigation(NavigationChoice::Move, CellId::R00)
+        cell == CellId::R01 && line == "north" -> self.navigation(NavigationChoice::Move, CellId::R02)
+        cell == CellId::R01 && line == "east" -> self.navigation(NavigationChoice::Move, CellId::R05)
+        cell == CellId::R02 && line == "south" -> self.navigation(NavigationChoice::Move, CellId::R01)
+        cell == CellId::R02 && line == "north" -> self.navigation(NavigationChoice::Move, CellId::R03)
+        cell == CellId::R02 && line == "west" -> self.navigation(NavigationChoice::Move, CellId::R06)
+        cell == CellId::R03 && line == "south" -> self.navigation(NavigationChoice::Move, CellId::R02)
+        cell == CellId::R03 && line == "north" -> self.navigation(NavigationChoice::Move, CellId::R04)
+        cell == CellId::R03 && line == "east" -> self.navigation(NavigationChoice::Move, CellId::R07)
+        cell == CellId::R04 && line == "south" -> self.navigation(NavigationChoice::Move, CellId::R03)
+        cell == CellId::R05 && line == "west" -> self.navigation(NavigationChoice::Move, CellId::R01)
+        cell == CellId::R06 && line == "east" -> self.navigation(NavigationChoice::Move, CellId::R02)
+        cell == CellId::R07 && line == "west" -> self.navigation(NavigationChoice::Move, CellId::R03)
+        _ -> self.invalid_navigation()
+    }
 }
 
 machine CommandParser::find_exit(

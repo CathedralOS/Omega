@@ -7,9 +7,6 @@ pub(super) fn parse_integer_literal(
     if kind.empty_digits {
         return Err("invalid integer literal");
     }
-    if kind.has_suffix {
-        return Err("integer literal suffixes are not supported yet");
-    }
 
     let (radix, body) = match kind.base {
         NumericBase::Binary => (
@@ -28,17 +25,51 @@ pub(super) fn parse_integer_literal(
     };
 
     let body = body.ok_or("invalid integer literal")?;
+    let body = if kind.has_suffix {
+        strip_integer_suffix(body)?
+    } else {
+        body
+    };
     let normalized: String = body.chars().filter(|character| *character != '_').collect();
     i64::from_str_radix(&normalized, radix).map_err(|_| "invalid integer literal")
 }
 
-pub(super) fn validate_float_literal(kind: FloatLiteralKind) -> Result<(), &'static str> {
+pub(super) fn validate_float_literal(
+    text: &str,
+    kind: FloatLiteralKind,
+) -> Result<(), &'static str> {
     if kind.empty_exponent {
         return Err("invalid float literal");
     }
     if kind.has_suffix {
-        return Err("float literal suffixes are not supported yet");
+        strip_float_suffix(text)?;
     }
 
     Ok(())
 }
+
+fn strip_integer_suffix(text: &str) -> Result<&str, &'static str> {
+    for suffix in INTEGER_SUFFIXES {
+        if let Some(digits) = text.strip_suffix(suffix) {
+            return Ok(digits);
+        }
+    }
+
+    Err("unknown integer literal suffix")
+}
+
+fn strip_float_suffix(text: &str) -> Result<&str, &'static str> {
+    for suffix in FLOAT_SUFFIXES {
+        if let Some(digits) = text.strip_suffix(suffix) {
+            return Ok(digits);
+        }
+    }
+
+    Err("unknown float literal suffix")
+}
+
+const INTEGER_SUFFIXES: &[&str] = &[
+    "isize", "usize", "nat", "Nat", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64",
+];
+
+const FLOAT_SUFFIXES: &[&str] = &["real", "Real", "f32", "f64"];

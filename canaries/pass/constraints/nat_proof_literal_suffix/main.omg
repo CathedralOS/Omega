@@ -1,8 +1,7 @@
 // Chapter 10 "Typed Facts": `3nat * 3nat` is math over `Nat` (proof arithmetic),
 // distinct from machine arithmetic like `3i32 * 3i32`. The closed `pythagorean`
 // equality is meant to reduce both sides to the same `Nat` and close by
-// reflexivity. The `nat`-suffixed literal surface is documented but not yet
-// implemented: integer literal suffixes are not supported by the lexer.
+// reflexivity.
 
 machine pythagorean_3_4_5()
 ensures

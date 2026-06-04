@@ -35,6 +35,10 @@ machine Game::run_game_loop(&mut self) {
         self.view.render_room(
             self.dungeon.level,
             self.dungeon.current_cell,
+            self.dungeon.treasure_taken,
+            self.dungeon.gold_taken,
+            self.dungeon.fountain_used,
+            self.dungeon.enemy_defeated,
             &mut self.console,
             &mut self.output
         );
@@ -55,21 +59,35 @@ machine Game::run_game_loop(&mut self) {
     state read_command(&mut self) {
         self.view.render_prompt(&mut self.console);
         self.console.read_line(&mut self.input);
-        self.dungeon.navigation = self.parser.resolve_navigation(
-            self.dungeon.level,
-            self.dungeon.current_cell,
-            &self.input
-        );
 
-        transition self.dungeon.navigation.choice {
-            NavigationChoice::Quit -> finished()
-            NavigationChoice::Look -> look()
-            NavigationChoice::Exits -> exits()
-            NavigationChoice::Inventory -> inventory()
-            NavigationChoice::Character -> character()
-            NavigationChoice::UseEvent -> use_event()
-            NavigationChoice::Fight -> fight()
-            NavigationChoice::Move -> attempt_move()
+        transition {
+            self.input == "quit" -> finished()
+            self.input == "exit" -> finished()
+            self.input == "look" -> look()
+            self.input == "info" -> look()
+            self.input == "paths" -> exits()
+            self.input == "help" -> exits()
+            self.input == "inventory" -> inventory()
+            self.input == "inv" -> inventory()
+            self.input == "char" -> character()
+            self.input == "character" -> character()
+            self.input == "stats" -> character()
+            self.input == "use" -> use_event()
+            self.input == "fight" -> fight()
+            self.dungeon.current_cell == CellId::R00 && self.input == "north" -> move_r01()
+            self.dungeon.current_cell == CellId::R01 && self.input == "south" -> move_r00()
+            self.dungeon.current_cell == CellId::R01 && self.input == "north" -> move_r02()
+            self.dungeon.current_cell == CellId::R01 && self.input == "east" -> move_r05()
+            self.dungeon.current_cell == CellId::R02 && self.input == "south" -> move_r01()
+            self.dungeon.current_cell == CellId::R02 && self.input == "north" -> move_r03()
+            self.dungeon.current_cell == CellId::R02 && self.input == "west" -> move_r06()
+            self.dungeon.current_cell == CellId::R03 && self.input == "south" -> move_r02()
+            self.dungeon.current_cell == CellId::R03 && self.input == "north" -> move_r04()
+            self.dungeon.current_cell == CellId::R03 && self.input == "east" -> move_r07()
+            self.dungeon.current_cell == CellId::R04 && self.input == "south" -> move_r03()
+            self.dungeon.current_cell == CellId::R05 && self.input == "west" -> move_r01()
+            self.dungeon.current_cell == CellId::R06 && self.input == "east" -> move_r02()
+            self.dungeon.current_cell == CellId::R07 && self.input == "west" -> move_r03()
             _ -> invalid_command()
         }
     }
@@ -78,6 +96,10 @@ machine Game::run_game_loop(&mut self) {
         self.view.render_look(
             self.dungeon.level,
             self.dungeon.current_cell,
+            self.dungeon.treasure_taken,
+            self.dungeon.gold_taken,
+            self.dungeon.fountain_used,
+            self.dungeon.enemy_defeated,
             &mut self.console,
             &mut self.output
         );
@@ -147,6 +169,70 @@ machine Game::run_game_loop(&mut self) {
 
     state move_player(&mut self) {
         self.dungeon.move_to(self.dungeon.navigation.destination);
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state move_r00(&mut self) {
+        self.dungeon.move_to(CellId::R00);
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state move_r01(&mut self) {
+        self.dungeon.move_to(CellId::R01);
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state move_r02(&mut self) {
+        self.dungeon.move_to(CellId::R02);
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state move_r03(&mut self) {
+        self.dungeon.move_to(CellId::R03);
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state move_r04(&mut self) {
+        self.dungeon.move_to(CellId::R04);
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state move_r05(&mut self) {
+        self.dungeon.move_to(CellId::R05);
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state move_r06(&mut self) {
+        self.dungeon.move_to(CellId::R06);
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state move_r07(&mut self) {
+        self.dungeon.move_to(CellId::R07);
 
         transition {
             _ -> enter_room()

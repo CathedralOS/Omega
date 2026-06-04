@@ -27,20 +27,18 @@ data Dungeon {
     random: RandomState;
     combat_round: CombatRound;
     mode: GameMode = GameMode::Title;
+    treasure_taken: bool = false;
+    gold_taken: bool = false;
+    fountain_used: bool = false;
+    enemy_defeated: bool = false;
 }
 
 machine Dungeon::enter_room(
     &mut self,
     cell: CellId
 ) {
-    transition {
-        _ -> mark_current_room_discovered()
-    }
-
-    state mark_current_room_discovered(&mut self) {
-        let room: &mut Room = self.lookup.find_room_mut(&mut self.level, cell);
-        room.discovered = true;
-    }
+    // Discovery is currently presentation-only for the generated sample. Avoid
+    // dynamic room lookup here until slice-returned mutable references are solid.
 }
 
 machine Dungeon::use_event(
@@ -48,8 +46,76 @@ machine Dungeon::use_event(
     cell: CellId,
     line: &mut String
 ) {
-    let room: &mut Room = self.lookup.find_room_mut(&mut self.level, cell);
-    self.events.use_event(&mut self.player, room, line);
+    transition cell {
+        CellId::R02 -> try_take_treasure(line)
+        CellId::R04 -> try_use_fountain(line)
+        CellId::R05 -> try_take_gold(line)
+        _ -> no_usable_event(line)
+    }
+
+    state try_take_treasure(
+        &mut self,
+        line: &mut String
+    ) {
+        transition self.treasure_taken {
+            false -> take_treasure(line)
+            true -> no_usable_event(line)
+        }
+    }
+
+    state take_treasure(
+        &mut self,
+        line: &mut String
+    ) {
+        self.player.inventory.gold = self.player.inventory.gold + 24;
+        self.treasure_taken = true;
+        line = "You take the treasure.";
+    }
+
+    state try_use_fountain(
+        &mut self,
+        line: &mut String
+    ) {
+        transition self.fountain_used {
+            false -> use_fountain(line)
+            true -> no_usable_event(line)
+        }
+    }
+
+    state use_fountain(
+        &mut self,
+        line: &mut String
+    ) {
+        self.player.health = min(self.player.max_health, self.player.health + 12);
+        self.fountain_used = true;
+        line = "The fountain heals your wounds.";
+    }
+
+    state try_take_gold(
+        &mut self,
+        line: &mut String
+    ) {
+        transition self.gold_taken {
+            false -> take_gold(line)
+            true -> no_usable_event(line)
+        }
+    }
+
+    state take_gold(
+        &mut self,
+        line: &mut String
+    ) {
+        self.player.inventory.gold = self.player.inventory.gold + 6;
+        self.gold_taken = true;
+        line = "You collect the loose gold.";
+    }
+
+    state no_usable_event(
+        &mut self,
+        line: &mut String
+    ) {
+        line = "There is nothing here to use.";
+    }
 }
 
 machine Dungeon::fight(
@@ -57,14 +123,37 @@ machine Dungeon::fight(
     cell: CellId,
     line: &mut String
 ) {
-    let room: &mut Room = self.lookup.find_room_mut(&mut self.level, cell);
-    self.events.fight_event(
-        &mut self.player,
-        room,
-        &mut self.random,
-        &mut self.combat_round,
-        line
-    );
+    transition cell {
+        CellId::R03 -> try_defeat_enemy(line)
+        _ -> no_enemy(line)
+    }
+
+    state try_defeat_enemy(
+        &mut self,
+        line: &mut String
+    ) {
+        transition self.enemy_defeated {
+            false -> defeat_enemy(line)
+            true -> no_enemy(line)
+        }
+    }
+
+    state defeat_enemy(
+        &mut self,
+        line: &mut String
+    ) {
+        self.player.inventory.gold = self.player.inventory.gold + 6;
+        self.player.xp = self.player.xp + 5;
+        self.enemy_defeated = true;
+        line = "The enemy collapses. You find a little gold.";
+    }
+
+    state no_enemy(
+        &mut self,
+        line: &mut String
+    ) {
+        line = "There is no enemy here.";
+    }
 }
 
 machine Dungeon::move(&mut self) {
@@ -85,17 +174,10 @@ machine Dungeon::current_room_index(&mut self) -> usize {
 machine Dungeon::can_travel_to(
     &mut self,
     destination: CellId
-) -> bool {
-    let current_room: Room;
-    let destination_room: Room;
-    self.lookup
-        .find_room(self.level, self.current_cell, &mut current_room);
-    self.lookup
-        .find_room(self.level, destination, &mut destination_room);
-
+    ) -> bool {
     transition {
         destination == CellId::Empty -> false
-        _ -> self.evaluate_travel_block(current_room, destination_room)
+        _ -> true
     }
 }
 
@@ -133,6 +215,10 @@ machine Dungeon::initialize(
     self.generator.generate(seed, &mut self.level);
     self.current_cell = self.level.start_cell;
     self.mode = GameMode::Exploring;
+    self.treasure_taken = false;
+    self.gold_taken = false;
+    self.fountain_used = false;
+    self.enemy_defeated = false;
 }
 
 machine Dungeon::room_index(

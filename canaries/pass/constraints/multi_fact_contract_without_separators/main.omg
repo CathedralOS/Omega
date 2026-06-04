@@ -6,9 +6,7 @@
 //         index + 1 < items.len
 //         Bag(items) == Bag(before)
 //
-// That separator-free, newline-delimited multi-fact spelling is documented but
-// not yet implemented: the parser requires an explicit `;` (or `,`) between
-// proof facts and rejects the second fact on its own line.
+// Newlines between facts are accepted as proof-fact separators.
 
 data Items {
     count: usize;

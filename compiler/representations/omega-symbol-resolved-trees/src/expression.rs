@@ -942,13 +942,23 @@ impl FloatLiteral {
     }
 
     pub fn parse(source: &str) -> Option<Self> {
-        let normalized = source.trim_end_matches(['f', 'F']);
+        let normalized = strip_float_literal_suffix(source);
         normalized.parse::<f64>().ok().map(Self::new)
     }
 
     pub fn value(self) -> f64 {
         f64::from_bits(self.bits)
     }
+}
+
+fn strip_float_literal_suffix(source: &str) -> &str {
+    for suffix in ["real", "Real", "f32", "f64"] {
+        if let Some(value) = source.strip_suffix(suffix) {
+            return value;
+        }
+    }
+
+    source.trim_end_matches(['f', 'F'])
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
