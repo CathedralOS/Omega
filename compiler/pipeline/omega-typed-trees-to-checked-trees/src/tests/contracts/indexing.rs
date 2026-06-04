@@ -143,6 +143,8 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
         symbol: trait_symbol,
         is_boundary: true,
         name: Identifier::generated("Console"),
+        type_parameters: Default::default(),
+        invariants: Default::default(),
         requires: Default::default(),
         machines: Default::default(),
     };
@@ -319,6 +321,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
         symbol: trait_symbol,
         is_boundary: true,
         name: Identifier::generated("Drawable"),
+        type_parameters: Default::default(),
+        invariants: Default::default(),
         requires: Default::default(),
         machines: Default::default(),
     };

@@ -4095,6 +4095,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/generic_trait_parameter",
     "traits/trait_generic_bound_static_dispatch",
     "traits/trait_inferred_satisfaction",
+    "traits/trait_invariant_clause",
     "traits/trait_method_ensures_clause",
     "traits/trait_oneoff_machine_requirement",
     "versioning/migration_generic_trait",
@@ -4339,12 +4340,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "traits/dyn_trait_object_dispatch",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `)`, found identifier `ImageFilter`",
-        },
-    },
-    PendingCanary {
-        path: "traits/trait_invariant_clause",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `machine`, found keyword `invariant`",
         },
     },
     PendingCanary {

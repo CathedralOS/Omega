@@ -22,10 +22,25 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut required_trait_start = Handle::invalid();
     let mut required_trait_count = 0u32;
+    let mut invariants = HandleSpan::empty();
     let mut machine_start = Handle::invalid();
     let mut machine_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
+        if input.at_keyword(KeywordKind::Invariant) {
+            input = input.take_keyword(KeywordKind::Invariant, "invariant")?;
+            let ((facts, _token_count), rest) =
+                parse_proof_facts_until(syntax_trees, input, |input| {
+                    input.at_punctuation(PunctuationKind::Semicolon)
+                        || input.at_keyword(KeywordKind::Machine)
+                        || input.at_punctuation(PunctuationKind::RightBrace)
+                        || input.tokens.is_empty()
+                })?;
+            extend_contiguous_span(&mut invariants, facts);
+            input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            continue;
+        }
+
         if input.at_contextual("requires") {
             let (required_trait, rest) = parse_trait_requirement(input)?;
             let handle = syntax_trees
@@ -73,6 +88,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             is_boundary,
             name,
             type_parameters,
+            invariants,
             requires,
             machines,
         },
@@ -225,4 +241,15 @@ fn parse_trait_signature_clauses<'tokens, 'source>(
         HandleSpan::from_parts(contract_start, contract_count)
     };
     Ok(((effects, contracts), input))
+}
+
+fn extend_contiguous_span<T>(target: &mut HandleSpan<T>, source: HandleSpan<T>) {
+    let mut index = source.start().arena_index();
+    let generation = source.start().generation();
+    for _ in 0..source.count() {
+        target.push_contiguous(Handle::from_parts(index, generation));
+        index = index
+            .checked_add(1)
+            .expect("trait invariant proof fact span index overflow");
+    }
 }

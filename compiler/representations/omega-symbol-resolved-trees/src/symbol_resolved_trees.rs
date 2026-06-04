@@ -190,6 +190,13 @@ impl SymbolResolvedTrees {
         self.data_type_parameters(trait_definition.type_parameters)
     }
 
+    pub fn trait_invariants(
+        &self,
+        trait_definition: &crate::trait_definition::TraitDefinition,
+    ) -> &[domain::ProofFact] {
+        self.proof_facts(trait_definition.invariants)
+    }
+
     pub fn trait_requirements(
         &self,
         span: HandleSpan<crate::trait_definition::TraitRequirement>,

@@ -1,5 +1,6 @@
 use crate::SymbolResolvedTrees;
 use crate::data::DataMember;
+use crate::domain::ProofFact;
 use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::DiagnosticName;
 use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode};
@@ -112,6 +113,9 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         count_declaration_name(&trait_definition.name, &mut counts);
         for parameter in program.trait_type_parameters(trait_definition) {
             count_declaration_name(&parameter.name, &mut counts);
+        }
+        for fact in program.trait_invariants(trait_definition) {
+            count_proof_fact(program, fact, expression_table, &mut counts);
         }
         for signature in program.trait_machine_signatures(trait_definition.machines) {
             count_declaration_name(&signature.name, &mut counts);
@@ -260,6 +264,25 @@ fn count_operator(
     }
     if let Some(return_type) = &operator.return_type {
         count_type_reference(return_type, child_type_references, expression_table, counts);
+    }
+}
+
+fn count_proof_fact(
+    program: &SymbolResolvedTrees,
+    fact: &ProofFact,
+    expression_table: &ExpressionTable,
+    counts: &mut IdentityStorageCounts,
+) {
+    match fact {
+        ProofFact::Expression(expression) => {
+            count_expression_handle(expression_table, *expression, counts);
+        }
+        ProofFact::Membership(membership) => {
+            count_expression_handle(expression_table, membership.value, counts);
+            for member in program.domain_path_members(membership.domain) {
+                count_declaration_name(member, counts);
+            }
+        }
     }
 }
 

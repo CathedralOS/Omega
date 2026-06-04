@@ -314,6 +314,7 @@ impl SyntaxTrees {
             is_boundary: trait_definition.is_boundary,
             name: trait_definition.name.clone(),
             type_parameters: self.copy_type_parameter_span(other, trait_definition.type_parameters),
+            invariants: self.copy_domain_fact_span(other, trait_definition.invariants),
             requires: self.copy_item_identifier_span(other, trait_definition.requires),
             machines: self.copy_state_signature_handle_span(other, trait_definition.machines),
         }

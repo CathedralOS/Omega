@@ -269,6 +269,7 @@ pub struct TraitSnapshot {
     pub name: String,
     pub is_boundary: bool,
     pub type_parameters: Vec<String>,
+    pub invariants: Vec<ProofFactSnapshot>,
     pub requires: Vec<String>,
     pub machines: Vec<StateSignatureSnapshot>,
 }
@@ -646,6 +647,7 @@ fn trait_definition_snapshot(
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
+        invariants: contract_fact_snapshots(program, trait_definition.invariants),
         requires: program
             .trait_requirements(trait_definition)
             .iter()
