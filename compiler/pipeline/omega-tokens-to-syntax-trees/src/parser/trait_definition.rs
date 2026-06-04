@@ -2,6 +2,7 @@ use crate::parser::data::parse_type_parameters;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::proof_fact::parse_proof_facts_until;
 use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
+use crate::parser::statement::parse_statement_handle;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
@@ -56,9 +57,15 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             continue;
         }
 
-        input = input.take_keyword(KeywordKind::Machine, "machine")?;
+        let (is_default, after_default) = if input.at_contextual("default") {
+            (true, input.take_contextual("default")?)
+        } else {
+            (false, input)
+        };
+        input = after_default.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
         let ((effects, contracts), rest) = parse_trait_signature_clauses(syntax_trees, rest)?;
+        signature.is_default = is_default;
         signature.effects = effects;
         signature.contracts = contracts;
         let handle = syntax_trees.items.insert_state_signature(&signature);
@@ -69,7 +76,11 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         machine_count = machine_count
             .checked_add(1)
             .expect("trait machine signature span count overflow");
-        input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        input = if is_default {
+            parse_trait_default_machine_body(syntax_trees, rest)?
+        } else {
+            rest.take_punctuation(PunctuationKind::Semicolon, ";")?
+        };
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
@@ -107,6 +118,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
     Ok((
         StateSignature {
             name,
+            is_default: false,
             parameters,
             return_type,
             effects: HandleSpan::empty(),
@@ -136,6 +148,19 @@ fn parse_trait_machine_name<'tokens, 'source>(
     Ok((name, input))
 }
 
+fn parse_trait_default_machine_body<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+    let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
+        let _ = syntax_trees.items.append_statement_handle(statement);
+        input = rest;
+    }
+    input.take_punctuation(PunctuationKind::RightBrace, "}")
+}
+
 fn parse_trait_requirement<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, omega_syntax_trees::identifier::Identifier> {
@@ -163,14 +188,17 @@ fn parse_trait_signature_clauses<'tokens, 'source>(
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
 
-    while !input.at_punctuation(PunctuationKind::Semicolon) {
+    while !input.at_punctuation(PunctuationKind::Semicolon)
+        && !input.at_punctuation(PunctuationKind::LeftBrace)
+    {
         if input.at_punctuation(PunctuationKind::RightBrace) {
-            return Err(input.expected_one_of_here(&["`;`"]));
+            return Err(input.expected_one_of_here(&["`;`", "`{`"]));
         }
 
         if input.at_contextual("effects") {
             input = input.take_contextual("effects")?;
             while !input.at_punctuation(PunctuationKind::Semicolon)
+                && !input.at_punctuation(PunctuationKind::LeftBrace)
                 && !input.at_contextual("requires")
                 && !input.at_contextual("ensures")
                 && !input.at_contextual("where")
@@ -203,6 +231,7 @@ fn parse_trait_signature_clauses<'tokens, 'source>(
             let ((facts, token_count), rest) =
                 parse_proof_facts_until(syntax_trees, input, |input| {
                     input.at_punctuation(PunctuationKind::Semicolon)
+                        || input.at_punctuation(PunctuationKind::LeftBrace)
                         || input.at_contextual("requires")
                         || input.at_contextual("ensures")
                         || input.at_contextual("effects")

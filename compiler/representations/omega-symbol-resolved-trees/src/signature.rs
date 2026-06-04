@@ -13,6 +13,7 @@ pub struct StateSignature {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateSignatureStorage {
+    pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,
     pub effects: HandleSpan<DiagnosticName>,

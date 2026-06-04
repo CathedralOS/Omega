@@ -155,6 +155,7 @@ fn carries_trait_signature_contract_facts_into_checked_proof_facts() {
     let mut signature = StateSignature {
         symbol: signature_symbol,
         name: Identifier::generated("write_line"),
+        is_default: false,
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         effects: Default::default(),
@@ -337,6 +338,7 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
     let mut signature = StateSignature {
         symbol: signature_symbol,
         name: Identifier::generated("draw"),
+        is_default: false,
         parameters: Default::default(),
         return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
         effects: Default::default(),

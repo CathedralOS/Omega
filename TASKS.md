@@ -68,10 +68,17 @@ Implementation slices below build against these. Minor/easily-reversible details
 ## Next Up (highest leverage)
 
 **Recent canary promotions.** Numeric literal suffixes (`3i32`, `3.0real`,
-`3nat`), newline-separated proof facts, and field `+=` assignment now compile in
-the active pass suite. Relax scope syntax (`relax target { ... }`) and relaxed
-borrow parameter spelling (`&mut relaxed T`) now parse/lower and are promoted to
-pass canaries. Full canary suite is green locally: 106 passed.
+`3nat`), newline-separated proof facts, field `+=` assignment, relax scope syntax
+(`relax target { ... }`), relaxed borrow parameter spelling (`&mut relaxed T`),
+and trait `default machine` syntax now compile in the active pass suite. Full
+canary suite was last green locally at 106 passed before the trait default
+promotion; rerun after this checkpoint.
+
+**Trait default semantics follow-up.** Current `default machine` support is
+structural: the marker flows through syntax/resolved/typed signatures and the
+default body is parsed. Trait conformance, implementation reuse, override rules,
+and dispatch behavior still need a real semantic pass before default methods are
+more than surface syntax.
 
 **Relax semantics follow-up.** Current relax support is intentionally structural:
 syntax is preserved, relaxed reference metadata flows through typed trees, and

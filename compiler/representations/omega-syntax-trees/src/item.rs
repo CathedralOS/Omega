@@ -118,6 +118,7 @@ impl Default for LibraryFunction {
         Self {
             signature: StateSignature {
                 name: Identifier::default(),
+                is_default: false,
                 parameters: HandleSpan::empty(),
                 return_type: crate::types::TypeReferenceHandle::invalid(),
                 effects: HandleSpan::empty(),
@@ -445,6 +446,7 @@ pub struct TraitDefinition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
     pub name: Identifier,
+    pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
@@ -748,6 +750,7 @@ impl ItemTable {
     pub fn insert_state_signature(&mut self, signature: &StateSignature) -> StateSignatureHandle {
         self.state_storage.signatures.append(StateSignatureNode {
             name: signature.name.clone(),
+            is_default: signature.is_default,
             parameters: signature.parameters,
             return_type: signature.return_type,
             effects: signature.effects,
@@ -845,6 +848,7 @@ pub struct StateParameterNode {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateSignatureNode {
     pub name: Identifier,
+    pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub return_type: crate::types::TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
