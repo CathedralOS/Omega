@@ -366,7 +366,9 @@ fn item_kind(item: &Item) -> &'static str {
         Item::Export(_) => "export",
         Item::Machine(_) | Item::Platform(_) => "machine",
         Item::Measure(_) => "measure",
+        Item::Module(_) => "module",
         Item::Operator(_) => "operator",
+        Item::Package(_) => "package",
         Item::Trait(_) => "trait",
         _ => "state",
     }
@@ -467,6 +469,26 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 value.lexicographic,
                 value.body.len(),
             )
+        }
+        Item::Module(value) => {
+            let path = syntax
+                .items
+                .identifier_path_members(value.path)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join(".");
+            format!("module {path}\nsegments: {}", value.path.len())
+        }
+        Item::Package(value) => {
+            let path = syntax
+                .items
+                .identifier_path_members(value.path)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join(".");
+            format!("package {path}\nsegments: {}", value.path.len())
         }
         Item::Platform(value) => {
             format!(

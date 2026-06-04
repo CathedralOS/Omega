@@ -137,7 +137,15 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 count_expression_handle(syntax_trees, *expression, counts);
             }
         }
+        Item::Module(module) => count_identifier_members(
+            syntax_trees.items.identifier_path_members(module.path),
+            counts,
+        ),
         Item::Operator(operator) => count_operator(syntax_trees, operator, counts),
+        Item::Package(package) => count_identifier_members(
+            syntax_trees.items.identifier_path_members(package.path),
+            counts,
+        ),
         Item::Provider(provider) => count_identifier_members(
             syntax_trees.items.identifier_path_members(provider.name),
             counts,

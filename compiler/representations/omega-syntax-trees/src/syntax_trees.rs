@@ -108,7 +108,9 @@ impl SyntaxTrees {
             | Item::Invariant(_)
             | Item::Library(_)
             | Item::Measure(_)
+            | Item::Module(_)
             | Item::Operator(_)
+            | Item::Package(_)
             | Item::Provider(_)
             | Item::Target(_)
             | Item::Use(_) => {}
@@ -153,9 +155,15 @@ impl SyntaxTrees {
             }),
             Item::Library(library) => Item::Library(self.copy_library_definition(other, library)),
             Item::Measure(measure) => Item::Measure(self.copy_measure_definition(other, measure)),
+            Item::Module(module) => Item::Module(crate::item::ModuleDeclaration {
+                path: self.copy_item_identifier_span(other, module.path),
+            }),
             Item::Operator(operator) => {
                 Item::Operator(self.copy_operator_definition(other, operator))
             }
+            Item::Package(package) => Item::Package(crate::item::PackageDeclaration {
+                path: self.copy_item_identifier_span(other, package.path),
+            }),
             Item::Provider(provider) => Item::Provider(crate::item::ProviderDeclaration {
                 name: self.copy_item_identifier_span(other, provider.name),
                 category: provider.category,

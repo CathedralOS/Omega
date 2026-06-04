@@ -13,7 +13,7 @@ use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
 use crate::parser::use_item::parse_use_item;
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::{Item, ProviderDeclaration};
+use omega_syntax_trees::item::{Item, ModuleDeclaration, PackageDeclaration, ProviderDeclaration};
 use omega_syntax_trees::operator_spelling::ProviderCategory;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -21,6 +21,25 @@ pub(super) fn parse_item<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Item> {
+    if input.at_keyword(KeywordKind::Pub) {
+        let input = input.take_keyword(KeywordKind::Pub, "pub")?;
+        // Visibility is syntax-level metadata for now. Semantic export rules
+        // still live in explicit `export` items until module scoping grows up.
+        return parse_item(syntax_trees, input);
+    }
+
+    if input.at_contextual("module") {
+        let input = input.take_contextual("module")?;
+        let (item, rest) = parse_module_declaration(syntax_trees, input)?;
+        return Ok((Item::Module(item), rest));
+    }
+
+    if input.at_contextual("package") {
+        let input = input.take_contextual("package")?;
+        let (item, rest) = parse_package_declaration(syntax_trees, input)?;
+        return Ok((Item::Package(item), rest));
+    }
+
     if input.at_keyword(KeywordKind::Use) {
         let input = input.take_keyword(KeywordKind::Use, "use")?;
         let (item, rest) = parse_use_item(syntax_trees, input)?;
@@ -133,13 +152,89 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`invariant`",
         "`library`",
         "`measure`",
+        "`module`",
         "`operator`",
+        "`package`",
         "`platform`",
+        "`pub`",
         "`provider`",
         "`trait`",
         "`boundary operator`",
         "`boundary trait`",
     ]))
+}
+
+fn parse_module_declaration<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, ModuleDeclaration> {
+    let (path, input) = parse_dot_or_colon_path(input, |member| {
+        syntax_trees.items.append_identifier_path_member(member)
+    })?;
+    let input = take_optional_semicolon(input)?;
+
+    Ok((ModuleDeclaration { path }, input))
+}
+
+fn parse_package_declaration<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, PackageDeclaration> {
+    let (path, input) = parse_dot_or_colon_path(input, |member| {
+        syntax_trees.items.append_identifier_path_member(member)
+    })?;
+    let input = take_optional_semicolon(input)?;
+
+    Ok((PackageDeclaration { path }, input))
+}
+
+fn parse_dot_or_colon_path<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+    mut append_member: impl FnMut(
+        omega_syntax_trees::identifier::Identifier,
+    ) -> omega_core::arena::Handle<
+        omega_syntax_trees::identifier::Identifier,
+    >,
+) -> ParseResult<
+    'tokens,
+    'source,
+    omega_core::arena::HandleSpan<omega_syntax_trees::identifier::Identifier>,
+> {
+    let (first, mut rest) = input.take_identifier()?;
+    let start = append_member(first);
+    let mut count = 1u32;
+
+    loop {
+        if rest.at_punctuation(PunctuationKind::Dot) {
+            rest = rest.take_punctuation(PunctuationKind::Dot, ".")?;
+        } else if rest.at_punctuation(PunctuationKind::ColonColon) {
+            rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        } else {
+            break;
+        }
+
+        let (member, next) = rest.take_identifier()?;
+        append_member(member);
+        count = count
+            .checked_add(1)
+            .expect("module/package path member span count overflow");
+        rest = next;
+    }
+
+    Ok((
+        omega_core::arena::HandleSpan::from_parts(start, count),
+        rest,
+    ))
+}
+
+fn take_optional_semicolon<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+    if input.at_punctuation(PunctuationKind::Semicolon) {
+        input.take_punctuation(PunctuationKind::Semicolon, ";")
+    } else {
+        Ok(input)
+    }
 }
 
 /// Parses `provider <QualifiedName> : <Category>;` (frozen Wave 0 decision #4).
