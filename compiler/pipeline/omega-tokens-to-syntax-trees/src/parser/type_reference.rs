@@ -18,7 +18,7 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
 
     if input.at_punctuation(PunctuationKind::LeftBracket) {
         let input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-        let (element_type, input) = parse_type_reference_handle(syntax_trees, input)?;
+        let (element_type, mut input) = parse_type_reference_handle(syntax_trees, input)?;
         if input.at_punctuation(PunctuationKind::Semicolon) {
             let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
             let (length, input) = input.take_integer()?;
@@ -36,13 +36,25 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
             ));
         }
 
-        let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-        return Ok((
-            syntax_trees
+        let mut type_reference = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Slice { element_type });
+
+        if input.at_punctuation(PunctuationKind::Comma) {
+            let input_after_comma = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            let (constraints, rest) =
+                parse_type_constraint_handles(syntax_trees, input_after_comma)?;
+            input = rest;
+            type_reference = syntax_trees
                 .type_references
-                .insert(TypeReferenceNode::Slice { element_type }),
-            input,
-        ));
+                .insert(TypeReferenceNode::Constrained {
+                    base_type: type_reference,
+                    constraints,
+                });
+        }
+
+        let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
+        return Ok((type_reference, input));
     }
 
     if input.at_keyword(KeywordKind::SelfType) {
