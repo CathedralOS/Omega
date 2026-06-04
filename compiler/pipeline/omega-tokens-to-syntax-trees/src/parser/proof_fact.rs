@@ -4,7 +4,7 @@ use crate::parser::input::{Input, parse_path_handle_span};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
     TableMembershipExpression,
 };
 use omega_syntax_trees::item::{ProofFact, ProofMembershipFact};
@@ -177,9 +177,22 @@ pub(super) fn parse_proof_facts_until<'tokens, 'source>(
                     .expect("proof fact span count overflow");
             }
         } else {
+            let expression = if input.at_name_like() && !fact_input.has_newline_before(input) {
+                let (predicate, rest) = input.take_identifier()?;
+                input = rest;
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        receiver: value,
+                        target: predicate,
+                        arguments: HandleSpan::empty(),
+                    }))
+            } else {
+                value
+            };
             let handle = syntax_trees
                 .items
-                .append_proof_fact(ProofFact::Expression(value));
+                .append_proof_fact(ProofFact::Expression(expression));
             if fact_count == 0 {
                 fact_start = handle;
             }

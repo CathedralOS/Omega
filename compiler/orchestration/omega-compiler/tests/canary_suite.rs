@@ -4067,6 +4067,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/match_domain_patterns",
     "drops/cleanup_machine_drop_shape",
     "drops/drop_ensures_domain_membership",
+    "drops/drop_ensures_unlocked_predicate",
     "drops/machine_effects_annotation",
     "drops/transfer_cleanup_into_state",
     "errors/fallible_result_data_shape",
@@ -4269,12 +4270,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "domains/match_interleaved_domain_data_guard",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected transition pattern",
-        },
-    },
-    PendingCanary {
-        path: "drops/drop_ensures_unlocked_predicate",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `;`, `,`, or end of proof facts",
         },
     },
     PendingCanary {
