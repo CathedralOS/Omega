@@ -4066,6 +4066,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "drops/transfer_cleanup_into_state",
     "errors/fallible_result_data_shape",
     "errors/host_failure_boundary_machine",
+    "errors/trap_unrecoverable_statement",
     "expressions/float_literal_suffix",
     "expressions/integer_literal_suffix",
     "generics/const_machine_value_params",
@@ -4282,12 +4283,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "drops/drop_ensures_unlocked_predicate",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `;`, `,`, or end of proof facts",
-        },
-    },
-    PendingCanary {
-        path: "errors/trap_unrecoverable_statement",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "has a terminal expression but no return type",
         },
     },
     PendingCanary {
