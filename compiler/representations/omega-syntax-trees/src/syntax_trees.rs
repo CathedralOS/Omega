@@ -582,6 +582,7 @@ impl SyntaxTrees {
     ) -> StateSignature {
         StateSignature {
             name: signature.name.clone(),
+            is_default: signature.is_default,
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
             effects: self.copy_item_identifier_span(other, signature.effects),
@@ -596,6 +597,7 @@ impl SyntaxTrees {
     ) -> StateSignature {
         StateSignature {
             name: signature.name.clone(),
+            is_default: signature.is_default,
             parameters: self.copy_state_parameter_handle_span(other, signature.parameters),
             return_type: self.copy_type_reference_handle(other, signature.return_type),
             effects: self.copy_item_identifier_span(other, signature.effects),

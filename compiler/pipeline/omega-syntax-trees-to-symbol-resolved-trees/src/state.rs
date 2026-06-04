@@ -65,6 +65,7 @@ pub(crate) fn lower_state_signature_node(
         &signature.name,
         signature.parameters,
         signature.return_type,
+        signature.is_default,
         signature.effects,
         signature.contracts,
     )
@@ -76,6 +77,7 @@ fn lower_state_signature_parts(
     name: &syntax::identifier::Identifier,
     parameters: HandleSpan<syntax::item::StateParameterHandle>,
     return_type_handle: syntax::types::TypeReferenceHandle,
+    is_default: bool,
     effects: HandleSpan<syntax::identifier::Identifier>,
     contracts: HandleSpan<syntax::item::CapabilityContract>,
 ) -> Result<StateSignature, Diagnostic> {
@@ -91,6 +93,7 @@ fn lower_state_signature_parts(
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(name),
         storage: StateSignatureStorage {
+            is_default,
             parameters,
             return_type,
             effects,

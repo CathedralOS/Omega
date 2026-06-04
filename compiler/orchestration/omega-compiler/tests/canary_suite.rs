@@ -4309,12 +4309,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         },
     },
     PendingCanary {
-        path: "traits/default_machine_in_trait",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `machine`, found identifier `default`",
-        },
-    },
-    PendingCanary {
         path: "traits/dyn_trait_object_dispatch",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `)`, found identifier `ImageFilter`",

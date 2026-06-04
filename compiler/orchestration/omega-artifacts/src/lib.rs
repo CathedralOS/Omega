@@ -1099,6 +1099,7 @@ mod tests {
             StateSignature {
                 symbol: SymbolHandle::default(),
                 name: Identifier::generated("write_line"),
+                is_default: false,
                 parameters: Default::default(),
                 return_type: Default::default(),
                 ..Default::default()

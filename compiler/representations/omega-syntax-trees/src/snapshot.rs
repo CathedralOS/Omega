@@ -256,6 +256,7 @@ pub struct StateSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StateSignatureSnapshot {
     pub name: IdentifierSnapshot,
+    pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     pub return_type: TypeReferenceSnapshot,
     pub effects: Vec<IdentifierSnapshot>,
@@ -872,6 +873,7 @@ fn snapshot_state_signature(
 ) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: snapshot_identifier(&signature.name),
+        is_default: signature.is_default,
         parameters: syntax_trees
             .items
             .state_parameters(signature.parameters)
@@ -896,6 +898,7 @@ fn snapshot_state_signature_node(
 ) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: snapshot_identifier(&signature.name),
+        is_default: signature.is_default,
         parameters: syntax_trees
             .items
             .state_parameters(signature.parameters)

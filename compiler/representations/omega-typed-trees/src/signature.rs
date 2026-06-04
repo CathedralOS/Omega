@@ -7,6 +7,7 @@ use omega_core::symbols::SymbolHandle;
 pub struct StateSignature {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: TypeReferenceHandle,
     pub effects: HandleSpan<Identifier>,
@@ -18,6 +19,7 @@ impl Default for StateSignature {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            is_default: false,
             parameters: HandleSpan::empty(),
             return_type: TypeReferenceHandle::invalid(),
             effects: HandleSpan::empty(),
