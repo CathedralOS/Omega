@@ -4144,6 +4144,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/slice_view_invalidated_by_owner_call",
     "control_flow/bare_machine_arrow_transition",
     "control_flow/bare_state_arrow_transition",
+    "concurrency/spawn_fire_and_forget",
+    "concurrency/spawn_statement_block",
     "inline_asm/asm_label_loop",
     "inline_asm/asm_structured_ldr_str",
     "inline_asm/asm_where_contract",
@@ -4251,21 +4253,9 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         },
     },
     PendingCanary {
-        path: "concurrency/spawn_fire_and_forget",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `:`, found punctuation `::`",
-        },
-    },
-    PendingCanary {
         path: "concurrency/spawn_join_handle",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "references unknown generic type `Join`",
-        },
-    },
-    PendingCanary {
-        path: "concurrency/spawn_statement_block",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected identifier, found keyword `self`",
         },
     },
     PendingCanary {
