@@ -1,6 +1,7 @@
 // Chapter 12 "Associated Types": traits are intended to carry explicit type
 // parameters (`trait WireReadable<Message, Value>`). Generic trait parameter
-// lists do not parse yet.
+// lists are accepted, and trait machine signatures may refer to those type
+// parameters.
 
 data Main {
 }

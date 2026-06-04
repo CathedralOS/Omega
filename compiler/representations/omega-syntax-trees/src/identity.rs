@@ -194,6 +194,12 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         }
         Item::Trait(trait_definition) => {
             count_identifier(&trait_definition.name, counts);
+            for parameter in syntax_trees
+                .items
+                .type_parameters(trait_definition.type_parameters)
+            {
+                count_identifier(&parameter.name, counts);
+            }
             for signature in syntax_trees
                 .items
                 .state_signatures(trait_definition.machines)

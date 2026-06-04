@@ -116,6 +116,7 @@ pub enum ItemSnapshot {
     Trait {
         name: IdentifierSnapshot,
         is_boundary: bool,
+        type_parameters: Vec<TypeParameterSnapshot>,
         requires: Vec<IdentifierSnapshot>,
         machines: Vec<StateSignatureSnapshot>,
     },
@@ -612,6 +613,14 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Trait(value) => ItemSnapshot::Trait {
             name: snapshot_identifier(&value.name),
             is_boundary: value.is_boundary,
+            type_parameters: syntax_trees
+                .items
+                .type_parameters(value.type_parameters)
+                .iter()
+                .map(|parameter| TypeParameterSnapshot {
+                    name: snapshot_identifier(&parameter.name),
+                })
+                .collect(),
             requires: snapshot_identifier_slice(
                 syntax_trees.items.identifier_path_members(value.requires),
             ),

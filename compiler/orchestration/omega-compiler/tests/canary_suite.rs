@@ -4079,10 +4079,11 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/generic_data_type_param",
     "generics/generic_machine_call_monomorphization",
     "generics/generic_machine_multiple_type_params",
-    "generics/generic_type_param_in_state",
     "generics/generic_machine_type_param_signature",
     "generics/generic_machine_where_machine_requirement",
     "generics/generic_machine_where_trait_bound",
+    "generics/generic_trait_type_param",
+    "generics/generic_type_param_in_state",
     "memory/repr_native_stable_layout",
     "modules/use_imports_sibling_data",
     "modules/use_imports_sibling_trait",
@@ -4091,10 +4092,13 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/compound_assign_add_field",
     "ownership/copy_value_field_read_compile",
     "parameters/shared_and_mut_borrow_params_compile",
+    "traits/generic_trait_parameter",
     "traits/trait_generic_bound_static_dispatch",
     "traits/trait_inferred_satisfaction",
     "traits/trait_method_ensures_clause",
     "traits/trait_oneoff_machine_requirement",
+    "versioning/migration_generic_trait",
+    "wire/wire_generic_trait",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",
 ];
@@ -4284,12 +4288,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         },
     },
     PendingCanary {
-        path: "generics/generic_trait_type_param",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `{`, found punctuation `<`",
-        },
-    },
-    PendingCanary {
         path: "inline_asm/asm_block_jmp_state",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `:`, found identifier `other`",
@@ -4344,12 +4342,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         },
     },
     PendingCanary {
-        path: "traits/generic_trait_parameter",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `{`, found punctuation `<`",
-        },
-    },
-    PendingCanary {
         path: "traits/trait_invariant_clause",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `machine`, found keyword `invariant`",
@@ -4365,12 +4357,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "versioning/match_on_version",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected transition pattern",
-        },
-    },
-    PendingCanary {
-        path: "versioning/migration_generic_trait",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `{`, found punctuation `<`",
         },
     },
     PendingCanary {
@@ -4401,12 +4387,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "wire/wire_data_version_block",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "found identifier `wire`",
-        },
-    },
-    PendingCanary {
-        path: "wire/wire_generic_trait",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `{`, found punctuation `<`",
         },
     },
 ];

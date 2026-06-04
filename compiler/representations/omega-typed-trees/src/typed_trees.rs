@@ -310,6 +310,23 @@ impl TypedTrees {
         self.tables.traits.span_or_empty(self.roots.traits)
     }
 
+    pub fn push_trait_type_parameter(
+        &mut self,
+        trait_definition: &mut trait_definition::TraitDefinition,
+        type_parameter: data::TypeParameter,
+    ) {
+        self.data_type_parameters
+            .append_to_span(&mut trait_definition.type_parameters, type_parameter);
+    }
+
+    pub fn trait_type_parameters(
+        &self,
+        trait_definition: &trait_definition::TraitDefinition,
+    ) -> &[data::TypeParameter] {
+        self.data_type_parameters
+            .span_or_empty(trait_definition.type_parameters)
+    }
+
     pub fn push_trait_requirement(
         &mut self,
         trait_definition: &mut trait_definition::TraitDefinition,

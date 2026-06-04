@@ -110,6 +110,9 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
 
     for trait_definition in &program.traits {
         count_declaration_name(&trait_definition.name, &mut counts);
+        for parameter in program.trait_type_parameters(trait_definition) {
+            count_declaration_name(&parameter.name, &mut counts);
+        }
         for signature in program.trait_machine_signatures(trait_definition.machines) {
             count_declaration_name(&signature.name, &mut counts);
             count_optional_type_reference(

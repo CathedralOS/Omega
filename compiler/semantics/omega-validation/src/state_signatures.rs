@@ -71,7 +71,7 @@ pub(crate) fn validate_callable_state_signatures(
             symbols,
             diagnostics,
             StateSignatureOwner::Trait(trait_definition.name.as_str()),
-            &[],
+            program.trait_type_parameters(trait_definition),
         );
     }
 }

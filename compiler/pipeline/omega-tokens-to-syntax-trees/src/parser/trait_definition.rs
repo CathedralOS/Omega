@@ -1,9 +1,13 @@
+use crate::parser::data::parse_type_parameters;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::proof_fact::parse_proof_facts_until;
-use crate::parser::state::parse_state_signature;
+use crate::parser::state::{parse_optional_return_type, parse_optional_state_parameters};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::{CapabilityContract, CapabilityContractKind, TraitDefinition};
+use omega_syntax_trees::identifier::Identifier;
+use omega_syntax_trees::item::{
+    CapabilityContract, CapabilityContractKind, StateSignature, TraitDefinition,
+};
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_trait_definition<'tokens, 'source>(
@@ -13,6 +17,8 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, TraitDefinition> {
     let input = input.take_contextual("trait")?;
     let (name, mut input) = input.take_identifier()?;
+    let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
+    input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut required_trait_start = Handle::invalid();
     let mut required_trait_count = 0u32;
@@ -36,7 +42,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         }
 
         input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (mut signature, rest) = parse_state_signature(syntax_trees, input)?;
+        let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
         let ((effects, contracts), rest) = parse_trait_signature_clauses(syntax_trees, rest)?;
         signature.effects = effects;
         signature.contracts = contracts;
@@ -66,11 +72,52 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         TraitDefinition {
             is_boundary,
             name,
+            type_parameters,
             requires,
             machines,
         },
         input,
     ))
+}
+
+fn parse_trait_machine_signature<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, StateSignature> {
+    let (name, input) = parse_trait_machine_name(input)?;
+    let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
+    let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;
+
+    Ok((
+        StateSignature {
+            name,
+            parameters,
+            return_type,
+            effects: HandleSpan::empty(),
+            contracts: HandleSpan::empty(),
+        },
+        input,
+    ))
+}
+
+fn parse_trait_machine_name<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Identifier> {
+    let (mut name, mut input) = if input.at_keyword(KeywordKind::SelfType) {
+        let input = input.take_keyword(KeywordKind::SelfType, "Self")?;
+        (Identifier::generated("Self"), input)
+    } else {
+        input.take_identifier()?
+    };
+
+    while input.at_punctuation(PunctuationKind::ColonColon) {
+        input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let (member, next) = input.take_identifier()?;
+        name = member;
+        input = next;
+    }
+
+    Ok((name, input))
 }
 
 fn parse_trait_requirement<'tokens, 'source>(
