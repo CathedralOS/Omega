@@ -3850,6 +3850,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/custom_ranking_struct_view",
     "domains/contracts_domain_membership_surface",
     "domains/string_non_empty_classifier",
+    "domains/when_classifier_clause",
     "domains/executable_domain_membership_expression_exit",
     "domains/executable_domain_membership_intersection_guard_exit",
     "domains/executable_imported_domain_membership_exit",
@@ -4267,12 +4268,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "domains/match_interleaved_domain_data_guard",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected transition pattern",
-        },
-    },
-    PendingCanary {
-        path: "domains/when_classifier_clause",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `{`, found keyword `when`",
         },
     },
     PendingCanary {

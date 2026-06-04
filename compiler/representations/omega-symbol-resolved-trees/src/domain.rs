@@ -8,6 +8,7 @@ pub struct DomainDefinition {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub target_type: TypeReference,
+    pub classifier: crate::expression::ExpressionHandle,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub body_token_count: usize,

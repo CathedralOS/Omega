@@ -543,6 +543,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Domain(DomainDefinition {
             name: Identifier::generated("NonEmpty"),
             target_type,
+            classifier: omega_syntax_trees::expression::ExpressionHandle::invalid(),
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             body_token_count: 3,

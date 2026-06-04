@@ -145,6 +145,7 @@ impl SyntaxTrees {
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),
                 target_type: self.copy_type_reference_handle(other, domain.target_type),
+                classifier: self.copy_expression_handle(other, domain.classifier),
                 facts: self.copy_domain_fact_span(other, domain.facts),
                 operators: self.copy_operator_definition_span(other, domain.operators),
                 body_token_count: domain.body_token_count,

@@ -55,6 +55,7 @@ pub enum ItemSnapshot {
     Domain {
         name: IdentifierSnapshot,
         target_type: TypeReferenceSnapshot,
+        classifier: Option<ExpressionSnapshot>,
         facts: Vec<ProofFactSnapshot>,
         operators: Vec<OperatorSnapshot>,
         body_token_count: usize,
@@ -488,6 +489,10 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Domain(value) => ItemSnapshot::Domain {
             name: snapshot_identifier(&value.name),
             target_type: snapshot_type_reference_handle(syntax_trees, value.target_type),
+            classifier: value
+                .classifier
+                .is_valid()
+                .then(|| snapshot_expression_handle(syntax_trees, value.classifier)),
             facts: snapshot_proof_facts(syntax_trees, value.facts),
             operators: syntax_trees
                 .items
