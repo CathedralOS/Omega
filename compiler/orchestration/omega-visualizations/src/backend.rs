@@ -12,6 +12,9 @@ use omega_object_file::{ObjectPlan, RelocationPlan, RelocationRecord, SectionKin
 use omega_target_operations::{TargetOperation, TargetOperationPlan};
 use std::fmt::Debug;
 
+const MAX_EMISSION_DETAIL_CHUNKS: usize = 16;
+const MAX_EMISSION_DETAIL_LINES_PER_CHUNK: usize = 32;
+
 pub fn abstract_operations_html(
     plan: &AbstractOperationPlan,
     control_flow: &ControlFlowPlan,
@@ -124,10 +127,8 @@ fn build_emission_diagram(
                 continue;
             };
             let function = function_view_by_key(function_views, state.key);
-            let chunk_count = function
-                .map(emission_chunks)
-                .map(|chunks| chunks.len())
-                .unwrap_or(0);
+            let chunks = function.map(emission_chunks);
+            let details = emission_state_details(control_flow, state, function, chunks.as_deref());
             let state_id = diagram.node(
                 format!(
                     "state_{}_{}_{}",
@@ -135,18 +136,12 @@ fn build_emission_diagram(
                     state.key.state.arena_index(),
                     state.key.segment_index
                 ),
-                emission_state_label(control_flow, state, function, chunk_count),
+                emission_state_label(control_flow, state, function, chunks.as_deref()),
                 "state_block",
                 machine_index + 1,
             );
-            diagram.node_details(
-                &state_id,
-                emission_state_details(control_flow, state, function, chunk_count),
-            );
-            diagram.node_scoped_label(
-                &state_id,
-                emission_state_details(control_flow, state, function, chunk_count),
-            );
+            diagram.node_details(&state_id, details.clone());
+            diagram.node_scoped_label(&state_id, details);
             diagram.containment_edge(machine_id, &state_id);
             state_nodes.push((state.key, state_id.clone()));
             state_scope_nodes.push((state.key, machine_id.to_owned()));
@@ -516,6 +511,10 @@ fn collect_emitted_function_views(
     let mut views = Vec::<FunctionView>::new();
     let mut first_offsets = Vec::<(StateKey, usize)>::new();
     let mut end_offsets = Vec::<(StateKey, usize)>::new();
+    let native_disassembly_lines = native_disassembly.map(parse_disassembly_lines);
+    let native_disassembly_base = native_disassembly_lines
+        .as_ref()
+        .and_then(|lines| disassembly_base_address(lines));
 
     for (machine_instruction, encoded_instruction) in
         machine_instructions.iter().zip(encoded_instructions.iter())
@@ -596,13 +595,13 @@ fn collect_emitted_function_views(
             view.metadata_lines
                 .push(format!("emitted inside: {symbol}"));
         }
-        view.display_base_address = native_disassembly.and_then(disassembly_base_address);
+        view.display_base_address = native_disassembly_base;
         view.metadata_lines.push(format!(
             "text +0x{first_offset:04x}..0x{end_offset:04x} bytes {byte_count} relocs {relocation_count}",
             first_offset = *first_offset,
         ));
 
-        if let Some(disassembly) = native_disassembly {
+        if let Some(disassembly) = native_disassembly_lines.as_deref() {
             let rendered = disassembly_lines_for_range(disassembly, *first_offset, end_offset);
             if !rendered.is_empty() {
                 view.display_lines = Some(rendered);
@@ -727,7 +726,7 @@ fn emission_state_label(
     control_flow: &ControlFlowPlan,
     state: &StateFlow,
     function: Option<&FunctionView>,
-    chunk_count: usize,
+    chunks: Option<&[EmissionChunk]>,
 ) -> String {
     let mut lines = vec![
         format!(
@@ -743,6 +742,7 @@ fn emission_state_label(
 
     if let Some(function) = function {
         let body_lines = emitted_display_lines(function);
+        let chunk_count = chunks.map(|chunks| chunks.len()).unwrap_or(0);
         lines.extend(function.metadata_lines.iter().cloned());
         if let Some(call_summary) = compact_call_summary(control_flow, state)
             .or_else(|| compact_emitted_call_summary(function))
@@ -762,8 +762,7 @@ fn emission_state_label(
             lines.push(String::new());
             if chunk_count <= 1 {
                 lines.extend(backend_instruction_preview(body_lines));
-            } else {
-                let chunks = emission_chunks(function);
+            } else if let Some(chunks) = chunks {
                 lines.extend(emission_chunk_preview_lines(function, &chunks, 2));
             }
         }
@@ -878,7 +877,7 @@ fn emission_state_details(
     control_flow: &ControlFlowPlan,
     state: &StateFlow,
     function: Option<&FunctionView>,
-    chunk_count: usize,
+    chunks: Option<&[EmissionChunk]>,
 ) -> String {
     let mut lines = vec![
         format!(
@@ -910,7 +909,8 @@ fn emission_state_details(
 
     if let Some(function) = function {
         let body_lines = emitted_display_lines(function);
-        let chunks = emission_chunks(function);
+        let chunks = chunks.unwrap_or(&[]);
+        let chunk_count = chunks.len();
         lines.extend(backend_instruction_summary(
             &function.title,
             &function.lines,
@@ -1517,15 +1517,14 @@ fn emitted_display_lines(function: &FunctionView) -> &[String] {
     function.display_lines.as_deref().unwrap_or(&function.lines)
 }
 
-fn disassembly_lines_for_range(disassembly: &str, start: usize, end: usize) -> Vec<String> {
-    let parsed = parse_disassembly_lines(disassembly);
+fn disassembly_lines_for_range(parsed: &[(u64, String)], start: usize, end: usize) -> Vec<String> {
     let Some(base_address) = parsed.first().map(|(address, _)| *address) else {
         return Vec::new();
     };
     let start_address = base_address.saturating_add(start as u64);
     let end_address = base_address.saturating_add(end as u64);
     parsed
-        .into_iter()
+        .iter()
         .filter(|(address, _)| *address >= start_address && *address < end_address)
         .map(|(address, asm)| format!("{:04x}: {}", address.saturating_sub(base_address), asm))
         .collect()
@@ -1538,10 +1537,8 @@ fn parse_disassembly_lines(disassembly: &str) -> Vec<(u64, String)> {
         .collect()
 }
 
-fn disassembly_base_address(disassembly: &str) -> Option<u64> {
-    parse_disassembly_lines(disassembly)
-        .first()
-        .map(|(address, _)| *address)
+fn disassembly_base_address(parsed: &[(u64, String)]) -> Option<u64> {
+    parsed.first().map(|(address, _)| *address)
 }
 
 fn parse_disassembly_line(line: &str) -> Option<(u64, String)> {
@@ -1742,12 +1739,33 @@ fn emission_chunk_preview_lines(
 
 fn emission_chunk_body_lines(function: &FunctionView, chunks: &[EmissionChunk]) -> Vec<String> {
     let mut lines = Vec::new();
-    for (index, chunk) in chunks.iter().enumerate() {
+    for (index, chunk) in chunks.iter().take(MAX_EMISSION_DETAIL_CHUNKS).enumerate() {
         if index > 0 {
             lines.push(String::new());
         }
         lines.push(emission_chunk_header(function, chunks, chunk));
-        lines.extend(chunk.display_lines.iter().cloned());
+        lines.extend(
+            chunk
+                .display_lines
+                .iter()
+                .take(MAX_EMISSION_DETAIL_LINES_PER_CHUNK)
+                .cloned(),
+        );
+        if chunk.display_lines.len() > MAX_EMISSION_DETAIL_LINES_PER_CHUNK {
+            lines.push(format!(
+                "... {} more assembly lines in B{}",
+                chunk.display_lines.len() - MAX_EMISSION_DETAIL_LINES_PER_CHUNK,
+                chunk.index
+            ));
+        }
+    }
+
+    if chunks.len() > MAX_EMISSION_DETAIL_CHUNKS {
+        lines.push(String::new());
+        lines.push(format!(
+            "... {} more emitted blocks omitted from this report detail",
+            chunks.len() - MAX_EMISSION_DETAIL_CHUNKS
+        ));
     }
     lines
 }

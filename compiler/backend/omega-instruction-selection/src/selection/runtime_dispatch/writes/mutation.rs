@@ -23,6 +23,7 @@ use super::super::super::bindings::{
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place,
+    resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_call_argument_call_result_place,
     resolve_runtime_call_argument_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_fixed_indexed_target,
@@ -103,7 +104,7 @@ fn resolve_runtime_call_expression_result_source_place(
             let (_, target_state) = input
                 .control_flow
                 .state_names_by_key_cloned(state_call.target_key);
-            state_call.role == StateCallRole::CallArgument
+            state_call_has_runtime_value_result(state_call.role)
                 && super::super::state_key_matches_statement_source(
                     state_call.source_key,
                     source_key,
@@ -112,18 +113,47 @@ fn resolve_runtime_call_expression_result_source_place(
                 && target_state.as_str() == &*call.target
         })
         .find_map(|(_, state_call)| {
-            resolve_runtime_call_argument_call_result_place_by_ordinal(
+            resolve_runtime_call_result_source_place_by_ordinal(input, dispatch_index, state_call)
+                .filter(|place| place.byte_count == byte_count)
+        })
+}
+
+fn state_call_has_runtime_value_result(role: StateCallRole) -> bool {
+    matches!(
+        role,
+        StateCallRole::AssignmentValue
+            | StateCallRole::CallArgument
+            | StateCallRole::TransitionArgument
+    )
+}
+
+fn resolve_runtime_call_result_source_place_by_ordinal(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    state_call: &omega_state_calls::StateCall,
+) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
+    match state_call.role {
+        StateCallRole::AssignmentValue => {
+            resolve_runtime_assignment_value_call_result_place_by_ordinal(
                 input,
                 dispatch_index,
                 state_call.source_key,
                 state_call.statement_index,
                 state_call.call_ordinal,
             )
-            .filter(|place| place.byte_count == byte_count)
-        })
+        }
+        StateCallRole::CallArgument => resolve_runtime_call_argument_call_result_place_by_ordinal(
+            input,
+            dispatch_index,
+            state_call.source_key,
+            state_call.statement_index,
+            state_call.call_ordinal,
+        ),
+        _ => None,
+    }
 }
 
-fn inline_branching_call_argument_for_expression<'a>(
+fn inline_branching_call_result_for_expression<'a>(
     input: &'a InstructionSelectionInput<'_>,
     source_key: StateKey,
     statement_index: usize,
@@ -133,7 +163,7 @@ fn inline_branching_call_argument_for_expression<'a>(
         let (_, target_state) = input
             .control_flow
             .state_names_by_key_cloned(state_call.target_key);
-        (state_call.role == StateCallRole::CallArgument
+        (state_call_has_runtime_value_result(state_call.role)
             && state_call.lowering == StateCallLowering::InlineBranching
             && super::super::state_key_matches_statement_source(state_call.source_key, source_key)
             && state_call.statement_index == statement_index
@@ -198,7 +228,7 @@ fn materialize_static_inline_branching_call_argument_result(
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
     let Some(state_call) =
-        inline_branching_call_argument_for_expression(input, source_key, statement_index, call)
+        inline_branching_call_result_for_expression(input, source_key, statement_index, call)
     else {
         return false;
     };
@@ -223,7 +253,7 @@ fn materialize_static_inline_branching_call_argument_results_for_statement(
 ) -> bool {
     let mut emitted = false;
     for (_, state_call) in input.state_calls.calls.iter() {
-        if state_call.role != StateCallRole::CallArgument
+        if !state_call_has_runtime_value_result(state_call.role)
             || state_call.lowering != StateCallLowering::InlineBranching
             || !super::super::state_key_matches_statement_source(state_call.source_key, source_key)
             || state_call.statement_index != statement_index

@@ -141,8 +141,7 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     pointer_byte_offset: usize,
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes =
-        Vec::with_capacity(runtime_text_stored_place_append_to_runtime_pointee_width());
+    let mut bytes = Vec::with_capacity(runtime_text_stored_place_append_to_runtime_pointee_width());
     append_mov_r14_imm64(&mut bytes, 0); // buffer base (reloc @ instruction start)
     append_mov_r15_imm64(&mut bytes, 0); // runtime-frame base (reloc @ +10 == TARGET offset)
     append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = runtime pointer
@@ -773,8 +772,9 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
 ) -> Result<Vec<u8>, Diagnostic> {
     let ptr_disp = disp32(field_byte_offset)?;
     let len_disp = disp32(field_byte_offset + 8)?;
-    let mut bytes =
-        Vec::with_capacity(runtime_text_literal_append_to_runtime_pointee_width(literal));
+    let mut bytes = Vec::with_capacity(runtime_text_literal_append_to_runtime_pointee_width(
+        literal,
+    ));
     append_mov_r15_imm64(&mut bytes, 0); // buffer base (reloc @ instruction start)
     append_mov_r14_imm64(&mut bytes, 0); // runtime-frame base (reloc @ +10 == TARGET offset)
     append_load_r14_from_r14(&mut bytes, pointer_byte_offset)?; // r14 = runtime pointer

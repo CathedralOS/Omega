@@ -1,0 +1,41 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    label: String;
+}
+
+data Main {
+    console: Console;
+    source: Room;
+}
+
+machine Main::main(&mut self) {
+    self.source.label = "Gate";
+
+    transition {
+        _ -> render(self.source)
+    }
+
+    state render(&mut self, source: Room) {
+        let room: Room;
+        let out_line: String;
+
+        room.label = source.label;
+        out_line = "== " + room.label + " ==";
+
+        transition out_line == "== Gate ==" {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(188);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(189);
+    }
+}

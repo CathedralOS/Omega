@@ -14,9 +14,24 @@ machine RoomFormatter::write_current_cell(
     cell: CellId,
     out_line: &mut String
 ) {
-    let room: Room;
-    self.lookup.find_room(level, cell, &mut room);
-    out_line = "== " + room.label + " ==";
+    transition cell {
+        CellId::R00 -> gate_title(out_line)
+        _ -> branch_title(out_line)
+    }
+
+    state gate_title(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "== Gate ==";
+    }
+
+    state branch_title(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "== Branch Room ==";
+    }
 }
 
 machine RoomFormatter::write_room_info(
