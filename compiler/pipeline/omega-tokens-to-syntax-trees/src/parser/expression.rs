@@ -244,6 +244,15 @@ fn parse_unary_expression_handle<'tokens, 'source>(
         ));
     }
 
+    if input.at_contextual("move") {
+        let input = input.take_contextual("move")?;
+        // Ownership is currently inferred from the value flow itself. `move`
+        // is accepted as explicit spelling for that move, then lowered to the
+        // moved expression so the existing ownership lane remains the source of
+        // truth.
+        return parse_unary_expression_handle(syntax_trees, input, context);
+    }
+
     parse_postfix_expression_handle(syntax_trees, input, context)
 }
 

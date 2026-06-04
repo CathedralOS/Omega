@@ -4035,6 +4035,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "modules/module_declaration",
     "modules/package_declaration",
     "modules/pub_visibility_modifier",
+    "ownership/move_keyword_field_assignment",
     "traits/trait_composition_satisfies",
     "traits/trait_declaration_bundle",
     "traits/trait_satisfies_machine_signature",
@@ -4361,12 +4362,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "memory/repr_native_stable_layout",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "found identifier `repr`",
-        },
-    },
-    PendingCanary {
-        path: "ownership/move_keyword_field_assignment",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `;`, found identifier `replacement`",
         },
     },
     PendingCanary {
