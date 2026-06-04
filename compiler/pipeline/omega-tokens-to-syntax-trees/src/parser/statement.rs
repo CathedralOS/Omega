@@ -31,6 +31,10 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
         return parse_relax_statement_handle(syntax_trees, input);
     }
 
+    if input.at_contextual("asm") {
+        return parse_asm_statement_handle(syntax_trees, input);
+    }
+
     if input.at_contextual("trap") {
         let input = input.take_contextual("trap")?;
         let input = if input.at_punctuation(PunctuationKind::Semicolon) {
@@ -118,6 +122,34 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
             input,
         ))
     }
+}
+
+fn parse_asm_statement_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, StatementHandle> {
+    let input = input.take_contextual("asm")?;
+    if input.at_contextual("where") {
+        return Err(input.error_here("asm where contracts are not implemented yet"));
+    }
+
+    let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let input = input.take_contextual("jmp").map_err(|_| {
+        input.error_here("asm blocks currently support only `jmp` transition statements")
+    })?;
+    let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
+    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+
+    Ok((
+        syntax_trees
+            .statements
+            .insert(StatementNode::Transition(TableTransition {
+                target,
+                continuation: TransitionTargetHandle::invalid(),
+                guard: TransitionGuardNode::Always,
+            })),
+        input,
+    ))
 }
 
 fn parse_relax_statement_handle<'tokens, 'source>(

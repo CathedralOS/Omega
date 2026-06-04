@@ -4088,6 +4088,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/generic_machine_where_trait_bound",
     "generics/generic_trait_type_param",
     "generics/generic_type_param_in_state",
+    "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",
     "modules/use_imports_sibling_data",
@@ -4271,27 +4272,21 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         },
     },
     PendingCanary {
-        path: "inline_asm/asm_block_jmp_state",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `:`, found identifier `other`",
-        },
-    },
-    PendingCanary {
         path: "inline_asm/asm_label_loop",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `:`, found punctuation `}`",
+            fragment: "asm blocks currently support only `jmp` transition statements",
         },
     },
     PendingCanary {
         path: "inline_asm/asm_structured_ldr_str",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `:`, found identifier `x0`",
+            fragment: "asm blocks currently support only `jmp` transition statements",
         },
     },
     PendingCanary {
         path: "inline_asm/asm_where_contract",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `;`, found identifier `where`",
+            fragment: "asm where contracts are not implemented yet",
         },
     },
     PendingCanary {
