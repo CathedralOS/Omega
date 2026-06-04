@@ -11,11 +11,13 @@ use crate::parser::operator::parse_operator_definition;
 use crate::parser::platform::parse_platform;
 use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
+use crate::parser::type_reference::parse_type_reference_handle;
 use crate::parser::use_item::parse_use_item;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
     HostProviderDefinition, HostProviderMapping, HostProviderMappingKind, Item, ModuleDeclaration,
-    PackageDeclaration, ProviderDeclaration,
+    PackageDeclaration, ProviderDeclaration, WireDataDefinition, WireDataField, WireDataMember,
+    WireDataReserved, WireDataVersion,
 };
 use omega_syntax_trees::operator_spelling::ProviderCategory;
 use omega_tokens::{KeywordKind, PunctuationKind};
@@ -39,6 +41,13 @@ pub(super) fn parse_item<'tokens, 'source>(
         // field layout, so no extra representation marker is needed yet.
         let (item, rest) = parse_data_definition(syntax_trees, input)?;
         return Ok((Item::Data(item), rest));
+    }
+
+    if input.at_contextual("wire") {
+        let input = input.take_contextual("wire")?;
+        let input = input.take_keyword(KeywordKind::Data, "data")?;
+        let (item, rest) = parse_wire_data_definition(syntax_trees, input)?;
+        return Ok((Item::WireData(item), rest));
     }
 
     if input.at_contextual("module") {
@@ -189,9 +198,104 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`pub`",
         "`provider`",
         "`trait`",
+        "`wire data`",
         "`boundary operator`",
         "`boundary trait`",
     ]))
+}
+
+fn parse_wire_data_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, WireDataDefinition> {
+    let (name, mut input) = input.take_identifier()?;
+    let encoding = if input.at_contextual("encoding") {
+        input = input.take_contextual("encoding")?;
+        let (encoding, rest) = input.take_identifier()?;
+        input = rest;
+        Some(encoding)
+    } else {
+        None
+    };
+    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let (members, input) = parse_wire_data_members(syntax_trees, input)?;
+    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+
+    Ok((
+        WireDataDefinition {
+            name,
+            encoding,
+            members,
+        },
+        input,
+    ))
+}
+
+fn parse_wire_data_members<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, omega_core::arena::HandleSpan<WireDataMember>> {
+    let mut member_start = omega_core::arena::Handle::invalid();
+    let mut member_count = 0u32;
+
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let (member, rest) = parse_wire_data_member(syntax_trees, input)?;
+        let handle = syntax_trees.items.append_wire_data_member(member);
+        if member_count == 0 {
+            member_start = handle;
+        }
+        member_count = member_count
+            .checked_add(1)
+            .expect("wire data member span count overflow");
+        input = rest;
+    }
+
+    let members = if member_count == 0 {
+        omega_core::arena::HandleSpan::empty()
+    } else {
+        omega_core::arena::HandleSpan::from_parts(member_start, member_count)
+    };
+    Ok((members, input))
+}
+
+fn parse_wire_data_member<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, WireDataMember> {
+    if input.at_contextual("reserved") {
+        let input = input.take_contextual("reserved")?;
+        let (number, input) = input.take_integer()?;
+        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        return Ok((WireDataMember::Reserved(WireDataReserved { number }), input));
+    }
+
+    if input.at_contextual("version") {
+        let input = input.take_contextual("version")?;
+        let (name, input) = input.take_identifier()?;
+        let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+        let (members, input) = parse_wire_data_members(syntax_trees, input)?;
+        let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+        return Ok((
+            WireDataMember::Version(WireDataVersion { name, members }),
+            input,
+        ));
+    }
+
+    let (number, input) = input.take_integer()?;
+    let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
+    let (name, input) = input.take_identifier()?;
+    let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
+    let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
+    let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+
+    Ok((
+        WireDataMember::Field(WireDataField {
+            number,
+            name,
+            type_reference,
+        }),
+        input,
+    ))
 }
 
 fn parse_host_provider_definition<'tokens, 'source>(

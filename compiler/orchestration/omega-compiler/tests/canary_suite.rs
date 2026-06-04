@@ -4326,28 +4326,4 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
             fragment: "state `v1` assignment cannot write `counter` because it is not mutable in this state",
         },
     },
-    PendingCanary {
-        path: "wire/wire_data_encoding_family",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "found identifier `wire`",
-        },
-    },
-    PendingCanary {
-        path: "wire/wire_data_field_numbers",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "found identifier `wire`",
-        },
-    },
-    PendingCanary {
-        path: "wire/wire_data_reserved_field",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "found identifier `wire`",
-        },
-    },
-    PendingCanary {
-        path: "wire/wire_data_version_block",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "found identifier `wire`",
-        },
-    },
 ];
