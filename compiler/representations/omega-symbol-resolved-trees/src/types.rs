@@ -1,5 +1,6 @@
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use std::fmt;
 use std::ops::{Deref, DerefMut};
 
 use crate::name::DiagnosticName;
@@ -111,14 +112,44 @@ pub struct FixedArrayTypeReference {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedArrayTypeReferenceStorage {
     pub element_type: Handle<TypeReference>,
-    pub length: usize,
+    pub length: FixedArrayLength,
 }
 
 impl Default for FixedArrayTypeReferenceStorage {
     fn default() -> Self {
         Self {
             element_type: Handle::invalid(),
-            length: 0,
+            length: FixedArrayLength::Literal(0),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FixedArrayLength {
+    Literal(usize),
+    ConstParameter {
+        symbol: SymbolHandle,
+        name: DiagnosticName,
+    },
+}
+
+impl Default for FixedArrayLength {
+    fn default() -> Self {
+        Self::Literal(0)
+    }
+}
+
+impl From<usize> for FixedArrayLength {
+    fn from(value: usize) -> Self {
+        Self::Literal(value)
+    }
+}
+
+impl fmt::Display for FixedArrayLength {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Literal(value) => write!(formatter, "{value}"),
+            Self::ConstParameter { name, .. } => write!(formatter, "{name}"),
         }
     }
 }
@@ -435,7 +466,7 @@ impl TypeReferenceTable {
                 );
                 self.insert(TypeReferenceNode::FixedArray {
                     element_type,
-                    length: fixed_array.length,
+                    length: fixed_array.length.clone(),
                 })
             }
             TypeReference::Slice(slice) => {
@@ -493,7 +524,7 @@ pub enum TypeReferenceNode {
     },
     FixedArray {
         element_type: TypeReferenceHandle,
-        length: usize,
+        length: FixedArrayLength,
     },
     Slice {
         element_type: TypeReferenceHandle,

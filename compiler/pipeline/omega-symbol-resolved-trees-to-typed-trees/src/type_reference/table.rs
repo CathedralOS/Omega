@@ -5,6 +5,7 @@ use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_typed_trees as typed;
 
 use crate::type_reference::constraints::lower_type_constraint_node_span_from_table;
+use crate::type_reference::direct::lower_fixed_array_length;
 
 pub(super) fn lower_type_reference_handle_from_table_with_context(
     source_trees: &SymbolResolvedTrees,
@@ -68,7 +69,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::FixedArray {
                     element_type,
-                    length: *length,
+                    length: lower_fixed_array_length(length),
                 },
             ))
         }

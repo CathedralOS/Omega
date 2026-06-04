@@ -1,5 +1,6 @@
 use crate::identifier::Identifier;
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use std::fmt;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
@@ -66,11 +67,11 @@ impl TypeReferenceTable {
     pub fn insert_fixed_array(
         &mut self,
         element_type: TypeReferenceHandle,
-        length: usize,
+        length: impl Into<FixedArrayLength>,
     ) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::FixedArray {
             element_type,
-            length,
+            length: length.into(),
         })
     }
 
@@ -160,7 +161,7 @@ pub enum TypeReferenceNode {
     },
     FixedArray {
         element_type: TypeReferenceHandle,
-        length: usize,
+        length: FixedArrayLength,
     },
     Slice {
         element_type: TypeReferenceHandle,
@@ -172,6 +173,33 @@ pub enum TypeReferenceNode {
     Named(Identifier),
     SelfType,
     Unit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FixedArrayLength {
+    Literal(usize),
+    ConstParameter(Identifier),
+}
+
+impl Default for FixedArrayLength {
+    fn default() -> Self {
+        Self::Literal(0)
+    }
+}
+
+impl From<usize> for FixedArrayLength {
+    fn from(value: usize) -> Self {
+        Self::Literal(value)
+    }
+}
+
+impl fmt::Display for FixedArrayLength {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Literal(value) => write!(formatter, "{value}"),
+            Self::ConstParameter(name) => write!(formatter, "{name}"),
+        }
+    }
 }
 
 impl Default for TypeReferenceNode {

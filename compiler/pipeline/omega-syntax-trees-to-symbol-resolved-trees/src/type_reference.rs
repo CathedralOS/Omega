@@ -4,10 +4,10 @@ use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::types::{
-    ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayTypeReference,
-    FixedArrayTypeReferenceStorage, GenericTypeReference, GenericTypeReferenceStorage,
-    ReferenceTypeReference, ReferenceTypeReferenceStorage, SliceTypeReference,
-    SliceTypeReferenceStorage, TypeConstraint, TypeReference,
+    ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayLength,
+    FixedArrayTypeReference, FixedArrayTypeReferenceStorage, GenericTypeReference,
+    GenericTypeReferenceStorage, ReferenceTypeReference, ReferenceTypeReferenceStorage,
+    SliceTypeReference, SliceTypeReferenceStorage, TypeConstraint, TypeReference,
 };
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -43,7 +43,7 @@ pub(crate) fn lower_type_reference_handle(
         } => Ok(TypeReference::FixedArray(FixedArrayTypeReference {
             storage: FixedArrayTypeReferenceStorage {
                 element_type: lower_type_reference_child(lowerer, syntax_trees, *element_type)?,
-                length: *length,
+                length: lower_fixed_array_length(length),
             },
         })),
         syntax::types::TypeReferenceNode::Slice { element_type } => {
@@ -71,6 +71,18 @@ pub(crate) fn lower_type_reference_handle(
             symbol: SymbolHandle::invalid(),
         }),
         syntax::types::TypeReferenceNode::Unit => Ok(TypeReference::Unit),
+    }
+}
+
+pub(crate) fn lower_fixed_array_length(
+    length: &syntax::types::FixedArrayLength,
+) -> FixedArrayLength {
+    match length {
+        syntax::types::FixedArrayLength::Literal(value) => FixedArrayLength::Literal(*value),
+        syntax::types::FixedArrayLength::ConstParameter(name) => FixedArrayLength::ConstParameter {
+            symbol: SymbolHandle::invalid(),
+            name: crate::name::lower_name(name),
+        },
     }
 }
 

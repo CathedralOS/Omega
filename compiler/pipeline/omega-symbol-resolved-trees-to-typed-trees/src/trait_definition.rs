@@ -1,3 +1,4 @@
+use crate::data::lower_type_parameter_kind;
 use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::state::lower_state_signature;
@@ -23,11 +24,13 @@ pub(crate) fn lower_trait_definition(
         .source_trees
         .data_type_parameters(trait_definition.type_parameters)
     {
+        let kind = lower_type_parameter_kind(lowerer, &parameter.kind)?;
         lowerer.typed_trees.push_trait_type_parameter(
             &mut typed_trait,
             typed::data::TypeParameter {
                 symbol: parameter.symbol,
                 name: crate::name::lower_name(&parameter.name),
+                kind,
             },
         );
     }

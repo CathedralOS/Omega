@@ -192,6 +192,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             }
             for parameter in syntax_trees.items.type_parameters(machine.type_parameters) {
                 count_identifier(&parameter.name, counts);
+                count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
             }
             for state in syntax_trees.items.state_handles(machine.states) {
                 let state = syntax_trees.items.state(*state);
@@ -221,6 +222,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 .type_parameters(trait_definition.type_parameters)
             {
                 count_identifier(&parameter.name, counts);
+                count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
             }
             for fact in syntax_trees.items.proof_facts(trait_definition.invariants) {
                 count_proof_fact(syntax_trees, fact, counts);
@@ -322,6 +324,7 @@ fn count_operator(
     );
     for parameter in syntax_trees.items.type_parameters(operator.type_parameters) {
         count_identifier(&parameter.name, counts);
+        count_type_parameter_kind(syntax_trees, &parameter.kind, counts);
     }
     for parameter in syntax_trees.items.state_parameters(operator.parameters) {
         count_state_parameter(syntax_trees, *parameter, counts);
@@ -604,10 +607,15 @@ fn count_type_reference_handle(
         }
         crate::types::TypeReferenceNode::FixedArray {
             element_type,
-            length: _,
+            length,
+        } => {
+            count_type_reference_handle(syntax_trees, *element_type, counts);
+            if let crate::types::FixedArrayLength::ConstParameter(name) = length {
+                count_identifier(name, counts);
+            }
         }
-        | crate::types::TypeReferenceNode::Slice { element_type } => {
-            count_type_reference_handle(syntax_trees, *element_type, counts)
+        crate::types::TypeReferenceNode::Slice { element_type } => {
+            count_type_reference_handle(syntax_trees, *element_type, counts);
         }
         crate::types::TypeReferenceNode::Generic {
             base_name,
@@ -624,6 +632,16 @@ fn count_type_reference_handle(
         crate::types::TypeReferenceNode::Named(name) => count_identifier(name, counts),
         crate::types::TypeReferenceNode::SelfType => {}
         crate::types::TypeReferenceNode::Unit => {}
+    }
+}
+
+fn count_type_parameter_kind(
+    syntax_trees: &SyntaxTrees,
+    kind: &crate::item::TypeParameterKind,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    if let crate::item::TypeParameterKind::Const { type_reference } = kind {
+        count_type_reference_handle(syntax_trees, *type_reference, counts);
     }
 }
 

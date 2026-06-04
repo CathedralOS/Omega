@@ -1,3 +1,4 @@
+use crate::data::lower_type_parameter_kind;
 use crate::domain::lower_proof_facts;
 use crate::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
@@ -32,11 +33,13 @@ pub(crate) fn lower_machine(
         .source_trees
         .data_type_parameters(machine.type_parameters)
     {
+        let kind = lower_type_parameter_kind(lowerer, &parameter.kind)?;
         lowerer.typed_trees.push_machine_type_parameter(
             &mut typed_machine,
             typed::data::TypeParameter {
                 symbol: parameter.symbol,
                 name: crate::name::lower_name(&parameter.name),
+                kind,
             },
         );
     }

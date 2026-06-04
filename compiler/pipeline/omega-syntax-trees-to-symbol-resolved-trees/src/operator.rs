@@ -15,7 +15,7 @@ pub(crate) fn lower_operator_definition(
         is_boundary: operator.is_boundary,
         symbol: Default::default(),
         name: lower_operator_name(lowerer, syntax_trees, operator.name),
-        type_parameters: lower_type_parameters(lowerer, syntax_trees, operator.type_parameters),
+        type_parameters: lower_type_parameters(lowerer, syntax_trees, operator.type_parameters)?,
         parameters: lower_state_parameters(lowerer, syntax_trees, operator.parameters)?,
         return_type: operator
             .return_type

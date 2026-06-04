@@ -15,7 +15,7 @@ pub(crate) fn lower_machine_into(
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
     let states = lower_machine_states(lowerer, syntax_trees, machine.states)?;
-    let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters);
+    let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
     let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
     let decrease_order =

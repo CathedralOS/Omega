@@ -70,12 +70,22 @@ Implementation slices below build against these. Minor/easily-reversible details
 **Recent canary promotions.** Numeric literal suffixes (`3i32`, `3.0real`,
 `3nat`), newline-separated proof facts, field `+=` assignment, relax scope syntax
 (`relax target { ... }`), relaxed borrow parameter spelling (`&mut relaxed T`),
-trait `default machine` syntax, and top-level
+trait `default machine` syntax, `data FixedBuffer<T, const N: usize>` const
+parameters usable as symbolic fixed-array lengths, and top-level
 `host <target> provides <Trait> { machine -> syscall N; }` provider metadata,
 plus `wire data` schemas with encoding, numbered fields, reserved tags, and
 version blocks, plus `data` historical `version` blocks now compile in the
 active pass suite. Full canary suite was last green locally at 106 passed after
-the wire-data checkpoint; rerun after the data-version checkpoint.
+the data-version checkpoint; rerun after the const-data-parameter checkpoint.
+
+**Const data parameter follow-up.** Current `const` data parameter support is a
+structural compile path: syntax/resolved/typed trees preserve const parameters,
+and `[T; N]` carries a symbolic length instead of collapsing to a fake literal.
+Uninstantiated symbolic lengths deliberately do not produce concrete layout or
+runtime-storage descriptors yet. Need instantiation-time substitution,
+duplicate/value-kind validation, layout diagnostics for unresolved symbolic
+lengths in non-generic contexts, and operator/range proof integration for
+const-length facts.
 
 **Data version semantics follow-up.** Current `data version` support is syntax
 metadata only: historical member blocks are parsed/snapshotted and preserved in

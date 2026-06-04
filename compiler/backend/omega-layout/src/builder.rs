@@ -9,7 +9,9 @@ use omega_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::platform::Platform;
 use omega_checked_trees::trait_definition::TraitDefinition;
-use omega_checked_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use omega_checked_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{BuiltinType, SymbolHandle};
@@ -408,6 +410,9 @@ impl<'program> LayoutBuilder<'program> {
             } => {
                 let element_layout =
                     self.layout_type_reference_handle_with_bindings(*element_type, bindings)?;
+                let FixedArrayLength::Literal(length) = length else {
+                    return Ok(TypeLayout::default());
+                };
 
                 Ok(TypeLayout {
                     size: element_layout.size * length,
@@ -657,9 +662,12 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
-            } => TypeLayoutDescriptor::FixedArray {
-                element_type: Box::new(self.type_descriptor(*element_type)),
-                length: *length,
+            } => match length {
+                FixedArrayLength::Literal(length) => TypeLayoutDescriptor::FixedArray {
+                    element_type: Box::new(self.type_descriptor(*element_type)),
+                    length: *length,
+                },
+                FixedArrayLength::ConstParameter { .. } => TypeLayoutDescriptor::Unit,
             },
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
                 element_type: Box::new(self.type_descriptor(*element_type)),

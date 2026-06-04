@@ -17,7 +17,7 @@ pub(crate) fn lower_trait_definition(
     trait_definition: &syntax::item::TraitDefinition,
 ) -> Result<TraitDefinition, Diagnostic> {
     let type_parameters =
-        lower_type_parameters(lowerer, syntax_trees, trait_definition.type_parameters);
+        lower_type_parameters(lowerer, syntax_trees, trait_definition.type_parameters)?;
     let invariants = lower_proof_facts(lowerer, syntax_trees, trait_definition.invariants)?;
     let requires = lower_trait_requirements(lowerer, syntax_trees, trait_definition.requires);
     let machines =

@@ -1,6 +1,5 @@
 // Chapter 12 "Const And Proof Parameters": `data FixedBuffer<T, const N: usize>`
-// should accept a const value parameter usable as an array length. The `const`
-// parameter form does not parse in data declarations.
+// accepts a const value parameter usable as a symbolic fixed-array length.
 
 data FixedBuffer<T, const N: usize> {
     items: [T; N];

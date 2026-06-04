@@ -8,21 +8,28 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
-    let data_type_parameters = &program.tables.declarations.data_type_parameters;
+    let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
     let child_type_references = &mut program.tables.declarations.child_type_references;
     program
         .roots
         .data_definitions
         .for_each_mut(|data_definition| {
-            let type_parameters =
-                data_type_parameters.span_or_empty(data_definition.type_parameters);
+            let type_parameters = data_type_parameters
+                .span_or_empty(data_definition.type_parameters)
+                .to_vec();
+            assign_type_parameter_constraint_symbols(
+                symbols,
+                child_type_references,
+                &type_parameters,
+                data_type_parameters.span_mut_or_empty(data_definition.type_parameters),
+            );
             for member in data_members.span_mut_or_empty(data_definition.members) {
                 if let omega_symbol_resolved_trees::data::DataMember::Field(field) = member {
                     assign_type_reference_symbol_with_locals(
                         symbols,
                         child_type_references,
-                        type_parameters,
+                        &type_parameters,
                         &mut field.type_reference,
                     );
                 }
@@ -119,6 +126,11 @@ fn assign_type_reference_symbol_with_context(
                 self_type_symbol,
                 fixed_array.element_type,
             );
+            assign_fixed_array_length_symbol(
+                symbols,
+                local_type_parameters,
+                &mut fixed_array.length,
+            );
         }
         omega_symbol_resolved_trees::types::TypeReference::Slice(slice) => {
             assign_type_reference_handle_symbol_with_context(
@@ -148,6 +160,40 @@ fn assign_type_reference_symbol_with_context(
             *symbol = self_type_symbol;
         }
         omega_symbol_resolved_trees::types::TypeReference::Unit => {}
+    }
+}
+
+fn assign_fixed_array_length_symbol(
+    symbols: &SymbolTable,
+    local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
+    length: &mut omega_symbol_resolved_trees::types::FixedArrayLength,
+) {
+    let omega_symbol_resolved_trees::types::FixedArrayLength::ConstParameter { symbol, name } =
+        length
+    else {
+        return;
+    };
+    *symbol = resolve_type_symbol(symbols, local_type_parameters, name);
+}
+
+fn assign_type_parameter_constraint_symbols(
+    symbols: &SymbolTable,
+    child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
+    type_parameters: &mut [omega_symbol_resolved_trees::data::TypeParameter],
+) {
+    for parameter in type_parameters {
+        let omega_symbol_resolved_trees::data::TypeParameterKind::Const { type_reference } =
+            &mut parameter.kind
+        else {
+            continue;
+        };
+        assign_type_reference_symbol_with_locals(
+            symbols,
+            child_type_references,
+            local_type_parameters,
+            type_reference,
+        );
     }
 }
 

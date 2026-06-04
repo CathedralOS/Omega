@@ -1,5 +1,5 @@
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn fixed_array_field_lengths(
     program: &omega_typed_trees::TypedTrees,
@@ -24,7 +24,10 @@ pub(super) fn fixed_array_type_length(
     type_reference: TypeReferenceHandle,
 ) -> Option<usize> {
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::FixedArray { length, .. } => Some(*length),
+        TypeReferenceNode::FixedArray { length, .. } => match length {
+            FixedArrayLength::Literal(length) => Some(*length),
+            FixedArrayLength::ConstParameter { .. } => None,
+        },
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..

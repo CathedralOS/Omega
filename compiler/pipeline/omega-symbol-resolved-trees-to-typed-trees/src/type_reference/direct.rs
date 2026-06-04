@@ -53,7 +53,7 @@ pub(super) fn lower_type_reference_handle_with_context(
             Ok(typed_trees.type_reference_table.insert(
                 typed::types::TypeReferenceNode::FixedArray {
                     element_type,
-                    length: fixed_array.length,
+                    length: lower_fixed_array_length(&fixed_array.length),
                 },
             ))
         }
@@ -100,5 +100,21 @@ pub(super) fn lower_type_reference_handle_with_context(
         resolved::types::TypeReference::Unit => Ok(typed_trees
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Unit)),
+    }
+}
+
+pub(super) fn lower_fixed_array_length(
+    length: &resolved::types::FixedArrayLength,
+) -> typed::types::FixedArrayLength {
+    match length {
+        resolved::types::FixedArrayLength::Literal(value) => {
+            typed::types::FixedArrayLength::Literal(*value)
+        }
+        resolved::types::FixedArrayLength::ConstParameter { symbol, name } => {
+            typed::types::FixedArrayLength::ConstParameter {
+                symbol: *symbol,
+                name: crate::name::lower_name(name),
+            }
+        }
     }
 }

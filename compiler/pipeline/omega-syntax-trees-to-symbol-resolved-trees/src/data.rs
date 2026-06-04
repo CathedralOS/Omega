@@ -6,6 +6,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::data::{
     DataDefinition, DataDefinitionStorage, DataField, DataMember, DataVariant, TypeParameter,
+    TypeParameterKind,
 };
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -15,7 +16,7 @@ pub(crate) fn lower_data_definition(
     data_definition: &syntax::item::DataDefinition,
 ) -> Result<DataDefinition, Diagnostic> {
     let type_parameters =
-        lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters);
+        lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let members = lower_data_members(lowerer, syntax_trees, data_definition.members)?;
 
     Ok(DataDefinition {
@@ -32,22 +33,32 @@ pub(crate) fn lower_type_parameters(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     type_parameters: HandleSpan<syntax::item::TypeParameter>,
-) -> HandleSpan<TypeParameter> {
-    lowerer
+) -> Result<HandleSpan<TypeParameter>, Diagnostic> {
+    let mut lowered = Vec::new();
+    for parameter in syntax_trees.items.type_parameters(type_parameters) {
+        let kind = match &parameter.kind {
+            syntax::item::TypeParameterKind::Type => TypeParameterKind::Type,
+            syntax::item::TypeParameterKind::Const { type_reference } => TypeParameterKind::Const {
+                type_reference: lower_type_reference_handle(
+                    lowerer,
+                    syntax_trees,
+                    *type_reference,
+                )?,
+            },
+        };
+        lowered.push(TypeParameter {
+            symbol: SymbolHandle::invalid(),
+            name: crate::name::lower_name(&parameter.name),
+            kind,
+        });
+    }
+
+    Ok(lowerer
         .symbol_resolved_trees
         .tables
         .declarations
         .data_type_parameters
-        .insert_many(
-            syntax_trees
-                .items
-                .type_parameters(type_parameters)
-                .iter()
-                .map(|parameter| TypeParameter {
-                    symbol: SymbolHandle::invalid(),
-                    name: crate::name::lower_name(&parameter.name),
-                }),
-        )
+        .insert_many(lowered))
 }
 
 fn lower_data_members(

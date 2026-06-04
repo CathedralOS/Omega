@@ -23,6 +23,7 @@ pub(crate) fn lower_data_definition(
         let type_parameter = typed::data::TypeParameter {
             symbol: parameter.symbol,
             name: crate::name::lower_name(&parameter.name),
+            kind: lower_type_parameter_kind(lowerer, &parameter.kind)?,
         };
         lowerer
             .typed_trees
@@ -37,6 +38,20 @@ pub(crate) fn lower_data_definition(
     }
 
     Ok(typed_data_definition)
+}
+
+pub(crate) fn lower_type_parameter_kind(
+    lowerer: &mut Lowerer,
+    kind: &resolved::data::TypeParameterKind,
+) -> Result<typed::data::TypeParameterKind, Diagnostic> {
+    match kind {
+        resolved::data::TypeParameterKind::Type => Ok(typed::data::TypeParameterKind::Type),
+        resolved::data::TypeParameterKind::Const { type_reference } => {
+            Ok(typed::data::TypeParameterKind::Const {
+                type_reference: lower_type_reference_into_table(lowerer, type_reference)?,
+            })
+        }
+    }
 }
 
 fn lower_data_member(

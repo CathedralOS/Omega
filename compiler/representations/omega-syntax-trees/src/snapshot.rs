@@ -9,7 +9,7 @@ use crate::item::{
 };
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use crate::syntax_trees::SyntaxTrees;
-use crate::types::{TypeConstraintNode, TypeReferenceNode};
+use crate::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
 use omega_core::diagnostics::PhaseSnapshot;
 use serde::Serialize;
 
@@ -143,6 +143,8 @@ pub enum ItemSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TypeParameterSnapshot {
     pub name: IdentifierSnapshot,
+    pub kind: &'static str,
+    pub const_type: Option<TypeReferenceSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -377,7 +379,7 @@ pub enum TypeReferenceSnapshot {
     },
     FixedArray {
         element_type: Box<TypeReferenceSnapshot>,
-        length: usize,
+        length: FixedArrayLengthSnapshot,
     },
     Slice {
         element_type: Box<TypeReferenceSnapshot>,
@@ -392,6 +394,13 @@ pub enum TypeReferenceSnapshot {
     SelfType,
     Unit,
     Missing,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum FixedArrayLengthSnapshot {
+    Literal { value: usize },
+    ConstParameter { name: IdentifierSnapshot },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -524,9 +533,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .items
                 .type_parameters(value.type_parameters)
                 .iter()
-                .map(|parameter| TypeParameterSnapshot {
-                    name: snapshot_identifier(&parameter.name),
-                })
+                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
             members: syntax_trees
                 .items
@@ -637,9 +644,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .items
                 .type_parameters(value.type_parameters)
                 .iter()
-                .map(|parameter| TypeParameterSnapshot {
-                    name: snapshot_identifier(&parameter.name),
-                })
+                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
             terminates: value.terminates,
             decreases: syntax_trees
@@ -685,9 +690,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .items
                 .type_parameters(value.type_parameters)
                 .iter()
-                .map(|parameter| TypeParameterSnapshot {
-                    name: snapshot_identifier(&parameter.name),
-                })
+                .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
                 .collect(),
             invariants: snapshot_proof_facts(syntax_trees, value.invariants),
             requires: snapshot_identifier_slice(
@@ -793,9 +796,7 @@ fn snapshot_operator(
             .items
             .type_parameters(operator.type_parameters)
             .iter()
-            .map(|parameter| TypeParameterSnapshot {
-                name: snapshot_identifier(&parameter.name),
-            })
+            .map(|parameter| snapshot_type_parameter(syntax_trees, parameter))
             .collect(),
         parameters: syntax_trees
             .items
@@ -812,6 +813,27 @@ fn snapshot_operator(
             snapshot_identifier_slice(syntax_trees.items.identifier_path_members(provider))
         }),
         token_count: operator.token_count,
+    }
+}
+
+fn snapshot_type_parameter(
+    syntax_trees: &SyntaxTrees,
+    parameter: &crate::item::TypeParameter,
+) -> TypeParameterSnapshot {
+    match &parameter.kind {
+        crate::item::TypeParameterKind::Type => TypeParameterSnapshot {
+            name: snapshot_identifier(&parameter.name),
+            kind: "type",
+            const_type: None,
+        },
+        crate::item::TypeParameterKind::Const { type_reference } => TypeParameterSnapshot {
+            name: snapshot_identifier(&parameter.name),
+            kind: "const",
+            const_type: Some(snapshot_type_reference_handle(
+                syntax_trees,
+                *type_reference,
+            )),
+        },
     }
 }
 
@@ -1149,7 +1171,7 @@ fn snapshot_type_reference_handle(
             length,
         } => TypeReferenceSnapshot::FixedArray {
             element_type: Box::new(snapshot_type_reference_handle(syntax_trees, *element_type)),
-            length: *length,
+            length: snapshot_fixed_array_length(length),
         },
         TypeReferenceNode::Slice { element_type } => TypeReferenceSnapshot::Slice {
             element_type: Box::new(snapshot_type_reference_handle(syntax_trees, *element_type)),
@@ -1171,6 +1193,15 @@ fn snapshot_type_reference_handle(
         },
         TypeReferenceNode::SelfType => TypeReferenceSnapshot::SelfType,
         TypeReferenceNode::Unit => TypeReferenceSnapshot::Unit,
+    }
+}
+
+fn snapshot_fixed_array_length(length: &FixedArrayLength) -> FixedArrayLengthSnapshot {
+    match length {
+        FixedArrayLength::Literal(value) => FixedArrayLengthSnapshot::Literal { value: *value },
+        FixedArrayLength::ConstParameter(name) => FixedArrayLengthSnapshot::ConstParameter {
+            name: snapshot_identifier(name),
+        },
     }
 }
 
