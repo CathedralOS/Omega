@@ -3,7 +3,9 @@ use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use omega_syntax_trees::types::{
+    FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_type_reference_handle<'tokens, 'source>(
@@ -21,9 +23,19 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
         let (element_type, mut input) = parse_type_reference_handle(syntax_trees, input)?;
         if input.at_punctuation(PunctuationKind::Semicolon) {
             let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            let (length, input) = input.take_integer()?;
-            let length = usize::try_from(length)
-                .map_err(|_| input.error_here("expected non-negative array length"))?;
+            let (length, input) = if input
+                .tokens
+                .first()
+                .is_some_and(crate::parser::input::is_identifier_token_for_parser)
+            {
+                let (name, input) = input.take_identifier()?;
+                (FixedArrayLength::ConstParameter(name), input)
+            } else {
+                let (length, input) = input.take_integer()?;
+                let length = usize::try_from(length)
+                    .map_err(|_| input.error_here("expected non-negative array length"))?;
+                (FixedArrayLength::Literal(length), input)
+            };
             let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
             return Ok((
                 syntax_trees

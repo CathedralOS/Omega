@@ -1,15 +1,15 @@
 use crate::parser::context::StateKind;
+use crate::parser::data::parse_type_parameters;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::state::{
     parse_optional_return_type, parse_optional_state_parameters, parse_state,
 };
 use crate::parser::statement::parse_statement_handle;
 use crate::parser::transition::parse_transition_block_handles;
-use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{Machine, State, StateHandle, StateParameterHandle, TypeParameter};
+use omega_syntax_trees::item::{Machine, State, StateHandle, StateParameterHandle};
 use omega_syntax_trees::statement::StatementHandle;
 use omega_syntax_trees::types::TypeReferenceHandle;
 use omega_tokens::{KeywordKind, PunctuationKind};
@@ -27,7 +27,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             .expressions
             .append_identifier_path_member(member)
     })?;
-    let (type_parameters, input) = parse_machine_generic_parameters(syntax_trees, input)?;
+    let (type_parameters, input) = parse_type_parameters(syntax_trees, input)?;
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
@@ -125,54 +125,6 @@ pub(super) fn parse_machine<'tokens, 'source>(
         },
         input,
     ))
-}
-
-fn parse_machine_generic_parameters<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
-    if !input.at_punctuation(PunctuationKind::Less) {
-        return Ok((HandleSpan::empty(), input));
-    }
-
-    input = input.take_punctuation(PunctuationKind::Less, "<")?;
-    let mut type_parameter_start = Handle::invalid();
-    let mut type_parameter_count = 0u32;
-
-    loop {
-        if input.at_contextual("const") {
-            input = input.take_contextual("const")?;
-            let (_name, next) = input.take_identifier()?;
-            input = next.take_punctuation(PunctuationKind::Colon, ":")?;
-            let (_type_reference, next) = parse_type_reference_handle(syntax_trees, input)?;
-            input = next;
-        } else {
-            let (name, next) = input.take_identifier()?;
-            input = next;
-            let handle = syntax_trees
-                .items
-                .append_type_parameter(TypeParameter { name });
-            if type_parameter_count == 0 {
-                type_parameter_start = handle;
-            }
-            type_parameter_count = type_parameter_count
-                .checked_add(1)
-                .expect("machine type parameter span count overflow");
-        }
-
-        if input.at_punctuation(PunctuationKind::Comma) {
-            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-            continue;
-        }
-
-        input = input.take_punctuation(PunctuationKind::Greater, ">")?;
-        let type_parameters = if type_parameter_count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(type_parameter_start, type_parameter_count)
-        };
-        return Ok((type_parameters, input));
-    }
 }
 
 fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {

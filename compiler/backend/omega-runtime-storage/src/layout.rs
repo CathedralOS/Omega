@@ -1,6 +1,6 @@
 use super::RuntimeStorageContext;
 use omega_checked_trees::types::{
-    PrimitiveType, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
 };
 use omega_core::symbols::{BuiltinType, SymbolHandle};
 use omega_layout::TypeLayout;
@@ -22,6 +22,9 @@ pub(super) fn layout_for_type_reference(
             length,
         } => {
             let element = layout_for_type_reference(context, table, *element_type);
+            let FixedArrayLength::Literal(length) = length else {
+                return TypeLayout::default();
+            };
             TypeLayout {
                 size: element.size.saturating_mul(*length),
                 alignment: element.alignment,

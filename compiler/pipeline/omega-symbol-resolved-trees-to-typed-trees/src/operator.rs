@@ -1,3 +1,4 @@
+use crate::data::lower_type_parameter_kind;
 use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::type_reference::lower_type_reference_into_table;
@@ -34,11 +35,13 @@ pub(crate) fn lower_operator_definition(
         .source_trees
         .data_type_parameters(operator.type_parameters)
     {
+        let kind = lower_type_parameter_kind(lowerer, &parameter.kind)?;
         lowerer.typed_trees.push_operator_type_parameter(
             &mut typed_operator,
             omega_typed_trees::data::TypeParameter {
                 symbol: parameter.symbol,
                 name: crate::name::lower_name(&parameter.name),
+                kind,
             },
         );
     }

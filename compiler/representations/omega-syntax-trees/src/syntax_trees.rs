@@ -841,7 +841,7 @@ impl SyntaxTrees {
             } => {
                 let element_type = self.copy_type_reference_handle(other, *element_type);
                 self.type_references
-                    .insert_fixed_array(element_type, *length)
+                    .insert_fixed_array(element_type, length.clone())
             }
             TypeReferenceNode::Slice { element_type } => {
                 let element_type = self.copy_type_reference_handle(other, *element_type);

@@ -3,7 +3,9 @@ use crate::parser::input::{Input, ParseResult};
 use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::{DataDefinition, DataField, DataMember, DataVariant, TypeParameter};
+use omega_syntax_trees::item::{
+    DataDefinition, DataField, DataMember, DataVariant, TypeParameter, TypeParameterKind,
+};
 use omega_tokens::PunctuationKind;
 
 pub(super) fn parse_data_definition<'tokens, 'source>(
@@ -170,11 +172,20 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
     let mut type_parameter_count = 0u32;
 
     loop {
-        let (name, next) = input.take_identifier()?;
+        let (name, kind, next) = if input.at_contextual("const") {
+            let input = input.take_contextual("const")?;
+            let (name, input) = input.take_identifier()?;
+            let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
+            let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
+            (name, TypeParameterKind::Const { type_reference }, input)
+        } else {
+            let (name, input) = input.take_identifier()?;
+            (name, TypeParameterKind::Type, input)
+        };
         input = next;
         let handle = syntax_trees
             .items
-            .append_type_parameter(TypeParameter { name });
+            .append_type_parameter(TypeParameter { name, kind });
         if type_parameter_count == 0 {
             type_parameter_start = handle;
         }

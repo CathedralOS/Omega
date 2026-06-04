@@ -76,6 +76,16 @@ impl Default for DataMember {
 pub struct TypeParameter {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    pub kind: TypeParameterKind,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum TypeParameterKind {
+    #[default]
+    Type,
+    Const {
+        type_reference: TypeReference,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

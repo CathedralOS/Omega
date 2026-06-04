@@ -4075,6 +4075,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "errors/trap_unrecoverable_statement",
     "expressions/float_literal_suffix",
     "expressions/integer_literal_suffix",
+    "generics/const_data_param",
     "generics/const_machine_value_params",
     "generics/generic_data_instantiation",
     "generics/generic_data_type_param",
@@ -4270,12 +4271,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "expressions/match_expression_value",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `;`, found identifier `command`",
-        },
-    },
-    PendingCanary {
-        path: "generics/const_data_param",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `>`, found identifier `N`",
         },
     },
     PendingCanary {

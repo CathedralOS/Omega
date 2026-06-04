@@ -3,7 +3,7 @@ use crate::model::RuntimeFrameSlotKind;
 use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::StatementNode;
-use omega_checked_trees::types::TypeReferenceHandle;
+use omega_checked_trees::types::{FixedArrayLength, TypeReferenceHandle};
 use omega_control_flow::{PlannedTransitionTarget, StateKey};
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
@@ -981,9 +981,12 @@ fn type_descriptor(
         TypeReferenceNode::FixedArray {
             element_type,
             length,
-        } => omega_layout::TypeLayoutDescriptor::FixedArray {
-            element_type: Box::new(type_descriptor(table, *element_type)),
-            length: *length,
+        } => match length {
+            FixedArrayLength::Literal(length) => omega_layout::TypeLayoutDescriptor::FixedArray {
+                element_type: Box::new(type_descriptor(table, *element_type)),
+                length: *length,
+            },
+            FixedArrayLength::ConstParameter { .. } => omega_layout::TypeLayoutDescriptor::Unit,
         },
         TypeReferenceNode::Slice { element_type } => omega_layout::TypeLayoutDescriptor::Slice {
             element_type: Box::new(type_descriptor(table, *element_type)),

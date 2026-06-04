@@ -453,7 +453,7 @@ pub enum TypeReferenceSnapshot {
     },
     FixedArray {
         element_type: Box<TypeReferenceSnapshot>,
-        length: usize,
+        length: String,
     },
     Slice {
         element_type: Box<TypeReferenceSnapshot>,
@@ -997,7 +997,7 @@ fn type_reference_snapshot_from_program(
                 program,
                 program.child_type_reference(fixed_array.element_type),
             )),
-            length: fixed_array.length,
+            length: fixed_array.length.to_string(),
         },
         TypeReference::Slice(slice) => TypeReferenceSnapshot::Slice {
             element_type: Box::new(type_reference_snapshot_from_program(

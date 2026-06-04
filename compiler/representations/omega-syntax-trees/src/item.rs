@@ -388,6 +388,16 @@ pub struct DataDefinition {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypeParameter {
     pub name: Identifier,
+    pub kind: TypeParameterKind,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum TypeParameterKind {
+    #[default]
+    Type,
+    Const {
+        type_reference: crate::types::TypeReferenceHandle,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

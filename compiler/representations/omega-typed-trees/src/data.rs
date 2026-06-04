@@ -67,6 +67,7 @@ impl Default for DataMember {
 pub struct TypeParameter {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    pub kind: TypeParameterKind,
 }
 
 impl Default for TypeParameter {
@@ -74,8 +75,18 @@ impl Default for TypeParameter {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            kind: TypeParameterKind::Type,
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum TypeParameterKind {
+    #[default]
+    Type,
+    Const {
+        type_reference: TypeReferenceHandle,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
