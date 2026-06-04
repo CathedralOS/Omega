@@ -34,6 +34,7 @@ pub(super) fn fixed_array_type_length(
         } => fixed_array_type_length(program, *referee),
         TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => None,
     }

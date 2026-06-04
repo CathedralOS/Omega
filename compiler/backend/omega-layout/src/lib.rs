@@ -40,6 +40,10 @@ pub enum TypeLayoutDescriptor {
     Slice {
         element_type: Box<TypeLayoutDescriptor>,
     },
+    DynamicTrait {
+        symbol: SymbolHandle,
+        name: Identifier,
+    },
     Named {
         symbol: SymbolHandle,
         name: Identifier,
@@ -60,6 +64,7 @@ impl TypeLayoutDescriptor {
             Self::Constrained { base_type } => base_type.storage_symbol(),
             Self::FixedArray { element_type, .. } => element_type.storage_symbol(),
             Self::Slice { element_type } => element_type.storage_symbol(),
+            Self::DynamicTrait { symbol, .. } => *symbol,
             Self::Named { symbol, .. } => *symbol,
             Self::Unit => SymbolHandle::invalid(),
         }

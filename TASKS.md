@@ -74,9 +74,11 @@ trait `default machine` syntax, `data FixedBuffer<T, const N: usize>` const
 parameters usable as symbolic fixed-array lengths, and top-level
 `host <target> provides <Trait> { machine -> syscall N; }` provider metadata,
 plus `wire data` schemas with encoding, numbered fields, reserved tags, and
-version blocks, plus `data` historical `version` blocks now compile in the
-active pass suite. Full canary suite was last green locally at 106 passed after
-the data-version checkpoint; rerun after the const-data-parameter checkpoint.
+version blocks, plus `data` historical `version` blocks, plus `&mut dyn Trait`
+parameters and trait-method calls on dyn receivers now compile in the active
+pass suite. Full canary suite is green locally at 106 Rust tests passing after
+the dyn-trait checkpoint; pass canary count can increase without changing the
+Rust harness test count because many canaries are batched.
 
 **Const data parameter follow-up.** Current `const` data parameter support is a
 structural compile path: syntax/resolved/typed trees preserve const parameters,
@@ -110,6 +112,13 @@ structural: the marker flows through syntax/resolved/typed signatures and the
 default body is parsed. Trait conformance, implementation reuse, override rules,
 and dispatch behavior still need a real semantic pass before default methods are
 more than surface syntax.
+
+**Dynamic trait follow-up.** Current `dyn Trait` support is structural and
+compile-path oriented: syntax/resolved/typed/checked trees preserve dynamic trait
+types, receiver lookup can target trait machines, and layout/runtime-storage use
+an explicit dynamic-trait fat descriptor. Need true trait-object construction,
+vtable/interface table emission, dynamic dispatch lowering, and validation that
+only trait object-safe machines are callable through `dyn Trait`.
 
 **Relax semantics follow-up.** Current relax support is intentionally structural:
 syntax is preserved, relaxed reference metadata flows through typed trees, and

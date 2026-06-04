@@ -68,6 +68,7 @@ pub(in crate::flow::ownership) fn classify_operator_result_ownership(
         // Any other aggregate/owned return classifies as owned vs copy by the
         // shared ownership rule (e.g. `Vec<T>` owns, `usize`/`u8` copy).
         omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | omega_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
         | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
         | omega_typed_trees::types::TypeReferenceNode::Generic { .. }
         | omega_typed_trees::types::TypeReferenceNode::Named { .. } => {
@@ -108,7 +109,8 @@ pub(in crate::flow::ownership) fn type_requires_ownership(
                     | omega_typed_trees::types::PrimitiveType::Usize
             )
         ),
-        omega_typed_trees::types::TypeReferenceNode::Slice { .. }
+        omega_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
+        | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
         | omega_typed_trees::types::TypeReferenceNode::Generic { .. } => true,
         omega_typed_trees::types::TypeReferenceNode::Unit => false,
     }

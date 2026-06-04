@@ -420,6 +420,7 @@ impl<'program> LayoutBuilder<'program> {
                 })
             }
             TypeReferenceNode::Slice { .. } => Ok(self.slice_layout()),
+            TypeReferenceNode::DynamicTrait { .. } => Ok(fat_descriptor_layout(self.target)),
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,
@@ -672,6 +673,12 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
                 element_type: Box::new(self.type_descriptor(*element_type)),
             },
+            TypeReferenceNode::DynamicTrait { symbol, name } => {
+                TypeLayoutDescriptor::DynamicTrait {
+                    symbol: *symbol,
+                    name: name.clone(),
+                }
+            }
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,

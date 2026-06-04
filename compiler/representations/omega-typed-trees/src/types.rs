@@ -240,6 +240,12 @@ impl TypeReferenceTable {
                     arguments,
                 })
             }
+            TypeReferenceNode::DynamicTrait { symbol, name } => {
+                self.insert(TypeReferenceNode::DynamicTrait {
+                    symbol: *symbol,
+                    name: name.clone(),
+                })
+            }
             TypeReferenceNode::Named { symbol, name } => self.insert(TypeReferenceNode::Named {
                 symbol: *symbol,
                 name: name.clone(),
@@ -340,6 +346,10 @@ pub enum TypeReferenceNode {
         base_name: Identifier,
         arguments: HandleSpan<TypeReferenceHandle>,
     },
+    DynamicTrait {
+        symbol: SymbolHandle,
+        name: Identifier,
+    },
     Named {
         symbol: SymbolHandle,
         name: Identifier,
@@ -392,6 +402,7 @@ impl TypeReferenceNode {
             TypeReferenceNode::FixedArray { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Unit => None,
         }
     }
@@ -413,6 +424,7 @@ impl TypeReferenceNode {
                     *base_symbol
                 }
             }
+            TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol,
             TypeReferenceNode::Named { symbol, name } => {
                 if PrimitiveType::from_name(name.as_str()).is_some() {
                     SymbolHandle::invalid()

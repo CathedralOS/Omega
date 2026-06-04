@@ -113,6 +113,12 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                     arguments: lowered_arguments,
                 }))
         }
+        resolved::types::TypeReferenceNode::DynamicTrait { symbol, name } => Ok(typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::DynamicTrait {
+                symbol: *symbol,
+                name: crate::name::lower_name(name),
+            })),
         resolved::types::TypeReferenceNode::Named { symbol, name } => Ok(typed_trees
             .type_reference_table
             .insert(typed::types::TypeReferenceNode::Named {

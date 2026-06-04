@@ -112,6 +112,12 @@ fn canonical_type_reference(
         TypeReferenceNode::Named { symbol, name } => {
             canonical_named_type(*symbol, name.as_str(), type_parameters)
         }
+        TypeReferenceNode::DynamicTrait { symbol, name } => {
+            format!(
+                "dyn {}",
+                canonical_named_type(*symbol, name.as_str(), type_parameters)
+            )
+        }
         TypeReferenceNode::Unit => "()".to_owned(),
     }
 }

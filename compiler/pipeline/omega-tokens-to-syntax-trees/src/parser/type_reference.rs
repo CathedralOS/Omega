@@ -74,6 +74,17 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
         return Ok((syntax_trees.type_references.insert_self_type(), input));
     }
 
+    if input.at_contextual("dyn") {
+        let input = input.take_contextual("dyn")?;
+        let (trait_name, input) = input.take_identifier()?;
+        return Ok((
+            syntax_trees
+                .type_references
+                .insert(TypeReferenceNode::DynamicTrait(trait_name)),
+            input,
+        ));
+    }
+
     let (base_name, mut input) = input.take_identifier()?;
     let mut type_reference = if input.at_punctuation(PunctuationKind::Less) {
         input = input.take_punctuation(PunctuationKind::Less, "<")?;

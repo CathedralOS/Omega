@@ -310,6 +310,10 @@ fn type_reference_base_symbol(
             type_reference_base_symbol(program, *base_type)
         }
         omega_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+        | omega_typed_trees::types::TypeReferenceNode::DynamicTrait {
+            symbol: base_symbol,
+            ..
+        }
         | omega_typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             ..

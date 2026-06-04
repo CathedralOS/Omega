@@ -149,6 +149,7 @@ fn field_type_reference(
         } => data_definition_by_symbol_or_name(program, *base_symbol, base_name)
             .and_then(|data| data_field_type_reference(program, data, field_symbol)),
         omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | omega_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
         | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
         | omega_typed_trees::types::TypeReferenceNode::Unit => None,
     }
@@ -169,6 +170,7 @@ fn indexed_element_type_reference(
         }
         omega_typed_trees::types::TypeReferenceNode::Generic { .. }
         | omega_typed_trees::types::TypeReferenceNode::Named { .. }
+        | omega_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
         | omega_typed_trees::types::TypeReferenceNode::Unit => None,
     }
 }

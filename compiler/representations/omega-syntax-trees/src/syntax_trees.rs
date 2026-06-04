@@ -855,6 +855,9 @@ impl SyntaxTrees {
                 self.type_references
                     .insert_generic(base_name.clone(), arguments)
             }
+            TypeReferenceNode::DynamicTrait(name) => self
+                .type_references
+                .insert(TypeReferenceNode::DynamicTrait(name.clone())),
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),
             TypeReferenceNode::SelfType => self.type_references.insert_self_type(),
             TypeReferenceNode::Unit => self.type_references.insert_unit(),

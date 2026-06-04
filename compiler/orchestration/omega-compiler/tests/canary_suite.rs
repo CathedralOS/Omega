@@ -3823,6 +3823,7 @@ fn executable_name() -> &'static str {
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/boundary_trait_effects_host_call",
+    "traits/dyn_trait_object_dispatch",
     "capabilities/uses_caller_folder",
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
@@ -4295,12 +4296,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "inline_asm/asm_where_contract",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `;`, found identifier `where`",
-        },
-    },
-    PendingCanary {
-        path: "traits/dyn_trait_object_dispatch",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `)`, found identifier `ImageFilter`",
         },
     },
     PendingCanary {

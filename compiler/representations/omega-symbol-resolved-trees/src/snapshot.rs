@@ -462,6 +462,9 @@ pub enum TypeReferenceSnapshot {
         base_name: String,
         arguments: Vec<TypeReferenceSnapshot>,
     },
+    DynamicTrait {
+        name: String,
+    },
     Named {
         name: String,
     },
@@ -1012,6 +1015,9 @@ fn type_reference_snapshot_from_program(
                 .iter()
                 .map(|argument| type_reference_snapshot_from_program(program, argument))
                 .collect(),
+        },
+        TypeReference::DynamicTrait { name, .. } => TypeReferenceSnapshot::DynamicTrait {
+            name: name.to_string(),
         },
         TypeReference::Named { name, .. } => TypeReferenceSnapshot::Named {
             name: name.to_string(),

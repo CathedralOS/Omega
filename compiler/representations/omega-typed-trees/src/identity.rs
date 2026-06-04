@@ -353,6 +353,7 @@ fn count_type_reference_node(
                 count_type_reference_handle(table, *argument, counts);
             }
         }
+        TypeReferenceNode::DynamicTrait { name, .. } => count_type_name(name, counts),
         TypeReferenceNode::Named { name, .. } => count_type_name(name, counts),
         TypeReferenceNode::Unit => {}
     }

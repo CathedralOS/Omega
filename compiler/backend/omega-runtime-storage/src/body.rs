@@ -991,6 +991,12 @@ fn type_descriptor(
         TypeReferenceNode::Slice { element_type } => omega_layout::TypeLayoutDescriptor::Slice {
             element_type: Box::new(type_descriptor(table, *element_type)),
         },
+        TypeReferenceNode::DynamicTrait { symbol, name } => {
+            omega_layout::TypeLayoutDescriptor::DynamicTrait {
+                symbol: *symbol,
+                name: name.clone(),
+            }
+        }
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,

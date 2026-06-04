@@ -153,6 +153,13 @@ fn assign_type_reference_symbol_with_context(
                 generic.arguments,
             );
         }
+        omega_symbol_resolved_trees::types::TypeReference::DynamicTrait { symbol, name } => {
+            *symbol = crate::symbols::lookup::top_level_symbol(
+                symbols,
+                omega_core::symbols::SymbolKind::Trait,
+                name.as_str(),
+            );
+        }
         omega_symbol_resolved_trees::types::TypeReference::Named { symbol, name } => {
             *symbol = resolve_type_symbol(symbols, local_type_parameters, name);
         }
