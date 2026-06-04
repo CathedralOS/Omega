@@ -630,6 +630,7 @@ fn type_reference_label(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> St
             format!("{base_name}<{arguments}>")
         }
         TypeReferenceNode::Named(name) => name.to_string(),
+        TypeReferenceNode::DynamicTrait(name) => format!("dyn {name}"),
         TypeReferenceNode::SelfType => "Self".to_owned(),
         TypeReferenceNode::Unit => "()".to_owned(),
     }

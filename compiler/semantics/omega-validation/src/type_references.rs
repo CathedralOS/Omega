@@ -290,6 +290,13 @@ fn validate_type_reference_handle_with_context(
                 );
             }
         }
+        TypeReferenceNode::DynamicTrait { name, .. } => {
+            if symbols.trait_definition(name.as_str()).is_none() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} references unknown dynamic trait `{name}`"
+                )));
+            }
+        }
         TypeReferenceNode::Named { name, .. } => {
             if name.as_str() == "string" && !allow_bare_str {
                 diagnostics.push(Diagnostic::error(format!(

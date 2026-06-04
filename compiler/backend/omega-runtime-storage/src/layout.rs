@@ -30,7 +30,9 @@ pub(super) fn layout_for_type_reference(
                 alignment: element.alignment,
             }
         }
-        TypeReferenceNode::Slice { .. } => slice_layout(context),
+        TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => {
+            slice_layout(context)
+        }
         TypeReferenceNode::Generic {
             base_symbol: symbol,
             base_name: name,
@@ -52,7 +54,9 @@ fn layout_for_reference_type(
         TypeReferenceNode::Constrained { base_type, .. } => {
             layout_for_reference_type(context, table, *base_type)
         }
-        TypeReferenceNode::Slice { .. } => slice_layout(context),
+        TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => {
+            slice_layout(context)
+        }
         _ => pointer_layout(context),
     }
 }

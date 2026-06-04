@@ -46,6 +46,7 @@ impl TypeReferenceNode {
                     })
                 )
             }
+            TypeReferenceNode::DynamicTrait { name, .. } => format!("dyn {name}"),
             TypeReferenceNode::Named { name, .. } => name.to_string(),
             TypeReferenceNode::Unit => "()".to_owned(),
         }
@@ -108,6 +109,7 @@ impl TypeReferenceNode {
                     })
                 )
             }
+            TypeReferenceNode::DynamicTrait { name, .. } => format!("dyn {name}"),
             TypeReferenceNode::Named { name, .. } => name.to_string(),
             TypeReferenceNode::Unit => "()".to_owned(),
         }

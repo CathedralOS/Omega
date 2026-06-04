@@ -170,6 +170,7 @@ pub enum TypeReferenceNode {
         base_name: Identifier,
         arguments: HandleSpan<TypeReferenceHandle>,
     },
+    DynamicTrait(Identifier),
     Named(Identifier),
     SelfType,
     Unit,

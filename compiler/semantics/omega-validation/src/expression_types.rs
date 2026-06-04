@@ -71,6 +71,14 @@ pub(crate) fn argument_matches_type_reference_handle(
                 | ExpressionNode::StructLiteral(_)
                 | ExpressionNode::Unary(_)
         ),
+        TypeReferenceNode::DynamicTrait { .. } => matches!(
+            argument_node,
+            ExpressionNode::Call(_)
+                | ExpressionNode::Cast(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Name(_)
+        ),
         TypeReferenceNode::Named {
             name: type_name, ..
         } => {

@@ -8,6 +8,7 @@ pub(super) fn is_reference_type(
             is_reference_type(program, *base_type)
         }
         omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | omega_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
         | omega_typed_trees::types::TypeReferenceNode::Generic { .. }
         | omega_typed_trees::types::TypeReferenceNode::Named { .. }
         | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
@@ -25,6 +26,7 @@ pub(super) fn is_mutable_reference_type(
             is_mutable_reference_type(program, *base_type)
         }
         omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
+        | omega_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
         | omega_typed_trees::types::TypeReferenceNode::Generic { .. }
         | omega_typed_trees::types::TypeReferenceNode::Named { .. }
         | omega_typed_trees::types::TypeReferenceNode::Slice { .. }

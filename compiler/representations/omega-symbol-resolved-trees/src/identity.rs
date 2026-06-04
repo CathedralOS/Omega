@@ -378,6 +378,7 @@ fn count_type_reference_node(
                 count_type_reference_handle(table, *argument, counts);
             }
         }
+        TypeReferenceNode::DynamicTrait { name, .. } => count_type_name(name, counts),
         TypeReferenceNode::Named { name, .. } => count_type_name(name, counts),
         TypeReferenceNode::SelfType { .. } => {}
         TypeReferenceNode::Unit => {}
@@ -550,6 +551,7 @@ fn count_type_reference(
                 count_type_reference(argument, generic_arguments, expression_table, counts);
             }
         }
+        TypeReference::DynamicTrait { name, .. } => count_type_name(name, counts),
         TypeReference::Named { name, .. } => count_type_name(name, counts),
         TypeReference::SelfType { .. } => {}
         TypeReference::Unit => {}

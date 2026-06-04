@@ -129,6 +129,7 @@ fn type_reference_is_slice(
         TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => false,
     }
 }
@@ -159,6 +160,7 @@ fn data_field_type_reference(
             })
         }
         TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => None,
     }

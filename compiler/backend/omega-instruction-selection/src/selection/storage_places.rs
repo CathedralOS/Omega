@@ -1919,6 +1919,13 @@ fn descriptor_layout(
                 alignment: descriptor.align(),
             };
         }
+        TypeLayoutDescriptor::DynamicTrait { .. } => {
+            let descriptor = input.runtime_abi.slice_descriptor();
+            return TypeLayout {
+                size: descriptor.total_size(),
+                alignment: descriptor.align(),
+            };
+        }
         TypeLayoutDescriptor::Named { symbol, name } => {
             let type_symbol = *symbol;
             if let Some(primitive_type) = PrimitiveType::from_name(name) {

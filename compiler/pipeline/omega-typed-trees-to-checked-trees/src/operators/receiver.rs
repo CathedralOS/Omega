@@ -192,6 +192,7 @@ fn expected_type_parameter<'a>(
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Constrained { .. }
         | TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => None,
     }
@@ -332,6 +333,7 @@ fn field_type_reference(
             })
             .and_then(|data| data_field_type_reference(program, data, field_symbol)),
         TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::Unit => None,
     }
@@ -366,6 +368,7 @@ fn indexed_element_type_reference(
         | TypeReferenceNode::Slice { element_type } => Some(*element_type),
         TypeReferenceNode::Generic { .. }
         | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::Unit => None,
     }
 }

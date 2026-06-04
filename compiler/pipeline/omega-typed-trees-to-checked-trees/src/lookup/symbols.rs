@@ -33,6 +33,10 @@ pub(crate) fn machine_symbol_from_type_reference_handle(
         | omega_typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             ..
+        }
+        | omega_typed_trees::types::TypeReferenceNode::DynamicTrait {
+            symbol: base_symbol,
+            ..
         } => *base_symbol,
         omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
         | omega_typed_trees::types::TypeReferenceNode::Slice { .. }

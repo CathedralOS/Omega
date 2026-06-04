@@ -18,6 +18,10 @@ pub enum TypeReference {
     FixedArray(FixedArrayTypeReference),
     Slice(SliceTypeReference),
     Generic(GenericTypeReference),
+    DynamicTrait {
+        symbol: SymbolHandle,
+        name: DiagnosticName,
+    },
     Named {
         symbol: SymbolHandle,
         name: DiagnosticName,
@@ -493,6 +497,12 @@ impl TypeReferenceTable {
                     arguments,
                 })
             }
+            TypeReference::DynamicTrait { symbol, name } => {
+                self.insert(TypeReferenceNode::DynamicTrait {
+                    symbol: *symbol,
+                    name: name.clone(),
+                })
+            }
             TypeReference::Named { symbol, name } => self.insert(TypeReferenceNode::Named {
                 symbol: *symbol,
                 name: name.clone(),
@@ -533,6 +543,10 @@ pub enum TypeReferenceNode {
         base_symbol: SymbolHandle,
         base_name: DiagnosticName,
         arguments: HandleSpan<TypeReferenceHandle>,
+    },
+    DynamicTrait {
+        symbol: SymbolHandle,
+        name: DiagnosticName,
     },
     Named {
         symbol: SymbolHandle,
@@ -617,6 +631,7 @@ impl TypeReference {
             TypeReference::FixedArray(_)
             | TypeReference::Slice(_)
             | TypeReference::Generic(_)
+            | TypeReference::DynamicTrait { .. }
             | TypeReference::SelfType { .. }
             | TypeReference::Unit => None,
         }

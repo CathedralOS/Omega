@@ -139,6 +139,7 @@ fn type_reference_name_handle(
         omega_checked_trees::types::TypeReferenceNode::Generic { base_name, .. } => {
             base_name.clone()
         }
+        omega_checked_trees::types::TypeReferenceNode::DynamicTrait { name, .. } => name.clone(),
         omega_checked_trees::types::TypeReferenceNode::Named { name, .. } => name.clone(),
         omega_checked_trees::types::TypeReferenceNode::Unit => {
             omega_checked_trees::name::Identifier::default()
