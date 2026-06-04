@@ -300,6 +300,12 @@ fn count_statement_node(
                 count_expression_handle(syntax_trees, local_data.initial_value, counts);
             }
         }
+        crate::statement::StatementNode::Relax(relax) => {
+            count_expression_handle(syntax_trees, relax.target, counts);
+            for statement in syntax_trees.items.statements(relax.statements) {
+                count_statement_node(syntax_trees, *statement, counts);
+            }
+        }
         crate::statement::StatementNode::Transition(transition) => {
             count_transition_target_node(syntax_trees, transition.target, counts);
             if transition.continuation.is_valid() {
@@ -510,6 +516,7 @@ fn count_type_reference_handle(
         crate::types::TypeReferenceNode::Reference {
             referee,
             is_mutable: _,
+            is_relaxed: _,
         } => count_type_reference_handle(syntax_trees, *referee, counts),
         crate::types::TypeReferenceNode::Constrained {
             base_type,

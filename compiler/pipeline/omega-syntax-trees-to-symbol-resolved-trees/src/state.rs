@@ -163,16 +163,36 @@ fn lower_state_statements(
     let mut span = HandleSpan::empty();
 
     for statement in syntax_trees.items.statements(statements) {
-        let statement = lower_statement_handle(lowerer, syntax_trees, *statement)?;
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .state_statements
-            .append_to_span(&mut span, statement);
+        lower_statement_into_span(lowerer, syntax_trees, *statement, &mut span)?;
     }
 
     Ok(span)
+}
+
+fn lower_statement_into_span(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    statement: syntax::statement::StatementHandle,
+    span: &mut HandleSpan<Statement>,
+) -> Result<(), Diagnostic> {
+    let lowered = lower_statement_handle(lowerer, syntax_trees, statement)?;
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .state_statements
+        .append_to_span(span, lowered);
+
+    let syntax::statement::StatementNode::Relax(relax) = syntax_trees.statements.statement(statement)
+    else {
+        return Ok(());
+    };
+
+    for nested in syntax_trees.items.statements(relax.statements) {
+        lower_statement_into_span(lowerer, syntax_trees, *nested, span)?;
+    }
+
+    Ok(())
 }
 
 pub(crate) fn lower_state_parameters(

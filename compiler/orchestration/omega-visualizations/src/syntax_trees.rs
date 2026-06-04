@@ -562,12 +562,15 @@ fn type_reference_label(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> St
         TypeReferenceNode::Reference {
             referee,
             is_mutable,
+            is_relaxed,
         } => {
-            if *is_mutable {
-                format!("&mut {}", type_reference_label(syntax, *referee))
-            } else {
-                format!("&{}", type_reference_label(syntax, *referee))
-            }
+            let qualifier = match (*is_mutable, *is_relaxed) {
+                (true, true) => "mut relaxed ",
+                (true, false) => "mut ",
+                (false, true) => "relaxed ",
+                (false, false) => "",
+            };
+            format!("&{qualifier}{}", type_reference_label(syntax, *referee))
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_label(syntax, *base_type)
@@ -631,6 +634,11 @@ fn statement_label(syntax: &SyntaxTrees, statement: &StatementNode) -> String {
         StatementNode::Call(call) => call_label(syntax, call),
         StatementNode::Expression(_) => "expression".to_owned(),
         StatementNode::LocalData(value) => format!("local {}", value.name.as_str()),
+        StatementNode::Relax(relax) => format!(
+            "relax {}\nstatements: {}",
+            syntax.expressions.display_name(relax.target),
+            relax.statements.len()
+        ),
         StatementNode::Transition(transition) => transition_label(syntax, transition),
     }
 }

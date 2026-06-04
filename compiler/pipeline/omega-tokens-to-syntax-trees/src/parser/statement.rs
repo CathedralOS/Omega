@@ -9,8 +9,8 @@ use omega_syntax_trees::expression::{
     TableIndexedExpression, TableMemberExpression,
 };
 use omega_syntax_trees::statement::{
-    StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData, TableTransition,
-    TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
+    StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData, TableRelax,
+    TableTransition, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -25,6 +25,10 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::If) {
         return parse_if_transition_statement_handle(syntax_trees, input);
+    }
+
+    if input.at_contextual("relax") {
+        return parse_relax_statement_handle(syntax_trees, input);
     }
 
     if input.at_contextual("trap") {
@@ -114,6 +118,43 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
             input,
         ))
     }
+}
+
+fn parse_relax_statement_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, StatementHandle> {
+    let input = input.take_contextual("relax")?;
+    let (target, input) = parse_expression_handle(syntax_trees, input)?;
+    let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut statement_start = Handle::invalid();
+    let mut statement_count = 0u32;
+
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
+        let handle = syntax_trees.items.append_statement_handle(statement);
+        if statement_count == 0 {
+            statement_start = handle;
+        }
+        statement_count = statement_count
+            .checked_add(1)
+            .expect("relax statement span count overflow");
+        input = rest;
+    }
+
+    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let statements = if statement_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(statement_start, statement_count)
+    };
+
+    Ok((
+        syntax_trees
+            .statements
+            .insert(StatementNode::Relax(TableRelax { target, statements })),
+        input,
+    ))
 }
 
 fn parse_if_transition_statement_handle<'tokens, 'source>(

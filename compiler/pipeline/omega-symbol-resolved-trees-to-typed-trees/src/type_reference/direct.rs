@@ -22,6 +22,7 @@ pub(super) fn lower_type_reference_handle_with_context(
                 typed::types::TypeReferenceNode::Reference {
                     referee,
                     is_mutable: reference.is_mutable,
+                    is_relaxed: reference.is_relaxed,
                 },
             ))
         }

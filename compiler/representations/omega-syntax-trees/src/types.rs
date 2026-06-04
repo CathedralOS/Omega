@@ -43,10 +43,12 @@ impl TypeReferenceTable {
         &mut self,
         referee: TypeReferenceHandle,
         is_mutable: bool,
+        is_relaxed: bool,
     ) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Reference {
             referee,
             is_mutable,
+            is_relaxed,
         })
     }
 
@@ -150,6 +152,7 @@ pub enum TypeReferenceNode {
     Reference {
         referee: TypeReferenceHandle,
         is_mutable: bool,
+        is_relaxed: bool,
     },
     Constrained {
         base_type: TypeReferenceHandle,

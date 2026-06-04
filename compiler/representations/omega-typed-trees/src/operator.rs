@@ -188,8 +188,14 @@ fn canonical_type_reference(
         TypeReferenceNode::Reference {
             referee,
             is_mutable,
+            is_relaxed,
         } => {
-            let qualifier = if *is_mutable { "mut " } else { "" };
+            let qualifier = match (*is_mutable, *is_relaxed) {
+                (true, true) => "mut relaxed ",
+                (true, false) => "mut ",
+                (false, true) => "relaxed ",
+                (false, false) => "",
+            };
             format!(
                 "&{qualifier}{}",
                 canonical_type_reference(program, *referee, normalizer)

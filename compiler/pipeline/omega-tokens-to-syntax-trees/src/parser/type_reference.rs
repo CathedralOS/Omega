@@ -123,16 +123,23 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    let (is_reference, is_mutable, input) = if input.at_punctuation(PunctuationKind::Ampersand) {
-        let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
-        if input.at_contextual("mut") {
-            (true, true, input.take_contextual("mut")?)
+    let (is_reference, is_mutable, is_relaxed, input) =
+        if input.at_punctuation(PunctuationKind::Ampersand) {
+            let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
+            let (is_mutable, input) = if input.at_contextual("mut") {
+                (true, input.take_contextual("mut")?)
+            } else {
+                (false, input)
+            };
+            let (is_relaxed, input) = if input.at_contextual("relaxed") {
+                (true, input.take_contextual("relaxed")?)
+            } else {
+                (false, input)
+            };
+            (true, is_mutable, is_relaxed, input)
         } else {
-            (true, false, input)
-        }
-    } else {
-        (false, false, input)
-    };
+            (false, false, false, input)
+        };
 
     let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
     let type_reference = if is_reference {
@@ -141,6 +148,7 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
             .insert(TypeReferenceNode::Reference {
                 referee: type_reference,
                 is_mutable,
+                is_relaxed,
             })
     } else {
         type_reference

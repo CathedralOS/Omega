@@ -4309,18 +4309,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         },
     },
     PendingCanary {
-        path: "relax/relax_scope_unimplemented",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `;`, found keyword `self`",
-        },
-    },
-    PendingCanary {
-        path: "relax/relaxed_parameter_unimplemented",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `)`, found identifier `i32`",
-        },
-    },
-    PendingCanary {
         path: "traits/default_machine_in_trait",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `machine`, found identifier `default`",

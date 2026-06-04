@@ -501,6 +501,7 @@ mod tests {
                 .insert(TypeReferenceNode::Reference {
                     referee: slice_type,
                     is_mutable: false,
+                    is_relaxed: false,
                 });
         let index_type = syntax_trees
             .type_references

@@ -680,6 +680,10 @@ impl SyntaxTrees {
                 type_reference: self.copy_type_reference_handle(other, local_data.type_reference),
                 initial_value: self.copy_expression_handle(other, local_data.initial_value),
             }),
+            StatementNode::Relax(relax) => StatementNode::Relax(crate::statement::TableRelax {
+                target: self.copy_expression_handle(other, relax.target),
+                statements: self.copy_statement_handle_span(other, relax.statements),
+            }),
             StatementNode::Transition(transition) => StatementNode::Transition(TableTransition {
                 target: self.copy_transition_target(other, transition.target),
                 continuation: self.copy_transition_target(other, transition.continuation),
@@ -735,9 +739,11 @@ impl SyntaxTrees {
             TypeReferenceNode::Reference {
                 referee,
                 is_mutable,
+                is_relaxed,
             } => {
                 let referee = self.copy_type_reference_handle(other, *referee);
-                self.type_references.insert_reference(referee, *is_mutable)
+                self.type_references
+                    .insert_reference(referee, *is_mutable, *is_relaxed)
             }
             TypeReferenceNode::Constrained {
                 base_type,
