@@ -1,0 +1,14 @@
+// Chapter 11 "Relax Scopes": `relax target { ... }` creates an exclusive relaxed
+// borrow where the target's invariant is weakened inside the block. The `relax`
+// statement form is documented but not yet implemented in the parser: `relax` is
+// parsed as an ordinary expression, so the following `self` is unexpected.
+
+data Main {
+    health: i32;
+}
+
+machine Main::main(&mut self) {
+    relax self.health {
+        self.health = 5;
+    }
+}

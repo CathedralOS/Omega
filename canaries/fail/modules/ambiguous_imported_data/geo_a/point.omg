@@ -1,0 +1,3 @@
+data Point {
+    x: i32;
+}

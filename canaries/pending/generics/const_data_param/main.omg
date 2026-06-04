@@ -1,0 +1,13 @@
+// Chapter 12 "Const And Proof Parameters": `data FixedBuffer<T, const N: usize>`
+// should accept a const value parameter usable as an array length. The `const`
+// parameter form does not parse in data declarations.
+
+data FixedBuffer<T, const N: usize> {
+    items: [T; N];
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

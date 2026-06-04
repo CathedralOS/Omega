@@ -1,0 +1,26 @@
+// Chapter 20 (Wire Protocols): "Runtime conversion from a wire value into
+// runtime data should still be an ordinary machine." The wire->runtime decode
+// transform is a plain machine satisfying a (non-generic) WireReadable trait
+// that reads the message fields into the runtime data. Expressible today.
+
+trait WireReadable {
+    machine from_wire(message: &CounterMessage, out: &mut Counter);
+}
+
+data Counter {
+    counter: i32;
+}
+
+data CounterMessage {
+    counter: i32;
+}
+
+data Main {
+}
+
+machine Counter::from_wire(message: &CounterMessage, out: &mut Counter) satisfies WireReadable {
+    out.counter = message.counter;
+}
+
+machine Main::main(&mut self) {
+}

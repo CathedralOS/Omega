@@ -1,0 +1,14 @@
+// Chapter 19 "Stable Representation": a declaration may request a stable native
+// layout with `repr native` so outside code can observe field layout. The `repr`
+// modifier is documented as provisional and is not yet parsed.
+
+repr native
+data WinHandle {
+    value: u64;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

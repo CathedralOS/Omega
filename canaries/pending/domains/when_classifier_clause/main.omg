@@ -1,0 +1,19 @@
+// Chapter 8 "Classifiers": a domain may declare a cheap `when` classifier
+// before its proof body. User-declared `when` clauses do not parse yet.
+
+data Game {
+    phase: i32;
+    winner: i32;
+}
+
+domain Game::Playing
+    when self.phase == 1
+{
+    self.winner == 0;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

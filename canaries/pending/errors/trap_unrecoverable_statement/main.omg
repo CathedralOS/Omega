@@ -1,0 +1,12 @@
+// PENDING canary (ch15 "Traps"): a `trap` is meant to be an unrecoverable,
+// unwind-free hard stop for the current machine invocation. There is no `trap`
+// statement keyword: in a void machine, `trap` is parsed as a bare terminal
+// expression, so the compiler reports a terminal expression with no return type
+// instead of recognizing a trap. Captures the gap for the trap construct.
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    trap
+}

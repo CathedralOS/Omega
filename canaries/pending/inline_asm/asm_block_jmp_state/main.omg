@@ -1,0 +1,14 @@
+// Chapter 22 (Inline Assembly): compact control-flow assembly `asm { jmp
+// my_state() }` should be accepted when the target resolves to an Omega state
+// transition. Unimplemented: `asm` is not a recognized statement keyword, so the
+// block body is parsed as ordinary expressions and rejected.
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+    asm {
+        jmp other()
+    }
+}

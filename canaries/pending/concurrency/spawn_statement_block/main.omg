@@ -1,0 +1,14 @@
+// PENDING canary (ch17 intro): a `spawn { ... }` statement runs a block
+// concurrently with assignment-style work inside. `spawn` is not a keyword, so
+// `spawn { stmt; }` is mis-parsed as a struct literal and the leading `self`
+// statement is rejected. Captures the real parser gap for spawn-as-statement.
+
+data Main {
+    counter: i32;
+}
+
+machine Main::main(&mut self) {
+    spawn {
+        self.counter = self.counter + 1;
+    }
+}

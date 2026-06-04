@@ -1,0 +1,22 @@
+// PENDING canary (ch17 "Waitable Contracts"): `Barrier<N>::wait` waits until N
+// participants arrive. The `Barrier<N>` waitable runtime type is not provided, so
+// binding a local of that type is rejected as an unknown generic type. Captures
+// the gap for the barrier waitable contract.
+
+data Crew {
+}
+
+machine Crew::sync(&mut self) -> i32 {
+    let gate: Barrier<4> = self.make();
+    0
+}
+
+machine Crew::make(&mut self) -> i32 {
+    0
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,16 @@
+// Chapter 1: a machine with a shared borrow (`attacker`), a unique mutable
+// borrow (`defender`), and a value parameter (`damage`). Field arithmetic mixes
+// reads from both borrows.
+data Player {
+    health: i32;
+    armor: i32;
+}
+
+machine Combat::strike(attacker: &Player, defender: &mut Player, damage: i32) {
+    defender.health = defender.health - damage + attacker.armor;
+}
+
+data Combat {}
+data Main {}
+
+machine Main::main(&mut self) {}

@@ -1,0 +1,22 @@
+data Counter {
+    value: i32;
+}
+
+trait BoundedCounter {
+    machine increment(&mut self)
+        ensures self.value >= 0;
+    machine snapshot(&self);
+}
+
+machine Counter::increment(&mut self) satisfies BoundedCounter {
+    self.value = self.value + 1;
+}
+
+machine Counter::snapshot(&self) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,25 @@
+// PASS canary (ch16 "Effects And Failure"): a regular (non-boundary) machine
+// carries an explicit effects annotation. The chapter says cleanup/blocking
+// behavior must be declared in effects; here an ordinary machine declares the
+// pure-compute `alloc` effect. Machine-level effect declarations type-check
+// cleanly. (Distinct from the boundary-trait effects canary, which annotates
+// host-boundary trait machines.)
+
+data Pool {
+    size: usize;
+}
+
+machine Pool::grow(&mut self)
+effects
+    alloc
+{
+    self.size = self.size + 1;
+}
+
+data Main {
+    pool: Pool;
+}
+
+machine Main::main(&mut self) {
+    self.pool.grow();
+}

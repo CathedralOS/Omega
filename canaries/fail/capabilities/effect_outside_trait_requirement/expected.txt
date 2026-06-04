@@ -1,0 +1,1 @@
+effect `filesystem_io` is not allowed by the trait requirement

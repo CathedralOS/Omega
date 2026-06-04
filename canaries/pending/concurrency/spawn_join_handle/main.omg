@@ -1,0 +1,27 @@
+// PENDING canary (ch17 "Joined Work"): a kept `spawn` result is a join handle of
+// type `Join<WorkResult>`, and `handle.join()` waits for completion. The
+// `Join<T>` waitable runtime type does not exist, so binding a local of that
+// type is rejected as an unknown generic type. Captures the real gap diagnostic.
+
+data WorkResult {
+    job_id: u32;
+    ok: bool;
+}
+
+data Scheduler {
+}
+
+machine Scheduler::run(&mut self) -> u32 {
+    let handle: Join<WorkResult> = self.start();
+    handle.job_id
+}
+
+machine Scheduler::start(&mut self) -> WorkResult {
+    WorkResult { job_id: 1, ok: true }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

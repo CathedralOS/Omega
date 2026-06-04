@@ -1,0 +1,13 @@
+// Chapter 2: mutable-borrow example uses compound assignment
+// (`self.health += amount;`). The parser does not yet accept `+=`.
+data Player {
+    health: i32;
+}
+
+machine Player::heal(&mut self, amount: i32) {
+    self.health += amount;
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

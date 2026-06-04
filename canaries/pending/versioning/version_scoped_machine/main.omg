@@ -1,0 +1,19 @@
+// Chapter 21 (Versioned Data): a version-scoped machine `Counter::increment::v1`
+// should type-check `self` against the historical `Counter::v1` shape.
+// Unimplemented: the trailing `::v1` is parsed as an ordinary state segment
+// rather than a data-version selector, so the body cannot mutate the current
+// field set ("not mutable in this state").
+
+data Counter {
+    counter: i32;
+}
+
+data Main {
+}
+
+machine Counter::increment::v1(&mut self) {
+    self.counter = self.counter + 1;
+}
+
+machine Main::main(&mut self) {
+}

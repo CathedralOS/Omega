@@ -1,0 +1,27 @@
+// PASS canary (ch15 "Host Failure"): a host machine declares how it fails. The
+// `boundary host` machine reports failure through a `&mut IOError` output value
+// (failure-as-data crossing the boundary) rather than an invisible unwind. The
+// boundary-host machine shape type-checks cleanly.
+
+data Buffer {
+    len: usize;
+}
+
+data IOError {
+    code: i32;
+}
+
+data HostFile {
+    handle: i32;
+}
+
+machine HostFile::read(handle: i32, out: &mut Buffer, result: &mut IOError)
+boundary host
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

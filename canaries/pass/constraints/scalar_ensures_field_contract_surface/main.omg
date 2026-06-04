@@ -1,0 +1,23 @@
+// Chapter 9 "Everyday Shape" / Chapter 7 contract surface: a machine may carry a
+// scalar field postcondition `ensures self.mass > 0`. The body assigns a literal
+// that satisfies the guarantee. This exercises the scalar `ensures` contract
+// surface (parsing, resolution, and the postcondition pipeline) on a machine
+// field, distinct from the domain-membership ensures canaries in pass/domains.
+
+data Body {
+    mass: i32;
+}
+
+machine Body::set_safe(&mut self)
+ensures
+    self.mass > 0
+{
+    self.mass = 50;
+}
+
+data Main {
+    body: Body;
+}
+
+machine Main::main(&mut self) {
+}

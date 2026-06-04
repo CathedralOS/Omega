@@ -1,0 +1,14 @@
+// Chapter 12 "Generic Data": `data Pair<A, B>` should parameterize stored
+// shape, with `A` and `B` usable as field types. Type parameters are not yet
+// resolved as types inside generic data declarations.
+
+data Pair<A, B> {
+    first: A;
+    second: B;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

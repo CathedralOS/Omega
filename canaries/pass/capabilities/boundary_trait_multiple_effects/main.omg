@@ -1,0 +1,27 @@
+// Chapter 18 "Standard Effects": a single boundary machine may declare more than
+// one standard effect; the declared set is the ceiling for that surface. Here a
+// network fetch declares both `network_io` and `alloc`, exercising a multi-effect
+// boundary declaration that propagates to its caller.
+
+boundary trait Net {
+    machine write_line(text: String)
+    effects
+        network_io
+        alloc;
+}
+
+data Client {
+    net: Net;
+}
+
+machine Client::run(&mut self) {
+    self.net.write_line("payload");
+}
+
+data Main {
+    client: Client;
+}
+
+machine Main::main(&mut self) {
+    self.client.run();
+}

@@ -1,0 +1,27 @@
+// Chapter 20 (Wire Protocols): "Omega does not need special encode/decode
+// keywords just to name transform code." The runtime->wire transform is an
+// ordinary machine that satisfies a (non-generic) WireWritable trait and copies
+// runtime fields into a wire-shaped data value. This part of the chapter is
+// expressible today: a plain `satisfies` machine that writes the out message.
+
+trait WireWritable {
+    machine to_wire(&self, out: &mut CounterMessage);
+}
+
+data Counter {
+    counter: i32;
+}
+
+data CounterMessage {
+    counter: i32;
+}
+
+data Main {
+}
+
+machine Counter::to_wire(&self, out: &mut CounterMessage) satisfies WireWritable {
+    out.counter = self.counter;
+}
+
+machine Main::main(&mut self) {
+}

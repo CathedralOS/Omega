@@ -1,0 +1,19 @@
+// Chapter 12 "Static Dispatch" / "Monomorphization": a concrete call to a
+// generic machine should resolve and instantiate. Calling a generic machine
+// fails to dispatch (the identical non-generic machine call succeeds), so
+// monomorphization of generic machine calls is unimplemented.
+
+data Item {
+    value: i32;
+}
+
+data Main {
+    it: Item;
+}
+
+machine Main::use_it<T>(&self, x: &T) {
+}
+
+machine Main::main(&mut self) {
+    self.use_it(&self.it);
+}

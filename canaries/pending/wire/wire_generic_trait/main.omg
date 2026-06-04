@@ -1,0 +1,18 @@
+// Chapter 20 (Wire Protocols): wire transforms are described by generic traits
+// such as `trait WireWritable<Message> { machine Self::to_wire(&self, out: &mut
+// Message); }`. Unimplemented: traits do not yet accept generic type
+// parameters, so the `<Message>` parameter list is rejected.
+
+trait WireWritable<Message> {
+    machine Self::to_wire(&self, out: &mut Message);
+}
+
+data Counter {
+    counter: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

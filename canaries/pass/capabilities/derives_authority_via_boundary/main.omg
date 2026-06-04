@@ -1,0 +1,46 @@
+// Chapter 18 "Capabilities And Authority Flow" (Derives): opening a file inside a
+// caller-provided folder produces a narrower authority. The boundary `open`
+// requires `folder in Folder::Writable` and guarantees `result in File::Writable`,
+// modeling a `Folder::Writable -> File::Writable` derivation rather than a fresh
+// host acquisition.
+
+data Folder {
+}
+
+domain Folder::Writable {
+}
+
+data File {
+}
+
+domain File::Writable {
+}
+
+boundary trait Filesystem {
+    machine open(folder: Folder, path: String) -> File
+    requires
+        folder in Folder::Writable
+    ensures
+        result in File::Writable
+    effects
+        filesystem_io;
+}
+
+data Worker {
+    fs: Filesystem;
+}
+
+machine Worker::run(&mut self, folder: Folder)
+requires
+    folder in Folder::Writable
+effects
+    filesystem_io
+{
+    let opened: File = self.fs.open(folder, "a.txt");
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

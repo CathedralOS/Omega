@@ -1,0 +1,29 @@
+// Chapter 18 "Standard Effects": when a concrete machine declares an `effects`
+// block, that block is a ceiling for the machine's reached effects. `Worker::run`
+// declares only `stdout_io` but transitively reaches `filesystem_io` through the
+// boundary write, so it exceeds its declared ceiling and is rejected.
+
+boundary trait Disk {
+    machine write(text: String)
+    effects
+        filesystem_io;
+}
+
+data Worker {
+    disk: Disk;
+}
+
+machine Worker::run(&mut self)
+effects
+    stdout_io
+{
+    self.disk.write("x");
+}
+
+data Main {
+    worker: Worker;
+}
+
+machine Main::main(&mut self) {
+    self.worker.run();
+}

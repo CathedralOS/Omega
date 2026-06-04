@@ -1,0 +1,20 @@
+// FAIL canary (ch16 "Effects And Failure"): the chapter spells automatic cleanup
+// as `effects nonblocking`, but `nonblocking` is not a recognized effect in the
+// implemented effect lattice. The effect resolver rejects the unknown effect.
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self)
+effects
+    nonblocking
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 1 };
+}

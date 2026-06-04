@@ -1,0 +1,15 @@
+// Chapter 1: a machine can read receiver state through `&self`. `render` takes a
+// read-only receiver plus a shared borrow and writes only through its `&mut`
+// output parameter.
+data Room {
+    exits: i32;
+}
+
+machine RoomFormatter::render(&self, room: &Room, out: &mut i32) {
+    out = room.exits;
+}
+
+data RoomFormatter {}
+data Main {}
+
+machine Main::main(&mut self) {}

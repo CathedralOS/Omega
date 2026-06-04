@@ -1,0 +1,12 @@
+data Main {
+}
+
+machine Main::main(
+    &mut self,
+    out: &mut i32
+) {
+    let a: i32 = 2;
+    let b: i32 = 3;
+    let c: i32 = 4;
+    out = (a + b) * c;
+}

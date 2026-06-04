@@ -1,0 +1,15 @@
+// Chapter 22 (Inline Assembly): structured parsed assembly `asm { ldr x0, [src]
+// str x0, [dst] }` should be converted into structured low-level operations with
+// emitted load/store contracts. Unimplemented: the `asm` block and its
+// instruction mnemonics are not parsed.
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+    asm {
+        ldr x0, [src]
+        str x0, [dst]
+    }
+}

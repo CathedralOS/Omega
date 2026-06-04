@@ -1,0 +1,20 @@
+// Chapter 20 (Wire Protocols): a `wire data` schema may carry an explicit
+// `version v1 { ... }` block describing a breaking protocol era while the
+// current body retires the old tag. Unimplemented: `wire` is not a top-level
+// declaration keyword.
+
+wire data CounterMessage {
+    version v1 {
+        0: counter: i32;
+    }
+
+    reserved 0;
+    1: counter: i32;
+    2: timestamp_millis: i64;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,26 @@
+// PENDING canary (ch17 "Waitable Contracts" / ch16 "Cleanup Machines"):
+// `Mutex<T>::lock` is a waitable that returns a `MutexGuard<T>` owning the unlock
+// obligation. The `Mutex<T>` / `MutexGuard<T>` runtime types are not provided, so
+// binding a guard local of that type is rejected as an unknown generic type.
+
+data Data {
+    value: i32;
+}
+
+data Worker {
+}
+
+machine Worker::run(&mut self) -> i32 {
+    let guard: MutexGuard<Data> = self.lock();
+    0
+}
+
+machine Worker::lock(&mut self) -> Data {
+    Data { value: 0 }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,29 @@
+// Chapters 7/9/10 spell multi-fact contracts with one fact per line and no
+// separator, e.g. the clamp `ensures out in min..=max` shape and the
+// compare_swap example:
+//
+//     requires
+//         index + 1 < items.len
+//         Bag(items) == Bag(before)
+//
+// That separator-free, newline-delimited multi-fact spelling is documented but
+// not yet implemented: the parser requires an explicit `;` (or `,`) between
+// proof facts and rejects the second fact on its own line.
+
+data Items {
+    count: usize;
+}
+
+machine Items::check(&self, index: usize)
+requires
+    index < self.count
+    index + 1 < self.count
+{
+}
+
+data Main {
+    items: Items;
+}
+
+machine Main::main(&mut self) {
+}

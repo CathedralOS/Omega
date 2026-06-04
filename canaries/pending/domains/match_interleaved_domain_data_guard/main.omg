@@ -1,0 +1,30 @@
+// Chapter 8 "Domain Patterns": domain patterns may be interleaved with
+// ordinary data patterns and guards in a match. The data-destructure +
+// guard arm (`Player { health, .. } if health > 5`) does not parse here.
+
+data Player {
+    health: i32;
+}
+
+domain Player::Valid {
+    self.health >= 0;
+}
+
+domain Player::Alive {
+    self in Player::Valid;
+    self.health > 0;
+}
+
+data Main {
+    player: Player;
+}
+
+machine Main::main(&mut self) {
+    match self.player {
+        Player::Alive -> done()
+        Player { health, .. } if health > 5 -> done()
+        _ -> done()
+    }
+
+    state done() { }
+}

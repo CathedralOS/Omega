@@ -1,0 +1,19 @@
+// Chapter 21 (Versioned Data): a `data` declaration may carry historical runtime
+// shapes in `version v1 { ... }` blocks alongside the current body. Unimplemented:
+// the data-body parser expects a field identifier and rejects the `version`
+// block opener.
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    counter: i32;
+    timestamp: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

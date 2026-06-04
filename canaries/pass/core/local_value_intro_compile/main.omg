@@ -1,0 +1,14 @@
+// Chapter 1: locals are temporary values introduced inside a machine body.
+// `next_health` is a local (not a data field); it feeds back into stored state.
+data Player {
+    health: i32;
+}
+
+machine Player::heal(&mut self, amount: i32) {
+    let next_health: i32 = self.health + amount;
+    self.health = next_health;
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

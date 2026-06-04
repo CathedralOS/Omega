@@ -1,0 +1,17 @@
+// Chapter 22 (Inline Assembly): contract-heavy assembly carries explicit proof
+// conditions, `asm where requires ... ensures ... { ... }`. Unimplemented: the
+// `asm where` form is not parsed; `asm` is consumed as an identifier and the
+// trailing `where` is unexpected.
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+    asm where
+        requires self.value
+        ensures self.value
+    {
+        nop
+    }
+}

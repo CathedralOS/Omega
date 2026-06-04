@@ -1,0 +1,18 @@
+// Chapter 21 (Versioned Data): migration paths are described by a generic trait
+// `trait RuntimeMigratable<Old, New> { machine New::from_old(old: Old, out:
+// &mut New); }`. Unimplemented: traits do not accept generic type parameters,
+// so the `<Old, New>` parameter list is rejected.
+
+trait RuntimeMigratable<Old, New> {
+    machine New::from_old(old: Old, out: &mut New);
+}
+
+data Counter {
+    counter: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

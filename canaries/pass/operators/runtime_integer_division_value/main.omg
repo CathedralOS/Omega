@@ -1,0 +1,11 @@
+data Main {
+}
+
+machine Main::main(
+    &mut self,
+    out: &mut i32
+) {
+    let numerator: i32 = 12;
+    let denominator: i32 = 4;
+    out = numerator / denominator;
+}

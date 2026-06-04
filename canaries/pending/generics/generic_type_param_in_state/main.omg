@@ -1,0 +1,21 @@
+// Chapter 12 "Generic Machines": the `Inventory::find<T>` example threads the
+// type parameter `T` into internal states (`state find_at(items: &[T], ...)`).
+// Type parameters are not in scope inside machine states, so a state parameter
+// typed `&T` is rejected as an unknown type.
+
+data Main {
+}
+
+machine Main::walk<T>(x: &T)
+{
+    transition true {
+        true -> done(x)
+        false -> done(x)
+    }
+
+    state done(x: &T) {
+    }
+}
+
+machine Main::main(&mut self) {
+}

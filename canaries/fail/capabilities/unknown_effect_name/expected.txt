@@ -1,0 +1,1 @@
+declares unknown effect `teleport_io`
