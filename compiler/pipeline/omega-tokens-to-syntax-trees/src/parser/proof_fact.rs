@@ -58,6 +58,7 @@ pub(super) fn parse_proof_facts_until<'tokens, 'source>(
             return Err(input.error_here("expected proof fact terminator"));
         }
 
+        let fact_input = input;
         let (value, rest) =
             parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)?;
         input = rest;
@@ -159,6 +160,8 @@ pub(super) fn parse_proof_facts_until<'tokens, 'source>(
             input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         } else if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+        } else if fact_input.has_newline_before(input) {
+            continue;
         } else if !is_terminator(input) {
             return Err(input.error_here("expected `;`, `,`, or end of proof facts"));
         }

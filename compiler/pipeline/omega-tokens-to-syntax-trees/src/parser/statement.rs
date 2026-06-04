@@ -3,7 +3,10 @@ use crate::parser::input::{Input, ParseResult};
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use omega_syntax_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
+    TableIndexedExpression, TableMemberExpression,
+};
 use omega_syntax_trees::statement::{
     StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData,
 };
@@ -23,6 +26,31 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::Equal) {
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
         let (value, input) = parse_expression_handle(syntax_trees, input)?;
+        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        return Ok((
+            syntax_trees
+                .statements
+                .insert(StatementNode::Assignment(TableAssignment {
+                    target: expression,
+                    value,
+                })),
+            input,
+        ));
+    }
+
+    if input.at_punctuation(PunctuationKind::PlusEqual) {
+        let read_target = copy_compound_assignment_target(syntax_trees, expression)
+            .ok_or_else(|| input.error_here("compound assignment target must be a place"))?;
+        let input = input.take_punctuation(PunctuationKind::PlusEqual, "+=")?;
+        let (right, input) = parse_expression_handle(syntax_trees, input)?;
+        let value =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: read_target,
+                    operator: BinaryOperator::Add,
+                    right,
+                }));
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((
             syntax_trees
@@ -58,6 +86,63 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
             input,
         ))
     }
+}
+
+fn copy_compound_assignment_target(
+    syntax_trees: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let copy = match syntax_trees.expressions.expression(expression).clone() {
+        ExpressionNode::Name(path) => {
+            let path = syntax_trees
+                .expressions
+                .copy_identifier_path_prefix(path, path.len());
+            ExpressionNode::Name(path)
+        }
+        ExpressionNode::SelfValue => ExpressionNode::SelfValue,
+        ExpressionNode::Member(member) => {
+            let receiver = copy_compound_assignment_target(syntax_trees, member.receiver)?;
+            ExpressionNode::Member(TableMemberExpression {
+                receiver,
+                member: member.member,
+            })
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = copy_compound_assignment_target(syntax_trees, indexed.collection)?;
+            let index = copy_stable_compound_assignment_index(syntax_trees, indexed.index)?;
+            ExpressionNode::Indexed(TableIndexedExpression { collection, index })
+        }
+        _ => return None,
+    };
+
+    Some(syntax_trees.expressions.insert(copy))
+}
+
+fn copy_stable_compound_assignment_index(
+    syntax_trees: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let copy = match syntax_trees.expressions.expression(expression).clone() {
+        ExpressionNode::Boolean(value) => ExpressionNode::Boolean(value),
+        ExpressionNode::Integer(value) => ExpressionNode::Integer(value),
+        ExpressionNode::Name(path) => {
+            let path = syntax_trees
+                .expressions
+                .copy_identifier_path_prefix(path, path.len());
+            ExpressionNode::Name(path)
+        }
+        ExpressionNode::SelfValue => ExpressionNode::SelfValue,
+        ExpressionNode::Member(member) => {
+            let receiver = copy_compound_assignment_target(syntax_trees, member.receiver)?;
+            ExpressionNode::Member(TableMemberExpression {
+                receiver,
+                member: member.member,
+            })
+        }
+        _ => return None,
+    };
+
+    Some(syntax_trees.expressions.insert(copy))
 }
 
 fn parse_local_data_statement_handle<'tokens, 'source>(

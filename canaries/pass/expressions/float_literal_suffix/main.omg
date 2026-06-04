@@ -1,0 +1,7 @@
+// Chapter 5 "Literals": real literals carry a suffix, e.g. `3.0real`.
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let real_value: Real = 3.0real;
+}

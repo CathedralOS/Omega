@@ -134,6 +134,7 @@ fn render_punctuation(punctuation: PunctuationKind) -> &'static str {
         PunctuationKind::Pipe => "|",
         PunctuationKind::PipePipe => "||",
         PunctuationKind::Plus => "+",
+        PunctuationKind::PlusEqual => "+=",
         PunctuationKind::RightBrace => "}",
         PunctuationKind::RightBracket => "]",
         PunctuationKind::RightParen => ")",

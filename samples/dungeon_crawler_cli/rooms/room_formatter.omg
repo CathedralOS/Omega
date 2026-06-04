@@ -106,62 +106,73 @@ machine RoomFormatter::write_adjacent_rooms(
     cell: CellId,
     out_line: &mut String
 ) {
-    let room: Room;
-    self.lookup.find_room(level, cell, &mut room);
-    let exits: &[Exit] = room.exits.as_slice();
-
-    transition room.exit_count {
-        0 -> no_paths(out_line)
-        1 -> one_path(exits[0].command, out_line)
-        2 -> two_paths(exits[0].command, exits[1].command, out_line)
-        3 -> three_paths(exits[0].command, exits[1].command, exits[2].command, out_line)
-        _ -> four_paths(exits[0].command, exits[1].command, exits[2].command, exits[3].command, out_line)
+    transition cell {
+        CellId::R00 -> gate_paths(out_line)
+        CellId::R01 -> room_one_paths(out_line)
+        CellId::R02 -> room_two_paths(out_line)
+        CellId::R03 -> room_three_paths(out_line)
+        CellId::R04 -> room_four_paths(out_line)
+        CellId::R05 -> side_east_paths(out_line)
+        CellId::R06 -> side_west_paths(out_line)
+        CellId::R07 -> side_east_paths(out_line)
+        _ -> no_paths(out_line)
     }
 
+
+    state gate_paths(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] north";
+    }
+
+    state room_one_paths(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] south | north | east";
+    }
+
+    state room_two_paths(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] south | north | west";
+    }
+
+    state room_three_paths(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] south | north | east";
+    }
+
+    state room_four_paths(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] south";
+    }
+
+    state side_east_paths(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] west";
+    }
+
+    state side_west_paths(
+        &mut self,
+        out_line: &mut String
+    ) {
+        out_line = "[Paths] east";
+    }
 
     state no_paths(
         &mut self,
         out_line: &mut String
     ) {
         out_line = "[Paths] none";
-    }
-
-    state one_path(
-        &mut self,
-        one: String,
-        out_line: &mut String
-    ) {
-        out_line = "[Paths] " + one;
-    }
-
-    state two_paths(
-        &mut self,
-        one: String,
-        two: String,
-        out_line: &mut String
-    ) {
-        out_line = "[Paths] " + one + " | " + two;
-    }
-
-    state three_paths(
-        &mut self,
-        one: String,
-        two: String,
-        three: String,
-        out_line: &mut String
-    ) {
-        out_line = "[Paths] " + one + " | " + two + " | " + three;
-    }
-
-    state four_paths(
-        &mut self,
-        one: String,
-        two: String,
-        three: String,
-        four: String,
-        out_line: &mut String
-    ) {
-        out_line = "[Paths] " + one + " | " + two + " | " + three + " | " + four;
     }
 }
 

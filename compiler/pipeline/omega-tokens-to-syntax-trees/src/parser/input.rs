@@ -117,7 +117,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(super) fn take_float_text(self) -> Result<(SourceText, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.float_literal_kind() {
-            validate_float_literal(kind)
+            validate_float_literal(token.lexeme.as_str(), kind)
                 .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
             Ok((self.source_text_from_token(token), rest))
         } else {
@@ -148,6 +148,23 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         self.tokens
             .first()
             .is_some_and(is_identifier_token_for_parser)
+    }
+
+    pub(super) fn has_newline_before(self, later: Self) -> bool {
+        let skipped_count = self.tokens.len().saturating_sub(later.tokens.len());
+        let mut index = skipped_count;
+        while index > 0 {
+            let token = &self.tokens[index - 1];
+            if !token.is_non_semantic() {
+                return false;
+            }
+            if token.lexeme.as_str().contains('\n') {
+                return true;
+            }
+            index -= 1;
+        }
+
+        false
     }
 
     fn identifier_from_token(&self, token: &Token<'_>) -> Identifier {

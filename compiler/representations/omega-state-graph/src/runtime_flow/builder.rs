@@ -4,7 +4,7 @@ mod state_keys;
 mod targets;
 
 use self::state_keys::StateKeyBuffer;
-use omega_control_flow::{ControlFlowPlan, StateKey, TransitionExpressionRefs, TransitionFlow};
+use omega_control_flow::{ControlFlowPlan, StateKey, TransitionExpressionRefs};
 use omega_core::diagnostics::Diagnostic;
 
 use crate::{CallContext, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeStateCallEdge};

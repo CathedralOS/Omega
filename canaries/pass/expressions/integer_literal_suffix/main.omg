@@ -1,0 +1,7 @@
+// Chapter 5 "Literals": numeric literals are typed by suffix, e.g. `3i32`.
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let machine_value: i32 = 3i32;
+}
