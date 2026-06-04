@@ -1,4 +1,4 @@
-// PENDING canary (ch17 "Waitable Contracts"): `Barrier<N>::wait` waits until N
+// FAIL canary (ch17 "Waitable Contracts"): `Barrier<N>::wait` waits until N
 // participants arrive. The `Barrier<N>` waitable runtime type is not provided, so
 // binding a local of that type is rejected as an unknown generic type. Captures
 // the gap for the barrier waitable contract.

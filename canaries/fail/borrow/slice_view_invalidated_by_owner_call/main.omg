@@ -4,10 +4,8 @@
 // statement rather than an assignment. The owner-mutation-while-borrowed rule
 // must still reject it.
 //
-// This is the lowerable analogue of the Vec `push`-while-borrowed rejection:
-// `Vec::push` is likewise a `&mut self` mutating call on the owner that would
-// invalidate a `&[T]` view. (The Vec spelling stays pending until `Vec<T>` is a
-// usable machine-owned type; this array form exercises the same rule today.)
+// This is the fixed-array analogue of the Vec `push`-while-borrowed rejection:
+// both paths exercise the same owner-mutation-through-call rule.
 
 data Entry {
     value: i32;

@@ -1,4 +1,4 @@
-// PENDING canary (ch17 "Joined Work"): a kept `spawn` result is a join handle of
+// FAIL canary (ch17 "Joined Work"): a kept `spawn` result is a join handle of
 // type `Join<WorkResult>`, and `handle.join()` waits for completion. The
 // `Join<T>` waitable runtime type does not exist, so binding a local of that
 // type is rejected as an unknown generic type. Captures the real gap diagnostic.
