@@ -58,6 +58,9 @@ fn lower_data_members(
     let mut span = HandleSpan::empty();
 
     for member in syntax_trees.items.data_members(members) {
+        if matches!(member, syntax::item::DataMember::Version(_)) {
+            continue;
+        }
         let member = lower_data_member(lowerer, syntax_trees, member)?;
         lowerer
             .symbol_resolved_trees
@@ -101,5 +104,6 @@ fn lower_data_member(
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(&variant.name),
         })),
+        syntax::item::DataMember::Version(_) => unreachable!("data versions are metadata"),
     }
 }

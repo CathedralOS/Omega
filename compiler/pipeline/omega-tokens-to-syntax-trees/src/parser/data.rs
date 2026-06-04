@@ -14,69 +14,9 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
     input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut member_start = Handle::invalid();
-    let mut member_count = 0u32;
-
-    while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (field_name, next) = input.take_identifier()?;
-        input = next;
-
-        if input.at_punctuation(PunctuationKind::Colon) {
-            input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-            let (type_reference, next) = parse_type_reference_handle(syntax_trees, input)?;
-            input = next;
-            let (initial_value, next) = if input.at_punctuation(PunctuationKind::Equal) {
-                let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-                let (expression, input) = parse_expression_handle(syntax_trees, input)?;
-                (expression, input)
-            } else {
-                (
-                    omega_syntax_trees::expression::ExpressionHandle::invalid(),
-                    input,
-                )
-            };
-            input = if next.at_punctuation(PunctuationKind::Semicolon) {
-                next.take_punctuation(PunctuationKind::Semicolon, ";")?
-            } else {
-                next
-            };
-            let handle = syntax_trees
-                .items
-                .append_data_member(DataMember::Field(DataField {
-                    name: field_name,
-                    type_reference,
-                    initial_value,
-                }));
-            if member_count == 0 {
-                member_start = handle;
-            }
-            member_count = member_count
-                .checked_add(1)
-                .expect("data member span count overflow");
-        } else {
-            input = if input.at_punctuation(PunctuationKind::Semicolon) {
-                input.take_punctuation(PunctuationKind::Semicolon, ";")?
-            } else {
-                input
-            };
-            let handle = syntax_trees
-                .items
-                .append_data_member(DataMember::Variant(DataVariant { name: field_name }));
-            if member_count == 0 {
-                member_start = handle;
-            }
-            member_count = member_count
-                .checked_add(1)
-                .expect("data member span count overflow");
-        }
-    }
-
+    let (members, input) = parse_data_members(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let members = if member_count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(member_start, member_count)
-    };
+
     Ok((
         DataDefinition {
             name,
@@ -85,6 +25,89 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         },
         input,
     ))
+}
+
+fn parse_data_members<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<DataMember>> {
+    let mut member_start = Handle::invalid();
+    let mut member_count = 0u32;
+
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let (member, next) = parse_data_member(syntax_trees, input)?;
+        input = next;
+        let handle = syntax_trees.items.append_data_member(member);
+        if member_count == 0 {
+            member_start = handle;
+        }
+        member_count = member_count
+            .checked_add(1)
+            .expect("data member span count overflow");
+    }
+
+    let members = if member_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(member_start, member_count)
+    };
+    Ok((members, input))
+}
+
+fn parse_data_member<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, DataMember> {
+    if input.at_contextual("version") {
+        input = input.take_contextual("version")?;
+        let (name, next) = input.take_identifier()?;
+        input = next.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+        let (members, next) = parse_data_members(syntax_trees, input)?;
+        let input = next.take_punctuation(PunctuationKind::RightBrace, "}")?;
+        return Ok((
+            DataMember::Version(omega_syntax_trees::item::DataVersion { name, members }),
+            input,
+        ));
+    }
+
+    let (field_name, next) = input.take_identifier()?;
+    input = next;
+
+    if input.at_punctuation(PunctuationKind::Colon) {
+        input = input.take_punctuation(PunctuationKind::Colon, ":")?;
+        let (type_reference, next) = parse_type_reference_handle(syntax_trees, input)?;
+        input = next;
+        let (initial_value, next) = if input.at_punctuation(PunctuationKind::Equal) {
+            let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
+            let (expression, input) = parse_expression_handle(syntax_trees, input)?;
+            (expression, input)
+        } else {
+            (
+                omega_syntax_trees::expression::ExpressionHandle::invalid(),
+                input,
+            )
+        };
+        input = if next.at_punctuation(PunctuationKind::Semicolon) {
+            next.take_punctuation(PunctuationKind::Semicolon, ";")?
+        } else {
+            next
+        };
+        return Ok((
+            DataMember::Field(DataField {
+                name: field_name,
+                type_reference,
+                initial_value,
+            }),
+            input,
+        ));
+    }
+
+    input = if input.at_punctuation(PunctuationKind::Semicolon) {
+        input.take_punctuation(PunctuationKind::Semicolon, ";")?
+    } else {
+        input
+    };
+    Ok((DataMember::Variant(DataVariant { name: field_name }), input))
 }
 
 pub(super) fn parse_enum_definition<'tokens, 'source>(

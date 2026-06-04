@@ -4309,12 +4309,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         },
     },
     PendingCanary {
-        path: "versioning/data_version_block",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected identifier, found punctuation `{`",
-        },
-    },
-    PendingCanary {
         path: "versioning/match_on_version",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected transition pattern",

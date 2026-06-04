@@ -394,12 +394,19 @@ pub struct TypeParameter {
 pub enum DataMember {
     Field(DataField),
     Variant(DataVariant),
+    Version(DataVersion),
 }
 
 impl Default for DataMember {
     fn default() -> Self {
         Self::Variant(DataVariant::default())
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DataVersion {
+    pub name: Identifier,
+    pub members: HandleSpan<DataMember>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

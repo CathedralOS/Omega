@@ -73,9 +73,15 @@ Implementation slices below build against these. Minor/easily-reversible details
 trait `default machine` syntax, and top-level
 `host <target> provides <Trait> { machine -> syscall N; }` provider metadata,
 plus `wire data` schemas with encoding, numbered fields, reserved tags, and
-version blocks now compile in the active pass suite. Full canary suite was last
-green locally at 106 passed after the host-provider checkpoint; rerun after the
-wire-data checkpoint.
+version blocks, plus `data` historical `version` blocks now compile in the
+active pass suite. Full canary suite was last green locally at 106 passed after
+the wire-data checkpoint; rerun after the data-version checkpoint.
+
+**Data version semantics follow-up.** Current `data version` support is syntax
+metadata only: historical member blocks are parsed/snapshotted and preserved in
+syntax trees, while symbol-resolved lowering skips them. Need validation,
+historical-shape symbols, migration matching, version-scoped machine binding,
+and layout/serialization rules before data versions are operational.
 
 **Wire data semantics follow-up.** Current `wire data` support is syntax
 metadata only: schemas are parsed/snapshotted and preserved in syntax trees, but
