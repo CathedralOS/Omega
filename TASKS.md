@@ -78,9 +78,19 @@ version blocks, plus `data` historical `version` blocks, plus `&mut dyn Trait`
 parameters and trait-method calls on dyn receivers now compile in the active
 pass suite. Trailing machine version selectors like `Counter::increment::v1`
 now split structurally as an attached-data method instead of treating `v1` as
-the entry state. Full canary suite is green locally at 106 Rust tests passing after
-the dyn-trait checkpoint; pass canary count can increase without changing the
+the entry state. Single-subject transition match arms can now parse data
+destructure guards such as `Player { health, .. } if health > 5` by rewriting
+the destructured guard name to the matched subject field. Full canary suite is
+green locally at 106 Rust tests passing after the dyn-trait checkpoint; pass
+canary count can increase without changing the
 Rust harness test count because many canaries are batched.
+
+**Transition data-pattern follow-up.** Current data-pattern support is a narrow
+transition-guard lowering path: `Type { field, .. } if guard` rewrites bare
+captured field names inside `guard` to member reads on the single match subject.
+Need real pattern binding semantics, multi-field/multi-subject validation,
+domain-pattern lowering that proves membership rather than just compiling the
+surface, and clearer diagnostics for unsupported destructuring forms.
 
 **Const data parameter follow-up.** Current `const` data parameter support is a
 structural compile path: syntax/resolved/typed trees preserve const parameters,

@@ -381,6 +381,67 @@ fn parses_executable_domain_membership_expression() {
 }
 
 #[test]
+fn parses_data_destructure_transition_guard_as_subject_member_guard() {
+    let source = r#"
+        data Player {
+            health: i32;
+        }
+
+        data Main {
+            player: Player;
+        }
+
+        machine Main::main(&mut self) {
+            match self.player {
+                Player::Alive -> done()
+                Player { health, .. } if health > 5 -> done()
+                _ -> done()
+            }
+
+            state done() {}
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+    let entry = parsed
+        .items
+        .state_handles(machine.states)
+        .first()
+        .copied()
+        .expect("entry state");
+    let state = parsed.items.state(entry);
+    let statement = parsed
+        .items
+        .statements(state.statements)
+        .get(1)
+        .copied()
+        .expect("data-pattern transition");
+    let StatementNode::Transition(transition) = parsed.statements.statement(statement) else {
+        panic!("second arm should be a transition")
+    };
+    let omega_syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
+        panic!("data-pattern arm should lower to a guard expression");
+    };
+    let ExpressionNode::Binary(comparison) = parsed.expressions.expression(guard) else {
+        panic!("data-pattern guard should be a comparison");
+    };
+    assert!(matches!(
+        parsed.expressions.expression(comparison.left),
+        ExpressionNode::Member(_)
+    ));
+}
+
+#[test]
 fn parses_executable_domain_membership_intersection_expression() {
     let source = r#"
         data Player {
