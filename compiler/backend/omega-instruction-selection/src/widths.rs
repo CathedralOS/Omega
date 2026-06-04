@@ -306,7 +306,10 @@ pub fn runtime_text_stored_place_append_to_runtime_pointee_width(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            let _ = (source_offset, pointer_byte_offset, field_byte_offset);
+            x86_64::runtime_text_stored_place_append_to_runtime_pointee_width()
+        }
     }
 }
 
@@ -333,7 +336,10 @@ pub fn runtime_text_literal_append_to_runtime_pointee_width(
             field_byte_offset,
             literal,
         ),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            let _ = (pointer_byte_offset, field_byte_offset);
+            x86_64::runtime_text_literal_append_to_runtime_pointee_width(literal)
+        }
     }
 }
 

@@ -47,7 +47,7 @@ pub(crate) fn runtime_text_stored_place_pointee_source_address_offset(
         }
         Architecture::X86_64 => {
             let _ = (pointer_byte_offset, field_byte_offset);
-            omega_isa_x86_64::RUNTIME_TEXT_STORED_PLACE_APPEND_SOURCE_IMM_OFFSET
+            omega_isa_x86_64::RUNTIME_TEXT_STORED_PLACE_APPEND_POINTEE_SOURCE_IMM_OFFSET
         }
     }
 }
