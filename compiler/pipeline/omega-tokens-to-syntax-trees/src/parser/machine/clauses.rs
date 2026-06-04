@@ -5,7 +5,7 @@ use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::item::{CapabilityContract, CapabilityContractKind};
+use omega_syntax_trees::item::{BoundaryLevel, CapabilityContract, CapabilityContractKind};
 use omega_tokens::PunctuationKind;
 
 type MachineClauses = (
@@ -66,6 +66,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                 && !input.at_contextual("ensures")
                 && !input.at_contextual("terminates")
                 && !input.at_contextual("decreases")
+                && !input.at_contextual("boundary")
                 && !input.at_contextual("where")
                 && !input.at_contextual("satisfies")
             {
@@ -86,6 +87,25 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             continue;
         }
 
+        if input.at_contextual("boundary") {
+            let (boundary, rest) = parse_boundary_clause(input)?;
+            input = rest;
+            let handle = syntax_trees
+                .items
+                .append_capability_contract(CapabilityContract {
+                    kind: CapabilityContractKind::Boundary(boundary),
+                    facts: HandleSpan::empty(),
+                    token_count: 2,
+                });
+            if contract_count == 0 {
+                contract_start = handle;
+            }
+            contract_count = contract_count
+                .checked_add(1)
+                .expect("machine contract span count overflow");
+            continue;
+        }
+
         if input.at_contextual("requires") || input.at_contextual("ensures") {
             let kind = if input.at_contextual("requires") {
                 input = input.take_contextual("requires")?;
@@ -102,6 +122,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
                         || input.at_contextual("terminates")
                         || input.at_contextual("decreases")
                         || input.at_contextual("effects")
+                        || input.at_contextual("boundary")
                         || input.at_contextual("where")
                         || input.at_contextual("satisfies")
                         || input.tokens.is_empty()
@@ -141,6 +162,19 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         (terminates, decreases, decrease_order, effects, contracts),
         input,
     ))
+}
+
+fn parse_boundary_clause<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, BoundaryLevel> {
+    let input = input.take_contextual("boundary")?;
+    if input.at_contextual("host") {
+        let input = input.take_contextual("host")?;
+        return Ok((BoundaryLevel::Host, input));
+    }
+
+    let (name, input) = input.take_identifier()?;
+    Ok((BoundaryLevel::Named(name), input))
 }
 
 fn starts_termination_clause_block(input: Input<'_, '_>) -> bool {

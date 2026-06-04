@@ -168,6 +168,9 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         }
         Item::Machine(machine) => {
             count_identifier(&machine.name, counts);
+            if machine.abi.is_some() {
+                counts.string_literals += 1;
+            }
             for parameter in syntax_trees.items.type_parameters(machine.type_parameters) {
                 count_identifier(&parameter.name, counts);
             }

@@ -15,6 +15,7 @@ pub(crate) fn lower_machine(
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
         attached_data: machine.attached_data.as_ref().map(crate::name::lower_name),
+        abi: machine.abi.clone(),
         type_parameters: omega_core::arena::HandleSpan::empty(),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),

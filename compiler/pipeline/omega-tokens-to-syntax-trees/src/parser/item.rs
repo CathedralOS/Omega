@@ -80,6 +80,15 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Data(item), rest));
     }
 
+    if input.at_contextual("abi") {
+        let input = input.take_contextual("abi")?;
+        let (abi, input) = input.take_string()?;
+        let input = input.take_keyword(KeywordKind::Machine, "machine")?;
+        let (mut item, rest) = parse_machine(syntax_trees, input)?;
+        item.abi = Some(abi);
+        return Ok((Item::Machine(item), rest));
+    }
+
     if input.at_keyword(KeywordKind::Machine) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
         let (item, rest) = parse_machine(syntax_trees, input)?;
@@ -156,6 +165,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`data`",
         "`domain`",
         "`enum`",
+        "`abi`",
         "`machine`",
         "`target`",
         "`capability`",

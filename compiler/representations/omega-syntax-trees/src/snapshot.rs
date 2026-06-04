@@ -101,6 +101,7 @@ pub enum ItemSnapshot {
     Machine {
         name: IdentifierSnapshot,
         attached_data: Option<IdentifierSnapshot>,
+        abi: Option<String>,
         type_parameters: Vec<TypeParameterSnapshot>,
         terminates: bool,
         decreases: Vec<ExpressionSnapshot>,
@@ -566,6 +567,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Machine(value) => ItemSnapshot::Machine {
             name: snapshot_identifier(&value.name),
             attached_data: value.attached_data.as_ref().map(snapshot_identifier),
+            abi: value.abi.clone(),
             type_parameters: syntax_trees
                 .items
                 .type_parameters(value.type_parameters)
