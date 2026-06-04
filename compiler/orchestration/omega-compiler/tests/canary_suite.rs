@@ -4224,9 +4224,11 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/unknown_provider_category",
     "constraints/scalar_requires_unproven_literal",
     "drops/drop_nonblocking_effect_unknown",
+    "expressions/match_expression_value",
     "modules/ambiguous_imported_data",
     "modules/use_unresolved_path",
     "traits/trait_satisfies_arity_mismatch",
+    "versioning/match_on_version",
 ];
 
 #[derive(Clone, Copy)]
@@ -4242,18 +4244,4 @@ struct PendingCanary {
     expectation: PendingCanaryExpectation,
 }
 
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    // --- Language-guide chapter coverage (Ch1-22) ---
-    PendingCanary {
-        path: "expressions/match_expression_value",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `;`, found identifier `command`",
-        },
-    },
-    PendingCanary {
-        path: "versioning/match_on_version",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected transition pattern",
-        },
-    },
-];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
