@@ -1,0 +1,221 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+enum CellId {
+    Empty,
+    R00,
+    R01,
+}
+
+enum Direction {
+    North,
+    South,
+    East,
+    West,
+}
+
+enum RoomEventKind {
+    Nothing,
+    FountainOfLife,
+    Treasure,
+    GoldCache,
+    Enemy,
+}
+
+enum EnemyKind {
+    Bat,
+    Spider,
+    Skeleton,
+    Cultist,
+    Hellhound,
+    PitFiend,
+}
+
+enum RewardKind {
+    None,
+    Gold,
+    Item,
+    GoldAndItem,
+}
+
+enum ItemKind {
+    RustedDagger,
+    CrackedBuckler,
+    HealingCharm,
+    EmberBlade,
+    DeepKey,
+}
+
+data Enemy {
+    kind: EnemyKind;
+    name: String;
+    max_health: i32;
+    health: i32;
+    attack: i32;
+    defense: i32;
+    xp_reward: u32;
+    depth: u32;
+}
+
+data Reward {
+    kind: RewardKind;
+    gold: u32;
+    item: ItemKind;
+}
+
+data RoomEvent {
+    kind: RoomEventKind;
+    enemy: Enemy;
+    reward: Reward;
+    consumed: bool;
+}
+
+data Exit {
+    command: String;
+    direction: Direction;
+    destination: CellId;
+}
+
+data Room {
+    cell: CellId;
+    depth: u32;
+    branch: u32;
+    label: String;
+    description: String;
+    exits: [Exit; 4];
+    exit_count: usize;
+    event: RoomEvent;
+    discovered: bool;
+}
+
+data Level {
+    rooms: [Room; 16];
+    room_count: usize;
+    start_cell: CellId;
+    deepest_depth: u32;
+}
+
+data Lookup {}
+
+data Formatter {
+    lookup: Lookup;
+}
+
+data View {
+    formatter: Formatter;
+}
+
+data Main {
+    console: Console;
+    view: View;
+    level: Level;
+    line: String;
+}
+
+machine Main::main(&mut self) {
+    let rooms: &mut [Room] = self.level.rooms.as_mut_slice();
+    rooms[0].cell = CellId::R00;
+    rooms[0].depth = 9;
+    rooms[0].branch = 0;
+    rooms[0].label = "Gate";
+    rooms[0].description = "A bottomless dark room near the dungeon heart.";
+    rooms[0].exit_count = 1;
+    rooms[0].discovered = true;
+    self.level.room_count = 1;
+    self.level.start_cell = CellId::R00;
+    self.level.deepest_depth = 9;
+
+    self.view.render_room(self.level, CellId::R00, &mut self.line);
+
+    transition self.line == "== Gate ==" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(202);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(203);
+    }
+}
+
+machine View::render_room(
+    &mut self,
+    level: Level,
+    cell: CellId,
+    line: &mut String
+) {
+    self.formatter.write_current_cell(level, cell, line);
+}
+
+machine Formatter::write_current_cell(
+    &mut self,
+    level: Level,
+    cell: CellId,
+    out_line: &mut String
+) {
+    let room: Room;
+    self.lookup.find_room(level, cell, &mut room);
+    out_line = "== " + room.label + " ==";
+}
+
+machine Lookup::find_room(
+    &mut self,
+    level: Level,
+    cell: CellId,
+    out_room: &mut Room
+) {
+    let rooms: &[Room] = level.rooms.as_slice();
+
+    transition level.room_count > 0 {
+        true -> find_room_at(rooms, level.room_count, cell, out_room, 0)
+        false -> {}
+    }
+
+    state find_room_at(
+        &mut self,
+        rooms: &[Room],
+        room_count: usize,
+        cell: CellId,
+        out_room: &mut Room,
+        index: usize
+    ) {
+        let found: bool = rooms[index].cell == cell;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < room_count;
+
+        transition {
+            found -> apply_room(rooms[index], out_room)
+            has_next -> find_room_at(rooms, room_count, cell, out_room, next_index)
+        }
+    }
+
+    state apply_room(
+        &mut self,
+        room: Room,
+        out_room: &mut Room
+    ) {
+        out_room.cell = room.cell;
+        out_room.depth = room.depth;
+        out_room.branch = room.branch;
+        out_room.label = room.label;
+        out_room.description = room.description;
+        out_room.exit_count = room.exit_count;
+        out_room.discovered = room.discovered;
+
+        let out_exits: &mut [Exit] = out_room.exits.as_mut_slice();
+        let room_exits: &[Exit] = room.exits.as_slice();
+        out_exits[0] = room_exits[0];
+        out_exits[1] = room_exits[1];
+        out_exits[2] = room_exits[2];
+        out_exits[3] = room_exits[3];
+
+        out_room.event.kind = room.event.kind;
+        out_room.event.consumed = room.event.consumed;
+        out_room.event.enemy = room.event.enemy;
+        out_room.event.reward = room.event.reward;
+    }
+}

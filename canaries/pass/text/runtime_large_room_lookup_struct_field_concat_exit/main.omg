@@ -1,0 +1,130 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+enum CellId {
+    C0,
+    C1,
+}
+
+data Exit {
+    command: String;
+    destination: CellId;
+}
+
+data Room {
+    cell: CellId;
+    depth: u32;
+    branch: u32;
+    label: String;
+    description: String;
+    exits: [Exit; 4];
+    payload: [u64; 9];
+    exit_count: usize;
+    discovered: bool;
+}
+
+data Level {
+    rooms: [Room; 2];
+    room_count: usize;
+}
+
+data Lookup {
+}
+
+data Formatter {
+    lookup: Lookup;
+}
+
+data Main {
+    console: Console;
+    formatter: Formatter;
+    level: Level;
+    line: String;
+}
+
+machine Main::main(&mut self) {
+    let rooms: &mut [Room] = self.level.rooms.as_mut_slice();
+    rooms[0].cell = CellId::C0;
+    rooms[0].depth = 9;
+    rooms[0].branch = 0;
+    rooms[0].label = "Gate";
+    rooms[0].description = "A bottomless dark room near the dungeon heart.";
+    rooms[0].exit_count = 1;
+    rooms[0].discovered = true;
+    self.level.room_count = 1;
+
+    self.formatter.write_current_cell(self.level, CellId::C0, &mut self.line);
+
+    transition self.line == "== Gate ==" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(200);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(201);
+    }
+}
+
+machine Formatter::write_current_cell(
+    &mut self,
+    level: Level,
+    cell: CellId,
+    out_line: &mut String
+) {
+    let room: Room;
+    self.lookup.find_room(level, cell, &mut room);
+    out_line = "== " + room.label + " ==";
+}
+
+machine Lookup::find_room(
+    &mut self,
+    level: Level,
+    cell: CellId,
+    out_room: &mut Room
+) {
+    let rooms: &[Room] = level.rooms.as_slice();
+
+    transition level.room_count > 0 {
+        true -> find_room_at(rooms, level.room_count, cell, out_room, 0)
+        false -> {}
+    }
+
+    state find_room_at(
+        &mut self,
+        rooms: &[Room],
+        room_count: usize,
+        cell: CellId,
+        out_room: &mut Room,
+        index: usize
+    ) {
+        let found: bool = rooms[index].cell == cell;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < room_count;
+
+        transition {
+            found -> apply_room(rooms[index], out_room)
+            has_next -> find_room_at(rooms, room_count, cell, out_room, next_index)
+        }
+    }
+
+    state apply_room(
+        &mut self,
+        room: Room,
+        out_room: &mut Room
+    ) {
+        out_room.cell = room.cell;
+        out_room.depth = room.depth;
+        out_room.branch = room.branch;
+        out_room.label = room.label;
+        out_room.description = room.description;
+        out_room.exits = room.exits;
+        out_room.payload = room.payload;
+        out_room.exit_count = room.exit_count;
+        out_room.discovered = room.discovered;
+    }
+}

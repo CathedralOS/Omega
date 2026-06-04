@@ -86,7 +86,7 @@ machine CommandParser::find_exit_at(
         command: &String,
         index: usize
     ) {
-        let found: bool = exits[index].command == command;
+        let found: bool = self.direction_matches(exits[index].direction, command);
         let next_index: usize = index + 1;
         let has_next: bool = next_index < exit_count && next_index < exits.len;
 
@@ -101,6 +101,20 @@ machine CommandParser::find_exit_at(
 machine CommandParser::invalid_navigation(&mut self) -> Navigation {
     transition {
         _ -> self.navigation(NavigationChoice::Invalid, CellId::Empty)
+    }
+}
+
+machine CommandParser::direction_matches(
+    &mut self,
+    direction: Direction,
+    command: &String
+    ) -> bool {
+    transition {
+        direction == Direction::North && command == "north" -> true
+        direction == Direction::South && command == "south" -> true
+        direction == Direction::East && command == "east" -> true
+        direction == Direction::West && command == "west" -> true
+        _ -> false
     }
 }
 

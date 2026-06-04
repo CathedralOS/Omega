@@ -1144,6 +1144,72 @@ fn runtime_enemy_clear_reentry_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_clear_carve_render_string_fields_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_clear_carve_render_string_fields_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-clear-carve-render-string-fields-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime clear/carve/render string fields canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime clear/carve/render string fields canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(198),
+        "expected cleared then carved room label to render through lookup and exit 198, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_full_level_wrapper_lookup_string_field_exit_canary_runs() {
+    let canary = pass_canary("dungeon/runtime_full_level_wrapper_lookup_string_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-full-level-wrapper-lookup-string-field-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime full-level wrapper lookup string field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime full-level wrapper lookup string field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(202),
+        "expected runtime full-level wrapper lookup string field canary to preserve the room label through wrapper lookup, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_multi_room_reentry_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_multi_room_reentry_exit");
     let main_path = canary.join("main.omg");
@@ -2197,6 +2263,108 @@ fn runtime_call_result_through_reference_field_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_string_call_result_through_reference_field_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_string_call_result_through_reference_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-string-call-result-through-reference-field-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime string call result through reference field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime string call result through reference field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(186),
+        "expected a string machine-call result assigned through a reference field \
+         (`ref.label = self.call()`) to copy the returned string descriptor through \
+         the pointer and exit 186, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_two_string_call_results_through_reference_fields_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_two_string_call_results_through_reference_fields_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-two-string-call-results-through-reference-fields-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime two string call results through reference fields canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime two string call results through reference fields canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(194),
+        "expected two string call results assigned through reference fields to preserve both descriptors and exit 194, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_offset_string_call_results_through_reference_fields_exit_canary_runs() {
+    let canary =
+        pass_canary("calls/runtime_offset_string_call_results_through_reference_fields_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-offset-string-call-results-through-reference-fields-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime offset string call results through reference fields canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime offset string call results through reference fields canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(196),
+        "expected string call results assigned through +16/+32 reference fields to preserve both descriptors and exit 196, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_reference_returned_slice_element_write_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_reference_returned_slice_element_write_exit");
     let main_path = canary.join("main.omg");
@@ -2769,6 +2937,138 @@ fn runtime_mutable_struct_string_field_copy_concat_exit_canary_runs() {
         output.status.code(),
         Some(77),
         "expected runtime mutable struct string field copy concat canary to preserve copied string fields and exit 77, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_local_struct_string_field_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_local_struct_string_field_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-local-struct-string-field-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime local struct string field concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime local struct string field concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(188),
+        "expected generated string concat to append a copied local struct string field and exit 188, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_lookup_struct_field_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_lookup_struct_field_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-lookup-struct-field-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime lookup struct field concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime lookup struct field concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(190),
+        "expected lookup-filled local struct field to feed generated string concat and exit 190, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_large_lookup_struct_field_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_large_lookup_struct_field_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-large-lookup-struct-field-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime large lookup struct field concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime large lookup struct field concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(192),
+        "expected large-frame lookup-filled local struct field concat to exit 192, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_large_room_lookup_struct_field_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_large_room_lookup_struct_field_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-large-room-lookup-struct-field-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime large room lookup struct field concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime large room lookup struct field concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(200),
+        "expected large indexed room copy to preserve label for generated concat and exit 200, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -3636,6 +3936,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_mutable_string_parameter_concat_write_line",
     "text/runtime_mutable_string_parameter_wrapped_concat_write_line",
     "text/runtime_mutable_struct_string_field_copy_concat_exit",
+    "text/runtime_local_struct_string_field_concat_exit",
+    "text/runtime_lookup_struct_field_concat_exit",
+    "text/runtime_large_lookup_struct_field_concat_exit",
+    "text/runtime_large_room_lookup_struct_field_concat_exit",
     "text/runtime_call_argument_struct_string_field_slice_alias_exit",
     "text/runtime_mutable_struct_string_field_copy_concat_write_line",
     "arithmetic/runtime_arithmetic_guard",
@@ -3653,6 +3957,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_call_enum_field_with_mut_arg",
     "calls/runtime_call_enum_sequence",
     "calls/runtime_call_enum_value",
+    "calls/runtime_string_call_result_through_reference_field_exit",
+    "calls/runtime_two_string_call_results_through_reference_fields_exit",
+    "calls/runtime_offset_string_call_results_through_reference_fields_exit",
     "calls/runtime_reference_returned_slice_element_through_param_exit",
     "calls/runtime_nested_guarded_reference_returned_slice_element_exit",
     "calls/runtime_mutable_machine_owned_parameter_write_exit",
@@ -3663,6 +3970,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dungeon/runtime_direct_boolean_conjunction_dispatch",
     "dungeon/runtime_direct_boolean_conjunction_exit",
     "dungeon/runtime_enemy_clear_reentry_exit",
+    "dungeon/runtime_clear_carve_render_string_fields_exit",
+    "dungeon/runtime_full_level_wrapper_lookup_string_field_exit",
     "dungeon/runtime_enemy_clear_reentry_guard",
     "control_flow/runtime_guarded_leaf_ordering_call",
     "dungeon/runtime_ordered_room_dispatch_after_call_exit",

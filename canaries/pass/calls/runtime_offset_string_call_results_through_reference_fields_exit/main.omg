@@ -1,0 +1,85 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+enum CellId {
+    C0,
+    C1,
+    C2,
+}
+
+data Cell {
+    cell: CellId;
+    depth: u32;
+    branch: u32;
+    label: String;
+    description: String;
+}
+
+data Bag {
+    cells: [Cell; 3];
+}
+
+data Main {
+    console: Console;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) {
+    self.fill(&mut self.bag, CellId::C0);
+
+    transition {
+        self.bag.cells[0].label == "Gate" && self.bag.cells[0].description == "Deep room" -> render()
+        _ -> bad()
+    }
+
+    state render(&mut self) {
+        let line: String = "== " + self.bag.cells[0].label + " ==";
+
+        transition line == "== Gate ==" {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(196);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(197);
+    }
+}
+
+machine Main::fill(&mut self, bag: &mut Bag, cell_id: CellId) {
+    let cell: &mut Cell = self.pick(bag, cell_id);
+    cell.cell = cell_id;
+    cell.depth = 9;
+    cell.branch = 0;
+    cell.label = self.label_for(cell_id);
+    cell.description = self.description_for(cell_id);
+}
+
+machine Main::pick(&mut self, bag: &mut Bag, cell_id: CellId) -> &mut Cell {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+
+    transition cell_id {
+        CellId::C0 -> &mut cells[0]
+        CellId::C1 -> &mut cells[1]
+        _ -> &mut cells[2]
+    }
+}
+
+machine Main::label_for(&mut self, cell_id: CellId) -> String {
+    transition {
+        cell_id == CellId::C0 -> "Gate"
+        _ -> "Branch Room"
+    }
+}
+
+machine Main::description_for(&mut self, cell_id: CellId) -> String {
+    transition {
+        cell_id == CellId::C0 -> "Deep room"
+        _ -> "Other room"
+    }
+}
