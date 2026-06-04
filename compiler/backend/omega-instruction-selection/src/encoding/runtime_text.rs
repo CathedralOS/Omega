@@ -135,7 +135,14 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            let _ = buffer_offset;
+            x86_64::encode_runtime_text_stored_place_append_to_runtime_pointee(
+                source_offset,
+                pointer_byte_offset,
+                field_byte_offset,
+            )
+        }
     }
 }
 
@@ -194,7 +201,14 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
             field_byte_offset,
             literal,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            let _ = buffer_offset;
+            x86_64::encode_runtime_text_literal_append_to_runtime_pointee(
+                pointer_byte_offset,
+                field_byte_offset,
+                literal,
+            )
+        }
     }
 }
 

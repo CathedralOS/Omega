@@ -78,6 +78,10 @@ pub fn encode_runtime_pointee_string_write(
 
 pub const RUNTIME_TEXT_STORED_PLACE_APPEND_TARGET_IMM_OFFSET: usize = 10;
 pub const RUNTIME_TEXT_STORED_PLACE_APPEND_SOURCE_IMM_OFFSET: usize = 33;
+/// Like the non-pointee source offset, but the pointee variant inserts one extra
+/// `mov r15, [r15+disp32]` (7 bytes) to dereference the runtime pointer before the
+/// source-region `mov rcx, imm64`, pushing the source immediate from 33 to 40.
+pub const RUNTIME_TEXT_STORED_PLACE_APPEND_POINTEE_SOURCE_IMM_OFFSET: usize = 40;
 
 pub fn runtime_text_stored_place_append_width() -> usize {
     86
@@ -115,6 +119,55 @@ pub fn encode_runtime_text_stored_place_append(
     append_rep_movsb(&mut bytes); // copy rcx bytes
     append_pop_rdi_rsi(&mut bytes);
     debug_assert_eq!(bytes.len(), runtime_text_stored_place_append_width());
+    Ok(bytes)
+}
+
+pub fn runtime_text_stored_place_append_to_runtime_pointee_width() -> usize {
+    93
+}
+
+/// Appends a stored source string to a target string whose `{ptr,len}` descriptor
+/// is reached through a RUNTIME pointer: the descriptor lives at
+/// `*(frame + pointer_byte_offset) + field_byte_offset`. Mirrors
+/// `encode_runtime_text_stored_place_append`, but loads the descriptor base by
+/// dereferencing the runtime pointer (one extra `mov r15,[r15+disp32]`) instead of
+/// using a relocated target-region base. r14=materialized buffer base, r15=descriptor
+/// address, rcx=source region base; the copy is a `rep movsb` (rsi/rdi preserved).
+/// The descriptor's `ptr` is overwritten to the buffer base and `len` grows by the
+/// source length -- so a prior stale `ptr` (e.g. from WriteRuntimePointeeString) is
+/// corrected here.
+pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes =
+        Vec::with_capacity(runtime_text_stored_place_append_to_runtime_pointee_width());
+    append_mov_r14_imm64(&mut bytes, 0); // buffer base (reloc @ instruction start)
+    append_mov_r15_imm64(&mut bytes, 0); // runtime-frame base (reloc @ +10 == TARGET offset)
+    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = runtime pointer
+    append_load_r11_from_r15(&mut bytes, field_byte_offset + 8)?; // r11 = current length
+    append_mov_r10_r14(&mut bytes); // r10 = buffer base
+    append_add_r10_r11(&mut bytes); // r10 = dest = buffer + current length
+    debug_assert_eq!(
+        bytes.len(),
+        RUNTIME_TEXT_STORED_PLACE_APPEND_POINTEE_SOURCE_IMM_OFFSET
+    );
+    append_mov_rcx_imm64(&mut bytes, 0); // source region base (reloc @ +40)
+    append_load_rax_from_rcx(&mut bytes, source_offset)?; // rax = source pointer
+    append_load_rcx_from_rcx(&mut bytes, source_offset + 8)?; // rcx = source length
+    append_add_r11_rcx(&mut bytes); // r11 = new length = current + source
+    append_store_r14_to_r15(&mut bytes, field_byte_offset)?; // descriptor.ptr = buffer
+    append_store_r11_to_r15(&mut bytes, field_byte_offset + 8)?; // descriptor.len = new length
+    append_push_rsi_rdi(&mut bytes);
+    append_mov_rsi_rax(&mut bytes); // rsi = source pointer
+    append_mov_rdi_r10(&mut bytes); // rdi = dest
+    append_rep_movsb(&mut bytes); // copy rcx bytes
+    append_pop_rdi_rsi(&mut bytes);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_text_stored_place_append_to_runtime_pointee_width()
+    );
     Ok(bytes)
 }
 
@@ -699,6 +752,51 @@ pub fn encode_runtime_text_literal_append(
     bytes.extend([0x49, 0x89, 0x86]); // mov [r14 + len_disp], rax
     bytes.extend(len_disp.to_le_bytes());
     debug_assert_eq!(bytes.len(), runtime_text_literal_append_width(literal));
+    Ok(bytes)
+}
+
+pub fn runtime_text_literal_append_to_runtime_pointee_width(literal: &str) -> usize {
+    // Like the non-pointee literal append (41 + len*9) plus one extra
+    // `mov r14, [r14 + disp32]` (7) to dereference the runtime pointer.
+    48 + literal.len() * 9
+}
+
+/// Appends a compile-time literal to a target string whose `{ptr,len}` descriptor
+/// is reached through a RUNTIME pointer (`*(frame + pointer_byte_offset) +
+/// field_byte_offset`). Mirrors `encode_runtime_text_literal_append`, dereferencing
+/// the runtime pointer into r14 first. r15=materialized buffer base. The descriptor
+/// `ptr` is overwritten to the buffer base and `len` grows by the literal length.
+pub fn encode_runtime_text_literal_append_to_runtime_pointee(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let ptr_disp = disp32(field_byte_offset)?;
+    let len_disp = disp32(field_byte_offset + 8)?;
+    let mut bytes =
+        Vec::with_capacity(runtime_text_literal_append_to_runtime_pointee_width(literal));
+    append_mov_r15_imm64(&mut bytes, 0); // buffer base (reloc @ instruction start)
+    append_mov_r14_imm64(&mut bytes, 0); // runtime-frame base (reloc @ +10 == TARGET offset)
+    append_load_r14_from_r14(&mut bytes, pointer_byte_offset)?; // r14 = runtime pointer
+    // rax = current length.
+    bytes.extend([0x49, 0x8b, 0x86]); // mov rax, [r14 + len_disp]
+    bytes.extend(len_disp.to_le_bytes());
+    // append bytes at buffer[rax]; rax advances per byte.
+    for byte in literal.as_bytes() {
+        bytes.extend([0xb1, *byte]); // mov cl, imm8
+        bytes.extend([0x41, 0x88, 0x0c, 0x07]); // mov [r15+rax], cl
+        bytes.extend([0x48, 0xff, 0xc0]); // inc rax
+    }
+    // descriptor.ptr = buffer (r15).
+    bytes.extend([0x4d, 0x89, 0xbe]); // mov [r14 + ptr_disp], r15
+    bytes.extend(ptr_disp.to_le_bytes());
+    // descriptor.len = original_len + literal.len (rax advanced once per byte).
+    bytes.extend([0x49, 0x89, 0x86]); // mov [r14 + len_disp], rax
+    bytes.extend(len_disp.to_le_bytes());
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_text_literal_append_to_runtime_pointee_width(literal)
+    );
     Ok(bytes)
 }
 
