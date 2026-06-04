@@ -4,7 +4,8 @@ use crate::parser::input::{Input, parse_path_handle_span};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
-    BinaryOperator, ExpressionNode, TableBinaryExpression, TableMembershipExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+    TableMembershipExpression,
 };
 use omega_syntax_trees::item::{ProofFact, ProofMembershipFact};
 use omega_tokens::PunctuationKind;
@@ -65,82 +66,115 @@ pub(super) fn parse_proof_facts_until<'tokens, 'source>(
 
         if input.at_contextual("in") {
             input = input.take_contextual("in")?;
-            let (first_domain, rest) = parse_path_handle_span(input, |member| {
-                syntax_trees.items.append_identifier_path_member(member)
-            })?;
-            input = rest;
-
-            let first_expression_domain =
-                copy_item_path_to_expression_path(syntax_trees, first_domain);
-            let first_membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
-                TableMembershipExpression {
-                    value,
-                    domain: first_expression_domain,
-                },
-            ));
-
-            let mut chain_expression = first_membership;
-            let mut saw_pipe = false;
-            let mut membership_domains = vec![first_domain];
-
-            while input.at_punctuation(PunctuationKind::Ampersand)
-                || input.at_punctuation(PunctuationKind::Pipe)
-            {
-                let (operator, rest) = if input.at_punctuation(PunctuationKind::Ampersand) {
-                    (
-                        BinaryOperator::And,
-                        input.take_punctuation(PunctuationKind::Ampersand, "&")?,
-                    )
-                } else {
-                    saw_pipe = true;
-                    (
-                        BinaryOperator::Or,
-                        input.take_punctuation(PunctuationKind::Pipe, "|")?,
-                    )
-                };
-                let (domain, rest) = parse_path_handle_span(rest, |member| {
+            if input.at_name_like() {
+                let (first_domain, rest) = parse_path_handle_span(input, |member| {
                     syntax_trees.items.append_identifier_path_member(member)
                 })?;
                 input = rest;
-                membership_domains.push(domain);
-                let expression_domain = copy_item_path_to_expression_path(syntax_trees, domain);
-                let membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
+
+                let first_expression_domain =
+                    copy_item_path_to_expression_path(syntax_trees, first_domain);
+                let first_membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
                     TableMembershipExpression {
                         value,
-                        domain: expression_domain,
+                        domain: first_expression_domain,
                     },
                 ));
-                chain_expression = syntax_trees.expressions.insert(ExpressionNode::Binary(
-                    TableBinaryExpression {
-                        left: chain_expression,
-                        operator,
-                        right: membership,
-                    },
-                ));
-            }
 
-            if saw_pipe {
-                let handle = syntax_trees
-                    .items
-                    .append_proof_fact(ProofFact::Expression(chain_expression));
-                if fact_count == 0 {
-                    fact_start = handle;
-                }
-                fact_count = fact_count
-                    .checked_add(1)
-                    .expect("proof fact span count overflow");
-            } else {
-                for domain in membership_domains {
-                    let handle = syntax_trees.items.append_proof_fact(ProofFact::Membership(
-                        ProofMembershipFact { value, domain },
+                let mut chain_expression = first_membership;
+                let mut saw_pipe = false;
+                let mut membership_domains = vec![first_domain];
+
+                while input.at_punctuation(PunctuationKind::Ampersand)
+                    || input.at_punctuation(PunctuationKind::Pipe)
+                {
+                    let (operator, rest) = if input.at_punctuation(PunctuationKind::Ampersand) {
+                        (
+                            BinaryOperator::And,
+                            input.take_punctuation(PunctuationKind::Ampersand, "&")?,
+                        )
+                    } else {
+                        saw_pipe = true;
+                        (
+                            BinaryOperator::Or,
+                            input.take_punctuation(PunctuationKind::Pipe, "|")?,
+                        )
+                    };
+                    let (domain, rest) = parse_path_handle_span(rest, |member| {
+                        syntax_trees.items.append_identifier_path_member(member)
+                    })?;
+                    input = rest;
+                    membership_domains.push(domain);
+                    let expression_domain = copy_item_path_to_expression_path(syntax_trees, domain);
+                    let membership = syntax_trees.expressions.insert(ExpressionNode::Membership(
+                        TableMembershipExpression {
+                            value,
+                            domain: expression_domain,
+                        },
                     ));
+                    chain_expression = syntax_trees.expressions.insert(ExpressionNode::Binary(
+                        TableBinaryExpression {
+                            left: chain_expression,
+                            operator,
+                            right: membership,
+                        },
+                    ));
+                }
+
+                if saw_pipe {
+                    let handle = syntax_trees
+                        .items
+                        .append_proof_fact(ProofFact::Expression(chain_expression));
                     if fact_count == 0 {
                         fact_start = handle;
                     }
                     fact_count = fact_count
                         .checked_add(1)
                         .expect("proof fact span count overflow");
+                } else {
+                    for domain in membership_domains {
+                        let handle = syntax_trees.items.append_proof_fact(ProofFact::Membership(
+                            ProofMembershipFact { value, domain },
+                        ));
+                        if fact_count == 0 {
+                            fact_start = handle;
+                        }
+                        fact_count = fact_count
+                            .checked_add(1)
+                            .expect("proof fact span count overflow");
+                    }
                 }
+            } else {
+                let (start, rest) = parse_expression_handle_without_struct_literals_or_membership(
+                    syntax_trees,
+                    input,
+                )?;
+                let (end_inclusive, rest) = if rest.at_punctuation(PunctuationKind::DotDotEqual) {
+                    (
+                        true,
+                        rest.take_punctuation(PunctuationKind::DotDotEqual, "..=")?,
+                    )
+                } else if rest.at_punctuation(PunctuationKind::DotDot) {
+                    (false, rest.take_punctuation(PunctuationKind::DotDot, "..")?)
+                } else {
+                    return Err(rest.error_here("`in` range proof facts require a range separator"));
+                };
+                let (end, rest) = parse_expression_handle_without_struct_literals_or_membership(
+                    syntax_trees,
+                    rest,
+                )?;
+                input = rest;
+                let range_fact =
+                    range_membership_expression(syntax_trees, value, start, end, end_inclusive);
+                let handle = syntax_trees
+                    .items
+                    .append_proof_fact(ProofFact::Expression(range_fact));
+                if fact_count == 0 {
+                    fact_start = handle;
+                }
+                fact_count = fact_count
+                    .checked_add(1)
+                    .expect("proof fact span count overflow");
             }
         } else {
             let handle = syntax_trees
@@ -175,4 +209,38 @@ pub(super) fn parse_proof_facts_until<'tokens, 'source>(
     };
 
     Ok(((facts, token_count), input))
+}
+
+fn range_membership_expression(
+    syntax_trees: &mut SyntaxTrees,
+    value: ExpressionHandle,
+    start: ExpressionHandle,
+    end: ExpressionHandle,
+    end_inclusive: bool,
+) -> ExpressionHandle {
+    let lower = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: value,
+            operator: BinaryOperator::GreaterOrEqual,
+            right: start,
+        }));
+    let upper = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: value,
+            operator: if end_inclusive {
+                BinaryOperator::LessOrEqual
+            } else {
+                BinaryOperator::Less
+            },
+            right: end,
+        }));
+    syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: lower,
+            operator: BinaryOperator::And,
+            right: upper,
+        }))
 }
