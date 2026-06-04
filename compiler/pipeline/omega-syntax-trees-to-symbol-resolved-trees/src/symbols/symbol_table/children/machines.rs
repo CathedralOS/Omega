@@ -13,7 +13,11 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     let inherited_field_count = inherited_data_field_symbols(program, machine, has_sources).count();
     let machine_children = builder.insert_children(
         machine_symbol,
-        inherited_data_field_symbols(program, machine, has_sources)
+        program
+            .machine_type_parameters(machine)
+            .iter()
+            .map(|parameter| symbol_seed(SymbolKind::TypeParameter, &parameter.name, has_sources))
+            .chain(inherited_data_field_symbols(program, machine, has_sources))
             .chain(
                 program
                     .machine_contained_objects(machine.contains)
@@ -40,6 +44,9 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     );
     let mut machine_children = SymbolTableBuilder::child_handles(machine_children);
 
+    for _ in program.machine_type_parameters(machine) {
+        let _ = machine_children.next();
+    }
     for _ in 0..inherited_field_count {
         let _ = machine_children.next();
     }

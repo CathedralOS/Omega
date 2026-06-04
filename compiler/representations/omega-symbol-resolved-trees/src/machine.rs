@@ -17,6 +17,7 @@ pub struct Machine {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineStorage {
+    pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,

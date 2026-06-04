@@ -1,7 +1,6 @@
 // Chapter 12 "Static Dispatch" / "Monomorphization": a concrete call to a
-// generic machine should resolve and instantiate. Calling a generic machine
-// fails to dispatch (the identical non-generic machine call succeeds), so
-// monomorphization of generic machine calls is unimplemented.
+// generic machine resolves and instantiates through the normal receiver-call
+// path.
 
 data Item {
     value: i32;

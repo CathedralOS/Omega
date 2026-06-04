@@ -410,6 +410,7 @@ mod tests {
             name: DiagnosticName::generated("main"),
             attached_data: None,
             storage: MachineStorage {
+                type_parameters: HandleSpan::empty(),
                 contains: HandleSpan::empty(),
                 owned_data: HandleSpan::empty(),
                 satisfies: HandleSpan::empty(),

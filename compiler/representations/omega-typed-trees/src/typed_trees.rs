@@ -375,6 +375,20 @@ impl TypedTrees {
         self.tables.machines.span_mut_or_empty(self.roots.machines)
     }
 
+    pub fn push_machine_type_parameter(
+        &mut self,
+        machine: &mut machine::Machine,
+        type_parameter: data::TypeParameter,
+    ) {
+        self.data_type_parameters
+            .append_to_span(&mut machine.type_parameters, type_parameter);
+    }
+
+    pub fn machine_type_parameters(&self, machine: &machine::Machine) -> &[data::TypeParameter] {
+        self.data_type_parameters
+            .span_or_empty(machine.type_parameters)
+    }
+
     pub fn push_machine_contained_object(
         &mut self,
         machine: &mut machine::Machine,

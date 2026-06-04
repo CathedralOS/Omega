@@ -4077,7 +4077,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/const_machine_value_params",
     "generics/generic_data_instantiation",
     "generics/generic_data_type_param",
+    "generics/generic_machine_call_monomorphization",
     "generics/generic_machine_multiple_type_params",
+    "generics/generic_type_param_in_state",
     "generics/generic_machine_type_param_signature",
     "generics/generic_machine_where_machine_requirement",
     "generics/generic_machine_where_trait_bound",
@@ -4282,21 +4284,9 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         },
     },
     PendingCanary {
-        path: "generics/generic_machine_call_monomorphization",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "has no local state `use_it`",
-        },
-    },
-    PendingCanary {
         path: "generics/generic_trait_type_param",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `{`, found punctuation `<`",
-        },
-    },
-    PendingCanary {
-        path: "generics/generic_type_param_in_state",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "references unknown data type `T`",
         },
     },
     PendingCanary {

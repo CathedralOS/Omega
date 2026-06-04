@@ -407,6 +407,7 @@ impl Default for ProofMembershipFact {
 pub struct Machine {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
+    pub type_parameters: HandleSpan<TypeParameter>,
     pub satisfies: HandleSpan<Identifier>,
     pub terminates: bool,
     pub decreases: HandleSpan<crate::expression::ExpressionHandle>,

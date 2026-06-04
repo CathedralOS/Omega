@@ -2,7 +2,9 @@ use crate::expression_types::{
     argument_matches_type_reference_handle, expression_type_name_handle,
 };
 use crate::symbols::TopLevelSymbols;
-use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
+use crate::type_references::{
+    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::ExpressionHandle;
@@ -33,7 +35,7 @@ pub(crate) fn validate_owned_data(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for owned_data in program.machine_owned_data(machine) {
-        validate_type_reference_handle(
+        validate_type_reference_handle_with_type_parameters(
             program,
             owned_data.type_reference,
             symbols,
@@ -43,6 +45,7 @@ pub(crate) fn validate_owned_data(
                 data: owned_data.name.as_str(),
                 generic_depth: 0,
             },
+            program.machine_type_parameters(machine),
         );
 
         if owned_data.initial_value.is_valid() {

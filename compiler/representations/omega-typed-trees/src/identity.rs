@@ -132,6 +132,9 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
 
     for machine in typed_trees.machines() {
         count_declaration_name(&machine.name, &mut counts);
+        for parameter in typed_trees.machine_type_parameters(machine) {
+            count_declaration_name(&parameter.name, &mut counts);
+        }
         for contained in typed_trees.machine_contained_objects(machine) {
             count_declaration_name(&contained.name, &mut counts);
             count_type_name(&contained.type_name, &mut counts);
