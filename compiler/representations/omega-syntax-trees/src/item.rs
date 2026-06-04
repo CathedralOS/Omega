@@ -435,6 +435,7 @@ pub struct Platform {
 pub struct TraitDefinition {
     pub is_boundary: bool,
     pub name: Identifier,
+    pub type_parameters: HandleSpan<TypeParameter>,
     pub requires: HandleSpan<Identifier>,
     pub machines: HandleSpan<StateSignatureHandle>,
 }

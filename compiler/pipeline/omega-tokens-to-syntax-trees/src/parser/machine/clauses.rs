@@ -1,6 +1,7 @@
 use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::proof_fact::parse_proof_facts_until;
+use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
@@ -223,6 +224,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
 
     loop {
         let (trait_name, rest) = input.take_identifier()?;
+        let rest = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
         let handle = syntax_trees.items.append_identifier_path_member(trait_name);
         if trait_count == 0 {
             trait_start = handle;
@@ -246,4 +248,26 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
         HandleSpan::from_parts(trait_start, trait_count)
     };
     Ok((satisfies, input))
+}
+
+fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+) -> Result<Input<'tokens, 'source>, crate::parse_error::ParseError> {
+    if !input.at_punctuation(PunctuationKind::Less) {
+        return Ok(input);
+    }
+
+    input = input.take_punctuation(PunctuationKind::Less, "<")?;
+    loop {
+        let (_argument, rest) = parse_type_reference_handle(syntax_trees, input)?;
+        input = rest;
+
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+
+        return input.take_punctuation(PunctuationKind::Greater, ">");
+    }
 }

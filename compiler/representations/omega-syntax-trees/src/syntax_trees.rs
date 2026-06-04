@@ -313,6 +313,7 @@ impl SyntaxTrees {
         TraitDefinition {
             is_boundary: trait_definition.is_boundary,
             name: trait_definition.name.clone(),
+            type_parameters: self.copy_type_parameter_span(other, trait_definition.type_parameters),
             requires: self.copy_item_identifier_span(other, trait_definition.requires),
             machines: self.copy_state_signature_handle_span(other, trait_definition.machines),
         }

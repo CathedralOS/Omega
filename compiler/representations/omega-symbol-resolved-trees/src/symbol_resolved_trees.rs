@@ -183,6 +183,13 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
+    pub fn trait_type_parameters(
+        &self,
+        trait_definition: &crate::trait_definition::TraitDefinition,
+    ) -> &[data::TypeParameter] {
+        self.data_type_parameters(trait_definition.type_parameters)
+    }
+
     pub fn trait_requirements(
         &self,
         span: HandleSpan<crate::trait_definition::TraitRequirement>,

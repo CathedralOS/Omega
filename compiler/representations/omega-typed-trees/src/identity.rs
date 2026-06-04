@@ -110,6 +110,9 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
 
     for trait_definition in typed_trees.traits() {
         count_declaration_name(&trait_definition.name, &mut counts);
+        for parameter in typed_trees.trait_type_parameters(trait_definition) {
+            count_declaration_name(&parameter.name, &mut counts);
+        }
         for signature in typed_trees.trait_machine_signatures(trait_definition) {
             count_declaration_name(&signature.name, &mut counts);
             if signature.return_type.is_valid() {

@@ -268,6 +268,7 @@ pub struct PlatformSnapshot {
 pub struct TraitSnapshot {
     pub name: String,
     pub is_boundary: bool,
+    pub type_parameters: Vec<String>,
     pub requires: Vec<String>,
     pub machines: Vec<StateSignatureSnapshot>,
 }
@@ -640,6 +641,11 @@ fn trait_definition_snapshot(
     TraitSnapshot {
         name: trait_definition.name.to_string(),
         is_boundary: trait_definition.is_boundary,
+        type_parameters: program
+            .trait_type_parameters(trait_definition)
+            .iter()
+            .map(|parameter| parameter.name.to_string())
+            .collect(),
         requires: program
             .trait_requirements(trait_definition)
             .iter()

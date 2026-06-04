@@ -12,9 +12,23 @@ pub(crate) fn lower_trait_definition(
         symbol: trait_definition.symbol,
         is_boundary: trait_definition.is_boundary,
         name: crate::name::lower_name(&trait_definition.name),
+        type_parameters: omega_core::arena::HandleSpan::empty(),
         requires: omega_core::arena::HandleSpan::empty(),
         machines: omega_core::arena::HandleSpan::empty(),
     };
+
+    for parameter in lowerer
+        .source_trees
+        .data_type_parameters(trait_definition.type_parameters)
+    {
+        lowerer.typed_trees.push_trait_type_parameter(
+            &mut typed_trait,
+            typed::data::TypeParameter {
+                symbol: parameter.symbol,
+                name: crate::name::lower_name(&parameter.name),
+            },
+        );
+    }
 
     for requirement in lowerer
         .source_trees

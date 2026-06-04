@@ -1,3 +1,6 @@
+// Generic trait conformance binds the trait parameter from the satisfying
+// machine signature, so `Message` maps to `PlayerMessage` here.
+
 data PlayerMessage {
     health: i32;
 }

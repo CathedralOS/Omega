@@ -14,6 +14,7 @@ pub struct TraitDefinition {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TraitStorage {
+    pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub requires: HandleSpan<TraitRequirement>,
     pub machines: HandleSpan<StateSignature>,
 }
