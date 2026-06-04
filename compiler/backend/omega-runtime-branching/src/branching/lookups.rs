@@ -81,6 +81,20 @@ pub(super) fn state_call_for_runtime_operation<'plan>(
                     role,
                 )
             }),
+        (StateCallRole::CallArgument, Some(call_ordinal)) => context
+            .state_calls
+            .call_argument_call_by_ordinal(
+                operation.source_key,
+                operation.statement_index,
+                call_ordinal,
+            )
+            .or_else(|| {
+                context.state_calls.call_for_role(
+                    operation.source_key,
+                    operation.statement_index,
+                    role,
+                )
+            }),
         _ => {
             context
                 .state_calls

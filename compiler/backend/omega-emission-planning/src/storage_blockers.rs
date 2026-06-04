@@ -127,6 +127,8 @@ fn collect_runtime_body_storage_blockers(
             continue;
         }
 
+        debug_unplanned_runtime_storage_write(input, write);
+
         let source_name = state_name(input, write.source_key);
         blockers.insert(blocker(
             "state mutation",
@@ -142,6 +144,34 @@ fn collect_runtime_body_storage_blockers(
                 proof_scope_suffix(input, write.source_key)
             ),
         ));
+    }
+}
+
+fn debug_unplanned_runtime_storage_write(
+    input: &EmissionPlanningInput<'_>,
+    write: &RuntimeStorageWrite,
+) {
+    if std::env::var_os("OMEGA_DEBUG_STORAGE_BLOCKERS").is_none() {
+        return;
+    }
+
+    let source_name = state_name(input, write.source_key);
+    eprintln!(
+        "unplanned runtime storage write: #{} {} statement {} target `{}` value `{}`",
+        write.dispatch_index,
+        source_name,
+        write.statement_index,
+        input.runtime_storage.expressions.display_name(write.target),
+        input.runtime_storage.expressions.display_name(write.value),
+    );
+    for (_, instruction) in input.instructions.code.instructions.iter() {
+        if !state_key_matches_statement_source(instruction.source_key, write.source_key) {
+            continue;
+        }
+        eprintln!(
+            "  nearby selected write: statement {} kind {:?}",
+            instruction.source_statement, instruction.kind
+        );
     }
 }
 
@@ -199,6 +229,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                    | SelectedInstructionKind::WriteRuntimeFrameString { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeString { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineIndexedString { .. }
@@ -223,6 +254,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
                     | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage { .. }
+                    | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimePointee { .. }
                     | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
             )

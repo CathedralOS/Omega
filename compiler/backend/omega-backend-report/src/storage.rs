@@ -1,6 +1,7 @@
 use super::backend_state_name;
 
 use crate::BackendReportInput;
+use omega_runtime_storage::RuntimeFrameSlotKind;
 
 pub(super) fn write_storage_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
     output.push_str("## State Storage\n");
@@ -51,11 +52,13 @@ pub(super) fn write_storage_sections(output: &mut String, backend_plan: &Backend
     ));
     for (_, slot) in backend_plan.runtime_storage.frame_slots.iter() {
         let source_name = backend_state_name(backend_plan, slot.source_key);
+        let kind = runtime_frame_slot_kind_name(&slot.kind);
         output.push_str(&format!(
-            "- #{} {} statement {} local `{}`: {} offset {} bytes {} align {}\n",
+            "- #{} {} statement {} {} `{}`: {} offset {} bytes {} align {}\n",
             slot.dispatch_index,
             source_name,
             slot.statement_index,
+            kind,
             slot.name,
             slot.type_name,
             slot.byte_offset,
@@ -109,4 +112,16 @@ pub(super) fn write_storage_sections(output: &mut String, backend_plan: &Backend
         ));
     }
     output.push('\n');
+}
+
+fn runtime_frame_slot_kind_name(kind: &RuntimeFrameSlotKind) -> String {
+    match kind {
+        RuntimeFrameSlotKind::Parameter => "parameter".into(),
+        RuntimeFrameSlotKind::LocalStorage => "local".into(),
+        RuntimeFrameSlotKind::StateCallResult {
+            role, call_ordinal, ..
+        } => {
+            format!("state-call-result({role:?}#{call_ordinal})")
+        }
+    }
 }

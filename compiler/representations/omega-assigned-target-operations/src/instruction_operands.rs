@@ -26,6 +26,14 @@ pub enum AssignedInstructionOperandKind {
         region: RuntimeStorageRegion,
         byte_offset: usize,
     },
+    RuntimePointeeStringPointer {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+    },
+    RuntimePointeeStringLength {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+    },
     ImmediateInteger(i64),
     ByteLength(usize),
 }
@@ -49,6 +57,20 @@ impl From<omega_target_operations::TargetInstructionOperandKind>
                 region,
                 byte_offset,
             } => Self::RuntimeStringLength {
+                region,
+                byte_offset,
+            },
+            omega_target_operations::TargetInstructionOperandKind::RuntimePointeeStringPointer {
+                region,
+                byte_offset,
+            } => Self::RuntimePointeeStringPointer {
+                region,
+                byte_offset,
+            },
+            omega_target_operations::TargetInstructionOperandKind::RuntimePointeeStringLength {
+                region,
+                byte_offset,
+            } => Self::RuntimePointeeStringLength {
                 region,
                 byte_offset,
             },
@@ -79,6 +101,20 @@ impl From<AssignedInstructionOperandKind>
                 region,
                 byte_offset,
             } => Self::RuntimeStringLength {
+                region,
+                byte_offset,
+            },
+            AssignedInstructionOperandKind::RuntimePointeeStringPointer {
+                region,
+                byte_offset,
+            } => Self::RuntimePointeeStringPointer {
+                region,
+                byte_offset,
+            },
+            AssignedInstructionOperandKind::RuntimePointeeStringLength {
+                region,
+                byte_offset,
+            } => Self::RuntimePointeeStringLength {
                 region,
                 byte_offset,
             },
@@ -114,6 +150,26 @@ impl omega_target_operations::InstructionOperandLike for AssignedInstructionOper
     fn runtime_string_length(&self) -> Option<(RuntimeStorageRegion, usize)> {
         match self.kind {
             AssignedInstructionOperandKind::RuntimeStringLength {
+                region,
+                byte_offset,
+            } => Some((region, byte_offset)),
+            _ => None,
+        }
+    }
+
+    fn runtime_pointee_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)> {
+        match self.kind {
+            AssignedInstructionOperandKind::RuntimePointeeStringPointer {
+                region,
+                byte_offset,
+            } => Some((region, byte_offset)),
+            _ => None,
+        }
+    }
+
+    fn runtime_pointee_string_length(&self) -> Option<(RuntimeStorageRegion, usize)> {
+        match self.kind {
+            AssignedInstructionOperandKind::RuntimePointeeStringLength {
                 region,
                 byte_offset,
             } => Some((region, byte_offset)),

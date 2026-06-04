@@ -20,7 +20,12 @@ impl ContractExpressionEvaluator<'_, '_> {
                     .map(|name| name.as_str());
                 self.argument_for_parameter(path.head_symbol, path.symbol, name)
                     .or_else(|| self.local_initializer(path.head_symbol, path.symbol, path.members))
-                    .and_then(|resolved| self.resolved_expression(resolved).or(Some(resolved)))
+                    .and_then(|resolved| {
+                        if resolved == expression {
+                            return Some(resolved);
+                        }
+                        self.resolved_expression(resolved).or(Some(resolved))
+                    })
             }
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.resolved_expression(indexed.collection)?;

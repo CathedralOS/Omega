@@ -292,17 +292,18 @@ fn caller_qualifies(program: &TypedTrees, edge: &CallEdge, kind: CapabilityFlowK
 
     match kind {
         CapabilityFlowKind::Returns => returns_capability,
-        CapabilityFlowKind::Derives => returns_capability || state_has_capability_parameter(program, state),
+        CapabilityFlowKind::Derives => {
+            returns_capability || state_has_capability_parameter(program, state)
+        }
         _ => false,
     }
 }
 
 /// Whether `state` declares a non-self capability-typed parameter.
 fn state_has_capability_parameter(program: &TypedTrees, state: &State) -> bool {
-    program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| !parameter.is_self && is_capability_type(program, parameter.type_reference))
+    program.state_parameters(state).iter().any(|parameter| {
+        !parameter.is_self && is_capability_type(program, parameter.type_reference)
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

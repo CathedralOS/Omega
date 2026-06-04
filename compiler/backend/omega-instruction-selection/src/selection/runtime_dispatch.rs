@@ -4,6 +4,7 @@ use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
+use omega_state_calls::StateCallRole;
 use omega_state_values::{StateValueRole, simplify_state_expression_for_role};
 
 mod argument_materialization;
@@ -20,10 +21,11 @@ use super::host_operations::{
 use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
 use crate::selection::bindings::{RuntimeAliasBuffer, RuntimeAliasResolutionContext};
+pub(super) use branches::{
+    BranchPreludeSelectionScratch, select_runtime_branch_preludes_for_operation,
+};
 use branches::{
-    BranchPreludeSelectionScratch, LeafBranchSelectionScratch, StraightLineBranchSelectionScratch,
-    select_runtime_branch_preludes_for_operation,
-    select_runtime_leaf_branch_expansions_for_operation,
+    LeafBranchSelectionScratch, select_runtime_leaf_branch_expansions_for_operation,
     select_runtime_straight_line_branch_expansions_for_operation,
 };
 use edges::select_runtime_dispatch_edge;
@@ -35,6 +37,10 @@ use writes::select_runtime_storage_write_for_operation;
 pub(crate) use writes::{RuntimeStaticValues, RuntimeStorageWriteScratch};
 
 pub(crate) use branches::select_runtime_resolved_mutation_write;
+pub(super) use branches::{
+    StraightLineBranchSelectionScratch, select_assignment_value_call_result_local_copy,
+    select_runtime_straight_line_nested_branch_expansions_for_operation,
+};
 pub(in crate::selection) use writes::emit_runtime_frame_slot_slice_descriptor_write_in_table;
 pub(in crate::selection) use writes::runtime_frame_slot_target_expression;
 pub(in crate::selection) use writes::select_runtime_frame_slot_value_write_in_table;
@@ -132,14 +138,14 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             && let Some(operations) = input
                 .runtime_bodies
                 .operations
-                .span(runtime_body.operations)
+                .paged_span(runtime_body.operations)
         {
             runtime_aliases.clear();
             runtime_alias_expressions.clear();
             runtime_static_values.clear();
             runtime_storage_write_scratch.clear();
 
-            for operation in operations {
+            for operation in operations.iter() {
                 bind_runtime_operation_aliases(
                     input,
                     operation,
@@ -262,6 +268,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     input,
                     edge,
                     dispatch_case.key,
+                    dispatch_case.dispatch_index,
                     runtime_aliases.bindings(),
                     &runtime_alias_expressions,
                     runtime_value_operands,
@@ -393,6 +400,17 @@ fn select_runtime_dispatch_local_initializer_write(
         return;
     }
 
+    if copy_assignment_value_call_result_into_local(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        slot,
+        selected_instructions,
+    ) {
+        return;
+    }
+
     let target = writes::runtime_frame_slot_target_expression(expressions, slot);
     let _ = writes::select_runtime_storage_resolved_mutation_write_in_table_with_scratch(
         input,
@@ -411,6 +429,40 @@ fn select_runtime_dispatch_local_initializer_write(
         runtime_value_operands,
         selected_instructions,
     );
+}
+
+fn copy_assignment_value_call_result_into_local(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    local_source_key: StateKey,
+    statement_index: usize,
+    local_slot: &omega_runtime_storage::RuntimeFrameSlot,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let Some(call_result_slot) = input.runtime_storage.call_result_slot(
+        dispatch_index,
+        local_source_key,
+        statement_index,
+        StateCallRole::AssignmentValue,
+    ) else {
+        return false;
+    };
+    if call_result_slot.byte_size != local_slot.byte_size || local_slot.byte_size == 0 {
+        return false;
+    }
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::CopyRuntimeStorage {
+            source_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            source_offset: call_result_slot.byte_offset,
+            target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+            target_offset: local_slot.byte_offset,
+            byte_count: local_slot.byte_size,
+        },
+        source_key: local_source_key,
+        source_statement: statement_index,
+    });
+    true
 }
 
 fn simplify_runtime_local_initializer_handle(

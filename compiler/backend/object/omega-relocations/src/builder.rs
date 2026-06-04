@@ -1,7 +1,6 @@
 use crate::RelocationPlanningInput;
 use crate::instruction_records::collect_instruction_relocations;
-use crate::lookups::{selected_instruction_text_offset, selected_instruction_text_width};
-use omega_core::arena::Handle;
+use crate::lookups::SelectedInstructionTextLayouts;
 use omega_core::diagnostics::Diagnostic;
 use omega_object_file::{RelocationPlan, object_symbol_handle_by_name};
 use omega_target_operations::FunctionInstructionPlan;
@@ -13,9 +12,15 @@ pub fn build_relocation_plan(
         input.target,
         input.instructions.code.instructions.len(),
     );
+    let selected_instruction_text_layouts = SelectedInstructionTextLayouts::collect(input);
 
-    for (function_handle, function) in input.instructions.code.functions.iter() {
-        collect_function_relocations(input, function_handle, function, &mut relocation_plan)?;
+    for (_, function) in input.instructions.code.functions.iter() {
+        collect_function_relocations(
+            input,
+            function,
+            &selected_instruction_text_layouts,
+            &mut relocation_plan,
+        )?;
     }
 
     Ok(relocation_plan)
@@ -23,8 +28,8 @@ pub fn build_relocation_plan(
 
 fn collect_function_relocations(
     input: RelocationPlanningInput<'_>,
-    function_handle: Handle<FunctionInstructionPlan>,
     function: &FunctionInstructionPlan,
+    selected_instruction_text_layouts: &SelectedInstructionTextLayouts,
     relocation_plan: &mut RelocationPlan,
 ) -> Result<(), Diagnostic> {
     let Some(instructions) = input
@@ -46,14 +51,10 @@ fn collect_function_relocations(
             .checked_add(u32::try_from(offset).expect("instruction offset overflow"))
             .expect("instruction index overflow");
 
-        let selected_text_offset = selected_instruction_text_offset(
-            input,
-            function_handle,
-            function,
-            selected_instruction_index,
-        )?;
+        let selected_text_offset =
+            selected_instruction_text_layouts.offset(function, selected_instruction_index)?;
         let selected_text_width =
-            selected_instruction_text_width(input, selected_instruction_index);
+            selected_instruction_text_layouts.width(selected_instruction_index);
 
         collect_instruction_relocations(
             input,

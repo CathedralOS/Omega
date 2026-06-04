@@ -52,7 +52,7 @@ pub(crate) fn byte_distance_to_next_dispatch_action_end(
         )));
     };
 
-    let branch_program_counter = current.offset + 16;
+    let branch_program_counter = current.offset + current.byte_width.saturating_sub(4);
     let target = dispatch_action.offset + dispatch_action.byte_width;
     Ok(target as isize - branch_program_counter as isize)
 }

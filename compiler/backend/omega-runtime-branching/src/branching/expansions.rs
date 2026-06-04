@@ -23,6 +23,33 @@ use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::StateGuardKind;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct VisitedNestedCall {
+    source_key: StateKey,
+    statement_index: usize,
+    role: StateCallRole,
+    call_ordinal: usize,
+    target_key: StateKey,
+}
+
+impl VisitedNestedCall {
+    fn new(
+        source_key: StateKey,
+        statement_index: usize,
+        role: StateCallRole,
+        call_ordinal: usize,
+        target_key: StateKey,
+    ) -> Self {
+        Self {
+            source_key,
+            statement_index,
+            role,
+            call_ordinal,
+            target_key,
+        }
+    }
+}
+
 pub(super) fn append_branch_prelude_expansion(
     context: &RuntimeBranchingContext,
     expressions: &mut ExpressionTable,
@@ -80,6 +107,8 @@ pub(super) fn append_branch_prelude_expansion(
         .span(operations)
         .map(|operations| operations.to_vec())
         .unwrap_or_default();
+    let mut visited_states = Vec::new();
+    let mut visited_nested_calls = Vec::new();
     append_nested_operation_branch_expansions_with_bindings(
         context,
         expressions,
@@ -97,7 +126,8 @@ pub(super) fn append_branch_prelude_expansion(
         &branch_bindings,
         ExpressionHandle::invalid(),
         StateGuardKind::Always,
-        &mut Vec::new(),
+        &mut visited_states,
+        &mut visited_nested_calls,
     );
 }
 
@@ -206,6 +236,7 @@ fn append_leaf_branch_expansions_with_bindings(
             resolved_guard,
             guard_kind,
             role: state_call.role,
+            call_ordinal: state_call.call_ordinal,
             leaf_key,
             target_value: edge.target_value,
             is_default_target: edge.guard_kind == StateGuardKind::Always,
@@ -238,6 +269,7 @@ pub(super) fn append_straight_line_branch_expansions(
 ) {
     let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
     let mut visited = Vec::new();
+    let mut visited_nested_calls = Vec::new();
     append_straight_line_branch_expansions_for_edges(
         context,
         expressions,
@@ -260,6 +292,7 @@ pub(super) fn append_straight_line_branch_expansions(
         ExpressionHandle::invalid(),
         StateGuardKind::Always,
         &mut visited,
+        &mut visited_nested_calls,
     );
 }
 
@@ -286,6 +319,7 @@ fn append_straight_line_branch_expansions_for_edges(
     inherited_guard: ExpressionHandle,
     inherited_guard_kind: StateGuardKind,
     visited: &mut Vec<StateKey>,
+    visited_nested_calls: &mut Vec<VisitedNestedCall>,
 ) {
     for edge in edges {
         let RuntimeTransitionTarget::State {
@@ -393,7 +427,7 @@ fn append_straight_line_branch_expansions_for_edges(
                 straight_line_bindings_arena,
                 straight_line_operations_arena,
                 source_key,
-                branch_key,
+                *target_key,
                 statement_index,
                 dispatch_index,
                 &nested_edges,
@@ -402,7 +436,9 @@ fn append_straight_line_branch_expansions_for_edges(
                 resolved_guard,
                 guard_kind,
                 visited,
+                visited_nested_calls,
             );
+            visited.pop();
         }
 
         append_nested_operation_branch_expansions(
@@ -423,6 +459,7 @@ fn append_straight_line_branch_expansions_for_edges(
             resolved_guard,
             guard_kind,
             visited,
+            visited_nested_calls,
         );
     }
 }
@@ -446,6 +483,7 @@ fn append_nested_operation_branch_expansions(
     inherited_guard: ExpressionHandle,
     inherited_guard_kind: StateGuardKind,
     visited: &mut Vec<StateKey>,
+    visited_nested_calls: &mut Vec<VisitedNestedCall>,
 ) {
     let Some(operations) = straight_line_operations_arena.span(operations) else {
         return;
@@ -472,6 +510,7 @@ fn append_nested_operation_branch_expansions(
         inherited_guard,
         inherited_guard_kind,
         visited,
+        visited_nested_calls,
     );
 }
 
@@ -494,8 +533,82 @@ fn append_nested_operation_branch_expansions_with_bindings(
     inherited_guard: ExpressionHandle,
     inherited_guard_kind: StateGuardKind,
     visited: &mut Vec<StateKey>,
+    visited_nested_calls: &mut Vec<VisitedNestedCall>,
 ) {
     for operation in &operations {
+        if let RuntimeStraightLineBranchOperationKind::StateCall {
+            role,
+            call_ordinal,
+            target_key,
+            lowering: StateCallLowering::InlineExpansion,
+            ..
+        } = operation.kind
+        {
+            let visited_call = VisitedNestedCall::new(
+                operation.source_key,
+                operation.statement_index,
+                role,
+                call_ordinal,
+                target_key,
+            );
+            if visited_nested_calls.contains(&visited_call) || visited.contains(&target_key) {
+                continue;
+            }
+            let Some(state_call) = state_call_for_straight_line_operation(
+                context,
+                operation.source_key,
+                operation.statement_index,
+                role,
+                call_ordinal,
+            ) else {
+                continue;
+            };
+            let nested_branch_bindings = branch_parameter_bindings_for_nested_state_call(
+                context,
+                expressions,
+                &parent_branch_bindings,
+                state_call,
+            );
+            let target_operations = straight_line_operations(
+                context,
+                expressions,
+                straight_line_operations_arena,
+                target_key,
+            );
+            let Some(target_operations_slice) =
+                straight_line_operations_arena.span(target_operations)
+            else {
+                continue;
+            };
+            if target_operations_slice.is_empty() {
+                continue;
+            }
+            visited_nested_calls.push(visited_call);
+            visited.push(target_key);
+            append_nested_operation_branch_expansions_with_bindings(
+                context,
+                expressions,
+                target_arguments_arena,
+                target_values,
+                output_edges,
+                leaf_expansions,
+                leaf_bindings,
+                leaf_operations_arena,
+                straight_line_expansions,
+                straight_line_bindings_arena,
+                straight_line_operations_arena,
+                dispatch_index,
+                target_operations_slice.to_vec(),
+                &nested_branch_bindings,
+                inherited_guard,
+                inherited_guard_kind,
+                visited,
+                visited_nested_calls,
+            );
+            visited.pop();
+            continue;
+        }
+
         let RuntimeStraightLineBranchOperationKind::StateCall {
             role,
             call_ordinal,
@@ -506,7 +619,14 @@ fn append_nested_operation_branch_expansions_with_bindings(
         else {
             continue;
         };
-        if visited.contains(&target_key) {
+        let visited_call = VisitedNestedCall::new(
+            operation.source_key,
+            operation.statement_index,
+            role,
+            call_ordinal,
+            target_key,
+        );
+        if visited_nested_calls.contains(&visited_call) || visited.contains(&target_key) {
             continue;
         }
         let Some(state_call) = state_call_for_straight_line_operation(
@@ -518,6 +638,7 @@ fn append_nested_operation_branch_expansions_with_bindings(
         ) else {
             continue;
         };
+        visited_nested_calls.push(visited_call);
 
         let nested_branch_bindings = branch_parameter_bindings_for_nested_state_call(
             context,
@@ -579,6 +700,7 @@ fn append_nested_operation_branch_expansions_with_bindings(
                 inherited_guard,
                 inherited_guard_kind,
                 visited,
+                visited_nested_calls,
             );
         }
         let nested_edges = build_branch_edges(
@@ -630,7 +752,9 @@ fn append_nested_operation_branch_expansions_with_bindings(
             inherited_guard,
             inherited_guard_kind,
             visited,
+            visited_nested_calls,
         );
+        visited.pop();
     }
 }
 
@@ -748,6 +872,11 @@ fn state_call_for_straight_line_operation<'a>(
                     .state_calls
                     .assignment_value_call(source_key, statement_index)
             }),
+        StateCallRole::CallArgument => context.state_calls.call_argument_call_by_ordinal(
+            source_key,
+            statement_index,
+            call_ordinal,
+        ),
         StateCallRole::TransitionArgument => context
             .state_calls
             .transition_argument_call_by_ordinal(source_key, statement_index, call_ordinal)

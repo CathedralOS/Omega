@@ -3,6 +3,7 @@ use super::super::offsets::{
     runtime_text_indexed_stored_place_buffer_address_offset,
     runtime_text_indexed_stored_place_source_address_offset,
     runtime_text_literal_append_target_address_offset,
+    runtime_text_stored_place_pointee_source_address_offset,
     runtime_text_stored_place_source_address_offset,
     runtime_text_stored_place_target_address_offset,
     runtime_text_stored_suffix_source_address_offset,
@@ -59,6 +60,8 @@ pub(super) fn collect_runtime_text_append_relocations(
         SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
             buffer,
             source_region,
+            pointer_byte_offset,
+            field_byte_offset,
             ..
         } => {
             let buffer_symbol = context.data_object_symbol_handle(*buffer);
@@ -70,7 +73,11 @@ pub(super) fn collect_runtime_text_append_relocations(
                 target_symbol,
             );
             context.insert_data_address_at_relative_offset(
-                runtime_text_stored_place_source_address_offset(context.input.target.architecture),
+                runtime_text_stored_place_pointee_source_address_offset(
+                    context.input.target.architecture,
+                    *pointer_byte_offset,
+                    *field_byte_offset,
+                ),
                 source_symbol,
             );
             true

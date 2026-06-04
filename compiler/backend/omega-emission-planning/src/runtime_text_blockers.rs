@@ -121,6 +121,7 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                        | SelectedInstructionKind::WriteRuntimeFrameString { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeString { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineIndexedString { .. }
@@ -135,6 +136,7 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage { .. }
+                        | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimePointee { .. }
                         | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
                 )
@@ -316,6 +318,7 @@ fn runtime_text_write_has_selected_instruction(
                 && matches!(
                     instruction.kind,
                     SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                        | SelectedInstructionKind::WriteRuntimeFrameString { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeString { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
@@ -341,6 +344,7 @@ fn runtime_text_write_has_selected_instruction(
                         | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
                         | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeStorage { .. }
+                        | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimePointee { .. }
                         | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                         | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
                 )

@@ -1,14 +1,16 @@
 use super::writes::{
     emit_runtime_frame_slot_slice_descriptor_write_in_table,
-    select_runtime_frame_slot_value_write_in_table,
+    select_runtime_frame_slot_value_write_in_table_with_source_anchor,
 };
+use super::{guards::static_guard_conjunct_summary_in_table, state_key_matches_statement_source};
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, resolve_runtime_alias_binding_handle,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::{
-    resolve_fixed_array_length_in_table, resolve_runtime_storage_place_in_table,
+    resolve_fixed_array_length_in_table, resolve_runtime_call_argument_call_result_place,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_transition_argument_call_result_place,
 };
 use omega_abstract_operations::{
@@ -18,11 +20,13 @@ use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, Expressi
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::{StateKey, StateParameterFlow};
 use omega_core::arena::Arena;
+use omega_state_calls::{StateCallLowering, StateCallRole};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_dispatch_argument_materialization(
     input: &InstructionSelectionInput<'_>,
     source_key: StateKey,
+    source_dispatch_index: u32,
     statement_index: usize,
     target_dispatch_index: u32,
     arguments: omega_core::arena::HandleSpan<ExpressionHandle>,
@@ -39,7 +43,6 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
     };
     let expressions = &input.control_flow.expressions;
     let target_arguments = expressions.expression_handles(arguments);
-    let source_dispatch_index = target_dispatch_index_for_source(input, source_key);
     let static_values =
         super::writes::RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
     let mut resolved_argument_expressions = ExpressionTable::with_expression_capacity(
@@ -58,8 +61,11 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
     // safe), instead of writing targets directly.
     let stage = input.runtime_storage.frame_scratch_base != 0 && {
         let mut ranges: Vec<((usize, usize), Option<(usize, usize)>)> = Vec::new();
-        for (parameter_index, parameter) in
-            input.control_flow.state_parameters(target_state).iter().enumerate()
+        for (parameter_index, parameter) in input
+            .control_flow
+            .state_parameters(target_state)
+            .iter()
+            .enumerate()
         {
             let Some(argument) = target_arguments.get(parameter_index).copied() else {
                 break;
@@ -100,6 +106,8 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         let Some(slot) = runtime_parameter_slot(input, target_dispatch_index, parameter) else {
             continue;
         };
+        let source_anchor_byte_offset = slot.byte_offset;
+        let real_target_range = (slot.byte_offset, slot.byte_offset + slot.byte_size);
         // When staging, redirect this argument's write to a scratch slot (a clone of
         // the real slot at a packed scratch offset) and remember the scratch->target
         // copy to emit after every source has been read.
@@ -142,6 +150,21 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         );
         let expressions = &resolved_argument_expressions;
 
+        if emit_runtime_detached_frame_slice_argument_materialization(
+            input,
+            argument_source_key,
+            statement_index,
+            source_dispatch_index,
+            expressions,
+            argument,
+            slot,
+            real_target_range,
+            &mut scratch_cursor,
+            selected_instructions,
+        ) {
+            continue;
+        }
+
         if emit_runtime_frame_slot_slice_descriptor_write_in_table(
             input,
             source_dispatch_index,
@@ -162,9 +185,29 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 argument_source_key,
                 statement_index,
             )
+            .or_else(|| {
+                resolve_runtime_call_argument_call_result_place(
+                    input,
+                    source_dispatch_index,
+                    argument_source_key,
+                    statement_index,
+                )
+            })
         {
             if place.byte_count != slot.byte_size {
                 continue;
+            }
+            if let ExpressionNode::Call(call) = expressions.expression(argument) {
+                materialize_static_inline_branching_call_argument_result(
+                    input,
+                    source_key,
+                    source_dispatch_index,
+                    statement_index,
+                    call,
+                    &static_values,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
             }
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimeStorage {
@@ -212,6 +255,29 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
+        if let Some(pointee) = resolve_runtime_pointee_slot_offset_in_table(
+            input,
+            source_dispatch_index,
+            argument_source_key,
+            expressions,
+            argument,
+        ) && pointee.pointee_byte_size == slot.byte_size
+            && pointee.pointee_byte_size > 0
+            && !matches!(expressions.expression(argument), ExpressionNode::Mutable(_))
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+                    pointer_byte_offset: pointee.pointer_byte_offset,
+                    field_byte_offset: pointee.field_byte_offset,
+                    target_offset: slot.byte_offset,
+                    byte_count: slot.byte_size,
+                },
+                source_key,
+                source_statement: statement_index,
+            });
+            continue;
+        }
+
         if let Some(place) = resolve_runtime_storage_place_in_table(
             input,
             source_dispatch_index,
@@ -251,7 +317,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             statement_index,
             expressions,
             argument,
-        ) && let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+        ) && let Some(kind) = select_runtime_frame_slot_value_write_in_table_with_source_anchor(
             input,
             source_dispatch_index,
             argument_source_key,
@@ -261,6 +327,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             initial_value,
             &static_values,
             runtime_value_operands,
+            source_anchor_byte_offset,
         ) {
             selected_instructions.push(SelectedInstruction {
                 kind,
@@ -288,7 +355,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
-        if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+        if let Some(kind) = select_runtime_frame_slot_value_write_in_table_with_source_anchor(
             input,
             source_dispatch_index,
             argument_source_key,
@@ -298,6 +365,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             argument,
             &static_values,
             runtime_value_operands,
+            source_anchor_byte_offset,
         ) {
             selected_instructions.push(SelectedInstruction {
                 kind,
@@ -325,6 +393,124 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn materialize_static_inline_branching_call_argument_result(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    dispatch_index: u32,
+    statement_index: usize,
+    call: &omega_checked_trees::expression::TableCallExpression,
+    static_values: &super::writes::RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let Some(state_call) = input.state_calls.calls.iter().find_map(|(_, state_call)| {
+        let (_, target_state) = input
+            .control_flow
+            .state_names_by_key_cloned(state_call.target_key);
+        let target_matches = state_call.target_key.state == call.target_symbol
+            || target_state.as_str() == &*call.target;
+        (state_call.role == StateCallRole::CallArgument
+            && state_call.lowering == StateCallLowering::InlineBranching
+            && state_key_matches_statement_source(state_call.source_key, source_key)
+            && state_call.statement_index == statement_index
+            && target_matches)
+            .then_some(state_call)
+    }) else {
+        return false;
+    };
+
+    let Some(slot) = input.runtime_storage.call_result_slot_by_ordinal(
+        dispatch_index,
+        state_call.source_key,
+        state_call.statement_index,
+        state_call.role,
+        state_call.call_ordinal,
+    ) else {
+        return false;
+    };
+
+    let siblings = input
+        .runtime_branching_calls
+        .leaf_expansions
+        .storage_slice()
+        .iter()
+        .filter(|expansion| {
+            expansion.dispatch_index == dispatch_index
+                && state_key_matches_statement_source(expansion.source_key, state_call.source_key)
+                && expansion.statement_index == state_call.statement_index
+                && expansion.role == state_call.role
+                && expansion.call_ordinal == state_call.call_ordinal
+        })
+        .collect::<Vec<_>>();
+
+    let selected = siblings
+        .iter()
+        .copied()
+        .find(|expansion| {
+            let summary = static_guard_conjunct_summary_in_table(
+                input,
+                &input.runtime_branching_calls.expressions,
+                expansion.resolved_guard,
+            );
+            expansion.target_value.is_valid()
+                && !expansion.is_default_target
+                && summary.has_true
+                && !summary.has_false
+        })
+        .or_else(|| {
+            siblings.iter().copied().find(|expansion| {
+                if !expansion.target_value.is_valid() || !expansion.is_default_target {
+                    return false;
+                }
+                let summary = static_guard_conjunct_summary_in_table(
+                    input,
+                    &input.runtime_branching_calls.expressions,
+                    expansion.resolved_guard,
+                );
+                !summary.has_false
+                    && siblings
+                        .iter()
+                        .filter(|sibling| {
+                            sibling.target_value.is_valid() && !sibling.is_default_target
+                        })
+                        .all(|sibling| {
+                            static_guard_conjunct_summary_in_table(
+                                input,
+                                &input.runtime_branching_calls.expressions,
+                                sibling.resolved_guard,
+                            )
+                            .has_false
+                        })
+            })
+        });
+    let Some(expansion) = selected else {
+        return false;
+    };
+
+    let Some(kind) = select_runtime_frame_slot_value_write_in_table_with_source_anchor(
+        input,
+        dispatch_index,
+        expansion.branch_key,
+        expansion.target_statement_index,
+        &input.runtime_branching_calls.expressions,
+        slot,
+        expansion.target_value,
+        static_values,
+        runtime_value_operands,
+        slot.byte_offset,
+    ) else {
+        return false;
+    };
+
+    selected_instructions.push(SelectedInstruction {
+        kind,
+        source_key: expansion.branch_key,
+        source_statement: expansion.target_statement_index,
+    });
+    true
+}
+
 /// The frame byte range an argument READS from, if it resolves to a runtime-frame
 /// place (so a parameter-slot write could clobber it). `None` for immediates and
 /// non-frame (machine-owned/static) sources, which cannot be clobbered.
@@ -341,7 +527,8 @@ fn argument_source_frame_range(
     let mut scratch = ExpressionTable::with_expression_capacity(
         alias_expressions.expression_count().saturating_add(4),
     );
-    let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(alias_expressions, aliases, &mut scratch);
+    let copied_aliases =
+        RuntimeAliasBuffer::copy_from_bindings(alias_expressions, aliases, &mut scratch);
     let copied_argument = scratch.copy_from(&input.control_flow.expressions, raw_argument);
     let resolved = resolve_runtime_alias_binding_handle(
         copied_argument,
@@ -378,18 +565,6 @@ pub(super) fn static_runtime_argument_value(expression: &ExpressionNode) -> Opti
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
         _ => None,
     }
-}
-
-pub(super) fn target_dispatch_index_for_source(
-    input: &InstructionSelectionInput<'_>,
-    source_key: StateKey,
-) -> u32 {
-    input
-        .runtime_dispatch_loop
-        .cases
-        .iter()
-        .find_map(|(_, case)| (case.key == source_key).then_some(case.dispatch_index))
-        .unwrap_or_default()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -440,6 +615,104 @@ fn emit_runtime_fixed_array_slice_argument_materialization(
         kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
             source_region: source_place.region,
             source_offset: source_place.byte_offset,
+            target_offset: slot.byte_offset,
+        },
+        source_key,
+        source_statement: statement_index,
+    });
+    let descriptor = input.runtime_abi.slice_descriptor();
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: slot.byte_offset + descriptor.len_offset(),
+            byte_size: descriptor.len_size(),
+            value: length as i64,
+        },
+        source_key,
+        source_statement: statement_index,
+    });
+    true
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_runtime_detached_frame_slice_argument_materialization(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    dispatch_index: u32,
+    expressions: &ExpressionTable,
+    argument: ExpressionHandle,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    real_target_range: (usize, usize),
+    scratch_cursor: &mut usize,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    if input.runtime_storage.frame_scratch_base == 0
+        || slot.byte_size != input.runtime_abi.slice_descriptor_size()
+    {
+        return false;
+    }
+
+    let ExpressionNode::Call(call) = expressions.expression(argument) else {
+        return false;
+    };
+    if !call.receiver.is_valid()
+        || !call.arguments.is_empty()
+        || (call.target.as_str() != "as_slice" && call.target.as_str() != "as_mut_slice")
+    {
+        return false;
+    }
+
+    let Some(source_place) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        call.receiver,
+    ) else {
+        return false;
+    };
+    if source_place.region != RuntimeStorageRegion::RuntimeFrame {
+        return false;
+    }
+
+    let source_range = (
+        source_place.byte_offset,
+        source_place.byte_offset + source_place.byte_count,
+    );
+    if !ranges_overlap(real_target_range, source_range) {
+        return false;
+    }
+
+    let Some(length) = resolve_fixed_array_length_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        call.receiver,
+    ) else {
+        return false;
+    };
+
+    *scratch_cursor = scratch_cursor.next_multiple_of(slot.alignment.max(1));
+    let scratch_offset = *scratch_cursor;
+    *scratch_cursor += source_place.byte_count;
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::CopyRuntimeStorage {
+            source_region: RuntimeStorageRegion::RuntimeFrame,
+            source_offset: source_place.byte_offset,
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            target_offset: scratch_offset,
+            byte_count: source_place.byte_count,
+        },
+        source_key,
+        source_statement: statement_index,
+    });
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+            source_region: RuntimeStorageRegion::RuntimeFrame,
+            source_offset: scratch_offset,
             target_offset: slot.byte_offset,
         },
         source_key,

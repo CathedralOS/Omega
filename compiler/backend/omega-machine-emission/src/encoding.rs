@@ -323,6 +323,11 @@ pub(super) fn encode_machine_instruction_bytes(
         } => {
             runtime_storage::encode_runtime_machine_string_write(input, *byte_offset, *byte_length)
         }
+        SelectedInstructionKind::WriteRuntimeFrameString {
+            byte_offset,
+            byte_length,
+            ..
+        } => runtime_storage::encode_runtime_frame_string_write(input, *byte_offset, *byte_length),
         SelectedInstructionKind::WriteRuntimePointeeString {
             pointer_byte_offset,
             field_byte_offset,
@@ -534,6 +539,24 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimePointee {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            source_field_byte_offset,
+            pointer_byte_offset,
+            target_field_byte_offset,
+            byte_count,
+        } => runtime_storage::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
+            input,
+            *descriptor_offset,
+            *element_index,
+            *element_byte_size,
+            *source_field_byte_offset,
+            *pointer_byte_offset,
+            *target_field_byte_offset,
+            *byte_count,
+        ),
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset,
             index_offset,
@@ -562,6 +585,18 @@ pub(super) fn encode_machine_instruction_bytes(
             *source_offset,
             *pointer_byte_offset,
             *field_byte_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            pointer_byte_offset,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        } => runtime_storage::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
+            input,
+            *pointer_byte_offset,
+            *field_byte_offset,
+            *target_offset,
             *byte_count,
         ),
         SelectedInstructionKind::EnterFunction

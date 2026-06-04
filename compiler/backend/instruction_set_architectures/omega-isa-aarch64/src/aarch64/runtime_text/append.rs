@@ -1,10 +1,11 @@
 use omega_core::diagnostics::Diagnostic;
 
 use super::super::primitives::{
-    append_add_x_constant, encode_add_page_offset_placeholder, encode_add_x_register,
-    encode_adrp_placeholder, encode_cbz_x, encode_conditional_branch_not_equal,
-    encode_load_byte_w_post_increment, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
-    encode_store_byte_w_post_increment, encode_store_x_to_x, encode_subs_x_immediate,
+    append_add_x_constant, append_unsigned_immediate_padded, encode_add_page_offset_placeholder,
+    encode_add_x_register, encode_adrp_placeholder, encode_cbz_x,
+    encode_conditional_branch_not_equal, encode_load_byte_w_post_increment, encode_load_x_from_x,
+    encode_move_x_register, encode_movz_w, encode_store_byte_w_post_increment, encode_store_x_to_x,
+    encode_subs_x_immediate,
 };
 use super::super::widths::{
     runtime_text_buffer_materialize_to_runtime_frame_indexed_width,
@@ -23,13 +24,18 @@ pub fn encode_runtime_text_stored_suffix_append(
     target_offset: usize,
     length_delta: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_text_stored_suffix_append_width());
+    let mut bytes = Vec::with_capacity(runtime_text_stored_suffix_append_width(
+        buffer_offset,
+        source_offset,
+        target_offset,
+        length_delta,
+    ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    bytes.extend(encode_load_x_from_x(18, 17, source_offset)?);
-    bytes.extend(encode_load_x_from_x(19, 17, source_offset + 8)?);
+    append_load_x_from_x_offset(&mut bytes, 18, 17, source_offset, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 19, 17, source_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
     append_add_x_constant(&mut bytes, 22, 16, buffer_offset, 15)?;
 
@@ -41,9 +47,9 @@ pub fn encode_runtime_text_stored_suffix_append(
 
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    bytes.extend(encode_store_x_to_x(16, 17, target_offset)?);
+    append_store_x_to_x_offset(&mut bytes, 16, 17, target_offset, 15)?;
     append_add_x_constant(&mut bytes, 23, 23, length_delta, 15)?;
-    bytes.extend(encode_store_x_to_x(23, 17, target_offset + 8)?);
+    append_store_x_to_x_offset(&mut bytes, 23, 17, target_offset + 8, 15)?;
     Ok(bytes)
 }
 
@@ -52,18 +58,21 @@ pub fn encode_runtime_text_stored_place_append(
     source_offset: usize,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_text_stored_place_append_width());
+    let mut bytes = Vec::with_capacity(runtime_text_stored_place_append_width(
+        source_offset,
+        target_offset,
+    ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    bytes.extend(encode_load_x_from_x(22, 17, target_offset + 8)?);
+    append_load_x_from_x_offset(&mut bytes, 22, 17, target_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(24, 22));
     bytes.extend(encode_add_x_register(22, 16, 22));
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    bytes.extend(encode_load_x_from_x(18, 20, source_offset)?);
-    bytes.extend(encode_load_x_from_x(19, 20, source_offset + 8)?);
+    append_load_x_from_x_offset(&mut bytes, 18, 20, source_offset, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 19, 20, source_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
 
     bytes.extend(encode_cbz_x(19, 20)?);
@@ -73,8 +82,8 @@ pub fn encode_runtime_text_stored_place_append(
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
 
     bytes.extend(encode_add_x_register(24, 24, 23));
-    bytes.extend(encode_store_x_to_x(16, 17, target_offset)?);
-    bytes.extend(encode_store_x_to_x(24, 17, target_offset + 8)?);
+    append_store_x_to_x_offset(&mut bytes, 16, 17, target_offset, 15)?;
+    append_store_x_to_x_offset(&mut bytes, 24, 17, target_offset + 8, 15)?;
     let _ = buffer_offset;
     Ok(bytes)
 }
@@ -89,6 +98,7 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(
         runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+            source_offset,
             element_byte_size,
             field_byte_offset,
         ),
@@ -108,8 +118,8 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
     bytes.extend(encode_add_x_register(22, 17, 22));
     bytes.extend(encode_adrp_placeholder(25));
     bytes.extend(encode_add_page_offset_placeholder(25));
-    bytes.extend(encode_load_x_from_x(18, 25, source_offset)?);
-    bytes.extend(encode_load_x_from_x(19, 25, source_offset + 8)?);
+    append_load_x_from_x_offset(&mut bytes, 18, 25, source_offset, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 19, 25, source_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
 
     bytes.extend(encode_cbz_x(19, 20)?);
@@ -132,23 +142,25 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_text_stored_place_append_to_runtime_pointee_width(
+        source_offset,
+        pointer_byte_offset,
         field_byte_offset,
     ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    bytes.extend(encode_load_x_from_x(17, 17, pointer_byte_offset)?);
+    append_load_x_from_x_offset(&mut bytes, 17, 17, pointer_byte_offset, 15)?;
     if field_byte_offset > 0 {
         append_add_x_constant(&mut bytes, 17, 17, field_byte_offset, 15)?;
     }
-    bytes.extend(encode_load_x_from_x(22, 17, 8)?);
+    append_load_x_from_x_offset(&mut bytes, 22, 17, 8, 15)?;
     bytes.extend(encode_move_x_register(24, 22));
     bytes.extend(encode_add_x_register(22, 16, 22));
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    bytes.extend(encode_load_x_from_x(18, 20, source_offset)?);
-    bytes.extend(encode_load_x_from_x(19, 20, source_offset + 8)?);
+    append_load_x_from_x_offset(&mut bytes, 18, 20, source_offset, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 19, 20, source_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
 
     bytes.extend(encode_cbz_x(19, 20)?);
@@ -158,8 +170,8 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
 
     bytes.extend(encode_add_x_register(24, 24, 23));
-    bytes.extend(encode_store_x_to_x(16, 17, 0)?);
-    bytes.extend(encode_store_x_to_x(24, 17, 8)?);
+    append_store_x_to_x_offset(&mut bytes, 16, 17, 0, 15)?;
+    append_store_x_to_x_offset(&mut bytes, 24, 17, 8, 15)?;
     let _ = buffer_offset;
     Ok(bytes)
 }
@@ -169,12 +181,12 @@ pub fn encode_runtime_text_literal_append(
     target_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_text_literal_append_width(literal));
+    let mut bytes = Vec::with_capacity(runtime_text_literal_append_width(target_offset, literal));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    bytes.extend(encode_load_x_from_x(22, 17, target_offset + 8)?);
+    append_load_x_from_x_offset(&mut bytes, 22, 17, target_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(20, 16));
     bytes.extend(encode_add_x_register(16, 16, 22));
 
@@ -184,9 +196,9 @@ pub fn encode_runtime_text_literal_append(
         bytes.extend(encode_store_byte_w_post_increment(18, 16, 1)?);
     }
 
-    bytes.extend(encode_store_x_to_x(20, 17, target_offset)?);
+    append_store_x_to_x_offset(&mut bytes, 20, 17, target_offset, 15)?;
     append_add_x_constant(&mut bytes, 22, 22, literal.len(), 15)?;
-    bytes.extend(encode_store_x_to_x(22, 17, target_offset + 8)?);
+    append_store_x_to_x_offset(&mut bytes, 22, 17, target_offset + 8, 15)?;
     let _ = buffer_offset;
     Ok(bytes)
 }
@@ -198,6 +210,7 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_text_literal_append_to_runtime_pointee_width(
+        pointer_byte_offset,
         field_byte_offset,
         literal,
     ));
@@ -205,11 +218,11 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    bytes.extend(encode_load_x_from_x(17, 17, pointer_byte_offset)?);
+    append_load_x_from_x_offset(&mut bytes, 17, 17, pointer_byte_offset, 15)?;
     if field_byte_offset > 0 {
         append_add_x_constant(&mut bytes, 17, 17, field_byte_offset, 15)?;
     }
-    bytes.extend(encode_load_x_from_x(22, 17, 8)?);
+    append_load_x_from_x_offset(&mut bytes, 22, 17, 8, 15)?;
     bytes.extend(encode_move_x_register(20, 16));
     bytes.extend(encode_add_x_register(16, 16, 22));
 
@@ -219,9 +232,9 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
         bytes.extend(encode_store_byte_w_post_increment(18, 16, 1)?);
     }
 
-    bytes.extend(encode_store_x_to_x(20, 17, 0)?);
+    append_store_x_to_x_offset(&mut bytes, 20, 17, 0, 15)?;
     append_add_x_constant(&mut bytes, 22, 22, literal.len(), 15)?;
-    bytes.extend(encode_store_x_to_x(22, 17, 8)?);
+    append_store_x_to_x_offset(&mut bytes, 22, 17, 8, 15)?;
     let _ = buffer_offset;
     Ok(bytes)
 }
@@ -266,13 +279,13 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
 }
 
 pub fn encode_runtime_text_buffer_materialize(target_offset: usize) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(runtime_text_buffer_materialize_width());
+    let mut bytes = Vec::with_capacity(runtime_text_buffer_materialize_width(target_offset));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    bytes.extend(encode_load_x_from_x(18, 17, target_offset)?);
-    bytes.extend(encode_load_x_from_x(19, 17, target_offset + 8)?);
+    append_load_x_from_x_offset(&mut bytes, 18, 17, target_offset, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 19, 17, target_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
     bytes.extend(encode_move_x_register(22, 16));
 
@@ -282,8 +295,8 @@ pub fn encode_runtime_text_buffer_materialize(target_offset: usize) -> Result<Ve
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
 
-    bytes.extend(encode_store_x_to_x(16, 17, target_offset)?);
-    bytes.extend(encode_store_x_to_x(23, 17, target_offset + 8)?);
+    append_store_x_to_x_offset(&mut bytes, 16, 17, target_offset, 15)?;
+    append_store_x_to_x_offset(&mut bytes, 23, 17, target_offset + 8, 15)?;
     Ok(bytes)
 }
 
@@ -292,18 +305,19 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_text_buffer_materialize_to_runtime_pointee_width(
+        pointer_byte_offset,
         field_byte_offset,
     ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    bytes.extend(encode_load_x_from_x(17, 17, pointer_byte_offset)?);
+    append_load_x_from_x_offset(&mut bytes, 17, 17, pointer_byte_offset, 15)?;
     if field_byte_offset > 0 {
         append_add_x_constant(&mut bytes, 17, 17, field_byte_offset, 15)?;
     }
-    bytes.extend(encode_load_x_from_x(18, 17, 0)?);
-    bytes.extend(encode_load_x_from_x(19, 17, 8)?);
+    append_load_x_from_x_offset(&mut bytes, 18, 17, 0, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 19, 17, 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
     bytes.extend(encode_move_x_register(22, 16));
 
@@ -313,8 +327,8 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
 
-    bytes.extend(encode_store_x_to_x(16, 17, 0)?);
-    bytes.extend(encode_store_x_to_x(23, 17, 8)?);
+    append_store_x_to_x_offset(&mut bytes, 16, 17, 0, 15)?;
+    append_store_x_to_x_offset(&mut bytes, 23, 17, 8, 15)?;
     Ok(bytes)
 }
 
@@ -364,8 +378,8 @@ fn append_runtime_frame_index_target_address(
 ) -> Result<(), Diagnostic> {
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
-    bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
+    append_fixed_width_load_x_from_x_offset(bytes, 16, 20, descriptor_offset, 15);
+    append_fixed_width_load_x_from_x_offset(bytes, 17, 20, index_offset, 21);
     append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(16, 16, 18));
     append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
@@ -417,4 +431,80 @@ fn append_add_constant_to_x_register(
 ) -> Result<(), Diagnostic> {
     let scratch_register = if register == 19 { 18 } else { 19 };
     append_add_x_constant(bytes, register, register, value, scratch_register)
+}
+
+fn append_load_x_from_x_offset(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    scratch_register: u8,
+) -> Result<(), Diagnostic> {
+    if data_offset_encodable(byte_offset, 8) {
+        bytes.extend(encode_load_x_from_x(
+            destination_register,
+            base_register,
+            byte_offset,
+        )?);
+    } else {
+        bytes.extend(encode_move_x_register(scratch_register, base_register));
+        append_add_constant_to_x_register(bytes, scratch_register, byte_offset)?;
+        bytes.extend(encode_load_x_from_x(
+            destination_register,
+            scratch_register,
+            0,
+        )?);
+    }
+
+    Ok(())
+}
+
+fn append_store_x_to_x_offset(
+    bytes: &mut Vec<u8>,
+    source_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    scratch_register: u8,
+) -> Result<(), Diagnostic> {
+    if data_offset_encodable(byte_offset, 8) {
+        bytes.extend(encode_store_x_to_x(
+            source_register,
+            base_register,
+            byte_offset,
+        )?);
+    } else {
+        bytes.extend(encode_move_x_register(scratch_register, base_register));
+        append_add_constant_to_x_register(bytes, scratch_register, byte_offset)?;
+        bytes.extend(encode_store_x_to_x(source_register, scratch_register, 0)?);
+    }
+
+    Ok(())
+}
+
+fn append_fixed_width_load_x_from_x_offset(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    scratch_register: u8,
+) {
+    append_unsigned_immediate_padded(bytes, scratch_register, byte_offset as u64);
+    bytes.extend(encode_add_x_register(
+        scratch_register,
+        base_register,
+        scratch_register,
+    ));
+    bytes.extend(
+        encode_load_x_from_x(destination_register, scratch_register, 0)
+            .expect("zero-offset x-register load should always encode"),
+    );
+}
+
+fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
+    match byte_size {
+        1 => byte_offset <= 4095,
+        4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
+        8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
+        _ => false,
+    }
 }

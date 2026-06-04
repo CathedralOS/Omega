@@ -157,6 +157,56 @@ pub(super) fn resolve_runtime_assignment_value_call_result_place(
     )
 }
 
+pub(super) fn resolve_runtime_assignment_value_call_result_place_by_ordinal(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<RuntimeStoragePlace> {
+    resolve_runtime_call_result_place(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        StateCallRole::AssignmentValue,
+        Some(call_ordinal),
+    )
+}
+
+pub(super) fn resolve_runtime_call_argument_call_result_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<RuntimeStoragePlace> {
+    resolve_runtime_call_result_place(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        StateCallRole::CallArgument,
+        None,
+    )
+}
+
+pub(super) fn resolve_runtime_call_argument_call_result_place_by_ordinal(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<RuntimeStoragePlace> {
+    resolve_runtime_call_result_place(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        StateCallRole::CallArgument,
+        Some(call_ordinal),
+    )
+}
+
 pub(super) fn resolve_runtime_transition_guard_call_result_place(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -205,23 +255,37 @@ fn resolve_runtime_call_result_place(
     source_key: StateKey,
     statement_index: usize,
     role: StateCallRole,
-    _call_ordinal: Option<usize>,
+    call_ordinal: Option<usize>,
 ) -> Option<RuntimeStoragePlace> {
-    let slot = input.runtime_storage.call_result_slot(
-        dispatch_index,
-        source_key,
-        statement_index,
-        role,
-    )?;
+    let slot = if let Some(call_ordinal) = call_ordinal {
+        input.runtime_storage.call_result_slot_by_ordinal(
+            dispatch_index,
+            source_key,
+            statement_index,
+            role,
+            call_ordinal,
+        )
+    } else {
+        input
+            .runtime_storage
+            .call_result_slot(dispatch_index, source_key, statement_index, role)
+    }?;
     let target_key = match slot.kind {
         omega_runtime_storage::RuntimeFrameSlotKind::StateCallResult { target_key, .. } => {
             target_key
         }
         _ => return None,
     };
-    let state_call = input
-        .state_calls
-        .call_for_role(source_key, statement_index, role)?;
+    let state_call = if let Some(call_ordinal) = call_ordinal {
+        input
+            .state_calls
+            .calls_for_statement(source_key, statement_index)
+            .find(|state_call| state_call.role == role && state_call.call_ordinal == call_ordinal)
+    } else {
+        input
+            .state_calls
+            .call_for_role(source_key, statement_index, role)
+    }?;
     if state_call.target_key != target_key {
         return None;
     }
@@ -637,6 +701,132 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
     })
 }
 
+pub(super) fn resolve_runtime_frame_indexed_target_near_slot_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    preferred_descriptor_offset: usize,
+) -> Option<RuntimeFrameIndexedTarget> {
+    let indexed = indexed_target_path_in_table(expressions, expression)?;
+    let collection_path = normalized_storage_name_path_in_table(expressions, indexed.collection)?;
+    let collection_slot = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.byte_offset == preferred_descriptor_offset
+                && slot_matches_table_path(slot, &collection_path))
+            .then_some(slot)
+        })?;
+    if runtime_frame_slot_is_inline_fixed_array_storage(input, collection_slot) {
+        return None;
+    }
+
+    let index_place = resolve_runtime_storage_place_near_frame_offset_in_table(
+        input,
+        dispatch_index,
+        expressions,
+        indexed.index,
+        collection_slot.byte_offset,
+    )
+    .or_else(|| {
+        resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            collection_slot.source_key,
+            expressions,
+            indexed.index,
+        )
+    })?;
+    if index_place.region != RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+
+    let element_descriptor = collection_slot.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let root_field = FieldLayout {
+        symbol: collection_slot.symbol,
+        name: collection_slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+        input,
+        &root_field,
+        expressions,
+        indexed.suffix_root,
+    )?;
+
+    Some(RuntimeFrameIndexedTarget {
+        descriptor_offset: collection_slot.byte_offset,
+        index_offset: index_place.byte_offset,
+        element_byte_size: element_layout.size,
+        field_byte_offset,
+        byte_count: field_layout.size,
+    })
+}
+
+fn resolve_runtime_storage_place_near_frame_offset_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    minimum_byte_offset: usize,
+) -> Option<RuntimeStoragePlace> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    if path.is_empty() {
+        return None;
+    }
+    let slot = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .filter_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.byte_offset >= minimum_byte_offset
+                && slot_matches_table_path(slot, &path))
+            .then_some(slot)
+        })
+        .min_by_key(|slot| slot.byte_offset)?;
+
+    let suffix = path.suffix(1);
+    if let Some(place) = runtime_slice_descriptor_member_place(
+        input,
+        slot.byte_offset,
+        slot.byte_size,
+        suffix.iter().next().map(|(name, _, _)| name.as_str()),
+        suffix.iter().count(),
+    ) {
+        return Some(place);
+    }
+
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: slot.byte_offset,
+        type_symbol: slot.type_symbol,
+        type_name: slot.type_name.clone(),
+        type_descriptor: slot.type_descriptor.clone(),
+        layout: TypeLayout {
+            size: slot.byte_size,
+            alignment: slot.alignment,
+        },
+    };
+    let (byte_offset, layout) =
+        resolve_nested_field_layout_with_pairs(&input.layouts, &root_field, suffix.iter())?;
+
+    Some(RuntimeStoragePlace {
+        region: RuntimeStorageRegion::RuntimeFrame,
+        byte_offset,
+        byte_count: layout.size,
+    })
+}
+
 pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -909,9 +1099,7 @@ pub(super) fn resolve_runtime_pointee_fixed_indexed_target_in_table(
         expressions,
         fixed.collection,
     )?;
-    if place.region != RuntimeStorageRegion::RuntimeFrame
-        || place.byte_count != input.runtime_abi.pointer_size
-    {
+    if place.region != RuntimeStorageRegion::RuntimeFrame {
         return None;
     }
 
@@ -944,10 +1132,65 @@ pub(super) fn resolve_runtime_pointee_fixed_indexed_target_in_table(
     )?;
 
     (field_layout.size > 0).then_some(RuntimePointeeTarget {
-        pointer_byte_offset: place.byte_offset,
+        pointer_byte_offset: pointee_pointer_offset(input, place)?,
         field_byte_offset: element_offset.checked_add(field_byte_offset)?,
         pointee_byte_size: field_layout.size,
     })
+}
+
+pub(super) fn resolve_runtime_pointee_fixed_indexed_target(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimePointeeTarget> {
+    let fixed = fixed_indexed_target_path(expression)?;
+    let place =
+        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", fixed.collection)?;
+    if place.region != RuntimeStorageRegion::RuntimeFrame {
+        return None;
+    }
+
+    let slot =
+        runtime_frame_slot_for_expression(input, dispatch_index, source_key, fixed.collection)?;
+    let collection_descriptor = slot.type_descriptor.reference_referee()?;
+    let element_descriptor = collection_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let element_index = usize::try_from(fixed.index).ok()?;
+    let element_offset = element_index.checked_mul(element_layout.size)?;
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, field_layout) =
+        resolve_indexed_target_suffix_layout(input, &root_field, fixed.suffix_root)?;
+
+    (field_layout.size > 0).then_some(RuntimePointeeTarget {
+        pointer_byte_offset: pointee_pointer_offset(input, place)?,
+        field_byte_offset: element_offset.checked_add(field_byte_offset)?,
+        pointee_byte_size: field_layout.size,
+    })
+}
+
+fn pointee_pointer_offset(
+    input: &InstructionSelectionInput<'_>,
+    place: RuntimeStoragePlace,
+) -> Option<usize> {
+    if place.byte_count == input.runtime_abi.pointer_size {
+        return Some(place.byte_offset);
+    }
+
+    let descriptor = input.runtime_abi.slice_descriptor();
+    if place.byte_count == descriptor.total_size() {
+        return place.byte_offset.checked_add(descriptor.ptr_offset());
+    }
+
+    None
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1024,9 +1267,56 @@ fn find_runtime_frame_slot_for_path<'plan>(
         .iter()
         .find_map(|(_, slot)| {
             (slot.dispatch_index == dispatch_index
-                && state_key_matches_statement_source(slot.source_key, source_key)
+                && slot.source_key == source_key
                 && matches_path(slot))
             .then_some(slot)
+        })
+        .or_else(|| {
+            input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .find_map(|(_, slot)| {
+                    (slot.dispatch_index == dispatch_index
+                        && state_key_matches_statement_source(slot.source_key, source_key)
+                        && matches_path(slot))
+                    .then_some(slot)
+                })
+        })
+        .or_else(|| {
+            input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .filter_map(|(_, slot)| {
+                    (slot.dispatch_index <= dispatch_index
+                        && slot.source_key == source_key
+                        && matches_path(slot))
+                    .then_some(slot)
+                })
+                .max_by_key(|slot| slot.dispatch_index)
+        })
+        .or_else(|| {
+            input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .filter_map(|(_, slot)| {
+                    (slot.dispatch_index <= dispatch_index
+                        && state_key_matches_statement_source(slot.source_key, source_key)
+                        && matches_path(slot))
+                    .then_some(slot)
+                })
+                .max_by_key(|slot| slot.dispatch_index)
+        })
+        .or_else(|| {
+            input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .find_map(|(_, slot)| {
+                    (slot.source_key == source_key && matches_path(slot)).then_some(slot)
+                })
         })
         .or_else(|| {
             input

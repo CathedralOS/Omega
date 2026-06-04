@@ -1371,6 +1371,41 @@ fn runtime_slice_index_copy_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_frame_array_slice_parameter_alias_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_frame_array_slice_parameter_alias_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-frame-array-slice-parameter-alias-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime frame array slice parameter alias canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime frame array slice parameter alias canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(72),
+        "expected a slice made from a by-value frame parameter's inline array to \
+         preserve its backing storage across the transition into a slice-parameter \
+         state, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_len_transition_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_len_transition_exit");
     let main_path = canary.join("main.omg");
@@ -2233,6 +2268,40 @@ fn runtime_reference_returned_slice_element_through_param_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_guarded_reference_returned_slice_element_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_nested_guarded_reference_returned_slice_element_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-nested-guarded-reference-returned-slice-element-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested guarded reference-returning called machine canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested guarded reference-returning called machine canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(184),
+        "expected a nested guarded call returning `&mut slice[index]` to materialise \
+         the returned reference slot before the caller writes through it, and exit 184, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_mutable_local_indexed_parameter_write_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_mutable_local_indexed_parameter_write_exit");
     let main_path = canary.join("main.omg");
@@ -2558,6 +2627,222 @@ fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
         "expected runtime slice alias indexed string field concat canary to preserve alias-indexed string writes and exit 77, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_mutable_string_parameter_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_mutable_string_parameter_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-string-parameter-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable string parameter concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable string parameter concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected runtime mutable string parameter concat canary to preserve pointee string writes and exit 77, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_mutable_string_parameter_concat_write_line_canary_runs() {
+    let canary = pass_canary("text/runtime_mutable_string_parameter_concat_write_line");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-string-parameter-concat-write-line-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable string parameter concat write_line canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable string parameter concat write_line canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected runtime mutable string parameter concat write_line canary to print a generated pointee string and exit 77, got {:?}\nstdout:\n{}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("prefix omega"),
+        "expected generated line to be printed; stdout was:\n{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_mutable_string_parameter_wrapped_concat_write_line_canary_runs() {
+    let canary = pass_canary("text/runtime_mutable_string_parameter_wrapped_concat_write_line");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-string-parameter-wrapped-concat-write-line-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable string parameter wrapped concat write_line canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable string parameter wrapped concat write_line canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected runtime mutable string parameter wrapped concat write_line canary to print a generated pointee string and exit 77, got {:?}\nstdout:\n{}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("prefix omega done"),
+        "expected generated wrapped line to be printed; stdout was:\n{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_mutable_struct_string_field_copy_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_mutable_struct_string_field_copy_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-struct-string-field-copy-concat-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable struct string field copy concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable struct string field copy concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected runtime mutable struct string field copy concat canary to preserve copied string fields and exit 77, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_call_argument_struct_string_field_slice_alias_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_call_argument_struct_string_field_slice_alias_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-call-argument-struct-string-slice-alias-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime call argument struct string slice alias canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime call argument struct string slice alias canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected runtime call argument string copied through slice-alias struct field to exit 77, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_mutable_struct_string_field_copy_concat_write_line_canary_runs() {
+    let canary = pass_canary("text/runtime_mutable_struct_string_field_copy_concat_write_line");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-struct-string-field-copy-concat-write-line-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable struct string field copy concat write_line canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable struct string field copy concat write_line canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(77),
+        "expected runtime mutable struct string field copy concat write_line canary to print copied-field generated text and exit 77, got {:?}\nstdout:\n{}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("prefix omega done"),
+        "expected copied-field generated line to be printed; stdout was:\n{}",
+        String::from_utf8_lossy(&output.stdout)
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -3347,6 +3632,12 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_string_field_concat_exit",
     "text/runtime_machine_owned_indexed_string_field_concat_exit",
     "text/runtime_slice_alias_indexed_string_field_concat_exit",
+    "text/runtime_mutable_string_parameter_concat_exit",
+    "text/runtime_mutable_string_parameter_concat_write_line",
+    "text/runtime_mutable_string_parameter_wrapped_concat_write_line",
+    "text/runtime_mutable_struct_string_field_copy_concat_exit",
+    "text/runtime_call_argument_struct_string_field_slice_alias_exit",
+    "text/runtime_mutable_struct_string_field_copy_concat_write_line",
     "arithmetic/runtime_arithmetic_guard",
     "arithmetic/runtime_arithmetic_value",
     "calls/runtime_call_guard",
@@ -3363,6 +3654,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_call_enum_sequence",
     "calls/runtime_call_enum_value",
     "calls/runtime_reference_returned_slice_element_through_param_exit",
+    "calls/runtime_nested_guarded_reference_returned_slice_element_exit",
     "calls/runtime_mutable_machine_owned_parameter_write_exit",
     "calls/runtime_mutable_local_indexed_parameter_write_exit",
     "calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit",
@@ -3439,6 +3731,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_subslice_range_pointer_exit",
     "slices/termination_slice_length_compile",
     "slices/termination_slice_len_distance_compile",
+    "slices/runtime_frame_array_slice_parameter_alias_exit",
     "slices/runtime_slice_index_copy_dispatch_exit",
     "slices/runtime_slice_index_copy_exit",
     "slices/runtime_slice_index_read_dispatch_exit",

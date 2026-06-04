@@ -10,8 +10,9 @@ use super::super::super::storage_places::{
     resolve_fixed_array_length, resolve_fixed_array_length_in_table,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target,
-    resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_pointee_slot_offset_in_table,
-    resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+    resolve_runtime_frame_fixed_indexed_target_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
+    resolve_runtime_storage_place_in_table,
 };
 use super::fixed_array_slices::{
     literal_subslice_range_bounds, resolved_subslice_descriptor_base_in_table,

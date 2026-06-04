@@ -22,13 +22,17 @@ pub(super) fn write_runtime_bodies_section(
         let source_name = backend_state_name(backend_plan, body.key);
         output.push_str(&format!("- #{} {}\n", body.dispatch_index, source_name));
 
-        match backend_plan.runtime_bodies.operations.span(body.operations) {
+        match backend_plan
+            .runtime_bodies
+            .operations
+            .paged_span(body.operations)
+        {
             Some(operations) if operations.is_empty() => {
                 output.push_str("  operations: none\n");
             }
             Some(operations) => {
                 output.push_str("  operations:\n");
-                for operation in operations {
+                for operation in operations.iter() {
                     let source_name = backend_state_name(backend_plan, operation.source_key);
                     output.push_str(&format!(
                         "    - {} statement {} {:?}\n",

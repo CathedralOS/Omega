@@ -13,6 +13,11 @@ pub(super) fn selected_string_write_kind(
             *byte_offset,
             *byte_length,
         )),
+        SelectedInstructionKind::WriteRuntimeFrameString {
+            byte_offset,
+            byte_length,
+            ..
+        } => Some(runtime_frame_string_write_kind(*byte_offset, *byte_length)),
         SelectedInstructionKind::WriteRuntimePointeeString {
             pointer_byte_offset,
             field_byte_offset,
@@ -60,6 +65,13 @@ fn runtime_machine_string_write_kind(
     _byte_length: usize,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeMachineStringWrite
+}
+
+fn runtime_frame_string_write_kind(
+    _byte_offset: usize,
+    _byte_length: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeFrameStringWrite
 }
 
 fn runtime_pointee_string_write_kind(

@@ -58,17 +58,33 @@ pub(super) fn select_host_operation_operands(
             if let Some(place) =
                 runtime_string_descriptor_place(input, host_call, dispatch_index, alias_context)
             {
+                let pointer = if place.through_pointee {
+                    InstructionOperandKind::RuntimePointeeStringPointer {
+                        region: place.place.region,
+                        byte_offset: place.place.byte_offset,
+                    }
+                } else {
+                    InstructionOperandKind::RuntimeStringPointer {
+                        region: place.place.region,
+                        byte_offset: place.place.byte_offset,
+                    }
+                };
+                let length = if place.through_pointee {
+                    InstructionOperandKind::RuntimePointeeStringLength {
+                        region: place.place.region,
+                        byte_offset: place.place.byte_offset,
+                    }
+                } else {
+                    InstructionOperandKind::RuntimeStringLength {
+                        region: place.place.region,
+                        byte_offset: place.place.byte_offset,
+                    }
+                };
                 return stdout_operands(
                     operands,
                     operation.operation_key.operation,
-                    InstructionOperandKind::RuntimeStringPointer {
-                        region: place.region,
-                        byte_offset: place.byte_offset,
-                    },
-                    InstructionOperandKind::RuntimeStringLength {
-                        region: place.region,
-                        byte_offset: place.byte_offset,
-                    },
+                    pointer,
+                    length,
                 );
             }
 

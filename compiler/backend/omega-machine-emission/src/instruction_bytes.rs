@@ -268,20 +268,17 @@ fn insert_fixed_machine_instruction_bytes(
             operator,
             ..
         } => {
-            let literal_len = emission_context
-                .data
-                .objects
-                .get(*buffer)
-                .bytes
-                .len();
+            let literal_len = emission_context.data.objects.get(*buffer).bytes.len();
             let compare_failure_offset =
                 omega_instruction_selection::runtime_text_storage_compare_failure_branch_offset(
                     emission_context.target.architecture,
+                    *source_offset,
                     literal_len,
                 );
             let delimiter_failure_offset =
                 omega_instruction_selection::runtime_text_storage_compare_delimiter_branch_offset(
                     emission_context.target.architecture,
+                    *source_offset,
                     literal_len,
                 );
             let bytes = omega_instruction_selection::encode_runtime_text_storage_compare_bytes(

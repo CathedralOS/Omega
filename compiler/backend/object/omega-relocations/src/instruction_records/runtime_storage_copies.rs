@@ -3,6 +3,7 @@ use super::super::offsets::{
     runtime_storage_copy_from_runtime_frame_indexed_target_address_offset,
     runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset,
     runtime_storage_copy_from_runtime_machine_indexed_target_address_offset,
+    runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset,
     runtime_storage_copy_target_address_offset,
 };
 use super::context::InstructionRelocationContext;
@@ -29,7 +30,8 @@ pub(super) fn collect_runtime_storage_copy_relocations(
         }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
         | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
-        | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. } => {
+        | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }
+        | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimePointee { .. } => {
             let symbol = context.runtime_frame_symbol_handle();
             context.insert_data_address_at_instruction_start(symbol);
             true
@@ -103,6 +105,17 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             context.insert_data_address_at_relative_offset(
                 runtime_storage_copy_target_address_offset(context.input.target.architecture),
                 context.runtime_frame_symbol_handle(),
+            );
+            true
+        }
+        SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame { .. } => {
+            let symbol = context.runtime_frame_symbol_handle();
+            context.insert_data_address_at_instruction_start(symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset(
+                    context.input.target.architecture,
+                ),
+                symbol,
             );
             true
         }

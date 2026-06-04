@@ -1,5 +1,6 @@
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_control_flow::StateKey;
+use omega_runtime_branching::RuntimeBranchingCallPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target_operations::{TargetDataObject, TargetDataObjectKind, TargetDataPlan};
@@ -37,6 +38,39 @@ pub(super) fn collect_static_string_value_data(
             value.expression,
             value.source_key,
             value.statement_index,
+            data_plan,
+        );
+    }
+}
+
+pub(super) fn collect_static_string_branch_target_data(
+    runtime_branching: &RuntimeBranchingCallPlan,
+    data_plan: &mut TargetDataPlan,
+) {
+    for (_, expansion) in runtime_branching.leaf_expansions.iter() {
+        if !expansion.target_value.is_valid() {
+            continue;
+        }
+
+        collect_static_string_expression_data(
+            &runtime_branching.expressions,
+            expansion.target_value,
+            expansion.branch_key,
+            expansion.target_statement_index,
+            data_plan,
+        );
+    }
+
+    for (_, expansion) in runtime_branching.straight_line_expansions.iter() {
+        if !expansion.target_value.is_valid() {
+            continue;
+        }
+
+        collect_static_string_expression_data(
+            &runtime_branching.expressions,
+            expansion.target_value,
+            expansion.source_key,
+            expansion.statement_index,
             data_plan,
         );
     }

@@ -3,8 +3,8 @@ pub(super) fn runtime_frame_index_setup_width(
     field_byte_offset: usize,
 ) -> usize {
     match element_byte_size {
-        0 => 20 + add_constant_width(field_byte_offset),
-        _ => 20 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset),
+        0 => 60 + add_constant_width(field_byte_offset),
+        _ => 60 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset),
     }
 }
 

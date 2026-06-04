@@ -8,10 +8,11 @@ pub(super) use leaf::{
     select_runtime_leaf_branch_expansions_matching_operation,
 };
 pub(crate) use mutation::select_runtime_resolved_mutation_write;
-pub(super) use prelude::{
+pub(in crate::selection) use prelude::{
     BranchPreludeSelectionScratch, select_runtime_branch_preludes_for_operation,
 };
-pub(super) use straight_line::{
-    StraightLineBranchSelectionScratch,
+pub(in crate::selection) use straight_line::{
+    StraightLineBranchSelectionScratch, select_assignment_value_call_result_local_copy,
     select_runtime_straight_line_branch_expansions_for_operation,
+    select_runtime_straight_line_nested_branch_expansions_for_operation,
 };

@@ -15,14 +15,20 @@ use super::lookups::{
     host_call_for_statement, state_call_for_statement, state_mutation_for_statement,
 };
 use super::runtime_dispatch::{
-    RuntimeStorageWriteScratch, emit_runtime_frame_slot_slice_descriptor_write_in_table,
-    runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
-    select_runtime_resolved_mutation_write,
+    BranchPreludeSelectionScratch, RuntimeStorageWriteScratch, StraightLineBranchSelectionScratch,
+    emit_runtime_frame_slot_slice_descriptor_write_in_table, runtime_frame_slot_target_expression,
+    select_assignment_value_call_result_local_copy, select_runtime_branch_preludes_for_operation,
+    select_runtime_frame_slot_value_write_in_table, select_runtime_resolved_mutation_write,
     select_runtime_storage_resolved_mutation_write_in_table_with_scratch,
+    select_runtime_straight_line_nested_branch_expansions_for_operation,
     select_runtime_unaliased_storage_mutation_write_with_scratch,
 };
 use omega_abstract_operations::{InstructionOperand, RuntimeValueOperand, SelectedInstruction};
-use omega_state_calls::StateCall;
+use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
+use omega_runtime_branching::{
+    RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
+};
+use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
 
 const INLINE_STATE_BODY_VISIT_COUNT: usize = 16;
 
@@ -136,6 +142,7 @@ pub(super) fn select_state_body_instructions(
                 &mut mutation_mutable_expressions,
                 &mut mutation_segment_expressions,
                 &mut static_values,
+                operands,
                 runtime_value_operands,
                 selected_instructions,
             );
@@ -391,26 +398,32 @@ fn select_runtime_state_body_local_initializer_write(
     mutable_expressions: &mut ExpressionTable,
     segment_expressions: &mut ExpressionTable,
     static_values: &mut super::runtime_dispatch::RuntimeStaticValues,
+    operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let Some(slot) = input
-        .runtime_storage
-        .frame_slots
-        .iter()
-        .find_map(|(_, slot)| {
-            (slot.dispatch_index == dispatch_index
-                && slot.source_key == state_key
-                && slot.statement_index == statement_index
-                && matches!(
-                    slot.kind,
-                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
-                ))
-            .then_some(slot)
-        })
+    let Some(slot) =
+        initializer_result_or_local_slot(input, dispatch_index, state_key, statement_index)
     else {
         return;
     };
+    let wrote_assignment_value_call = select_assignment_value_call_for_local_initializer(
+        input,
+        dispatch_index,
+        state_key,
+        statement_index,
+        operands,
+        runtime_value_operands,
+        selected_instructions,
+    );
+    if wrote_assignment_value_call
+        && matches!(
+            slot.kind,
+            omega_runtime_storage::RuntimeFrameSlotKind::StateCallResult { .. }
+        )
+    {
+        return;
+    }
     expressions.clear();
     let Some(initializer) =
         local_initializer_handle(input, expressions, state_key, statement_index)
@@ -476,6 +489,124 @@ fn select_runtime_state_body_local_initializer_write(
     ) {
         return;
     }
+}
+
+fn select_assignment_value_call_for_local_initializer(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    state_key: StateKey,
+    statement_index: usize,
+    operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let Some(state_call) =
+        super::lookups::state_assignment_value_call(input, state_key, statement_index)
+    else {
+        return false;
+    };
+    if state_call.lowering != StateCallLowering::InlineBranching {
+        return false;
+    }
+
+    let operation = RuntimeStraightLineBranchOperation {
+        source_key: state_key,
+        statement_index,
+        kind: RuntimeStraightLineBranchOperationKind::StateCall {
+            role: StateCallRole::AssignmentValue,
+            call_ordinal: state_call.call_ordinal,
+            target_key: state_call.target_key,
+            argument_count: state_call.argument_count,
+            lowering: state_call.lowering,
+        },
+    };
+    let before = selected_instructions.len();
+    let body_operation = RuntimeDispatchBodyOperation {
+        source_key: state_key,
+        statement_index,
+        kind: RuntimeDispatchBodyOperationKind::StateCall {
+            role: StateCallRole::AssignmentValue,
+            call_ordinal: state_call.call_ordinal,
+            target_key: state_call.target_key,
+            argument_count: state_call.argument_count,
+            lowering: state_call.lowering,
+        },
+    };
+    let mut prelude_cursor = 0usize;
+    let mut prelude_scratch = BranchPreludeSelectionScratch::default();
+    select_runtime_branch_preludes_for_operation(
+        input,
+        dispatch_index,
+        &body_operation,
+        &mut prelude_cursor,
+        &mut prelude_scratch,
+        operands,
+        runtime_value_operands,
+        selected_instructions,
+    );
+
+    let mut scratch = StraightLineBranchSelectionScratch::default();
+    select_runtime_straight_line_nested_branch_expansions_for_operation(
+        input,
+        dispatch_index,
+        &operation,
+        &mut scratch,
+        operands,
+        runtime_value_operands,
+        selected_instructions,
+    );
+    if selected_instructions.len() == before {
+        return false;
+    }
+
+    select_assignment_value_call_result_local_copy(
+        input,
+        dispatch_index,
+        state_key,
+        statement_index,
+        StateCallRole::AssignmentValue,
+        state_call.call_ordinal,
+        selected_instructions,
+    );
+    true
+}
+
+fn initializer_result_or_local_slot<'input>(
+    input: &'input InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<&'input omega_runtime_storage::RuntimeFrameSlot> {
+    input
+        .runtime_storage
+        .assignment_value_result_slot(dispatch_index, source_key, statement_index)
+        .or_else(|| local_storage_slot(input, dispatch_index, source_key, statement_index))
+}
+
+fn local_storage_slot<'input>(
+    input: &'input InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<&'input omega_runtime_storage::RuntimeFrameSlot> {
+    input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && state_key_matches_source(slot.source_key, source_key)
+                && slot.statement_index == statement_index
+                && matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                ))
+            .then_some(slot)
+        })
+}
+
+fn state_key_matches_source(expected: StateKey, actual: StateKey) -> bool {
+    expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
 }
 
 fn local_initializer_handle(

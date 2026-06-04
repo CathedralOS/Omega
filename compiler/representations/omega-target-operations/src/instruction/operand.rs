@@ -18,6 +18,8 @@ pub trait InstructionOperandLike {
     fn data_address(&self) -> Option<TargetDataObjectHandle>;
     fn runtime_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)>;
     fn runtime_string_length(&self) -> Option<(RuntimeStorageRegion, usize)>;
+    fn runtime_pointee_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)>;
+    fn runtime_pointee_string_length(&self) -> Option<(RuntimeStorageRegion, usize)>;
     fn immediate_integer(&self) -> Option<i64>;
     fn byte_length(&self) -> Option<usize>;
 }
@@ -50,6 +52,26 @@ impl InstructionOperandLike for TargetInstructionOperand {
         }
     }
 
+    fn runtime_pointee_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)> {
+        match self.kind {
+            InstructionOperandKind::RuntimePointeeStringPointer {
+                region,
+                byte_offset,
+            } => Some((region, byte_offset)),
+            _ => None,
+        }
+    }
+
+    fn runtime_pointee_string_length(&self) -> Option<(RuntimeStorageRegion, usize)> {
+        match self.kind {
+            InstructionOperandKind::RuntimePointeeStringLength {
+                region,
+                byte_offset,
+            } => Some((region, byte_offset)),
+            _ => None,
+        }
+    }
+
     fn immediate_integer(&self) -> Option<i64> {
         match self.kind {
             InstructionOperandKind::ImmediateInteger(value) => Some(value),
@@ -75,6 +97,14 @@ pub enum TargetInstructionOperandKind {
         byte_offset: usize,
     },
     RuntimeStringLength {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+    },
+    RuntimePointeeStringPointer {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+    },
+    RuntimePointeeStringLength {
         region: RuntimeStorageRegion,
         byte_offset: usize,
     },

@@ -2,6 +2,7 @@ use super::{RuntimeFrameSlot, RuntimeStorageContext, RuntimeStoragePlan};
 use crate::model::RuntimeFrameSlotKind;
 use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_checked_trees::name::Identifier;
+use omega_checked_trees::statement::StatementNode;
 use omega_checked_trees::types::TypeReferenceHandle;
 use omega_control_flow::{PlannedTransitionTarget, StateKey};
 use omega_core::arena::HandleSpan;
@@ -296,6 +297,24 @@ pub(super) fn build_straight_line_runtime_storage_plan(
                         &mut next_frame_offset,
                         dispatch_index,
                         local_storage,
+                    );
+                }
+
+                for state_call in context
+                    .state_calls
+                    .calls_for_statement(state.key, operation.statement_index)
+                    .filter(|state_call| state_call.role == StateCallRole::CallArgument)
+                {
+                    append_state_call_result_slot(
+                        context,
+                        &mut plan,
+                        &mut next_frame_offset,
+                        dispatch_index,
+                        state_call.source_key,
+                        state_call.statement_index,
+                        state_call.role,
+                        state_call.call_ordinal,
+                        state_call.target_key,
                     );
                 }
 
@@ -598,6 +617,21 @@ fn append_branch_operation_storage(
         );
     }
 
+    for state_call in context
+        .state_calls
+        .calls_for_statement(state_key, statement_index)
+        .filter(|state_call| state_call.role == StateCallRole::CallArgument)
+    {
+        append_branch_state_call_storage(
+            context,
+            plan,
+            next_frame_offset,
+            dispatch_index,
+            state_call,
+            visiting,
+        );
+    }
+
     if let Some(state_call) = context
         .state_calls
         .statement_call(state_key, statement_index)
@@ -788,6 +822,7 @@ fn append_state_call_result_slot(
     if !matches!(
         role,
         StateCallRole::AssignmentValue
+            | StateCallRole::CallArgument
             | StateCallRole::TransitionArgument
             | StateCallRole::TransitionGuard
     ) {
@@ -822,6 +857,15 @@ fn append_state_call_result_slot(
         .checked_add(layout.size)
         .expect("runtime state-call result slot size overflow");
 
+    let (symbol, name) =
+        call_result_slot_symbol_and_name(context, source_key, statement_index, role)
+            .unwrap_or_else(|| {
+                (
+                    SymbolHandle::invalid(),
+                    Identifier::generated_static("__call_result"),
+                )
+            });
+
     plan.frame_slots.insert(RuntimeFrameSlot {
         dispatch_index,
         source_key,
@@ -831,8 +875,8 @@ fn append_state_call_result_slot(
             call_ordinal,
             target_key,
         },
-        symbol: SymbolHandle::invalid(),
-        name: Identifier::generated_static("__call_result"),
+        symbol,
+        name,
         type_symbol,
         type_name: type_name.into(),
         type_descriptor: type_descriptor(&context.program.type_reference_table, return_type),
@@ -841,6 +885,38 @@ fn append_state_call_result_slot(
         byte_size: layout.size,
         alignment: layout.alignment,
     });
+}
+
+fn call_result_slot_symbol_and_name(
+    context: &RuntimeStorageContext,
+    source_key: StateKey,
+    statement_index: usize,
+    role: StateCallRole,
+) -> Option<(SymbolHandle, Identifier)> {
+    if role != StateCallRole::AssignmentValue {
+        return None;
+    }
+
+    let machine = context
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = context
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    let statement = context
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?;
+    let StatementNode::LocalData(local_data) = statement else {
+        return None;
+    };
+
+    Some((local_data.symbol, local_data.name.clone()))
 }
 
 fn local_slot_exists(

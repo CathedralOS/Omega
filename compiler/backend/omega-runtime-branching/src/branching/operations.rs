@@ -2,6 +2,7 @@ use crate::RuntimeBranchingContext;
 use omega_checked_trees::expression::ExpressionTable;
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::{Arena, HandleSpan};
+use omega_state_calls::{StateCall, StateCallRole};
 
 use super::lookups::{host_call_for_statement, mutation_for_statement, state_call_for_operation};
 use super::{
@@ -80,10 +81,10 @@ pub(super) fn straight_line_operations(
         return HandleSpan::empty();
     };
 
-    let mut branch_operations = Vec::with_capacity(operations.len());
+    let mut branch_operations = Vec::with_capacity(operations.len().saturating_mul(2));
     for operation in operations {
-        if let Some(state_call) =
-            state_call_for_operation(context, source_key, operation.statement_index)
+        for state_call in
+            state_calls_for_straight_line_operation(context, source_key, operation.statement_index)
         {
             branch_operations.push(RuntimeStraightLineBranchOperation {
                 source_key,
@@ -112,6 +113,24 @@ pub(super) fn straight_line_operations(
     }
 
     output_operations.insert_many(branch_operations)
+}
+
+fn state_calls_for_straight_line_operation<'plan>(
+    context: &'plan RuntimeBranchingContext<'plan>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> impl Iterator<Item = &'plan StateCall> {
+    context
+        .state_calls
+        .calls_for_statement(source_key, statement_index)
+        .filter(|state_call| {
+            matches!(
+                state_call.role,
+                StateCallRole::Statement
+                    | StateCallRole::AssignmentValue
+                    | StateCallRole::CallArgument
+            )
+        })
 }
 
 fn prelude_operation_kind(

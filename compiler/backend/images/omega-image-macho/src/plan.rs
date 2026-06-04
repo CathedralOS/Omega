@@ -93,7 +93,15 @@ pub(crate) fn plan_macho_image(
     let bind_offset = align_to(unsigned_file_end, MACHO_ARM64_PAGE_SIZE);
     let code_signature_offset = align_to(bind_offset + bind_size, MACHO_ARM64_PAGE_SIZE);
     let code_signature_size = code_signature_size(code_signature_offset);
-    let linkedit_vmaddr = MACHO_EXECUTABLE_BASE + bind_offset as u64;
+    let linkedit_vmaddr = if has_data_segment {
+        data_address
+            .checked_add(data_vm_size)
+            .expect("Mach-O LINKEDIT vm address overflow")
+    } else {
+        MACHO_EXECUTABLE_BASE
+            .checked_add(bind_offset as u64)
+            .expect("Mach-O LINKEDIT vm address overflow")
+    };
     let linkedit_filesize = code_signature_offset + code_signature_size - bind_offset;
     let linkedit_vmsize = align_to(linkedit_filesize, MACHO_ARM64_PAGE_SIZE);
 
@@ -159,6 +167,7 @@ mod tests {
         assert_eq!(plan.data_vm_size, MACHO_ARM64_PAGE_SIZE as u64);
         assert_eq!(plan.bind_offset, MACHO_ARM64_PAGE_SIZE * 2);
         assert_eq!(plan.code_signature_offset, MACHO_ARM64_PAGE_SIZE * 3);
+        assert_eq!(plan.linkedit_vmaddr, plan.data_address + plan.data_vm_size);
         assert!(plan.linkedit_filesize >= plan.code_signature_size);
     }
 }

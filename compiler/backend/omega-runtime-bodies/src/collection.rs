@@ -11,7 +11,7 @@ use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, Transit
 use omega_checked_trees::types::TypeReferenceTable;
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
-use omega_state_calls::{StateCall, StateCallLowering};
+use omega_state_calls::{StateCall, StateCallLowering, StateCallRole};
 use omega_state_dispatch::DispatchState;
 use omega_state_graph::RuntimeTransitionTarget;
 
@@ -172,9 +172,8 @@ fn segment_filter(
         .calls
         .iter()
         .map(|(_, state_call)| state_call)
-        .filter(|state_call| {
-            state_call.source_key == control_key && state_call_is_dispatched(context, state_call)
-        })
+        .filter(|state_call| state_call.source_key == control_key)
+        .filter(|state_call| state_call_splits_runtime_body(context, state_call))
         .map(|state_call| state_call.statement_index)
         .collect();
     if boundaries.is_empty() {
@@ -240,10 +239,27 @@ fn append_state_body_operations(
             continue;
         }
 
+        for state_call in context
+            .state_calls
+            .calls_for_statement(state_key, operation.statement_index)
+        {
+            if state_call.role == omega_state_calls::StateCallRole::CallArgument {
+                append_state_call_body_operation(
+                    context,
+                    state_call,
+                    operations,
+                    expressions,
+                    invariant_names,
+                    type_references,
+                    visiting,
+                );
+            }
+        }
+
         if let Some(state_call) =
             state_call_for_statement(context, state_key, operation.statement_index)
         {
-            if state_call_is_dispatched(context, state_call) {
+            if state_call_splits_runtime_body(context, state_call) {
                 continue;
             }
             append_state_call_body_operation(
@@ -381,6 +397,13 @@ fn state_call_is_dispatched(context: &RuntimeDispatchBodyContext, state_call: &S
         })
 }
 
+fn state_call_splits_runtime_body(
+    context: &RuntimeDispatchBodyContext,
+    state_call: &StateCall,
+) -> bool {
+    state_call.role == StateCallRole::Statement && state_call_is_dispatched(context, state_call)
+}
+
 fn append_state_call_body_operation(
     context: &RuntimeDispatchBodyContext,
     state_call: &StateCall,
@@ -482,6 +505,7 @@ fn append_state_call_result_operation(
     if !matches!(
         state_call.role,
         omega_state_calls::StateCallRole::AssignmentValue
+            | omega_state_calls::StateCallRole::CallArgument
             | omega_state_calls::StateCallRole::TransitionArgument
             | omega_state_calls::StateCallRole::TransitionGuard
     ) {

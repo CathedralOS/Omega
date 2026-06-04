@@ -1,0 +1,88 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Exit {
+    command: String;
+    direction: u32;
+    destination: u32;
+}
+
+data Room {
+    exits: [Exit; 1];
+    exit_count: u32;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let rooms: [Room; 1] = [Room {
+        exits: [
+            Exit {
+                command: "",
+                direction: 0,
+                destination: 0
+            }
+        ],
+        exit_count: 0
+    }];
+
+    self.connect(&mut rooms[0], 1);
+
+    transition rooms[0].exits[0].command == "east" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(77);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(78);
+    }
+}
+
+machine Main::connect(&mut self, room: &mut Room, direction: u32) {
+    self.append_exit(room, self.direction_command(direction), direction, 42);
+}
+
+machine Main::append_exit(
+    &mut self,
+    room: &mut Room,
+    command: String,
+    direction: u32,
+    destination: u32
+)
+{
+    transition room.exit_count {
+        0 -> append_exit_slot_0(room, command, direction, destination)
+        _ -> append_exit_slot_0(room, command, direction, destination)
+    }
+
+    state append_exit_slot_0(
+        &mut self,
+        room: &mut Room,
+        command: String,
+        direction: u32,
+        destination: u32
+    ) {
+        let exits: &mut [Exit] = room.exits.as_mut_slice();
+
+        exits[0] = Exit {
+            command: command,
+            direction: direction,
+            destination: destination
+        };
+        room.exit_count = 1;
+    }
+}
+
+machine Main::direction_command(&mut self, direction: u32) -> String {
+    transition {
+        direction == 1 -> "east"
+        _ -> "west"
+    }
+}

@@ -407,6 +407,18 @@ pub(super) fn encode_runtime_machine_string_write(
     )
 }
 
+pub(super) fn encode_runtime_frame_string_write(
+    input: MachineEmissionContext<'_>,
+    byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_frame_string_write(
+        input.target.architecture,
+        byte_offset,
+        byte_length,
+    )
+}
+
 pub(super) fn encode_runtime_pointee_string_write(
     input: MachineEmissionContext<'_>,
     pointer_byte_offset: usize,
@@ -651,6 +663,28 @@ pub(super) fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_ru
     )
 }
 
+pub(super) fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
+    input: MachineEmissionContext<'_>,
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
+        input.target.architecture,
+        descriptor_offset,
+        element_index,
+        element_byte_size,
+        source_field_byte_offset,
+        pointer_byte_offset,
+        target_field_byte_offset,
+        byte_count,
+    )
+}
+
 pub(super) fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
     input: MachineEmissionContext<'_>,
     base_byte_offset: usize,
@@ -683,6 +717,22 @@ pub(super) fn encode_runtime_storage_copy_to_runtime_pointee(
         source_offset,
         pointer_byte_offset,
         field_byte_offset,
+        byte_count,
+    )
+}
+
+pub(super) fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
+    input: MachineEmissionContext<'_>,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
+        input.target.architecture,
+        pointer_byte_offset,
+        field_byte_offset,
+        target_offset,
         byte_count,
     )
 }

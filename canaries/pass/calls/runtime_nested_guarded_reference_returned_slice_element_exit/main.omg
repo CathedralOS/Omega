@@ -1,0 +1,79 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+enum CellId {
+    C0,
+    C1,
+    C2,
+    C3
+}
+
+data Cell {
+    n: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Console;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) {
+    self.outer();
+
+    transition self.bag.cells[3].n == 5 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(184);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(185);
+    }
+}
+
+machine Main::outer(&mut self) {
+    transition self.should_enter() == true {
+        true -> enter()
+        _ -> skip()
+    }
+
+    state enter(&mut self) {
+        self.segment(&mut self.bag, CellId::C3);
+    }
+
+    state skip(&mut self) {}
+}
+
+machine Main::should_enter(&mut self) -> bool {
+    transition {
+        _ -> true
+    }
+}
+
+machine Main::segment(&mut self, bag: &mut Bag, cell: CellId) {
+    self.connect(bag, cell);
+}
+
+machine Main::connect(&mut self, bag: &mut Bag, cell: CellId) {
+    let selected: &mut Cell = self.pick(bag, cell);
+    selected.n = 5;
+}
+
+machine Main::pick(&mut self, bag: &mut Bag, cell: CellId) -> &mut Cell {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+
+    transition cell {
+        CellId::C0 -> &mut cells[0]
+        CellId::C1 -> &mut cells[1]
+        CellId::C2 -> &mut cells[2]
+        CellId::C3 -> &mut cells[3]
+    }
+}

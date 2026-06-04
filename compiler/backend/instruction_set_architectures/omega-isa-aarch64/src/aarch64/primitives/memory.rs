@@ -2,13 +2,6 @@ use omega_core::diagnostics::Diagnostic;
 
 use super::instruction::encode_instruction;
 
-pub(in crate::aarch64) fn encode_load_w17_from_x16(
-    byte_offset: usize,
-    byte_size: usize,
-) -> Result<[u8; 4], Diagnostic> {
-    encode_load_w_from_x(17, 16, byte_offset, byte_size)
-}
-
 pub(in crate::aarch64) fn encode_load_w_from_x(
     destination_register: u8,
     base_register: u8,
@@ -125,7 +118,7 @@ pub(in crate::aarch64) fn encode_load_x_from_x(
 ) -> Result<[u8; 4], Diagnostic> {
     if !byte_offset.is_multiple_of(8) || byte_offset / 8 > 4095 {
         return Err(Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot load u64 at offset `{byte_offset}` yet"
+            "AArch64 MVP encoder cannot load u64 from x{base_register} at offset `{byte_offset}` yet"
         )));
     }
     Ok(encode_instruction(

@@ -222,6 +222,11 @@ pub enum AssignedOperationKind {
         data: omega_target_operations::TargetDataObjectHandle,
         byte_length: usize,
     },
+    WriteRuntimeFrameString {
+        byte_offset: usize,
+        data: omega_target_operations::TargetDataObjectHandle,
+        byte_length: usize,
+    },
     WriteRuntimePointeeString {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
@@ -332,6 +337,15 @@ pub enum AssignedOperationKind {
         target_offset: usize,
         byte_count: usize,
     },
+    CopyRuntimeFrameFixedIndexedToRuntimePointee {
+        descriptor_offset: usize,
+        element_index: usize,
+        element_byte_size: usize,
+        source_field_byte_offset: usize,
+        pointer_byte_offset: usize,
+        target_field_byte_offset: usize,
+        byte_count: usize,
+    },
     CopyRuntimeMachineIndexedToRuntimeStorage {
         base_byte_offset: usize,
         index_offset: usize,
@@ -346,6 +360,12 @@ pub enum AssignedOperationKind {
         source_offset: usize,
         pointer_byte_offset: usize,
         field_byte_offset: usize,
+        byte_count: usize,
+    },
+    CopyRuntimePointeeToRuntimeFrame {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
         byte_count: usize,
     },
     SetDispatchState {

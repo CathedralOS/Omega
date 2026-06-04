@@ -35,13 +35,13 @@ use super::straight_line::{
 use omega_abstract_operations::SelectedInstruction;
 
 #[derive(Default)]
-pub(in crate::selection::runtime_dispatch) struct BranchPreludeSelectionScratch {
+pub(in crate::selection) struct BranchPreludeSelectionScratch {
     expressions: ExpressionTable,
     mutable_expressions: ExpressionTable,
     resolved_segment_expressions: ExpressionTable,
 }
 
-pub(in crate::selection::runtime_dispatch) fn select_runtime_branch_preludes_for_operation(
+pub(in crate::selection) fn select_runtime_branch_preludes_for_operation(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
@@ -77,7 +77,10 @@ fn prelude_expansion_matches_operation(
     operation: &RuntimeDispatchBodyOperation,
 ) -> bool {
     expansion.dispatch_index == dispatch_index
-        && expansion.source_key == operation.source_key
+        && super::super::state_key_matches_statement_source(
+            expansion.source_key,
+            operation.source_key,
+        )
         && expansion.statement_index == operation.statement_index
 }
 

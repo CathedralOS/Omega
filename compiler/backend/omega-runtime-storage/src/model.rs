@@ -51,19 +51,36 @@ impl RuntimeStoragePlan {
         statement_index: usize,
         role: StateCallRole,
     ) -> Option<&RuntimeFrameSlot> {
-        self.frame_slots.iter().find_map(|(_, slot)| {
-            (slot.dispatch_index == dispatch_index
-                && Self::source_matches(slot.source_key, source_key)
-                && slot.statement_index == statement_index
-                && matches!(
-                    slot.kind,
-                    RuntimeFrameSlotKind::StateCallResult {
-                        role: slot_role,
-                        ..
-                    } if slot_role == role
-                ))
-            .then_some(slot)
-        })
+        self.frame_slots
+            .iter()
+            .find_map(|(_, slot)| {
+                (slot.dispatch_index == dispatch_index
+                    && slot.source_key == source_key
+                    && slot.statement_index == statement_index
+                    && matches!(
+                        slot.kind,
+                        RuntimeFrameSlotKind::StateCallResult {
+                            role: slot_role,
+                            ..
+                        } if slot_role == role
+                    ))
+                .then_some(slot)
+            })
+            .or_else(|| {
+                self.frame_slots.iter().find_map(|(_, slot)| {
+                    (slot.dispatch_index == dispatch_index
+                        && Self::source_matches(slot.source_key, source_key)
+                        && slot.statement_index == statement_index
+                        && matches!(
+                            slot.kind,
+                            RuntimeFrameSlotKind::StateCallResult {
+                                role: slot_role,
+                                ..
+                            } if slot_role == role
+                        ))
+                    .then_some(slot)
+                })
+            })
     }
 
     pub fn assignment_value_result_slot(
@@ -104,20 +121,38 @@ impl RuntimeStoragePlan {
         role: StateCallRole,
         call_ordinal: usize,
     ) -> Option<&RuntimeFrameSlot> {
-        self.frame_slots.iter().find_map(|(_, slot)| {
-            (slot.dispatch_index == dispatch_index
-                && Self::source_matches(slot.source_key, source_key)
-                && slot.statement_index == statement_index
-                && matches!(
-                    slot.kind,
-                    RuntimeFrameSlotKind::StateCallResult {
-                        role: slot_role,
-                        call_ordinal: slot_call_ordinal,
-                        ..
-                    } if slot_role == role && slot_call_ordinal == call_ordinal
-                ))
-            .then_some(slot)
-        })
+        self.frame_slots
+            .iter()
+            .find_map(|(_, slot)| {
+                (slot.dispatch_index == dispatch_index
+                    && slot.source_key == source_key
+                    && slot.statement_index == statement_index
+                    && matches!(
+                        slot.kind,
+                        RuntimeFrameSlotKind::StateCallResult {
+                            role: slot_role,
+                            call_ordinal: slot_call_ordinal,
+                            ..
+                        } if slot_role == role && slot_call_ordinal == call_ordinal
+                    ))
+                .then_some(slot)
+            })
+            .or_else(|| {
+                self.frame_slots.iter().find_map(|(_, slot)| {
+                    (slot.dispatch_index == dispatch_index
+                        && Self::source_matches(slot.source_key, source_key)
+                        && slot.statement_index == statement_index
+                        && matches!(
+                            slot.kind,
+                            RuntimeFrameSlotKind::StateCallResult {
+                                role: slot_role,
+                                call_ordinal: slot_call_ordinal,
+                                ..
+                            } if slot_role == role && slot_call_ordinal == call_ordinal
+                        ))
+                    .then_some(slot)
+                })
+            })
     }
 
     pub fn transition_guard_result_slot(

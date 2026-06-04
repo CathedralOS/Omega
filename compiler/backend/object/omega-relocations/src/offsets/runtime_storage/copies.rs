@@ -71,3 +71,12 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
         Architecture::X86_64 => 8,
     }
 }
+
+pub(crate) fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 8,
+        Architecture::X86_64 => 17,
+    }
+}

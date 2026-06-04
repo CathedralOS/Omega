@@ -1,6 +1,7 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{RuntimeAliasBinding, resolve_runtime_alias_binding};
 use crate::selection::storage_places::{
+    RuntimeStoragePlace, resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
@@ -11,8 +12,10 @@ use omega_abstract_operations::{RuntimeValueOperand, RuntimeValueOperandHandle};
 use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
+use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
+use omega_state_calls::StateCallRole;
 
 use super::super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_integer_value,
@@ -299,6 +302,26 @@ pub(super) fn resolve_runtime_value_operand(
     }
 
     if matches!(expression, Expression::Call(_))
+        && let Some(place) = resolve_prior_local_call_result_source_place(
+            input,
+            dispatch_index,
+            source_key,
+            source_machine,
+            source_state,
+            statement_index,
+            expression,
+            aliases,
+            alias_expressions,
+        )
+    {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
+        }));
+    }
+
+    if matches!(expression, Expression::Call(_))
         && let Some(place) = resolve_runtime_call_result_source_place(
             input,
             dispatch_index,
@@ -370,4 +393,179 @@ pub(super) fn resolve_runtime_value_operand(
         byte_offset: place.byte_offset,
         byte_size: place.byte_count,
     }))
+}
+
+fn resolve_prior_local_call_result_source_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+    expression: &Expression,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
+) -> Option<RuntimeStoragePlace> {
+    let Expression::Call(_) = expression else {
+        return None;
+    };
+
+    let mut candidate_states = Vec::new();
+    if let Some(candidate) = program_state_statements_by_symbol(input, source_key) {
+        candidate_states.push(candidate);
+    }
+    if let Some((machine_name, state_name)) = input.control_flow.state_names_by_key(source_key)
+        && let Some(candidate) =
+            program_state_statements_by_name(input, source_key, machine_name, state_name)
+    {
+        candidate_states.push(candidate);
+    }
+    if let Some(candidate) =
+        program_state_statements_by_display_name(input, source_key, source_machine, source_state)
+    {
+        candidate_states.push(candidate);
+    }
+
+    for (local_source_key, statements) in candidate_states {
+        for (local_statement_index, statement) in
+            statements.iter().enumerate().take(statement_index)
+        {
+            let StatementNode::LocalData(local_data) = statement else {
+                continue;
+            };
+            if !local_data.initial_value.is_valid() {
+                continue;
+            }
+
+            let initializer = input
+                .program
+                .expression_table
+                .to_tree(local_data.initial_value);
+            let resolved_initializer =
+                resolve_runtime_alias_binding(&initializer, source_key, aliases, alias_expressions);
+            if !prior_local_call_initializer_matches(&resolved_initializer.expression, expression) {
+                continue;
+            }
+
+            for state_call in input
+                .state_calls
+                .calls_for_statement(local_source_key, local_statement_index)
+                .filter(|state_call| state_call.role == StateCallRole::AssignmentValue)
+            {
+                if let Some(place) = resolve_runtime_assignment_value_call_result_place_by_ordinal(
+                    input,
+                    dispatch_index,
+                    local_source_key,
+                    local_statement_index,
+                    state_call.call_ordinal,
+                ) {
+                    return Some(place);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn prior_local_call_initializer_matches(initializer: &Expression, expression: &Expression) -> bool {
+    if initializer == expression {
+        return true;
+    }
+
+    let (Expression::Call(initializer), Expression::Call(expression)) = (initializer, expression)
+    else {
+        return false;
+    };
+
+    initializer.target_symbol == expression.target_symbol
+        && initializer.target == expression.target
+        && initializer.receiver == expression.receiver
+        && initializer.arguments.len() == expression.arguments.len()
+}
+
+fn program_state_statements_by_name<'a>(
+    input: &'a InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    machine_name: &omega_checked_trees::name::Identifier,
+    state_name: &omega_checked_trees::name::Identifier,
+) -> Option<(StateKey, &'a [StatementNode])> {
+    for machine in input.program.machines() {
+        if machine.name != *machine_name {
+            continue;
+        }
+        for state in input.program.machine_states(machine) {
+            if state.name != *state_name {
+                continue;
+            }
+            let local_source_key = StateKey {
+                machine: machine.symbol,
+                state: state.symbol,
+                segment_index: source_key.segment_index,
+            };
+            let statements = input
+                .program
+                .statement_table
+                .statements(state.statement_nodes);
+            return Some((local_source_key, statements));
+        }
+    }
+
+    None
+}
+
+fn program_state_statements_by_display_name<'a>(
+    input: &'a InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+) -> Option<(StateKey, &'a [StatementNode])> {
+    for machine in input.program.machines() {
+        let machine_name = machine.name.to_string();
+        if source_machine != machine_name
+            && !source_machine.starts_with(&format!("{machine_name}::"))
+        {
+            continue;
+        }
+
+        for state in input.program.machine_states(machine) {
+            let state_name = state.name.to_string();
+            if state_name != source_state {
+                continue;
+            }
+            let local_source_key = StateKey {
+                machine: machine.symbol,
+                state: state.symbol,
+                segment_index: source_key.segment_index,
+            };
+            let statements = input
+                .program
+                .statement_table
+                .statements(state.statement_nodes);
+            return Some((local_source_key, statements));
+        }
+    }
+
+    None
+}
+
+fn program_state_statements_by_symbol<'a>(
+    input: &'a InstructionSelectionInput<'_>,
+    source_key: StateKey,
+) -> Option<(StateKey, &'a [StatementNode])> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    let statements = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes);
+    Some((source_key, statements))
 }
