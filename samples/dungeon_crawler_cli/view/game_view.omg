@@ -98,7 +98,7 @@ machine GameView::write_cell_info(
         &mut self,
         out_line: &mut String
     ) {
-        out_line = "A stone gate opens into a generated dungeon.";
+        out_line = "A bottomless dark room near the dungeon heart.";
     }
 
     state branch_info(
