@@ -186,7 +186,8 @@ fn lower_statement_into_span(
         .state_statements
         .append_to_span(span, lowered);
 
-    let syntax::statement::StatementNode::Relax(relax) = syntax_trees.statements.statement(statement)
+    let syntax::statement::StatementNode::Relax(relax) =
+        syntax_trees.statements.statement(statement)
     else {
         return Ok(());
     };

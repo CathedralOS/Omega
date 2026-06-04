@@ -7,11 +7,12 @@ use crate::identifier::Identifier;
 use crate::item::{
     BoundaryLevel, BoundaryMode, BoundaryPolicy, CapabilityContract, CapabilityContractKind,
     CapabilityDefinition, CapabilityField, CapabilityMember, CapabilityState, DataDefinition,
-    DataField, DataMember, DataVariant, DomainDefinition, Item, ItemHandle, ItemTable,
-    LibraryDefinition, LibraryFunction, Machine, MeasureDefinition, OperatorDefinition, Platform,
-    ProofFact, ProofMembershipFact, State, StateHandle, StateParameterHandle, StateParameterNode,
-    StateSignature, StateSignatureHandle, TargetDefinition, TargetHost, TargetHostSetting,
-    TargetHostSettingValue, TraitDefinition, TypeParameter, UseItem,
+    DataField, DataMember, DataVariant, DomainDefinition, HostProviderDefinition,
+    HostProviderMapping, Item, ItemHandle, ItemTable, LibraryDefinition, LibraryFunction, Machine,
+    MeasureDefinition, OperatorDefinition, Platform, ProofFact, ProofMembershipFact, State,
+    StateHandle, StateParameterHandle, StateParameterNode, StateSignature, StateSignatureHandle,
+    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TraitDefinition,
+    TypeParameter, UseItem,
 };
 use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssignment, TableCall, TableLocalData,
@@ -112,6 +113,7 @@ impl SyntaxTrees {
             | Item::Operator(_)
             | Item::Package(_)
             | Item::Provider(_)
+            | Item::HostProvider(_)
             | Item::Target(_)
             | Item::Use(_) => {}
         }
@@ -169,6 +171,9 @@ impl SyntaxTrees {
                 name: self.copy_item_identifier_span(other, provider.name),
                 category: provider.category,
             }),
+            Item::HostProvider(host_provider) => {
+                Item::HostProvider(self.copy_host_provider_definition(other, host_provider))
+            }
             Item::Export(export_item) => Item::Export(crate::item::ExportItem {
                 path: self.copy_item_identifier_span(other, export_item.path),
                 alias: export_item.alias.clone(),
@@ -336,6 +341,18 @@ impl SyntaxTrees {
         }
     }
 
+    fn copy_host_provider_definition(
+        &mut self,
+        other: &SyntaxTrees,
+        host_provider: &HostProviderDefinition,
+    ) -> HostProviderDefinition {
+        HostProviderDefinition {
+            target: host_provider.target.clone(),
+            boundary_trait: self.copy_item_identifier_span(other, host_provider.boundary_trait),
+            mappings: self.copy_host_provider_mapping_span(other, host_provider.mappings),
+        }
+    }
+
     fn copy_type_parameter_span(
         &mut self,
         other: &SyntaxTrees,
@@ -450,6 +467,22 @@ impl SyntaxTrees {
                 }),
             },
             |this, member| this.items.append_data_member(member),
+        )
+    }
+
+    fn copy_host_provider_mapping_span(
+        &mut self,
+        other: &SyntaxTrees,
+        span: HandleSpan<HostProviderMapping>,
+    ) -> HandleSpan<HostProviderMapping> {
+        self.copy_mapped_span(
+            other.items.host_provider_mappings(span),
+            |_this, mapping| HostProviderMapping {
+                machine: mapping.machine.clone(),
+                kind: mapping.kind,
+                value: mapping.value,
+            },
+            |this, mapping| this.items.append_host_provider_mapping(mapping),
         )
     }
 

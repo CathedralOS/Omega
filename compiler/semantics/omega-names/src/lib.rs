@@ -383,7 +383,7 @@ fn build_resolve_report_with_optional_sources(
                     ResolvedDefinitionKind::Target,
                 );
             }
-            Item::Provider(_) | Item::Export(_) => {}
+            Item::Provider(_) | Item::HostProvider(_) | Item::Export(_) => {}
         }
     }
 
@@ -1158,6 +1158,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
                 self.insert_platform_children(parent, trait_definition.machines);
             }
             Item::Provider(_)
+            | Item::HostProvider(_)
             | Item::Export(_)
             | Item::Invariant(_)
             | Item::Measure(_)
@@ -1502,6 +1503,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
                 self.insert_platform_children(parent, trait_definition.machines);
             }
             Item::Provider(_)
+            | Item::HostProvider(_)
             | Item::Export(_)
             | Item::Invariant(_)
             | Item::Measure(_)
@@ -1550,7 +1552,11 @@ fn root_item_symbol_seed<'syntax>(
             &trait_definition.name,
         )),
         Item::Target(target) => Some(RootSymbolSeed::Identifier(SymbolKind::Object, &target.name)),
-        Item::Provider(_) | Item::Export(_) | Item::Measure(_) | Item::Use(_) => None,
+        Item::Provider(_)
+        | Item::HostProvider(_)
+        | Item::Export(_)
+        | Item::Measure(_)
+        | Item::Use(_) => None,
     }
 }
 
@@ -1566,6 +1572,7 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
         Item::Trait(trait_definition) => Some(trait_definition.name.as_str()),
         Item::Target(target) => Some(target.name.as_str()),
         Item::Provider(_)
+        | Item::HostProvider(_)
         | Item::Export(_)
         | Item::Measure(_)
         | Item::Operator(_)

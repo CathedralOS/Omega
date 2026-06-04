@@ -13,7 +13,10 @@ use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
 use crate::parser::use_item::parse_use_item;
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::{Item, ModuleDeclaration, PackageDeclaration, ProviderDeclaration};
+use omega_syntax_trees::item::{
+    HostProviderDefinition, HostProviderMapping, HostProviderMappingKind, Item, ModuleDeclaration,
+    PackageDeclaration, ProviderDeclaration,
+};
 use omega_syntax_trees::operator_spelling::ProviderCategory;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -137,6 +140,12 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Provider(item), rest));
     }
 
+    if input.at_keyword(KeywordKind::Host) {
+        let input = input.take_keyword(KeywordKind::Host, "host")?;
+        let (item, rest) = parse_host_provider_definition(syntax_trees, input)?;
+        return Ok((Item::HostProvider(item), rest));
+    }
+
     if input.at_keyword(KeywordKind::Platform) {
         let input = input.take_keyword(KeywordKind::Platform, "platform")?;
         let (item, rest) = parse_platform(syntax_trees, input)?;
@@ -172,6 +181,7 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`invariant`",
         "`library`",
         "`measure`",
+        "`host`",
         "`module`",
         "`operator`",
         "`package`",
@@ -182,6 +192,57 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`boundary operator`",
         "`boundary trait`",
     ]))
+}
+
+fn parse_host_provider_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HostProviderDefinition> {
+    let (target, input) = input.take_identifier()?;
+    let input = input.take_contextual("provides")?;
+    let (boundary_trait, mut input) = parse_path_handle_span(input, |member| {
+        syntax_trees.items.append_identifier_path_member(member)
+    })?;
+    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+
+    let mut mapping_start = omega_core::arena::Handle::invalid();
+    let mut mapping_count = 0u32;
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        let (machine, rest) = input.take_identifier()?;
+        let rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
+        let rest = rest.take_contextual("syscall")?;
+        let (value, rest) = rest.take_integer()?;
+        let rest = take_optional_semicolon(rest)?;
+        let handle = syntax_trees
+            .items
+            .append_host_provider_mapping(HostProviderMapping {
+                machine,
+                kind: HostProviderMappingKind::Syscall,
+                value,
+            });
+        if mapping_count == 0 {
+            mapping_start = handle;
+        }
+        mapping_count = mapping_count
+            .checked_add(1)
+            .expect("host provider mapping span count overflow");
+        input = rest;
+    }
+
+    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let mappings = if mapping_count == 0 {
+        omega_core::arena::HandleSpan::empty()
+    } else {
+        omega_core::arena::HandleSpan::from_parts(mapping_start, mapping_count)
+    };
+    Ok((
+        HostProviderDefinition {
+            target,
+            boundary_trait,
+            mappings,
+        },
+        input,
+    ))
 }
 
 fn parse_module_declaration<'tokens, 'source>(

@@ -260,8 +260,7 @@ fn parse_parameter_type_reference<'tokens, 'source>(
         return Ok((type_reference, false, input));
     }
 
-    let (type_reference, input) =
-        parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
+    let (type_reference, input) = parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
     let borrowed_mutable = matches!(
         syntax_trees.type_references.type_reference(type_reference),
         omega_syntax_trees::types::TypeReferenceNode::Reference {
@@ -269,9 +268,5 @@ fn parse_parameter_type_reference<'tokens, 'source>(
             ..
         }
     );
-    Ok((
-        type_reference,
-        borrowed_mutable,
-        input,
-    ))
+    Ok((type_reference, borrowed_mutable, input))
 }

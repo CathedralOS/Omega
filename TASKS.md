@@ -70,9 +70,17 @@ Implementation slices below build against these. Minor/easily-reversible details
 **Recent canary promotions.** Numeric literal suffixes (`3i32`, `3.0real`,
 `3nat`), newline-separated proof facts, field `+=` assignment, relax scope syntax
 (`relax target { ... }`), relaxed borrow parameter spelling (`&mut relaxed T`),
-and trait `default machine` syntax now compile in the active pass suite. Full
-canary suite was last green locally at 106 passed before the trait default
-promotion; rerun after this checkpoint.
+trait `default machine` syntax, and top-level
+`host <target> provides <Trait> { machine -> syscall N; }` provider metadata now
+compile in the active pass suite. Full canary suite was last green locally at
+106 passed after the trait default promotion; rerun after the host-provider
+checkpoint.
+
+**Host-provider semantics follow-up.** Current host-provider support is
+syntax-preserving metadata: it parses and snapshots syscall mapping rows, but
+semantic lowering still ignores the item. Boundary-provider registry validation,
+target-package whitelisting, syscall/import lowering, and boundary report
+integration still need the real implementation.
 
 **Trait default semantics follow-up.** Current `default machine` support is
 structural: the marker flows through syntax/resolved/typed signatures and the

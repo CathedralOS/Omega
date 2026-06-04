@@ -4231,12 +4231,6 @@ struct PendingCanary {
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // --- Language-guide chapter coverage (Ch1-22) ---
     PendingCanary {
-        path: "capabilities/host_provides_syscall_mapping",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "found keyword `host`",
-        },
-    },
-    PendingCanary {
         path: "concurrency/barrier_wait_contract",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected identifier, found numeric literal `4`",

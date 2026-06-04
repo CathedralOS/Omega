@@ -3,8 +3,8 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember, Item,
-    LibraryFunction, ProofFact, StateParameterNode, StateSignature,
+    BoundaryLevel, CapabilityContract, CapabilityContractKind, CapabilityMember, DataMember,
+    HostProviderMappingKind, Item, LibraryFunction, ProofFact, StateParameterNode, StateSignature,
 };
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use crate::syntax_trees::SyntaxTrees;
@@ -90,6 +90,11 @@ pub enum ItemSnapshot {
     Provider {
         name: Vec<IdentifierSnapshot>,
         category: &'static str,
+    },
+    HostProvider {
+        target: IdentifierSnapshot,
+        boundary_trait: Vec<IdentifierSnapshot>,
+        mappings: Vec<HostProviderMappingSnapshot>,
     },
     Export {
         path: Vec<IdentifierSnapshot>,
@@ -225,6 +230,13 @@ pub struct TargetHostSnapshot {
 pub struct TargetHostSettingSnapshot {
     pub name: IdentifierSnapshot,
     pub value: TargetHostSettingValueSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct HostProviderMappingSnapshot {
+    pub machine: IdentifierSnapshot,
+    pub kind: &'static str,
+    pub value: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -562,6 +574,26 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Provider(value) => ItemSnapshot::Provider {
             name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.name)),
             category: value.category.name(),
+        },
+        Item::HostProvider(value) => ItemSnapshot::HostProvider {
+            target: snapshot_identifier(&value.target),
+            boundary_trait: snapshot_identifier_slice(
+                syntax_trees
+                    .items
+                    .identifier_path_members(value.boundary_trait),
+            ),
+            mappings: syntax_trees
+                .items
+                .host_provider_mappings(value.mappings)
+                .iter()
+                .map(|mapping| HostProviderMappingSnapshot {
+                    machine: snapshot_identifier(&mapping.machine),
+                    kind: match mapping.kind {
+                        HostProviderMappingKind::Syscall => "syscall",
+                    },
+                    value: mapping.value,
+                })
+                .collect(),
         },
         Item::Export(value) => ItemSnapshot::Export {
             path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
@@ -964,7 +996,9 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 .items
                 .statements(value.statements)
                 .iter()
-                .map(|handle| snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle)))
+                .map(|handle| {
+                    snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle))
+                })
                 .collect(),
         },
         StatementNode::Transition(value) => StatementSnapshot::Transition {
