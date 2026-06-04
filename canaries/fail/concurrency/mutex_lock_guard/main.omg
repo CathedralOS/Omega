@@ -1,4 +1,4 @@
-// PENDING canary (ch17 "Waitable Contracts" / ch16 "Cleanup Machines"):
+// FAIL canary (ch17 "Waitable Contracts" / ch16 "Cleanup Machines"):
 // `Mutex<T>::lock` is a waitable that returns a `MutexGuard<T>` owning the unlock
 // obligation. The `Mutex<T>` / `MutexGuard<T>` runtime types are not provided, so
 // binding a guard local of that type is rejected as an unknown generic type.
