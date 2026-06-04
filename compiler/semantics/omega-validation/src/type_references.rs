@@ -2,6 +2,7 @@ use crate::StateSignatureOwner;
 use crate::symbols::TopLevelSymbols;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
+use omega_typed_trees::data::TypeParameter;
 use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use std::fmt;
 
@@ -182,6 +183,26 @@ pub(crate) fn validate_type_reference_handle(
         diagnostics,
         owner,
         false,
+        TypeParameterScope::empty(),
+    );
+}
+
+pub(crate) fn validate_type_reference_handle_with_type_parameters(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: TypeReferenceOwner<'_>,
+    type_parameters: &[TypeParameter],
+) {
+    validate_type_reference_handle_with_context(
+        program,
+        type_reference,
+        symbols,
+        diagnostics,
+        owner,
+        false,
+        TypeParameterScope { type_parameters },
     );
 }
 
@@ -192,6 +213,7 @@ fn validate_type_reference_handle_with_context(
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
     allow_bare_str: bool,
+    type_parameter_scope: TypeParameterScope<'_>,
 ) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
@@ -202,6 +224,7 @@ fn validate_type_reference_handle_with_context(
                 diagnostics,
                 owner,
                 type_reference_is_named_str(program, *referee),
+                type_parameter_scope,
             );
         }
         TypeReferenceNode::Constrained {
@@ -215,6 +238,7 @@ fn validate_type_reference_handle_with_context(
                 diagnostics,
                 owner,
                 allow_bare_str,
+                type_parameter_scope,
             );
             validate_type_constraints_node(program, *base_type, *constraints, diagnostics, owner);
         }
@@ -226,6 +250,7 @@ fn validate_type_reference_handle_with_context(
                 diagnostics,
                 owner,
                 false,
+                type_parameter_scope,
             );
         }
         TypeReferenceNode::Slice { element_type } => {
@@ -236,6 +261,7 @@ fn validate_type_reference_handle_with_context(
                 diagnostics,
                 owner,
                 false,
+                type_parameter_scope,
             );
         }
         TypeReferenceNode::Generic {
@@ -243,7 +269,7 @@ fn validate_type_reference_handle_with_context(
             arguments,
             ..
         } => {
-            if !symbols.has_type(base_name) {
+            if !symbols.has_type(base_name) && !type_parameter_scope.contains(base_name.as_str()) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown generic type `{base_name}`"
                 )));
@@ -253,12 +279,14 @@ fn validate_type_reference_handle_with_context(
                 .type_reference_table
                 .type_reference_handles(*arguments)
             {
-                validate_type_reference_handle(
+                validate_type_reference_handle_with_context(
                     program,
                     *argument,
                     symbols,
                     diagnostics,
                     owner.generic_argument(),
+                    false,
+                    type_parameter_scope,
                 );
             }
         }
@@ -270,13 +298,32 @@ fn validate_type_reference_handle_with_context(
                 return;
             }
 
-            if !symbols.has_type(name) {
+            if !symbols.has_type(name) && !type_parameter_scope.contains(name.as_str()) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown data type `{name}`"
                 )));
             }
         }
         TypeReferenceNode::Unit => {}
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TypeParameterScope<'program> {
+    type_parameters: &'program [TypeParameter],
+}
+
+impl TypeParameterScope<'_> {
+    fn empty() -> Self {
+        Self {
+            type_parameters: &[],
+        }
+    }
+
+    fn contains(self, name: &str) -> bool {
+        self.type_parameters
+            .iter()
+            .any(|parameter| parameter.name.as_str() == name)
     }
 }
 

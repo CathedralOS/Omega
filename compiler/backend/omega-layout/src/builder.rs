@@ -22,6 +22,9 @@ pub fn build_layout_plan(
     let mut builder = LayoutBuilder::new(program, target);
 
     for data_definition in program.data_definitions() {
+        if !data_definition.type_parameters.is_empty() {
+            continue;
+        }
         builder.layout_data_definition(data_definition.symbol)?;
     }
 
@@ -53,6 +56,13 @@ struct LayoutVisitStack {
     inline: [Option<SymbolHandle>; INLINE_LAYOUT_VISIT_COUNT],
     len: usize,
     overflow: Vec<SymbolHandle>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct GenericLayoutBinding<'program> {
+    parameter_symbol: SymbolHandle,
+    parameter_name: &'program str,
+    argument: TypeReferenceHandle,
 }
 
 impl LayoutVisitStack {
@@ -372,6 +382,14 @@ impl<'program> LayoutBuilder<'program> {
         &mut self,
         type_reference: TypeReferenceHandle,
     ) -> Result<TypeLayout, Diagnostic> {
+        self.layout_type_reference_handle_with_bindings(type_reference, &[])
+    }
+
+    fn layout_type_reference_handle_with_bindings(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        bindings: &[GenericLayoutBinding<'program>],
+    ) -> Result<TypeLayout, Diagnostic> {
         match self
             .program
             .type_reference_table
@@ -382,13 +400,14 @@ impl<'program> LayoutBuilder<'program> {
                 alignment: self.target.pointer_alignment,
             }),
             TypeReferenceNode::Constrained { base_type, .. } => {
-                self.layout_type_reference_handle(*base_type)
+                self.layout_type_reference_handle_with_bindings(*base_type, bindings)
             }
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
             } => {
-                let element_layout = self.layout_type_reference_handle(*element_type)?;
+                let element_layout =
+                    self.layout_type_reference_handle_with_bindings(*element_type, bindings)?;
 
                 Ok(TypeLayout {
                     size: element_layout.size * length,
@@ -399,18 +418,30 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,
-                ..
+                arguments,
             } => {
+                if let Some(binding) = binding_for_type(*base_symbol, base_name, bindings) {
+                    return self
+                        .layout_type_reference_handle_with_bindings(binding.argument, bindings);
+                }
+
                 if let Some(layout) = self.builtin_type_layout(*base_symbol) {
                     return Ok(layout);
                 }
 
                 if base_symbol.is_valid()
                     && let Ok(definition) = self.data_definition_by_symbol(*base_symbol)
-                    && DataDefinition::shape_kind_from_members(
-                        self.program.data_members(definition),
-                    ) == DataShapeKind::Enum
                 {
+                    let members = self.program.data_members(definition);
+                    if DataDefinition::shape_kind_from_members(members) == DataShapeKind::Enum {
+                        return self.layout_data_definition(*base_symbol);
+                    }
+
+                    if !definition.type_parameters.is_empty() {
+                        return self
+                            .layout_generic_data_definition(definition, *arguments, bindings);
+                    }
+
                     return self.layout_data_definition(*base_symbol);
                 }
 
@@ -418,12 +449,82 @@ impl<'program> LayoutBuilder<'program> {
                     "native layout for generic type `{base_name}` is not implemented yet"
                 )))
             }
-            TypeReferenceNode::Named { symbol, name } => self.layout_named_type(*symbol, name),
+            TypeReferenceNode::Named { symbol, name } => {
+                if let Some(binding) = binding_for_type(*symbol, name, bindings) {
+                    return self
+                        .layout_type_reference_handle_with_bindings(binding.argument, bindings);
+                }
+
+                self.layout_named_type(*symbol, name)
+            }
             TypeReferenceNode::Unit => Ok(TypeLayout {
                 size: 0,
                 alignment: 1,
             }),
         }
+    }
+
+    fn layout_generic_data_definition(
+        &mut self,
+        definition: &'program DataDefinition,
+        arguments: omega_core::arena::HandleSpan<TypeReferenceHandle>,
+        parent_bindings: &[GenericLayoutBinding<'program>],
+    ) -> Result<TypeLayout, Diagnostic> {
+        let parameters = self.program.data_type_parameters(definition);
+        let arguments = self
+            .program
+            .type_reference_table
+            .type_reference_handles(arguments);
+        if parameters.len() != arguments.len() {
+            return Err(Diagnostic::error(format!(
+                "generic data `{}` expected {} type arguments but got {}",
+                definition.name,
+                parameters.len(),
+                arguments.len()
+            )));
+        }
+
+        let mut bindings = Vec::with_capacity(parent_bindings.len() + parameters.len());
+        bindings.extend_from_slice(parent_bindings);
+        bindings.extend(
+            parameters
+                .iter()
+                .zip(arguments.iter())
+                .map(|(parameter, argument)| GenericLayoutBinding {
+                    parameter_symbol: parameter.symbol,
+                    parameter_name: parameter.name.as_str(),
+                    argument: *argument,
+                }),
+        );
+
+        let fields = self
+            .program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Field(field) => Some(field),
+                DataMember::Variant(_) => None,
+            })
+            .map(|field| {
+                let layout = self
+                    .layout_type_reference_handle_with_bindings(field.type_reference, &bindings)?;
+                Ok(PlannedField {
+                    symbol: field.symbol,
+                    name: field.name.clone(),
+                    type_symbol: self.program.type_reference_symbol(field.type_reference),
+                    type_name: self
+                        .program
+                        .display_type_reference_with_constraints(field.type_reference)
+                        .into(),
+                    type_descriptor: self.type_descriptor(field.type_reference),
+                    layout,
+                })
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let mut scratch_fields = Arena::with_capacity(fields.len());
+        let (_, layout) = pack_fields(&mut scratch_fields, fields);
+
+        Ok(layout)
     }
 
     fn layout_named_type(
@@ -577,4 +678,18 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::Unit => TypeLayoutDescriptor::Unit,
         }
     }
+}
+
+fn binding_for_type<'program>(
+    symbol: SymbolHandle,
+    name: &str,
+    bindings: &[GenericLayoutBinding<'program>],
+) -> Option<GenericLayoutBinding<'program>> {
+    bindings
+        .iter()
+        .find(|binding| {
+            (symbol.is_valid() && binding.parameter_symbol == symbol)
+                || binding.parameter_name == name
+        })
+        .copied()
 }
