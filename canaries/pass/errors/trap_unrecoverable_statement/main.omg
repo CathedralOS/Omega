@@ -1,0 +1,9 @@
+// A `trap` is an unrecoverable, unwind-free hard stop for the current machine
+// invocation. The parser lowers it to the existing terminal transition target.
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    trap
+}

@@ -8,7 +8,8 @@ use omega_syntax_trees::expression::{
     TableIndexedExpression, TableMemberExpression,
 };
 use omega_syntax_trees::statement::{
-    StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData,
+    StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData, TableTransition,
+    TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -19,6 +20,28 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Let) {
         let input = input.take_keyword(KeywordKind::Let, "let")?;
         return parse_local_data_statement_handle(syntax_trees, input);
+    }
+
+    if input.at_contextual("trap") {
+        let input = input.take_contextual("trap")?;
+        let input = if input.at_punctuation(PunctuationKind::Semicolon) {
+            input.take_punctuation(PunctuationKind::Semicolon, ";")?
+        } else {
+            input
+        };
+        let target = syntax_trees
+            .statements
+            .insert_transition_target(TransitionTargetNode::Terminal);
+        return Ok((
+            syntax_trees
+                .statements
+                .insert(StatementNode::Transition(TableTransition {
+                    target,
+                    continuation: TransitionTargetHandle::invalid(),
+                    guard: TransitionGuardNode::Always,
+                })),
+            input,
+        ));
     }
 
     let (expression, input) = parse_expression_handle(syntax_trees, input)?;
