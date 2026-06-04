@@ -4066,6 +4066,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "core/local_value_intro_compile",
     "core/self_read_only_receiver_compile",
     "domains/match_domain_patterns",
+    "domains/match_interleaved_domain_data_guard",
     "drops/cleanup_machine_drop_shape",
     "drops/drop_ensures_domain_membership",
     "drops/drop_ensures_unlocked_predicate",
@@ -4261,12 +4262,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "concurrency/spawn_statement_block",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected identifier, found keyword `self`",
-        },
-    },
-    PendingCanary {
-        path: "domains/match_interleaved_domain_data_guard",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected transition pattern",
         },
     },
     PendingCanary {

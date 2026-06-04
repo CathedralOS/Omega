@@ -1,12 +1,16 @@
 use crate::parse_error::ParseError;
 use crate::parser::expression::parse_expression_handle_without_struct_literals;
-use crate::parser::input::{Input, ParseResult};
+use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
+use omega_core::arena::HandleSpan;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
+    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableMembershipExpression,
+    TableRangeExpression, TableStructLiteral, TableStructLiteralField, TableUnaryExpression,
 };
+use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::statement::TransitionGuardNode;
-use omega_tokens::PunctuationKind;
+use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_transition_guard_node<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -15,6 +19,12 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
 ) -> Result<(TransitionGuardNode, Input<'tokens, 'source>), ParseError> {
     let (pattern_input, rest) =
         input.split_at_top_level_punctuation(PunctuationKind::Arrow, "expected `->`")?;
+    if subject.len() == 1
+        && let Some(guard) = parse_data_destructure_guard(syntax_trees, pattern_input, subject[0])?
+    {
+        return Ok((TransitionGuardNode::When(guard), rest));
+    }
+
     let (patterns, pattern_rest) = parse_transition_pattern_list(syntax_trees, pattern_input)?;
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected transition pattern"));
@@ -150,6 +160,277 @@ where
 
     let (expression, input) = parse_expression_handle_without_struct_literals(syntax_trees, input)?;
     Ok((T::from_expression(expression), input))
+}
+
+fn parse_data_destructure_guard<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    subject: ExpressionHandle,
+) -> Result<Option<ExpressionHandle>, ParseError> {
+    let Some(if_index) = find_top_level_keyword(input, KeywordKind::If) else {
+        return Ok(None);
+    };
+
+    let (pattern_tokens, guard_tokens_with_if) = input.tokens.split_at(if_index);
+    let pattern_input = Input::new(input.source_id, pattern_tokens);
+    let guard_input = Input::new(
+        input.source_id,
+        guard_tokens_with_if
+            .get(1..)
+            .expect("if keyword split should include guard tokens"),
+    );
+
+    let (fields, pattern_rest) =
+        parse_data_destructure_pattern_fields(syntax_trees, pattern_input)?;
+    if !pattern_rest.tokens.is_empty() {
+        return Err(pattern_rest.error_here("expected data destructure pattern"));
+    }
+    let (guard, rest) = parse_expression_handle_without_struct_literals(syntax_trees, guard_input)?;
+    if !rest.tokens.is_empty() {
+        return Err(rest.error_here("expected transition pattern guard"));
+    }
+
+    Ok(Some(rewrite_destructure_guard_expression(
+        syntax_trees,
+        guard,
+        subject,
+        &fields,
+    )))
+}
+
+fn find_top_level_keyword(input: Input<'_, '_>, keyword: KeywordKind) -> Option<usize> {
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut brace_depth = 0usize;
+
+    for (index, token) in input.tokens.iter().enumerate() {
+        match token.punctuation() {
+            Some(PunctuationKind::LeftParen) => paren_depth += 1,
+            Some(PunctuationKind::RightParen) => paren_depth = paren_depth.saturating_sub(1),
+            Some(PunctuationKind::LeftBracket) => bracket_depth += 1,
+            Some(PunctuationKind::RightBracket) => bracket_depth = bracket_depth.saturating_sub(1),
+            Some(PunctuationKind::LeftBrace) => brace_depth += 1,
+            Some(PunctuationKind::RightBrace) => brace_depth = brace_depth.saturating_sub(1),
+            _ => {}
+        }
+
+        if token.keyword() == Some(keyword)
+            && paren_depth == 0
+            && bracket_depth == 0
+            && brace_depth == 0
+        {
+            return Some(index);
+        }
+    }
+
+    None
+}
+
+fn parse_data_destructure_pattern_fields<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Vec<Identifier>> {
+    let (_, input) = parse_path_handle_span(input, |member| {
+        syntax_trees
+            .expressions
+            .append_identifier_path_member(member)
+    })?;
+    let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut fields = Vec::new();
+
+    while !input.at_punctuation(PunctuationKind::RightBrace) {
+        if input.at_punctuation(PunctuationKind::DotDot) {
+            input = input.take_punctuation(PunctuationKind::DotDot, "..")?;
+        } else {
+            let (field, rest) = input.take_identifier()?;
+            fields.push(field);
+            input = rest;
+        }
+
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+        } else {
+            break;
+        }
+    }
+
+    input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    Ok((fields, input))
+}
+
+fn rewrite_destructure_guard_expression(
+    syntax_trees: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+    subject: ExpressionHandle,
+    fields: &[Identifier],
+) -> ExpressionHandle {
+    let rewritten = match syntax_trees.expressions.expression(expression).clone() {
+        ExpressionNode::ArrayLiteral(values) => {
+            let source_values = syntax_trees.expressions.expression_handles(values).to_vec();
+            let values = source_values
+                .iter()
+                .map(|value| {
+                    rewrite_destructure_guard_expression(syntax_trees, *value, subject, fields)
+                })
+                .collect::<Vec<_>>();
+            ExpressionNode::ArrayLiteral(syntax_trees.expressions.insert_expression_handles(values))
+        }
+        ExpressionNode::Binary(binary) => ExpressionNode::Binary(TableBinaryExpression {
+            left: rewrite_destructure_guard_expression(syntax_trees, binary.left, subject, fields),
+            operator: binary.operator,
+            right: rewrite_destructure_guard_expression(
+                syntax_trees,
+                binary.right,
+                subject,
+                fields,
+            ),
+        }),
+        ExpressionNode::Call(call) => ExpressionNode::Call(TableCallExpression {
+            receiver: rewrite_optional_expression(syntax_trees, call.receiver, subject, fields),
+            target: call.target,
+            arguments: rewrite_expression_span(syntax_trees, call.arguments, subject, fields),
+        }),
+        ExpressionNode::Cast(cast) => ExpressionNode::Cast(TableCastExpression {
+            value: rewrite_destructure_guard_expression(syntax_trees, cast.value, subject, fields),
+            target_type: cast.target_type,
+        }),
+        ExpressionNode::Indexed(indexed) => ExpressionNode::Indexed(TableIndexedExpression {
+            collection: rewrite_destructure_guard_expression(
+                syntax_trees,
+                indexed.collection,
+                subject,
+                fields,
+            ),
+            index: rewrite_destructure_guard_expression(
+                syntax_trees,
+                indexed.index,
+                subject,
+                fields,
+            ),
+        }),
+        ExpressionNode::Membership(membership) => {
+            ExpressionNode::Membership(TableMembershipExpression {
+                value: rewrite_destructure_guard_expression(
+                    syntax_trees,
+                    membership.value,
+                    subject,
+                    fields,
+                ),
+                domain: membership.domain,
+            })
+        }
+        ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
+            receiver: rewrite_destructure_guard_expression(
+                syntax_trees,
+                member.receiver,
+                subject,
+                fields,
+            ),
+            member: member.member,
+        }),
+        ExpressionNode::Mutable(inner) => ExpressionNode::Mutable(
+            rewrite_destructure_guard_expression(syntax_trees, inner, subject, fields),
+        ),
+        ExpressionNode::Name(path) => {
+            if let Some(field) = single_destructured_field_name(syntax_trees, path, fields) {
+                ExpressionNode::Member(TableMemberExpression {
+                    receiver: subject,
+                    member: field,
+                })
+            } else {
+                ExpressionNode::Name(path)
+            }
+        }
+        ExpressionNode::Range(range) => ExpressionNode::Range(TableRangeExpression {
+            start: rewrite_optional_expression(syntax_trees, range.start, subject, fields),
+            end: rewrite_optional_expression(syntax_trees, range.end, subject, fields),
+            end_inclusive: range.end_inclusive,
+        }),
+        ExpressionNode::StructLiteral(struct_literal) => {
+            let source_fields = syntax_trees
+                .expressions
+                .struct_fields(struct_literal.fields)
+                .to_vec();
+            let struct_fields = source_fields
+                .iter()
+                .map(|field| TableStructLiteralField {
+                    name: field.name.clone(),
+                    value: rewrite_destructure_guard_expression(
+                        syntax_trees,
+                        field.value,
+                        subject,
+                        fields,
+                    ),
+                })
+                .collect::<Vec<_>>();
+            ExpressionNode::StructLiteral(TableStructLiteral {
+                type_name: struct_literal.type_name,
+                fields: syntax_trees.expressions.insert_struct_fields(struct_fields),
+            })
+        }
+        ExpressionNode::Unary(unary) => ExpressionNode::Unary(TableUnaryExpression {
+            operator: unary.operator,
+            operand: rewrite_destructure_guard_expression(
+                syntax_trees,
+                unary.operand,
+                subject,
+                fields,
+            ),
+        }),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::SelfValue
+        | ExpressionNode::String(_) => syntax_trees.expressions.expression(expression).clone(),
+    };
+
+    syntax_trees.expressions.insert(rewritten)
+}
+
+fn rewrite_optional_expression(
+    syntax_trees: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+    subject: ExpressionHandle,
+    fields: &[Identifier],
+) -> ExpressionHandle {
+    if expression.is_valid() {
+        rewrite_destructure_guard_expression(syntax_trees, expression, subject, fields)
+    } else {
+        expression
+    }
+}
+
+fn rewrite_expression_span(
+    syntax_trees: &mut SyntaxTrees,
+    expressions: HandleSpan<ExpressionHandle>,
+    subject: ExpressionHandle,
+    fields: &[Identifier],
+) -> HandleSpan<ExpressionHandle> {
+    let source_expressions = syntax_trees
+        .expressions
+        .expression_handles(expressions)
+        .to_vec();
+    let expressions = source_expressions
+        .iter()
+        .map(|expression| {
+            rewrite_destructure_guard_expression(syntax_trees, *expression, subject, fields)
+        })
+        .collect::<Vec<_>>();
+    syntax_trees
+        .expressions
+        .insert_expression_handles(expressions)
+}
+
+fn single_destructured_field_name(
+    syntax_trees: &SyntaxTrees,
+    path: HandleSpan<Identifier>,
+    fields: &[Identifier],
+) -> Option<Identifier> {
+    let members = syntax_trees.expressions.identifier_path_members(path);
+    let [member] = members else {
+        return None;
+    };
+    fields.iter().find(|field| *field == member).cloned()
 }
 
 trait FromTransitionMatchComponent {
