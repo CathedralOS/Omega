@@ -22,6 +22,7 @@ pub enum Item {
     Operator(OperatorDefinition),
     Package(PackageDeclaration),
     Provider(ProviderDeclaration),
+    HostProvider(HostProviderDefinition),
     Export(ExportItem),
     Use(UseItem),
     Machine(Machine),
@@ -45,6 +46,26 @@ impl Default for ProviderDeclaration {
             category: ProviderCategory::SliceIndexing,
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HostProviderDefinition {
+    pub target: Identifier,
+    pub boundary_trait: HandleSpan<Identifier>,
+    pub mappings: HandleSpan<HostProviderMapping>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HostProviderMapping {
+    pub machine: Identifier,
+    pub kind: HostProviderMappingKind,
+    pub value: i64,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum HostProviderMappingKind {
+    #[default]
+    Syscall,
 }
 
 impl Default for Item {
@@ -483,6 +504,7 @@ struct DeclarationStorage {
     capability_members: Arena<CapabilityMember>,
     capability_contracts: Arena<CapabilityContract>,
     data_members: Arena<DataMember>,
+    host_provider_mappings: Arena<HostProviderMapping>,
     operators: Arena<OperatorDefinition>,
     measures: Arena<MeasureDefinition>,
     proof_facts: Arena<ProofFact>,
@@ -564,6 +586,15 @@ impl ItemTable {
 
     pub fn data_members(&self, span: HandleSpan<DataMember>) -> &[DataMember] {
         self.declaration_storage.data_members.span_or_empty(span)
+    }
+
+    pub fn host_provider_mappings(
+        &self,
+        span: HandleSpan<HostProviderMapping>,
+    ) -> &[HostProviderMapping] {
+        self.declaration_storage
+            .host_provider_mappings
+            .span_or_empty(span)
     }
 
     pub fn operators(&self, span: HandleSpan<OperatorDefinition>) -> &[OperatorDefinition] {
@@ -718,6 +749,15 @@ impl ItemTable {
         self.declaration_storage.data_members.append(member)
     }
 
+    pub fn append_host_provider_mapping(
+        &mut self,
+        mapping: HostProviderMapping,
+    ) -> Handle<HostProviderMapping> {
+        self.declaration_storage
+            .host_provider_mappings
+            .append(mapping)
+    }
+
     pub fn append_operator(&mut self, operator: OperatorDefinition) -> Handle<OperatorDefinition> {
         self.declaration_storage.operators.append(operator)
     }
@@ -827,6 +867,7 @@ impl DeclarationStorage {
             capability_members: Arena::new(),
             capability_contracts: Arena::new(),
             data_members: Arena::new(),
+            host_provider_mappings: Arena::new(),
             operators: Arena::new(),
             measures: Arena::new(),
             proof_facts: Arena::new(),

@@ -369,6 +369,7 @@ fn item_kind(item: &Item) -> &'static str {
         Item::Module(_) => "module",
         Item::Operator(_) => "operator",
         Item::Package(_) => "package",
+        Item::HostProvider(_) => "host_provider",
         Item::Trait(_) => "trait",
         _ => "state",
     }
@@ -521,6 +522,21 @@ fn item_label(syntax: &SyntaxTrees, item: &Item) -> String {
                 .collect::<Vec<_>>()
                 .join("::");
             format!("provider {name}\ncategory: {}", value.category.name())
+        }
+        Item::HostProvider(value) => {
+            let boundary_trait = syntax
+                .items
+                .identifier_path_members(value.boundary_trait)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::");
+            format!(
+                "host {} provides {}\nmappings: {}",
+                value.target.as_str(),
+                boundary_trait,
+                value.mappings.len()
+            )
         }
         Item::Export(value) => {
             let path = syntax

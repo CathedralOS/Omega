@@ -62,6 +62,7 @@ pub(crate) fn lower_item(
         | syntax::item::Item::Module(_)
         | syntax::item::Item::Package(_)
         | syntax::item::Item::Provider(_)
+        | syntax::item::Item::HostProvider(_)
         | syntax::item::Item::Export(_)
         | syntax::item::Item::Library(_)
         | syntax::item::Item::Target(_)

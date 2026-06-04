@@ -135,6 +135,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                 }
             }
             Item::Provider(_)
+            | Item::HostProvider(_)
             | Item::Use(_)
             | Item::Export(_)
             | Item::Measure(_)

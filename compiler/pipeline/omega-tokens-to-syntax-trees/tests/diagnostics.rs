@@ -15,7 +15,7 @@ fn top_level_item_error_lists_expected_items() {
     let message = parse_error_message("{");
     assert_eq!(
         message,
-        "expected one of `use`, `export`, `data`, `domain`, `enum`, `abi`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `module`, `operator`, `package`, `platform`, `pub`, `provider`, `trait`, `boundary operator`, `boundary trait`, found punctuation `{`"
+        "expected one of `use`, `export`, `data`, `domain`, `enum`, `abi`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `pub`, `provider`, `trait`, `boundary operator`, `boundary trait`, found punctuation `{`"
     );
 }
 

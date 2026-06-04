@@ -153,6 +153,21 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             syntax_trees.items.identifier_path_members(provider.name),
             counts,
         ),
+        Item::HostProvider(host_provider) => {
+            count_identifier(&host_provider.target, counts);
+            count_identifier_members(
+                syntax_trees
+                    .items
+                    .identifier_path_members(host_provider.boundary_trait),
+                counts,
+            );
+            for mapping in syntax_trees
+                .items
+                .host_provider_mappings(host_provider.mappings)
+            {
+                count_identifier(&mapping.machine, counts);
+            }
+        }
         Item::Use(use_item) => count_identifier_members(
             syntax_trees.items.identifier_path_members(use_item.path),
             counts,
