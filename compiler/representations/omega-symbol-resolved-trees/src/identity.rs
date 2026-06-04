@@ -139,6 +139,9 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
 
     for machine in &program.machines {
         count_declaration_name(&machine.name, &mut counts);
+        if machine.abi.is_some() {
+            counts.string_literals += 1;
+        }
         for parameter in program.machine_type_parameters(machine) {
             count_declaration_name(&parameter.name, &mut counts);
         }

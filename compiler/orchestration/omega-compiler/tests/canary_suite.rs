@@ -4084,6 +4084,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/generic_machine_where_trait_bound",
     "generics/generic_trait_type_param",
     "generics/generic_type_param_in_state",
+    "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",
     "modules/use_imports_sibling_data",
     "modules/use_imports_sibling_trait",
@@ -4310,12 +4311,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "inline_asm/asm_where_contract",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `;`, found identifier `where`",
-        },
-    },
-    PendingCanary {
-        path: "memory/abi_calling_convention_machine",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "found identifier `abi`",
         },
     },
     PendingCanary {

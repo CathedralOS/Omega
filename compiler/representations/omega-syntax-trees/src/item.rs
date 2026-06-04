@@ -407,6 +407,7 @@ impl Default for ProofMembershipFact {
 pub struct Machine {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
+    pub abi: Option<String>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub satisfies: HandleSpan<Identifier>,
     pub terminates: bool,

@@ -1,6 +1,6 @@
 // Chapter 19 "Calling Conventions": host and exported ABI machines must declare a
 // calling convention via an `abi "<triple>"` modifier plus `boundary host`. This
-// ABI-declaration syntax is documented as provisional and is not yet parsed.
+// canary proves the syntax is parsed and carried through the compiler pipeline.
 
 abi "aarch64-darwin"
 machine Host::write(fd: i32, buffer: &[u8]) -> i32
