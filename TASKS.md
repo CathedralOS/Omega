@@ -80,10 +80,13 @@ pass suite. Trailing machine version selectors like `Counter::increment::v1`
 now split structurally as an attached-data method instead of treating `v1` as
 the entry state. Single-subject transition match arms can now parse data
 destructure guards such as `Player { health, .. } if health > 5` by rewriting
-the destructured guard name to the matched subject field. Full canary suite is
-green locally at 106 Rust tests passing after the dyn-trait checkpoint; pass
-canary count can increase without changing the
-Rust harness test count because many canaries are batched.
+the destructured guard name to the matched subject field. Vec slice-view
+invalidation now rejects through source-visible `Vec<T>::push`, and the last
+physical pending canaries were promoted to active fail coverage for expression
+`match` and version migration matching. Full canary suite is green locally at
+106 Rust tests passing; pass/fail canary counts can change without changing the
+Rust harness test count because many canaries are batched. There are currently
+no files under `canaries/pending`.
 
 **Inline asm control-flow follow-up.** Current inline asm support is deliberately
 narrow: `asm { jmp state(...) }` parses and lowers to an ordinary Omega
@@ -377,8 +380,8 @@ under full-suite parallelism (build-dir race); it passes run alone / with
   still need runtime verification after the zero-byte relocation fix).
 - [ ] Generalize start-only/end-only/bounded descriptors beyond literal
   fixed-array-backed views.
-- [ ] Promote pending subslice canaries into pass/fail suites as descriptor
-  lowering becomes real.
+- [ ] Add focused pass/fail canaries for each newly supported subslice descriptor
+  lowering shape as it becomes real.
 - [ ] Keep backend reports explicit about descriptor construction and mutation.
 
 ### Measures, Orderings, And Rankings
@@ -457,8 +460,9 @@ under full-suite parallelism (build-dir race); it passes run alone / with
   implementation behind. Promote pending quickly when fixed; don't let
   compile-only pass canaries imply runtime support.
 - Current local suite status: `cargo test -p omega-compiler --test canary_suite`
-  passes all active canaries. Keep this line current when backend/runtime work
-  moves canaries between `pass`, `fail`, and `pending`.
+  passes all active canaries, with no registered pending canaries. Keep this
+  line current when backend/runtime work moves canaries between `pass`, `fail`,
+  and `pending`.
 
 ### Docs
 
