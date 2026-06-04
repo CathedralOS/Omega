@@ -348,10 +348,11 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     append_load_reg_from_r15(&mut bytes, Reg64::R10, byte_offset, byte_size)?;
     append_mov_reg_imm64(&mut bytes, Reg64::R11, expected_value as u64);
     append_cmp_r10_r11(&mut bytes, byte_size)?;
-    // `skip_byte_distance` is measured from instruction start + 16 (the AArch64
-    // conditional-branch position). On x86_64 the jcc ends at instruction start
-    // + 36, so adjust the relative target by the 20-byte difference.
-    append_failure_branch(&mut bytes, operator, skip_byte_distance - 20)?;
+    // `skip_byte_distance` is anchored at the instruction's rel32 field start
+    // (`current.offset + byte_width - 4`, now architecture-aware in the branch-
+    // distance helper). The jcc rel is measured from the field's end, 4 bytes
+    // later, so the relative target is `skip_byte_distance - 4`.
+    append_failure_branch(&mut bytes, operator, skip_byte_distance - 4)?;
     debug_assert_eq!(bytes.len(), dispatch_guard_compare_static_width());
     Ok(bytes)
 }
