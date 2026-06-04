@@ -4145,6 +4145,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/bare_machine_arrow_transition",
     "control_flow/bare_state_arrow_transition",
     "inline_asm/asm_label_loop",
+    "inline_asm/asm_structured_ldr_str",
+    "inline_asm/asm_where_contract",
     "control_flow/termination_countdown_stalled_decrease",
     "control_flow/termination_cycle_missing_decreases",
     "termination/custom_ranking_field_stalled_decrease",
@@ -4270,18 +4272,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "expressions/match_expression_value",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `;`, found identifier `command`",
-        },
-    },
-    PendingCanary {
-        path: "inline_asm/asm_structured_ldr_str",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "asm blocks currently support only `jmp` transition statements",
-        },
-    },
-    PendingCanary {
-        path: "inline_asm/asm_where_contract",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "asm where contracts are not implemented yet",
         },
     },
     PendingCanary {
