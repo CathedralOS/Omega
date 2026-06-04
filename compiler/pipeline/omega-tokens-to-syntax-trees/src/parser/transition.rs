@@ -12,7 +12,7 @@ mod guards;
 mod targets;
 
 use guards::{parse_transition_expression_list, parse_transition_guard_node};
-use targets::parse_transition_block_target_handle;
+pub(super) use targets::parse_transition_block_target_handle;
 
 pub(super) fn parse_transition_block_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
