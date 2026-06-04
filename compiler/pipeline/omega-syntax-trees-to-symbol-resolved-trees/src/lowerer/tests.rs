@@ -259,6 +259,41 @@ fn lowers_attached_main_state_name_as_main() {
 }
 
 #[test]
+fn lowers_version_scoped_machine_as_attached_data_method() {
+    let source = r#"
+    data Counter {
+        counter: i32;
+    }
+
+    machine Counter::increment::v1(&mut self) {
+        self.counter = self.counter + 1;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+
+    assert_eq!(program.machines.len(), 1);
+    assert_eq!(program.machines[0].name.as_str(), "Counter::increment::v1");
+    assert_eq!(
+        program.machines[0]
+            .attached_data
+            .as_ref()
+            .map(|name| name.as_str()),
+        Some("Counter")
+    );
+    let state = program
+        .machine_state_handles(program.machines[0].states)
+        .first()
+        .map(|state| program.machine_state(*state))
+        .expect("entry state");
+    assert_eq!(state.name.as_str(), "increment");
+}
+
+#[test]
 fn resolves_self_parameter_type_to_machine_symbol() {
     let source = r#"
     data Main {

@@ -76,7 +76,9 @@ parameters usable as symbolic fixed-array lengths, and top-level
 plus `wire data` schemas with encoding, numbered fields, reserved tags, and
 version blocks, plus `data` historical `version` blocks, plus `&mut dyn Trait`
 parameters and trait-method calls on dyn receivers now compile in the active
-pass suite. Full canary suite is green locally at 106 Rust tests passing after
+pass suite. Trailing machine version selectors like `Counter::increment::v1`
+now split structurally as an attached-data method instead of treating `v1` as
+the entry state. Full canary suite is green locally at 106 Rust tests passing after
 the dyn-trait checkpoint; pass canary count can increase without changing the
 Rust harness test count because many canaries are batched.
 
@@ -91,9 +93,12 @@ const-length facts.
 
 **Data version semantics follow-up.** Current `data version` support is syntax
 metadata only: historical member blocks are parsed/snapshotted and preserved in
-syntax trees, while symbol-resolved lowering skips them. Need validation,
-historical-shape symbols, migration matching, version-scoped machine binding,
-and layout/serialization rules before data versions are operational.
+syntax trees, while symbol-resolved lowering skips them. Version-scoped machine
+paths are recognized structurally (`Counter::increment::v1` attaches `self` to
+`Counter` and keeps `increment` as the entry), but do not yet bind to historical
+member shapes. Need validation, historical-shape symbols, migration matching,
+true version-scoped machine binding, and layout/serialization rules before data
+versions are operational.
 
 **Wire data semantics follow-up.** Current `wire data` support is syntax
 metadata only: schemas are parsed/snapshotted and preserved in syntax trees, but
