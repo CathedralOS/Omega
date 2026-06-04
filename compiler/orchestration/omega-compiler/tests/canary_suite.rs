@@ -4142,6 +4142,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/subslice_view_invalidated_by_owner_write",
     "borrow/string_view_invalidated_by_owner_write",
     "borrow/slice_view_invalidated_by_owner_call",
+    "concurrency/barrier_wait_contract",
+    "concurrency/mutex_lock_guard",
+    "concurrency/spawn_join_handle",
     "control_flow/bare_machine_arrow_transition",
     "control_flow/bare_state_arrow_transition",
     "concurrency/spawn_fire_and_forget",
@@ -4240,24 +4243,6 @@ struct PendingCanary {
 
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // --- Language-guide chapter coverage (Ch1-22) ---
-    PendingCanary {
-        path: "concurrency/barrier_wait_contract",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected identifier, found numeric literal `4`",
-        },
-    },
-    PendingCanary {
-        path: "concurrency/mutex_lock_guard",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "references unknown generic type `MutexGuard`",
-        },
-    },
-    PendingCanary {
-        path: "concurrency/spawn_join_handle",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "references unknown generic type `Join`",
-        },
-    },
     PendingCanary {
         path: "expressions/match_expression_value",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
