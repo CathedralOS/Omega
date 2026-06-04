@@ -15,6 +15,7 @@ pub(crate) fn lower_machine(
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
         attached_data: machine.attached_data.as_ref().map(crate::name::lower_name),
+        type_parameters: omega_core::arena::HandleSpan::empty(),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
         satisfies: omega_core::arena::HandleSpan::empty(),
@@ -25,6 +26,19 @@ pub(crate) fn lower_machine(
         contracts: omega_core::arena::HandleSpan::empty(),
         states: omega_core::arena::HandleSpan::empty(),
     };
+
+    for parameter in lowerer
+        .source_trees
+        .data_type_parameters(machine.type_parameters)
+    {
+        lowerer.typed_trees.push_machine_type_parameter(
+            &mut typed_machine,
+            typed::data::TypeParameter {
+                symbol: parameter.symbol,
+                name: crate::name::lower_name(&parameter.name),
+            },
+        );
+    }
 
     for contained_object in lowerer
         .source_trees

@@ -132,6 +132,9 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
 
     for machine in &program.machines {
         count_declaration_name(&machine.name, &mut counts);
+        for parameter in program.machine_type_parameters(machine) {
+            count_declaration_name(&parameter.name, &mut counts);
+        }
         for contained in program.machine_contained_objects(machine.contains) {
             count_declaration_name(&contained.name, &mut counts);
             count_type_name(&contained.type_name, &mut counts);

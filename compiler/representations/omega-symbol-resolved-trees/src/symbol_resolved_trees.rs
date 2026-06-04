@@ -230,6 +230,13 @@ impl SymbolResolvedTrees {
         self.signature_effects(machine.effects)
     }
 
+    pub fn machine_type_parameters(
+        &self,
+        machine: &crate::machine::Machine,
+    ) -> &[data::TypeParameter] {
+        self.data_type_parameters(machine.type_parameters)
+    }
+
     pub fn machine_decrease_order(
         &self,
         span: HandleSpan<crate::name::DiagnosticName>,

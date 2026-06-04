@@ -6,7 +6,7 @@ use crate::symbols::expressions::assign_expression_table_symbols;
 use crate::symbols::lookup::top_level_symbol;
 use crate::symbols::scope::MachineScope;
 use crate::symbols::top_level::next_child_of_kind;
-use crate::symbols::type_references::assign_type_reference_symbol_with_self_type;
+use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type;
 
 pub(super) fn assign_machine_symbols(
     program: &mut SymbolResolvedTrees,
@@ -16,6 +16,7 @@ pub(super) fn assign_machine_symbols(
     let tables = &mut program.tables;
     let declarations = &mut tables.declarations;
     let expression_table = &mut tables.bodies.expressions;
+    let data_type_parameters = &mut declarations.data_type_parameters;
     let data_members = &declarations.data_members;
     let machine_contained_objects = &mut declarations.machine_contained_objects;
     let machine_owned_data = &mut declarations.machine_owned_data;
@@ -40,6 +41,14 @@ pub(super) fn assign_machine_symbols(
         let machine_symbol = machine.symbol;
         let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
 
+        for type_parameter in data_type_parameters.span_mut_or_empty(machine.type_parameters) {
+            type_parameter.symbol =
+                next_child_of_kind(&mut machine_children, symbols, SymbolKind::TypeParameter);
+        }
+        let local_type_parameters = data_type_parameters
+            .span_or_empty(machine.type_parameters)
+            .to_vec();
+
         for _ in 0..inherited_field_count {
             let _ = machine_children.next();
         }
@@ -57,9 +66,10 @@ pub(super) fn assign_machine_symbols(
         for owned_data in machine_owned_data.span_mut_or_empty(machine.owned_data) {
             owned_data.symbol =
                 next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);
-            assign_type_reference_symbol_with_self_type(
+            assign_type_reference_symbol_with_locals_and_self_type(
                 symbols,
                 child_type_references,
+                &local_type_parameters,
                 machine_symbol,
                 &mut owned_data.type_reference,
             );
@@ -100,9 +110,10 @@ pub(super) fn assign_machine_symbols(
             for parameter in state_parameters.span_mut_or_empty(state.parameters) {
                 parameter.symbol =
                     next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
-                assign_type_reference_symbol_with_self_type(
+                assign_type_reference_symbol_with_locals_and_self_type(
                     symbols,
                     child_type_references,
+                    &local_type_parameters,
                     machine_symbol,
                     &mut parameter.type_reference,
                 );
@@ -121,9 +132,10 @@ pub(super) fn assign_machine_symbols(
             }
 
             if let Some(return_type) = &mut state.return_type {
-                assign_type_reference_symbol_with_self_type(
+                assign_type_reference_symbol_with_locals_and_self_type(
                     symbols,
                     child_type_references,
+                    &local_type_parameters,
                     machine_symbol,
                     return_type,
                 );

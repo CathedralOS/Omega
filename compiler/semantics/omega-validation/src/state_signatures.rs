@@ -1,6 +1,8 @@
 use crate::proof_facts::{ProofFactOwner, validate_proof_facts};
 use crate::symbols::TopLevelSymbols;
-use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
+use crate::type_references::{
+    TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::machine::Machine;
@@ -30,6 +32,7 @@ pub(crate) fn validate_callable_state_signatures(
             symbols,
             diagnostics,
             StateSignatureOwner::Machine(machine.name.as_str()),
+            program.machine_type_parameters(machine),
         );
     }
 
@@ -48,6 +51,7 @@ pub(crate) fn validate_callable_state_signatures(
             symbols,
             diagnostics,
             StateSignatureOwner::Platform(platform.name.as_str()),
+            &[],
         );
     }
 
@@ -67,6 +71,7 @@ pub(crate) fn validate_callable_state_signatures(
             symbols,
             diagnostics,
             StateSignatureOwner::Trait(trait_definition.name.as_str()),
+            &[],
         );
     }
 }
@@ -103,6 +108,7 @@ fn validate_state_signature_types<'program>(
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: StateSignatureOwner<'program>,
+    type_parameters: &[omega_typed_trees::data::TypeParameter],
 ) {
     for signature in signatures {
         validate_state_parameter_names(signature, owner, diagnostics);
@@ -114,7 +120,7 @@ fn validate_state_signature_types<'program>(
                 continue;
             }
 
-            validate_type_reference_handle(
+            validate_type_reference_handle_with_type_parameters(
                 program,
                 parameter.type_reference,
                 symbols,
@@ -125,11 +131,12 @@ fn validate_state_signature_types<'program>(
                     parameter: parameter.name.as_str(),
                     generic_depth: 0,
                 },
+                type_parameters,
             );
         }
 
         if signature.return_type.is_valid() {
-            validate_type_reference_handle(
+            validate_type_reference_handle_with_type_parameters(
                 program,
                 signature.return_type,
                 symbols,
@@ -139,6 +146,7 @@ fn validate_state_signature_types<'program>(
                     state: signature.name,
                     generic_depth: 0,
                 },
+                type_parameters,
             );
         }
     }

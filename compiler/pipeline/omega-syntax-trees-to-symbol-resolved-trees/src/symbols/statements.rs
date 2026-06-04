@@ -49,6 +49,7 @@ pub(super) fn assign_statement_reference_symbols(
             effects: _,
             contracts: _,
             states,
+            ..
         } = &mut machine.storage;
         let machine_scope = MachineScope {
             symbol: machine_symbol,

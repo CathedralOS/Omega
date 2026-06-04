@@ -54,6 +54,22 @@ pub(in crate::symbols) fn assign_type_reference_symbol_with_self_type(
     );
 }
 
+pub(in crate::symbols) fn assign_type_reference_symbol_with_locals_and_self_type(
+    symbols: &SymbolTable,
+    child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[omega_symbol_resolved_trees::data::TypeParameter],
+    self_type_symbol: SymbolHandle,
+    type_reference: &mut omega_symbol_resolved_trees::types::TypeReference,
+) {
+    assign_type_reference_symbol_with_context(
+        symbols,
+        child_type_references,
+        local_type_parameters,
+        self_type_symbol,
+        type_reference,
+    );
+}
+
 pub(in crate::symbols) fn assign_type_reference_symbol_with_locals(
     symbols: &SymbolTable,
     child_type_references: &mut Arena<omega_symbol_resolved_trees::types::TypeReference>,

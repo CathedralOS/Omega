@@ -1,3 +1,4 @@
+use crate::data::lower_type_parameters;
 use crate::expression::lower_expression_into_table;
 use crate::lowerer::Lowerer;
 use crate::state::{lower_signature_contracts, lower_signature_effects, lower_state_node};
@@ -14,6 +15,7 @@ pub(crate) fn lower_machine_into(
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
     let states = lower_machine_states(lowerer, syntax_trees, machine.states)?;
+    let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters);
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
     let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
     let decrease_order =
@@ -28,6 +30,7 @@ pub(crate) fn lower_machine_into(
         name: machine_name,
         attached_data,
         storage: MachineStorage {
+            type_parameters,
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies,
