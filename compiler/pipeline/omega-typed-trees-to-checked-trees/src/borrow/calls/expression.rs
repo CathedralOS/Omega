@@ -87,6 +87,7 @@ pub(super) fn collect_expression_borrow_calls(
         ExpressionNode::Mutable(inner_expression) => {
             collect_expression_borrow_calls(collection, *inner_expression)
         }
+        ExpressionNode::Unary(unary) => collect_expression_borrow_calls(collection, unary.operand),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in collection
                 .program

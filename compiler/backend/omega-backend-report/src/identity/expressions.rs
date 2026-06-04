@@ -76,6 +76,9 @@ pub(in crate::identity) fn count_control_flow_expression_strings(
         ExpressionNode::Mutable(expression) => {
             count_control_flow_expression_strings(table, *expression, storage);
         }
+        ExpressionNode::Unary(unary) => {
+            count_control_flow_expression_strings(table, unary.operand, storage);
+        }
         ExpressionNode::StructLiteral(struct_literal) => {
             storage.count_program_name_identity(&struct_literal.type_name);
             for field in table.struct_fields(struct_literal.fields) {

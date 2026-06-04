@@ -3,7 +3,7 @@ use std::fmt;
 use crate::expression::{
     BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression, ExpressionNode,
     ExpressionTable, FloatLiteral, RangeExpression, TableBinaryExpression, TableCallExpression,
-    TableCastExpression,
+    TableCastExpression, TableUnaryExpression, UnaryExpression, UnaryOperator,
 };
 use crate::name::Identifier;
 
@@ -40,6 +40,7 @@ impl Expression {
             Expression::Range(range) => range.display_name(),
             Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Expression::String(value) => format!("{value:?}"),
+            Expression::Unary(unary) => unary.display_name(),
         }
     }
 }
@@ -82,6 +83,7 @@ impl ExpressionNode {
             },
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Self::String(value) => format!("{value:?}"),
+            Self::Unary(unary) => unary.display_name(table),
         }
     }
 }
@@ -139,6 +141,26 @@ impl TableBinaryExpression {
             table.display_name(self.left),
             self.operator.display_name(),
             table.display_name(self.right)
+        )
+    }
+}
+
+impl TableUnaryExpression {
+    pub fn display_name(&self, table: &ExpressionTable) -> String {
+        format!(
+            "{}{}",
+            self.operator.display_name(),
+            table.display_name(self.operand)
+        )
+    }
+}
+
+impl UnaryExpression {
+    pub fn display_name(&self) -> String {
+        format!(
+            "{}{}",
+            self.operator.display_name(),
+            self.operand.display_name()
         )
     }
 }
@@ -209,6 +231,14 @@ impl BinaryOperator {
             Self::ShiftLeft => "<<",
             Self::ShiftRight => ">>",
             Self::Subtract => "-",
+        }
+    }
+}
+
+impl UnaryOperator {
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::LogicalNot => "!",
         }
     }
 }

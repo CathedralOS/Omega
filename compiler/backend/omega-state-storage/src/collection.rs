@@ -593,6 +593,9 @@ fn expression_uses_symbol_mutably(
         ExpressionNode::Member(member) => {
             expression_uses_symbol_mutably(expressions, member.receiver, symbol, local_name)
         }
+        ExpressionNode::Unary(unary) => {
+            expression_uses_symbol_mutably(expressions, unary.operand, symbol, local_name)
+        }
         ExpressionNode::StructLiteral(struct_literal) => expressions
             .struct_fields(struct_literal.fields)
             .iter()
@@ -657,6 +660,9 @@ fn expression_references_symbol(
         }
         ExpressionNode::Member(member) => {
             expression_references_symbol(expressions, member.receiver, symbol, local_name)
+        }
+        ExpressionNode::Unary(unary) => {
+            expression_references_symbol(expressions, unary.operand, symbol, local_name)
         }
         ExpressionNode::StructLiteral(struct_literal) => expressions
             .struct_fields(struct_literal.fields)

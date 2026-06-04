@@ -191,6 +191,9 @@ fn estimate_static_string_expression_capacity(
             estimate_static_string_expression_capacity(expressions, binary.left, capacity);
             estimate_static_string_expression_capacity(expressions, binary.right, capacity);
         }
+        ExpressionNode::Unary(unary) => {
+            estimate_static_string_expression_capacity(expressions, unary.operand, capacity);
+        }
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 estimate_static_string_expression_capacity(expressions, call.receiver, capacity);

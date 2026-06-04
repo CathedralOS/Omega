@@ -240,6 +240,17 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 inner,
             );
         }
+        omega_symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
+            assign_expression_table_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                unary.operand,
+            );
+        }
         omega_symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             assign_name_symbol(
                 symbols,

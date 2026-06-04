@@ -159,6 +159,15 @@ fn collect_static_string_expression_data(
                 data_plan,
             );
         }
+        ExpressionNode::Unary(unary) => {
+            collect_static_string_expression_data(
+                expressions,
+                unary.operand,
+                source_key,
+                source_statement,
+                data_plan,
+            );
+        }
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 collect_static_string_expression_data(

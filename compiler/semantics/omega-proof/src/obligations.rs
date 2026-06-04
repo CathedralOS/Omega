@@ -1053,6 +1053,9 @@ fn expression_constraints(
             ConstraintBuffer::new()
         }
         ExpressionNode::Cast(cast) => expression_constraints(program, machine, state, cast.value),
+        ExpressionNode::Unary(unary) => {
+            expression_constraints(program, machine, state, unary.operand)
+        }
         ExpressionNode::Float(value) => float_literal_constraints(*value),
         ExpressionNode::Integer(value) => integer_literal_constraints(*value),
         ExpressionNode::Name(path)

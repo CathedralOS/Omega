@@ -431,6 +431,7 @@ fn count_expression_node(
             }
         }
         ExpressionNode::String(_) => counts.string_literals += 1,
+        ExpressionNode::Unary(unary) => count_expression_handle(table, unary.operand, counts),
     }
 }
 

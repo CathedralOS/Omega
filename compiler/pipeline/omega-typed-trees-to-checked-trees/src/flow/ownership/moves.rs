@@ -65,6 +65,14 @@ pub(super) fn append_move_events_for_expression(
             cast.value,
             source,
         ),
+        ExpressionNode::Unary(unary) => append_move_events_for_expression(
+            program,
+            ctx,
+            state_symbol,
+            statement_index,
+            unary.operand,
+            source,
+        ),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in program
                 .expression_table

@@ -41,6 +41,9 @@ pub(super) fn expression_uses_symbol(
         omega_typed_trees::expression::ExpressionNode::Mutable(inner_expression) => {
             expression_uses_symbol(program, *inner_expression, symbol)
         }
+        omega_typed_trees::expression::ExpressionNode::Unary(unary) => {
+            expression_uses_symbol(program, unary.operand, symbol)
+        }
         omega_typed_trees::expression::ExpressionNode::Name(path) => {
             first_valid_name_path_symbol(path, &program.expression_table)
                 .is_some_and(|path_symbol| path_symbol == symbol)
@@ -99,6 +102,9 @@ pub(super) fn expression_uses_local_name(
         }
         omega_typed_trees::expression::ExpressionNode::Mutable(inner_expression) => {
             expression_uses_local_name(program, *inner_expression, local_name)
+        }
+        omega_typed_trees::expression::ExpressionNode::Unary(unary) => {
+            expression_uses_local_name(program, unary.operand, local_name)
         }
         omega_typed_trees::expression::ExpressionNode::Name(path) => program
             .expression_table

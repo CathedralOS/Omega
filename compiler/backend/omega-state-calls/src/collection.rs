@@ -560,6 +560,16 @@ fn collect_expression_state_calls_in_table(
             *inner,
             calls,
         ),
+        ExpressionNode::Unary(unary) => collect_expression_state_calls_in_table(
+            context,
+            machine,
+            source_key,
+            statement_index,
+            call_ordinal,
+            role,
+            unary.operand,
+            calls,
+        ),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in context
                 .control_flow

@@ -130,6 +130,7 @@ pub enum ExpressionNode {
     SelfValue,
     StructLiteral(TableStructLiteral),
     String(SourceText),
+    Unary(TableUnaryExpression),
 }
 
 impl Default for ExpressionNode {
@@ -143,6 +144,12 @@ pub struct TableBinaryExpression {
     pub left: ExpressionHandle,
     pub operator: BinaryOperator,
     pub right: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableUnaryExpression {
+    pub operator: UnaryOperator,
+    pub operand: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -230,4 +237,9 @@ pub enum BinaryOperator {
     ShiftLeft,
     ShiftRight,
     Subtract,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnaryOperator {
+    LogicalNot,
 }

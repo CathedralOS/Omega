@@ -99,6 +99,9 @@ fn seed_index_proofs_from_expression(
             seed_index_proofs_from_expression(program, facts, member.receiver);
         }
         ExpressionNode::Mutable(inner) => seed_index_proofs_from_expression(program, facts, *inner),
+        ExpressionNode::Unary(unary) => {
+            seed_index_proofs_from_expression(program, facts, unary.operand)
+        }
         ExpressionNode::Range(range) => {
             seed_index_proofs_from_expression(program, facts, range.start);
             seed_index_proofs_from_expression(program, facts, range.end);

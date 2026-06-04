@@ -27,6 +27,7 @@ pub(super) fn classify_guard_operand(
         | ExpressionNode::Cast(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Range(_)
-        | ExpressionNode::StructLiteral(_) => StateGuardOperandKind::OtherExpression,
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::Unary(_) => StateGuardOperandKind::OtherExpression,
     }
 }

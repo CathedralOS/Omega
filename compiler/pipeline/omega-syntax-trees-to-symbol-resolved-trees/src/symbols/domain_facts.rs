@@ -110,6 +110,9 @@ fn assign_proof_expression_membership_symbols(
         omega_symbol_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
             assign_proof_expression_membership_symbols(symbols, expression_table, inner);
         }
+        omega_symbol_resolved_trees::expression::ExpressionNode::Unary(unary) => {
+            assign_proof_expression_membership_symbols(symbols, expression_table, unary.operand);
+        }
         omega_symbol_resolved_trees::expression::ExpressionNode::StructLiteral(struct_literal) => {
             for field in expression_table
                 .struct_fields(struct_literal.fields)

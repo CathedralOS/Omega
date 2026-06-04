@@ -457,6 +457,9 @@ fn count_expression_handle(
             }
         }
         crate::expression::ExpressionNode::String(_) => counts.string_literals += 1,
+        crate::expression::ExpressionNode::Unary(unary) => {
+            count_expression_handle(syntax_trees, unary.operand, counts);
+        }
     }
 }
 

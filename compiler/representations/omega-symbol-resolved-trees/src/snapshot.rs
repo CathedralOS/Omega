@@ -421,6 +421,10 @@ pub enum ExpressionSnapshot {
     String {
         value: String,
     },
+    Unary {
+        operator: &'static str,
+        operand: Box<ExpressionSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -922,6 +926,10 @@ fn table_expression_snapshot(
         },
         ExpressionNode::String(value) => ExpressionSnapshot::String {
             value: value.as_str().to_owned(),
+        },
+        ExpressionNode::Unary(unary) => ExpressionSnapshot::Unary {
+            operator: unary.operator.display_name(),
+            operand: Box::new(table_expression_snapshot(program, unary.operand)),
         },
     }
 }

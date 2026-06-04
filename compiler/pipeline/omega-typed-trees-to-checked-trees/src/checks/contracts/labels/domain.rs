@@ -116,6 +116,11 @@ fn instantiate_domain_expression_label(
                 instantiate_domain_expression_label(program, *inner, base_label)
             )
         }
+        omega_typed_trees::expression::ExpressionNode::Unary(unary) => format!(
+            "{}{}",
+            unary.operator.display_name(),
+            instantiate_domain_expression_label(program, unary.operand, base_label)
+        ),
         omega_typed_trees::expression::ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             if members

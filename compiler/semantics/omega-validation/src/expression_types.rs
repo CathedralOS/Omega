@@ -69,6 +69,7 @@ pub(crate) fn argument_matches_type_reference_handle(
                 | ExpressionNode::Member(_)
                 | ExpressionNode::Name(_)
                 | ExpressionNode::StructLiteral(_)
+                | ExpressionNode::Unary(_)
         ),
         TypeReferenceNode::Named {
             name: type_name, ..
@@ -82,6 +83,8 @@ pub(crate) fn argument_matches_type_reference_handle(
                         && primitive_type.accepts_float_literal()
                     || matches!(argument_node, ExpressionNode::Integer(_))
                         && primitive_type.accepts_integer_literal()
+                    || matches!(argument_node, ExpressionNode::Unary(_))
+                        && primitive_type == PrimitiveType::Bool
                     || matches!(
                         argument_node,
                         ExpressionNode::Binary(_)
@@ -103,6 +106,7 @@ pub(crate) fn argument_matches_type_reference_handle(
                     | ExpressionNode::Member(_)
                     | ExpressionNode::Name(_)
                     | ExpressionNode::StructLiteral(_)
+                    | ExpressionNode::Unary(_)
             )
         }
         TypeReferenceNode::Unit => false,
@@ -146,5 +150,6 @@ pub(crate) fn expression_type_name_handle(
         ExpressionNode::Range(_) => "range expression",
         ExpressionNode::StructLiteral(_) => "struct literal",
         ExpressionNode::String(_) => "String",
+        ExpressionNode::Unary(_) => "bool",
     }
 }

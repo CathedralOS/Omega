@@ -6,7 +6,7 @@ use omega_symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, FloatLiteral,
     TableBinaryExpression, TableCallExpression, TableCastExpression, TableIndexedExpression,
     TableMemberExpression, TableMembershipExpression, TableNamePath, TableRangeExpression,
-    TableStructLiteral, TableStructLiteralField,
+    TableStructLiteral, TableStructLiteralField, TableUnaryExpression, UnaryOperator,
 };
 use omega_syntax_trees as syntax;
 use omega_syntax_trees::SyntaxTrees;
@@ -212,6 +212,15 @@ fn lower_expression_node_into_table(
         syntax::expression::ExpressionNode::String(value) => {
             Ok(expressions.insert(ExpressionNode::String(value.clone())))
         }
+        syntax::expression::ExpressionNode::Unary(unary) => {
+            let operand = lower_expression_into_table(syntax_trees, expressions, unary.operand)?;
+            Ok(
+                expressions.insert(ExpressionNode::Unary(TableUnaryExpression {
+                    operator: lower_unary_operator(unary.operator),
+                    operand,
+                })),
+            )
+        }
         syntax::expression::ExpressionNode::StructLiteral(struct_literal) => {
             let fields = expressions.reserve_struct_fields(struct_literal.fields.count());
             for (offset, field) in syntax_trees
@@ -239,6 +248,12 @@ fn lower_expression_node_into_table(
                 })),
             )
         }
+    }
+}
+
+fn lower_unary_operator(operator: syntax::expression::UnaryOperator) -> UnaryOperator {
+    match operator {
+        syntax::expression::UnaryOperator::LogicalNot => UnaryOperator::LogicalNot,
     }
 }
 

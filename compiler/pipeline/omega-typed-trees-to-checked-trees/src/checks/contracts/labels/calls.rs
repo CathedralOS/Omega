@@ -242,6 +242,18 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 )
             )
         }
+        omega_typed_trees::expression::ExpressionNode::Unary(unary) => format!(
+            "{}{}",
+            unary.operator.display_name(),
+            instantiate_call_contract_expression_label(
+                program,
+                caller_state_symbol,
+                statement_index,
+                call_site,
+                target_state,
+                unary.operand,
+            )
+        ),
         omega_typed_trees::expression::ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             let first_member = members.first().map(|member| member.as_str());

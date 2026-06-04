@@ -1,0 +1,12 @@
+// Unary logical-not is a first-class prefix expression that flows through
+// parsing, typing, semantic visitors, and backend simplification.
+data Main {
+}
+
+machine Main::main(
+    &mut self,
+    out: &mut bool
+) {
+    let flag: bool = true;
+    out = !flag;
+}
