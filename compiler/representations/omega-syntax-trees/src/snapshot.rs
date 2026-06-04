@@ -80,6 +80,12 @@ pub enum ItemSnapshot {
     Operator {
         operator: OperatorSnapshot,
     },
+    Module {
+        path: Vec<IdentifierSnapshot>,
+    },
+    Package {
+        path: Vec<IdentifierSnapshot>,
+    },
     Provider {
         name: Vec<IdentifierSnapshot>,
         category: &'static str,
@@ -531,6 +537,12 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         },
         Item::Operator(value) => ItemSnapshot::Operator {
             operator: snapshot_operator(syntax_trees, value),
+        },
+        Item::Module(value) => ItemSnapshot::Module {
+            path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
+        },
+        Item::Package(value) => ItemSnapshot::Package {
+            path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
         },
         Item::Provider(value) => ItemSnapshot::Provider {
             name: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.name)),

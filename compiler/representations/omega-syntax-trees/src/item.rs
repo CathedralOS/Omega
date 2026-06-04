@@ -18,7 +18,9 @@ pub enum Item {
     Invariant(InvariantDefinition),
     Library(LibraryDefinition),
     Measure(MeasureDefinition),
+    Module(ModuleDeclaration),
     Operator(OperatorDefinition),
+    Package(PackageDeclaration),
     Provider(ProviderDeclaration),
     Export(ExportItem),
     Use(UseItem),
@@ -62,6 +64,16 @@ impl Default for UseItem {
             path: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ModuleDeclaration {
+    pub path: HandleSpan<Identifier>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PackageDeclaration {
+    pub path: HandleSpan<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -4032,6 +4032,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "operators/slice_index_via_spelling_compile",
     "operators/accepted_core_provider_binding",
     "operators/unary_logical_not",
+    "modules/module_declaration",
+    "modules/package_declaration",
+    "modules/pub_visibility_modifier",
     "traits/trait_composition_satisfies",
     "traits/trait_declaration_bundle",
     "traits/trait_satisfies_machine_signature",
@@ -4366,24 +4369,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         },
     },
     PendingCanary {
-        path: "modules/module_declaration",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "found identifier `module`",
-        },
-    },
-    PendingCanary {
-        path: "modules/package_declaration",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "found identifier `package`",
-        },
-    },
-    PendingCanary {
-        path: "modules/pub_visibility_modifier",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "found keyword `pub`",
-        },
-    },
-    PendingCanary {
         path: "ownership/move_keyword_field_assignment",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `;`, found identifier `replacement`",
@@ -4452,25 +4437,25 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "wire/wire_data_encoding_family",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected one of `use`, `export`, `data`, `domain`, `enum`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `operator`, `platform`, `provider`, `trait`, `boundary operator`, `boundary trait`, found identifier `wire`",
+            fragment: "found identifier `wire`",
         },
     },
     PendingCanary {
         path: "wire/wire_data_field_numbers",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected one of `use`, `export`, `data`, `domain`, `enum`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `operator`, `platform`, `provider`, `trait`, `boundary operator`, `boundary trait`, found identifier `wire`",
+            fragment: "found identifier `wire`",
         },
     },
     PendingCanary {
         path: "wire/wire_data_reserved_field",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected one of `use`, `export`, `data`, `domain`, `enum`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `operator`, `platform`, `provider`, `trait`, `boundary operator`, `boundary trait`, found identifier `wire`",
+            fragment: "found identifier `wire`",
         },
     },
     PendingCanary {
         path: "wire/wire_data_version_block",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected one of `use`, `export`, `data`, `domain`, `enum`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `operator`, `platform`, `provider`, `trait`, `boundary operator`, `boundary trait`, found identifier `wire`",
+            fragment: "found identifier `wire`",
         },
     },
     PendingCanary {
