@@ -28,7 +28,7 @@ pub(super) fn parse_transition_target_handle<'tokens, 'source>(
     ))
 }
 
-pub(super) fn parse_transition_block_target_handle<'tokens, 'source>(
+pub(in crate::parser) fn parse_transition_block_target_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {

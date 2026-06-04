@@ -1,5 +1,6 @@
 use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
+use crate::parser::transition::parse_transition_block_target_handle;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
@@ -20,6 +21,10 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Let) {
         let input = input.take_keyword(KeywordKind::Let, "let")?;
         return parse_local_data_statement_handle(syntax_trees, input);
+    }
+
+    if input.at_keyword(KeywordKind::If) {
+        return parse_if_transition_statement_handle(syntax_trees, input);
     }
 
     if input.at_contextual("trap") {
@@ -109,6 +114,37 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
             input,
         ))
     }
+}
+
+fn parse_if_transition_statement_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, StatementHandle> {
+    let input = input.take_keyword(KeywordKind::If, "if")?;
+    let (condition, input) = parse_expression_handle(syntax_trees, input)?;
+    let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let (target, input) = if input.at_punctuation(PunctuationKind::RightBrace) {
+        (
+            syntax_trees
+                .statements
+                .insert_transition_target(TransitionTargetNode::Terminal),
+            input,
+        )
+    } else {
+        parse_transition_block_target_handle(syntax_trees, input)?
+    };
+    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+
+    Ok((
+        syntax_trees
+            .statements
+            .insert(StatementNode::Transition(TableTransition {
+                target,
+                continuation: TransitionTargetHandle::invalid(),
+                guard: TransitionGuardNode::When(condition),
+            })),
+        input,
+    ))
 }
 
 fn copy_compound_assignment_target(

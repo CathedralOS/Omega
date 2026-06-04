@@ -3857,6 +3857,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/executable_imported_domain_membership_guard_exit",
     "domains/executable_domain_membership_union_guard_exit",
     "domains/executable_domain_membership_union_value_exit",
+    "domains/if_domain_membership_check",
     "domains/domain_intersection_contract_surface",
     "domains/domain_import_valid",
     "domains/exit_ensures_domain_union_left_branch_preserved",
@@ -4258,12 +4259,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "concurrency/spawn_statement_block",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected identifier, found keyword `self`",
-        },
-    },
-    PendingCanary {
-        path: "domains/if_domain_membership_check",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `;`, found keyword `self`",
         },
     },
     PendingCanary {
