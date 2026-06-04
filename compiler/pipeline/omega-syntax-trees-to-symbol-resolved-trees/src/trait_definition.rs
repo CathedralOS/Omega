@@ -1,4 +1,5 @@
 use crate::data::lower_type_parameters;
+use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::state::lower_state_signature_node;
 use omega_core::arena::HandleSpan;
@@ -17,6 +18,7 @@ pub(crate) fn lower_trait_definition(
 ) -> Result<TraitDefinition, Diagnostic> {
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, trait_definition.type_parameters);
+    let invariants = lower_proof_facts(lowerer, syntax_trees, trait_definition.invariants)?;
     let requires = lower_trait_requirements(lowerer, syntax_trees, trait_definition.requires);
     let machines =
         lower_trait_machine_signatures(lowerer, syntax_trees, trait_definition.machines)?;
@@ -27,6 +29,7 @@ pub(crate) fn lower_trait_definition(
         name: crate::name::lower_name(&trait_definition.name),
         storage: TraitStorage {
             type_parameters,
+            invariants,
             requires,
             machines,
         },

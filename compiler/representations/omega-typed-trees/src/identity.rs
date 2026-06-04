@@ -1,4 +1,5 @@
 use crate::data::DataMember;
+use crate::domain::ProofFact;
 use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::Identifier;
 use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode};
@@ -112,6 +113,9 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         count_declaration_name(&trait_definition.name, &mut counts);
         for parameter in typed_trees.trait_type_parameters(trait_definition) {
             count_declaration_name(&parameter.name, &mut counts);
+        }
+        for fact in typed_trees.trait_invariants(trait_definition) {
+            count_proof_fact(typed_trees, fact, &mut counts);
         }
         for signature in typed_trees.trait_machine_signatures(trait_definition) {
             count_declaration_name(&signature.name, &mut counts);
@@ -236,6 +240,24 @@ fn count_operator(
             operator.return_type,
             counts,
         );
+    }
+}
+
+fn count_proof_fact(
+    typed_trees: &TypedTrees,
+    fact: &ProofFact,
+    counts: &mut IdentityStorageCounts,
+) {
+    match fact {
+        ProofFact::Expression(expression) => {
+            count_expression_handle(&typed_trees.expression_table, *expression, counts);
+        }
+        ProofFact::Membership(membership) => {
+            count_expression_handle(&typed_trees.expression_table, membership.value, counts);
+            for member in typed_trees.domain_path_members(membership.domain) {
+                count_declaration_name(member, counts);
+            }
+        }
     }
 }
 

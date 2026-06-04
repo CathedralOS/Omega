@@ -209,6 +209,8 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
         symbol: boundary_trait_symbol,
         is_boundary: true,
         name: Identifier::generated("Console"),
+        type_parameters: Default::default(),
+        invariants: Default::default(),
         requires: Default::default(),
         machines: Default::default(),
     };

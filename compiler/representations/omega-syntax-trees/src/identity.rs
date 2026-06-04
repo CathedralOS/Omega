@@ -200,6 +200,9 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             {
                 count_identifier(&parameter.name, counts);
             }
+            for fact in syntax_trees.items.proof_facts(trait_definition.invariants) {
+                count_proof_fact(syntax_trees, fact, counts);
+            }
             for signature in syntax_trees
                 .items
                 .state_signatures(trait_definition.machines)

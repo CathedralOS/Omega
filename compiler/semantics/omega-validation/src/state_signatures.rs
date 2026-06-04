@@ -56,6 +56,14 @@ pub(crate) fn validate_callable_state_signatures(
     }
 
     for trait_definition in program.traits() {
+        validate_proof_facts(
+            program,
+            program.trait_invariants(trait_definition),
+            diagnostics,
+            ProofFactOwner::TraitInvariant {
+                trait_definition: trait_definition.name.as_str(),
+            },
+        );
         validate_state_signature_types(
             program
                 .trait_machine_signatures(trait_definition)

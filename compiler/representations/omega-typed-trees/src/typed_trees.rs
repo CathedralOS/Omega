@@ -327,6 +327,22 @@ impl TypedTrees {
             .span_or_empty(trait_definition.type_parameters)
     }
 
+    pub fn push_trait_invariant(
+        &mut self,
+        trait_definition: &mut trait_definition::TraitDefinition,
+        fact: domain::ProofFact,
+    ) {
+        self.proof_facts
+            .append_to_span(&mut trait_definition.invariants, fact);
+    }
+
+    pub fn trait_invariants(
+        &self,
+        trait_definition: &trait_definition::TraitDefinition,
+    ) -> &[domain::ProofFact] {
+        self.proof_facts.span_or_empty(trait_definition.invariants)
+    }
+
     pub fn push_trait_requirement(
         &mut self,
         trait_definition: &mut trait_definition::TraitDefinition,

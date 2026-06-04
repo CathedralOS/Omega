@@ -1,3 +1,4 @@
+use crate::domain::lower_proof_facts;
 use crate::lowerer::Lowerer;
 use crate::state::lower_state_signature;
 use omega_core::diagnostics::Diagnostic;
@@ -13,6 +14,7 @@ pub(crate) fn lower_trait_definition(
         is_boundary: trait_definition.is_boundary,
         name: crate::name::lower_name(&trait_definition.name),
         type_parameters: omega_core::arena::HandleSpan::empty(),
+        invariants: omega_core::arena::HandleSpan::empty(),
         requires: omega_core::arena::HandleSpan::empty(),
         machines: omega_core::arena::HandleSpan::empty(),
     };
@@ -29,6 +31,8 @@ pub(crate) fn lower_trait_definition(
             },
         );
     }
+
+    typed_trait.invariants = lower_proof_facts(lowerer, trait_definition.invariants)?;
 
     for requirement in lowerer
         .source_trees

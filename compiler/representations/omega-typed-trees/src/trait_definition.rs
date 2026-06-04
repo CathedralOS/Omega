@@ -9,6 +9,7 @@ pub struct TraitDefinition {
     pub is_boundary: bool,
     pub name: Identifier,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
+    pub invariants: HandleSpan<crate::domain::ProofFact>,
     pub requires: HandleSpan<TraitRequirement>,
     pub machines: HandleSpan<StateSignature>,
 }
@@ -20,6 +21,7 @@ impl Default for TraitDefinition {
             is_boundary: false,
             name: Identifier::default(),
             type_parameters: HandleSpan::empty(),
+            invariants: HandleSpan::empty(),
             requires: HandleSpan::empty(),
             machines: HandleSpan::empty(),
         }

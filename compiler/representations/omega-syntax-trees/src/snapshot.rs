@@ -117,6 +117,7 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         is_boundary: bool,
         type_parameters: Vec<TypeParameterSnapshot>,
+        invariants: Vec<ProofFactSnapshot>,
         requires: Vec<IdentifierSnapshot>,
         machines: Vec<StateSignatureSnapshot>,
     },
@@ -621,6 +622,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                     name: snapshot_identifier(&parameter.name),
                 })
                 .collect(),
+            invariants: snapshot_proof_facts(syntax_trees, value.invariants),
             requires: snapshot_identifier_slice(
                 syntax_trees.items.identifier_path_members(value.requires),
             ),
