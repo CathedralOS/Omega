@@ -1,0 +1,1 @@
+asm blocks currently support only `jmp` transition statements

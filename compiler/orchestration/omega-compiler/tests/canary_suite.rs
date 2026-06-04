@@ -4144,6 +4144,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/slice_view_invalidated_by_owner_call",
     "control_flow/bare_machine_arrow_transition",
     "control_flow/bare_state_arrow_transition",
+    "inline_asm/asm_label_loop",
     "control_flow/termination_countdown_stalled_decrease",
     "control_flow/termination_cycle_missing_decreases",
     "termination/custom_ranking_field_stalled_decrease",
@@ -4269,12 +4270,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "expressions/match_expression_value",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected `;`, found identifier `command`",
-        },
-    },
-    PendingCanary {
-        path: "inline_asm/asm_label_loop",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "asm blocks currently support only `jmp` transition statements",
         },
     },
     PendingCanary {

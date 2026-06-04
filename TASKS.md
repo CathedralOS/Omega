@@ -87,9 +87,10 @@ Rust harness test count because many canaries are batched.
 
 **Inline asm control-flow follow-up.** Current inline asm support is deliberately
 narrow: `asm { jmp state(...) }` parses and lowers to an ordinary Omega
-transition target. Arbitrary labels/back-edges, structured load/store mnemonics,
-register constraints, clobber/effect declarations, and `asm where` contracts
-remain unsupported and should not be faked as generic statements.
+transition target. Arbitrary labels/back-edges are actively rejected by fail
+canary, while structured load/store mnemonics, register constraints,
+clobber/effect declarations, and `asm where` contracts remain unsupported and
+should not be faked as generic statements.
 
 **Transition data-pattern follow-up.** Current data-pattern support is a narrow
 transition-guard lowering path: `Type { field, .. } if guard` rewrites bare
