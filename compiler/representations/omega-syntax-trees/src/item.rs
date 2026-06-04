@@ -357,6 +357,7 @@ pub struct DataVariant {
 pub struct DomainDefinition {
     pub name: Identifier,
     pub target_type: crate::types::TypeReferenceHandle,
+    pub classifier: crate::expression::ExpressionHandle,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<OperatorDefinition>,
     pub body_token_count: usize,
@@ -367,6 +368,7 @@ impl Default for DomainDefinition {
         Self {
             name: Identifier::generated(""),
             target_type: crate::types::TypeReferenceHandle::invalid(),
+            classifier: crate::expression::ExpressionHandle::invalid(),
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
             body_token_count: 0,

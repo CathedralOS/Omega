@@ -72,6 +72,9 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         Item::Domain(domain) => {
             count_identifier(&domain.name, counts);
             count_type_reference_handle(syntax_trees, domain.target_type, counts);
+            if domain.classifier.is_valid() {
+                count_expression_handle(syntax_trees, domain.classifier, counts);
+            }
             for fact in syntax_trees.items.proof_facts(domain.facts) {
                 match fact {
                     ProofFact::Expression(expression) => {

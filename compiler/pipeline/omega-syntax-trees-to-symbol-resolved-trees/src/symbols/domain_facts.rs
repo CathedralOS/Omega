@@ -2,6 +2,11 @@ use omega_core::symbols::{SymbolHandle, SymbolKind, SymbolTable};
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
 pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
+    let domain_classifiers = program
+        .domain_definitions
+        .iter()
+        .map(|domain| domain.classifier)
+        .collect::<Vec<_>>();
     let mut domain_fact_spans = program
         .domain_definitions
         .iter()
@@ -17,6 +22,16 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
     );
     let domain_path_members = &program.tables.declarations.domain_path_members;
     let proof_facts = &mut program.tables.declarations.proof_facts;
+
+    for classifier in domain_classifiers {
+        if classifier.is_valid() {
+            assign_proof_expression_membership_symbols(
+                symbols,
+                &mut program.tables.bodies.expressions,
+                classifier,
+            );
+        }
+    }
 
     for facts in domain_fact_spans {
         for fact in proof_facts.span_mut_or_empty(facts) {

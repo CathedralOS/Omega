@@ -1737,6 +1737,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Domain(DomainDefinition {
             name: Identifier::generated("NonEmpty"),
             target_type,
+            classifier: omega_syntax_trees::expression::ExpressionHandle::invalid(),
             facts: omega_core::arena::HandleSpan::empty(),
             operators: HandleSpan::from_parts(operator, 1),
             body_token_count: 3,

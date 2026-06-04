@@ -15,10 +15,21 @@ pub(crate) fn lower_domain_definition(
     domain: &resolved::domain::DomainDefinition,
 ) -> Result<typed::domain::DomainDefinition, Diagnostic> {
     let facts = lower_proof_facts(lowerer, domain.facts)?;
+    let classifier = if domain.classifier.is_valid() {
+        lower_expression_handle_from_table_in_program(
+            lowerer.source_trees,
+            &lowerer.source_trees.tables.bodies.expressions,
+            &mut lowerer.typed_trees.expression_table,
+            domain.classifier,
+        )?
+    } else {
+        typed::expression::ExpressionHandle::invalid()
+    };
     let mut typed_domain = typed::domain::DomainDefinition {
         symbol: domain.symbol,
         name: lower_name(&domain.name),
         target_type: lower_type_reference_into_table(lowerer, &domain.target_type)?,
+        classifier,
         facts,
         operators: Default::default(),
         body_token_count: domain.body_token_count,
