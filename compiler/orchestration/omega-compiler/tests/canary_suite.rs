@@ -4103,6 +4103,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/trait_method_ensures_clause",
     "traits/trait_oneoff_machine_requirement",
     "versioning/migration_generic_trait",
+    "versioning/version_scoped_machine",
     "wire/wire_generic_trait",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",
@@ -4302,12 +4303,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "versioning/match_on_version",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "expected transition pattern",
-        },
-    },
-    PendingCanary {
-        path: "versioning/version_scoped_machine",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "state `v1` assignment cannot write `counter` because it is not mutable in this state",
         },
     },
 ];

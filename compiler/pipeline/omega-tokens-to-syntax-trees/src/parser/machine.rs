@@ -274,8 +274,28 @@ fn split_machine_path(syntax_trees: &SyntaxTrees, path: HandleSpan<Identifier>) 
         };
     }
 
+    if members.len() >= 3 && is_version_selector(members.last().expect("path has members")) {
+        return MachinePath {
+            name: Identifier::generated(join_path(members)),
+            attached_data: Some(Identifier::generated(join_path(
+                &members[..members.len() - 2],
+            ))),
+            entry_name: members.get(members.len() - 2).cloned(),
+        };
+    }
+
+    let name = join_path(members);
+    let attached_data = join_path(&members[..members.len() - 1]);
+
+    MachinePath {
+        name: Identifier::generated(name),
+        attached_data: Some(Identifier::generated(attached_data)),
+        entry_name: members.last().cloned(),
+    }
+}
+
+fn join_path(members: &[Identifier]) -> String {
     let mut name = String::new();
-    let mut attached_data = String::new();
 
     for (index, member) in members.iter().enumerate() {
         if index > 0 {
@@ -285,19 +305,14 @@ fn split_machine_path(syntax_trees: &SyntaxTrees, path: HandleSpan<Identifier>) 
         name.push_str(member.as_str());
     }
 
-    for (index, member) in members[..members.len() - 1].iter().enumerate() {
-        if index > 0 {
-            attached_data.push_str("::");
-        }
+    name
+}
 
-        attached_data.push_str(member.as_str());
-    }
-
-    MachinePath {
-        name: Identifier::generated(name),
-        attached_data: Some(Identifier::generated(attached_data)),
-        entry_name: members.last().cloned(),
-    }
+fn is_version_selector(member: &Identifier) -> bool {
+    let Some(rest) = member.as_str().strip_prefix('v') else {
+        return false;
+    };
+    !rest.is_empty() && rest.chars().all(|ch| ch.is_ascii_digit())
 }
 
 fn skip_machine_invariant<'tokens, 'source>(
