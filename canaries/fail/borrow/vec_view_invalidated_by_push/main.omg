@@ -1,0 +1,17 @@
+// Vec mutation/reallocation must reject while borrowed slice views are still
+// active, mirroring the array/slice owner-write rule.
+
+use omega::language::core::vec;
+
+data Main {
+    items: Vec<u8>;
+}
+
+machine Main::main(&mut self) {
+    let view: &[u8] = self.items.as_slice();
+    self.items.push(7);
+    self.read_alias(view);
+}
+
+machine Main::read_alias(&self, items: &[u8]) {
+}

@@ -32,7 +32,7 @@ pub(super) fn collect_expression_borrow_calls(
         ExpressionNode::Call(call) => {
             let (receiver_symbol, receiver_path) =
                 call_receiver_parts(collection.program, call.receiver);
-            let is_machine_call = resolve_state_call_target(
+            let resolved_target = resolve_state_call_target(
                 collection.program,
                 collection.machine,
                 collection.state,
@@ -40,8 +40,8 @@ pub(super) fn collect_expression_borrow_calls(
                 call.target_symbol,
                 receiver_path.as_deref(),
                 &call.target,
-            )
-            .is_valid()
+            );
+            let is_machine_call = resolved_target.is_valid()
                 || receiver_can_dispatch_to_machine(
                     collection.program,
                     collection.machine,
@@ -59,7 +59,11 @@ pub(super) fn collect_expression_borrow_calls(
                 );
                 collection.append_borrow_call(
                     receiver_symbol,
-                    call.target_symbol,
+                    if resolved_target.is_valid() {
+                        resolved_target
+                    } else {
+                        call.target_symbol
+                    },
                     receiver_path.is_some(),
                     accesses,
                 );

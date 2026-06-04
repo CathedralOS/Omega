@@ -585,6 +585,69 @@ fn rejects_mutating_call_through_owner_while_view_is_active() {
 }
 
 #[test]
+fn rejects_vec_push_while_slice_view_is_active() {
+    let source = r#"
+        data Vec<T> {
+        }
+
+        machine Vec::as_slice<T>(&self) -> &[T] {
+        }
+
+        machine Vec::push<T>(&mut self, value: T) {
+        }
+
+        data Main {
+            items: Vec<u8>;
+        }
+
+        machine Main::main(&mut self) {
+            let view: &[u8] = self.items.as_slice();
+            self.items.push(7);
+            self.read_alias(view);
+        }
+
+        machine Main::read_alias(&self, items: &[u8]) {
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        operators: Default::default(),
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    let diagnostics = check_checked_facts(&typed, &facts)
+        .expect_err("Vec::push through the owner must conflict with a live view");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("while local borrow `view` is still active"),
+        "expected Vec push conflict, got:\n{combined}"
+    );
+}
+
+#[test]
 fn accepts_mutating_call_through_owner_on_disjoint_field() {
     // A mutating call through the owner that writes a DISJOINT field is accepted
     // while a borrowed view of a different field is live. The call-mutation rule

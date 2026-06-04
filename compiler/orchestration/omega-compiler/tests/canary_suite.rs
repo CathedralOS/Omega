@@ -4142,6 +4142,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/subslice_view_invalidated_by_owner_write",
     "borrow/string_view_invalidated_by_owner_write",
     "borrow/slice_view_invalidated_by_owner_call",
+    "borrow/vec_view_invalidated_by_push",
     "concurrency/barrier_wait_contract",
     "concurrency/mutex_lock_guard",
     "concurrency/spawn_join_handle",

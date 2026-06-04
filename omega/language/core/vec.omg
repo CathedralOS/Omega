@@ -19,6 +19,21 @@
 // pointer surfaces bind their view/offset boundaries to.
 provider omega::language::core::vec_views : DescriptorConstruction;
 
+// Source-visible owned vector type. The compiler/runtime own its concrete
+// buffer descriptor; core exposes the nominal type so user code, contracts, and
+// IDEs can name `Vec<T>` instead of treating it as unreachable magic.
+data Vec<T> {
+}
+
+// Method-call surface used by borrow/lifetime analysis. Runtime lowering may
+// still choose the boundary operator below; this state-shaped declaration lets
+// `items.push(value)` participate in ordinary receiver mutation checks.
+machine Vec::as_slice<T>(&self) -> &[T] {
+}
+
+machine Vec::push<T>(&mut self, value: T) {
+}
+
 // Length in elements. Cheap O(1) measure used by `requires`/`ensures`.
 boundary operator Vec::Length<T>(items: &Vec<T>) -> usize;
 
