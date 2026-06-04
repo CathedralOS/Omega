@@ -8,6 +8,10 @@ pub(crate) fn string_descriptor_machine_address_offset(architecture: Architectur
     }
 }
 
+pub(crate) fn string_descriptor_runtime_frame_address_offset(architecture: Architecture) -> usize {
+    string_descriptor_machine_address_offset(architecture)
+}
+
 pub(crate) fn string_descriptor_pointee_address_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,

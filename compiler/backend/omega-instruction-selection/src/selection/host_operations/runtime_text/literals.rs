@@ -45,7 +45,7 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
             input
                 .runtime_bodies
                 .operations
-                .span(body.operations)
+                .paged_span(body.operations)
                 .is_some_and(|operations| {
                     operations.iter().any(|operation| {
                         operation.source_key == host_call.source_key
@@ -58,10 +58,10 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
     let operations = input
         .runtime_bodies
         .operations
-        .span(runtime_body.operations)?;
+        .paged_span(runtime_body.operations)?;
     let mut latest_static_text = None;
 
-    for operation in operations {
+    for operation in operations.iter() {
         if operation.source_key == host_call.source_key
             && operation.statement_index == host_call.statement_index
             && matches!(operation.kind, RuntimeDispatchBodyOperationKind::HostCall)

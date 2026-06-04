@@ -53,6 +53,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
             true
         }
         SelectedInstructionKind::WriteRuntimePointeeBinary {
+            pointer_byte_offset,
             field_byte_offset,
             left,
             right,
@@ -63,6 +64,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
             let left_offset = context.selected_text_offset
                 + runtime_pointee_binary_left_operand_offset(
                     context.input.target.architecture,
+                    *pointer_byte_offset,
                     *field_byte_offset,
                 );
             collect_runtime_value_operand_relocations(context, left_offset, *left);
@@ -132,6 +134,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
         }
         SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary {
             base_byte_offset,
+            index_offset,
             element_byte_size,
             field_byte_offset,
             left,
@@ -144,6 +147,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
                 + runtime_frame_base_indexed_binary_left_operand_offset(
                     context.input.target.architecture,
                     *base_byte_offset,
+                    *index_offset,
                     *element_byte_size,
                     *field_byte_offset,
                 );

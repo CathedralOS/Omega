@@ -281,7 +281,6 @@ fn root_machine_field_layout_in_machine<'plan>(
     root_symbol: SymbolHandle,
     root_name: &Identifier,
 ) -> Option<(usize, &'plan FieldLayout)> {
-    let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
     let machine_layout = layouts
         .machine_layouts
         .iter()
@@ -289,6 +288,7 @@ fn root_machine_field_layout_in_machine<'plan>(
         .map(|(_, machine_layout)| machine_layout)?;
     let root_field =
         field_layout_by_symbol_or_name(layouts, machine_layout.fields, root_symbol, root_name)?;
+    let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
     Some((machine_base_offset, root_field))
 }
 
@@ -302,14 +302,14 @@ fn root_machine_field_layout_by_symbol_or_name<'plan>(
         .machine_layouts
         .iter()
         .find_map(|(_, machine_layout)| {
-            let machine_base_offset =
-                machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
             let root_field = field_layout_by_symbol_or_name(
                 layouts,
                 machine_layout.fields,
                 root_symbol,
                 root_name,
             )?;
+            let machine_base_offset =
+                machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
             Some((machine_base_offset, root_field))
         })
 }
@@ -325,13 +325,13 @@ fn machine_field_layout_by_symbol_or_name<'plan>(
             .machine_layouts
             .iter()
             .find_map(|(_, machine_layout)| {
-                let machine_base_offset =
-                    machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
                 let root_field = layouts
                     .fields
                     .span(machine_layout.fields)?
                     .iter()
                     .find(|field| field.symbol == field_symbol)?;
+                let machine_base_offset =
+                    machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
                 Some((machine_base_offset, root_field))
             })
     {
@@ -342,13 +342,13 @@ fn machine_field_layout_by_symbol_or_name<'plan>(
         .machine_layouts
         .iter()
         .find_map(|(_, machine_layout)| {
-            let machine_base_offset =
-                machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
             let root_field = layouts
                 .fields
                 .span(machine_layout.fields)?
                 .iter()
                 .find(|field| field.name == *field_name)?;
+            let machine_base_offset =
+                machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
             Some((machine_base_offset, root_field))
         })
 }
@@ -388,6 +388,7 @@ fn machine_storage_offset(
         source_machine,
         source_attached_data,
         0,
+        &mut Vec::new(),
     )
 }
 
@@ -406,13 +407,23 @@ fn nested_machine_storage_offset(
     target_machine: SymbolHandle,
     target_attached_data: Option<&str>,
     base_offset: usize,
+    visited: &mut Vec<SymbolHandle>,
 ) -> Option<usize> {
-    let fields = layouts.fields.span(machine_layout.fields)?;
+    if visited.contains(&machine_layout.symbol) {
+        return None;
+    }
+    visited.push(machine_layout.symbol);
+
+    let Some(fields) = layouts.fields.span(machine_layout.fields) else {
+        visited.pop();
+        return None;
+    };
 
     for field in fields {
         let field_offset = base_offset + field.offset;
 
         if target_attached_data.is_some_and(|name| field.type_name.as_ref() == name) {
+            visited.pop();
             return Some(field_offset);
         }
 
@@ -421,6 +432,7 @@ fn nested_machine_storage_offset(
         if nested_machine_layout
             .is_some_and(|nested_machine_layout| nested_machine_layout.symbol == target_machine)
         {
+            visited.pop();
             return Some(field_offset);
         }
 
@@ -434,11 +446,14 @@ fn nested_machine_storage_offset(
             target_machine,
             target_attached_data,
             field_offset,
+            visited,
         ) {
+            visited.pop();
             return Some(offset);
         }
     }
 
+    visited.pop();
     None
 }
 

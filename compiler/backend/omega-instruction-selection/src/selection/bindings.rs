@@ -541,7 +541,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                 )),
             }
         }
-        ExpressionNode::Name(path) if path.members.count() > 0 => aliases
+        ExpressionNode::Name(path) => aliases
             .iter()
             .rev()
             .find(|alias| {
@@ -557,12 +557,16 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                 );
                 RuntimeResolvedExpressionHandle {
                     source_key: resolved.source_key,
-                    expression: alias_expressions.insert_copy_with_member_suffix(
-                        resolved.expression,
-                        path.members,
-                        path.member_symbols,
-                        1,
-                    ),
+                    expression: if path.members.count() > 0 {
+                        alias_expressions.insert_copy_with_member_suffix(
+                            resolved.expression,
+                            path.members,
+                            path.member_symbols,
+                            1,
+                        )
+                    } else {
+                        resolved.expression
+                    },
                 }
             })
             .unwrap_or(RuntimeResolvedExpressionHandle {
@@ -681,7 +685,7 @@ pub(super) fn resolve_leaf_binding_expression_handle(
                 table.insert(ExpressionNode::Mutable(resolved_target))
             }
         }
-        ExpressionNode::Name(path) if path.members.count() > 0 => bindings
+        ExpressionNode::Name(path) => bindings
             .iter()
             .find(|binding| {
                 leaf_binding_matches_table_path(binding, source_table, table, &path)
@@ -694,12 +698,22 @@ pub(super) fn resolve_leaf_binding_expression_handle(
             })
             .map(|binding| {
                 let expression = table.copy_from(source_table, binding.expression);
-                table.insert_copy_with_member_suffix(
+                let resolved = resolve_leaf_binding_expression_handle(
+                    source_table,
+                    table,
                     expression,
-                    path.members,
-                    path.member_symbols,
-                    1,
-                )
+                    bindings,
+                );
+                if path.members.count() > 0 {
+                    table.insert_copy_with_member_suffix(
+                        resolved,
+                        path.members,
+                        path.member_symbols,
+                        1,
+                    )
+                } else {
+                    resolved
+                }
             })
             .unwrap_or(expression),
         ExpressionNode::StructLiteral(struct_literal) => {
@@ -868,7 +882,7 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
                 table.insert(ExpressionNode::Mutable(resolved_target))
             }
         }
-        ExpressionNode::Name(path) if path.members.count() > 0 => bindings
+        ExpressionNode::Name(path) => bindings
             .iter()
             .find(|binding| {
                 straight_line_binding_matches_table_path(binding, source_table, table, &path)
@@ -881,12 +895,22 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
             })
             .map(|binding| {
                 let expression = table.copy_from(source_table, binding.expression);
-                table.insert_copy_with_member_suffix(
+                let resolved = resolve_straight_line_binding_expression_handle(
+                    source_table,
+                    table,
                     expression,
-                    path.members,
-                    path.member_symbols,
-                    1,
-                )
+                    bindings,
+                );
+                if path.members.count() > 0 {
+                    table.insert_copy_with_member_suffix(
+                        resolved,
+                        path.members,
+                        path.member_symbols,
+                        1,
+                    )
+                } else {
+                    resolved
+                }
             })
             .unwrap_or(expression),
         ExpressionNode::StructLiteral(struct_literal) => {
@@ -944,7 +968,7 @@ pub(super) fn resolve_branch_prelude_binding_expression_handle(
                 table.insert(ExpressionNode::Mutable(resolved_target))
             }
         }
-        ExpressionNode::Name(path) if path.members.count() > 0 => bindings
+        ExpressionNode::Name(path) => bindings
             .iter()
             .find(|binding| symbol_matches_table_path(binding.parameter_symbol, &path))
             .map(|binding| {
@@ -955,7 +979,16 @@ pub(super) fn resolve_branch_prelude_binding_expression_handle(
                     expression,
                     bindings,
                 );
-                table.insert_copy_with_member_suffix(resolved, path.members, path.member_symbols, 1)
+                if path.members.count() > 0 {
+                    table.insert_copy_with_member_suffix(
+                        resolved,
+                        path.members,
+                        path.member_symbols,
+                        1,
+                    )
+                } else {
+                    resolved
+                }
             })
             .unwrap_or(expression),
         _ => expression,
@@ -1054,7 +1087,9 @@ fn symbol_matches_path(symbol: SymbolHandle, path: &NamePath) -> bool {
 }
 
 fn symbol_matches_table_path(symbol: SymbolHandle, path: &TableNamePath) -> bool {
-    symbol.is_valid() && path.head_symbol.is_valid() && symbol == path.head_symbol
+    symbol.is_valid()
+        && ((path.head_symbol.is_valid() && symbol == path.head_symbol)
+            || (path.symbol.is_valid() && symbol == path.symbol))
 }
 
 pub(super) fn append_place_suffix(expression: &Expression, suffix: &[Identifier]) -> Expression {

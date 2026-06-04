@@ -118,6 +118,47 @@ pub(super) fn select_runtime_dispatch_expression_guard_conjuncts_in_table(
     )
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct StaticGuardConjunctSummary {
+    pub(super) has_true: bool,
+    pub(super) has_false: bool,
+}
+
+pub(super) fn static_guard_conjunct_summary_in_table(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+) -> StaticGuardConjunctSummary {
+    let mut summary = StaticGuardConjunctSummary::default();
+    collect_static_guard_conjunct_summary_in_table(input, expressions, guard, &mut summary);
+    summary
+}
+
+fn collect_static_guard_conjunct_summary_in_table(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    summary: &mut StaticGuardConjunctSummary,
+) {
+    if !guard.is_valid() {
+        return;
+    }
+
+    if let ExpressionNode::Binary(binary) = expressions.expression(guard)
+        && binary.operator == BinaryOperator::And
+    {
+        collect_static_guard_conjunct_summary_in_table(input, expressions, binary.left, summary);
+        collect_static_guard_conjunct_summary_in_table(input, expressions, binary.right, summary);
+        return;
+    }
+
+    match static_guard_truth_in_table(input, expressions, guard) {
+        Some(true) => summary.has_true = true,
+        Some(false) => summary.has_false = true,
+        None => {}
+    }
+}
+
 fn collect_runtime_branch_guard_conjuncts_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -169,6 +210,34 @@ fn collect_runtime_branch_guard_conjuncts_in_table(
     ) {
         guards.push(guard);
     }
+}
+
+fn static_guard_truth_in_table(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+) -> Option<bool> {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        let value = enum_variant_value_in_table(&input.layouts, expressions, guard)
+            .or_else(|| static_guard_value_in_table(expressions, guard))?;
+        return Some(value != 0);
+    };
+
+    let operator = match binary.operator {
+        BinaryOperator::Equal => StateGuardOperator::Equal,
+        BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
+        _ => return None,
+    };
+    let left = enum_variant_value_in_table(&input.layouts, expressions, binary.left)
+        .or_else(|| static_guard_value_in_table(expressions, binary.left))?;
+    let right = enum_variant_value_in_table(&input.layouts, expressions, binary.right)
+        .or_else(|| static_guard_value_in_table(expressions, binary.right))?;
+
+    Some(match operator {
+        StateGuardOperator::Equal => left == right,
+        StateGuardOperator::NotEqual => left != right,
+        _ => return None,
+    })
 }
 
 pub(super) fn select_runtime_dispatch_expression_guard(

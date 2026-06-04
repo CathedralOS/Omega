@@ -1,0 +1,49 @@
+boundary trait Console {
+    machine write_line(text: String);
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    label: String;
+}
+
+data Main {
+    console: Console;
+    source: Room;
+    copied: Room;
+    line: String;
+}
+
+machine Main::main(&mut self) {
+    self.source.label = "omega";
+
+    transition self.source.label {
+        _ -> apply_room(self.source, &mut self.copied)
+    }
+
+    state apply_room(&mut self, room: Room, out_room: &mut Room) {
+        out_room.label = room.label;
+
+        transition out_room.label {
+            _ -> write_line(out_room.label, &mut self.line)
+        }
+    }
+
+    state write_line(&mut self, label: String, out_line: &mut String) {
+        out_line = "prefix " + label + " done";
+        self.console.write_line(out_line);
+
+        transition self.line == "prefix omega done" {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(77);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(78);
+    }
+}

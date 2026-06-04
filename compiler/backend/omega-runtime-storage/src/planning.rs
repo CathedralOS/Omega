@@ -1,4 +1,5 @@
 use crate::body::{build_runtime_storage_body_plan, build_straight_line_runtime_storage_plan};
+use crate::layout::align_to;
 use crate::{RuntimeStorageContext, RuntimeStoragePlan, RuntimeStorageWrite};
 use omega_checked_trees::expression::ExpressionTableCapacity;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
@@ -15,7 +16,9 @@ pub fn build_runtime_storage_plan_with_workers(
     workers: WorkerPoolHandle,
 ) -> RuntimeStoragePlan {
     if context.runtime_bodies.bodies.is_empty() {
-        return build_straight_line_runtime_storage_plan(&context);
+        let mut plan = build_straight_line_runtime_storage_plan(&context);
+        reserve_frame_scratch_region(&mut plan);
+        return plan;
     }
 
     let body_count = context.runtime_bodies.bodies.len();
@@ -81,7 +84,24 @@ pub fn build_runtime_storage_plan_with_workers(
         }
     }
 
+    reserve_frame_scratch_region(&mut plan);
     plan
+}
+
+fn reserve_frame_scratch_region(plan: &mut RuntimeStoragePlan) {
+    let slots_extent = plan
+        .frame_slots
+        .iter()
+        .map(|(_, slot)| slot.byte_offset + slot.byte_size)
+        .max()
+        .unwrap_or(0);
+    if slots_extent == 0 {
+        return;
+    }
+
+    let alignment = runtime_frame_storage_alignment(plan);
+    plan.frame_scratch_base = align_to(slots_extent, alignment);
+    plan.frame_scratch_size = slots_extent;
 }
 
 pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {

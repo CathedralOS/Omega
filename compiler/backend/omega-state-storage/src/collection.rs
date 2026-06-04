@@ -212,6 +212,7 @@ fn build_machine_state_storage_plan(
                         plan.expressions.insert_tree(&simplified_value)
                     };
                     let mutation_kind = mutation_kind(
+                        program,
                         context,
                         source_key,
                         &program.expression_table,

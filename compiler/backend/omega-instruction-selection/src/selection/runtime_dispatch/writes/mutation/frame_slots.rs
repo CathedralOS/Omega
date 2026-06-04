@@ -1,10 +1,12 @@
 use crate::InstructionSelectionInput;
+use crate::selection::runtime_dispatch::text_writes::string_literal_data_handle;
 use crate::selection::runtime_dispatch::writes::mutation::operators::supports_scalar_integer_write;
 use crate::selection::storage_places::{
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset_in_table,
-    resolve_runtime_storage_place_in_table,
+    resolve_runtime_frame_indexed_target_in_table,
+    resolve_runtime_frame_indexed_target_near_slot_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
 };
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind,
@@ -49,6 +51,33 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table(
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    select_runtime_frame_slot_value_write_in_table_with_source_anchor(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        slot,
+        value,
+        static_values,
+        runtime_value_operands,
+        slot.byte_offset,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_source_anchor(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    source_anchor_byte_offset: usize,
+) -> Option<SelectedInstructionKind> {
     if slot.byte_size == input.runtime_abi.pointer_size
         && let Some(kind) = select_runtime_frame_slot_address_write_in_table(
             input,
@@ -71,6 +100,37 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table(
             byte_offset: slot.byte_offset,
             byte_size: slot.byte_size,
             value,
+        });
+    }
+
+    if slot.byte_size == input.runtime_abi.string_descriptor_size()
+        && let Some(value) = expressions.string_literal_value(value)
+    {
+        let data = string_literal_data_handle(input, value_source_key, statement_index, &value);
+        if data.is_valid() {
+            return Some(SelectedInstructionKind::WriteRuntimeFrameString {
+                byte_offset: slot.byte_offset,
+                data,
+                byte_length: value.len(),
+            });
+        }
+    }
+
+    if let Some(pointee) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && pointee.pointee_byte_size == slot.byte_size
+        && pointee.pointee_byte_size > 0
+        && !matches!(expressions.expression(value), ExpressionNode::Mutable(_))
+    {
+        return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            pointer_byte_offset: pointee.pointer_byte_offset,
+            field_byte_offset: pointee.field_byte_offset,
+            target_offset: slot.byte_offset,
+            byte_count: slot.byte_size,
         });
     }
 
@@ -113,13 +173,22 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table(
         );
     }
 
-    if let Some(indexed_source) = resolve_runtime_frame_indexed_target_in_table(
+    if let Some(indexed_source) = resolve_runtime_frame_indexed_target_near_slot_in_table(
         input,
         dispatch_index,
-        value_source_key,
         expressions,
         value,
-    ) && indexed_source.byte_count == slot.byte_size
+        source_anchor_byte_offset,
+    )
+    .or_else(|| {
+        resolve_runtime_frame_indexed_target_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+    }) && indexed_source.byte_count == slot.byte_size
         && indexed_source.byte_count > 0
     {
         return Some(

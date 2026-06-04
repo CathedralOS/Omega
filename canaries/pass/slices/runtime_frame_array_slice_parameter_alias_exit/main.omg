@@ -1,0 +1,71 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    id: i32;
+    tag: i32;
+}
+
+data Level {
+    rooms: [Room; 4];
+    room_count: usize;
+}
+
+data Main {
+    console: Console;
+    level: Level;
+}
+
+machine Main::main(&mut self) {
+    self.level.rooms[0].id = 10; self.level.rooms[0].tag = 100;
+    self.level.rooms[1].id = 11; self.level.rooms[1].tag = 111;
+    self.level.rooms[2].id = 12; self.level.rooms[2].tag = 122;
+    self.level.rooms[3].id = 13; self.level.rooms[3].tag = 133;
+    self.level.room_count = 4;
+
+    transition {
+        _ -> search(self.level, 12)
+    }
+
+    state search(&mut self, level: Level, wanted: i32) {
+        let view: &[Room] = level.rooms.as_slice();
+
+        transition {
+            _ -> find_at(view, level.room_count, wanted, 0)
+        }
+    }
+
+    state find_at(
+        &mut self,
+        rooms: &[Room],
+        room_count: usize,
+        wanted: i32,
+        index: usize
+    ) {
+        let matched: bool = rooms[index].id == wanted;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < room_count;
+
+        transition {
+            matched -> done(rooms[index].tag)
+            has_next -> find_at(rooms, room_count, wanted, next_index)
+            _ -> done(0)
+        }
+    }
+
+    state done(&mut self, result: i32) {
+        transition result == 122 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(72);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(73);
+    }
+}

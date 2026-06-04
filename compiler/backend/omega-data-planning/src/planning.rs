@@ -2,11 +2,13 @@ use crate::host_calls::{
     collect_host_call_data, collect_newline_data, collect_runtime_text_buffer_data,
 };
 use crate::static_strings::{
-    collect_static_string_assignment_data, collect_static_string_value_data,
+    collect_static_string_assignment_data, collect_static_string_branch_target_data,
+    collect_static_string_value_data,
 };
 use omega_calling_conventions::PlatformCallData;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::{HostCallArgumentKind, HostCallPlan};
+use omega_runtime_branching::RuntimeBranchingCallPlan;
 use omega_runtime_text::RuntimeTextPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
@@ -16,10 +18,16 @@ pub fn build_target_data_plan(
     host_calls: &HostCallPlan,
     state_storage: &StateStoragePlan,
     state_values: &StateValuePlan,
+    runtime_branching: &RuntimeBranchingCallPlan,
     runtime_text: &RuntimeTextPlan,
 ) -> TargetDataPlan {
-    let capacity =
-        estimate_target_data_capacity(host_calls, state_storage, state_values, runtime_text);
+    let capacity = estimate_target_data_capacity(
+        host_calls,
+        state_storage,
+        state_values,
+        runtime_branching,
+        runtime_text,
+    );
     let mut data_plan = TargetDataPlan::with_capacity(capacity.objects, capacity.bytes);
 
     for (_, host_call) in host_calls.calls.iter() {
@@ -29,6 +37,7 @@ pub fn build_target_data_plan(
     collect_newline_data(host_calls, &mut data_plan);
     collect_static_string_assignment_data(state_storage, &mut data_plan);
     collect_static_string_value_data(state_values, &mut data_plan);
+    collect_static_string_branch_target_data(runtime_branching, &mut data_plan);
 
     data_plan
 }
@@ -43,6 +52,7 @@ fn estimate_target_data_capacity(
     host_calls: &HostCallPlan,
     state_storage: &StateStoragePlan,
     state_values: &StateValuePlan,
+    runtime_branching: &RuntimeBranchingCallPlan,
     runtime_text: &RuntimeTextPlan,
 ) -> TargetDataCapacity {
     let mut capacity = TargetDataCapacity::default();
@@ -51,6 +61,7 @@ fn estimate_target_data_capacity(
     estimate_runtime_text_buffer_capacity(runtime_text, &mut capacity);
     estimate_static_string_capacity_for_state_storage(state_storage, &mut capacity);
     estimate_static_string_capacity_for_state_values(state_values, &mut capacity);
+    estimate_static_string_capacity_for_runtime_branching(runtime_branching, &mut capacity);
 
     capacity
 }
@@ -121,6 +132,31 @@ fn estimate_static_string_capacity_for_state_values(
             estimate_static_string_expression_capacity(
                 &state_values.expressions,
                 value.expression,
+                capacity,
+            );
+        }
+    }
+}
+
+fn estimate_static_string_capacity_for_runtime_branching(
+    runtime_branching: &RuntimeBranchingCallPlan,
+    capacity: &mut TargetDataCapacity,
+) {
+    for (_, expansion) in runtime_branching.leaf_expansions.iter() {
+        if expansion.target_value.is_valid() {
+            estimate_static_string_expression_capacity(
+                &runtime_branching.expressions,
+                expansion.target_value,
+                capacity,
+            );
+        }
+    }
+
+    for (_, expansion) in runtime_branching.straight_line_expansions.iter() {
+        if expansion.target_value.is_valid() {
+            estimate_static_string_expression_capacity(
+                &runtime_branching.expressions,
+                expansion.target_value,
                 capacity,
             );
         }

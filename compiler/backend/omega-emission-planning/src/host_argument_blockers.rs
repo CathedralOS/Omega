@@ -168,12 +168,14 @@ fn host_text_argument_has_planned_text_operands(
                 matches!(
                     operand.kind,
                     InstructionOperandKind::RuntimeStringPointer { .. }
+                        | InstructionOperandKind::RuntimePointeeStringPointer { .. }
                 )
             });
             let has_runtime_length = operands.iter().any(|operand| {
                 matches!(
                     operand.kind,
                     InstructionOperandKind::RuntimeStringLength { .. }
+                        | InstructionOperandKind::RuntimePointeeStringLength { .. }
                 )
             });
             let has_materialized_data_address = operands.iter().any(|operand| {

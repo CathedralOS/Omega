@@ -36,13 +36,12 @@ pub fn encode_runtime_text_storage_compare_bytes(
     match architecture {
         Architecture::Aarch64 => {
             let _ = literal_len;
-            Ok(aarch64::encode_runtime_text_storage_compare_bytes(
+            aarch64::encode_runtime_text_storage_compare_bytes(
                 source_offset,
                 compare_failure_branch_distance,
                 delimiter_failure_branch_distance,
                 branch_when_equal,
-            )?
-            .to_vec())
+            )
         }
         Architecture::X86_64 => x86_64::encode_runtime_text_storage_compare_bytes(
             source_offset,
@@ -302,9 +301,7 @@ pub fn encode_runtime_text_line_read(
                 *supervisor_call,
             ),
         },
-        Architecture::X86_64 => {
-            x86_64::encode_runtime_text_line_read(target_offset, byte_capacity)
-        }
+        Architecture::X86_64 => x86_64::encode_runtime_text_line_read(target_offset, byte_capacity),
     }
 }
 

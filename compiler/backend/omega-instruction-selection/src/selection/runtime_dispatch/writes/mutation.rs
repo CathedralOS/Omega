@@ -7,13 +7,14 @@ mod value_operands;
 
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use crate::selection::lookups::state_parameters;
 use omega_abstract_operations::{
     RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
 };
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
-use omega_state_calls::StateCallRole;
+use omega_state_calls::{StateCallLowering, StateCallRole};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, append_place_suffix,
@@ -21,11 +22,14 @@ use super::super::super::bindings::{
 };
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
-    resolve_runtime_assignment_value_call_result_place, resolve_runtime_frame_base_indexed_target,
-    resolve_runtime_frame_fixed_indexed_target, resolve_runtime_frame_indexed_target,
-    resolve_runtime_machine_indexed_target, resolve_runtime_pointee_slot_offset,
-    resolve_runtime_transition_argument_call_result_place,
+    resolve_runtime_assignment_value_call_result_place,
+    resolve_runtime_call_argument_call_result_place,
+    resolve_runtime_call_argument_call_result_place_by_ordinal,
+    resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_fixed_indexed_target,
+    resolve_runtime_frame_indexed_target, resolve_runtime_machine_indexed_target,
+    resolve_runtime_pointee_slot_offset, resolve_runtime_transition_argument_call_result_place,
 };
+use super::super::guards::static_guard_conjunct_summary_in_table;
 use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, runtime_text_builder_write_with_scratch_emit,
     select_runtime_string_descriptor_write, string_literal_data_handle,
@@ -35,12 +39,15 @@ use super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_integer_value, set_runtime_static_value,
 };
 use super::storage_copy::runtime_storage_copy;
+use super::storage_copy::runtime_storage_indexed_source_copy;
+use super::storage_copy::runtime_storage_indirect_copy;
 use super::subslice_copy::runtime_fixed_array_subslice_indexed_source_copy;
 pub(super) use binary_table_writes::{
     select_runtime_binary_mutation_write_in_table, select_runtime_storage_binary_write_in_table,
 };
 pub(in crate::selection) use frame_slots::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
+    select_runtime_frame_slot_value_write_in_table_with_source_anchor,
 };
 pub(super) use normalization::simplify_runtime_expression_with_state_locals;
 use normalization::{normalize_runtime_mutation_expression, resolve_runtime_mutation_target};
@@ -63,6 +70,14 @@ fn resolve_runtime_call_result_source_place(
         statement_index,
     )
     .or_else(|| {
+        resolve_runtime_call_argument_call_result_place(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+        )
+    })
+    .or_else(|| {
         resolve_runtime_transition_argument_call_result_place(
             input,
             dispatch_index,
@@ -70,6 +85,438 @@ fn resolve_runtime_call_result_source_place(
             statement_index,
         )
     })
+}
+
+fn resolve_runtime_call_expression_result_source_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    call: &omega_checked_trees::expression::CallExpression,
+    byte_count: usize,
+) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
+    input
+        .state_calls
+        .calls
+        .iter()
+        .filter(|(_, state_call)| {
+            let (_, target_state) = input
+                .control_flow
+                .state_names_by_key_cloned(state_call.target_key);
+            state_call.role == StateCallRole::CallArgument
+                && super::super::state_key_matches_statement_source(
+                    state_call.source_key,
+                    source_key,
+                )
+                && state_call.statement_index == statement_index
+                && target_state.as_str() == &*call.target
+        })
+        .find_map(|(_, state_call)| {
+            resolve_runtime_call_argument_call_result_place_by_ordinal(
+                input,
+                dispatch_index,
+                state_call.source_key,
+                state_call.statement_index,
+                state_call.call_ordinal,
+            )
+            .filter(|place| place.byte_count == byte_count)
+        })
+}
+
+fn inline_branching_call_argument_for_expression<'a>(
+    input: &'a InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    call: &omega_checked_trees::expression::CallExpression,
+) -> Option<&'a omega_state_calls::StateCall> {
+    input.state_calls.calls.iter().find_map(|(_, state_call)| {
+        let (_, target_state) = input
+            .control_flow
+            .state_names_by_key_cloned(state_call.target_key);
+        (state_call.role == StateCallRole::CallArgument
+            && state_call.lowering == StateCallLowering::InlineBranching
+            && super::super::state_key_matches_statement_source(state_call.source_key, source_key)
+            && state_call.statement_index == statement_index
+            && target_state.as_str() == &*call.target)
+            .then_some(state_call)
+    })
+}
+
+fn inline_branching_call_argument_expansion_is_statically_selected(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &omega_runtime_branching::RuntimeLeafBranchExpansion,
+) -> bool {
+    let summary = static_guard_conjunct_summary_in_table(
+        input,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+    );
+    expansion.target_value.is_valid()
+        && !expansion.is_default_target
+        && summary.has_true
+        && !summary.has_false
+}
+
+fn inline_branching_call_argument_default_expansion_is_statically_selected(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &omega_runtime_branching::RuntimeLeafBranchExpansion,
+    siblings: &[&omega_runtime_branching::RuntimeLeafBranchExpansion],
+) -> bool {
+    if !expansion.target_value.is_valid() || !expansion.is_default_target {
+        return false;
+    }
+    let summary = static_guard_conjunct_summary_in_table(
+        input,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+    );
+    if summary.has_false {
+        return false;
+    }
+
+    siblings
+        .iter()
+        .filter(|sibling| sibling.target_value.is_valid() && !sibling.is_default_target)
+        .all(|sibling| {
+            static_guard_conjunct_summary_in_table(
+                input,
+                &input.runtime_branching_calls.expressions,
+                sibling.resolved_guard,
+            )
+            .has_false
+        })
+}
+
+fn materialize_static_inline_branching_call_argument_result(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    call: &omega_checked_trees::expression::CallExpression,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let Some(state_call) =
+        inline_branching_call_argument_for_expression(input, source_key, statement_index, call)
+    else {
+        return false;
+    };
+    materialize_static_inline_branching_state_call_argument_result(
+        input,
+        dispatch_index,
+        state_call,
+        static_values,
+        runtime_value_operands,
+        selected_instructions,
+    )
+}
+
+fn materialize_static_inline_branching_call_argument_results_for_statement(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let mut emitted = false;
+    for (_, state_call) in input.state_calls.calls.iter() {
+        if state_call.role != StateCallRole::CallArgument
+            || state_call.lowering != StateCallLowering::InlineBranching
+            || !super::super::state_key_matches_statement_source(state_call.source_key, source_key)
+            || state_call.statement_index != statement_index
+        {
+            continue;
+        }
+        emitted |= materialize_static_inline_branching_state_call_argument_result(
+            input,
+            dispatch_index,
+            state_call,
+            static_values,
+            runtime_value_operands,
+            selected_instructions,
+        );
+    }
+    emitted
+}
+
+fn materialize_static_inline_branching_state_call_argument_result(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    state_call: &omega_state_calls::StateCall,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let Some(slot) = input.runtime_storage.call_result_slot_by_ordinal(
+        dispatch_index,
+        state_call.source_key,
+        state_call.statement_index,
+        state_call.role,
+        state_call.call_ordinal,
+    ) else {
+        return false;
+    };
+
+    let siblings = input
+        .runtime_branching_calls
+        .leaf_expansions
+        .storage_slice()
+        .iter()
+        .filter(|expansion| {
+            expansion.dispatch_index == dispatch_index
+                && super::super::state_key_matches_statement_source(
+                    expansion.source_key,
+                    state_call.source_key,
+                )
+                && expansion.statement_index == state_call.statement_index
+                && expansion.role == state_call.role
+                && expansion.call_ordinal == state_call.call_ordinal
+        })
+        .collect::<Vec<_>>();
+
+    let selected = siblings
+        .iter()
+        .copied()
+        .find(|expansion| {
+            inline_branching_call_argument_expansion_is_statically_selected(input, expansion)
+        })
+        .or_else(|| {
+            siblings.iter().copied().find(|expansion| {
+                inline_branching_call_argument_default_expansion_is_statically_selected(
+                    input, expansion, &siblings,
+                )
+            })
+        });
+    let Some(expansion) = selected else {
+        return false;
+    };
+
+    let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+        input,
+        dispatch_index,
+        expansion.branch_key,
+        expansion.target_statement_index,
+        &input.runtime_branching_calls.expressions,
+        slot,
+        expansion.target_value,
+        static_values,
+        runtime_value_operands,
+    ) else {
+        return false;
+    };
+
+    selected_instructions.push(SelectedInstruction {
+        kind,
+        source_key: expansion.branch_key,
+        source_statement: expansion.target_statement_index,
+    });
+    true
+}
+
+fn resolve_static_inline_branching_call_expression_value(
+    input: &InstructionSelectionInput<'_>,
+    call: &omega_checked_trees::expression::CallExpression,
+) -> Option<Expression> {
+    let candidates = input
+        .runtime_branching_calls
+        .leaf_expansions
+        .storage_slice()
+        .iter()
+        .filter(|expansion| {
+            let (_, branch_state) = input
+                .control_flow
+                .state_names_by_key_cloned(expansion.branch_key);
+            (expansion.branch_key.state == call.target_symbol
+                || branch_state.as_str() == &*call.target)
+                && expansion.target_value.is_valid()
+                && leaf_expansion_bindings_match_call_arguments(input, expansion, call)
+        })
+        .collect::<Vec<_>>();
+
+    candidates
+        .iter()
+        .copied()
+        .find(|expansion| {
+            inline_branching_call_argument_expansion_is_statically_selected(input, expansion)
+        })
+        .or_else(|| {
+            candidates.iter().copied().find(|expansion| {
+                inline_branching_call_argument_default_expansion_is_statically_selected(
+                    input,
+                    expansion,
+                    &candidates,
+                )
+            })
+        })
+        .map(|expansion| {
+            input
+                .runtime_branching_calls
+                .expressions
+                .to_tree(expansion.target_value)
+        })
+}
+
+fn leaf_expansion_bindings_match_call_arguments(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &omega_runtime_branching::RuntimeLeafBranchExpansion,
+    call: &omega_checked_trees::expression::CallExpression,
+) -> bool {
+    let parameters = state_parameters(input, expansion.branch_key);
+    let parameters = if parameters.len() == call.arguments.len().saturating_add(1)
+        && call.receiver.is_some()
+        && parameters
+            .first()
+            .is_some_and(|parameter| parameter.name.as_str() == "self")
+    {
+        &parameters[1..]
+    } else {
+        parameters
+    };
+    if parameters.len() != call.arguments.len() {
+        return false;
+    }
+    let bindings = input
+        .runtime_branching_calls
+        .leaf_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+
+    parameters
+        .iter()
+        .zip(call.arguments.iter())
+        .all(|(parameter, argument)| {
+            let Some(binding) = bindings.iter().rev().find(|binding| {
+                binding.parameter_symbol == parameter.symbol
+                    || binding.parameter_name == parameter.name
+            }) else {
+                return false;
+            };
+            let binding_expression = input
+                .runtime_branching_calls
+                .expressions
+                .to_tree(binding.expression);
+            static_inline_branching_argument_matches(input, bindings, &binding_expression, argument)
+        })
+}
+
+fn static_inline_branching_argument_matches(
+    input: &InstructionSelectionInput<'_>,
+    bindings: &[omega_runtime_branching::RuntimeLeafBranchBinding],
+    binding_expression: &Expression,
+    argument: &Expression,
+) -> bool {
+    let binding_expression =
+        resolve_static_inline_branching_binding_expression(input, bindings, binding_expression);
+    let argument = resolve_static_inline_branching_binding_expression(input, bindings, argument);
+
+    if binding_expression == argument {
+        return true;
+    }
+    if static_inline_branching_expressions_match(input, bindings, &binding_expression, &argument) {
+        return true;
+    }
+
+    let resolved_binding = match &binding_expression {
+        Expression::Call(call) => {
+            resolve_static_inline_branching_call_expression_value(input, call)
+        }
+        _ => None,
+    };
+    let resolved_argument = match &argument {
+        Expression::Call(call) => {
+            resolve_static_inline_branching_call_expression_value(input, call)
+        }
+        _ => None,
+    };
+
+    match (resolved_binding.as_ref(), resolved_argument.as_ref()) {
+        (Some(binding), Some(argument)) => {
+            binding == argument
+                || static_inline_branching_expressions_match(input, bindings, binding, argument)
+        }
+        (Some(binding), None) => {
+            binding == &argument
+                || static_inline_branching_expressions_match(input, bindings, binding, &argument)
+        }
+        (None, Some(argument)) => {
+            &binding_expression == argument
+                || static_inline_branching_expressions_match(
+                    input,
+                    bindings,
+                    &binding_expression,
+                    argument,
+                )
+        }
+        (None, None) => false,
+    }
+}
+
+fn resolve_static_inline_branching_binding_expression(
+    input: &InstructionSelectionInput<'_>,
+    bindings: &[omega_runtime_branching::RuntimeLeafBranchBinding],
+    expression: &Expression,
+) -> Expression {
+    let Expression::Name(name) = expression else {
+        return expression.clone();
+    };
+    if name.len() != 1 {
+        return expression.clone();
+    }
+    let Some(member) = name.first() else {
+        return expression.clone();
+    };
+    let Some(binding) = bindings.iter().rev().find(|binding| {
+        binding.parameter_symbol == name.symbol() || binding.parameter_name == *member
+    }) else {
+        return expression.clone();
+    };
+    let resolved = input
+        .runtime_branching_calls
+        .expressions
+        .to_tree(binding.expression);
+    if &resolved == expression {
+        expression.clone()
+    } else {
+        resolved
+    }
+}
+
+fn static_inline_branching_expressions_match(
+    input: &InstructionSelectionInput<'_>,
+    bindings: &[omega_runtime_branching::RuntimeLeafBranchBinding],
+    left: &Expression,
+    right: &Expression,
+) -> bool {
+    match (left, right) {
+        (Expression::Name(left), Expression::Name(right)) => {
+            left.symbol() == right.symbol()
+                || (left.len() == right.len()
+                    && left
+                        .members()
+                        .iter()
+                        .zip(right.members().iter())
+                        .all(|(left, right)| left == right))
+        }
+        (Expression::Call(left), Expression::Call(right)) => {
+            left.target_symbol == right.target_symbol
+                && left.target == right.target
+                && left.arguments.len() == right.arguments.len()
+                && left.arguments.iter().zip(right.arguments.iter()).all(
+                    |(left_argument, right_argument)| {
+                        static_inline_branching_argument_matches(
+                            input,
+                            bindings,
+                            left_argument,
+                            right_argument,
+                        )
+                    },
+                )
+        }
+        _ => false,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -251,7 +698,7 @@ pub(super) fn select_runtime_state_call_result_write(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn select_runtime_resolved_target_value_source_mutation_writes(
+pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation_source_key: StateKey,
@@ -364,6 +811,30 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         aliases,
         alias_expressions,
     );
+    if let Expression::Call(call) = &resolved_value.expression
+        && let Some(static_value) =
+            resolve_static_inline_branching_call_expression_value(input, call)
+    {
+        select_runtime_resolved_target_value_source_mutation_writes(
+            input,
+            dispatch_index,
+            operation_source_key,
+            target_source_key,
+            resolved_value.source_key,
+            source_machine,
+            source_state,
+            statement_index,
+            resolved_target,
+            &static_value,
+            aliases,
+            alias_expressions,
+            static_values,
+            resolved_segment_expressions,
+            runtime_value_operands,
+            selected_instructions,
+        );
+        return;
+    }
     if let Expression::String(value) = &resolved_value.expression {
         select_runtime_string_descriptor_write(
             input,
@@ -374,7 +845,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
             dispatch_index,
             statement_index,
             resolved_target,
-            value,
+            &value,
             selected_instructions,
         );
         return;
@@ -390,6 +861,30 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         resolved_target,
         &resolved_value.expression,
     )
+    .or_else(|| {
+        runtime_storage_indexed_source_copy(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_value.source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+            &resolved_value.expression,
+        )
+    })
+    .or_else(|| {
+        runtime_storage_indirect_copy(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_value.source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+            &resolved_value.expression,
+        )
+    })
     .or_else(|| {
         runtime_storage_copy(
             input,
@@ -443,6 +938,15 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         value_source_key,
         statement_index,
     ) {
+        materialize_static_inline_branching_call_argument_results_for_statement(
+            input,
+            dispatch_index,
+            value_source_key,
+            statement_index,
+            static_values,
+            runtime_value_operands,
+            selected_instructions,
+        );
         if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
             input,
             dispatch_index,
@@ -497,6 +1001,126 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
             resolved_target,
         ) && target_place.byte_count == source_place.byte_count
         {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorage {
+                    source_region: source_place.region,
+                    source_offset: source_place.byte_offset,
+                    target_region: target_place.region,
+                    target_offset: target_place.byte_offset,
+                    byte_count: target_place.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+    }
+
+    if let Expression::Call(call) = &resolved_value.expression {
+        if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_target,
+        ) && let Some(field_byte_offset) = indexed_target.pointee_field_byte_offset()
+            && let Some(source_place) = resolve_runtime_call_expression_result_source_place(
+                input,
+                dispatch_index,
+                resolved_value.source_key,
+                statement_index,
+                call,
+                indexed_target.byte_count,
+            )
+            && source_place.byte_count == indexed_target.byte_count
+        {
+            materialize_static_inline_branching_call_argument_result(
+                input,
+                dispatch_index,
+                resolved_value.source_key,
+                statement_index,
+                call,
+                static_values,
+                runtime_value_operands,
+                selected_instructions,
+            );
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
+                    source_region: source_place.region,
+                    source_offset: source_place.byte_offset,
+                    pointer_byte_offset: indexed_target.descriptor_offset,
+                    field_byte_offset,
+                    byte_count: indexed_target.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
+        if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_target,
+        ) && let Some(source_place) = resolve_runtime_call_expression_result_source_place(
+            input,
+            dispatch_index,
+            resolved_value.source_key,
+            statement_index,
+            call,
+            pointer_target.pointee_byte_size,
+        ) && source_place.byte_count > 0
+        {
+            materialize_static_inline_branching_call_argument_result(
+                input,
+                dispatch_index,
+                resolved_value.source_key,
+                statement_index,
+                call,
+                static_values,
+                runtime_value_operands,
+                selected_instructions,
+            );
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
+                    source_region: source_place.region,
+                    source_offset: source_place.byte_offset,
+                    pointer_byte_offset: pointer_target.pointer_byte_offset,
+                    field_byte_offset: pointer_target.field_byte_offset,
+                    byte_count: source_place.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
+        if let Some(target_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            target_source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+        ) && let Some(source_place) = resolve_runtime_call_expression_result_source_place(
+            input,
+            dispatch_index,
+            resolved_value.source_key,
+            statement_index,
+            call,
+            target_place.byte_count,
+        ) && target_place.byte_count == source_place.byte_count
+        {
+            materialize_static_inline_branching_call_argument_result(
+                input,
+                dispatch_index,
+                resolved_value.source_key,
+                statement_index,
+                call,
+                static_values,
+                runtime_value_operands,
+                selected_instructions,
+            );
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimeStorage {
                     source_region: source_place.region,
@@ -667,7 +1291,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         && let Some(value) = resolve_runtime_static_integer_value(
             input,
             operation_source_key,
-            value,
+            &value,
             aliases,
             alias_expressions,
             static_values,
@@ -700,6 +1324,14 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         alias_expressions,
         static_values,
     ) else {
+        debug_unselected_runtime_mutation(
+            "static integer value did not resolve",
+            source_machine,
+            source_state,
+            statement_index,
+            resolved_target,
+            &value,
+        );
         return;
     };
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
@@ -733,9 +1365,25 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         source_state,
         resolved_target,
     ) else {
+        debug_unselected_runtime_mutation(
+            "runtime storage target did not resolve",
+            source_machine,
+            source_state,
+            statement_index,
+            resolved_target,
+            &value,
+        );
         return;
     };
     if !supports_scalar_integer_write(target_place.byte_count) {
+        debug_unselected_runtime_mutation(
+            "runtime storage target is not scalar-write sized",
+            source_machine,
+            source_state,
+            statement_index,
+            resolved_target,
+            &value,
+        );
         return;
     }
 
@@ -754,6 +1402,23 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         source_key: operation_source_key,
         source_statement: statement_index,
     });
+}
+
+fn debug_unselected_runtime_mutation(
+    reason: &str,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+    target: &Expression,
+    value: &impl std::fmt::Debug,
+) {
+    if std::env::var_os("OMEGA_DEBUG_MUTATION_SELECTION").is_none() {
+        return;
+    }
+
+    eprintln!(
+        "runtime mutation not selected: {source_machine}::{source_state} statement {statement_index}: {target:?} = {value:?}: {reason}"
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -800,7 +1465,18 @@ fn select_runtime_binary_mutation_write(
         alias_expressions,
         static_values,
         runtime_value_operands,
-    )?;
+    );
+    let Some(left) = left else {
+        debug_unselected_runtime_mutation(
+            "left runtime value operand did not resolve",
+            source_machine,
+            source_state,
+            statement_index,
+            resolved_target,
+            left_expression,
+        );
+        return None;
+    };
     let right = resolve_runtime_value_operand(
         input,
         dispatch_index,
@@ -813,7 +1489,18 @@ fn select_runtime_binary_mutation_write(
         alias_expressions,
         static_values,
         runtime_value_operands,
-    )?;
+    );
+    let Some(right) = right else {
+        debug_unselected_runtime_mutation(
+            "right runtime value operand did not resolve",
+            source_machine,
+            source_state,
+            statement_index,
+            resolved_target,
+            right_expression,
+        );
+        return None;
+    };
 
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target(
         input,

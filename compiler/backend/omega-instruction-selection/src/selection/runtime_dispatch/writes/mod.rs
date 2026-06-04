@@ -26,6 +26,7 @@ pub(crate) use static_values::RuntimeStaticValues;
 
 pub(in crate::selection) use mutation::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
+    select_runtime_frame_slot_value_write_in_table_with_source_anchor,
 };
 pub(in crate::selection) use slice_descriptors::emit_runtime_frame_slot_slice_descriptor_write_in_table;
 pub(super) use storage_copy::{
@@ -288,6 +289,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
     if let ExpressionNode::StructLiteral(struct_literal) = expressions.expression(value).clone() {
+        let mut emitted = false;
         for offset in 0..struct_literal.fields.count() {
             let field = expressions
                 .struct_field_at_offset(struct_literal.fields, offset)
@@ -297,7 +299,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 member_symbol: SymbolHandle::invalid(),
                 member: field.name,
             }));
-            select_runtime_storage_resolved_mutation_write_in_mutable_table(
+            emitted |= select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 input,
                 dispatch_index,
                 operation_source_key,
@@ -314,7 +316,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 selected_instructions,
             );
         }
-        return true;
+        return emitted;
     }
 
     select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
@@ -398,10 +400,11 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         let target_tree = expressions.to_tree(target);
         let (source_machine, source_state) = state_names(input, operation_source_key);
         let selected_before = selected_instructions.len();
-        mutation::select_runtime_mutation_writes(
+        mutation::select_runtime_resolved_target_value_source_mutation_writes(
             input,
             dispatch_index,
             operation_source_key,
+            target_source_key,
             value_source_key,
             &source_machine,
             &source_state,
@@ -464,7 +467,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         )
     })
     .or_else(|| {
-        storage_copy::runtime_storage_copy_in_table(
+        storage_copy::runtime_storage_indirect_copy_in_table(
             input,
             dispatch_index,
             target_source_key,
@@ -475,7 +478,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         )
     })
     .or_else(|| {
-        storage_copy::runtime_storage_indirect_copy_in_table(
+        storage_copy::runtime_storage_copy_in_table(
             input,
             dispatch_index,
             target_source_key,
@@ -516,6 +519,31 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
             source_key: operation_source_key,
             source_statement: statement_index,
         });
+        return true;
+    }
+
+    let target_tree = expressions.to_tree(target);
+    let selected_before = selected_instructions.len();
+    let (source_machine, source_state) = state_names(input, operation_source_key);
+    mutation::select_runtime_resolved_target_value_source_mutation_writes(
+        input,
+        dispatch_index,
+        operation_source_key,
+        target_source_key,
+        value_source_key,
+        &source_machine,
+        &source_state,
+        statement_index,
+        &target_tree,
+        &simplified_value_tree,
+        aliases,
+        expressions,
+        static_values,
+        resolved_segment_expressions,
+        runtime_value_operands,
+        selected_instructions,
+    );
+    if selected_instructions.len() > selected_before {
         return true;
     }
 

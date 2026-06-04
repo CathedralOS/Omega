@@ -126,7 +126,7 @@ fn write_runtime_leaf_branch_expansions(
         let branch_name = backend_state_name(backend_plan, expansion.branch_key);
         let leaf_name = backend_state_name(backend_plan, expansion.leaf_key);
         output.push_str(&format!(
-            "- #{} {} statement {} {} edge {} -> {} {:?} {}\n",
+            "- #{} {} statement {} {} edge {} -> {} {:?} {} call #{}\n",
             expansion.dispatch_index,
             source_name,
             expansion.statement_index,
@@ -137,7 +137,8 @@ fn write_runtime_leaf_branch_expansions(
             transition_guard_expression_name(
                 &backend_plan.runtime_branching_calls.expressions,
                 expansion.guard
-            )
+            ),
+            expansion.call_ordinal
         ));
         if expansion.resolved_guard != expansion.guard {
             output.push_str(&format!(

@@ -1,8 +1,11 @@
 use super::{StateMutationKind, StateMutationLowering};
 use crate::StateStoragePlanningContext;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression, TableNamePath,
 };
+use omega_checked_trees::statement::StatementNode;
+use omega_checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 
@@ -25,6 +28,7 @@ pub(super) fn mutation_lowering(
 }
 
 pub(super) fn mutation_kind(
+    program: &CheckedTrees,
     context: &StateStoragePlanningContext,
     source_key: StateKey,
     expressions: &ExpressionTable,
@@ -38,6 +42,12 @@ pub(super) fn mutation_kind(
         .borrow_root_kind_by_symbol(source_key, place.head_symbol)
         .or_else(|| context.borrow_root_kind_by_symbol(source_key, place.symbol))
     {
+        if kind == omega_control_flow::StateBorrowRootKind::LocalData
+            && place.symbol != place.head_symbol
+            && local_symbol_is_mutable_reference(program, source_key, place.head_symbol)
+        {
+            return StateMutationKind::ParameterOrAlias;
+        }
         return mutation_kind_for_borrow_root(kind);
     }
 
@@ -46,6 +56,52 @@ pub(super) fn mutation_kind(
     }
 
     StateMutationKind::Unknown
+}
+
+fn local_symbol_is_mutable_reference(
+    program: &CheckedTrees,
+    source_key: StateKey,
+    symbol: SymbolHandle,
+) -> bool {
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)
+    else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)
+    else {
+        return false;
+    };
+
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| match statement {
+            StatementNode::LocalData(local_data) if local_data.symbol == symbol => {
+                is_mutable_reference_type(program, local_data.type_reference)
+            }
+            _ => false,
+        })
+}
+
+fn is_mutable_reference_type(program: &CheckedTrees, type_reference: TypeReferenceHandle) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { is_mutable, .. } => *is_mutable,
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            is_mutable_reference_type(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::Generic { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Unit => false,
+    }
 }
 
 fn mutation_kind_for_borrow_root(

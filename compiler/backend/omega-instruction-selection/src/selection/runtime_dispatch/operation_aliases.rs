@@ -11,9 +11,9 @@ use super::super::bindings::{
     strip_mutable_expression_handle,
 };
 use super::super::lookups::{
-    state_assignment_value_call, state_assignment_value_call_by_ordinal, state_call_for_statement,
-    state_transition_argument_call, state_transition_argument_call_by_ordinal,
-    state_transition_guard_call,
+    state_assignment_value_call, state_assignment_value_call_by_ordinal,
+    state_call_argument_call_by_ordinal, state_call_for_statement, state_transition_argument_call,
+    state_transition_argument_call_by_ordinal, state_transition_guard_call,
 };
 
 pub(super) fn bind_runtime_operation_aliases(
@@ -61,6 +61,12 @@ pub(super) fn bind_runtime_operation_aliases(
         .or_else(|| {
             state_assignment_value_call(input, operation.source_key, operation.statement_index)
         }),
+        StateCallRole::CallArgument => state_call_argument_call_by_ordinal(
+            input,
+            operation.source_key,
+            operation.statement_index,
+            call_ordinal,
+        ),
         StateCallRole::TransitionGuard => {
             state_transition_guard_call(input, operation.source_key, operation.statement_index)
         }
@@ -73,7 +79,6 @@ pub(super) fn bind_runtime_operation_aliases(
         .or_else(|| {
             state_transition_argument_call(input, operation.source_key, operation.statement_index)
         }),
-        _ => None,
     };
     let Some(state_call) = state_call else {
         return;

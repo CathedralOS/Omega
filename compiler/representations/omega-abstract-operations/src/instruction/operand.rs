@@ -27,6 +27,14 @@ pub enum InstructionOperandKind {
         region: RuntimeStorageRegion,
         byte_offset: usize,
     },
+    RuntimePointeeStringPointer {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+    },
+    RuntimePointeeStringLength {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+    },
     ImmediateInteger(i64),
     ByteLength(usize),
 }

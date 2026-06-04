@@ -2,16 +2,17 @@ use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::StateGuardOperator;
 
 use super::primitives::{
-    encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_compare_w_immediate,
-    encode_compare_w17_immediate, encode_compare_x17_immediate, encode_conditional_branch_equal,
-    encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
-    encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
-    encode_conditional_branch_not_equal, encode_load_w17_from_x16, encode_load_x_from_x,
-    encode_movz_w, encode_unconditional_branch,
+    append_add_x_constant, encode_add_page_offset_placeholder, encode_adrp_placeholder,
+    encode_compare_w_immediate, encode_compare_w17_immediate, encode_compare_x17_immediate,
+    encode_conditional_branch_equal, encode_conditional_branch_greater,
+    encode_conditional_branch_greater_or_equal, encode_conditional_branch_less,
+    encode_conditional_branch_less_or_equal, encode_conditional_branch_not_equal,
+    encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
+    encode_unconditional_branch,
 };
 use super::widths::dispatch_guard_compare_static_width;
 
-const DISPATCH_STATE_REGISTER: u8 = 26;
+const DISPATCH_STATE_REGISTER: u8 = 28;
 
 pub fn encode_dispatch_loop_enter_bytes(entry_dispatch_index: u32) -> Result<[u8; 4], Diagnostic> {
     let immediate = u16::try_from(entry_dispatch_index).map_err(|_| {
@@ -57,15 +58,10 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     expected_value: i64,
     skip_byte_distance: isize,
     operator: StateGuardOperator,
-) -> Result<[u8; 20], Diagnostic> {
-    let mut bytes = [0; 20];
-    let mut cursor = 0usize;
-    append_instruction(&mut bytes, &mut cursor, encode_adrp_placeholder(16));
-    append_instruction(
-        &mut bytes,
-        &mut cursor,
-        encode_add_page_offset_placeholder(16),
-    );
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(dispatch_guard_compare_static_width(byte_offset, byte_size));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
     match byte_size {
         1 | 4 => {
             let expected_value = u32::try_from(expected_value).map_err(|_| {
@@ -73,16 +69,8 @@ pub fn encode_dispatch_guard_compare_static_bytes(
                     "AArch64 MVP encoder cannot compare negative guard value `{expected_value}` yet"
                 ))
             })?;
-            append_instruction(
-                &mut bytes,
-                &mut cursor,
-                encode_load_w17_from_x16(byte_offset, byte_size)?,
-            );
-            append_instruction(
-                &mut bytes,
-                &mut cursor,
-                encode_compare_w17_immediate(expected_value)?,
-            );
+            append_guard_load(&mut bytes, byte_offset, byte_size)?;
+            bytes.extend(encode_compare_w17_immediate(expected_value)?);
         }
         8 => {
             let expected_value = u64::try_from(expected_value).map_err(|_| {
@@ -90,16 +78,8 @@ pub fn encode_dispatch_guard_compare_static_bytes(
                     "AArch64 MVP encoder cannot compare negative guard value `{expected_value}` yet"
                 ))
             })?;
-            append_instruction(
-                &mut bytes,
-                &mut cursor,
-                encode_load_x_from_x(17, 16, byte_offset)?,
-            );
-            append_instruction(
-                &mut bytes,
-                &mut cursor,
-                encode_compare_x17_immediate(expected_value)?,
-            );
+            append_guard_load(&mut bytes, byte_offset, byte_size)?;
+            bytes.extend(encode_compare_x17_immediate(expected_value)?);
         }
         _ => {
             return Err(Diagnostic::error(format!(
@@ -107,38 +87,62 @@ pub fn encode_dispatch_guard_compare_static_bytes(
             )));
         }
     }
-    append_instruction(
-        &mut bytes,
-        &mut cursor,
-        match operator {
-            StateGuardOperator::Equal => encode_conditional_branch_not_equal(skip_byte_distance)?,
-            StateGuardOperator::NotEqual => encode_conditional_branch_equal(skip_byte_distance)?,
-            StateGuardOperator::Greater => {
-                encode_conditional_branch_less_or_equal(skip_byte_distance)?
-            }
-            StateGuardOperator::GreaterOrEqual => {
-                encode_conditional_branch_less(skip_byte_distance)?
-            }
-            StateGuardOperator::Less => {
-                encode_conditional_branch_greater_or_equal(skip_byte_distance)?
-            }
-            StateGuardOperator::LessOrEqual => {
-                encode_conditional_branch_greater(skip_byte_distance)?
-            }
-            _ => {
-                return Err(Diagnostic::error(format!(
-                    "AArch64 MVP encoder cannot lower dispatch guard operator `{operator:?}` yet"
-                )));
-            }
-        },
+    bytes.extend(match operator {
+        StateGuardOperator::Equal => encode_conditional_branch_not_equal(skip_byte_distance)?,
+        StateGuardOperator::NotEqual => encode_conditional_branch_equal(skip_byte_distance)?,
+        StateGuardOperator::Greater => encode_conditional_branch_less_or_equal(skip_byte_distance)?,
+        StateGuardOperator::GreaterOrEqual => encode_conditional_branch_less(skip_byte_distance)?,
+        StateGuardOperator::Less => encode_conditional_branch_greater_or_equal(skip_byte_distance)?,
+        StateGuardOperator::LessOrEqual => encode_conditional_branch_greater(skip_byte_distance)?,
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot lower dispatch guard operator `{operator:?}` yet"
+            )));
+        }
+    });
+    debug_assert_eq!(
+        bytes.len(),
+        dispatch_guard_compare_static_width(byte_offset, byte_size)
     );
-    debug_assert_eq!(cursor, dispatch_guard_compare_static_width());
     Ok(bytes)
 }
 
-fn append_instruction(bytes: &mut [u8], cursor: &mut usize, instruction: [u8; 4]) {
-    bytes[*cursor..*cursor + 4].copy_from_slice(&instruction);
-    *cursor += 4;
+fn append_guard_load(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let direct = match byte_size {
+        1 => byte_offset <= 4095,
+        4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
+        8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
+        _ => false,
+    };
+
+    let base_register = if direct {
+        16
+    } else {
+        bytes.extend(encode_move_x_register(18, 16));
+        append_add_x_constant(bytes, 18, 18, byte_offset, 19)?;
+        18
+    };
+
+    match byte_size {
+        1 | 4 => bytes.extend(encode_load_w_from_x(
+            17,
+            base_register,
+            if direct { byte_offset } else { 0 },
+            byte_size,
+        )?),
+        8 => bytes.extend(encode_load_x_from_x(
+            17,
+            base_register,
+            if direct { byte_offset } else { 0 },
+        )?),
+        _ => unreachable!("dispatch guard byte_size was validated by caller"),
+    }
+
+    Ok(())
 }
 
 fn two_instructions(first: [u8; 4], second: [u8; 4]) -> [u8; 8] {

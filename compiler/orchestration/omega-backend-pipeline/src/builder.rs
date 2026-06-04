@@ -286,6 +286,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             &backend_plan.host_calls,
             &backend_plan.state_storage,
             &backend_plan.state_values,
+            &backend_plan.runtime_branching_calls,
             &backend_plan.runtime_text,
         )
     });
@@ -442,7 +443,11 @@ fn stack_runtime_storage_by_call_context(
         next_base = bases[context] + sizes[context];
     }
 
-    let handles: Vec<_> = storage.frame_slots.iter().map(|(handle, _)| handle).collect();
+    let handles: Vec<_> = storage
+        .frame_slots
+        .iter()
+        .map(|(handle, _)| handle)
+        .collect();
     for handle in handles {
         let slot = storage.frame_slots.get_mut(handle);
         let base = bases[context_of(slot.dispatch_index)];
@@ -545,7 +550,13 @@ fn state_call_target_loops(
             for (_, call) in state_calls.calls.iter() {
                 if call.required
                     && call.source_key == key
-                    && visit(control_flow, state_calls, call.target_key, on_path, finished)
+                    && visit(
+                        control_flow,
+                        state_calls,
+                        call.target_key,
+                        on_path,
+                        finished,
+                    )
                 {
                     loops = true;
                     break;
@@ -559,7 +570,13 @@ fn state_call_target_loops(
         loops
     }
 
-    visit(control_flow, state_calls, start, &mut Vec::new(), &mut Vec::new())
+    visit(
+        control_flow,
+        state_calls,
+        start,
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
 }
 
 fn state_calls_cover_runtime_flow(

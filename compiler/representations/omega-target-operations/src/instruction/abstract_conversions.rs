@@ -403,6 +403,15 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 data: remap_data_handle(*data),
                 byte_length: *byte_length,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameString {
+                byte_offset,
+                data,
+                byte_length,
+            } => Self::WriteRuntimeFrameString {
+                byte_offset: *byte_offset,
+                data: remap_data_handle(*data),
+                byte_length: *byte_length,
+            },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimePointeeString {
                 pointer_byte_offset,
                 field_byte_offset,
@@ -612,6 +621,23 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_offset: *target_offset,
                 byte_count: *byte_count,
             },
+            omega_abstract_operations::AbstractOperationKind::CopyRuntimeFrameFixedIndexedToRuntimePointee {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                source_field_byte_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+                byte_count,
+            } => Self::CopyRuntimeFrameFixedIndexedToRuntimePointee {
+                descriptor_offset: *descriptor_offset,
+                element_index: *element_index,
+                element_byte_size: *element_byte_size,
+                source_field_byte_offset: *source_field_byte_offset,
+                pointer_byte_offset: *pointer_byte_offset,
+                target_field_byte_offset: *target_field_byte_offset,
+                byte_count: *byte_count,
+            },
             omega_abstract_operations::AbstractOperationKind::CopyRuntimeMachineIndexedToRuntimeStorage {
                 base_byte_offset,
                 index_offset,
@@ -640,6 +666,17 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 source_offset: *source_offset,
                 pointer_byte_offset: *pointer_byte_offset,
                 field_byte_offset: *field_byte_offset,
+                byte_count: *byte_count,
+            },
+            omega_abstract_operations::AbstractOperationKind::CopyRuntimePointeeToRuntimeFrame {
+                pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            } => Self::CopyRuntimePointeeToRuntimeFrame {
+                pointer_byte_offset: *pointer_byte_offset,
+                field_byte_offset: *field_byte_offset,
+                target_offset: *target_offset,
                 byte_count: *byte_count,
             },
             omega_abstract_operations::AbstractOperationKind::SetDispatchState {

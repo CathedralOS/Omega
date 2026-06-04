@@ -81,6 +81,25 @@ pub(super) fn selected_runtime_storage_copy_kind(
             *target_offset,
             *byte_count,
         )),
+        SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimePointee {
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            source_field_byte_offset,
+            pointer_byte_offset,
+            target_field_byte_offset,
+            byte_count,
+        } => Some(
+            runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee_kind(
+                *descriptor_offset,
+                *element_index,
+                *element_byte_size,
+                *source_field_byte_offset,
+                *pointer_byte_offset,
+                *target_field_byte_offset,
+                *byte_count,
+            ),
+        ),
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset,
             index_offset,
@@ -109,6 +128,9 @@ pub(super) fn selected_runtime_storage_copy_kind(
             *field_byte_offset,
             *byte_count,
         )),
+        SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame { .. } => {
+            Some(MachineInstructionKind::RuntimeStorageCopyFromRuntimePointeeToRuntimeFrame)
+        }
         _ => None,
     }
 }
@@ -152,6 +174,18 @@ fn runtime_storage_copy_from_runtime_frame_fixed_indexed_kind(
     _byte_count: usize,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameFixedIndexed
+}
+
+fn runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee_kind(
+    _descriptor_offset: usize,
+    _element_index: usize,
+    _element_byte_size: usize,
+    _source_field_byte_offset: usize,
+    _pointer_byte_offset: usize,
+    _target_field_byte_offset: usize,
+    _byte_count: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameFixedIndexedToRuntimePointee
 }
 
 fn runtime_storage_copy_from_runtime_machine_indexed_kind(

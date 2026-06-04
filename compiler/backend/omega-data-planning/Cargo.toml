@@ -13,6 +13,7 @@ omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-platform-interface = { path = "../omega-platform-interface" }
+omega-runtime-branching = { path = "../omega-runtime-branching" }
 omega-runtime-text = { path = "../omega-runtime-text" }
 omega-state-storage = { path = "../omega-state-storage" }
 omega-state-values = { path = "../omega-state-values" }

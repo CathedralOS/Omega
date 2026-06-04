@@ -31,6 +31,20 @@ fn translate_operand_kind(
             region: *region,
             byte_offset: *byte_offset,
         },
+        omega_abstract_operations::InstructionOperandKind::RuntimePointeeStringPointer {
+            region,
+            byte_offset,
+        } => InstructionOperandKind::RuntimePointeeStringPointer {
+            region: *region,
+            byte_offset: *byte_offset,
+        },
+        omega_abstract_operations::InstructionOperandKind::RuntimePointeeStringLength {
+            region,
+            byte_offset,
+        } => InstructionOperandKind::RuntimePointeeStringLength {
+            region: *region,
+            byte_offset: *byte_offset,
+        },
         omega_abstract_operations::InstructionOperandKind::ImmediateInteger(value) => {
             InstructionOperandKind::ImmediateInteger(*value)
         }

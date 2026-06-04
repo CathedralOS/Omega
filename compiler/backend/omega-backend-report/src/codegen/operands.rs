@@ -31,6 +31,20 @@ pub(super) fn selected_instruction_operands_name(
                 let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
                 format!("string len {symbol}@{byte_offset}")
             }
+            InstructionOperandKind::RuntimePointeeStringPointer {
+                region,
+                byte_offset,
+            } => {
+                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+                format!("pointee string ptr *{symbol}@{byte_offset}")
+            }
+            InstructionOperandKind::RuntimePointeeStringLength {
+                region,
+                byte_offset,
+            } => {
+                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+                format!("pointee string len *{symbol}@{byte_offset}")
+            }
             InstructionOperandKind::ImmediateInteger(value) => value.to_string(),
             InstructionOperandKind::ByteLength(value) => format!("len {value}"),
         })

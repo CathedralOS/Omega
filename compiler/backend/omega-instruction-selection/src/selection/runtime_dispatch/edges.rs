@@ -1,6 +1,5 @@
 use super::argument_materialization::{
     select_runtime_dispatch_argument_materialization, static_runtime_argument_value,
-    target_dispatch_index_for_source,
 };
 use super::guards::{
     select_runtime_dispatch_expression_guard,
@@ -26,6 +25,7 @@ pub(super) fn select_runtime_dispatch_edge(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
+    source_dispatch_index: u32,
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
@@ -39,6 +39,7 @@ pub(super) fn select_runtime_dispatch_edge(
         input,
         edge,
         source_key,
+        source_dispatch_index,
         runtime_value_operands,
         selected_instructions,
     );
@@ -48,6 +49,7 @@ pub(super) fn select_runtime_dispatch_edge(
             select_runtime_dispatch_argument_materialization(
                 input,
                 source_key,
+                source_dispatch_index,
                 edge.statement_index,
                 edge.target_dispatch_index,
                 edge.target_arguments,
@@ -119,11 +121,10 @@ fn select_dispatch_guard_instructions(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
+    source_dispatch_index: u32,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let source_dispatch_index = target_dispatch_index_for_source(input, source_key);
-
     if !guard_can_emit_directly(edge) {
         let clauses = lower_guard_conjunction(
             input.state_guards,

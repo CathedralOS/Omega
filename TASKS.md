@@ -67,6 +67,15 @@ Implementation slices below build against these. Minor/easily-reversible details
 
 ## Next Up (highest leverage)
 
+**Runtime frame aliasing bug found while bringing up dungeon.** A slice
+descriptor parameter can overwrite the inline array storage it points into when
+state parameter slots are reused across a call/transition boundary. Repro shape:
+`let rooms = level.rooms.as_slice(); find_room_at(rooms, ...)` where `level` is a
+by-value runtime-frame parameter and the callee's `rooms` descriptor slot is
+assigned over `level.rooms`. The visible copy range is only the 16-byte
+descriptor, so current scratch staging misses the hidden pointee range. Fix in
+frame-slot assignment/staging so descriptor payload source ranges are first-class.
+
 **RESUME POINT (next session).** main `d20d1c06`, synced, clean. Wave A landed
 (Cv/Tm/Cap/R/B). Wave B-1: E3 Stdin host binding landed; DB dispatch-branch
 diagnosed-not-fixed (see below). The two highest-value backend fixes, both with a

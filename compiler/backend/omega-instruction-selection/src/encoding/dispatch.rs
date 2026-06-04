@@ -71,14 +71,13 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Ok(aarch64::encode_dispatch_guard_compare_static_bytes(
+        Architecture::Aarch64 => aarch64::encode_dispatch_guard_compare_static_bytes(
             byte_offset,
             byte_size,
             expected_value,
             skip_byte_distance,
             operator,
-        )?
-        .to_vec()),
+        ),
         Architecture::X86_64 => x86_64::encode_dispatch_guard_compare_static_bytes(
             byte_offset,
             byte_size,

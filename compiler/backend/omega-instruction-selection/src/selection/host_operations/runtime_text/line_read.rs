@@ -10,6 +10,12 @@ use omega_calling_conventions::PlatformCallData;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::HostCall;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::selection) struct RuntimeStringDescriptorPlace {
+    pub(in crate::selection) place: RuntimeStoragePlace,
+    pub(in crate::selection) through_pointee: bool,
+}
+
 pub(in crate::selection::host_operations) fn runtime_text_line_read(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
@@ -62,7 +68,7 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
     host_call: &HostCall,
     dispatch_index: Option<u32>,
     alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
-) -> Option<RuntimeStoragePlace> {
+) -> Option<RuntimeStringDescriptorPlace> {
     let first_argument = input
         .host_calls
         .arguments
@@ -89,7 +95,7 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
             *expression,
         )
     {
-        return (place.byte_count == input.runtime_abi.string_descriptor_size()).then_some(place);
+        return runtime_string_descriptor_from_place(input, place);
     }
 
     let mut expressions = ExpressionTable::with_expression_capacity(
@@ -131,9 +137,28 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
         &expressions,
         resolved_expression,
     ) {
-        return (place.byte_count == input.runtime_abi.string_descriptor_size()).then_some(place);
+        return runtime_string_descriptor_from_place(input, place);
     }
 
+    None
+}
+
+fn runtime_string_descriptor_from_place(
+    input: &InstructionSelectionInput<'_>,
+    place: RuntimeStoragePlace,
+) -> Option<RuntimeStringDescriptorPlace> {
+    if place.byte_count == input.runtime_abi.string_descriptor_size() {
+        return Some(RuntimeStringDescriptorPlace {
+            place,
+            through_pointee: false,
+        });
+    }
+    if place.byte_count == input.runtime_abi.pointer_size {
+        return Some(RuntimeStringDescriptorPlace {
+            place,
+            through_pointee: true,
+        });
+    }
     None
 }
 
@@ -221,7 +246,7 @@ fn resolve_host_call_alias_expression_handle(
                 )),
             )
         }
-        ExpressionNode::Name(path) if path.members.count() > 0 => {
+        ExpressionNode::Name(path) => {
             let mut matched_alias = None;
             for (_, alias) in input.alias_flow.aliases.iter() {
                 if alias.callee_key == source_key && alias_matches_table_path(alias, &path) {
@@ -233,12 +258,16 @@ fn resolve_host_call_alias_expression_handle(
                 .map(|alias| {
                     let argument =
                         expressions.copy_from(&input.alias_flow.expressions, alias.argument);
-                    let aliased_expression = expressions.insert_copy_with_member_suffix(
-                        argument,
-                        path.members,
-                        path.member_symbols,
-                        1,
-                    );
+                    let aliased_expression = if path.members.count() > 0 {
+                        expressions.insert_copy_with_member_suffix(
+                            argument,
+                            path.members,
+                            path.member_symbols,
+                            1,
+                        )
+                    } else {
+                        argument
+                    };
                     resolve_host_call_alias_expression_handle(
                         input,
                         alias.caller_key,

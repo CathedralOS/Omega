@@ -13,7 +13,7 @@ pub fn encode_runtime_storage_compare_bytes(
     byte_size: usize,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
-) -> Result<[u8; 32], Diagnostic> {
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_storage_compare_bytes(
             left_offset,
@@ -22,7 +22,13 @@ pub fn encode_runtime_storage_compare_bytes(
             failure_branch_distance,
             operator,
         ),
-        Architecture::X86_64 => unsupported_x86_64_runtime_storage_compare_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_storage_compare_bytes(
+            left_offset,
+            right_offset,
+            byte_size,
+            failure_branch_distance,
+            operator,
+        ),
     }
 }
 
@@ -33,7 +39,7 @@ pub fn encode_runtime_storage_value_compare_bytes(
     expected_value: i64,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
-) -> Result<[u8; 20], Diagnostic> {
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_storage_value_compare_bytes(
             byte_offset,
@@ -42,7 +48,13 @@ pub fn encode_runtime_storage_value_compare_bytes(
             failure_branch_distance,
             operator,
         ),
-        Architecture::X86_64 => unsupported_x86_64_runtime_storage_value_compare_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_storage_value_compare_bytes(
+            byte_offset,
+            byte_size,
+            expected_value,
+            failure_branch_distance,
+            operator,
+        ),
     }
 }
 
@@ -343,6 +355,19 @@ pub fn encode_runtime_machine_string_write(
         Architecture::X86_64 => {
             x86_64::encode_runtime_machine_string_write(byte_offset, byte_length)
         }
+    }
+}
+
+pub fn encode_runtime_frame_string_write(
+    architecture: Architecture,
+    byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_frame_string_write(byte_offset, byte_length)
+        }
+        Architecture::X86_64 => x86_64::encode_runtime_frame_string_write(byte_offset, byte_length),
     }
 }
 
@@ -685,6 +710,42 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_s
     }
 }
 
+pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
+    architecture: Architecture,
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                source_field_byte_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee(
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                source_field_byte_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+                byte_count,
+            )
+        }
+    }
+}
+
 pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
     architecture: Architecture,
     base_byte_offset: usize,
@@ -732,19 +793,34 @@ pub fn encode_runtime_storage_copy_to_runtime_pointee(
     }
 }
 
+pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
+    architecture: Architecture,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
+                pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
+                pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
+    }
+}
+
 fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
-    Err(Diagnostic::error(
-        "X86_64 runtime storage encoding is not implemented",
-    ))
-}
-
-fn unsupported_x86_64_runtime_storage_compare_encoding() -> Result<[u8; 32], Diagnostic> {
-    Err(Diagnostic::error(
-        "X86_64 runtime storage encoding is not implemented",
-    ))
-}
-
-fn unsupported_x86_64_runtime_storage_value_compare_encoding() -> Result<[u8; 20], Diagnostic> {
     Err(Diagnostic::error(
         "X86_64 runtime storage encoding is not implemented",
     ))

@@ -1,4 +1,5 @@
 use crate::InstructionSelectionInput;
+use crate::selection::lookups::state_parameters;
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstruction, SelectedInstructionKind,
     StateGuardOperator,
@@ -19,9 +20,11 @@ use super::super::super::storage_places::{
 use super::super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
     static_integer_value_in_table,
 };
+use super::super::guards::static_guard_conjunct_summary_in_table;
 use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, runtime_text_builder_write_without_aliases_emit,
     select_runtime_string_descriptor_write, string_literal_data_handle,
@@ -355,6 +358,7 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
     if let ExpressionNode::StructLiteral(struct_literal) =
         expressions.expression(resolved_value).clone()
     {
+        let mut emitted = false;
         for offset in 0..struct_literal.fields.count() {
             let field = expressions
                 .struct_field_at_offset(struct_literal.fields, offset)
@@ -362,9 +366,9 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
             let field_target = expressions.insert(ExpressionNode::Member(TableMemberExpression {
                 receiver: resolved_target,
                 member_symbol: SymbolHandle::invalid(),
-                member: field.name,
+                member: field.name.clone(),
             }));
-            select_runtime_resolved_mutation_write_in_mutable_table(
+            let field_emitted = select_runtime_resolved_mutation_write_in_mutable_table(
                 input,
                 dispatch_index,
                 operation_key,
@@ -378,8 +382,9 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
                 runtime_value_operands,
                 selected_instructions,
             );
+            emitted |= field_emitted;
         }
-        return true;
+        return emitted;
     }
 
     select_runtime_resolved_scalar_mutation_write_in_table_with_scratch(
@@ -477,6 +482,19 @@ fn select_runtime_resolved_scalar_mutation_write_in_table_with_scratch(
         resolved_value,
     )
     .or_else(|| {
+        select_runtime_static_inline_branching_call_mutation_write_in_table(
+            input,
+            dispatch_index,
+            operation_key,
+            target_source_key,
+            statement_index,
+            expressions,
+            resolved_target,
+            resolved_value,
+            runtime_value_operands,
+        )
+    })
+    .or_else(|| {
         select_runtime_static_mutation_write_in_table(
             input,
             dispatch_index,
@@ -551,6 +569,390 @@ fn select_runtime_resolved_scalar_mutation_write_in_table_with_scratch(
     }
 
     false
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_static_inline_branching_call_mutation_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_key: StateKey,
+    target_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let ExpressionNode::Call(call) = expressions.expression(value) else {
+        return None;
+    };
+    let selected_value = static_inline_branching_call_value_in_table(input, expressions, call)?;
+
+    let mut static_expressions = ExpressionTable::default();
+    let target = static_expressions.copy_from(expressions, target);
+    let value =
+        static_expressions.copy_from(&input.runtime_branching_calls.expressions, selected_value);
+
+    select_runtime_string_mutation_write_in_table(
+        input,
+        dispatch_index,
+        operation_key,
+        target_source_key,
+        statement_index,
+        &static_expressions,
+        target,
+        value,
+    )
+    .or_else(|| {
+        select_runtime_static_mutation_write_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            &static_expressions,
+            target,
+            value,
+        )
+    })
+    .or_else(|| {
+        select_runtime_binary_mutation_write_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            target_source_key,
+            &static_expressions,
+            target,
+            value,
+            runtime_value_operands,
+        )
+    })
+}
+
+fn static_inline_branching_call_value_in_table(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &ExpressionTable,
+    call: &TableCallExpression,
+) -> Option<ExpressionHandle> {
+    let candidates = input
+        .runtime_branching_calls
+        .leaf_expansions
+        .storage_slice()
+        .iter()
+        .filter(|expansion| {
+            let (_, branch_state) = input
+                .control_flow
+                .state_names_by_key_cloned(expansion.branch_key);
+            (expansion.branch_key.state == call.target_symbol
+                || branch_state.as_str() == &*call.target)
+                && expansion.target_value.is_valid()
+                && leaf_expansion_bindings_match_table_call_arguments(
+                    input,
+                    expressions,
+                    expansion,
+                    call,
+                )
+        })
+        .collect::<Vec<_>>();
+
+    let selected = candidates
+        .iter()
+        .copied()
+        .find(|expansion| inline_branching_expansion_is_statically_selected(input, expansion))
+        .or_else(|| {
+            candidates.iter().copied().find(|expansion| {
+                inline_branching_default_expansion_is_statically_selected(
+                    input,
+                    expansion,
+                    &candidates,
+                )
+            })
+        })
+        .map(|expansion| expansion.target_value);
+    selected
+}
+
+fn static_inline_branching_call_value(
+    input: &InstructionSelectionInput<'_>,
+    call: &omega_checked_trees::expression::CallExpression,
+) -> Option<Expression> {
+    let candidates = input
+        .runtime_branching_calls
+        .leaf_expansions
+        .storage_slice()
+        .iter()
+        .filter(|expansion| {
+            let (_, branch_state) = input
+                .control_flow
+                .state_names_by_key_cloned(expansion.branch_key);
+            (expansion.branch_key.state == call.target_symbol
+                || branch_state.as_str() == &*call.target)
+                && expansion.target_value.is_valid()
+                && leaf_expansion_bindings_match_call_arguments(input, expansion, call)
+        })
+        .collect::<Vec<_>>();
+
+    candidates
+        .iter()
+        .copied()
+        .find(|expansion| inline_branching_expansion_is_statically_selected(input, expansion))
+        .or_else(|| {
+            candidates.iter().copied().find(|expansion| {
+                inline_branching_default_expansion_is_statically_selected(
+                    input,
+                    expansion,
+                    &candidates,
+                )
+            })
+        })
+        .map(|expansion| {
+            input
+                .runtime_branching_calls
+                .expressions
+                .to_tree(expansion.target_value)
+        })
+}
+
+fn inline_branching_expansion_is_statically_selected(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &omega_runtime_branching::RuntimeLeafBranchExpansion,
+) -> bool {
+    let summary = static_guard_conjunct_summary_in_table(
+        input,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+    );
+    expansion.target_value.is_valid()
+        && !expansion.is_default_target
+        && summary.has_true
+        && !summary.has_false
+}
+
+fn inline_branching_default_expansion_is_statically_selected(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &omega_runtime_branching::RuntimeLeafBranchExpansion,
+    siblings: &[&omega_runtime_branching::RuntimeLeafBranchExpansion],
+) -> bool {
+    if !expansion.target_value.is_valid() || !expansion.is_default_target {
+        return false;
+    }
+    let summary = static_guard_conjunct_summary_in_table(
+        input,
+        &input.runtime_branching_calls.expressions,
+        expansion.resolved_guard,
+    );
+    if summary.has_false {
+        return false;
+    }
+
+    siblings
+        .iter()
+        .filter(|sibling| sibling.target_value.is_valid() && !sibling.is_default_target)
+        .all(|sibling| {
+            static_guard_conjunct_summary_in_table(
+                input,
+                &input.runtime_branching_calls.expressions,
+                sibling.resolved_guard,
+            )
+            .has_false
+        })
+}
+
+fn leaf_expansion_bindings_match_table_call_arguments(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &ExpressionTable,
+    expansion: &omega_runtime_branching::RuntimeLeafBranchExpansion,
+    call: &TableCallExpression,
+) -> bool {
+    let parameters = state_parameters(input, expansion.branch_key);
+    let argument_count = call.arguments.count() as usize;
+    let parameters = if parameters.len() == argument_count.saturating_add(1)
+        && call.receiver.is_valid()
+        && parameters
+            .first()
+            .is_some_and(|parameter| parameter.name.as_str() == "self")
+    {
+        &parameters[1..]
+    } else {
+        parameters
+    };
+    if parameters.len() != argument_count {
+        return false;
+    }
+    let bindings = input
+        .runtime_branching_calls
+        .leaf_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+
+    parameters.iter().enumerate().all(|(offset, parameter)| {
+        let Some(binding) = bindings.iter().rev().find(|binding| {
+            binding.parameter_symbol == parameter.symbol || binding.parameter_name == parameter.name
+        }) else {
+            return false;
+        };
+        let binding_expression = input
+            .runtime_branching_calls
+            .expressions
+            .to_tree(binding.expression);
+        let argument = expressions
+            .to_tree(expressions.expression_handle_at_offset(call.arguments, offset as u32));
+        static_inline_branching_argument_matches(input, bindings, &binding_expression, &argument)
+    })
+}
+
+fn leaf_expansion_bindings_match_call_arguments(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &omega_runtime_branching::RuntimeLeafBranchExpansion,
+    call: &omega_checked_trees::expression::CallExpression,
+) -> bool {
+    let parameters = state_parameters(input, expansion.branch_key);
+    let parameters = if parameters.len() == call.arguments.len().saturating_add(1)
+        && call.receiver.is_some()
+        && parameters
+            .first()
+            .is_some_and(|parameter| parameter.name.as_str() == "self")
+    {
+        &parameters[1..]
+    } else {
+        parameters
+    };
+    if parameters.len() != call.arguments.len() {
+        return false;
+    }
+    let bindings = input
+        .runtime_branching_calls
+        .leaf_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+
+    parameters
+        .iter()
+        .zip(call.arguments.iter())
+        .all(|(parameter, argument)| {
+            let Some(binding) = bindings.iter().rev().find(|binding| {
+                binding.parameter_symbol == parameter.symbol
+                    || binding.parameter_name == parameter.name
+            }) else {
+                return false;
+            };
+            let binding_expression = input
+                .runtime_branching_calls
+                .expressions
+                .to_tree(binding.expression);
+            static_inline_branching_argument_matches(input, bindings, &binding_expression, argument)
+        })
+}
+
+fn static_inline_branching_argument_matches(
+    input: &InstructionSelectionInput<'_>,
+    bindings: &[omega_runtime_branching::RuntimeLeafBranchBinding],
+    binding_expression: &Expression,
+    argument: &Expression,
+) -> bool {
+    let binding_expression =
+        resolve_static_inline_branching_binding_expression(input, bindings, binding_expression);
+    let argument = resolve_static_inline_branching_binding_expression(input, bindings, argument);
+
+    if binding_expression == argument {
+        return true;
+    }
+    if static_inline_branching_expressions_match(input, bindings, &binding_expression, &argument) {
+        return true;
+    }
+
+    let resolved_binding = match &binding_expression {
+        Expression::Call(call) => static_inline_branching_call_value(input, call),
+        _ => None,
+    };
+    let resolved_argument = match &argument {
+        Expression::Call(call) => static_inline_branching_call_value(input, call),
+        _ => None,
+    };
+
+    match (resolved_binding.as_ref(), resolved_argument.as_ref()) {
+        (Some(binding), Some(argument)) => {
+            binding == argument
+                || static_inline_branching_expressions_match(input, bindings, binding, argument)
+        }
+        (Some(binding), None) => {
+            binding == &argument
+                || static_inline_branching_expressions_match(input, bindings, binding, &argument)
+        }
+        (None, Some(argument)) => {
+            &binding_expression == argument
+                || static_inline_branching_expressions_match(
+                    input,
+                    bindings,
+                    &binding_expression,
+                    argument,
+                )
+        }
+        (None, None) => false,
+    }
+}
+
+fn resolve_static_inline_branching_binding_expression(
+    input: &InstructionSelectionInput<'_>,
+    bindings: &[omega_runtime_branching::RuntimeLeafBranchBinding],
+    expression: &Expression,
+) -> Expression {
+    let Expression::Name(name) = expression else {
+        return expression.clone();
+    };
+    if name.len() != 1 {
+        return expression.clone();
+    }
+    let Some(member) = name.first() else {
+        return expression.clone();
+    };
+    let Some(binding) = bindings.iter().rev().find(|binding| {
+        binding.parameter_symbol == name.symbol() || binding.parameter_name == *member
+    }) else {
+        return expression.clone();
+    };
+    let resolved = input
+        .runtime_branching_calls
+        .expressions
+        .to_tree(binding.expression);
+    if &resolved == expression {
+        expression.clone()
+    } else {
+        resolved
+    }
+}
+
+fn static_inline_branching_expressions_match(
+    input: &InstructionSelectionInput<'_>,
+    bindings: &[omega_runtime_branching::RuntimeLeafBranchBinding],
+    left: &Expression,
+    right: &Expression,
+) -> bool {
+    match (left, right) {
+        (Expression::Name(left), Expression::Name(right)) => {
+            left.symbol() == right.symbol()
+                || (left.len() == right.len()
+                    && left
+                        .members()
+                        .iter()
+                        .zip(right.members().iter())
+                        .all(|(left, right)| left == right))
+        }
+        (Expression::Call(left), Expression::Call(right)) => {
+            left.target_symbol == right.target_symbol
+                && left.target == right.target
+                && left.arguments.len() == right.arguments.len()
+                && left.arguments.iter().zip(right.arguments.iter()).all(
+                    |(left_argument, right_argument)| {
+                        static_inline_branching_argument_matches(
+                            input,
+                            bindings,
+                            left_argument,
+                            right_argument,
+                        )
+                    },
+                )
+        }
+        _ => false,
+    }
 }
 
 fn select_runtime_static_mutation_write_in_table(
@@ -667,6 +1069,23 @@ fn select_runtime_string_mutation_write_in_table(
 ) -> Option<SelectedInstructionKind> {
     let value = expressions.string_literal_value(value)?;
     let data = string_literal_data_handle(input, operation_key, statement_index, &value);
+
+    if data.is_valid()
+        && let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+    {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeString {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            data,
+            byte_length: value.len(),
+        });
+    }
 
     if data.is_valid()
         && let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(

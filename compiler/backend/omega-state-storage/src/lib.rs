@@ -22,7 +22,12 @@ pub struct StateStoragePlanningContext {
 
 impl StateStoragePlanningContext {
     pub fn state_flow_by_key(&self, state_key: StateKey) -> Option<&omega_control_flow::StateFlow> {
-        self.control_flow.state_by_key(state_key)
+        self.control_flow.state_by_key(state_key).or_else(|| {
+            self.control_flow.states.iter().find_map(|(_, state)| {
+                (state.key.machine == state_key.machine && state.key.state == state_key.state)
+                    .then_some(state)
+            })
+        })
     }
 
     pub fn borrow_root_kind_by_symbol(

@@ -139,6 +139,28 @@ fn append_call_operands(
                 )?);
                 next_register += 1;
             }
+            RuntimePointeeStringPointer { byte_offset } => {
+                bytes.extend(encode_adrp_placeholder(next_register));
+                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                bytes.extend(encode_load_x_from_x(
+                    next_register,
+                    next_register,
+                    *byte_offset,
+                )?);
+                bytes.extend(encode_load_x_from_x(next_register, next_register, 0)?);
+                next_register += 1;
+            }
+            RuntimePointeeStringLength { byte_offset } => {
+                bytes.extend(encode_adrp_placeholder(next_register));
+                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                bytes.extend(encode_load_x_from_x(
+                    next_register,
+                    next_register,
+                    *byte_offset,
+                )?);
+                bytes.extend(encode_load_x_from_x(next_register, next_register, 8)?);
+                next_register += 1;
+            }
             ByteLength(value) => {
                 append_unsigned_immediate(bytes, next_register, *value as u64);
                 next_register += 1;

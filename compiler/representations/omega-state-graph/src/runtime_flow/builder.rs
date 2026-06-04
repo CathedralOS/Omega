@@ -296,7 +296,8 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         // The call's arguments resolve against THIS segment's frame, which is the
         // state's frame (shared across segments), so params declared in the state
         // are visible here even though earlier segments dispatched first.
-        let target_arguments = self.statement_call_arguments(control_key, call_edge.statement_index);
+        let target_arguments =
+            self.statement_call_arguments(control_key, call_edge.statement_index);
         self.visit_transition(
             state_key,
             context,

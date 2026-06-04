@@ -9,10 +9,12 @@ pub(crate) fn runtime_storage_binary_left_operand_offset(architecture: Architect
 
 pub(crate) fn runtime_pointee_binary_left_operand_offset(
     architecture: Architecture,
+    pointer_byte_offset: usize,
     field_byte_offset: usize,
 ) -> usize {
     omega_instruction_selection::runtime_pointee_operand_start_width(
         architecture,
+        pointer_byte_offset,
         field_byte_offset,
     )
 }
@@ -33,12 +35,14 @@ pub(crate) fn runtime_frame_indexed_binary_left_operand_offset(
 pub(crate) fn runtime_frame_base_indexed_binary_left_operand_offset(
     architecture: Architecture,
     base_byte_offset: usize,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
     omega_instruction_selection::runtime_frame_base_indexed_binary_left_operand_offset(
         architecture,
         base_byte_offset,
+        index_offset,
         element_byte_size,
         field_byte_offset,
     )

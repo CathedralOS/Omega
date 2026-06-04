@@ -381,6 +381,15 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 data,
                 byte_length,
             },
+            omega_target_operations::TargetOperationKind::WriteRuntimeFrameString {
+                byte_offset,
+                data,
+                byte_length,
+            } => Self::WriteRuntimeFrameString {
+                byte_offset,
+                data,
+                byte_length,
+            },
             omega_target_operations::TargetOperationKind::WriteRuntimePointeeString {
                 pointer_byte_offset,
                 field_byte_offset,
@@ -586,6 +595,23 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 target_offset,
                 byte_count,
             },
+            omega_target_operations::TargetOperationKind::CopyRuntimeFrameFixedIndexedToRuntimePointee {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                source_field_byte_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+                byte_count,
+            } => Self::CopyRuntimeFrameFixedIndexedToRuntimePointee {
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                source_field_byte_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+                byte_count,
+            },
             omega_target_operations::TargetOperationKind::CopyRuntimeMachineIndexedToRuntimeStorage {
                 base_byte_offset,
                 index_offset,
@@ -614,6 +640,17 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 source_offset,
                 pointer_byte_offset,
                 field_byte_offset,
+                byte_count,
+            },
+            omega_target_operations::TargetOperationKind::CopyRuntimePointeeToRuntimeFrame {
+                pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            } => Self::CopyRuntimePointeeToRuntimeFrame {
+                pointer_byte_offset,
+                field_byte_offset,
+                target_offset,
                 byte_count,
             },
             omega_target_operations::TargetOperationKind::SetDispatchState { dispatch_index } => {

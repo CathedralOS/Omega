@@ -171,7 +171,9 @@ fn apply_operator_to_providers(
     // no `effects` clause; their authority is implied by the provider category,
     // so a host-ABI provider mints host authority while pure-compute primitives
     // (slice indexing, pointer math, allocation) carry none.
-    provider.effect_set.insert_all(category_effects(provider.category));
+    provider
+        .effect_set
+        .insert_all(category_effects(provider.category));
 
     // `target_applicability`: the named boundary levels the operator's contracts
     // scope it to. An operator with no named boundary applies to all targets
@@ -199,7 +201,9 @@ fn operator_contract_ref(
     });
 
     if has_proof_contract {
-        return Some(join_path(syntax.items.identifier_path_members(operator.name)));
+        return Some(join_path(
+            syntax.items.identifier_path_members(operator.name),
+        ));
     }
 
     boundary_target_names(contracts).into_iter().next()
@@ -329,7 +333,10 @@ mod tests {
 
         let mut diagnostics = Vec::new();
         let registry = build_provider_registry(&syntax, &mut diagnostics);
-        assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+        assert!(
+            diagnostics.is_empty(),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
 
         let provider = registry
             .resolve("omega::host::WriteBytes")
@@ -338,10 +345,7 @@ mod tests {
 
         // contract_ref: sourced from the bound operator's `requires` clause,
         // referenced by the operator's qualified name.
-        assert_eq!(
-            provider.contract_ref.as_deref(),
-            Some("omega::host::write")
-        );
+        assert_eq!(provider.contract_ref.as_deref(), Some("omega::host::write"));
 
         // effect_set: a host-ABI provider carries host authority.
         assert!(
@@ -371,7 +375,10 @@ mod tests {
 
         let mut diagnostics = Vec::new();
         let registry = build_provider_registry(&syntax, &mut diagnostics);
-        assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+        assert!(
+            diagnostics.is_empty(),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
 
         let provider = registry
             .resolve("omega::language::core::Slice")
@@ -394,7 +401,10 @@ mod tests {
 
         let mut diagnostics = Vec::new();
         let registry = build_provider_registry(&syntax, &mut diagnostics);
-        assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+        assert!(
+            diagnostics.is_empty(),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
 
         let provider = registry
             .resolve("omega::host::Unbound")

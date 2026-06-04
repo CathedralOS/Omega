@@ -133,14 +133,17 @@ fn append_terminal_continuation_edges(
     }
 
     for (_, edge) in context.runtime_flow.edges.iter() {
-        let RuntimeTransitionTarget::State { key, context: target_context } = &edge.target else {
+        let RuntimeTransitionTarget::State {
+            key,
+            context: target_context,
+        } = &edge.target
+        else {
             continue;
         };
         // Only the call edge that ENTERED this clone's context carries this
         // terminal state's return point. Matching the callee context (not just
         // the machine) keeps each clone returning to its own call site.
-        if key.machine != dispatch_target.key.machine
-            || *target_context != dispatch_target.context
+        if key.machine != dispatch_target.key.machine || *target_context != dispatch_target.context
         {
             continue;
         }

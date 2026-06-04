@@ -52,7 +52,17 @@ pub(super) fn collect_data_address_relocations(
         let region = operand
             .runtime_string_pointer()
             .map(|(region, _)| region)
-            .or_else(|| operand.runtime_string_length().map(|(region, _)| region));
+            .or_else(|| operand.runtime_string_length().map(|(region, _)| region))
+            .or_else(|| {
+                operand
+                    .runtime_pointee_string_pointer()
+                    .map(|(region, _)| region)
+            })
+            .or_else(|| {
+                operand
+                    .runtime_pointee_string_length()
+                    .map(|(region, _)| region)
+            });
 
         if let Some(region) = region {
             let symbol_name = storage_region_symbol_name(region, input.entry_machine_name);

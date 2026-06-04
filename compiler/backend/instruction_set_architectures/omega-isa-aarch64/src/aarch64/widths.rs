@@ -60,24 +60,29 @@ pub fn dispatch_case_leave_width() -> usize {
     4
 }
 
-pub fn dispatch_guard_compare_static_width() -> usize {
-    20
+pub fn dispatch_guard_compare_static_width(byte_offset: usize, byte_size: usize) -> usize {
+    16 + load_data_offset_width(byte_offset, byte_size)
 }
 
 pub fn runtime_text_literal_compare_width(literal: &str) -> usize {
     8 + literal.len() * 12 + runtime_text_input_delimiter_check_width()
 }
 
-pub fn runtime_text_storage_compare_width() -> usize {
-    84
+pub fn runtime_text_storage_compare_width(source_offset: usize) -> usize {
+    76 + runtime_text_descriptor_load_pair_width(source_offset)
 }
 
-pub fn runtime_storage_compare_width() -> usize {
-    32
+pub fn runtime_storage_compare_width(
+    left_offset: usize,
+    right_offset: usize,
+    byte_size: usize,
+) -> usize {
+    24 + load_data_offset_width(left_offset, byte_size)
+        + load_data_offset_width(right_offset, byte_size)
 }
 
-pub fn runtime_storage_value_compare_width() -> usize {
-    20
+pub fn runtime_storage_value_compare_width(byte_offset: usize, byte_size: usize) -> usize {
+    16 + load_data_offset_width(byte_offset, byte_size)
 }
 
 pub fn runtime_value_compare_width(
@@ -102,36 +107,62 @@ pub fn runtime_text_literal_segment_write_width(literal: &str) -> usize {
     runtime_text_literal_write_width(literal)
 }
 
-pub fn runtime_text_stored_suffix_append_width() -> usize {
-    72
+pub fn runtime_text_stored_suffix_append_width(
+    buffer_offset: usize,
+    source_offset: usize,
+    target_offset: usize,
+    length_delta: usize,
+) -> usize {
+    48 + runtime_text_descriptor_load_pair_width(source_offset)
+        + add_constant_width(buffer_offset)
+        + runtime_text_descriptor_store_pair_width(target_offset)
+        + add_constant_width(length_delta)
 }
 
-pub fn runtime_text_stored_place_append_width() -> usize {
-    80
+pub fn runtime_text_stored_place_append_width(source_offset: usize, target_offset: usize) -> usize {
+    60 + load_data_offset_width(target_offset + 8, 8)
+        + runtime_text_descriptor_load_pair_width(source_offset)
+        + runtime_text_descriptor_store_pair_width(target_offset)
 }
 
 pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+    source_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 76
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+        + 64
+        + runtime_text_descriptor_load_pair_width(source_offset)
 }
 
 pub fn runtime_text_stored_place_append_to_runtime_pointee_width(
+    source_offset: usize,
+    pointer_byte_offset: usize,
     field_byte_offset: usize,
 ) -> usize {
-    84 + add_constant_width(field_byte_offset)
+    60 + load_data_offset_width(pointer_byte_offset, 8)
+        + add_constant_width(field_byte_offset)
+        + load_data_offset_width(8, 8)
+        + runtime_text_descriptor_load_pair_width(source_offset)
+        + runtime_text_descriptor_store_pair_width(0)
 }
 
-pub fn runtime_text_literal_append_width(literal: &str) -> usize {
-    36 + add_constant_width(literal.len()) + literal.len() * 8
+pub fn runtime_text_literal_append_width(target_offset: usize, literal: &str) -> usize {
+    24 + load_data_offset_width(target_offset + 8, 8)
+        + runtime_text_descriptor_store_pair_width(target_offset)
+        + add_constant_width(literal.len())
+        + literal.len() * 8
 }
 
 pub fn runtime_text_literal_append_to_runtime_pointee_width(
+    pointer_byte_offset: usize,
     field_byte_offset: usize,
     literal: &str,
 ) -> usize {
-    40 + add_constant_width(field_byte_offset)
+    24 + load_data_offset_width(pointer_byte_offset, 8)
+        + add_constant_width(field_byte_offset)
+        + load_data_offset_width(8, 8)
+        + runtime_text_descriptor_store_pair_width(0)
         + add_constant_width(literal.len())
         + literal.len() * 8
 }
@@ -147,8 +178,9 @@ pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
         + literal.len() * 8
 }
 
-pub fn runtime_text_buffer_materialize_width() -> usize {
-    60
+pub fn runtime_text_buffer_materialize_width(target_offset: usize) -> usize {
+    44 + runtime_text_descriptor_load_pair_width(target_offset)
+        + runtime_text_descriptor_store_pair_width(target_offset)
 }
 
 pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
@@ -158,54 +190,83 @@ pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 52
 }
 
-pub fn runtime_text_buffer_materialize_to_runtime_pointee_width(field_byte_offset: usize) -> usize {
-    64 + add_constant_width(field_byte_offset)
+pub fn runtime_text_buffer_materialize_to_runtime_pointee_width(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> usize {
+    40 + load_data_offset_width(pointer_byte_offset, 8)
+        + add_constant_width(field_byte_offset)
+        + runtime_text_descriptor_load_pair_width(0)
+        + runtime_text_descriptor_store_pair_width(0)
 }
 
 pub fn runtime_machine_integer_write_width(byte_offset: usize, byte_size: usize) -> usize {
     8 + add_constant_width(byte_offset) + runtime_store_data_width(byte_size)
 }
 
-pub fn runtime_pointee_integer_write_width(field_byte_offset: usize, byte_size: usize) -> usize {
+pub fn runtime_pointee_integer_write_width(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+) -> usize {
     let width = match byte_size {
         1 | 4 => 20,
         8 => 32,
         _ => 0,
     };
 
-    width + add_constant_width(field_byte_offset)
+    width + add_constant_width(pointer_byte_offset) + add_constant_width(field_byte_offset)
 }
 
 pub fn runtime_storage_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
+    let indexed_operand_restore_width = if runtime_value_operands.frame_indexed(left).is_some()
+        || runtime_value_operands.frame_indexed(right).is_some()
+        || runtime_value_operands.frame_base_indexed(left).is_some()
+        || runtime_value_operands.frame_base_indexed(right).is_some()
+    {
+        4
+    } else {
+        0
+    };
+
     8 + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
         + runtime_binary_operation_width(operator)
-        + runtime_result_write_width(byte_size)
+        + indexed_operand_restore_width
+        + runtime_result_write_width(target_offset, byte_size)
 }
 
 pub fn runtime_pointee_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
+    pointer_byte_offset: usize,
     field_byte_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
-    12 + add_constant_width(field_byte_offset)
+    12 + add_constant_width(pointer_byte_offset)
+        + add_constant_width(field_byte_offset)
         + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
         + runtime_binary_operation_width(operator)
-        + runtime_result_write_width(byte_size)
+        + runtime_result_write_width(0, byte_size)
 }
 
-pub fn runtime_pointee_operand_start_width(field_byte_offset: usize) -> usize {
-    12 + add_constant_width(field_byte_offset)
+pub fn runtime_pointee_operand_start_width(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> usize {
+    8 + add_constant_width(pointer_byte_offset)
+        + runtime_load_data_width(8)
+        + add_constant_width(field_byte_offset)
 }
 
 pub fn runtime_frame_indexed_integer_write_width(
@@ -219,11 +280,13 @@ pub fn runtime_frame_indexed_integer_write_width(
 
 pub fn runtime_frame_base_indexed_integer_write_width(
     base_byte_offset: usize,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
 ) -> usize {
-    20 + add_constant_width(base_byte_offset)
+    16 + add_constant_width(base_byte_offset)
+        + load_data_offset_width(index_offset, 8)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
         + runtime_store_data_width(byte_size)
@@ -271,12 +334,13 @@ pub fn runtime_frame_indexed_binary_write_width(
         + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
         + runtime_binary_operation_width(operator)
-        + runtime_result_write_width(byte_size)
+        + runtime_result_write_width(0, byte_size)
 }
 
 pub fn runtime_frame_base_indexed_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     base_byte_offset: usize,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -284,21 +348,32 @@ pub fn runtime_frame_base_indexed_binary_write_width(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
-    20 + add_constant_width(base_byte_offset)
+    16 + add_constant_width(base_byte_offset)
+        + load_data_offset_width(index_offset, 8)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
         + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
         + runtime_binary_operation_width(operator)
-        + runtime_result_write_width(byte_size)
+        + runtime_result_write_width(0, byte_size)
 }
 
 pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
 }
 
-pub fn runtime_pointee_string_write_width(field_byte_offset: usize, byte_length: usize) -> usize {
-    28 + add_constant_width(field_byte_offset) + unsigned_immediate_width(byte_length as u64)
+pub fn runtime_frame_string_write_width(byte_length: usize) -> usize {
+    runtime_machine_string_write_width(byte_length)
+}
+
+pub fn runtime_pointee_string_write_width(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_length: usize,
+) -> usize {
+    28 + add_constant_width(pointer_byte_offset)
+        + add_constant_width(field_byte_offset)
+        + unsigned_immediate_width(byte_length as u64)
 }
 
 pub fn runtime_frame_indexed_string_write_width(
@@ -360,40 +435,64 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
         + add_constant_width(field_byte_offset)
 }
 
-pub fn runtime_storage_address_to_runtime_frame_write_width() -> usize {
-    24
+pub fn runtime_storage_address_to_runtime_frame_write_width(
+    source_offset: usize,
+    target_offset: usize,
+) -> usize {
+    16 + add_constant_width(source_offset) + store_x_offset_width(target_offset)
 }
 
-pub fn runtime_pointee_address_to_runtime_frame_write_width() -> usize {
-    20
+pub fn runtime_storage_address_to_runtime_frame_target_frame_offset(source_offset: usize) -> usize {
+    8 + add_constant_width(source_offset)
+}
+
+pub fn runtime_pointee_address_to_runtime_frame_write_width(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+) -> usize {
+    16 + add_constant_width(pointer_byte_offset)
+        + add_constant_width(field_byte_offset)
+        + store_x_offset_width(target_offset)
 }
 
 pub fn runtime_frame_indexed_address_to_runtime_frame_write_width(
     element_byte_size: usize,
     field_byte_offset: usize,
+    target_offset: usize,
 ) -> usize {
-    24 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset)
+    20 + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
+        + store_x_offset_width(target_offset)
 }
 
 pub fn runtime_frame_fixed_indexed_address_to_runtime_frame_write_width(
+    descriptor_offset: usize,
     element_index: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
+    target_offset: usize,
 ) -> usize {
-    let source_offset = element_index
-        .saturating_mul(element_byte_size)
-        .saturating_add(field_byte_offset);
-    16 + add_constant_width(source_offset)
+    runtime_frame_fixed_index_setup_width(
+        descriptor_offset,
+        element_index,
+        element_byte_size,
+        field_byte_offset,
+    ) + store_x_offset_width(target_offset)
 }
 
 pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width(
     base_byte_offset: usize,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
+    target_offset: usize,
 ) -> usize {
-    24 + add_constant_width(base_byte_offset)
+    16 + add_constant_width(base_byte_offset)
+        + load_data_offset_width(index_offset, 8)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
+        + store_x_offset_width(target_offset)
 }
 
 pub fn runtime_text_line_read_import_width(_byte_capacity: usize) -> usize {
@@ -490,6 +589,21 @@ pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_
         + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
+pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee_width(
+    element_index: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    let source_offset = element_index
+        .saturating_mul(element_byte_size)
+        .saturating_add(source_field_byte_offset);
+    16 + add_constant_width(source_offset)
+        + add_constant_width(target_field_byte_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
 pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
     base_byte_offset: usize,
     element_byte_size: usize,
@@ -506,11 +620,26 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
 
 pub fn runtime_storage_copy_to_runtime_pointee_width(
     source_offset: usize,
+    pointer_byte_offset: usize,
     field_byte_offset: usize,
     byte_count: usize,
 ) -> usize {
-    20 + add_constant_width(field_byte_offset)
+    20 + add_constant_width(pointer_byte_offset)
+        + add_constant_width(field_byte_offset)
         + add_constant_width(source_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
+pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    16 + add_constant_width(pointer_byte_offset)
+        + runtime_load_data_width(8)
+        + add_constant_width(field_byte_offset)
+        + add_constant_width(target_offset)
         + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
@@ -518,6 +647,7 @@ pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
     match operand {
         DataAddress { .. } => 8,
         RuntimeStringPointer { .. } | RuntimeStringLength { .. } => 12,
+        RuntimePointeeStringPointer { .. } | RuntimePointeeStringLength { .. } => 16,
         ImmediateInteger(value) => immediate_width(*value),
         ByteLength(value) => unsigned_immediate_width(*value as u64),
     }
@@ -563,12 +693,46 @@ fn runtime_storage_copy_data_width(
                 1
             };
 
-        width += 8;
+        width += load_data_offset_width(source_offset, chunk_size)
+            + store_data_offset_width(target_offset, chunk_size);
         offset += chunk_size;
         remaining -= chunk_size;
     }
 
     width
+}
+
+fn load_data_offset_width(byte_offset: usize, byte_size: usize) -> usize {
+    if data_offset_encodable(byte_offset, byte_size) {
+        4
+    } else {
+        4 + add_constant_width(byte_offset) + 4
+    }
+}
+
+fn store_data_offset_width(byte_offset: usize, byte_size: usize) -> usize {
+    if data_offset_encodable(byte_offset, byte_size) {
+        4
+    } else {
+        4 + add_constant_width(byte_offset) + 4
+    }
+}
+
+fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
+    match byte_size {
+        1 => byte_offset <= 4095,
+        4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
+        8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
+        _ => false,
+    }
+}
+
+fn runtime_text_descriptor_load_pair_width(byte_offset: usize) -> usize {
+    load_data_offset_width(byte_offset, 8) + load_data_offset_width(byte_offset + 8, 8)
+}
+
+fn runtime_text_descriptor_store_pair_width(byte_offset: usize) -> usize {
+    store_data_offset_width(byte_offset, 8) + store_data_offset_width(byte_offset + 8, 8)
 }
 
 pub fn runtime_value_operand_width(
@@ -590,11 +754,17 @@ pub fn runtime_value_operand_width(
     {
         runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
             + runtime_load_data_width(byte_size)
-    } else if let Some((base_byte_offset, _, element_byte_size, field_byte_offset, byte_size)) =
-        runtime_value_operands.frame_base_indexed(operand)
+    } else if let Some((
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.frame_base_indexed(operand)
     {
         runtime_frame_base_indexed_integer_write_width(
             base_byte_offset,
+            index_offset,
             element_byte_size,
             field_byte_offset,
             byte_size,
@@ -657,9 +827,9 @@ fn runtime_load_data_width(byte_size: usize) -> usize {
     }
 }
 
-fn runtime_result_write_width(byte_size: usize) -> usize {
+fn runtime_result_write_width(byte_offset: usize, byte_size: usize) -> usize {
     match byte_size {
-        1 | 4 | 8 => 4,
+        1 | 4 | 8 => store_data_offset_width(byte_offset, byte_size),
         _ => 0,
     }
 }
@@ -668,7 +838,7 @@ pub(in crate::aarch64) fn runtime_frame_index_setup_width(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    20 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset)
+    60 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset)
 }
 
 fn runtime_frame_fixed_index_setup_width(
@@ -681,7 +851,7 @@ fn runtime_frame_fixed_index_setup_width(
         .saturating_mul(element_byte_size)
         .saturating_add(field_byte_offset);
 
-    12 + add_constant_width(descriptor_offset) + add_constant_width(source_offset)
+    8 + load_data_offset_width(descriptor_offset, 8) + add_constant_width(source_offset)
 }
 
 pub(in crate::aarch64) fn scale_index_width(element_byte_size: usize) -> usize {
@@ -702,6 +872,14 @@ pub(in crate::aarch64) fn add_constant_width(value: usize) -> usize {
         4
     } else {
         unsigned_immediate_width(value as u64) + 4
+    }
+}
+
+fn store_x_offset_width(byte_offset: usize) -> usize {
+    if byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095 {
+        4
+    } else {
+        add_constant_width(byte_offset) + 4
     }
 }
 

@@ -19,6 +19,8 @@ pub(super) fn collect_runtime_storage_compare_relocations(
                 | StateGuardOperator::Less
                 | StateGuardOperator::LessOrEqual,
             storage_region,
+            byte_offset,
+            byte_size,
             has_storage: true,
             ..
         } => {
@@ -31,7 +33,12 @@ pub(super) fn collect_runtime_storage_compare_relocations(
             // relocation here would splatter the 8-byte storage address across that instruction's
             // 4-byte index immediate and corrupt the dispatch index — the `0xC0000005` crash.
             // Only anchor the relocation when the guard occupies real bytes.
-            if dispatch_guard_compare_static_width(context.input.target.architecture) != 0 {
+            if dispatch_guard_compare_static_width(
+                context.input.target.architecture,
+                *byte_offset,
+                *byte_size,
+            ) != 0
+            {
                 let symbol = context.storage_region_symbol_handle(*storage_region);
                 context.insert_data_address_at_instruction_start(symbol);
             }
