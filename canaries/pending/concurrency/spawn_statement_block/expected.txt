@@ -1,1 +1,0 @@
-expected identifier, found keyword `self`

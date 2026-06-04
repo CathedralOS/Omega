@@ -35,6 +35,10 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
         return parse_asm_statement_handle(syntax_trees, input);
     }
 
+    if input.at_contextual("spawn") {
+        return Err(input.error_here("spawn statements are not implemented yet"));
+    }
+
     if input.at_contextual("trap") {
         let input = input.take_contextual("trap")?;
         let input = if input.at_punctuation(PunctuationKind::Semicolon) {
