@@ -1,0 +1,20 @@
+trait ImageFilter {
+    machine apply(&mut self, image: &mut Image);
+}
+
+data Image {
+    width: i32;
+}
+
+data App {
+}
+
+machine App::run_filter(&mut self, filter: &mut dyn ImageFilter, image: &mut Image) {
+    filter.apply(image);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

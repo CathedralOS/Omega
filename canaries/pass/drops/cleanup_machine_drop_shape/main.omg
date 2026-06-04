@@ -1,0 +1,19 @@
+// PASS canary (ch16 "Cleanup Machines"): a resource-owning type defines cleanup
+// through the reserved `drop` machine shape. `Guard::drop(&mut self)` is the
+// teardown obligation; when a `Guard` local stops being live the compiler is
+// responsible for the structural cleanup. Defining the drop machine and letting
+// an owned local die at end of state type-checks cleanly.
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 7 };
+}

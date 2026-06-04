@@ -1,0 +1,28 @@
+// Chapter 8 "Classifiers": `if x in Type::Domain` should be a full executable
+// domain check when the domain is runtime-checkable. The `if ... in ...`
+// surface does not parse yet.
+
+data Player {
+    health: i32;
+}
+
+domain Player::Valid {
+    self.health >= 0;
+}
+
+domain Player::Dead {
+    self in Player::Valid;
+    self.health == 0;
+}
+
+data Main {
+    player: Player;
+}
+
+machine Main::main(&mut self) {
+    if self.player in Player::Dead {
+        done()
+    }
+
+    state done() { }
+}

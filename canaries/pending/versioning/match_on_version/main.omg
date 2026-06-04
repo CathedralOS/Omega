@@ -1,0 +1,18 @@
+// Chapter 21 (Versioned Data): code receiving unknown-version state should branch
+// by version, e.g. `match counter { Counter::v1(old) -> migrate old to Counter
+// ...}`. Unimplemented: version match arms and the `migrate ... to ...`
+// expression are not recognized transition patterns.
+
+data Counter {
+    counter: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    match counter {
+        Counter::v1(old) -> migrate old to Counter
+        Counter(current) -> current
+    }
+}

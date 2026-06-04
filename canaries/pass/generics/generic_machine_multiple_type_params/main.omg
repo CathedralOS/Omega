@@ -1,0 +1,11 @@
+// Chapter 12 "Generic Machines": a machine may declare several type
+// parameters, mirroring `Pair<A, B>`-style multi-parameter generics.
+
+data Main {
+}
+
+machine Main::pair<A, B>(a: &A, b: &B) {
+}
+
+machine Main::main(&mut self) {
+}

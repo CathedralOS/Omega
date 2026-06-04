@@ -1,0 +1,20 @@
+data PollResult {
+    code: i32;
+}
+
+data DriverLoop {
+}
+
+machine DriverLoop::poll_once<T>(device: &mut T)
+where
+    machine T::poll(&mut self, out: &mut PollResult)
+{
+    let result: PollResult;
+    device.poll(&mut result);
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

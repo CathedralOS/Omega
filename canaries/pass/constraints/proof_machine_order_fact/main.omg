@@ -1,0 +1,19 @@
+// Chapter 10 "Machines As Proofs": a machine used only to establish a fact emits
+// no runtime code. `distinct_indices` proves the ordering fact `i != j` follows
+// from the precondition `i < j` using built-in order rules. The empty body is
+// valid because the guarantee is discharged from the requirement, so the machine
+// is a pure proof artifact.
+
+machine distinct_indices(i: usize, j: usize)
+requires
+    i < j
+ensures
+    i != j
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

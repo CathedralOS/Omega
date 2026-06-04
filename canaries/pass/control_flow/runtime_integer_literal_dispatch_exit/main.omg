@@ -1,0 +1,30 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    choice: i32;
+}
+
+machine Main::main(&mut self) {
+    self.choice = 2;
+
+    transition self.choice {
+        1 -> one()
+        2 -> two()
+        _ -> other()
+    }
+
+    state one(&mut self) {
+        self.console.exit_process(21);
+    }
+
+    state two(&mut self) {
+        self.console.exit_process(22);
+    }
+
+    state other(&mut self) {
+        self.console.exit_process(29);
+    }
+}

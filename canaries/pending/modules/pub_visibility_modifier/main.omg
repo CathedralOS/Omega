@@ -1,0 +1,11 @@
+pub data Player {
+    health: i32;
+}
+
+data Main {
+    player: Player;
+}
+
+machine Main::main(&mut self) {
+    self.player.health = 10;
+}

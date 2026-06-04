@@ -1,0 +1,27 @@
+trait Incrementable {
+    machine increment(&mut self);
+}
+
+data Counter {
+    value: i32;
+}
+
+data Scheduler {
+}
+
+machine Counter::increment(&mut self) satisfies Incrementable {
+    self.value = self.value + 1;
+}
+
+machine Scheduler::step<T>(subject: &mut T)
+where
+    T: Incrementable
+{
+    subject.increment();
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

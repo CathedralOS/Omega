@@ -1,0 +1,15 @@
+// Chapter 12 "Generic Data": `Option<T>` instantiated at a concrete type
+// should yield a concrete layout. The generic field type `T` is not resolved,
+// so even a concrete instantiation `Option<i32>` fails to type-check.
+
+data Option<T> {
+    has_value: bool;
+    value: T;
+}
+
+data Main {
+    maybe: Option<i32>;
+}
+
+machine Main::main(&mut self) {
+}

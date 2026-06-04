@@ -1,0 +1,15 @@
+// Chapter 20 (Wire Protocols): a `wire data` declaration may name an encoding
+// family (e.g. `encoding compact_binary`) that fixes integer encoding,
+// endianness, and field ordering. Unimplemented: `wire` is not a top-level
+// declaration keyword.
+
+wire data CounterMessage encoding compact_binary {
+    0: counter: i32;
+    1: timestamp_millis: i64;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

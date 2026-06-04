@@ -1,0 +1,12 @@
+// Chapter 18 "Boundary Primitive Registry": every provider carries a `category`
+// from a fixed vocabulary (SliceIndexing, PointerOffset, PointerAccess,
+// DescriptorConstruction, Allocation, HostAbiCall). `Teleportation` is not one of
+// them, so the provider declaration is rejected.
+
+provider omega::language::core::canary_bad : Teleportation;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

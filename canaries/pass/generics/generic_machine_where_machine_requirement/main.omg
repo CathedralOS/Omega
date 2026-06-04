@@ -1,0 +1,15 @@
+// Chapter 12 "Where Clauses" / "Static Dispatch": a one-off machine
+// requirement on a generic parameter (`machine T::increment(&mut self)`) is a
+// supported constraint form.
+
+data Main {
+}
+
+machine Main::tick<T>(subject: &mut T)
+where
+    machine T::increment(&mut self)
+{
+}
+
+machine Main::main(&mut self) {
+}

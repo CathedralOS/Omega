@@ -1,0 +1,24 @@
+// PENDING canary (ch16 "Cleanup Machines"): the chapter spells a drop guarantee
+// as `ensures self.mutex unlocked` -- a named state predicate after a place. The
+// proof-fact grammar does not accept this adjacency form (only relational facts
+// like `place in Domain` or comparisons), so the parser rejects it at the end of
+// the proof facts. Captures the gap for predicate-style drop guarantees.
+
+data Mutex {
+    locked: bool;
+}
+
+data MutexGuard {
+    mutex: i32;
+}
+
+machine MutexGuard::drop(&mut self)
+    ensures self.mutex unlocked
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

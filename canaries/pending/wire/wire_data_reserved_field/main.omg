@@ -1,0 +1,16 @@
+// Chapter 20 (Wire Protocols): reserved field numbers prevent accidental reuse
+// of a retired wire tag (`reserved 3;`). Unimplemented: `wire` is not a
+// top-level declaration keyword, so the reserved-field policy cannot be reached.
+
+wire data CounterMessage {
+    0: counter: i32;
+    1: timestamp_millis: i64;
+
+    reserved 3;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

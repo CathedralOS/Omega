@@ -1,0 +1,7 @@
+module dungeon.combat;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

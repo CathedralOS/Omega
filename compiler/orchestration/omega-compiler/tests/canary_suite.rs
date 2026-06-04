@@ -3767,6 +3767,46 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
     "termination/default_order_bounded_distance_compile",
+    // --- Language-guide chapter coverage (Ch1-22) ---
+    "calls/free_standing_machine_helper_compile",
+    "calls/typed_return_from_local_call_compile",
+    "capabilities/boundary_trait_multiple_effects",
+    "capabilities/derives_authority_via_boundary",
+    "capabilities/provider_categories_all",
+    "capabilities/string_domain_boundary_requirement",
+    "capabilities/transitive_effect_inference",
+    "capabilities/uses_caller_capability_requires",
+    "constraints/proof_machine_order_fact",
+    "constraints/scalar_ensures_field_contract_surface",
+    "constraints/scalar_requires_satisfied_by_literal",
+    "control_flow/runtime_integer_literal_dispatch_exit",
+    "control_flow/runtime_string_literal_dispatch_exit",
+    "core/local_value_intro_compile",
+    "core/self_read_only_receiver_compile",
+    "domains/match_domain_patterns",
+    "drops/cleanup_machine_drop_shape",
+    "drops/drop_ensures_domain_membership",
+    "drops/machine_effects_annotation",
+    "drops/transfer_cleanup_into_state",
+    "errors/fallible_result_data_shape",
+    "errors/host_failure_boundary_machine",
+    "generics/const_machine_value_params",
+    "generics/generic_machine_multiple_type_params",
+    "generics/generic_machine_type_param_signature",
+    "generics/generic_machine_where_machine_requirement",
+    "generics/generic_machine_where_trait_bound",
+    "modules/use_imports_sibling_data",
+    "modules/use_imports_sibling_trait",
+    "operators/parenthesized_precedence_value",
+    "operators/runtime_integer_division_value",
+    "ownership/copy_value_field_read_compile",
+    "parameters/shared_and_mut_borrow_params_compile",
+    "traits/trait_generic_bound_static_dispatch",
+    "traits/trait_inferred_satisfaction",
+    "traits/trait_method_ensures_clause",
+    "traits/trait_oneoff_machine_requirement",
+    "wire/runtime_transform_machine_from_wire",
+    "wire/runtime_transform_machine_to_wire",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -3864,6 +3904,18 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/trait_satisfies_unknown",
     "traits/trait_unknown_signature_type",
     "termination/default_order_ambiguous",
+    // --- Language-guide chapter coverage (Ch1-22) ---
+    "calls/terminal_return_type_mismatch_rejected",
+    "capabilities/duplicate_provider_declaration",
+    "capabilities/effect_ceiling_exceeded",
+    "capabilities/effect_outside_trait_requirement",
+    "capabilities/unknown_effect_name",
+    "capabilities/unknown_provider_category",
+    "constraints/scalar_requires_unproven_literal",
+    "drops/drop_nonblocking_effect_unknown",
+    "modules/ambiguous_imported_data",
+    "modules/use_unresolved_path",
+    "traits/trait_satisfies_arity_mismatch",
 ];
 
 #[derive(Clone, Copy)]
@@ -3879,4 +3931,210 @@ struct PendingCanary {
     expectation: PendingCanaryExpectation,
 }
 
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    // --- Language-guide chapter coverage (Ch1-22) ---
+    PendingCanary {
+        path: "capabilities/host_provides_syscall_mapping",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "found keyword `host`" },
+    },
+    PendingCanary {
+        path: "capabilities/invariant_parameterized_slice",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `]`, found punctuation `,`" },
+    },
+    PendingCanary {
+        path: "concurrency/barrier_wait_contract",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected identifier, found numeric literal `4`" },
+    },
+    PendingCanary {
+        path: "concurrency/mutex_lock_guard",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "references unknown generic type `MutexGuard`" },
+    },
+    PendingCanary {
+        path: "concurrency/spawn_fire_and_forget",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `:`, found punctuation `::`" },
+    },
+    PendingCanary {
+        path: "concurrency/spawn_join_handle",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "references unknown generic type `Join`" },
+    },
+    PendingCanary {
+        path: "concurrency/spawn_statement_block",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected identifier, found keyword `self`" },
+    },
+    PendingCanary {
+        path: "constraints/contract_range_membership_unimplemented",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected identifier, found numeric literal `1`" },
+    },
+    PendingCanary {
+        path: "constraints/multi_fact_contract_without_separators_unimplemented",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `;`, `,`, or end of proof facts" },
+    },
+    PendingCanary {
+        path: "constraints/nat_proof_literal_suffix_unimplemented",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "integer literal suffixes are not supported yet" },
+    },
+    PendingCanary {
+        path: "domains/if_domain_membership_check",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `;`, found keyword `self`" },
+    },
+    PendingCanary {
+        path: "domains/match_interleaved_domain_data_guard",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected transition pattern" },
+    },
+    PendingCanary {
+        path: "domains/when_classifier_clause",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `{`, found keyword `when`" },
+    },
+    PendingCanary {
+        path: "drops/drop_ensures_unlocked_predicate",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `;`, `,`, or end of proof facts" },
+    },
+    PendingCanary {
+        path: "errors/trap_unrecoverable_statement",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "has a terminal expression but no return type" },
+    },
+    PendingCanary {
+        path: "expressions/float_literal_suffix",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "float literal suffixes are not supported yet" },
+    },
+    PendingCanary {
+        path: "expressions/integer_literal_suffix",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "integer literal suffixes are not supported yet" },
+    },
+    PendingCanary {
+        path: "expressions/match_expression_value",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `;`, found identifier `command`" },
+    },
+    PendingCanary {
+        path: "generics/const_data_param",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `>`, found identifier `N`" },
+    },
+    PendingCanary {
+        path: "generics/generic_data_instantiation",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "references unknown data type `T`" },
+    },
+    PendingCanary {
+        path: "generics/generic_data_type_param",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "references unknown data type `A`" },
+    },
+    PendingCanary {
+        path: "generics/generic_machine_call_monomorphization",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "has no local state `use_it`" },
+    },
+    PendingCanary {
+        path: "generics/generic_trait_type_param",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `{`, found punctuation `<`" },
+    },
+    PendingCanary {
+        path: "generics/generic_type_param_in_state",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "references unknown data type `T`" },
+    },
+    PendingCanary {
+        path: "inline_asm/asm_block_jmp_state",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `:`, found identifier `other`" },
+    },
+    PendingCanary {
+        path: "inline_asm/asm_label_loop",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `:`, found punctuation `}`" },
+    },
+    PendingCanary {
+        path: "inline_asm/asm_structured_ldr_str",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `:`, found identifier `x0`" },
+    },
+    PendingCanary {
+        path: "inline_asm/asm_where_contract",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `;`, found identifier `where`" },
+    },
+    PendingCanary {
+        path: "memory/abi_calling_convention_machine",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "found identifier `abi`" },
+    },
+    PendingCanary {
+        path: "memory/repr_native_stable_layout",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "found identifier `repr`" },
+    },
+    PendingCanary {
+        path: "modules/module_declaration",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "found identifier `module`" },
+    },
+    PendingCanary {
+        path: "modules/package_declaration",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "found identifier `package`" },
+    },
+    PendingCanary {
+        path: "modules/pub_visibility_modifier",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "found keyword `pub`" },
+    },
+    PendingCanary {
+        path: "operators/unary_logical_not",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected expression" },
+    },
+    PendingCanary {
+        path: "ownership/compound_assign_add_field",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected expression" },
+    },
+    PendingCanary {
+        path: "ownership/move_keyword_field_assignment",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `;`, found identifier `replacement`" },
+    },
+    PendingCanary {
+        path: "relax/relax_scope_unimplemented",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `;`, found keyword `self`" },
+    },
+    PendingCanary {
+        path: "relax/relaxed_parameter_unimplemented",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `)`, found identifier `i32`" },
+    },
+    PendingCanary {
+        path: "traits/default_machine_in_trait",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `machine`, found identifier `default`" },
+    },
+    PendingCanary {
+        path: "traits/dyn_trait_object_dispatch",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `)`, found identifier `ImageFilter`" },
+    },
+    PendingCanary {
+        path: "traits/generic_trait_parameter",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `{`, found punctuation `<`" },
+    },
+    PendingCanary {
+        path: "traits/trait_invariant_clause",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `machine`, found keyword `invariant`" },
+    },
+    PendingCanary {
+        path: "versioning/data_version_block",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected identifier, found punctuation `{`" },
+    },
+    PendingCanary {
+        path: "versioning/match_on_version",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected transition pattern" },
+    },
+    PendingCanary {
+        path: "versioning/migration_generic_trait",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `{`, found punctuation `<`" },
+    },
+    PendingCanary {
+        path: "versioning/version_scoped_machine",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "state `v1` assignment cannot write `counter` because it is not mutable in this state" },
+    },
+    PendingCanary {
+        path: "wire/wire_data_encoding_family",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected one of `use`, `export`, `data`, `domain`, `enum`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `operator`, `platform`, `provider`, `trait`, `boundary operator`, `boundary trait`, found identifier `wire`" },
+    },
+    PendingCanary {
+        path: "wire/wire_data_field_numbers",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected one of `use`, `export`, `data`, `domain`, `enum`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `operator`, `platform`, `provider`, `trait`, `boundary operator`, `boundary trait`, found identifier `wire`" },
+    },
+    PendingCanary {
+        path: "wire/wire_data_reserved_field",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected one of `use`, `export`, `data`, `domain`, `enum`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `operator`, `platform`, `provider`, `trait`, `boundary operator`, `boundary trait`, found identifier `wire`" },
+    },
+    PendingCanary {
+        path: "wire/wire_data_version_block",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected one of `use`, `export`, `data`, `domain`, `enum`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `operator`, `platform`, `provider`, `trait`, `boundary operator`, `boundary trait`, found identifier `wire`" },
+    },
+    PendingCanary {
+        path: "wire/wire_generic_trait",
+        expectation: PendingCanaryExpectation::CurrentlyRejects { fragment: "expected `{`, found punctuation `<`" },
+    },
+];

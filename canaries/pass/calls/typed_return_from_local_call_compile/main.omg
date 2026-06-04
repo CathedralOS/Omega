@@ -1,0 +1,12 @@
+// Chapter 3: ordinary call syntax enters a machine and produces a typed value.
+// The call result is bound to a local, then returned as the terminal value.
+data Main {}
+
+machine add_i32(left: i32, right: i32) -> i32 {
+    left + right
+}
+
+machine Main::main(&mut self) -> i32 {
+    let sum: i32 = add_i32(3, 4);
+    sum
+}

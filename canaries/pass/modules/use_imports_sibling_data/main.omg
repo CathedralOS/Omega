@@ -1,0 +1,10 @@
+use geometry::shapes;
+
+data Main {
+    point: Point;
+}
+
+machine Main::main(&mut self) {
+    self.point.x = 3;
+    self.point.y = 4;
+}

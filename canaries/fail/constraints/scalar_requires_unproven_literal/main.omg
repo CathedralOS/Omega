@@ -1,0 +1,18 @@
+// Chapter 9: "Requirements are facts an operation needs before it may run." The
+// call `self.accept(0)` violates the scalar precondition `requires value > 0`,
+// and the compiler has no fact establishing `value > 0` at the call site. The
+// obligation cannot be discharged, so the call is rejected. This is the scalar
+// (non-domain-membership) form of the unproven-requires obligation.
+
+data Main {
+}
+
+machine Main::accept(value: i32)
+requires
+    value > 0
+{
+}
+
+machine Main::main(&mut self) {
+    self.accept(0);
+}

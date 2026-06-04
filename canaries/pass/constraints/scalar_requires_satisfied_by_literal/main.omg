@@ -1,0 +1,17 @@
+// Chapter 9 "Everyday Shape": a scalar precondition `requires value > 0` is a
+// proof obligation the caller must discharge. Here the call site passes the
+// literal `5`, which the checker proves satisfies `value > 0`, so the call's
+// requires contract is discharged and the program compiles.
+
+data Main {
+}
+
+machine Main::accept(value: i32)
+requires
+    value > 0
+{
+}
+
+machine Main::main(&mut self) {
+    self.accept(5);
+}

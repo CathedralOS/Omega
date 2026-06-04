@@ -1,0 +1,1 @@
+expected `;`, `,`, or end of proof facts

@@ -1,0 +1,13 @@
+// Chapter 12 "Associated Types": traits are intended to carry explicit type
+// parameters (`trait WireReadable<Message, Value>`). Generic trait parameter
+// lists do not parse yet.
+
+data Main {
+}
+
+trait Equatable<T> {
+    machine T::equals(&self, other: &T) -> bool;
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,26 @@
+// PASS canary (ch16 "Relationship To Proofs"): a cleanup machine emits a
+// guarantee like any other operation. Here `Lock::drop` ensures the lock lands
+// back in the `Released` domain, contributing a proof fact about the restored
+// invariant. Drop participates in the same proof system as other machines.
+
+data Lock {
+    held: i32;
+}
+
+domain Lock::Released {
+    self.held == 0;
+}
+
+machine Lock::drop(&mut self)
+ensures
+    self in Lock::Released
+{
+    self.held = 0;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let l: Lock = Lock { held: 0 };
+}

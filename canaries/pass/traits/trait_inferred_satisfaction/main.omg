@@ -1,0 +1,19 @@
+trait Incrementable {
+    machine increment(&mut self);
+}
+
+data Counter {
+    value: i32;
+}
+
+machine Counter::increment(&mut self) {
+    self.value = self.value + 1;
+}
+
+data Main {
+    counter: Counter;
+}
+
+machine Main::main(&mut self) {
+    self.counter.increment();
+}

@@ -1,0 +1,11 @@
+// Chapter 12 "Const And Proof Parameters": a machine may take `const` value
+// parameters known at compile time, as in `Math::clamp_i32<const MIN, const MAX>`.
+
+data Main {
+}
+
+machine Main::clamp<const MIN: i32, const MAX: i32>(value: i32, out: &mut i32) {
+}
+
+machine Main::main(&mut self) {
+}

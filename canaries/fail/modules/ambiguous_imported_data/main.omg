@@ -1,0 +1,10 @@
+use geo_a::point;
+use geo_b::point;
+
+data Main {
+    p: Point;
+}
+
+machine Main::main(&mut self) {
+    self.p.x = 1;
+}

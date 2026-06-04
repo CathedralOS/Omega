@@ -1,0 +1,12 @@
+// Chapter 12 "Generic Machines": a machine may be generic over a type
+// parameter written with angle brackets. The parameter `T` is usable as a
+// parameter type in the machine's primary signature.
+
+data Main {
+}
+
+machine Main::ident<T>(x: &T, out: &mut T) {
+}
+
+machine Main::main(&mut self) {
+}

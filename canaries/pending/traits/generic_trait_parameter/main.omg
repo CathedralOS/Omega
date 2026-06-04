@@ -1,0 +1,21 @@
+data PlayerMessage {
+    health: i32;
+}
+
+trait WireEncodable<Message> {
+    machine to_wire(&self, out: &mut Message);
+}
+
+data Player {
+    health: i32;
+}
+
+machine Player::to_wire(&self, out: &mut PlayerMessage) satisfies WireEncodable<PlayerMessage> {
+    out.health = self.health;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

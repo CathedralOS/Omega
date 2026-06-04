@@ -1,0 +1,38 @@
+// Chapter 18 "Capabilities And Authority Flow": authority is modeled as ordinary
+// values plus domains. A boundary `write_bytes` requires `folder in
+// Folder::Writable`; the caller accepts a `Folder` under the same domain and
+// forwards it across the boundary, so the requirement is discharged from the
+// caller-provided fact rather than from minted host power.
+
+data Folder {
+}
+
+domain Folder::Writable {
+}
+
+boundary trait Filesystem {
+    machine write_bytes(folder: Folder, path: String)
+    requires
+        folder in Folder::Writable
+    effects
+        filesystem_io;
+}
+
+data Thumbnailer {
+    fs: Filesystem;
+}
+
+machine Thumbnailer::write_cache(&mut self, cache: Folder)
+requires
+    cache in Folder::Writable
+effects
+    filesystem_io
+{
+    self.fs.write_bytes(cache, "thumb.bin");
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

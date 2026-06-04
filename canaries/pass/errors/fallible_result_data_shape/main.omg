@@ -1,0 +1,38 @@
+// PASS canary (ch15 "Fallible Results"): recoverable failure modeled as data.
+// A `ReadResult` carries an ok flag, a count, and an embedded error value, and
+// the fallible operation reports through `&mut` output parameters rather than a
+// hidden exception path. No special exception semantics are needed -- this is an
+// ordinary machine with output parameters and type-checks cleanly.
+
+data IOError {
+    code: i32;
+}
+
+data Buffer {
+    len: usize;
+}
+
+data ReadResult {
+    ok: bool;
+    bytes_read: usize;
+    error: IOError;
+}
+
+data File {
+    handle: i32;
+}
+
+machine File::read(&mut self, out: &mut Buffer, result: &mut ReadResult) {
+    result.ok = true;
+    result.bytes_read = 0;
+}
+
+data Main {
+    file: File;
+    buffer: Buffer;
+    result: ReadResult;
+}
+
+machine Main::main(&mut self) {
+    self.file.read(&mut self.buffer, &mut self.result);
+}

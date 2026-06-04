@@ -1,0 +1,17 @@
+// Chapter 18 "Standard Effects": the standard effect vocabulary is finite and
+// stable; unknown effect names are rejected in safe builds. `teleport_io` is not
+// in the standard vocabulary, so the boundary trait declaration is rejected.
+
+boundary trait Console {
+    machine write_line(text: String)
+    effects
+        teleport_io;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("hi");
+}

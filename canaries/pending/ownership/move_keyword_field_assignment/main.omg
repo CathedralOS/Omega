@@ -1,0 +1,15 @@
+// Chapter 2: an owned value may be moved into another location via `move`
+// (`self.inventory = move replacement;`). The parser does not yet accept the
+// `move` keyword in an assignment right-hand side.
+data Inventory {
+    slots: i32;
+}
+
+data Main {
+    inventory: Inventory;
+}
+
+machine Main::main(&mut self) {
+    let replacement: Inventory = self.inventory;
+    self.inventory = move replacement;
+}

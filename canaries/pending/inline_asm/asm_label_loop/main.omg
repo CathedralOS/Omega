@@ -1,0 +1,15 @@
+// Chapter 22 (Inline Assembly): an assembly block with an arbitrary label and a
+// `jmp label` back-edge is suspect because it creates a control-flow loop that
+// does not correspond to Omega states and transitions. Unimplemented: `asm`
+// blocks are not parsed at all, so this never reaches the control-flow policy.
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+    asm {
+    label:
+        jmp label
+    }
+}

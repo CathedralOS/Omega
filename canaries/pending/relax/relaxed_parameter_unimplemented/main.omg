@@ -1,0 +1,18 @@
+// Chapter 11 "Calls Inside Relax": a callee that accepts a relaxed target spells
+// the parameter as `&mut relaxed T`. This relaxed-borrow parameter form is
+// documented but not yet implemented in the parser: after `&mut relaxed` the
+// parser does not accept the following type, so it errors at `i32`.
+
+data Tree {
+    root: i32;
+}
+
+machine Tree::rotate_raw(root: &mut relaxed i32) {
+}
+
+data Main {
+    tree: Tree;
+}
+
+machine Main::main(&mut self) {
+}

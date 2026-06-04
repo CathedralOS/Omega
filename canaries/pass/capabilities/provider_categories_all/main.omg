@@ -1,0 +1,17 @@
+// Chapter 18 "Boundary Primitive Registry": each registered provider carries a
+// `category` drawn from a fixed vocabulary. A whitelisted core package may
+// declare providers across every category. All six categories parse, register,
+// and compile cleanly.
+
+provider omega::language::core::canary_slice_index : SliceIndexing;
+provider omega::language::core::canary_ptr_offset : PointerOffset;
+provider omega::language::core::canary_ptr_access : PointerAccess;
+provider omega::language::core::canary_descriptor : DescriptorConstruction;
+provider omega::language::core::canary_allocation : Allocation;
+provider omega::language::core::canary_host_abi : HostAbiCall;
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

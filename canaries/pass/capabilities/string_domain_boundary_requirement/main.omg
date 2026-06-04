@@ -1,0 +1,24 @@
+// Chapter 18 "Standard Effects" (CConsole example): instead of growing surface
+// types such as CString, a boundary asks for the string domains it needs. This
+// `write` requires `text in String::Utf8 & String::NoNul`, keeping interop
+// encoding requirements inside Omega's ordinary domain system.
+
+domain String::Utf8 {
+}
+
+domain String::NoNul {
+}
+
+boundary trait CConsole {
+    machine write(text: String)
+    requires
+        text in String::Utf8 & String::NoNul
+    effects
+        stdout_io;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

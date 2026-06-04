@@ -1,0 +1,13 @@
+trait ResettableCounter {
+    machine set(&mut self, value: i32);
+
+    default machine reset(&mut self) {
+        self.set(0);
+    }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

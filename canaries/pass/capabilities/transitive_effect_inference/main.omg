@@ -1,0 +1,33 @@
+// Chapter 18 "Standard Effects": effects propagate through the call graph. A
+// private helper omits its `effects` block (the compiler infers its reached
+// effects), and the caller declares the inferred `stdout_io` as its ceiling. The
+// transitively-reached effect satisfies the declared ceiling.
+
+boundary trait Console {
+    machine write_line(text: String)
+    effects
+        stdout_io;
+}
+
+data App {
+    console: Console;
+}
+
+machine App::greet(&mut self)
+effects
+    stdout_io
+{
+    self.helper();
+}
+
+machine App::helper(&mut self) {
+    self.console.write_line("hi");
+}
+
+data Main {
+    app: App;
+}
+
+machine Main::main(&mut self) {
+    self.app.greet();
+}

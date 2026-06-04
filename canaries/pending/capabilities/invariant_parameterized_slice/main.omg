@@ -1,0 +1,16 @@
+// Chapter 18 "Invariant Parameters": imported signatures lean on invariant-
+// parameterized slice types such as `&mut [u8, [writable, initialized]]`. The
+// bracketed invariant-parameter list on a slice type is documented but not yet
+// parsed.
+
+boundary trait WindowsFile {
+    machine read(buffer: &mut [u8, [writable, initialized]], n: usize) -> bool
+    effects
+        filesystem_io;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

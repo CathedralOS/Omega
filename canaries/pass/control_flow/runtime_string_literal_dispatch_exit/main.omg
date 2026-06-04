@@ -1,0 +1,30 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    input: String;
+}
+
+machine Main::main(&mut self) {
+    self.input = "look";
+
+    transition self.input {
+        "quit" -> finished()
+        "look" -> look()
+        _ -> invalid()
+    }
+
+    state finished(&mut self) {
+        self.console.exit_process(10);
+    }
+
+    state look(&mut self) {
+        self.console.exit_process(11);
+    }
+
+    state invalid(&mut self) {
+        self.console.exit_process(12);
+    }
+}

@@ -1,0 +1,19 @@
+// Chapter 18 "Host Providers": a target can map a boundary trait's machines to a
+// raw syscall surface via `host <target> provides <Trait> { ... }`. This provider
+// metadata syntax is documented but not yet parsed.
+
+boundary trait Console {
+    machine write_line(text: String)
+    effects
+        stdout_io;
+}
+
+host linux_aarch64 provides Console {
+    write_line -> syscall 64;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
