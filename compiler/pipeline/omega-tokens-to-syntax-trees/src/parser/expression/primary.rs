@@ -41,6 +41,10 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
         ));
     }
 
+    if input.at_keyword(KeywordKind::Match) {
+        return Err(input.error_here("match expressions are not implemented yet"));
+    }
+
     if input.tokens.first().is_some_and(|token| {
         matches!(
             token.kind,
