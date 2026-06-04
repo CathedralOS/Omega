@@ -1,5 +1,7 @@
 use super::*;
-use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
+use crate::flow::mutation::receiver::{
+    call_receiver_mutated_place, canonical_receiver_place_for_call_site,
+};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StateMutationSummaryCache {
@@ -24,6 +26,16 @@ pub(crate) fn instantiate_known_call_mutation_summary_places(
     };
     let summary_places = state_mutation_summary_places(program, cache, target_state);
     if summary_places.is_empty() {
+        if core_method_mutates_receiver(program, target_state) {
+            return call_receiver_mutated_place(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                borrow_call,
+            )
+            .map(|place| vec![place])
+            .or_else(|| Some(Vec::new()));
+        }
         return Some(Vec::new());
     }
 
@@ -42,6 +54,38 @@ pub(crate) fn instantiate_known_call_mutation_summary_places(
     }
 
     Some(instantiated)
+}
+
+fn core_method_mutates_receiver(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+) -> bool {
+    let Some(machine) = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
+    }) else {
+        return false;
+    };
+
+    let method_name = machine
+        .name
+        .as_str()
+        .rsplit_once("::")
+        .map(|(_, method)| method)
+        .unwrap_or_else(|| state.name.as_str());
+    if !matches!(method_name, "as_mut_slice" | "index_mut" | "pop" | "push") {
+        return false;
+    }
+
+    let is_vec_attached_machine = machine
+        .attached_data
+        .as_ref()
+        .is_some_and(|attached_data| attached_data.as_str() == "Vec");
+    let is_vec_method_machine = machine.name.as_str().starts_with("Vec::");
+
+    is_vec_attached_machine || is_vec_method_machine
 }
 
 fn state_mutation_summary_places<'cache>(

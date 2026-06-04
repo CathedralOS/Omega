@@ -1,4 +1,5 @@
 use super::*;
+use crate::lookup::statement_call_receiver_members;
 
 pub(crate) fn call_receiver_is_mutable(
     program: &omega_typed_trees::TypedTrees,
@@ -84,18 +85,12 @@ pub(super) fn canonical_receiver_place_for_call_site(
 ) -> Option<CanonicalPlace> {
     match call_site {
         CallSite::Statement(statement) => {
-            if let Some(path) = statement_call_receiver_path(program, statement) {
-                return Some(CanonicalPlace {
-                    root: omega_facts::PlaceRoot::Symbol(path.head_symbol()),
-                    segments: path
-                        .member_symbols()
-                        .iter()
-                        .skip(1)
-                        .copied()
-                        .map(|symbol| omega_facts::PlaceSegment::Field { symbol })
-                        .collect(),
-                });
+            if let Some(place) =
+                canonical_self_receiver_path(program, caller_state_symbol, statement)
+            {
+                return Some(place);
             }
+
             canonical_place_from_symbol(statement.receiver_symbol)
         }
         CallSite::Expression(call) => {
@@ -120,5 +115,61 @@ pub(super) fn canonical_receiver_place_for_call_site(
                 .find(|parameter| parameter.is_self)?;
             canonical_place_from_symbol(self_parameter.symbol)
         }
+    }
+}
+
+fn canonical_self_receiver_path(
+    program: &omega_typed_trees::TypedTrees,
+    caller_state_symbol: SymbolHandle,
+    statement: &omega_typed_trees::statement::TableCall,
+) -> Option<CanonicalPlace> {
+    let members = statement_call_receiver_members(program, statement)?;
+    if !members
+        .first()
+        .is_some_and(|member| member.as_str() == "self")
+    {
+        return None;
+    }
+
+    let caller_state = find_state(program, caller_state_symbol)?;
+    let self_parameter = program
+        .state_parameters(caller_state)
+        .iter()
+        .find(|parameter| parameter.is_self)?;
+    let mut place = CanonicalPlace {
+        root: omega_facts::PlaceRoot::Symbol(self_parameter.symbol),
+        segments: Vec::new(),
+    };
+
+    for member in members.iter().skip(1) {
+        let symbol = resolve_self_receiver_member_symbol(program, &place, member.as_str())
+            .or_else(|| {
+                statement
+                    .receiver_symbol
+                    .is_valid()
+                    .then_some(statement.receiver_symbol)
+            })
+            .unwrap_or_else(SymbolHandle::invalid);
+        place
+            .segments
+            .push(omega_facts::PlaceSegment::Field { symbol });
+    }
+
+    Some(place)
+}
+
+fn resolve_self_receiver_member_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    place: &CanonicalPlace,
+    member_name: &str,
+) -> Option<SymbolHandle> {
+    let type_symbol = symbol_type_symbol(program, canonical_place_root_symbol(place)?)?;
+    resolve_member_symbol_from_type_symbol(program, type_symbol, member_name)
+}
+
+fn canonical_place_root_symbol(place: &CanonicalPlace) -> Option<SymbolHandle> {
+    match place.root {
+        omega_facts::PlaceRoot::Symbol(symbol) => Some(symbol),
+        _ => None,
     }
 }

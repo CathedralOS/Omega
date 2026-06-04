@@ -308,6 +308,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
         omega_typed_trees::data::TypeParameter {
             symbol: type_parameter_symbol,
             name: Identifier::generated("T"),
+            kind: omega_typed_trees::data::TypeParameterKind::Type,
         },
     );
     program.push_operator_parameter(

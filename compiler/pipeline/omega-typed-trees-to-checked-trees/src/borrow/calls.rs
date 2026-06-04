@@ -36,14 +36,29 @@ pub(crate) fn collect_statement_borrow_calls(
             expression::collect_expression_borrow_calls(&mut collection, assignment.value)
         }
         StatementNode::Call(call) => {
-            if statement_call_can_dispatch_to_machine(program, machine, state, call) {
+            let resolved_target = crate::lookup::resolve_state_call_target(
+                program,
+                machine,
+                state,
+                call.receiver_symbol,
+                call.target_symbol,
+                crate::lookup::statement_call_receiver_members(program, call),
+                &call.target,
+            );
+            if resolved_target.is_valid()
+                || statement_call_can_dispatch_to_machine(program, machine, state, call)
+            {
                 let receiver_path = statement_call_receiver_path(program, call);
                 let accesses = collection.collect_call_argument_accesses(
                     program.statement_table.expression_handles(call.arguments),
                 );
                 collection.append_borrow_call(
                     call.receiver_symbol,
-                    call.target_symbol,
+                    if resolved_target.is_valid() {
+                        resolved_target
+                    } else {
+                        call.target_symbol
+                    },
                     receiver_path.is_some(),
                     accesses,
                 );

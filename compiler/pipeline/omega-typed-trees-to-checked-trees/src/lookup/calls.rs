@@ -120,6 +120,7 @@ pub(crate) fn resolve_state_call_target(
         .map(|parameter| {
             machine_symbol_from_type_reference_handle(program, parameter.type_reference)
         })
+        .or_else(|| receiver_field_type_machine_symbol(program, machine, receiver_symbol))
         .unwrap_or_else(SymbolHandle::invalid);
     if type_symbol.is_valid()
         && let Some(target_machine) = machine_by_symbol(program, type_symbol)
@@ -170,10 +171,48 @@ pub(crate) fn receiver_can_dispatch_to_machine(
         .map(|parameter| {
             machine_symbol_from_type_reference_handle(program, parameter.type_reference)
         })
+        .or_else(|| receiver_field_type_machine_symbol(program, machine, receiver_symbol))
         .unwrap_or_else(SymbolHandle::invalid);
 
     machine_by_symbol(program, receiver_symbol).is_some()
         || (type_symbol.is_valid() && machine_by_symbol(program, type_symbol).is_some())
+}
+
+fn receiver_field_type_machine_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    receiver_symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
+    program
+        .machine_owned_data(machine)
+        .iter()
+        .find(|owned| owned.symbol == receiver_symbol)
+        .map(|owned| machine_symbol_from_type_reference_handle(program, owned.type_reference))
+        .or_else(|| {
+            attached_data_field_type_reference(program, machine, receiver_symbol).map(
+                |type_reference| machine_symbol_from_type_reference_handle(program, type_reference),
+            )
+        })
+        .filter(|symbol| symbol.is_valid())
+}
+
+fn attached_data_field_type_reference(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    receiver_symbol: SymbolHandle,
+) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+    let attached_data = machine.attached_data.as_ref()?;
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name == *attached_data)?;
+
+    program.data_members(data).iter().find_map(|member| {
+        let omega_typed_trees::data::DataMember::Field(field) = member else {
+            return None;
+        };
+        (field.symbol == receiver_symbol).then_some(field.type_reference)
+    })
 }
 
 fn resolve_state_symbol_in_machine(

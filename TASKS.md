@@ -417,9 +417,6 @@ under full-suite parallelism (build-dir race); it passes run alone / with
   value-expression sites (operator-result + let-init seams now covered).
 - [ ] Lower abstract ownership summaries into explicit backend transfer and
   cleanup operations.
-- [ ] Promote `borrow/vec_view_invalidated_by_push` from pending once `Vec[T]`
-  lowering exists (the borrow rule fires; blocked only on the `Vec<T>` type being
-  usable — exercised today via an array/call-mutation analogue).
 
 ### Array, Vec, String, And Views
 
