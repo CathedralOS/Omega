@@ -1,0 +1,15 @@
+// Chapter 2: an owned value may be explicitly spelled as moved into another
+// location via `move` (`self.inventory = move replacement;`). The ownership
+// lane still infers the actual move from value flow.
+data Inventory {
+    slots: i32;
+}
+
+data Main {
+    inventory: Inventory;
+}
+
+machine Main::main(&mut self) {
+    let replacement: Inventory = self.inventory;
+    self.inventory = move replacement;
+}
