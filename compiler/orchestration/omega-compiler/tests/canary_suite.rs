@@ -4050,6 +4050,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/boundary_trait_multiple_effects",
     "capabilities/derives_authority_via_boundary",
     "capabilities/provider_categories_all",
+    "capabilities/invariant_parameterized_slice",
     "capabilities/string_domain_boundary_requirement",
     "capabilities/transitive_effect_inference",
     "capabilities/uses_caller_capability_requires",
@@ -4223,12 +4224,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "capabilities/host_provides_syscall_mapping",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "found keyword `host`",
-        },
-    },
-    PendingCanary {
-        path: "capabilities/invariant_parameterized_slice",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "expected `]`, found punctuation `,`",
         },
     },
     PendingCanary {
