@@ -1,0 +1,36 @@
+// Chained read-modify-write of one field within a single state. Each statement
+// reads the value the previous statement stored, so `(10 + 5 - 3) * 2 == 24`.
+//
+// Regression guard: instruction selection folds a field to a known constant
+// after a literal write (`self.v = 10`). A binary write must then forget that
+// constant, or every later `self.v` read keeps folding the entry value (10) and
+// the chain silently computes the wrong result (e.g. `10 - 3 == 7`).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: i32;
+}
+
+machine Main::main(&mut self) {
+    self.v = 10;
+    self.v = self.v + 5;
+    self.v = self.v - 3;
+    self.v = self.v * 2;
+
+    transition self.v == 24 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

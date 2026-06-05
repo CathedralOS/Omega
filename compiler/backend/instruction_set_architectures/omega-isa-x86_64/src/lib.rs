@@ -2346,11 +2346,17 @@ fn append_runtime_binary_operation(
             bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
             bytes.extend([0x4d, 0x0f, 0x4f, 0xd3]); // cmovg r10, r11 (signed: keep smaller)
         }
+        StateGuardOperator::Divide => {
+            bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
+            bytes.extend([0x48, 0x31, 0xd2]); // xor rdx, rdx
+            bytes.extend([0x49, 0xf7, 0xf3]); // div r11
+            bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (quotient)
+        }
         StateGuardOperator::Modulo => {
             bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
             bytes.extend([0x48, 0x31, 0xd2]); // xor rdx, rdx
             bytes.extend([0x49, 0xf7, 0xf3]); // div r11
-            bytes.extend([0x49, 0x89, 0xd2]); // mov r10, rdx
+            bytes.extend([0x49, 0x89, 0xd2]); // mov r10, rdx (remainder)
         }
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
@@ -2387,7 +2393,7 @@ fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
         | StateGuardOperator::Subtract => 3,
         StateGuardOperator::Multiply => 4,
         StateGuardOperator::Max | StateGuardOperator::Min => 7, // cmp (3) + cmov (4)
-        StateGuardOperator::Modulo => 12,
+        StateGuardOperator::Divide | StateGuardOperator::Modulo => 12,
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
         | StateGuardOperator::Greater
