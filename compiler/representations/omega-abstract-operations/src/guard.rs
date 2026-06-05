@@ -21,6 +21,8 @@ pub enum StateGuardOperator {
     DivideUnsigned,
     ModuloUnsigned,
     ShiftRightLogical,
+    MinUnsigned,
+    MaxUnsigned,
     Max,
     Min,
     And,

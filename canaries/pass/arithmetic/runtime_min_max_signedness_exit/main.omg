@@ -1,0 +1,51 @@
+// min/max must respect the operand's signedness. For signed i32 a negative
+// operand must compare as negative (`min(-5, 3) == -5`); for unsigned u32 a
+// high-bit operand must compare as large (`max(3_000_000_000, 5) == 3e9`). The
+// comparison is done at the operand width with the matching signed/unsigned
+// conditional move.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    si: i32;
+    sj: i32;
+    smin: i32;
+    ui: u32;
+    uj: u32;
+    umax: u32;
+}
+
+machine Main::main(&mut self) {
+    self.si = 0;
+    self.si = self.si - 5; // -5 (runtime)
+    self.sj = 3;
+    self.smin = min(self.si, self.sj); // -5
+
+    self.ui = 2999999999;
+    self.ui = self.ui + 1; // 3_000_000_000 (runtime, high bit set)
+    self.uj = 5;
+    self.umax = max(self.ui, self.uj); // 3_000_000_000
+
+    transition self.smin == -5 {
+        true -> check_unsigned()
+        false -> bad()
+    }
+
+    state check_unsigned(&mut self) {
+        transition self.umax == 3000000000 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
