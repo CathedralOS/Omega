@@ -42,7 +42,13 @@ pub fn encode_runtime_storage_compare_bytes(
     byte_size: usize,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
+    is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if is_float {
+        return Err(Diagnostic::error(
+            "aarch64 float storage comparison is not implemented yet".to_string(),
+        ));
+    }
     let mut bytes = Vec::with_capacity(runtime_storage_compare_width(
         left_offset,
         right_offset,

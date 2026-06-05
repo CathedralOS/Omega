@@ -13,6 +13,7 @@ pub fn encode_runtime_storage_compare_bytes(
     byte_size: usize,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
+    is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_storage_compare_bytes(
@@ -21,6 +22,7 @@ pub fn encode_runtime_storage_compare_bytes(
             byte_size,
             failure_branch_distance,
             operator,
+            is_float,
         ),
         Architecture::X86_64 => x86_64::encode_runtime_storage_compare_bytes(
             left_offset,
@@ -28,6 +30,7 @@ pub fn encode_runtime_storage_compare_bytes(
             byte_size,
             failure_branch_distance,
             operator,
+            is_float,
         ),
     }
 }

@@ -47,6 +47,7 @@ pub enum TargetOperationKind {
         right_offset: usize,
         byte_size: usize,
         operator: StateGuardOperator,
+        is_float: bool,
     },
     CompareRuntimeStorageValue {
         region: RuntimeStorageRegion,

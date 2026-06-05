@@ -142,12 +142,14 @@ fn machine_instruction_width(
             left_offset,
             right_offset,
             byte_size,
+            is_float,
             ..
         } => runtime_storage_compare_width(
             input.target.architecture,
             *left_offset,
             *right_offset,
             *byte_size,
+            *is_float,
         ),
         SelectedInstructionKind::CompareRuntimeStorageValue {
             byte_offset,

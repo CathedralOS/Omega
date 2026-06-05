@@ -74,6 +74,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 right_offset,
                 byte_size,
                 operator,
+                is_float,
             } => Self::CompareRuntimeStorage {
                 left_region: *left_region,
                 left_offset: *left_offset,
@@ -81,6 +82,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 right_offset: *right_offset,
                 byte_size: *byte_size,
                 operator: *operator,
+                is_float: *is_float,
             },
             omega_abstract_operations::AbstractOperationKind::CompareRuntimeStorageValue {
                 region,

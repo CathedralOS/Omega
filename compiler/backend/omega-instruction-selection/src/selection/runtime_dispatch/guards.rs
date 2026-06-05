@@ -861,6 +861,7 @@ fn runtime_storage_guard(
             right_offset: right.byte_offset,
             byte_size: left.byte_count,
             operator,
+            is_float: false,
         });
     }
 
@@ -936,6 +937,7 @@ pub(super) fn runtime_storage_guard_in_table(
             right_offset: right.byte_offset,
             byte_size: left.byte_count,
             operator,
+            is_float: false,
         });
     }
 
