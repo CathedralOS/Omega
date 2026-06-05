@@ -1744,7 +1744,7 @@ pub fn runtime_storage_binary_write_width(
         + runtime_value_operand_width(runtime_value_operands, right)
         + 3
         + 2
-        + runtime_binary_operation_width(operator)
+        + runtime_binary_operation_width(operator, byte_size)
         + 7.max(store_width(byte_size))
 }
 
@@ -1776,7 +1776,7 @@ pub fn encode_runtime_storage_binary_write(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
     append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
     append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(&mut bytes, operator)?;
+    append_runtime_binary_operation(&mut bytes, operator, byte_size)?;
     append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
     Ok(bytes)
 }
@@ -1803,7 +1803,7 @@ pub fn runtime_pointee_binary_write_width(
         + runtime_value_operand_width(runtime_value_operands, right)
         + 3
         + 2
-        + runtime_binary_operation_width(operator)
+        + runtime_binary_operation_width(operator, byte_size)
         + 7.max(store_width(byte_size))
 }
 
@@ -1834,7 +1834,7 @@ pub fn encode_runtime_pointee_binary_write(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
     append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
     append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(&mut bytes, operator)?;
+    append_runtime_binary_operation(&mut bytes, operator, byte_size)?;
     append_store_r10_to_r14(&mut bytes, field_byte_offset, byte_size)?;
     Ok(bytes)
 }
@@ -1859,7 +1859,7 @@ pub fn runtime_frame_base_indexed_binary_write_width(
         + runtime_value_operand_width(runtime_value_operands, right)
         + 3 // mov r11, r10
         + 2 // pop r10
-        + runtime_binary_operation_width(operator)
+        + runtime_binary_operation_width(operator, byte_size)
         + 7.max(store_width(byte_size))
 }
 
@@ -1900,7 +1900,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
     append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
     append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(&mut bytes, operator)?;
+    append_runtime_binary_operation(&mut bytes, operator, byte_size)?;
     append_store_r10_to_r14(&mut bytes, store_displacement, byte_size)?;
     Ok(bytes)
 }
@@ -2225,7 +2225,9 @@ pub fn runtime_value_operand_width(
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
-            + runtime_binary_operation_width(operator)
+            // Nested binary operands do not carry their result width; assume the
+            // 64-bit form (correct for i64 and for non-negative i32 division).
+            + runtime_binary_operation_width(operator, 8)
             // push r10 (2) + mov r11,r10 (3) + pop r10 (2) + mov dest,r10 (3)
             + 10
     } else {
@@ -2318,7 +2320,9 @@ fn append_runtime_value_operand(
         append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, right)?;
         append_mov_reg_reg(bytes, Reg64::R11, Reg64::R10); // right -> r11
         append_pop_r10(bytes); // restore left -> r10
-        append_runtime_binary_operation(bytes, operator)?;
+        // Nested binary operands do not carry their result width; assume 64-bit
+        // (matches runtime_value_operand_width above for relocation consistency).
+        append_runtime_binary_operation(bytes, operator, 8)?;
         append_mov_reg_reg(bytes, destination, Reg64::R10);
         Ok(())
     } else {
@@ -2331,6 +2335,7 @@ fn append_runtime_value_operand(
 fn append_runtime_binary_operation(
     bytes: &mut Vec<u8>,
     operator: StateGuardOperator,
+    byte_size: usize,
 ) -> Result<(), Diagnostic> {
     match operator {
         StateGuardOperator::Add => bytes.extend([0x4d, 0x01, 0xda]), // add r10, r11
@@ -2346,17 +2351,31 @@ fn append_runtime_binary_operation(
             bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
             bytes.extend([0x4d, 0x0f, 0x4f, 0xd3]); // cmovg r10, r11 (signed: keep smaller)
         }
-        StateGuardOperator::Divide => {
-            bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
-            bytes.extend([0x48, 0x31, 0xd2]); // xor rdx, rdx
-            bytes.extend([0x49, 0xf7, 0xf3]); // div r11
-            bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (quotient)
-        }
-        StateGuardOperator::Modulo => {
-            bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
-            bytes.extend([0x48, 0x31, 0xd2]); // xor rdx, rdx
-            bytes.extend([0x49, 0xf7, 0xf3]); // div r11
-            bytes.extend([0x49, 0x89, 0xd2]); // mov r10, rdx (remainder)
+        StateGuardOperator::Divide | StateGuardOperator::Modulo => {
+            // Signed division. The width must match the operands so the sign bit
+            // is interpreted correctly (a 32-bit `idiv` reads only the low dword
+            // as signed, so it is right regardless of how the operand was loaded
+            // into r10/r11). Quotient -> (r/e)ax, remainder -> (r/e)dx.
+            let want_remainder = matches!(operator, StateGuardOperator::Modulo);
+            if byte_size <= 4 {
+                bytes.extend([0x41, 0x8b, 0xc2]); // mov eax, r10d
+                bytes.push(0x99); // cdq (sign-extend eax -> edx)
+                bytes.extend([0x41, 0xf7, 0xfb]); // idiv r11d
+                if want_remainder {
+                    bytes.extend([0x41, 0x89, 0xd2]); // mov r10d, edx (remainder)
+                } else {
+                    bytes.extend([0x41, 0x89, 0xc2]); // mov r10d, eax (quotient)
+                }
+            } else {
+                bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
+                bytes.extend([0x48, 0x99]); // cqo (sign-extend rax -> rdx)
+                bytes.extend([0x49, 0xf7, 0xfb]); // idiv r11
+                if want_remainder {
+                    bytes.extend([0x49, 0x89, 0xd2]); // mov r10, rdx (remainder)
+                } else {
+                    bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (quotient)
+                }
+            }
         }
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
@@ -2385,7 +2404,7 @@ fn append_runtime_binary_operation(
     Ok(())
 }
 
-fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
+fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize) -> usize {
     match operator {
         StateGuardOperator::Add
         | StateGuardOperator::And
@@ -2393,7 +2412,10 @@ fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
         | StateGuardOperator::Subtract => 3,
         StateGuardOperator::Multiply => 4,
         StateGuardOperator::Max | StateGuardOperator::Min => 7, // cmp (3) + cmov (4)
-        StateGuardOperator::Divide | StateGuardOperator::Modulo => 12,
+        // 32-bit: mov(3)+cdq(1)+idiv(3)+mov(3); 64-bit: mov(3)+cqo(2)+idiv(3)+mov(3).
+        StateGuardOperator::Divide | StateGuardOperator::Modulo => {
+            if byte_size <= 4 { 10 } else { 11 }
+        }
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
         | StateGuardOperator::Greater
