@@ -16,7 +16,7 @@ use omega_instruction_selection::{
     runtime_machine_integer_write_width, runtime_machine_string_write_width,
     runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
     runtime_pointee_string_write_width, runtime_storage_binary_write_width,
-    runtime_storage_compare_width,
+    runtime_storage_compare_width, runtime_storage_convert_width,
     runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee_width,
     runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width,
     runtime_storage_copy_from_runtime_frame_fixed_indexed_width,
@@ -314,6 +314,24 @@ fn machine_instruction_width(
             *operator,
             *right,
             *is_float,
+        ),
+        SelectedInstructionKind::WriteRuntimeStorageConvert {
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+            ..
+        } => runtime_storage_convert_width(
+            input.target.architecture,
+            input.assigned_target_operations,
+            *source,
+            *source_byte_size,
+            *target_byte_size,
+            *source_is_float,
+            *target_is_float,
+            *source_signed,
         ),
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,

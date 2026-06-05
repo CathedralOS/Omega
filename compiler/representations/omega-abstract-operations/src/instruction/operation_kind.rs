@@ -175,6 +175,21 @@ pub enum AbstractOperationKind {
         /// integer ALU.
         is_float: bool,
     },
+    /// A numeric `as` cast: load `source` into a register, convert it between
+    /// integer and floating-point representations (`cvttsd2si`/`cvtsi2sd`/
+    /// `cvtsd2ss`/`cvtss2sd`, or a sized integer move), then store the result.
+    WriteRuntimeStorageConvert {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        target_byte_size: usize,
+        source: AbstractValueOperandHandle,
+        source_byte_size: usize,
+        source_is_float: bool,
+        target_is_float: bool,
+        /// Whether the integer source is signed (drives sign- vs zero-extension
+        /// of a narrow source and the signedness of an int->float conversion).
+        source_signed: bool,
+    },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,
         field_byte_offset: usize,

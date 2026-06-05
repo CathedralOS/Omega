@@ -212,6 +212,25 @@ pub(super) fn encode_machine_instruction_bytes(
             *right,
             *is_float,
         ),
+        SelectedInstructionKind::WriteRuntimeStorageConvert {
+            target_offset,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+            ..
+        } => runtime_storage::encode_runtime_storage_convert(
+            input,
+            *target_offset,
+            *target_byte_size,
+            *source,
+            *source_byte_size,
+            *source_is_float,
+            *target_is_float,
+            *source_signed,
+        ),
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
             field_byte_offset,

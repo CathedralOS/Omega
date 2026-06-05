@@ -218,6 +218,21 @@ pub fn runtime_pointee_integer_write_width(
     width + add_constant_width(pointer_byte_offset) + add_constant_width(field_byte_offset)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_storage_convert_width(
+    _runtime_value_operands: &impl RuntimeValueOperandSource,
+    _source: RuntimeValueOperandHandle,
+    _source_byte_size: usize,
+    _target_byte_size: usize,
+    _source_is_float: bool,
+    _target_is_float: bool,
+    _source_signed: bool,
+) -> usize {
+    // aarch64 conversion is unimplemented; the encoder errors. Report 0 so layout
+    // never reserves bytes for a converting cast on this target.
+    0
+}
+
 pub fn runtime_storage_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,

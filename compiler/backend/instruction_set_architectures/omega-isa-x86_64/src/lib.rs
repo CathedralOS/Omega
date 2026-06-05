@@ -1841,6 +1841,158 @@ pub fn encode_runtime_storage_binary_write(
     Ok(bytes)
 }
 
+/// Bytes of the in-register conversion step for a numeric `as` cast (the source
+/// bits are already in r10; the result is left in r10 for the store).
+fn runtime_convert_operation_width(
+    source_byte_size: usize,
+    target_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+) -> usize {
+    match (source_is_float, target_is_float) {
+        // movq/movd xmm0,r10 (5) + cvttsd2si/cvttss2si r10,xmm0 (5)
+        (true, false) => 10,
+        // cvtsi2sd/ss xmm0,r10 (5) + movq/movd r10,xmm0 (5)
+        (false, true) => 10,
+        (true, true) => {
+            if source_byte_size == target_byte_size {
+                0 // f64->f64: bits already in r10
+            } else {
+                14 // movq/movd (5) + cvtsd2ss/cvtss2sd (4) + movd/movq (5)
+            }
+        }
+        (false, false) => {
+            // Sign-extend a narrow signed source when widening; otherwise the
+            // load already zero-extended and the store truncates.
+            if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
+                3 // movsxd r10, r10d
+            } else {
+                0
+            }
+        }
+    }
+}
+
+/// Append the in-register conversion (see [`runtime_convert_operation_width`]).
+fn append_runtime_convert_operation(
+    bytes: &mut Vec<u8>,
+    source_byte_size: usize,
+    target_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+) {
+    match (source_is_float, target_is_float) {
+        (true, false) => {
+            // float -> int: move bits into xmm0, truncating-convert to r10.
+            if source_byte_size > 4 {
+                bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0, r10
+                bytes.extend([0xf2, 0x4c, 0x0f, 0x2c, 0xd0]); // cvttsd2si r10, xmm0
+            } else {
+                bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xc2]); // movd xmm0, r10d
+                bytes.extend([0xf3, 0x4c, 0x0f, 0x2c, 0xd0]); // cvttss2si r10, xmm0
+            }
+        }
+        (false, true) => {
+            // int -> float: convert r10 (signed) into xmm0, move bits back to r10.
+            if source_byte_size > 4 {
+                if target_byte_size > 4 {
+                    bytes.extend([0xf2, 0x49, 0x0f, 0x2a, 0xc2]); // cvtsi2sd xmm0, r10
+                } else {
+                    bytes.extend([0xf3, 0x49, 0x0f, 0x2a, 0xc2]); // cvtsi2ss xmm0, r10
+                }
+            } else if target_byte_size > 4 {
+                bytes.extend([0xf2, 0x41, 0x0f, 0x2a, 0xc2]); // cvtsi2sd xmm0, r10d
+            } else {
+                bytes.extend([0xf3, 0x41, 0x0f, 0x2a, 0xc2]); // cvtsi2ss xmm0, r10d
+            }
+            if target_byte_size > 4 {
+                bytes.extend([0x66, 0x49, 0x0f, 0x7e, 0xc2]); // movq r10, xmm0
+            } else {
+                bytes.extend([0x66, 0x41, 0x0f, 0x7e, 0xc2]); // movd r10d, xmm0
+            }
+        }
+        (true, true) => {
+            if source_byte_size == target_byte_size {
+                // f64 -> f64: nothing to do.
+            } else if source_byte_size > target_byte_size {
+                bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0, r10
+                bytes.extend([0xf2, 0x0f, 0x5a, 0xc0]); // cvtsd2ss xmm0, xmm0
+                bytes.extend([0x66, 0x41, 0x0f, 0x7e, 0xc2]); // movd r10d, xmm0
+            } else {
+                bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xc2]); // movd xmm0, r10d
+                bytes.extend([0xf3, 0x0f, 0x5a, 0xc0]); // cvtss2sd xmm0, xmm0
+                bytes.extend([0x66, 0x49, 0x0f, 0x7e, 0xc2]); // movq r10, xmm0
+            }
+        }
+        (false, false) => {
+            if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
+                bytes.extend([0x4d, 0x63, 0xd2]); // movsxd r10, r10d
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_storage_convert_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    target_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+) -> usize {
+    // mov r14,imm64(target base) (10) + source operand load + convert + store.
+    10 + runtime_value_operand_width(runtime_value_operands, source)
+        + runtime_convert_operation_width(
+            source_byte_size,
+            target_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+        )
+        + store_width(target_byte_size)
+}
+
+/// `target = source as T`: hold the target base in r14 (untouched by operand
+/// evaluation, which reloads r15), evaluate the source operand into r10, convert
+/// it in place between integer/float representations, and store the result.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_convert(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_storage_convert_width(
+        runtime_value_operands,
+        source,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0); // target base (imm64 @ +2 relocated)
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, source)?;
+    append_runtime_convert_operation(
+        &mut bytes,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+    );
+    append_store_r10_to_r14(&mut bytes, target_offset, target_byte_size)?;
+    Ok(bytes)
+}
+
 /// Address-computation prefix before the value operands in a pointee binary
 /// write: `mov r14,imm64(frame)` (10) + `mov r14,[r14+ptr]` (7) -- r14 then holds
 /// the dereferenced runtime pointer (the target base) across operand evaluation.

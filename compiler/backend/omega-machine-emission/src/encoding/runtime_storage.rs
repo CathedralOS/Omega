@@ -258,6 +258,31 @@ pub(super) fn encode_runtime_storage_binary_write(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(super) fn encode_runtime_storage_convert(
+    input: MachineEmissionContext<'_>,
+    target_offset: usize,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_runtime_value_home(input, source)?;
+    architecture::encode_runtime_storage_convert(
+        input.target.architecture,
+        input.assigned_target_operations,
+        target_offset,
+        target_byte_size,
+        source,
+        source_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+    )
+}
+
 pub(super) fn encode_runtime_pointee_binary_write(
     input: MachineEmissionContext<'_>,
     pointer_byte_offset: usize,
