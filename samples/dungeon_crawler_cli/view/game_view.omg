@@ -41,7 +41,7 @@ machine GameView::render_room(
 ) {
     self.formatter.write_current_cell(level, cell, line);
     console.write_line(line);
-    self.write_cell_info(cell, line);
+    self.formatter.write_room_info(level, cell, line);
     console.write_line(line);
     self.write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
     console.write_line(line);
@@ -60,7 +60,7 @@ machine GameView::render_look(
     console: &mut Console,
     line: &mut String
 ) {
-    self.write_cell_info(cell, line);
+    self.formatter.write_room_info(level, cell, line);
     console.write_line(line);
     self.write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
     console.write_line(line);
@@ -75,59 +75,6 @@ machine GameView::render_exits(
 ) {
     self.write_cell_paths(cell, line);
     console.write_line(line);
-}
-
-machine GameView::write_cell_info(
-    &mut self,
-    cell: CellId,
-    out_line: &mut String
-) {
-    transition cell {
-        CellId::R00 -> gate_info(out_line)
-        CellId::R01 -> branch_info(out_line)
-        CellId::R02 -> branch_info(out_line)
-        CellId::R03 -> branch_info(out_line)
-        CellId::R04 -> deepest_info(out_line)
-        CellId::R05 -> side_info(out_line)
-        CellId::R06 -> side_info(out_line)
-        CellId::R07 -> side_info(out_line)
-        _ -> unknown_info(out_line)
-    }
-
-    state gate_info(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "A bottomless dark room near the dungeon heart.";
-    }
-
-    state branch_info(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "A winding branch room where the walls sweat mineral dust.";
-    }
-
-    state deepest_info(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "A bottomless dark room near the dungeon heart.";
-    }
-
-    state side_info(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "A cramped side chamber hangs off the main path.";
-    }
-
-    state unknown_info(
-        &mut self,
-        out_line: &mut String
-    ) {
-        out_line = "The map dissolves into compiler fog.";
-    }
 }
 
 machine GameView::write_cell_event(
