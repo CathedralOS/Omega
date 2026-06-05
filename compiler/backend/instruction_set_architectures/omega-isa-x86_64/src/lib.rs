@@ -375,10 +375,26 @@ pub fn encode_dispatch_case_leave_bytes(loop_byte_distance: isize) -> Result<Vec
     Ok(bytes)
 }
 
-pub fn dispatch_guard_compare_static_width() -> usize {
-    // mov r15, imm64 (10) + load r10, [r15+disp32] (7)
-    // + mov r11, imm64 (10) + cmp r10, r11 (3) + jcc rel32 (6)
-    36
+pub fn dispatch_guard_compare_static_width(is_float: bool) -> usize {
+    // mov r15, imm64 (10) + load r10, [r15+disp32] (7) + mov r11, imm64 (10)
+    // + compare + jcc rel32 (6). Integer compare is `cmp r10,r11` (3); float is
+    // movq xmm0,r10 + movq xmm1,r11 + ucomisd (5+5+4 = 14).
+    10 + 7 + 10 + runtime_float_or_integer_compare_width(is_float) + 6
+}
+
+fn runtime_float_or_integer_compare_width(is_float: bool) -> usize {
+    if is_float { 14 } else { 3 }
+}
+
+/// Compare the bits already in r10 (left) and r11 (right) as f64 via the SSE
+/// unit: move them into xmm0/xmm1 and `ucomisd`. `ucomisd` sets CF/ZF exactly
+/// like an unsigned integer `cmp` (and PF on unordered/NaN, which the unsigned
+/// failure branches ignore — a documented first-cut limitation), so the same
+/// unsigned/equal failure-jcc conditions apply.
+fn append_ucomisd_r10_r11(bytes: &mut Vec<u8>) {
+    bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0, r10
+    bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xcb]); // movq xmm1, r11
+    bytes.extend([0x66, 0x0f, 0x2e, 0xc1]); // ucomisd xmm0, xmm1
 }
 
 pub fn encode_dispatch_guard_compare_static_bytes(
@@ -387,25 +403,30 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     expected_value: i64,
     skip_byte_distance: isize,
     operator: StateGuardOperator,
+    is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     if !matches!(byte_size, 1 | 4 | 8) {
         return Err(Diagnostic::error(format!(
             "X86_64 MVP encoder cannot compare {byte_size}-byte dispatch guards yet"
         )));
     }
-    let mut bytes = Vec::with_capacity(dispatch_guard_compare_static_width());
+    let mut bytes = Vec::with_capacity(dispatch_guard_compare_static_width(is_float));
     // Storage base; the imm64 (at instruction start + 2) is relocated to the
     // guard's storage-region data symbol by the relocation planner.
     append_mov_r15_imm64(&mut bytes, 0);
     append_load_reg_from_r15(&mut bytes, Reg64::R10, byte_offset, byte_size)?;
     append_mov_reg_imm64(&mut bytes, Reg64::R11, expected_value as u64);
-    append_cmp_r10_r11(&mut bytes, byte_size)?;
+    if is_float {
+        append_ucomisd_r10_r11(&mut bytes);
+    } else {
+        append_cmp_r10_r11(&mut bytes, byte_size)?;
+    }
     // `skip_byte_distance` is anchored at the instruction's rel32 field start
     // (`current.offset + byte_width - 4`, now architecture-aware in the branch-
     // distance helper). The jcc rel is measured from the field's end, 4 bytes
     // later, so the relative target is `skip_byte_distance - 4`.
     append_failure_branch(&mut bytes, operator, skip_byte_distance - 4)?;
-    debug_assert_eq!(bytes.len(), dispatch_guard_compare_static_width());
+    debug_assert_eq!(bytes.len(), dispatch_guard_compare_static_width(is_float));
     Ok(bytes)
 }
 

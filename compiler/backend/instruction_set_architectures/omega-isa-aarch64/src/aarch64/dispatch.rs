@@ -58,7 +58,13 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     expected_value: i64,
     skip_byte_distance: isize,
     operator: StateGuardOperator,
+    is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if is_float {
+        return Err(Diagnostic::error(
+            "aarch64 float dispatch-guard comparison is not implemented yet".to_string(),
+        ));
+    }
     let mut bytes = Vec::with_capacity(dispatch_guard_compare_static_width(byte_offset, byte_size));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));

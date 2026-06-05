@@ -89,12 +89,13 @@ pub fn dispatch_guard_compare_static_width(
     architecture: Architecture,
     byte_offset: usize,
     byte_size: usize,
+    is_float: bool,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
             aarch64::dispatch_guard_compare_static_width(byte_offset, byte_size)
         }
-        Architecture::X86_64 => x86_64::dispatch_guard_compare_static_width(),
+        Architecture::X86_64 => x86_64::dispatch_guard_compare_static_width(is_float),
     }
 }
 

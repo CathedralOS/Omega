@@ -147,6 +147,7 @@ fn select_runtime_straight_line_branch_expansion(
                 byte_size: 0,
                 expected_value: 0,
                 has_storage: false,
+                is_float: false,
             },
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,

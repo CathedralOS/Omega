@@ -8,8 +8,11 @@ use super::guards::{
 };
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasBinding;
-use crate::selection::storage_places::resolve_runtime_storage_is_signed_in_table;
+use crate::selection::storage_places::{
+    resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_primitive_type_in_table,
+};
 use omega_checked_trees::expression::{BinaryOperator, ExpressionNode, ExpressionTable};
+use omega_checked_trees::types::PrimitiveType;
 use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
@@ -60,6 +63,53 @@ fn guard_comparison_operands_unsigned(
                 )
             });
     signed == Some(false)
+}
+
+/// True when a guard comparison's operands are f64, so the static/runtime
+/// compare must use `comisd` rather than an integer `cmp`. First cut: f64 only
+/// (matches the arithmetic path). The operand type is read from whichever side
+/// resolves to a storage place (the literal side does not).
+fn guard_comparison_operands_float(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    edge: &RuntimeDispatchLoopEdge,
+) -> bool {
+    if !edge.guard_has_expression {
+        return false;
+    }
+    let expressions = &input.state_guards.expressions;
+    let ExpressionNode::Binary(binary) = expressions.expression(edge.guard_expression) else {
+        return false;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+    ) {
+        return false;
+    }
+    let primitive = resolve_runtime_storage_primitive_type_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.left,
+    )
+    .or_else(|| {
+        resolve_runtime_storage_primitive_type_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.right,
+        )
+    });
+    matches!(primitive, Some(PrimitiveType::F64))
 }
 
 fn unsigned_comparison_operator(operator: StateGuardOperator) -> StateGuardOperator {
@@ -221,6 +271,9 @@ fn select_dispatch_guard_instructions(
                         byte_size: clause.byte_size,
                         expected_value: clause.expected_value,
                         has_storage: clause.has_storage,
+                        // Float comparisons inside an AND-conjunction clause are a
+                        // follow-on; single-comparison guards take the path below.
+                        is_float: false,
                     }
                 };
                 selected_instructions.push(SelectedInstruction {
@@ -293,12 +346,15 @@ fn select_dispatch_guard_instructions(
         }
     }
 
-    let operator = if guard_comparison_operands_unsigned(
-        input,
-        source_dispatch_index,
-        source_key,
-        edge,
-    ) {
+    let is_float = guard_comparison_operands_float(input, source_dispatch_index, source_key, edge);
+    // `ucomisd` sets CF/ZF exactly like an unsigned integer `cmp`, so a float
+    // ordering comparison must use the unsigned failure-branch conditions
+    // (jae/jbe/ja/jb), not the signed ones — note F64::is_signed_integer() is
+    // true, so the unsigned-operand check below does NOT cover floats. Equal/
+    // NotEqual are unaffected by the unsigned swap (they stay je/jne).
+    let operator = if is_float
+        || guard_comparison_operands_unsigned(input, source_dispatch_index, source_key, edge)
+    {
         unsigned_comparison_operator(edge.guard_operator)
     } else {
         edge.guard_operator
@@ -324,6 +380,7 @@ fn select_dispatch_guard_instructions(
             byte_size: edge.guard_byte_size,
             expected_value: edge.guard_expected_value,
             has_storage: edge.guard_has_storage,
+            is_float,
         },
     };
     selected_instructions.push(SelectedInstruction {
