@@ -1,0 +1,36 @@
+// Regression: concatenating two runtime String places with no string-literal
+// anchor (`self.line = self.line + self.suffix`) was rejected by the runtime-
+// text planner ("needs runtime value lowering") because the text-vs-numeric
+// heuristic keyed on a literal segment. A write to a place already established
+// as text (here `self.line = "prefix "`) is now recognized as a text concat.
+
+boundary trait Console {
+    machine write_line(text: String);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    line: String;
+    suffix: String;
+}
+
+machine Main::main(&mut self) {
+    self.suffix = "omega";
+    self.line = "prefix ";
+    self.line = self.line + self.suffix;
+    self.console.write_line(self.line);
+
+    transition self.line == "prefix omega" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
