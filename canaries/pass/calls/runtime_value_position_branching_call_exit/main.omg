@@ -1,0 +1,52 @@
+// A value-position call (`let r = self.classify(...)`) to a method whose body is
+// a guarded transition with a condition arm and a `_` default selects the right
+// arm's value at runtime and binds it to the local. Both the condition arm and
+// the default are exercised at runtime (not constant-folded).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: i32;
+    positive: i32;
+    negative: i32;
+}
+
+machine Main::classify(&mut self, x: i32) -> i32 {
+    transition {
+        x > 0 -> 100
+        _ -> 200
+    }
+}
+
+machine Main::main(&mut self) {
+    self.v = 5;
+    self.v = self.v + 1; // 6 -> condition arm -> 100
+    self.positive = self.classify(self.v);
+
+    self.v = 0;
+    self.v = self.v - 3; // -3 -> default arm -> 200
+    self.negative = self.classify(self.v);
+
+    transition self.positive == 100 {
+        true -> check_negative()
+        false -> bad()
+    }
+
+    state check_negative(&mut self) {
+        transition self.negative == 200 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
