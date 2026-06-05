@@ -1,0 +1,48 @@
+// Ordered comparisons in a transition guard (`transition a > b`) must branch
+// with the operand signedness. For unsigned u32 a high-bit value compares as
+// large (`3_000_000_000 > 5` is true); for signed i32 a negative compares as
+// negative (`-5 > 3` is false). The guard compares at the operand width and uses
+// signed (jl/jg) or unsigned (jb/ja) conditional branches accordingly.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    ua: u32;
+    ub: u32;
+    sa: i32;
+    sb: i32;
+}
+
+machine Main::main(&mut self) {
+    self.ua = 2999999999;
+    self.ua = self.ua + 1; // 3_000_000_000 (runtime, high bit set)
+    self.ub = 5;
+
+    self.sa = 0;
+    self.sa = self.sa - 5; // -5 (runtime)
+    self.sb = 3;
+
+    transition self.ua > self.ub {
+        true -> check_signed()
+        false -> bad()
+    }
+
+    // -5 > 3 must be false for signed i32, so this guard takes the false arm.
+    state check_signed(&mut self) {
+        transition self.sa > self.sb {
+            true -> bad()
+            false -> good()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

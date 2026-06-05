@@ -2634,13 +2634,20 @@ fn append_failure_branch(
     operator: StateGuardOperator,
     failure_branch_distance: isize,
 ) -> Result<(), Diagnostic> {
+    // The guard jumps to the failure branch when the comparison is FALSE, so each
+    // operator maps to its negation. Ordering uses signed (jl/jg/...) or unsigned
+    // (jb/ja/...) conditions per the operand type.
     let opcode = match operator {
-        StateGuardOperator::Equal => 0x85,          // jne
-        StateGuardOperator::NotEqual => 0x84,       // je
-        StateGuardOperator::Greater => 0x8e,        // jle
-        StateGuardOperator::GreaterOrEqual => 0x8c, // jl
-        StateGuardOperator::Less => 0x8d,           // jge
-        StateGuardOperator::LessOrEqual => 0x8f,    // jg
+        StateGuardOperator::Equal => 0x85,                  // jne
+        StateGuardOperator::NotEqual => 0x84,               // je
+        StateGuardOperator::Greater => 0x8e,                // jle
+        StateGuardOperator::GreaterOrEqual => 0x8c,         // jl
+        StateGuardOperator::Less => 0x8d,                   // jge
+        StateGuardOperator::LessOrEqual => 0x8f,            // jg
+        StateGuardOperator::GreaterUnsigned => 0x86,        // jbe
+        StateGuardOperator::GreaterOrEqualUnsigned => 0x82, // jb
+        StateGuardOperator::LessUnsigned => 0x83,           // jae
+        StateGuardOperator::LessOrEqualUnsigned => 0x87,    // ja
         _ => {
             return Err(Diagnostic::error(format!(
                 "X86_64 runtime compare operator `{operator:?}` is not implemented yet"
