@@ -134,6 +134,7 @@ pub fn encode_runtime_storage_binary_write(
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
+    is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_storage_binary_write(
@@ -143,6 +144,7 @@ pub fn encode_runtime_storage_binary_write(
             left,
             operator,
             right,
+            is_float,
         ),
         Architecture::X86_64 => x86_64::encode_runtime_storage_binary_write(
             runtime_value_operands,
@@ -151,6 +153,7 @@ pub fn encode_runtime_storage_binary_write(
             left,
             operator,
             right,
+            is_float,
         ),
     }
 }

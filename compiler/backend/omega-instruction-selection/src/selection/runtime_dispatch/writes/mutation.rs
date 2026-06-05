@@ -1623,5 +1623,6 @@ fn select_runtime_binary_mutation_write(
         left,
         operator,
         right,
+        is_float: false,
     })
 }

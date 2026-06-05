@@ -225,6 +225,7 @@ pub fn runtime_storage_binary_write_width(
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
+    _is_float: bool,
 ) -> usize {
     let indexed_operand_restore_width = if runtime_value_operands.frame_indexed(left).is_some()
         || runtime_value_operands.frame_indexed(right).is_some()

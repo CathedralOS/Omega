@@ -386,6 +386,45 @@ pub(super) fn resolve_runtime_storage_is_signed_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<bool> {
+    let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )?;
+    descriptor_primitive_is_signed(&descriptor)
+}
+
+/// Resolve the leaf primitive type of a runtime storage target (a `data` field
+/// or frame slot, possibly through nested fields). Used to pick float vs integer
+/// codegen for a binary write.
+pub(super) fn resolve_runtime_storage_primitive_type_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<PrimitiveType> {
+    let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )?;
+    descriptor_primitive_type(&descriptor)
+}
+
+/// Walk a runtime storage target (frame slot or machine-owned `data` field, plus
+/// any nested-field suffix) to its leaf [`TypeLayoutDescriptor`].
+fn resolve_runtime_storage_leaf_descriptor_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<TypeLayoutDescriptor> {
     let path = normalized_storage_name_path_in_table(expressions, expression)?;
     if path.is_empty() {
         return None;
@@ -410,7 +449,7 @@ pub(super) fn resolve_runtime_storage_is_signed_in_table(
             expressions,
             expression,
         )?;
-        return descriptor_primitive_is_signed(&collection.type_descriptor);
+        return Some(collection.type_descriptor.clone());
     };
 
     let root_field = FieldLayout {
@@ -431,17 +470,17 @@ pub(super) fn resolve_runtime_storage_is_signed_in_table(
         cursor =
             resolve_nested_field_layout_step(&input.layouts, cursor, field_name, field_symbol, field_index)?;
     }
-    descriptor_primitive_is_signed(cursor.type_descriptor())
+    Some(cursor.type_descriptor().clone())
 }
 
 fn descriptor_primitive_is_signed(descriptor: &TypeLayoutDescriptor) -> Option<bool> {
+    Some(descriptor_primitive_type(descriptor)?.is_signed_integer())
+}
+
+fn descriptor_primitive_type(descriptor: &TypeLayoutDescriptor) -> Option<PrimitiveType> {
     match descriptor {
-        TypeLayoutDescriptor::Named { name, .. } => {
-            Some(PrimitiveType::from_name(name)?.is_signed_integer())
-        }
-        TypeLayoutDescriptor::Constrained { base_type } => {
-            descriptor_primitive_is_signed(base_type)
-        }
+        TypeLayoutDescriptor::Named { name, .. } => PrimitiveType::from_name(name),
+        TypeLayoutDescriptor::Constrained { base_type } => descriptor_primitive_type(base_type),
         _ => None,
     }
 }

@@ -162,6 +162,7 @@ pub enum TargetOperationKind {
         left: TargetValueOperandHandle,
         operator: StateGuardOperator,
         right: TargetValueOperandHandle,
+        is_float: bool,
     },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,

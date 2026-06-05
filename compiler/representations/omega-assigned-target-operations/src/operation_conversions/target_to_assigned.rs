@@ -264,6 +264,7 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 left,
                 operator,
                 right,
+                is_float,
             } => Self::WriteRuntimeStorageBinary {
                 target_region,
                 target_offset,
@@ -271,6 +272,7 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 left,
                 operator,
                 right,
+                is_float,
             },
             omega_target_operations::TargetOperationKind::WriteRuntimePointeeBinary {
                 pointer_byte_offset,

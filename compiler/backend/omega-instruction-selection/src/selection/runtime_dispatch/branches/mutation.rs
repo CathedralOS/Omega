@@ -1245,6 +1245,7 @@ fn select_runtime_binary_mutation_write_in_table(
         left,
         operator,
         right,
+        is_float: false,
     })
 }
 
@@ -1324,6 +1325,7 @@ fn select_runtime_resolved_binary_mutation_write(
         left,
         operator,
         right,
+        is_float: false,
     })
 }
 

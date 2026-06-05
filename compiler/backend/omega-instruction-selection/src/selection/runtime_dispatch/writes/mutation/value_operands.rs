@@ -18,8 +18,8 @@ use omega_core::arena::Arena;
 use omega_state_calls::StateCallRole;
 
 use super::super::static_values::{
-    RuntimeStaticValues, resolve_runtime_static_integer_value,
-    resolve_runtime_static_integer_value_in_table,
+    RuntimeStaticValues, resolve_runtime_static_float_value_in_table,
+    resolve_runtime_static_integer_value, resolve_runtime_static_integer_value_in_table,
 };
 use super::operators::{
     builtin_runtime_call_operator, builtin_runtime_call_operator_in_table, runtime_binary_operator,
@@ -42,6 +42,18 @@ pub(super) fn resolve_runtime_value_operand_in_table(
         resolve_runtime_static_integer_value_in_table(input, expressions, expression, static_values)
     {
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(value)));
+    }
+
+    // A float literal operand carries its IEEE-754 bits in the immediate; the
+    // float binary write moves those bits into an XMM register for the SSE op.
+    // First cut resolves the f64 bit pattern (the default float width); f32
+    // arithmetic with a constant operand is gated out at the write site.
+    if let Some(float_value) =
+        resolve_runtime_static_float_value_in_table(expressions, expression)
+    {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::Immediate(float_value.to_bits() as i64)),
+        );
     }
 
     if let ExpressionNode::Binary(binary) = expressions.expression(expression) {

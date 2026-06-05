@@ -3,8 +3,9 @@ use crate::selection::storage_places::{
     RuntimeStoragePlace, resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
-    resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
 };
+use omega_checked_trees::types::PrimitiveType;
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
 };
@@ -128,57 +129,75 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     // every statement and silently compute the wrong result.
     invalidate_runtime_static_value_in_table(static_values, expressions, target);
 
-    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+    // A float target performs the operation on the SSE unit. First cut: f64 only,
+    // and only to a machine-owned/frame storage place (the indexed/pointee binary
+    // paths below stay integer-only). An f32 target bails to avoid emitting an
+    // integer op over float bits — float arithmetic on f32 is not wired yet.
+    let primitive_type = resolve_runtime_storage_primitive_type_in_table(
         input,
         dispatch_index,
         target_source_key,
         expressions,
         target,
-    ) {
-        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
-            descriptor_offset: indexed_target.descriptor_offset,
-            index_offset: indexed_target.index_offset,
-            element_byte_size: indexed_target.element_byte_size,
-            field_byte_offset: indexed_target.field_byte_offset,
-            byte_size: indexed_target.byte_count,
-            left,
-            operator,
-            right,
-        });
+    );
+    if matches!(primitive_type, Some(PrimitiveType::F32)) {
+        return None;
     }
+    let is_float = matches!(primitive_type, Some(PrimitiveType::F64));
 
-    if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        expressions,
-        target,
-    ) {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
-            byte_size: pointer_target.pointee_byte_size,
-            left,
-            operator,
-            right,
-        });
-    }
+    if !is_float {
+        if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        ) {
+            return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
+                descriptor_offset: indexed_target.descriptor_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+                left,
+                operator,
+                right,
+            });
+        }
 
-    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        expressions,
-        target,
-    ) {
-        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
-            byte_size: pointer_target.pointee_byte_size,
-            left,
-            operator,
-            right,
-        });
+        if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        ) {
+            return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                field_byte_offset: pointer_target.field_byte_offset,
+                byte_size: pointer_target.pointee_byte_size,
+                left,
+                operator,
+                right,
+            });
+        }
+
+        if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        ) {
+            return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                field_byte_offset: pointer_target.field_byte_offset,
+                byte_size: pointer_target.pointee_byte_size,
+                left,
+                operator,
+                right,
+            });
+        }
     }
 
     let target_place = target_place?;
@@ -189,6 +208,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         left,
         operator,
         right,
+        is_float,
     })
 }
 
@@ -312,5 +332,9 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
         left,
         operator,
         right,
+        // This entry point receives a pre-resolved storage place without the
+        // target expression, so it cannot classify float vs integer; float
+        // arithmetic is routed through the targeted binary-write path instead.
+        is_float: false,
     })
 }
