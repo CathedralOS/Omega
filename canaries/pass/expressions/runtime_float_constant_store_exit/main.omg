@@ -1,0 +1,25 @@
+// A floating-point constant assigned to a float field lowers to a plain scalar
+// store of the value's IEEE-754 bit pattern: an `f64` field receives the 8-byte
+// `f64` bits, an `f32` field the narrowed 4-byte `f32` bits. No SSE register
+// traffic is required for a constant store. The program stores several float
+// constants (including 0.0 and a negative value) and exits 70 to confirm the
+// stores execute without faulting and codegen is clean (no stub/NoOp).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    wide: f64;
+    narrow: f32;
+    zero: f64;
+}
+
+machine Main::main(&mut self) {
+    self.wide = 3.5;
+    self.narrow = 1.25;
+    self.zero = 0.0;
+    self.wide = 2.0;
+    self.console.exit_process(70);
+}
