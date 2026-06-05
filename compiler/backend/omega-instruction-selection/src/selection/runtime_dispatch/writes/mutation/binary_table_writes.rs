@@ -82,15 +82,19 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         _ => return None,
     };
 
-    // Division, modulo, and arithmetic-vs-logical right shift differ by
-    // signedness; pick the unsigned encoding when the target is an unsigned
-    // integer. Other operators are unaffected.
+    // Division, modulo, right shift, min/max, and comparisons differ by
+    // signedness; pick the unsigned encoding when the operands are unsigned.
+    // Comparisons read their signedness from an operand (the target is bool);
+    // the others share the target's type.
     let operator = signedness_adjusted_operator(
         input,
         dispatch_index,
         target_source_key,
+        value_source_key,
         expressions,
         target,
+        left_expression,
+        right_expression,
         operator,
     );
 
@@ -188,15 +192,19 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     })
 }
 
-/// Replace a signed division/modulo/right-shift operator with its unsigned form
-/// when the target is an unsigned integer place. The default (signed, or an
-/// undeterminable type) is correct for the dominant i32/i64 case.
+/// Replace a signed division/modulo/right-shift/min/max/comparison operator with
+/// its unsigned form when the operands are an unsigned integer type. The default
+/// (signed, or an undeterminable type) is correct for the dominant i32/i64 case.
+#[allow(clippy::too_many_arguments)]
 fn signedness_adjusted_operator(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     target_source_key: StateKey,
+    value_source_key: StateKey,
     expressions: &ExpressionTable,
     target: ExpressionHandle,
+    left_expression: ExpressionHandle,
+    right_expression: ExpressionHandle,
     operator: StateGuardOperator,
 ) -> StateGuardOperator {
     let unsigned = match operator {
@@ -205,16 +213,43 @@ fn signedness_adjusted_operator(
         StateGuardOperator::ShiftRight => StateGuardOperator::ShiftRightLogical,
         StateGuardOperator::Min => StateGuardOperator::MinUnsigned,
         StateGuardOperator::Max => StateGuardOperator::MaxUnsigned,
+        StateGuardOperator::Greater => StateGuardOperator::GreaterUnsigned,
+        StateGuardOperator::GreaterOrEqual => StateGuardOperator::GreaterOrEqualUnsigned,
+        StateGuardOperator::Less => StateGuardOperator::LessUnsigned,
+        StateGuardOperator::LessOrEqual => StateGuardOperator::LessOrEqualUnsigned,
         _ => return operator,
     };
 
-    match resolve_runtime_storage_is_signed_in_table(
+    // For comparisons the result place is a bool, so the signedness lives on the
+    // operands; for the others the target shares the operand type. Probe the
+    // operands first (works for both), then fall back to the target.
+    let is_signed = resolve_runtime_storage_is_signed_in_table(
         input,
         dispatch_index,
-        target_source_key,
+        value_source_key,
         expressions,
-        target,
-    ) {
+        left_expression,
+    )
+    .or_else(|| {
+        resolve_runtime_storage_is_signed_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            right_expression,
+        )
+    })
+    .or_else(|| {
+        resolve_runtime_storage_is_signed_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        )
+    });
+
+    match is_signed {
         Some(false) => unsigned,
         _ => operator,
     }
