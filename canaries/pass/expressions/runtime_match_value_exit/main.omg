@@ -1,0 +1,59 @@
+// Value-position `match` over an enum and over integers, including a wildcard
+// default. Match desugars to arithmetic over comparisons (`s == p` is 0/1), so
+// `match s { p1 -> v1, p2 -> v2, _ -> d }` evaluates the matched arm exactly.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+enum Command {
+    Quit,
+    Look,
+    Invalid,
+}
+
+data Main {
+    console: Console;
+    command: Command;
+    n: i32;
+    code: i32;
+    fallback: i32;
+}
+
+machine Main::main(&mut self) {
+    self.command = Command::Look;
+    // Exhaustive enum match (no wildcard): selects Look -> 2.
+    self.code = match self.command {
+        Command::Quit -> 1
+        Command::Look -> 2
+        Command::Invalid -> 3
+    };
+
+    self.n = 4;
+    // Integer match with a wildcard; 4 hits the default.
+    self.fallback = match self.n {
+        1 -> 10,
+        2 -> 20,
+        _ -> 99,
+    };
+
+    transition self.code == 2 {
+        true -> check_fallback()
+        false -> bad()
+    }
+
+    state check_fallback(&mut self) {
+        transition self.fallback == 99 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
