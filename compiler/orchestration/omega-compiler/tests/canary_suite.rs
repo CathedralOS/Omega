@@ -316,6 +316,37 @@ fn unary_negation_exit_canary_runs() {
 }
 
 #[test]
+fn integer_literal_suffix_exit_canary_runs() {
+    let canary = pass_canary("operators/integer_literal_suffix_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-integer-literal-suffix-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("integer literal suffix canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("integer literal suffix canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected suffixed integer literals (i64/u32/usize) to round-trip (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn compound_assignment_exit_canary_runs() {
     let canary = pass_canary("operators/compound_assignment_exit");
     let main_path = canary.join("main.omg");
@@ -4312,6 +4343,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_chained_field_mutation_exit",
     "operators/unary_negation_exit",
     "operators/compound_assignment_exit",
+    "operators/integer_literal_suffix_exit",
     "calls/free_standing_machine_helper_compile",
     "calls/typed_return_from_local_call_compile",
     "capabilities/boundary_trait_multiple_effects",

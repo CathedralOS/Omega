@@ -1,0 +1,47 @@
+// Typed integer literal suffixes (`5i64`, `7u32`, `9usize`). The suffix selects
+// the literal's primitive type; the value must round-trip through storage and
+// compare equal to the same suffixed literal.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    wide: i64;
+    small: u32;
+    size: usize;
+}
+
+machine Main::main(&mut self) {
+    self.wide = 100i64;
+    self.small = 7u32;
+    self.size = 9usize;
+
+    transition self.wide == 100i64 {
+        true -> check_small()
+        false -> bad()
+    }
+
+    state check_small(&mut self) {
+        transition self.small == 7u32 {
+            true -> check_size()
+            false -> bad()
+        }
+    }
+
+    state check_size(&mut self) {
+        transition self.size == 9usize {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
