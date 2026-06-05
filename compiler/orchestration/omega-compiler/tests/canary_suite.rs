@@ -3534,6 +3534,60 @@ fn runtime_stdin_line_buffering_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_stdin_crlf_line_read_canary_runs() {
+    // Windows terminals (and piped CRLF input) terminate each line with "\r\n".
+    // The line reader must treat that as ONE terminator: a '\r'-ended line must
+    // not leave the trailing '\n' to surface as a phantom empty line on the next
+    // read_line. Reuses the two-read echo sample; with the bug the second read
+    // returns "" and the output is "hello\n\n".
+    let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-stdin-crlf-line-read-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime stdin crlf line read canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("runtime stdin crlf line read canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"hello\r\nworld\r\n")
+        .expect("stdin crlf line read input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("runtime stdin crlf line read canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected runtime stdin crlf line read canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "hello\nworld\n",
+        "expected CRLF input to read two clean lines (no phantom empty line from the trailing \\n)"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_slice_alias_indexed_string_field_concat_exit");
     let main_path = canary.join("main.omg");

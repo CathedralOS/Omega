@@ -1614,12 +1614,29 @@ fn build_runtime_text_line_read(
     bytes.extend([0x85, 0xc0]); // test eax, eax
     jcc_done(&mut bytes, 0x84); // je done (EOF)
     bytes.extend([0x43, 0x8a, 0x04, 0x3e]); // mov al, [r14+r15] (byte read)
-    bytes.extend([0x3c, 0x0a]); // cmp al, '\n'
-    jcc_done(&mut bytes, 0x84);
-    bytes.extend([0x3c, 0x0d]); // cmp al, '\r'
-    jcc_done(&mut bytes, 0x84);
+    // A '\n'/'\r' delimiter terminates the line only once content is present
+    // (r15 > 0); a LEADING one is skipped (loop back without accepting it). This
+    // makes CRLF a single terminator -- the '\n' trailing a '\r'-ended line, and
+    // a bare Enter, no longer surface as a phantom empty line to the next
+    // read_line. Per delimiter: cmp al,d; jne over; test r15,r15; jnz done;
+    // jmp loop_start; over:
+    for delim in [0x0au8, 0x0du8] {
+        bytes.extend([0x3c, delim]); // cmp al, delim
+        bytes.push(0x75); // jne over (skip the eol-handling block)
+        let jne_over = bytes.len();
+        bytes.push(0x00);
+        bytes.extend([0x4d, 0x85, 0xff]); // test r15, r15
+        jcc_done(&mut bytes, 0x85); // jnz done (content present -> finish line)
+        bytes.push(0xe9); // jmp loop_start (leading delimiter: skip, read next)
+        let jmp_loop = bytes.len();
+        bytes.extend([0, 0, 0, 0]);
+        let rel = loop_start as isize - (jmp_loop as isize + 4);
+        bytes[jmp_loop..jmp_loop + 4].copy_from_slice(&(rel as i32).to_le_bytes());
+        let over = bytes.len();
+        bytes[jne_over] = (over - (jne_over + 1)) as u8;
+    }
     bytes.extend([0x3c, 0x00]); // cmp al, 0
-    jcc_done(&mut bytes, 0x84);
+    jcc_done(&mut bytes, 0x84); // a NUL always terminates (EOF sentinel)
     bytes.extend([0x49, 0xff, 0xc7]); // inc r15 (accept the byte)
     // cmp r15, capacity ; jb loop  (keep reading while length < capacity, else
     // fall through to done so we never overrun the buffer).
