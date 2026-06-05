@@ -50,6 +50,24 @@ impl RuntimeStaticValues {
             .map(|(_, value)| *value)
     }
 
+    /// Forget any recorded constant for `target`. Used after a write whose new
+    /// value is not a compile-time constant (binary read-modify-write, copies,
+    /// call results): subsequent reads must come from live storage, not the
+    /// stale entry-value constant. Inline slots become `None` holes (skipped by
+    /// `iter`); overflow entries are dropped.
+    fn invalidate(&mut self, target: &PlaceKey) {
+        for slot in self
+            .inline
+            .iter_mut()
+            .take(self.len.min(INLINE_RUNTIME_STATIC_VALUE_COUNT))
+        {
+            if matches!(slot, Some((existing, _)) if existing == target) {
+                *slot = None;
+            }
+        }
+        self.overflow.retain(|(existing, _)| existing != target);
+    }
+
     fn set(&mut self, target: PlaceKey, value: i64) {
         if let Some((_, existing_value)) = self
             .iter_mut()
@@ -242,4 +260,19 @@ pub(super) fn set_runtime_static_value_in_table(
     };
 
     static_values.set(target, value);
+}
+
+/// Drop any recorded constant for the place written by `target`. Call this after
+/// emitting a write whose value is not a tracked compile-time constant so later
+/// reads of the same place resolve against live storage instead of a stale fold.
+pub(super) fn invalidate_runtime_static_value_in_table(
+    static_values: &mut RuntimeStaticValues,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+) {
+    let Some(target) = PlaceKey::from_expression_handle(expressions, target) else {
+        return;
+    };
+
+    static_values.invalidate(&target);
 }

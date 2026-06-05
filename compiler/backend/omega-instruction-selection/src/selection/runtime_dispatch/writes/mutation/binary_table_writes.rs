@@ -11,7 +11,9 @@ use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, Expressi
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 
-use super::super::static_values::RuntimeStaticValues;
+use super::super::static_values::{
+    RuntimeStaticValues, invalidate_runtime_static_value_in_table,
+};
 use super::operators::{builtin_runtime_call_operator_in_table, runtime_binary_operator};
 use super::value_operands::resolve_runtime_value_operand_in_table;
 
@@ -24,7 +26,7 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_binary_muta
     expressions: &ExpressionTable,
     target: ExpressionHandle,
     value: ExpressionHandle,
-    static_values: &RuntimeStaticValues,
+    static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     let target_place = resolve_runtime_storage_place_in_table(
@@ -61,7 +63,7 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     target: ExpressionHandle,
     target_place: Option<RuntimeStoragePlace>,
     value: ExpressionHandle,
-    static_values: &RuntimeStaticValues,
+    static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
     let (operator, left_expression, right_expression) = match expressions.expression(value) {
@@ -99,6 +101,15 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         static_values,
         runtime_value_operands,
     )?;
+
+    // The operands above were resolved against the pre-write static state (so a
+    // first read-modify-write still folds its own operands). The write itself
+    // produces a value we do not track as a constant, so forget any recorded
+    // constant for the target: a later read of the same place in this state must
+    // come from live storage, not the stale entry-value fold. Without this, a
+    // chain like `v = v + 5; v = v - 3;` would read the entry value of `v` for
+    // every statement and silently compute the wrong result.
+    invalidate_runtime_static_value_in_table(static_values, expressions, target);
 
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
         input,
