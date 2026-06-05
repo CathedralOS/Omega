@@ -1,0 +1,42 @@
+// i64 (64-bit signed) support: declare, assign a literal larger than 32 bits,
+// add, and compare with full 64-bit precision. The value 4294967297 (0x1_0000_0001)
+// shares its low 32 bits with 1, so a comparison against 1 must be false -- a
+// 32-bit-truncated store/compare would wrongly match.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    big: i64;
+}
+
+machine Main::main(&mut self) {
+    self.big = 4294967296;
+    self.big = self.big + 1;
+
+    transition self.big == 1 {
+        true -> truncated()
+        false -> full_width()
+    }
+
+    state truncated(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state full_width(&mut self) {
+        transition self.big == 4294967297 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(72);
+    }
+}

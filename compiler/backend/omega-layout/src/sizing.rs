@@ -28,7 +28,7 @@ pub(super) fn primitive_type_layout(
             size: 4,
             alignment: 4,
         },
-        PrimitiveType::F64 | PrimitiveType::U64 => TypeLayout {
+        PrimitiveType::F64 | PrimitiveType::I64 | PrimitiveType::U64 => TypeLayout {
             size: 8,
             alignment: 8,
         },
