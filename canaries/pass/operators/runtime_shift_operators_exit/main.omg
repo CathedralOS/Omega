@@ -1,0 +1,57 @@
+// Bit shift operators as runtime values: logical left shift and arithmetic
+// right shift. The right shift is `sar`, sized to the operand, so shifting a
+// negative i32 preserves the sign (`-80 >> 2 == -20`).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i32;
+    b: i32;
+    left: i32;
+    right: i32;
+    signed_right: i32;
+}
+
+machine Main::main(&mut self) {
+    self.a = 3;
+    self.b = 4;
+    self.left = self.a << self.b; // 48
+
+    self.a = 80;
+    self.b = 2;
+    self.right = self.a >> self.b; // 20
+
+    self.a = 0;
+    self.a = self.a - 80;          // -80
+    self.signed_right = self.a >> self.b; // -20
+
+    transition self.left == 48 {
+        true -> check_right()
+        false -> bad()
+    }
+
+    state check_right(&mut self) {
+        transition self.right == 20 {
+            true -> check_signed()
+            false -> bad()
+        }
+    }
+
+    state check_signed(&mut self) {
+        transition self.signed_right == -20 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

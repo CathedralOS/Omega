@@ -13,6 +13,8 @@ pub enum StateGuardOperator {
     Multiply,
     Divide,
     Modulo,
+    ShiftLeft,
+    ShiftRight,
     Max,
     Min,
     And,

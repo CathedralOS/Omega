@@ -26,7 +26,8 @@ pub(super) fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateG
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Or => Some(StateGuardOperator::Or),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => None,
+        BinaryOperator::ShiftLeft => Some(StateGuardOperator::ShiftLeft),
+        BinaryOperator::ShiftRight => Some(StateGuardOperator::ShiftRight),
     }
 }
 

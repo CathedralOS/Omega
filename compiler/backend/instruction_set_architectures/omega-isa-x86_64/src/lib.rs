@@ -2377,6 +2377,27 @@ fn append_runtime_binary_operation(
                 }
             }
         }
+        StateGuardOperator::ShiftLeft | StateGuardOperator::ShiftRight => {
+            // Shift count must live in cl. Right shift is arithmetic (`sar`) so a
+            // signed value keeps its sign; sized to the operands like division so
+            // an i32 sign bit is honored.
+            let arithmetic_right = matches!(operator, StateGuardOperator::ShiftRight);
+            if byte_size <= 4 {
+                bytes.extend([0x44, 0x89, 0xd9]); // mov ecx, r11d
+                if arithmetic_right {
+                    bytes.extend([0x41, 0xd3, 0xfa]); // sar r10d, cl
+                } else {
+                    bytes.extend([0x41, 0xd3, 0xe2]); // shl r10d, cl
+                }
+            } else {
+                bytes.extend([0x4c, 0x89, 0xd9]); // mov rcx, r11
+                if arithmetic_right {
+                    bytes.extend([0x49, 0xd3, 0xfa]); // sar r10, cl
+                } else {
+                    bytes.extend([0x49, 0xd3, 0xe2]); // shl r10, cl
+                }
+            }
+        }
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
         | StateGuardOperator::Greater
@@ -2416,6 +2437,8 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
         StateGuardOperator::Divide | StateGuardOperator::Modulo => {
             if byte_size <= 4 { 10 } else { 11 }
         }
+        // mov c-reg, r11 (3) + shift r10, cl (3), same width at either size.
+        StateGuardOperator::ShiftLeft | StateGuardOperator::ShiftRight => 6,
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
         | StateGuardOperator::Greater
