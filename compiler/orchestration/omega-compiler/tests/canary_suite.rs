@@ -88,6 +88,18 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Dungeon Crawler"));
     assert!(stdout.contains("A bottomless dark room near the dungeon heart."));
+    // The room event and paths lines are produced by inline-branching calls that
+    // run in render's CONTINUATION after the dispatched (looping) find_room call.
+    // They must render their own text, not echo the description (regression guard
+    // for the leaf-binding + cross-segment frame-slot resolution fix).
+    assert!(
+        stdout.contains("The room is quiet."),
+        "room event line should render, not echo the description\nstdout:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("[Paths] north"),
+        "room paths line should render, not echo the description\nstdout:\n{stdout}"
+    );
 
     let _ = fs::remove_dir_all(&build_dir);
 }
