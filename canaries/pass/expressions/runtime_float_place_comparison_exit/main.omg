@@ -1,0 +1,53 @@
+// Floating-point comparison between two f64 fields (place vs place) lowers to a
+// `ucomisd` of the two loaded operands, with the unsigned-style failure branch
+// (CF/ZF from ucomisd). Exercises ordering and equality between fields, plus a
+// negative operand where an integer bit-compare would order incorrectly. Exits
+// 70 only if every field-to-field comparison evaluates correctly.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    left: f64;
+    right: f64;
+}
+
+machine Main::main(&mut self) {
+    self.left = 3.0;
+    self.right = 5.0;
+
+    // 3.0 < 5.0 holds.
+    transition self.left < self.right {
+        true -> check_equal()
+        false -> bad()
+    }
+
+    state check_equal(&mut self) {
+        self.left = 5.0;
+        // Now both fields are 5.0.
+        transition self.left >= self.right {
+            true -> check_negative()
+            false -> bad()
+        }
+    }
+
+    state check_negative(&mut self) {
+        self.left = -4.0;
+        self.right = -2.0;
+        // -4.0 < -2.0 holds (an unsigned integer bit-compare would say otherwise).
+        transition self.left < self.right {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

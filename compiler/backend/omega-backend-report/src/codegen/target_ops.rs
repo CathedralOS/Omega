@@ -138,6 +138,7 @@ fn selected_instruction_name(
             right_offset,
             byte_size,
             operator,
+            ..
         } => {
             let left_symbol =
                 storage_region_symbol_name(*left_region, backend_plan.entry_machine_name());

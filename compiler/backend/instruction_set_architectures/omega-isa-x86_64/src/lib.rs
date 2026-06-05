@@ -1261,10 +1261,12 @@ pub fn runtime_storage_compare_width(
     _left_offset: usize,
     _right_offset: usize,
     _byte_size: usize,
+    is_float: bool,
 ) -> usize {
     // mov r15,imm64(left base) + load r10,[r15+left] + mov r15,imm64(right base)
-    // + load r11,[r15+right] + cmp r10,r11 + jcc rel32.
-    10 + 7 + 10 + 7 + 3 + 6
+    // + load r11,[r15+right] + compare + jcc rel32. Integer compare = cmp (3);
+    // float = movq+movq+ucomisd (14).
+    10 + 7 + 10 + 7 + runtime_float_or_integer_compare_width(is_float) + 6
 }
 
 pub fn encode_runtime_storage_compare_bytes(
@@ -1273,21 +1275,27 @@ pub fn encode_runtime_storage_compare_bytes(
     byte_size: usize,
     failure_branch_distance: isize,
     operator: StateGuardOperator,
+    is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_storage_compare_width(
         left_offset,
         right_offset,
         byte_size,
+        is_float,
     ));
     append_mov_r15_imm64(&mut bytes, 0);
     append_load_reg_from_r15(&mut bytes, Reg64::R10, left_offset, byte_size)?;
     append_mov_r15_imm64(&mut bytes, 0);
     append_load_reg_from_r15(&mut bytes, Reg64::R11, right_offset, byte_size)?;
-    append_cmp_r10_r11(&mut bytes, byte_size)?;
+    if is_float {
+        append_ucomisd_r10_r11(&mut bytes);
+    } else {
+        append_cmp_r10_r11(&mut bytes, byte_size)?;
+    }
     append_failure_branch(&mut bytes, operator, failure_branch_distance - 4)?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_storage_compare_width(left_offset, right_offset, byte_size)
+        runtime_storage_compare_width(left_offset, right_offset, byte_size, is_float)
     );
     Ok(bytes)
 }

@@ -261,6 +261,9 @@ fn select_dispatch_guard_instructions(
                         right_offset: clause.right_byte_offset,
                         byte_size: clause.byte_size,
                         operator,
+                        // Float operands inside an AND-conjunction clause are a
+                        // follow-on; single comparisons take the path below.
+                        is_float: false,
                     }
                 } else {
                     SelectedInstructionKind::EvaluateDispatchGuard {
@@ -370,6 +373,7 @@ fn select_dispatch_guard_instructions(
                 right_offset: edge.guard_right_byte_offset,
                 byte_size: edge.guard_byte_size,
                 operator,
+                is_float,
             }
         }
         _ => SelectedInstructionKind::EvaluateDispatchGuard {
