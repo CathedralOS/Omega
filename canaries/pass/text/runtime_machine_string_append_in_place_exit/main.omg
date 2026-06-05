@@ -1,0 +1,35 @@
+// Regression: in-place append to a machine String field
+// (`self.line = self.line + "omega"`) lowers to MaterializeRuntimeTextBuffer
+// (copy the current content into a fresh writable buffer) followed by an
+// append. The x86_64 materialize encoder was a width-0 stub, so the buffer
+// was never populated and the "prefix " content was lost ("<garbage>omega").
+// Now implemented (rep movsb copy of the descriptor's content into the buffer).
+
+boundary trait Console {
+    machine write_line(text: String);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    line: String;
+}
+
+machine Main::main(&mut self) {
+    self.line = "prefix ";
+    self.line = self.line + "omega";
+    self.console.write_line(self.line);
+
+    transition self.line == "prefix omega" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

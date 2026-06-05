@@ -800,6 +800,44 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
     Ok(bytes)
 }
 
+/// The target-region `mov r15, imm64` is the second instruction (after the
+/// 10-byte buffer `mov r14, imm64`), so its relocated immediate sits at offset
+/// 10 (the relocation planner adds the +2 imm position itself).
+pub const RUNTIME_TEXT_BUFFER_MATERIALIZE_TARGET_IMM_OFFSET: usize = 10;
+
+pub fn runtime_text_buffer_materialize_width() -> usize {
+    // mov r14,imm64(10) + mov r15,imm64(10) + load rax,[r15+t](7) + load rcx,[r15+t+8](7)
+    // + mov r11,rcx(3) + mov r10,r14(3) + push rsi;push rdi(2) + mov rsi,rax(3)
+    // + mov rdi,r10(3) + rep movsb(2) + pop rdi;pop rsi(2) + store r14(7) + store r11(7)
+    66
+}
+
+/// Materializes a fresh writable text buffer for an in-place concat: copies the
+/// current `{ptr,len}` descriptor at `target_offset` (in the relocated target
+/// region) into the relocated `buffer`, then repoints the descriptor at the
+/// buffer (ptr=buffer, len unchanged). A later append then grows the copy in
+/// place without disturbing the original literal/source the descriptor named.
+pub fn encode_runtime_text_buffer_materialize(
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_text_buffer_materialize_width());
+    append_mov_r14_imm64(&mut bytes, 0); // buffer base (reloc @ instruction start)
+    append_mov_r15_imm64(&mut bytes, 0); // target region base (reloc @ +10)
+    append_load_rax_from_r15(&mut bytes, target_offset)?; // rax = source pointer
+    append_load_rcx_from_r15(&mut bytes, target_offset + 8)?; // rcx = source length
+    append_mov_r11_rcx(&mut bytes); // r11 = saved length
+    append_mov_r10_r14(&mut bytes); // r10 = dest = buffer base
+    append_push_rsi_rdi(&mut bytes);
+    append_mov_rsi_rax(&mut bytes); // rsi = source pointer
+    append_mov_rdi_r10(&mut bytes); // rdi = dest
+    append_rep_movsb(&mut bytes); // copy rcx bytes
+    append_pop_rdi_rsi(&mut bytes);
+    append_store_r14_to_r15(&mut bytes, target_offset)?; // descriptor.ptr = buffer
+    append_store_r11_to_r15(&mut bytes, target_offset + 8)?; // descriptor.len = original length
+    debug_assert_eq!(bytes.len(), runtime_text_buffer_materialize_width());
+    Ok(bytes)
+}
+
 pub fn runtime_text_literal_compare_branch_next_offset(byte_index: usize) -> usize {
     10 + byte_index * 15 + 15
 }
@@ -2656,6 +2694,13 @@ fn append_load_rax_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
 fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_rcx_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }

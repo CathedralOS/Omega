@@ -6,7 +6,9 @@ pub(crate) fn runtime_text_buffer_materialize_target_address_offset(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
+        // The buffer `mov r14, imm64` (10 bytes) precedes the target-region
+        // `mov r15, imm64`, so its relocated immediate sits at offset 10.
+        Architecture::X86_64 => omega_isa_x86_64::RUNTIME_TEXT_BUFFER_MATERIALIZE_TARGET_IMM_OFFSET,
     }
 }
 

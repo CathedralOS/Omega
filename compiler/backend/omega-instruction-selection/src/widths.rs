@@ -371,7 +371,10 @@ pub fn runtime_text_buffer_materialize_width(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_buffer_materialize_width(target_offset),
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            let _ = target_offset;
+            x86_64::runtime_text_buffer_materialize_width()
+        }
     }
 }
 

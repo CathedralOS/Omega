@@ -251,7 +251,7 @@ pub fn encode_runtime_text_buffer_materialize(
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_text_buffer_materialize(target_offset),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => x86_64::encode_runtime_text_buffer_materialize(target_offset),
     }
 }
 
