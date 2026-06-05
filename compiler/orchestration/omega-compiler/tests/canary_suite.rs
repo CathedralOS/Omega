@@ -378,6 +378,37 @@ fn integer_literal_suffix_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_match_value_exit_canary_runs() {
+    let canary = pass_canary("expressions/runtime_match_value_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-match-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("match value canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("match value canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected value-position match (enum + integer + wildcard) to select the right arm (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn compound_assignment_exit_canary_runs() {
     let canary = pass_canary("operators/compound_assignment_exit");
     let main_path = canary.join("main.omg");
@@ -4598,6 +4629,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_comparison_guard_signedness_exit",
     "operators/unary_negation_exit",
     "operators/compound_assignment_exit",
+    "expressions/runtime_match_value_exit",
     "operators/integer_literal_suffix_exit",
     "operators/runtime_shift_operators_exit",
     "calls/free_standing_machine_helper_compile",
@@ -4778,7 +4810,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/unknown_provider_category",
     "constraints/scalar_requires_unproven_literal",
     "drops/drop_nonblocking_effect_unknown",
-    "expressions/match_expression_value",
     "modules/ambiguous_imported_data",
     "modules/use_unresolved_path",
     "traits/trait_satisfies_arity_mismatch",
