@@ -519,6 +519,14 @@ impl PrimitiveType {
         matches!(self, Self::F32 | Self::F64)
     }
 
+    /// Whether an integer primitive is signed. `usize` is treated as unsigned.
+    /// Non-integer primitives report `true` (the signed/default form), which is
+    /// the safe choice for codegen that only distinguishes signed vs unsigned
+    /// integer machine operations.
+    pub fn is_signed_integer(self) -> bool {
+        !matches!(self, Self::U32 | Self::U64 | Self::Usize)
+    }
+
     pub fn accepts_range_constraint(self) -> bool {
         matches!(
             self,
