@@ -285,6 +285,40 @@ fn unapproved_host_call_canary_is_rejected() {
 }
 
 #[test]
+fn runtime_local_string_field_copy_through_mut_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_local_string_field_copy_through_mut_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-local-string-field-copy-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("local string field copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("local string field copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a local struct String field copied through a &mut String param to reach the caller (exit 70), got {:?}\nstdout:\n{}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_direct_boolean_conjunction_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_direct_boolean_conjunction_exit");
     let main_path = canary.join("main.omg");
@@ -4046,6 +4080,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/default_order_slice_length_compile",
     "termination/default_order_bounded_distance_compile",
     // --- Language-guide chapter coverage (Ch1-22) ---
+    "calls/runtime_local_string_field_copy_through_mut_exit",
     "calls/free_standing_machine_helper_compile",
     "calls/typed_return_from_local_call_compile",
     "capabilities/boundary_trait_multiple_effects",

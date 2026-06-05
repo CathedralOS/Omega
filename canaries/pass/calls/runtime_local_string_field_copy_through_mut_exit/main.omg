@@ -1,0 +1,44 @@
+// Regression: copying a `let` local struct's String field out through a
+// `&mut String` parameter must reach the caller. The local-field write was
+// mis-lowered as a machine-storage write at the frame slot's numeric offset
+// (aliasing the machine-storage region base), so the pointee stayed empty.
+// Fixed by honoring the resolved storage region (frame vs machine) in the
+// string-descriptor write selection.
+
+boundary trait Console {
+    machine write_line(text: String);
+    machine exit_process(return_code: i32);
+}
+
+data Holder {
+    stored: String;
+}
+
+data Main {
+    console: Console;
+    line: String;
+}
+
+machine Main::main(&mut self) {
+    self.set_from_local_field(&mut self.line);
+    self.console.write_line(self.line);
+
+    transition self.line == "FROM_LOCAL_FIELD" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::set_from_local_field(&mut self, out_line: &mut String) {
+    let local: Holder;
+    local.stored = "FROM_LOCAL_FIELD";
+    out_line = local.stored;
+}

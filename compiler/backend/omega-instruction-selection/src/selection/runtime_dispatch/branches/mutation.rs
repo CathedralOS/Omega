@@ -1135,11 +1135,21 @@ fn select_runtime_string_mutation_write_in_table(
         return None;
     }
 
-    Some(SelectedInstructionKind::WriteRuntimeMachineString {
-        byte_offset: target_place.byte_offset,
-        data,
-        byte_length: value.len(),
-    })
+    // Honor the resolved region: a frame-resident place (e.g. a `let` local's
+    // String field, common in inlined helpers) must be a frame write, not a
+    // machine-storage write at the same numeric offset.
+    match target_place.region {
+        omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame => Some(SelectedInstructionKind::WriteRuntimeFrameString {
+            byte_offset: target_place.byte_offset,
+            data,
+            byte_length: value.len(),
+        }),
+        omega_abstract_operations::RuntimeStorageRegion::Machine => Some(SelectedInstructionKind::WriteRuntimeMachineString {
+            byte_offset: target_place.byte_offset,
+            data,
+            byte_length: value.len(),
+        }),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

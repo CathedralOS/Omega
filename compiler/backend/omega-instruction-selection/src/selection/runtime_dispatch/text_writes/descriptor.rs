@@ -89,12 +89,27 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
         return;
     }
 
+    // Honor the resolved region: a frame-resident place (e.g. a `let` local's
+    // String field) must be a frame write, not a machine-storage write at the
+    // same numeric offset (which would alias the machine-storage region base).
+    let kind = match target_place.region {
+        omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame => {
+            SelectedInstructionKind::WriteRuntimeFrameString {
+                byte_offset: target_place.byte_offset,
+                data,
+                byte_length: value.len(),
+            }
+        }
+        omega_abstract_operations::RuntimeStorageRegion::Machine => {
+            SelectedInstructionKind::WriteRuntimeMachineString {
+                byte_offset: target_place.byte_offset,
+                data,
+                byte_length: value.len(),
+            }
+        }
+    };
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeMachineString {
-            byte_offset: target_place.byte_offset,
-            data,
-            byte_length: value.len(),
-        },
+        kind,
         source_key: literal_source_key,
         source_statement: statement_index,
     });
