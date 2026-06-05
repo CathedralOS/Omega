@@ -163,6 +163,10 @@ pub enum AbstractOperationKind {
         left: AbstractValueOperandHandle,
         operator: StateGuardOperator,
         right: AbstractValueOperandHandle,
+        /// When set, the operands carry IEEE-754 bit patterns and the operation
+        /// is performed on the SSE/XMM unit (`movq`+`addsd`/...) instead of the
+        /// integer ALU.
+        is_float: bool,
     },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,

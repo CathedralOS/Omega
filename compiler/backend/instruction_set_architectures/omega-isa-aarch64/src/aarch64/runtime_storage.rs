@@ -257,7 +257,13 @@ pub fn encode_runtime_storage_binary_write(
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
+    is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    if is_float {
+        return Err(Diagnostic::error(
+            "aarch64 runtime float binary writes are not implemented yet".to_string(),
+        ));
+    }
     let mut bytes = Vec::with_capacity(runtime_storage_binary_write_width(
         runtime_value_operands,
         target_offset,
@@ -265,6 +271,7 @@ pub fn encode_runtime_storage_binary_write(
         left,
         operator,
         right,
+        is_float,
     ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));

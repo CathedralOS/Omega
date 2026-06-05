@@ -201,6 +201,7 @@ pub(super) fn encode_machine_instruction_bytes(
             left,
             operator,
             right,
+            is_float,
             ..
         } => runtime_storage::encode_runtime_storage_binary_write(
             input,
@@ -209,6 +210,7 @@ pub(super) fn encode_machine_instruction_bytes(
             *left,
             *operator,
             *right,
+            *is_float,
         ),
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,

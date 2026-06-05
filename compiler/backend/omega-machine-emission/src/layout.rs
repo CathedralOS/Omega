@@ -299,6 +299,7 @@ fn machine_instruction_width(
             left,
             operator,
             right,
+            is_float,
             ..
         } => runtime_storage_binary_write_width(
             input.target.architecture,
@@ -308,6 +309,7 @@ fn machine_instruction_width(
             *left,
             *operator,
             *right,
+            *is_float,
         ),
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,

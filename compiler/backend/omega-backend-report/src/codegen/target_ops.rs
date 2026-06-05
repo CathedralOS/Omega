@@ -353,6 +353,7 @@ fn selected_instruction_name(
             left,
             operator,
             right,
+            ..
         } => {
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());

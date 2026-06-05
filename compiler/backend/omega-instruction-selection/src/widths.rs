@@ -458,6 +458,7 @@ pub fn runtime_storage_binary_write_width(
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
+    is_float: bool,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_storage_binary_write_width(
@@ -467,6 +468,7 @@ pub fn runtime_storage_binary_write_width(
             left,
             operator,
             right,
+            is_float,
         ),
         Architecture::X86_64 => x86_64::runtime_storage_binary_write_width(
             runtime_value_operands,
@@ -474,6 +476,7 @@ pub fn runtime_storage_binary_write_width(
             left,
             operator,
             right,
+            is_float,
         ),
     }
 }

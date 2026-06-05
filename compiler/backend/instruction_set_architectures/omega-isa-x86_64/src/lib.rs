@@ -1736,6 +1736,7 @@ pub fn runtime_storage_binary_write_width(
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
+    is_float: bool,
 ) -> usize {
     // 10 (mov r14,imm64) + left + push r10 (2) + right + mov r11,r10 (3)
     // + pop r10 (2) + operation + store.
@@ -1744,8 +1745,22 @@ pub fn runtime_storage_binary_write_width(
         + runtime_value_operand_width(runtime_value_operands, right)
         + 3
         + 2
-        + runtime_binary_operation_width(operator, byte_size)
+        + runtime_binary_operation_or_float_width(operator, byte_size, is_float)
         + 7.max(store_width(byte_size))
+}
+
+/// Width of the in-register operation step, dispatching to the SSE float op when
+/// the write is floating-point.
+fn runtime_binary_operation_or_float_width(
+    operator: StateGuardOperator,
+    byte_size: usize,
+    is_float: bool,
+) -> usize {
+    if is_float {
+        runtime_float_binary_operation_width()
+    } else {
+        runtime_binary_operation_width(operator, byte_size)
+    }
 }
 
 pub fn encode_runtime_storage_binary_write(
@@ -1755,6 +1770,7 @@ pub fn encode_runtime_storage_binary_write(
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
+    is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_storage_binary_write_width(
         runtime_value_operands,
@@ -1762,6 +1778,7 @@ pub fn encode_runtime_storage_binary_write(
         left,
         operator,
         right,
+        is_float,
     ));
     // Hold the target base in r14, not r15: evaluating the operands below
     // reloads r15 with each source base, which would otherwise clobber the
@@ -1776,11 +1793,21 @@ pub fn encode_runtime_storage_binary_write(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
     append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
     append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(
-        &mut bytes,
-        operator,
-        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
-    )?;
+    if is_float {
+        append_runtime_float_binary_operation(&mut bytes, operator, byte_size)?;
+    } else {
+        append_runtime_binary_operation(
+            &mut bytes,
+            operator,
+            runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        )?;
+    }
     append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
     Ok(bytes)
 }
@@ -2574,6 +2601,53 @@ fn append_runtime_binary_operation(
         }
     }
     Ok(())
+}
+
+/// Floating-point binary op (f64/f32) that reuses the integer operand pipeline:
+/// the operand bit patterns are already loaded in r10 (left) and r11 (right).
+/// Move them into xmm0/xmm1, run the SSE arithmetic op, then move the result
+/// bits back to r10 so the shared store path writes them out. `byte_size > 4`
+/// selects f64 (`movq` + `*sd`); otherwise f32 (`movd` + `*ss`). Always the
+/// fixed `runtime_float_binary_operation_width()` bytes.
+fn append_runtime_float_binary_operation(
+    bytes: &mut Vec<u8>,
+    operator: StateGuardOperator,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let wide = byte_size > 4;
+    if wide {
+        bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0, r10
+        bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xcb]); // movq xmm1, r11
+    } else {
+        bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xc2]); // movd xmm0, r10d
+        bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xcb]); // movd xmm1, r11d
+    }
+    // F2 = scalar-double prefix (`*sd`), F3 = scalar-single (`*ss`).
+    let scalar_prefix = if wide { 0xf2 } else { 0xf3 };
+    let opcode = match operator {
+        StateGuardOperator::Add => 0x58,      // addsd/addss
+        StateGuardOperator::Subtract => 0x5c, // subsd/subss
+        StateGuardOperator::Multiply => 0x59, // mulsd/mulss
+        StateGuardOperator::Divide => 0x5e,   // divsd/divss
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 runtime float binary operator `{operator:?}` is not implemented yet"
+            )));
+        }
+    };
+    bytes.extend([scalar_prefix, 0x0f, opcode, 0xc1]); // <op> xmm0, xmm1
+    if wide {
+        bytes.extend([0x66, 0x49, 0x0f, 0x7e, 0xc2]); // movq r10, xmm0
+    } else {
+        bytes.extend([0x66, 0x41, 0x0f, 0x7e, 0xc2]); // movd r10d, xmm0
+    }
+    Ok(())
+}
+
+/// Fixed width of [`append_runtime_float_binary_operation`]: two operand moves
+/// (5 each) + the SSE op (4) + the result move (5) = 19, for both f32 and f64.
+fn runtime_float_binary_operation_width() -> usize {
+    19
 }
 
 fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize) -> usize {

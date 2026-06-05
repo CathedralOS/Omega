@@ -242,6 +242,7 @@ pub(super) fn encode_runtime_storage_binary_write(
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
+    is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, left)?;
     validate_runtime_value_home(input, right)?;
@@ -253,6 +254,7 @@ pub(super) fn encode_runtime_storage_binary_write(
         left,
         operator,
         right,
+        is_float,
     )
 }
 
