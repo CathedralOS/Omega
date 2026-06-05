@@ -1,0 +1,44 @@
+// Signed integer division and remainder with a negative dividend. The codegen
+// must use a signed `idiv` sized to the operands (32-bit here), so
+// `-17 / 5 == -3` and `-17 % 5 == -2` rather than the garbage an unsigned `div`
+// would produce on a sign-extended value.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i32;
+    b: i32;
+    q: i32;
+    r: i32;
+}
+
+machine Main::main(&mut self) {
+    self.a = 0;
+    self.a = self.a - 17; // -17 as a runtime value
+    self.b = 5;
+    self.q = self.a / self.b; // -3
+    self.r = self.a % self.b; // -2
+
+    transition self.q == -3 {
+        true -> check_remainder()
+        false -> bad()
+    }
+
+    state check_remainder(&mut self) {
+        transition self.r == -2 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
