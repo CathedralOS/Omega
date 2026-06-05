@@ -205,6 +205,19 @@ pub(super) fn resolve_runtime_static_integer_value_in_table(
     }
 }
 
+/// Resolve a compile-time-constant floating-point value (a float literal).
+/// Returned as an `f64`; the caller narrows to the target width (`f32`/`f64`)
+/// when computing the stored bit pattern.
+pub(super) fn resolve_runtime_static_float_value_in_table(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<f64> {
+    match expressions.expression(expression) {
+        ExpressionNode::Float(literal) => Some(literal.value()),
+        _ => None,
+    }
+}
+
 fn resolve_runtime_resolved_static_integer_value(
     input: &InstructionSelectionInput<'_>,
     expression: Expression,
