@@ -203,6 +203,8 @@ fn signedness_adjusted_operator(
         StateGuardOperator::Divide => StateGuardOperator::DivideUnsigned,
         StateGuardOperator::Modulo => StateGuardOperator::ModuloUnsigned,
         StateGuardOperator::ShiftRight => StateGuardOperator::ShiftRightLogical,
+        StateGuardOperator::Min => StateGuardOperator::MinUnsigned,
+        StateGuardOperator::Max => StateGuardOperator::MaxUnsigned,
         _ => return operator,
     };
 

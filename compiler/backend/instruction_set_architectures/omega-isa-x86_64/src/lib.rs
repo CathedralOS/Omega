@@ -2343,13 +2343,33 @@ fn append_runtime_binary_operation(
         StateGuardOperator::Or => bytes.extend([0x4d, 0x09, 0xda]),  // or r10, r11
         StateGuardOperator::Subtract => bytes.extend([0x4d, 0x29, 0xda]), // sub r10, r11
         StateGuardOperator::Multiply => bytes.extend([0x4d, 0x0f, 0xaf, 0xd3]), // imul r10, r11
-        StateGuardOperator::Max => {
-            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
-            bytes.extend([0x4d, 0x0f, 0x4c, 0xd3]); // cmovl r10, r11 (signed: keep larger)
-        }
-        StateGuardOperator::Min => {
-            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
-            bytes.extend([0x4d, 0x0f, 0x4f, 0xd3]); // cmovg r10, r11 (signed: keep smaller)
+        StateGuardOperator::Max
+        | StateGuardOperator::Min
+        | StateGuardOperator::MaxUnsigned
+        | StateGuardOperator::MinUnsigned => {
+            // Compare at the operand width (32-bit for i32, else 64-bit) so an
+            // i32 sign/high bit is read correctly, then conditionally take r11.
+            // Max keeps the larger (cmovl signed / cmovb unsigned: replace when
+            // r10 < r11); Min keeps the smaller (cmovg / cmova: replace when
+            // r10 > r11).
+            let keep_smaller =
+                matches!(operator, StateGuardOperator::Min | StateGuardOperator::MinUnsigned);
+            let unsigned =
+                matches!(operator, StateGuardOperator::MaxUnsigned | StateGuardOperator::MinUnsigned);
+            // cmov opcode byte: signed below/above use 4c/4f; unsigned 42/47.
+            let cmov = match (keep_smaller, unsigned) {
+                (false, false) => 0x4c, // cmovl
+                (true, false) => 0x4f,  // cmovg
+                (false, true) => 0x42,  // cmovb
+                (true, true) => 0x47,   // cmova
+            };
+            if byte_size <= 4 {
+                bytes.extend([0x45, 0x39, 0xda]); // cmp r10d, r11d
+                bytes.extend([0x45, 0x0f, cmov, 0xd3]); // cmovcc r10d, r11d
+            } else {
+                bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+                bytes.extend([0x4d, 0x0f, cmov, 0xd3]); // cmovcc r10, r11
+            }
         }
         StateGuardOperator::Divide
         | StateGuardOperator::Modulo
@@ -2459,7 +2479,11 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
         | StateGuardOperator::Or
         | StateGuardOperator::Subtract => 3,
         StateGuardOperator::Multiply => 4,
-        StateGuardOperator::Max | StateGuardOperator::Min => 7, // cmp (3) + cmov (4)
+        // cmp (3) + cmov (4), same at 32-bit or 64-bit.
+        StateGuardOperator::Max
+        | StateGuardOperator::Min
+        | StateGuardOperator::MaxUnsigned
+        | StateGuardOperator::MinUnsigned => 7,
         // signed 32-bit: mov(3)+cdq(1)+idiv(3)+mov(3)=10; signed 64-bit: cqo(2)=11.
         StateGuardOperator::Divide | StateGuardOperator::Modulo => {
             if byte_size <= 4 { 10 } else { 11 }
