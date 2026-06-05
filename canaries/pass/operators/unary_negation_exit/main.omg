@@ -1,0 +1,38 @@
+// Unary minus: negative integer literals (`-5`, folded to a constant so they
+// work in guards) and negation of a non-literal (`-self.v`, lowered to `0 - v`).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: i32;
+    n: i32;
+}
+
+machine Main::main(&mut self) {
+    self.v = 10;
+    self.n = -self.v;
+
+    transition self.n == -10 {
+        true -> check_literal()
+        false -> bad()
+    }
+
+    state check_literal(&mut self) {
+        self.v = -5;
+        transition self.v < 0 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

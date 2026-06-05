@@ -1,5 +1,6 @@
 use crate::parser::context::ExpressionContext;
 use crate::parser::input::{Input, ParseResult};
+use omega_core::source::SourceText;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableUnaryExpression,
@@ -242,6 +243,30 @@ fn parse_unary_expression_handle<'tokens, 'source>(
                 })),
             rest,
         ));
+    }
+
+    if input.at_punctuation(PunctuationKind::Minus) {
+        let input = input.take_punctuation(PunctuationKind::Minus, "-")?;
+        let (operand, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
+        // Fold numeric literals into their negative value so a negative literal
+        // stays a constant (usable in guards/static contexts). Negating any other
+        // expression lowers to `0 - operand`, reusing the existing subtraction
+        // lane rather than introducing a dedicated negate operator + codegen.
+        let negated = match syntax_trees.expressions.expression(operand).clone() {
+            ExpressionNode::Integer(value) => ExpressionNode::Integer(value.wrapping_neg()),
+            ExpressionNode::Float(text) => {
+                ExpressionNode::Float(SourceText::generated(format!("-{}", text.as_str())))
+            }
+            _ => {
+                let zero = syntax_trees.expressions.insert(ExpressionNode::Integer(0));
+                ExpressionNode::Binary(TableBinaryExpression {
+                    left: zero,
+                    operator: BinaryOperator::Subtract,
+                    right: operand,
+                })
+            }
+        };
+        return Ok((syntax_trees.expressions.insert(negated), rest));
     }
 
     if input.at_contextual("move") {
