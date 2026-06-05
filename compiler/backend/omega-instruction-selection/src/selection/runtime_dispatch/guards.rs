@@ -1456,25 +1456,37 @@ fn runtime_text_input_buffer_data_for_text_place_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> RuntimeTextInputBufferData {
+    // The LAST matching buffer in this state, not the first: a place built up by
+    // several chained text writes (`x = x + a; x = x + b;`) gets one buffer per
+    // write, and a guard reads the place after all statements have run, so the
+    // live value is in the most recently materialized buffer.
     let buffer = input
         .runtime_text
         .buffers
         .iter()
-        .find_map(|(_, buffer)| {
-            (buffer.source_key == source_key
+        .filter(|(_, buffer)| {
+            buffer.source_key == source_key
                 && runtime_text_buffer_matches_table_expression(
                     input,
                     buffer,
                     expressions,
                     expression,
-                ))
-            .then_some(buffer)
+                )
         })
+        .map(|(_, buffer)| buffer)
+        .last()
         .or_else(|| {
-            input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
-                runtime_text_buffer_matches_table_expression(input, buffer, expressions, expression)
-                    .then_some(buffer)
-            })
+            input
+                .runtime_text
+                .buffers
+                .iter()
+                .filter(|(_, buffer)| {
+                    runtime_text_buffer_matches_table_expression(
+                        input, buffer, expressions, expression,
+                    )
+                })
+                .map(|(_, buffer)| buffer)
+                .last()
         });
     let Some(buffer) = buffer else {
         return invalid_runtime_text_input_buffer_data();

@@ -1,0 +1,35 @@
+// Regression: chained in-place appends across separate statements
+// (`x = "a"; x = x + "b"; x = x + "c";`) then a guard `x == "abc"`. Each text
+// write gets its own materialize buffer, and the guard's text comparison read
+// the FIRST buffer ("ab", stale) instead of the most recent one ("abc"). The
+// guard now reads the latest buffer for the place in its state.
+
+boundary trait Console {
+    machine write_line(text: String);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    line: String;
+}
+
+machine Main::main(&mut self) {
+    self.line = "a";
+    self.line = self.line + "b";
+    self.line = self.line + "c";
+    self.console.write_line(self.line);
+
+    transition self.line == "abc" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
