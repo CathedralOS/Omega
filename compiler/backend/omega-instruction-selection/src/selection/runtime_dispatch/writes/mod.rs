@@ -23,6 +23,7 @@ use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 pub(crate) use static_values::RuntimeStaticValues;
+use static_values::invalidate_runtime_static_value_in_table;
 
 pub(in crate::selection) use mutation::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
@@ -423,6 +424,7 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         }
     }
 
+    // A literal write records the target as a known constant for later folds.
     if let Some(kind) = mutation::select_runtime_static_mutation_write_in_table(
         input,
         dispatch_index,
@@ -432,18 +434,29 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         target,
         value,
         static_values,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
+    // Copies move a runtime value into the target. Whatever constant the target
+    // previously folded to is now wrong, so forget it: a later read of the same
+    // place in this state must come from live storage. Without this, a chain
+    // like `v = 5; v = src; w = v + 1;` would fold the stale `v == 5` and
+    // compute the wrong `w`.
+    if let Some(kind) = subslice_copy::runtime_fixed_array_subslice_indexed_source_copy_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        value_source_key,
+        expressions,
+        target,
+        value,
     )
-    .or_else(|| {
-        subslice_copy::runtime_fixed_array_subslice_indexed_source_copy_in_table(
-            input,
-            dispatch_index,
-            target_source_key,
-            value_source_key,
-            expressions,
-            target,
-            value,
-        )
-    })
     .or_else(|| {
         storage_copy::runtime_storage_indexed_source_copy_in_table(
             input,
@@ -487,33 +500,50 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
             target,
             value,
         )
-    })
-    .or_else(|| {
-        string_values::select_runtime_string_mutation_write_in_table(
-            input,
-            dispatch_index,
-            operation_source_key,
-            target_source_key,
-            statement_index,
-            expressions,
-            target,
-            value,
-        )
-    })
-    .or_else(|| {
-        mutation::select_runtime_binary_mutation_write_in_table(
-            input,
-            dispatch_index,
-            target_source_key,
-            value_source_key,
-            statement_index,
-            expressions,
-            target,
-            value,
-            static_values,
-            runtime_value_operands,
-        )
     }) {
+        invalidate_runtime_static_value_in_table(static_values, expressions, target);
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
+    // String writes target a String descriptor, not an integer-foldable place.
+    if let Some(kind) = string_values::select_runtime_string_mutation_write_in_table(
+        input,
+        dispatch_index,
+        operation_source_key,
+        target_source_key,
+        statement_index,
+        expressions,
+        target,
+        value,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
+    // Binary read-modify-write resolves its operands against the pre-write
+    // static state (preserving a first read's fold), then invalidates the target
+    // itself.
+    if let Some(kind) = mutation::select_runtime_binary_mutation_write_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        target,
+        value,
+        static_values,
+        runtime_value_operands,
+    ) {
         selected_instructions.push(SelectedInstruction {
             kind,
             source_key: operation_source_key,
