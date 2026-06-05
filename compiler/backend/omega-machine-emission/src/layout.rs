@@ -113,11 +113,13 @@ fn machine_instruction_width(
             has_storage: true,
             byte_offset,
             byte_size,
+            is_float,
             ..
         } => dispatch_guard_compare_static_width(
             input.target.architecture,
             *byte_offset,
             *byte_size,
+            *is_float,
         ),
         // A forward skip-jump is a plain unconditional `jmp rel32` -- same shape as a
         // dispatch-case leave, so it reuses that width/encoder.

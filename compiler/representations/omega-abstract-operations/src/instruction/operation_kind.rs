@@ -29,6 +29,10 @@ pub enum AbstractOperationKind {
         byte_size: usize,
         expected_value: i64,
         has_storage: bool,
+        /// When set, the compared storage holds an f64 and the static compare is
+        /// performed with `comisd` (whose CF/ZF mirror an unsigned `cmp`, so the
+        /// unsigned failure-branch conditions apply).
+        is_float: bool,
     },
     CompareRuntimeTextLiteral {
         buffer: AbstractDataObjectHandle,

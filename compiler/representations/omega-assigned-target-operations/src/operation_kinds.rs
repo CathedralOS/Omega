@@ -29,6 +29,7 @@ pub enum AssignedOperationKind {
         byte_size: usize,
         expected_value: i64,
         has_storage: bool,
+        is_float: bool,
     },
     CompareRuntimeTextLiteral {
         buffer: omega_target_operations::TargetDataObjectHandle,

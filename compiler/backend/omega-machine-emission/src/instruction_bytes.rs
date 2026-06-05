@@ -180,6 +180,7 @@ fn insert_fixed_machine_instruction_bytes(
             byte_size,
             expected_value,
             has_storage: true,
+            is_float,
             ..
         } => {
             let bytes = omega_instruction_selection::encode_dispatch_guard_compare_static_bytes(
@@ -192,6 +193,7 @@ fn insert_fixed_machine_instruction_bytes(
                     machine_instruction_index,
                 )?,
                 *operator,
+                *is_float,
             )?;
             for byte in bytes {
                 inserter.insert(byte);

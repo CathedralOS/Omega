@@ -69,6 +69,7 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     expected_value: i64,
     skip_byte_distance: isize,
     operator: StateGuardOperator,
+    is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_dispatch_guard_compare_static_bytes(
@@ -77,6 +78,7 @@ pub fn encode_dispatch_guard_compare_static_bytes(
             expected_value,
             skip_byte_distance,
             operator,
+            is_float,
         ),
         Architecture::X86_64 => x86_64::encode_dispatch_guard_compare_static_bytes(
             byte_offset,
@@ -84,6 +86,7 @@ pub fn encode_dispatch_guard_compare_static_bytes(
             expected_value,
             skip_byte_distance,
             operator,
+            is_float,
         ),
     }
 }

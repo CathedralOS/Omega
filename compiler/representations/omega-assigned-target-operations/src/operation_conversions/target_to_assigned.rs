@@ -22,6 +22,7 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 byte_size,
                 expected_value,
                 has_storage,
+                is_float,
             } => Self::EvaluateDispatchGuard {
                 guard_lowering,
                 operator,
@@ -30,6 +31,7 @@ impl From<omega_target_operations::TargetOperationKind> for AssignedOperationKin
                 byte_size,
                 expected_value,
                 has_storage,
+                is_float,
             },
             omega_target_operations::TargetOperationKind::CompareRuntimeTextLiteral {
                 buffer,

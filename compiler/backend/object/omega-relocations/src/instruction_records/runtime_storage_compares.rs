@@ -26,6 +26,7 @@ pub(super) fn collect_runtime_storage_compare_relocations(
             byte_offset,
             byte_size,
             has_storage: true,
+            is_float,
             ..
         } => {
             // The guard's Absolute64 storage-address relocation only exists when the guard
@@ -41,6 +42,7 @@ pub(super) fn collect_runtime_storage_compare_relocations(
                 context.input.target.architecture,
                 *byte_offset,
                 *byte_size,
+                *is_float,
             ) != 0
             {
                 let symbol = context.storage_region_symbol_handle(*storage_region);

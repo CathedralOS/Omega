@@ -104,6 +104,7 @@ fn selected_instruction_name(
             byte_size,
             expected_value,
             has_storage,
+            ..
         } => {
             if *has_storage {
                 format!(

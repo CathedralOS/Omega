@@ -1,0 +1,54 @@
+// Floating-point comparison guards lower to `ucomisd`: the f64 operand bits are
+// moved into xmm registers and compared on the SSE unit, with the failure branch
+// using the unsigned-style conditions (jae/jbe/ja/jb for ordering, je/jne for
+// equality) that match ucomisd's CF/ZF flags. This both implements float
+// comparison and end-to-end verifies float arithmetic: the equality arm only
+// passes if `3.5 + 1.5` produced exactly 5.0. Ordering and a negative operand
+// (where an integer bit-compare would be wrong) are also exercised. Exits 70
+// only if every comparison evaluates correctly.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    computed: f64;
+    negative: f64;
+}
+
+machine Main::main(&mut self) {
+    self.computed = 3.5;
+    self.computed = self.computed + 1.5; // exactly 5.0
+
+    // Equality verifies the arithmetic result.
+    transition self.computed == 5.0 {
+        true -> check_ordering()
+        false -> bad()
+    }
+
+    state check_ordering(&mut self) {
+        // Ordering against a literal: 5.0 < 6.0 holds.
+        transition self.computed < 6.0 {
+            true -> check_negative()
+            false -> bad()
+        }
+    }
+
+    state check_negative(&mut self) {
+        self.negative = -2.5;
+        // A negative operand: -2.5 < 0.0 holds (integer bit-compare would fail).
+        transition self.negative < 0.0 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

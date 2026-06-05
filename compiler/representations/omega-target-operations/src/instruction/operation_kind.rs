@@ -28,6 +28,7 @@ pub enum TargetOperationKind {
         byte_size: usize,
         expected_value: i64,
         has_storage: bool,
+        is_float: bool,
     },
     CompareRuntimeTextLiteral {
         buffer: TargetDataObjectHandle,
