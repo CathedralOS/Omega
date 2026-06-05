@@ -47,6 +47,7 @@ pub fn build_runtime_text_plan(
 fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut RuntimeTextPlan) {
     for (_, mutation) in state_storage.mutations.iter() {
         if !is_known_runtime_text_place(plan, &state_storage.expressions, mutation.target)
+            && !is_prior_runtime_text_write_target(plan, &state_storage.expressions, mutation.target)
             && !is_obvious_runtime_text_value(&state_storage.expressions, mutation.value)
         {
             continue;
@@ -80,6 +81,27 @@ fn is_known_runtime_text_place(
                 buffer.text_place,
                 expressions,
                 expression,
+            )
+    })
+}
+
+/// True when `target` was already the destination of an earlier collected text
+/// write in this pass. Once a place is established as text (e.g. `self.line =
+/// "prefix "`), a later `self.line = self.line + self.suffix` is a text concat
+/// even though, with no string-literal anchor, it is otherwise indistinguishable
+/// from a numeric add at this (type-free) layer.
+fn is_prior_runtime_text_write_target(
+    plan: &RuntimeTextPlan,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+) -> bool {
+    plan.writes.iter().any(|(_, write)| {
+        write.target.is_valid()
+            && expression_place_eq_across_tables(
+                &plan.expressions,
+                write.target,
+                expressions,
+                target,
             )
     })
 }
