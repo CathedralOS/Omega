@@ -1,0 +1,50 @@
+// Subslicing a runtime-length slice PARAMETER (`sub[1..]` where `sub: &[Entry]`).
+// Unlike subslicing a fixed array (static length), the result length is computed
+// from the source descriptor at runtime: new.ptr = ptr + start*elem, new.len =
+// len - start. Passing `sub[1..]` of a 4-element view must yield a 3-element
+// slice. This is the materialization that makes `decreases … Slice::Length`
+// recursion (self.walk(entries[1..])) actually shrink and terminate.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) {
+    let view: &[Entry] = self.entries.as_slice();
+    transition {
+        _ -> self.check(view)
+    }
+}
+
+machine Main::check(&mut self, sub: &[Entry]) {
+    // The guard proves `1 <= sub.len`, so `sub[1..]` is in bounds.
+    transition sub.len > 2 {
+        true -> self.verify(sub[1..])
+        false -> bad()
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::verify(&mut self, sub: &[Entry]) {
+    transition sub.len == 3 {
+        true -> good()
+        false -> wrong()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+}

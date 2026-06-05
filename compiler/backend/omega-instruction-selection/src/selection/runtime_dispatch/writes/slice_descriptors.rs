@@ -1,10 +1,12 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
-    RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind,
+    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
+    StateGuardOperator,
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_control_flow::StateKey;
+use omega_core::arena::Arena;
 
 use super::super::super::storage_places::{
     resolve_fixed_array_length, resolve_fixed_array_length_in_table,
@@ -12,11 +14,164 @@ use super::super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_place_in_table, resolve_slice_element_byte_size_in_table,
 };
 use super::fixed_array_slices::{
     literal_subslice_range_bounds, resolved_subslice_descriptor_base_in_table,
 };
+
+/// Materialize a subslice of a *runtime* slice descriptor (`entries[start..]` /
+/// `entries[start..end]` where `entries` is a `&[T]` whose length is only known
+/// at runtime) into the target descriptor `slot`. Unlike the fixed-array path,
+/// the length is not a compile-time constant, so the new descriptor is computed
+/// from the source one:
+///   target.ptr = source.ptr + start * element_byte_size
+///   target.len = (end - start)          when `end` is a literal
+///              = source.len - start      when the range is open-ended
+/// Because the binary write reads `left` from the source descriptor and writes
+/// the target, this also handles the self-recursive case where source and target
+/// are the same slot (an in-place shrink) — exactly what a `decreases … Length`
+/// recursion needs.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection) fn emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let descriptor_size = input.runtime_abi.slice_descriptor_size();
+    if slot.byte_size != descriptor_size {
+        return false;
+    }
+    let ExpressionNode::Indexed(indexed) = expressions.expression(value) else {
+        return false;
+    };
+    let ExpressionNode::Range(range) = expressions.expression(indexed.index) else {
+        return false;
+    };
+
+    // The source must be a runtime slice descriptor living in a frame slot.
+    let Some(source_place) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        indexed.collection,
+    ) else {
+        return false;
+    };
+    if source_place.region != RuntimeStorageRegion::RuntimeFrame
+        || source_place.byte_count != descriptor_size
+    {
+        return false;
+    }
+    let Some(element_byte_size) = resolve_slice_element_byte_size_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        indexed.collection,
+    ) else {
+        return false;
+    };
+
+    // Literal `start` (default 0) and optional literal `end`.
+    let start = if range.start.is_valid() {
+        let ExpressionNode::Integer(start) = expressions.expression(range.start) else {
+            return false;
+        };
+        match usize::try_from(*start) {
+            Ok(start) => start,
+            Err(_) => return false,
+        }
+    } else {
+        0
+    };
+    let end_literal = if range.end.is_valid() {
+        let ExpressionNode::Integer(end) = expressions.expression(range.end) else {
+            return false;
+        };
+        match usize::try_from(*end) {
+            Ok(end) => Some(end),
+            Err(_) => return false,
+        }
+    } else {
+        None
+    };
+    if end_literal.is_some_and(|end| end < start) {
+        return false;
+    }
+
+    let descriptor = input.runtime_abi.slice_descriptor();
+    let ptr_offset = descriptor.ptr_offset();
+    let len_offset = descriptor.len_offset();
+    let len_size = descriptor.len_size();
+    let ptr_size = len_offset - ptr_offset;
+    let Some(ptr_delta) = start.checked_mul(element_byte_size) else {
+        return false;
+    };
+
+    // target.ptr = source.ptr + start * element_byte_size
+    let ptr_left = runtime_value_operands.insert(RuntimeValueOperand::Storage {
+        region: RuntimeStorageRegion::RuntimeFrame,
+        byte_offset: source_place.byte_offset + ptr_offset,
+        byte_size: ptr_size,
+    });
+    let ptr_right = runtime_value_operands.insert(RuntimeValueOperand::Immediate(ptr_delta as i64));
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageBinary {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            target_offset: slot.byte_offset + ptr_offset,
+            byte_size: ptr_size,
+            left: ptr_left,
+            operator: StateGuardOperator::Add,
+            right: ptr_right,
+        },
+        source_key: value_source_key,
+        source_statement: statement_index,
+    });
+
+    // target.len = (end - start) if `end` is a literal, else source.len - start.
+    match end_literal {
+        Some(end) => selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: slot.byte_offset + len_offset,
+                byte_size: len_size,
+                value: (end - start) as i64,
+            },
+            source_key: value_source_key,
+            source_statement: statement_index,
+        }),
+        None => {
+            let len_left = runtime_value_operands.insert(RuntimeValueOperand::Storage {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: source_place.byte_offset + len_offset,
+                byte_size: len_size,
+            });
+            let len_right =
+                runtime_value_operands.insert(RuntimeValueOperand::Immediate(start as i64));
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeStorageBinary {
+                    target_region: RuntimeStorageRegion::RuntimeFrame,
+                    target_offset: slot.byte_offset + len_offset,
+                    byte_size: len_size,
+                    left: len_left,
+                    operator: StateGuardOperator::Subtract,
+                    right: len_right,
+                },
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+        }
+    }
+    true
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_table(
