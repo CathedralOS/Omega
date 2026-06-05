@@ -1815,6 +1815,37 @@ fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_subslice_of_slice_param_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_of_slice_param_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-subslice-param-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime subslice of slice param canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime subslice of slice param canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected subslicing a runtime slice param to shrink the length (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_index_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_index_read_exit");
     let main_path = canary.join("main.omg");
@@ -4515,6 +4546,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_slice_index_copy_exit",
     "slices/runtime_slice_index_read_dispatch_exit",
     "slices/runtime_slice_index_read_exit",
+    "slices/runtime_subslice_of_slice_param_exit",
     "rewards/runtime_reward_table_roll_item_shape",
     "dungeon/runtime_room_use_reentry_guard",
     "dungeon/runtime_room_use_reentry_exit",

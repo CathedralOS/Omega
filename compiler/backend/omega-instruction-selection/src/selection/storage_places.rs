@@ -1308,6 +1308,22 @@ fn runtime_frame_slot_for_expression<'plan>(
     })
 }
 
+/// Byte size of one element of the slice (or fixed array) named by `expression`,
+/// from the resolved frame slot's element type. Used to scale subslice pointer
+/// arithmetic on a runtime slice descriptor.
+pub(super) fn resolve_slice_element_byte_size_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<usize> {
+    let slot =
+        runtime_frame_slot_for_expression_in_table(input, dispatch_index, source_key, expressions, expression)?;
+    let element_descriptor = slot.type_descriptor.element_type()?;
+    Some(descriptor_layout(input, element_descriptor).size)
+}
+
 fn runtime_frame_slot_for_expression_in_table<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
     dispatch_index: u32,
