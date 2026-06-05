@@ -22,10 +22,11 @@ pub(super) fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateG
         BinaryOperator::LessOrEqual => Some(StateGuardOperator::LessOrEqual),
         BinaryOperator::NotEqual => Some(StateGuardOperator::NotEqual),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
+        BinaryOperator::Divide => Some(StateGuardOperator::Divide),
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Or => Some(StateGuardOperator::Or),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        BinaryOperator::Divide | BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => None,
+        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => None,
     }
 }
 

@@ -11,6 +11,7 @@ pub enum StateGuardOperator {
     Add,
     Subtract,
     Multiply,
+    Divide,
     Modulo,
     Max,
     Min,

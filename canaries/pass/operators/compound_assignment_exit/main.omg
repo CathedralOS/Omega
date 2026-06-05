@@ -1,0 +1,35 @@
+// Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`), each desugaring
+// to `x = x OP y`. Chaining them in one state also exercises the static-value
+// invalidation fix: every later read of `self.v` must observe the prior write,
+// not the stale entry-value constant fold.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: i32;
+}
+
+machine Main::main(&mut self) {
+    self.v = 10;
+    self.v += 5; // 15
+    self.v -= 3; // 12
+    self.v *= 2; // 24
+    self.v /= 4; // 6
+    self.v %= 4; // 2
+
+    transition self.v == 2 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

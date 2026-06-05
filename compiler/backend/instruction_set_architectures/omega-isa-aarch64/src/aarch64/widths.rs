@@ -799,7 +799,8 @@ fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
         | StateGuardOperator::And
         | StateGuardOperator::Or
         | StateGuardOperator::Subtract
-        | StateGuardOperator::Multiply => 4,
+        | StateGuardOperator::Multiply
+        | StateGuardOperator::Divide => 4,
         StateGuardOperator::Modulo => 8,
         StateGuardOperator::Max | StateGuardOperator::Min => 12,
         StateGuardOperator::Equal

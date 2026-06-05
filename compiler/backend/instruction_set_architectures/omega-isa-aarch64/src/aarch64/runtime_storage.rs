@@ -1542,6 +1542,13 @@ fn append_runtime_binary_operation(
                 right_register,
             ));
         }
+        StateGuardOperator::Divide => {
+            bytes.extend(encode_udiv_x_register(
+                destination_register,
+                destination_register,
+                right_register,
+            ));
+        }
         StateGuardOperator::Modulo => {
             bytes.extend(encode_udiv_x_register(
                 19,

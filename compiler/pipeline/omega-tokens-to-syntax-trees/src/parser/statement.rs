@@ -78,17 +78,26 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
         ));
     }
 
-    if input.at_punctuation(PunctuationKind::PlusEqual) {
+    for (punctuation, label, operator) in [
+        (PunctuationKind::PlusEqual, "+=", BinaryOperator::Add),
+        (PunctuationKind::MinusEqual, "-=", BinaryOperator::Subtract),
+        (PunctuationKind::AsteriskEqual, "*=", BinaryOperator::Multiply),
+        (PunctuationKind::SlashEqual, "/=", BinaryOperator::Divide),
+        (PunctuationKind::PercentEqual, "%=", BinaryOperator::Modulo),
+    ] {
+        if !input.at_punctuation(punctuation) {
+            continue;
+        }
         let read_target = copy_compound_assignment_target(syntax_trees, expression)
             .ok_or_else(|| input.error_here("compound assignment target must be a place"))?;
-        let input = input.take_punctuation(PunctuationKind::PlusEqual, "+=")?;
+        let input = input.take_punctuation(punctuation, label)?;
         let (right, input) = parse_expression_handle(syntax_trees, input)?;
         let value =
             syntax_trees
                 .expressions
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
                     left: read_target,
-                    operator: BinaryOperator::Add,
+                    operator,
                     right,
                 }));
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
