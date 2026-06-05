@@ -446,6 +446,28 @@ fn select_runtime_storage_resolved_scalar_mutation_write_in_table_with_scratch(
         return true;
     }
 
+    // A numeric `as` cast loads the source, converts between int/float
+    // representations, and stores the result.
+    if let Some(kind) = mutation::select_runtime_convert_mutation_write_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        target,
+        value,
+        static_values,
+        runtime_value_operands,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
     // Copies move a runtime value into the target. Whatever constant the target
     // previously folded to is now wrong, so forget it: a later read of the same
     // place in this state must come from live storage. Without this, a chain

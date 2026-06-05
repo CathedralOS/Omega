@@ -166,6 +166,16 @@ pub enum TargetOperationKind {
         right: TargetValueOperandHandle,
         is_float: bool,
     },
+    WriteRuntimeStorageConvert {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        target_byte_size: usize,
+        source: TargetValueOperandHandle,
+        source_byte_size: usize,
+        source_is_float: bool,
+        target_is_float: bool,
+        source_signed: bool,
+    },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,
         field_byte_offset: usize,

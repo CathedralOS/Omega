@@ -52,6 +52,20 @@ pub(super) fn collect_runtime_storage_write_relocations(
             collect_runtime_value_operand_relocations(context, right_offset, *right);
             true
         }
+        SelectedInstructionKind::WriteRuntimeStorageConvert {
+            target_region,
+            source,
+            ..
+        } => {
+            // Same prefix as a storage binary write: `mov r14,imm64(target base)`
+            // at the instruction start, then the (single) source operand.
+            let target_symbol = context.storage_region_symbol_handle(*target_region);
+            context.insert_data_address_at_instruction_start(target_symbol);
+            let source_offset = context.selected_text_offset
+                + runtime_storage_binary_left_operand_offset(context.input.target.architecture);
+            collect_runtime_value_operand_relocations(context, source_offset, *source);
+            true
+        }
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
             field_byte_offset,

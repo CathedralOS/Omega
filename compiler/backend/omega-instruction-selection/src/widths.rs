@@ -486,6 +486,39 @@ pub fn runtime_storage_binary_write_width(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_storage_convert_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    target_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_storage_convert_width(
+            runtime_value_operands,
+            source,
+            source_byte_size,
+            target_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+        ),
+        Architecture::X86_64 => x86_64::runtime_storage_convert_width(
+            runtime_value_operands,
+            source,
+            source_byte_size,
+            target_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+        ),
+    }
+}
+
 pub fn runtime_pointee_binary_write_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,

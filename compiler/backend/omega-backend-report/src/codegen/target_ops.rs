@@ -365,6 +365,23 @@ fn selected_instruction_name(
                 runtime_value_operand_name(backend_plan, *right),
             )
         }
+        SelectedInstructionKind::WriteRuntimeStorageConvert {
+            target_region,
+            target_offset,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            ..
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            format!(
+                "write runtime storage convert {target_symbol}@{target_offset} bytes {target_byte_size} float={target_is_float} <- {} bytes {source_byte_size} float={source_is_float}",
+                runtime_value_operand_name(backend_plan, *source),
+            )
+        }
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
             field_byte_offset,

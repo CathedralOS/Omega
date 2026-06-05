@@ -161,6 +161,42 @@ pub fn encode_runtime_storage_binary_write(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_convert(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_storage_convert(
+            runtime_value_operands,
+            target_offset,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+        ),
+        Architecture::X86_64 => x86_64::encode_runtime_storage_convert(
+            runtime_value_operands,
+            target_offset,
+            target_byte_size,
+            source,
+            source_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+        ),
+    }
+}
+
 pub fn encode_runtime_pointee_binary_write(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,

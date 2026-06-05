@@ -15,6 +15,9 @@ pub(super) fn selected_binary_write_kind(
             *byte_size,
             *operator,
         )),
+        SelectedInstructionKind::WriteRuntimeStorageConvert { .. } => {
+            Some(MachineInstructionKind::RuntimeStorageConvert)
+        }
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
             field_byte_offset,

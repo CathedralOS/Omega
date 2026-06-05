@@ -409,6 +409,37 @@ fn runtime_value_position_branching_call_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_numeric_cast_exit_canary_runs() {
+    let canary = pass_canary("expressions/runtime_numeric_cast_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-numeric-cast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("numeric cast canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("numeric cast canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected numeric casts (float->int, int->float, signed widen) to evaluate correctly and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_float_place_comparison_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_float_place_comparison_exit");
     let main_path = canary.join("main.omg");
@@ -4789,6 +4820,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_float_arithmetic_exit",
     "expressions/runtime_float_comparison_exit",
     "expressions/runtime_float_place_comparison_exit",
+    "expressions/runtime_numeric_cast_exit",
     "calls/runtime_value_position_branching_call_exit",
     "operators/integer_literal_suffix_exit",
     "operators/runtime_shift_operators_exit",

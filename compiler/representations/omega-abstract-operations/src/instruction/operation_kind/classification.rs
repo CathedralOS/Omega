@@ -41,6 +41,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::WriteRuntimeStorageInteger { .. }
             | Self::WriteRuntimePointeeInteger { .. }
             | Self::WriteRuntimeStorageBinary { .. }
+            | Self::WriteRuntimeStorageConvert { .. }
             | Self::WriteRuntimePointeeBinary { .. }
             | Self::WriteRuntimeFrameIndexedInteger { .. }
             | Self::WriteRuntimeFrameBaseIndexedInteger { .. }

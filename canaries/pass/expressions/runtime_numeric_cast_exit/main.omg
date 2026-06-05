@@ -1,0 +1,59 @@
+// Numeric `as` casts lower to a converting store: the source is loaded into a
+// register and converted between integer and floating-point representations
+// (cvttsd2si for float->int, cvtsi2sd for int->float, movsxd for signed integer
+// widening, a sized store for narrowing). This chains a float computation into a
+// float->int cast and an int->float cast, so reaching exit 70 also confirms the
+// f64 arithmetic result exactly: 9.0 / 2.0 = 4.5, truncated to 4, widened back
+// to 4.0.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    real_value: f64;
+    truncated: i32;
+    widened: f64;
+    narrow_source: i32;
+    widened_int: i64;
+}
+
+machine Main::main(&mut self) {
+    self.real_value = 9.0;
+    self.real_value = self.real_value / 2.0; // 4.5
+
+    // float -> int truncates toward zero (4.5 -> 4).
+    self.truncated = self.real_value as i32;
+    transition self.truncated == 4 {
+        true -> check_int_to_float()
+        false -> bad()
+    }
+
+    state check_int_to_float(&mut self) {
+        // int -> float (4 -> 4.0).
+        self.widened = self.truncated as f64;
+        transition self.widened == 4.0 {
+            true -> check_signed_widen()
+            false -> bad()
+        }
+    }
+
+    state check_signed_widen(&mut self) {
+        self.narrow_source = -100;
+        // signed integer widening sign-extends (-100 stays -100, not 2^32-100).
+        self.widened_int = self.narrow_source as i64;
+        transition self.widened_int == -100 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

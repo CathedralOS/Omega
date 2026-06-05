@@ -36,6 +36,22 @@ use super::widths::{
 const RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS: &[u8] = &[18, 15, 14, 13, 12, 11, 10, 9];
 const RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS: &[u8] = &[15, 14, 13, 12, 11, 10, 9];
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_convert(
+    _runtime_value_operands: &impl RuntimeValueOperandSource,
+    _target_offset: usize,
+    _target_byte_size: usize,
+    _source: RuntimeValueOperandHandle,
+    _source_byte_size: usize,
+    _source_is_float: bool,
+    _target_is_float: bool,
+    _source_signed: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "aarch64 numeric `as` conversion is not implemented yet".to_string(),
+    ))
+}
+
 pub fn encode_runtime_storage_compare_bytes(
     left_offset: usize,
     right_offset: usize,
