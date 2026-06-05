@@ -2351,16 +2351,31 @@ fn append_runtime_binary_operation(
             bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
             bytes.extend([0x4d, 0x0f, 0x4f, 0xd3]); // cmovg r10, r11 (signed: keep smaller)
         }
-        StateGuardOperator::Divide | StateGuardOperator::Modulo => {
-            // Signed division. The width must match the operands so the sign bit
-            // is interpreted correctly (a 32-bit `idiv` reads only the low dword
-            // as signed, so it is right regardless of how the operand was loaded
-            // into r10/r11). Quotient -> (r/e)ax, remainder -> (r/e)dx.
-            let want_remainder = matches!(operator, StateGuardOperator::Modulo);
+        StateGuardOperator::Divide
+        | StateGuardOperator::Modulo
+        | StateGuardOperator::DivideUnsigned
+        | StateGuardOperator::ModuloUnsigned => {
+            // Width must match the operands so the high bit is interpreted right
+            // (a 32-bit divide reads only the low dword). Signed uses cdq/cqo +
+            // `idiv`; unsigned zeroes the dividend-high half + `div`. Quotient ->
+            // (r/e)ax, remainder -> (r/e)dx.
+            let want_remainder = matches!(
+                operator,
+                StateGuardOperator::Modulo | StateGuardOperator::ModuloUnsigned
+            );
+            let signed = matches!(
+                operator,
+                StateGuardOperator::Divide | StateGuardOperator::Modulo
+            );
             if byte_size <= 4 {
                 bytes.extend([0x41, 0x8b, 0xc2]); // mov eax, r10d
-                bytes.push(0x99); // cdq (sign-extend eax -> edx)
-                bytes.extend([0x41, 0xf7, 0xfb]); // idiv r11d
+                if signed {
+                    bytes.push(0x99); // cdq (sign-extend eax -> edx)
+                    bytes.extend([0x41, 0xf7, 0xfb]); // idiv r11d
+                } else {
+                    bytes.extend([0x31, 0xd2]); // xor edx, edx
+                    bytes.extend([0x41, 0xf7, 0xf3]); // div r11d
+                }
                 if want_remainder {
                     bytes.extend([0x41, 0x89, 0xd2]); // mov r10d, edx (remainder)
                 } else {
@@ -2368,8 +2383,13 @@ fn append_runtime_binary_operation(
                 }
             } else {
                 bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
-                bytes.extend([0x48, 0x99]); // cqo (sign-extend rax -> rdx)
-                bytes.extend([0x49, 0xf7, 0xfb]); // idiv r11
+                if signed {
+                    bytes.extend([0x48, 0x99]); // cqo (sign-extend rax -> rdx)
+                    bytes.extend([0x49, 0xf7, 0xfb]); // idiv r11
+                } else {
+                    bytes.extend([0x31, 0xd2]); // xor edx, edx (clears rdx)
+                    bytes.extend([0x49, 0xf7, 0xf3]); // div r11
+                }
                 if want_remainder {
                     bytes.extend([0x49, 0x89, 0xd2]); // mov r10, rdx (remainder)
                 } else {
@@ -2377,15 +2397,20 @@ fn append_runtime_binary_operation(
                 }
             }
         }
-        StateGuardOperator::ShiftLeft | StateGuardOperator::ShiftRight => {
-            // Shift count must live in cl. Right shift is arithmetic (`sar`) so a
-            // signed value keeps its sign; sized to the operands like division so
-            // an i32 sign bit is honored.
+        StateGuardOperator::ShiftLeft
+        | StateGuardOperator::ShiftRight
+        | StateGuardOperator::ShiftRightLogical => {
+            // Shift count must live in cl. Right shift is arithmetic (`sar`) for
+            // signed operands and logical (`shr`) for unsigned; sized to the
+            // operands so an i32 high bit is honored.
             let arithmetic_right = matches!(operator, StateGuardOperator::ShiftRight);
+            let logical_right = matches!(operator, StateGuardOperator::ShiftRightLogical);
             if byte_size <= 4 {
                 bytes.extend([0x44, 0x89, 0xd9]); // mov ecx, r11d
                 if arithmetic_right {
                     bytes.extend([0x41, 0xd3, 0xfa]); // sar r10d, cl
+                } else if logical_right {
+                    bytes.extend([0x41, 0xd3, 0xea]); // shr r10d, cl
                 } else {
                     bytes.extend([0x41, 0xd3, 0xe2]); // shl r10d, cl
                 }
@@ -2393,6 +2418,8 @@ fn append_runtime_binary_operation(
                 bytes.extend([0x4c, 0x89, 0xd9]); // mov rcx, r11
                 if arithmetic_right {
                     bytes.extend([0x49, 0xd3, 0xfa]); // sar r10, cl
+                } else if logical_right {
+                    bytes.extend([0x49, 0xd3, 0xea]); // shr r10, cl
                 } else {
                     bytes.extend([0x49, 0xd3, 0xe2]); // shl r10, cl
                 }
@@ -2433,12 +2460,16 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
         | StateGuardOperator::Subtract => 3,
         StateGuardOperator::Multiply => 4,
         StateGuardOperator::Max | StateGuardOperator::Min => 7, // cmp (3) + cmov (4)
-        // 32-bit: mov(3)+cdq(1)+idiv(3)+mov(3); 64-bit: mov(3)+cqo(2)+idiv(3)+mov(3).
+        // signed 32-bit: mov(3)+cdq(1)+idiv(3)+mov(3)=10; signed 64-bit: cqo(2)=11.
         StateGuardOperator::Divide | StateGuardOperator::Modulo => {
             if byte_size <= 4 { 10 } else { 11 }
         }
+        // unsigned: mov(3)+xor edx,edx(2)+div(3)+mov(3)=11 at either size.
+        StateGuardOperator::DivideUnsigned | StateGuardOperator::ModuloUnsigned => 11,
         // mov c-reg, r11 (3) + shift r10, cl (3), same width at either size.
-        StateGuardOperator::ShiftLeft | StateGuardOperator::ShiftRight => 6,
+        StateGuardOperator::ShiftLeft
+        | StateGuardOperator::ShiftRight
+        | StateGuardOperator::ShiftRightLogical => 6,
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
         | StateGuardOperator::Greater

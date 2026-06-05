@@ -1,0 +1,58 @@
+// Unsigned division, remainder, and logical right shift on u32 values whose
+// high bit is set. The codegen must pick the unsigned forms (`div`, `shr`) from
+// the target's unsigned type, not the signed `idiv`/`sar` which would treat
+// 3_000_000_000 as negative and produce garbage.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: u32;
+    b: u32;
+    quotient: u32;
+    remainder: u32;
+    shifted: u32;
+}
+
+machine Main::main(&mut self) {
+    self.a = 3000000000;
+    self.b = 2;
+    self.quotient = self.a / self.b; // 1500000000
+
+    self.a = 3000000007;
+    self.b = 1000000000;
+    self.remainder = self.a % self.b; // 7
+
+    self.a = 3000000000;
+    self.b = 1;
+    self.shifted = self.a >> self.b; // 1500000000 (logical)
+
+    transition self.quotient == 1500000000 {
+        true -> check_remainder()
+        false -> bad()
+    }
+
+    state check_remainder(&mut self) {
+        transition self.remainder == 7 {
+            true -> check_shift()
+            false -> bad()
+        }
+    }
+
+    state check_shift(&mut self) {
+        transition self.shifted == 1500000000 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

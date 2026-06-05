@@ -2,10 +2,11 @@ use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
     RuntimeStoragePlace, resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
+    resolve_runtime_storage_place_in_table,
 };
 use omega_abstract_operations::{
-    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind,
+    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_control_flow::StateKey;
@@ -80,6 +81,18 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         }
         _ => return None,
     };
+
+    // Division, modulo, and arithmetic-vs-logical right shift differ by
+    // signedness; pick the unsigned encoding when the target is an unsigned
+    // integer. Other operators are unaffected.
+    let operator = signedness_adjusted_operator(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+        operator,
+    );
 
     let left = resolve_runtime_value_operand_in_table(
         input,
@@ -173,6 +186,36 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         operator,
         right,
     })
+}
+
+/// Replace a signed division/modulo/right-shift operator with its unsigned form
+/// when the target is an unsigned integer place. The default (signed, or an
+/// undeterminable type) is correct for the dominant i32/i64 case.
+fn signedness_adjusted_operator(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    operator: StateGuardOperator,
+) -> StateGuardOperator {
+    let unsigned = match operator {
+        StateGuardOperator::Divide => StateGuardOperator::DivideUnsigned,
+        StateGuardOperator::Modulo => StateGuardOperator::ModuloUnsigned,
+        StateGuardOperator::ShiftRight => StateGuardOperator::ShiftRightLogical,
+        _ => return operator,
+    };
+
+    match resolve_runtime_storage_is_signed_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        Some(false) => unsigned,
+        _ => operator,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

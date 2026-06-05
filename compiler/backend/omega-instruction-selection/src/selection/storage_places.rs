@@ -374,6 +374,78 @@ pub(super) fn resolve_runtime_storage_place_in_table(
     })
 }
 
+/// Best-effort signedness of the integer place named by `expression`. Resolves
+/// the frame-slot field path to its leaf primitive type. Returns `None` when the
+/// type cannot be determined here (non-frame places, non-primitive leaves), in
+/// which case callers fall back to the signed form. Used to pick signed vs
+/// unsigned division/shift encodings.
+pub(super) fn resolve_runtime_storage_is_signed_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<bool> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    if path.is_empty() {
+        return None;
+    }
+    let suffix = path.suffix(1);
+    let slot = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+        slot_matches_table_path(slot, &path)
+    })
+    .or_else(|| {
+        latest_dispatch_frame_slot(input, dispatch_index, |slot| {
+            slot_matches_table_path(slot, &path)
+        })
+    });
+
+    let Some(slot) = slot else {
+        // Not a frame slot: most `data` fields are machine-owned. Resolve the
+        // leaf type descriptor through that path instead.
+        let collection = resolve_machine_owned_collection_in_table(
+            &input.layouts,
+            input.entry_key.machine,
+            source_key.machine,
+            expressions,
+            expression,
+        )?;
+        return descriptor_primitive_is_signed(&collection.type_descriptor);
+    };
+
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: slot.byte_offset,
+        type_symbol: slot.type_symbol,
+        type_name: slot.type_name.clone(),
+        type_descriptor: slot.type_descriptor.clone(),
+        layout: TypeLayout {
+            size: slot.byte_size,
+            alignment: slot.alignment,
+        },
+    };
+
+    let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
+    for (field_name, field_symbol, field_index) in suffix.iter() {
+        cursor =
+            resolve_nested_field_layout_step(&input.layouts, cursor, field_name, field_symbol, field_index)?;
+    }
+    descriptor_primitive_is_signed(cursor.type_descriptor())
+}
+
+fn descriptor_primitive_is_signed(descriptor: &TypeLayoutDescriptor) -> Option<bool> {
+    match descriptor {
+        TypeLayoutDescriptor::Named { name, .. } => {
+            Some(PrimitiveType::from_name(name)?.is_signed_integer())
+        }
+        TypeLayoutDescriptor::Constrained { base_type } => {
+            descriptor_primitive_is_signed(base_type)
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn resolve_fixed_array_length_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
