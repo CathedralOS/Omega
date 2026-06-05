@@ -1456,6 +1456,26 @@ fn find_runtime_frame_slot_for_path<'plan>(
                     .then_some(slot)
                 })
         })
+        .or_else(|| {
+            // Last resort: a slot owned by an OUTER call scope whose source_key
+            // does not match the querying source. This happens when a caller's
+            // `&mut` parameter is aliased into a callee arm AND the caller body
+            // was split into dispatch segments by a dispatched (looping) call --
+            // the arm's write resolves against the leaf source, which never
+            // matches the caller-parameter slot under any source-scoped clause
+            // above. The path match is symbol-specific for a resolved parameter
+            // reference, so it identifies exactly that one slot; take the nearest
+            // dispatch at or before this one (segments of one control state share
+            // the slot).
+            input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .filter_map(|(_, slot)| {
+                    (slot.dispatch_index <= dispatch_index && matches_path(slot)).then_some(slot)
+                })
+                .max_by_key(|slot| slot.dispatch_index)
+        })
 }
 
 fn latest_dispatch_frame_slot<'plan>(

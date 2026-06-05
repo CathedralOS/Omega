@@ -1020,11 +1020,19 @@ fn leaf_binding_matches_table_path(
     table: &ExpressionTable,
     path: &TableNamePath,
 ) -> bool {
-    let matches_parameter = symbol_matches_table_path(binding.parameter_symbol, path)
-        || table
+    // Match the bound parameter by SYMBOL when the path carries one: a callee
+    // parameter and an identically-named caller place (both `out`) are distinct
+    // parameters with distinct symbols, and a name-only match would conflate them
+    // -- making a binding's own rewrite target (the caller place) re-match the
+    // binding and recurse forever. Fall back to the name only for symbol-less paths.
+    let matches_parameter = if path.head_symbol.is_valid() || path.symbol.is_valid() {
+        symbol_matches_table_path(binding.parameter_symbol, path)
+    } else {
+        table
             .name_path_members(path.members)
             .first()
-            .is_some_and(|name| *name == binding.parameter_name);
+            .is_some_and(|name| *name == binding.parameter_name)
+    };
     matches_parameter
         && binding_expression_rewrites_leaf_parameter(source_table, binding.expression, binding)
 }
@@ -1057,10 +1065,24 @@ fn binding_expression_rewrites_leaf_parameter(
         ExpressionNode::Mutable(target) => {
             binding_expression_rewrites_leaf_parameter(table, *target, binding)
         }
-        ExpressionNode::Name(path) => table
-            .name_path_members(path.members)
-            .first()
-            .is_none_or(|name| *name != binding.parameter_name),
+        // A binding rewrites its leaf parameter unless it refers to that SAME
+        // parameter (a no-op self-binding). Discriminate by SYMBOL, not name: a
+        // callee `out` bound to a caller `out` is a genuine rewrite even though
+        // both are named `out` -- they are distinct parameters with distinct
+        // symbols. (Across a dispatched-call split the caller arg may not be
+        // alias-resolved to a differently-named place, so a name-only check
+        // wrongly rejects the binding and drops the arm's write.) Fall back to
+        // the name only when the path carries no symbol to compare.
+        ExpressionNode::Name(path) => {
+            if path.head_symbol.is_valid() || path.symbol.is_valid() {
+                !symbol_matches_table_path(binding.parameter_symbol, path)
+            } else {
+                table
+                    .name_path_members(path.members)
+                    .first()
+                    .is_none_or(|name| *name != binding.parameter_name)
+            }
+        }
         _ => true,
     }
 }
