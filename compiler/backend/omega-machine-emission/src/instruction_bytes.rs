@@ -171,7 +171,11 @@ fn insert_fixed_machine_instruction_bytes(
                 | StateGuardOperator::Greater
                 | StateGuardOperator::GreaterOrEqual
                 | StateGuardOperator::Less
-                | StateGuardOperator::LessOrEqual),
+                | StateGuardOperator::LessOrEqual
+                | StateGuardOperator::GreaterUnsigned
+                | StateGuardOperator::GreaterOrEqualUnsigned
+                | StateGuardOperator::LessUnsigned
+                | StateGuardOperator::LessOrEqualUnsigned),
             byte_offset,
             byte_size,
             expected_value,

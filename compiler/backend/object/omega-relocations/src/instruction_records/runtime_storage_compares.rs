@@ -17,7 +17,11 @@ pub(super) fn collect_runtime_storage_compare_relocations(
                 | StateGuardOperator::Greater
                 | StateGuardOperator::GreaterOrEqual
                 | StateGuardOperator::Less
-                | StateGuardOperator::LessOrEqual,
+                | StateGuardOperator::LessOrEqual
+                | StateGuardOperator::GreaterUnsigned
+                | StateGuardOperator::GreaterOrEqualUnsigned
+                | StateGuardOperator::LessUnsigned
+                | StateGuardOperator::LessOrEqualUnsigned,
             storage_region,
             byte_offset,
             byte_size,

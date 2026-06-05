@@ -124,6 +124,10 @@ pub(crate) fn guard_lowering(
             | StateGuardOperator::GreaterOrEqual
             | StateGuardOperator::Less
             | StateGuardOperator::LessOrEqual
+            | StateGuardOperator::GreaterUnsigned
+            | StateGuardOperator::GreaterOrEqualUnsigned
+            | StateGuardOperator::LessUnsigned
+            | StateGuardOperator::LessOrEqualUnsigned
     ) {
         return StateGuardLowering::NeedsRuntimeExpression;
     }

@@ -105,7 +105,11 @@ fn machine_instruction_width(
                 | StateGuardOperator::Greater
                 | StateGuardOperator::GreaterOrEqual
                 | StateGuardOperator::Less
-                | StateGuardOperator::LessOrEqual,
+                | StateGuardOperator::LessOrEqual
+                | StateGuardOperator::GreaterUnsigned
+                | StateGuardOperator::GreaterOrEqualUnsigned
+                | StateGuardOperator::LessUnsigned
+                | StateGuardOperator::LessOrEqualUnsigned,
             has_storage: true,
             byte_offset,
             byte_size,

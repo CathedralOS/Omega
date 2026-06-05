@@ -8,7 +8,8 @@ use super::guards::{
 };
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasBinding;
-use omega_checked_trees::expression::ExpressionTable;
+use crate::selection::storage_places::resolve_runtime_storage_is_signed_in_table;
+use omega_checked_trees::expression::{BinaryOperator, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
@@ -18,8 +19,58 @@ use omega_state_guards::{StateGuardOperandStorage, lower_guard_conjunction};
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
-    StateGuardLowering,
+    StateGuardLowering, StateGuardOperator,
 };
+
+/// Whether `edge`'s guard is a single ordered comparison (`<`, `<=`, `>`, `>=`)
+/// whose operands are an unsigned integer type. Such a guard must branch with
+/// unsigned conditions; the clause operator is swapped accordingly. And-
+/// conjunctions and signed/undeterminable operands keep the signed form.
+fn guard_comparison_operands_unsigned(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    edge: &RuntimeDispatchLoopEdge,
+) -> bool {
+    if !edge.guard_has_expression {
+        return false;
+    }
+    let expressions = &input.state_guards.expressions;
+    let ExpressionNode::Binary(binary) = expressions.expression(edge.guard_expression) else {
+        return false;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+    ) {
+        return false;
+    }
+    let signed =
+        resolve_runtime_storage_is_signed_in_table(input, dispatch_index, source_key, expressions, binary.left)
+            .or_else(|| {
+                resolve_runtime_storage_is_signed_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    binary.right,
+                )
+            });
+    signed == Some(false)
+}
+
+fn unsigned_comparison_operator(operator: StateGuardOperator) -> StateGuardOperator {
+    match operator {
+        StateGuardOperator::Greater => StateGuardOperator::GreaterUnsigned,
+        StateGuardOperator::GreaterOrEqual => StateGuardOperator::GreaterOrEqualUnsigned,
+        StateGuardOperator::Less => StateGuardOperator::LessUnsigned,
+        StateGuardOperator::LessOrEqual => StateGuardOperator::LessOrEqualUnsigned,
+        other => other,
+    }
+}
 
 pub(super) fn select_runtime_dispatch_edge(
     input: &InstructionSelectionInput<'_>,
@@ -137,7 +188,18 @@ fn select_dispatch_guard_instructions(
             edge.order,
         );
         if !clauses.is_empty() {
+            let unsigned = guard_comparison_operands_unsigned(
+                input,
+                source_dispatch_index,
+                source_key,
+                edge,
+            );
             for clause in clauses.iter().copied() {
+                let operator = if unsigned {
+                    unsigned_comparison_operator(clause.operator)
+                } else {
+                    clause.operator
+                };
                 let kind = if matches!(clause.lowering, StateGuardLowering::CompareRuntimeValue)
                     && clause.has_storage
                     && clause.has_right_storage
@@ -148,12 +210,12 @@ fn select_dispatch_guard_instructions(
                         right_region: guard_storage_region(clause.right_storage),
                         right_offset: clause.right_byte_offset,
                         byte_size: clause.byte_size,
-                        operator: clause.operator,
+                        operator,
                     }
                 } else {
                     SelectedInstructionKind::EvaluateDispatchGuard {
                         guard_lowering: clause.lowering,
-                        operator: clause.operator,
+                        operator,
                         storage_region: guard_storage_region(clause.storage),
                         byte_offset: clause.byte_offset,
                         byte_size: clause.byte_size,
@@ -231,6 +293,16 @@ fn select_dispatch_guard_instructions(
         }
     }
 
+    let operator = if guard_comparison_operands_unsigned(
+        input,
+        source_dispatch_index,
+        source_key,
+        edge,
+    ) {
+        unsigned_comparison_operator(edge.guard_operator)
+    } else {
+        edge.guard_operator
+    };
     let guard_instruction = match edge.guard_lowering {
         StateGuardLowering::CompareRuntimeValue
             if edge.guard_has_storage && edge.guard_has_right_storage =>
@@ -241,12 +313,12 @@ fn select_dispatch_guard_instructions(
                 right_region: guard_storage_region(edge.guard_right_storage),
                 right_offset: edge.guard_right_byte_offset,
                 byte_size: edge.guard_byte_size,
-                operator: edge.guard_operator,
+                operator,
             }
         }
         _ => SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: edge.guard_lowering,
-            operator: edge.guard_operator,
+            operator,
             storage_region: guard_storage_region(edge.guard_storage),
             byte_offset: edge.guard_byte_offset,
             byte_size: edge.guard_byte_size,
