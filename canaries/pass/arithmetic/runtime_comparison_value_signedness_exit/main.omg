@@ -1,0 +1,51 @@
+// Comparison operators in value position (`r = a < b`) store a bool. Their
+// signedness comes from the operands, not the bool result: a signed i32 negative
+// must compare as negative (`-5 > 3` is false), and an unsigned u32 high-bit
+// value must compare as large (`3_000_000_000 > 5` is true). The compare runs at
+// the operand width with the matching signed/unsigned setcc.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    si: i32;
+    sj: i32;
+    signed_gt: i32;
+    ui: u32;
+    uj: u32;
+    unsigned_gt: i32;
+}
+
+machine Main::main(&mut self) {
+    self.si = 0;
+    self.si = self.si - 5; // -5
+    self.sj = 3;
+    self.signed_gt = self.si > self.sj; // false -> 0
+
+    self.ui = 2999999999;
+    self.ui = self.ui + 1; // 3_000_000_000 (high bit set)
+    self.uj = 5;
+    self.unsigned_gt = self.ui > self.uj; // true -> 1
+
+    transition self.signed_gt == 0 {
+        true -> check_unsigned()
+        false -> bad()
+    }
+
+    state check_unsigned(&mut self) {
+        transition self.unsigned_gt == 1 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

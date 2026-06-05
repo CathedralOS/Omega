@@ -1776,7 +1776,11 @@ pub fn encode_runtime_storage_binary_write(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
     append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
     append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(&mut bytes, operator, byte_size)?;
+    append_runtime_binary_operation(
+        &mut bytes,
+        operator,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
     append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
     Ok(bytes)
 }
@@ -1834,7 +1838,11 @@ pub fn encode_runtime_pointee_binary_write(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
     append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
     append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(&mut bytes, operator, byte_size)?;
+    append_runtime_binary_operation(
+        &mut bytes,
+        operator,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
     append_store_r10_to_r14(&mut bytes, field_byte_offset, byte_size)?;
     Ok(bytes)
 }
@@ -1900,7 +1908,11 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
     append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
     append_pop_r10(&mut bytes); // restore left -> r10
-    append_runtime_binary_operation(&mut bytes, operator, byte_size)?;
+    append_runtime_binary_operation(
+        &mut bytes,
+        operator,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
     append_store_r10_to_r14(&mut bytes, store_displacement, byte_size)?;
     Ok(bytes)
 }
@@ -2320,15 +2332,95 @@ fn append_runtime_value_operand(
         append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, right)?;
         append_mov_reg_reg(bytes, Reg64::R11, Reg64::R10); // right -> r11
         append_pop_r10(bytes); // restore left -> r10
-        // Nested binary operands do not carry their result width; assume 64-bit
-        // (matches runtime_value_operand_width above for relocation consistency).
-        append_runtime_binary_operation(bytes, operator, 8)?;
+        // Comparisons use the operand width; other nested binaries do not carry
+        // their result width, so assume 64-bit (matches runtime_value_operand_
+        // width above for relocation consistency).
+        append_runtime_binary_operation(
+            bytes,
+            operator,
+            runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, 8),
+        )?;
         append_mov_reg_reg(bytes, destination, Reg64::R10);
         Ok(())
     } else {
         Err(Diagnostic::error(
             "X86_64 runtime value operand is not implemented yet",
         ))
+    }
+}
+
+/// Value width of a runtime operand, looking through nested binary operands.
+/// `None` for immediates (which carry no width). Used to size comparisons, whose
+/// result type (bool) does not reflect the compared operands' width.
+fn runtime_value_operand_value_byte_size(
+    operands: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> Option<usize> {
+    if let Some((_, _, byte_size)) = operands.storage(operand) {
+        return Some(byte_size);
+    }
+    if let Some((_, _, byte_size)) = operands.pointee(operand) {
+        return Some(byte_size);
+    }
+    if let Some((_, _, _, _, byte_size)) = operands.frame_indexed(operand) {
+        return Some(byte_size);
+    }
+    if let Some((_, _, _, _, byte_size)) = operands.frame_base_indexed(operand) {
+        return Some(byte_size);
+    }
+    if let Some((_, _, _, _, byte_size)) = operands.frame_fixed_indexed(operand) {
+        return Some(byte_size);
+    }
+    if let Some((left, _, right)) = operands.binary(operand) {
+        return runtime_value_operand_value_byte_size(operands, left)
+            .or_else(|| runtime_value_operand_value_byte_size(operands, right));
+    }
+    None
+}
+
+/// Width to compare two operands at: the first operand with a known width, else
+/// the i32 default. (`a OP b` requires `a` and `b` to share a type, so either
+/// operand's width is the comparison width.)
+fn runtime_binary_compare_byte_size(
+    operands: &impl RuntimeValueOperandSource,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_value_operand_value_byte_size(operands, left)
+        .or_else(|| runtime_value_operand_value_byte_size(operands, right))
+        .unwrap_or(4)
+}
+
+fn is_comparison_operator(operator: StateGuardOperator) -> bool {
+    matches!(
+        operator,
+        StateGuardOperator::Equal
+            | StateGuardOperator::NotEqual
+            | StateGuardOperator::Greater
+            | StateGuardOperator::GreaterOrEqual
+            | StateGuardOperator::Less
+            | StateGuardOperator::LessOrEqual
+            | StateGuardOperator::GreaterUnsigned
+            | StateGuardOperator::GreaterOrEqualUnsigned
+            | StateGuardOperator::LessUnsigned
+            | StateGuardOperator::LessOrEqualUnsigned
+    )
+}
+
+/// Width to pass to `append_runtime_binary_operation`. Comparisons produce a
+/// `bool`, so the target width is not the compared-operands' width — derive it
+/// from the operands instead. All other operations share the target's width.
+fn runtime_binary_operation_byte_size(
+    operands: &impl RuntimeValueOperandSource,
+    operator: StateGuardOperator,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
+    target_byte_size: usize,
+) -> usize {
+    if is_comparison_operator(operator) {
+        runtime_binary_compare_byte_size(operands, left, right)
+    } else {
+        target_byte_size
     }
 }
 
@@ -2450,15 +2542,27 @@ fn append_runtime_binary_operation(
         | StateGuardOperator::Greater
         | StateGuardOperator::GreaterOrEqual
         | StateGuardOperator::Less
-        | StateGuardOperator::LessOrEqual => {
-            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+        | StateGuardOperator::LessOrEqual
+        | StateGuardOperator::GreaterUnsigned
+        | StateGuardOperator::GreaterOrEqualUnsigned
+        | StateGuardOperator::LessUnsigned
+        | StateGuardOperator::LessOrEqualUnsigned => {
+            // Compare at the operand width (`byte_size` here is the operand
+            // width, not the bool result) so an i32 sign bit is read correctly.
+            // Ordering uses signed setcc (setl/setg/...) or unsigned (setb/seta/
+            // ...) per the operand type.
+            append_cmp_r10_r11(bytes, byte_size)?;
             bytes.extend(match operator {
-                StateGuardOperator::Equal => [0x0f, 0x94, 0xc0],
-                StateGuardOperator::NotEqual => [0x0f, 0x95, 0xc0],
-                StateGuardOperator::Greater => [0x0f, 0x9f, 0xc0],
-                StateGuardOperator::GreaterOrEqual => [0x0f, 0x9d, 0xc0],
-                StateGuardOperator::Less => [0x0f, 0x9c, 0xc0],
-                StateGuardOperator::LessOrEqual => [0x0f, 0x9e, 0xc0],
+                StateGuardOperator::Equal => [0x0f, 0x94, 0xc0], // sete
+                StateGuardOperator::NotEqual => [0x0f, 0x95, 0xc0], // setne
+                StateGuardOperator::Greater => [0x0f, 0x9f, 0xc0], // setg
+                StateGuardOperator::GreaterOrEqual => [0x0f, 0x9d, 0xc0], // setge
+                StateGuardOperator::Less => [0x0f, 0x9c, 0xc0], // setl
+                StateGuardOperator::LessOrEqual => [0x0f, 0x9e, 0xc0], // setle
+                StateGuardOperator::GreaterUnsigned => [0x0f, 0x97, 0xc0], // seta
+                StateGuardOperator::GreaterOrEqualUnsigned => [0x0f, 0x93, 0xc0], // setae
+                StateGuardOperator::LessUnsigned => [0x0f, 0x92, 0xc0], // setb
+                StateGuardOperator::LessOrEqualUnsigned => [0x0f, 0x96, 0xc0], // setbe
                 _ => unreachable!(),
             });
             bytes.extend([0x44, 0x0f, 0xb6, 0xd0]); // movzx r10d, al
@@ -2494,12 +2598,17 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
         StateGuardOperator::ShiftLeft
         | StateGuardOperator::ShiftRight
         | StateGuardOperator::ShiftRightLogical => 6,
+        // cmp (3) + setcc (3) + movzx (4); cmp is 3 bytes at any width.
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
         | StateGuardOperator::Greater
         | StateGuardOperator::GreaterOrEqual
         | StateGuardOperator::Less
-        | StateGuardOperator::LessOrEqual => 10,
+        | StateGuardOperator::LessOrEqual
+        | StateGuardOperator::GreaterUnsigned
+        | StateGuardOperator::GreaterOrEqualUnsigned
+        | StateGuardOperator::LessUnsigned
+        | StateGuardOperator::LessOrEqualUnsigned => 10,
         _ => 0,
     }
 }
