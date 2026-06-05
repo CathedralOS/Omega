@@ -1,0 +1,38 @@
+// Copy-then-read within one state. `self.v = self.src` overwrites `v` with a
+// runtime value, then `self.v + 1` must observe that value.
+//
+// Regression guard: a literal write records `v` as a known constant for folding.
+// A later copy into `v` must forget that constant, or `self.v + 1` keeps folding
+// the stale literal instead of the copied value.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    src: i32;
+    v: i32;
+    w: i32;
+}
+
+machine Main::main(&mut self) {
+    self.src = 5;
+    self.src = self.src + 100; // src = 105 (runtime value, not a tracked constant)
+    self.v = 9;                // v folds to 9
+    self.v = self.src;         // v = 105; the stale `v == 9` fold must be dropped
+    self.w = self.v + 1;       // 106
+
+    transition self.w == 106 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -409,6 +409,37 @@ fn runtime_chained_field_mutation_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_copy_then_read_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_copy_then_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-copy-then-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("copy-then-read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("copy-then-read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a read after a copy to observe the copied value (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_i64_full_width_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_i64_full_width_exit");
     let main_path = canary.join("main.omg");
@@ -4341,6 +4372,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_chained_string_append_exit",
     "arithmetic/runtime_i64_full_width_exit",
     "arithmetic/runtime_chained_field_mutation_exit",
+    "arithmetic/runtime_copy_then_read_exit",
     "operators/unary_negation_exit",
     "operators/compound_assignment_exit",
     "operators/integer_literal_suffix_exit",
