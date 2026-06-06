@@ -1,0 +1,85 @@
+// A slice derived from a BY-VALUE struct parameter (`view = level.rooms.as_slice()`)
+// and threaded into a SELF-LOOPING search sub-state must keep reading valid data
+// across the whole loop. The bug: every state of a call shares one frame region (the
+// "states are never simultaneously live" optimization), so the looping sub-state's
+// frame OVERLAPPED the `level` param that `view` points into -- the loop clobbered its
+// own slice's backing data and read garbage (segfault / wrong element).
+//
+// Fix: each call context reserves its ENTRY state's PARAMETERS as a live-throughout
+// preamble that sibling states lay out ABOVE, so a slice into a by-value param stays
+// valid for the call's duration. This is the dungeon find_room shape: a by-value
+// `level`, `as_slice`, a self-looping `find_at`, and the matched element copied into
+// a `&mut out` alias. Exits 70 only when the search returns the correct element.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+enum CellId { R00, R01, R02, R03 }
+
+data Room {
+    id: CellId;
+    tag: i32;
+}
+
+data Level {
+    rooms: [Room; 4];
+    room_count: usize;
+}
+
+data Store {
+}
+
+machine Store::find(&mut self, level: Level, wanted: CellId, out_room: &mut Room) {
+    let view: &[Room] = level.rooms.as_slice();
+    transition level.room_count > 0 {
+        true -> find_at(view, level.room_count, wanted, out_room, 0)
+        false -> {}
+    }
+
+    state find_at(
+        &mut self,
+        view: &[Room],
+        count: usize,
+        wanted: CellId,
+        out_room: &mut Room,
+        index: usize
+    ) {
+        let matched: bool = view[index].id == wanted;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < count;
+        transition {
+            matched -> apply(view[index], out_room)
+            has_next -> find_at(view, count, wanted, out_room, next_index)
+        }
+    }
+
+    state apply(&mut self, room: Room, out_room: &mut Room) {
+        out_room.id = room.id;
+        out_room.tag = room.tag;
+    }
+}
+
+data Main {
+    console: Console;
+    store: Store;
+    out: Room;
+}
+
+machine Main::main(&mut self) {
+    let level: Level;
+    level.room_count = 4;
+    level.rooms[0].id = CellId::R00; level.rooms[0].tag = 100;
+    level.rooms[1].id = CellId::R01; level.rooms[1].tag = 111;
+    level.rooms[2].id = CellId::R02; level.rooms[2].tag = 122;
+    level.rooms[3].id = CellId::R03; level.rooms[3].tag = 133;
+
+    self.store.find(level, CellId::R02, &mut self.out);
+
+    transition self.out.tag == 122 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
