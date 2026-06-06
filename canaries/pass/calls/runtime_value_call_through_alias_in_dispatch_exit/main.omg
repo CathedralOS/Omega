@@ -1,0 +1,53 @@
+// A value-returning, inline-BRANCHING call (`idx`, a match) whose result is written
+// through a `&mut` alias parameter, inside a DISPATCHED callee (`carve`), must produce
+// the matched arm's value. The branching call's arms write the result and copy it to
+// the pointee per-arm under guards; the guard's forward-skip distance must cover the
+// pointee copy. It didn't -- `is_guarded_effect` (machine-emission branch distances)
+// listed storage/string/address/fixed-indexed pointee writes but NOT
+// RuntimeStorageCopyToRuntimePointee / RuntimePointeeIntegerWrite / ...BinaryWrite, so
+// a skipped arm landed ON the pointee copy and it ran unconditionally, stranding the
+// matched arm (the pointee kept the default-arm value).
+//
+// Dungeon generation shape: a build helper writing `out.field = <branching call>` /
+// `max(out.field, <call>+1)` through a &mut level alias.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Level {
+    room_count: usize;
+}
+
+data Store {
+}
+
+machine Store::idx(&mut self, x: usize) -> usize {
+    transition x { 0 -> 0  1 -> 1  2 -> 2  _ -> 3 }
+}
+
+machine Store::carve(&mut self, out: &mut Level, x: usize) {
+    // bare branching-call result through the &mut alias
+    out.room_count = self.idx(x);
+}
+
+machine Store::build(&mut self, out: &mut Level) {
+    self.carve(out, 2);
+}
+
+data Main {
+    console: Console;
+    store: Store;
+    level: Level;
+}
+
+machine Main::main(&mut self) {
+    self.level.room_count = 9;
+    self.store.build(&mut self.level);
+    transition self.level.room_count == 2 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

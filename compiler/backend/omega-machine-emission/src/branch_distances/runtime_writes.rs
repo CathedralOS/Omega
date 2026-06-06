@@ -303,6 +303,8 @@ fn is_guarded_effect(instruction: &LaidOutMachineInstruction) -> bool {
             | MachineInstructionKind::RuntimeFrameBaseIndexedIntegerWrite
             | MachineInstructionKind::RuntimeFrameIndexedBinaryWrite
             | MachineInstructionKind::RuntimeFrameBaseIndexedBinaryWrite
+            | MachineInstructionKind::RuntimePointeeIntegerWrite
+            | MachineInstructionKind::RuntimePointeeBinaryWrite
             | MachineInstructionKind::RuntimeMachineStringWrite
             | MachineInstructionKind::RuntimeFrameStringWrite
             | MachineInstructionKind::RuntimePointeeStringWrite
@@ -314,6 +316,7 @@ fn is_guarded_effect(instruction: &LaidOutMachineInstruction) -> bool {
             | MachineInstructionKind::RuntimeFrameFixedIndexedAddressToRuntimeFrameWrite
             | MachineInstructionKind::RuntimeFrameBaseIndexedAddressToRuntimeFrameWrite
             | MachineInstructionKind::RuntimeStorageCopy
+            | MachineInstructionKind::RuntimeStorageCopyToRuntimePointee
             | MachineInstructionKind::RuntimeStorageCopyToRuntimeFrameIndexed
             | MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameIndexed
             | MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameFixedIndexed
