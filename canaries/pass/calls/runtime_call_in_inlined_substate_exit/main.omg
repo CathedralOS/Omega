@@ -1,0 +1,70 @@
+// A transition target (sub-state) that performs a state call in `let`/assignment-value
+// position (`let r = self.f()`) — not a bare statement call — must lower as a
+// straight-line branch so the nested call is expanded. It was misclassified as a
+// leaf (leaf classification only looked for Statement-role calls), and the leaf
+// expansion has no way to carry a nested StateCall, so the call was silently dropped:
+// `r` (here a `&mut Room` returned by room_mut) stayed null and the next write through
+// it faulted. This is the dungeon generation shape: a build sub-state calling a
+// ref-returning helper.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+enum CellId { R00, R01, R02, R03 }
+
+data Room {
+    cell: CellId;
+    depth: u32;
+}
+
+data Level {
+    rooms: [Room; 4];
+    room_count: usize;
+}
+
+data Builder {
+}
+
+machine Builder::room_mut(&mut self, level: &mut Level, cell: CellId) -> &mut Room {
+    let rooms: &mut [Room] = level.rooms.as_mut_slice();
+    transition cell {
+        CellId::R00 -> &mut rooms[0]
+        CellId::R01 -> &mut rooms[1]
+        CellId::R02 -> &mut rooms[2]
+        _ -> &mut rooms[3]
+    }
+}
+
+machine Builder::build(&mut self, level: &mut Level) {
+    let r0: &mut Room = self.room_mut(level, CellId::R00);
+    r0.depth = 9;
+    transition {
+        _ -> hall1(level)
+    }
+    // hall1 is a sub-state reached by a transition; its body is a `let r1 = call()`
+    // in assignment-value position. It must not be treated as a call-free leaf.
+    state hall1(&mut self, level: &mut Level) {
+        let r1: &mut Room = self.room_mut(level, CellId::R01);
+        r1.depth = 1;
+    }
+}
+
+data Main {
+    console: Console;
+    builder: Builder;
+    level: Level;
+}
+
+machine Main::main(&mut self) {
+    self.builder.build(&mut self.level);
+    transition self.level.rooms[0].depth == 9 {
+        true -> c1()
+        _ -> bad()
+    }
+    state c1(&mut self) {
+        transition self.level.rooms[1].depth == 1 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

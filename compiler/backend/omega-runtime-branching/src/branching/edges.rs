@@ -129,9 +129,21 @@ fn branch_target_lowering(
         return RuntimeBranchTargetLowering::InlineBranching;
     }
 
+    // A target that performs ANY state call -- including `let x = self.f()`
+    // (AssignmentValue) or `g(self.f())` (CallArgument), not just a bare statement
+    // call -- must lower as a straight-line branch: the straight-line expansion emits
+    // and expands nested StateCall operations, whereas the leaf expansion drops them
+    // (RuntimeLeafBranchOperationKind has no StateCall variant). Misclassifying such a
+    // target as a leaf silently dropped the call, leaving its `&mut`/value result
+    // uninitialized (null) -> the next use faulted.
     let has_state_call = context.state_calls.calls.iter().any(|(_, state_call)| {
         state_call.source_key == *key
-            && state_call.role == StateCallRole::Statement
+            && matches!(
+                state_call.role,
+                StateCallRole::Statement
+                    | StateCallRole::AssignmentValue
+                    | StateCallRole::CallArgument
+            )
             && !state_statement_has_host_call(context, *key, state_call.statement_index)
     });
 

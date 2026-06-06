@@ -3248,6 +3248,45 @@ fn runtime_reference_param_forwarded_through_loop_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_call_in_inlined_substate_exit_canary_runs() {
+    // A transition target (sub-state) that calls in `let x = self.f()` position must
+    // lower as a straight-line branch so the nested call is expanded. It was
+    // misclassified as a leaf (leaf check looked only for Statement-role calls), and
+    // leaf expansion can't carry a nested call -> the call was dropped, leaving its
+    // `&mut`/value result null -> the next use faulted. Dungeon generation shape.
+    let canary = pass_canary("calls/runtime_call_in_inlined_substate_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-call-in-inlined-substate-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("call-in-inlined-substate canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("call-in-inlined-substate canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a `let x = self.f()` call in a transition sub-state to be expanded (exit 70), \
+         got {:?} (139/71 = the sub-state was treated as a leaf and the call dropped)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_alias_indexed_read_through_transition_exit_canary_runs() {
     // An inlined leaf reading `items[key].field` (constant-index element of a
     // forwarded slice) through a forwarded `&mut` alias: the inlined by-value `key`
