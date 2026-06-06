@@ -8,7 +8,6 @@ use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::state_bodies::{StateBodyVisitStack, select_state_body_instructions};
 use omega_abstract_operations::{InstructionOperand, RuntimeValueOperand};
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
@@ -25,7 +24,6 @@ use super::super::writes::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
 };
 use super::mutation::{
-    select_runtime_resolved_mutation_write,
     select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
 use super::straight_line::{
@@ -194,22 +192,9 @@ fn select_runtime_branch_prelude(
                 ) {
                     continue;
                 }
-                let resolved_target = expressions.to_tree(resolved_target);
-                let resolved_value = expressions.to_tree(resolved_value);
-                let (operation_machine, operation_state) = state_names(input, operation.source_key);
-                select_runtime_resolved_mutation_write(
-                    input,
-                    expansion.dispatch_index,
-                    operation.source_key,
-                    &source_machine_name(input, expansion.source_key),
-                    &operation_machine,
-                    &operation_state,
-                    operation.statement_index,
-                    &resolved_target,
-                    &resolved_value,
-                    runtime_value_operands,
-                    selected_instructions,
-                );
+                // Non-table mutation-write fallback removed (Phase 4): proven dead
+                // emitter — the `_in_table` write + text-builder paths above cover
+                // every case that lowers.
             }
             RuntimeBranchPreludeOperationKind::StateCall {
                 target_key,
@@ -489,16 +474,3 @@ fn prelude_alias_bindings(
     }))
 }
 
-fn state_names(
-    input: &InstructionSelectionInput<'_>,
-    key: omega_control_flow::StateKey,
-) -> (Identifier, Identifier) {
-    input.control_flow.state_names_by_key_cloned(key)
-}
-
-fn source_machine_name(
-    input: &InstructionSelectionInput<'_>,
-    key: omega_control_flow::StateKey,
-) -> Identifier {
-    input.control_flow.state_machine_name_by_key_cloned(key)
-}

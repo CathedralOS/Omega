@@ -36,7 +36,6 @@ use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
 pub(crate) use writes::{RuntimeStaticValues, RuntimeStorageWriteScratch};
 
-pub(crate) use branches::select_runtime_resolved_mutation_write;
 pub(super) use branches::{
     StraightLineBranchSelectionScratch, select_assignment_value_call_result_local_copy,
     select_runtime_straight_line_nested_branch_expansions_for_operation,

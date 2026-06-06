@@ -18,7 +18,7 @@ use super::runtime_dispatch::{
     BranchPreludeSelectionScratch, RuntimeStorageWriteScratch, StraightLineBranchSelectionScratch,
     emit_runtime_frame_slot_slice_descriptor_write_in_table, runtime_frame_slot_target_expression,
     select_assignment_value_call_result_local_copy, select_runtime_branch_preludes_for_operation,
-    select_runtime_frame_slot_value_write_in_table, select_runtime_resolved_mutation_write,
+    select_runtime_frame_slot_value_write_in_table,
     select_runtime_storage_resolved_mutation_write_in_table_with_scratch,
     select_runtime_straight_line_nested_branch_expansions_for_operation,
     select_runtime_unaliased_storage_mutation_write_with_scratch,
@@ -251,23 +251,10 @@ pub(super) fn select_state_body_instructions(
             ) {
                 continue;
             }
-            let resolved_target = expressions.to_tree(resolved_target.expression);
-            let resolved_value = expressions.to_tree(resolved_value.expression);
-            let (machine_name, state_name) =
-                input.control_flow.state_names_by_key_cloned(state.key);
-            select_runtime_resolved_mutation_write(
-                input,
-                storage_dispatch_index,
-                state.key,
-                &machine_name,
-                &machine_name,
-                &state_name,
-                operation.statement_index,
-                &resolved_target,
-                &resolved_value,
-                runtime_value_operands,
-                selected_instructions,
-            );
+            // Non-table mutation-write fallback removed (Phase 4): proven dead emitter
+            // — the storage `_in_table` write + terminal-fallback paths above cover
+            // every case that lowers. An unhandled assignment-value-call here emits
+            // nothing, exactly as before.
             continue;
         }
 

@@ -29,7 +29,6 @@ use super::super::writes::{
     runtime_storage_fixed_indexed_source_copy, select_runtime_frame_slot_value_write_in_table,
 };
 use super::mutation::{
-    select_runtime_resolved_mutation_write,
     select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -511,22 +510,11 @@ fn select_runtime_leaf_branch_terminal_value_write(
         return;
     }
 
-    let target = expressions.to_tree(target);
-    let resolved_value = expressions.to_tree(resolved_value);
-    let (source_machine, source_state) = state_names(input, expansion.branch_key);
-    select_runtime_resolved_mutation_write(
-        input,
-        expansion.dispatch_index,
-        expansion.branch_key,
-        &source_machine,
-        &source_machine,
-        &source_state,
-        expansion.target_statement_index,
-        &target,
-        &resolved_value,
-        runtime_value_operands,
-        selected_instructions,
-    );
+    // The non-table mutation-write fallback was a proven dead emitter (0 emissions
+    // across the full canary suite and the dungeon stress sample's 470 reaches): the
+    // `_in_table` path above handles every case that actually lowers. Removed in the
+    // Phase 4 selection cleanup; an unhandled case here simply emits nothing, exactly
+    // as before.
 }
 
 fn select_runtime_leaf_assignment_value_target_copy(
