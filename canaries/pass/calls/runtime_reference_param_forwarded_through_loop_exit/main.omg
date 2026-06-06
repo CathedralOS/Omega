@@ -1,0 +1,66 @@
+// Forwarding a `&mut` reference PARAMETER as an argument to another `&mut` parameter
+// (through a dispatch transition, including a self-looping search's back-edge) must
+// copy the POINTER VALUE, not dereference it. The argument materializer had a pointee
+// -copy branch that fired whenever the referent size equalled the target slot size;
+// for a pointer-sized referent (here `Room` is 8 bytes == a pointer) it wrote the
+// 8-byte referent INTO the pointer slot, so the sub-state's `out_room` held room data
+// as a bogus address and the first write through it faulted. The deref branch now only
+// fires for VALUE parameter targets; a reference target copies the pointer value.
+//
+// Mirrors the dungeon find_room: a self-looping search forwards `out_room: &mut Room`
+// to a terminal state that writes the matched element's fields through it.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    id: i32;
+    tag: i32;
+}
+
+data Lookup {
+    rooms: [Room; 4];
+}
+
+data Main {
+    console: Console;
+    lookup: Lookup;
+    out: Room;
+}
+
+machine Main::main(&mut self) {
+    self.lookup.search(12, &mut self.out);
+
+    transition self.out.tag == 122 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Lookup::search(&mut self, wanted: i32, out_room: &mut Room) {
+    self.rooms[0].id = 10; self.rooms[0].tag = 100;
+    self.rooms[1].id = 11; self.rooms[1].tag = 111;
+    self.rooms[2].id = 12; self.rooms[2].tag = 122;
+    self.rooms[3].id = 13; self.rooms[3].tag = 133;
+    let view: &[Room] = self.rooms.as_slice();
+
+    transition { _ -> find_at(view, wanted, out_room, 0) }
+
+    state find_at(&mut self, view: &[Room], wanted: i32, out_room: &mut Room, index: usize) {
+        let matched: bool = view[index].id == wanted;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < 4;
+        transition {
+            matched -> apply(view[index], out_room)
+            has_next -> find_at(view, wanted, out_room, next_index)
+        }
+    }
+
+    state apply(&mut self, room: Room, out_room: &mut Room) {
+        out_room.id = room.id;
+        out_room.tag = room.tag;
+    }
+}

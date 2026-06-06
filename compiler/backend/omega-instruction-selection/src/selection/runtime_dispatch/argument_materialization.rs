@@ -282,6 +282,15 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         ) && pointee.pointee_byte_size == slot.byte_size
             && pointee.pointee_byte_size > 0
             && !matches!(expressions.expression(argument), ExpressionNode::Mutable(_))
+            // Only DEREF into a VALUE parameter slot. When the target parameter is
+            // itself a reference (`&mut T`), forwarding another reference argument
+            // (e.g. an `out_room: &mut Room` param passed on to a sub-state's
+            // `out_room: &mut Room`) must copy the POINTER VALUE, not the pointee --
+            // otherwise the 8-byte referent is written into the pointer slot (a
+            // coincidental size match when the referent is pointer-sized) and the
+            // bogus "pointer" faults on the next deref. Fall through to the storage
+            // -place copy below, which copies the pointer value.
+            && slot.type_descriptor.reference_referee().is_none()
         {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
