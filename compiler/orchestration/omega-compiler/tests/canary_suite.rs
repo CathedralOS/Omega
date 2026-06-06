@@ -545,6 +545,42 @@ fn runtime_float_arithmetic_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_multi_arm_value_transition_exit_canary_runs() {
+    // A value-returning machine whose body is a 3-arm guarded transition must select
+    // the MIDDLE arm, not fall through to the default. The guard-failure jump used to
+    // land on the matched arm's own body copy (before its forward skip), so a failed
+    // first-arm guard skipped the middle arm. Exits 70 only when all three arms
+    // (first/middle/default) select correctly.
+    let canary = pass_canary("calls/runtime_multi_arm_value_transition_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-multi-arm-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("multi-arm value transition canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("multi-arm value transition canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a 3-arm value transition to select first/middle/default correctly (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_fixed_array_field_guard_exit_canary_runs() {
     // Reading `self.cells[i].value` (fixed-array element field, constant index) in a
     // GUARD must apply the index: the guard-operand layout consumed the root field
