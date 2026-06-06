@@ -6,8 +6,8 @@ mod static_values;
 
 pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::{
-    resolve_machine_owned_collection, resolve_machine_owned_collection_in_table,
-    resolve_machine_owned_place, resolve_machine_owned_place_in_table,
+    resolve_machine_owned_collection_in_table, resolve_machine_owned_place,
+    resolve_machine_owned_place_in_table,
 };
 pub(super) use model::{
     RuntimeFrameBaseIndexedTarget, RuntimeFrameFixedIndexedTarget, RuntimeFrameIndexedTarget,
@@ -637,80 +637,9 @@ pub(super) fn resolve_fixed_array_length(
     source_key: StateKey,
     expression: &Expression,
 ) -> Option<usize> {
-    if let Some(slot) =
-        runtime_frame_slot_for_expression(input, dispatch_index, source_key, expression)
-    {
-        if let Some((_, length)) = slot.type_descriptor.fixed_array() {
-            return Some(length);
-        }
-
-        let normalized_expression = normalized_storage_expression(expression)?;
-        if let Expression::Name(path) = &normalized_expression {
-            let suffix = path.members().get(1..).unwrap_or(&[]);
-            if !suffix.is_empty() {
-                let root_field = FieldLayout {
-                    symbol: slot.symbol,
-                    name: slot.name.clone(),
-                    offset: 0,
-                    type_symbol: slot.type_descriptor.storage_symbol(),
-                    type_name: "".into(),
-                    type_descriptor: slot.type_descriptor.clone(),
-                    layout: TypeLayout {
-                        size: slot.byte_size,
-                        alignment: slot.alignment,
-                    },
-                };
-                let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
-                for (index, field_name) in suffix.iter().enumerate() {
-                    cursor = resolve_nested_field_layout_step(
-                        &input.layouts,
-                        cursor,
-                        field_name,
-                        path.member_symbol(index + 1),
-                        None,
-                    )?;
-                }
-                let (_, length) = cursor.type_descriptor().fixed_array()?;
-                return Some(length);
-            }
-        }
-    }
-
-    if let Some(indexed) = indexed_target_path(expression) {
-        let collection_slot = runtime_frame_slot_for_expression(
-            input,
-            dispatch_index,
-            source_key,
-            indexed.collection,
-        )?;
-        let element_descriptor = inline_fixed_array_element_type(&collection_slot.type_descriptor)?;
-        let element_layout = descriptor_layout(input, element_descriptor);
-        let root_field = FieldLayout {
-            symbol: collection_slot.symbol,
-            name: collection_slot.name.clone(),
-            offset: 0,
-            type_symbol: element_descriptor.storage_symbol(),
-            type_name: "".into(),
-            type_descriptor: element_descriptor.clone(),
-            layout: element_layout,
-        };
-        let cursor = resolve_indexed_target_suffix_cursor(
-            &input.layouts,
-            NestedFieldLayoutCursor::from_root(&root_field),
-            indexed.suffix_root,
-        )?;
-        let (_, length) = cursor.type_descriptor().fixed_array()?;
-        return Some(length);
-    }
-
-    let collection = resolve_machine_owned_collection(
-        &input.layouts,
-        input.entry_key.machine,
-        source_key.machine,
-        expression,
-    )?;
-    let (_, length) = collection.type_descriptor.fixed_array()?;
-    Some(length)
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_fixed_array_length_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
 }
 
 pub(super) fn resolve_runtime_frame_indexed_target(
@@ -719,51 +648,9 @@ pub(super) fn resolve_runtime_frame_indexed_target(
     source_key: StateKey,
     expression: &Expression,
 ) -> Option<RuntimeFrameIndexedTarget> {
-    let indexed = indexed_target_path(expression)?;
-    let collection_slot =
-        runtime_frame_slot_for_expression(input, dispatch_index, source_key, indexed.collection)?;
-    // Dynamic indexing for inline frame arrays needs a base-offset lowering path rather than the
-    // descriptor-based slice/view path used by runtime frame indexed targets.
-    if runtime_frame_slot_is_inline_fixed_array_storage(input, collection_slot) {
-        return None;
-    }
-    let descriptor_place = resolve_runtime_storage_place(
-        input,
-        dispatch_index,
-        source_key,
-        "",
-        "",
-        indexed.collection,
-    )?;
-    let index_place =
-        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", indexed.index)?;
-    if descriptor_place.region != RuntimeStorageRegion::RuntimeFrame
-        || index_place.region != RuntimeStorageRegion::RuntimeFrame
-    {
-        return None;
-    }
-
-    let element_descriptor = collection_slot.type_descriptor.element_type()?;
-    let element_layout = descriptor_layout(input, element_descriptor);
-    let root_field = FieldLayout {
-        symbol: collection_slot.symbol,
-        name: collection_slot.name.clone(),
-        offset: 0,
-        type_symbol: element_descriptor.storage_symbol(),
-        type_name: "".into(),
-        type_descriptor: element_descriptor.clone(),
-        layout: element_layout,
-    };
-    let (field_byte_offset, field_layout) =
-        resolve_indexed_target_suffix_layout(input, &root_field, indexed.suffix_root)?;
-
-    Some(RuntimeFrameIndexedTarget {
-        descriptor_offset: descriptor_place.byte_offset,
-        index_offset: index_place.byte_offset,
-        element_byte_size: element_layout.size,
-        field_byte_offset,
-        byte_count: field_layout.size,
-    })
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_frame_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
 }
 
 pub(super) fn resolve_runtime_frame_base_indexed_target(
@@ -772,36 +659,9 @@ pub(super) fn resolve_runtime_frame_base_indexed_target(
     source_key: StateKey,
     expression: &Expression,
 ) -> Option<RuntimeFrameBaseIndexedTarget> {
-    let indexed = indexed_target_path(expression)?;
-    let collection_slot =
-        runtime_frame_slot_for_expression(input, dispatch_index, source_key, indexed.collection)?;
-    let element_descriptor = inline_fixed_array_element_type(&collection_slot.type_descriptor)?;
-    let index_place =
-        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", indexed.index)?;
-    if index_place.region != RuntimeStorageRegion::RuntimeFrame {
-        return None;
-    }
-
-    let element_layout = descriptor_layout(input, element_descriptor);
-    let root_field = FieldLayout {
-        symbol: collection_slot.symbol,
-        name: collection_slot.name.clone(),
-        offset: 0,
-        type_symbol: element_descriptor.storage_symbol(),
-        type_name: "".into(),
-        type_descriptor: element_descriptor.clone(),
-        layout: element_layout,
-    };
-    let (field_byte_offset, field_layout) =
-        resolve_indexed_target_suffix_layout(input, &root_field, indexed.suffix_root)?;
-
-    Some(RuntimeFrameBaseIndexedTarget {
-        base_byte_offset: collection_slot.byte_offset,
-        index_offset: index_place.byte_offset,
-        element_byte_size: element_layout.size,
-        field_byte_offset,
-        byte_count: field_layout.size,
-    })
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_frame_base_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
 }
 
 pub(super) fn resolve_runtime_frame_indexed_target_in_table(
@@ -1123,44 +983,9 @@ pub(super) fn resolve_runtime_machine_indexed_target(
     source_key: StateKey,
     expression: &Expression,
 ) -> Option<RuntimeMachineIndexedTarget> {
-    let indexed = indexed_target_path(expression)?;
-    let collection = resolve_machine_owned_collection(
-        &input.layouts,
-        input.entry_key.machine,
-        source_key.machine,
-        indexed.collection,
-    )?;
-    let index_place =
-        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", indexed.index)?;
-    if !matches!(
-        index_place.region,
-        RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
-    ) {
-        return None;
-    }
-
-    let element_descriptor = collection.type_descriptor.element_type()?;
-    let element_layout = descriptor_layout(input, element_descriptor);
-    let root_field = FieldLayout {
-        symbol: SymbolHandle::invalid(),
-        name: "".into(),
-        offset: 0,
-        type_symbol: element_descriptor.storage_symbol(),
-        type_name: "".into(),
-        type_descriptor: element_descriptor.clone(),
-        layout: element_layout,
-    };
-    let (field_byte_offset, field_layout) =
-        resolve_indexed_target_suffix_layout(input, &root_field, indexed.suffix_root)?;
-
-    Some(RuntimeMachineIndexedTarget {
-        base_byte_offset: collection.byte_offset,
-        index_region: index_place.region,
-        index_offset: index_place.byte_offset,
-        element_byte_size: element_layout.size,
-        field_byte_offset,
-        byte_count: field_layout.size,
-    })
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_machine_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
 }
 
 pub(super) fn resolve_runtime_pointee_slot_offset(
@@ -1169,44 +994,9 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
     source_key: StateKey,
     expression: &Expression,
 ) -> Option<RuntimePointeeTarget> {
-    let target = match expression {
-        Expression::Mutable(target) => target.as_ref(),
-        _ => expression,
-    };
-    let normalized_expression = normalized_storage_expression(target)?;
-    let Expression::Name(path) = &normalized_expression else {
-        return None;
-    };
-    let [_root_name, suffix @ ..] = path.members() else {
-        return None;
-    };
-    let slot = runtime_frame_slot_for_expression(input, dispatch_index, source_key, target)?;
-    if slot.byte_size != input.runtime_abi.pointer_size {
-        return None;
-    }
-    let pointee_descriptor = slot.type_descriptor.reference_referee()?;
-    let pointee_layout = descriptor_layout(input, pointee_descriptor);
-    let (field_byte_offset, field_layout) = if suffix.is_empty() {
-        (0, pointee_layout)
-    } else {
-        let root_field = FieldLayout {
-            symbol: slot.symbol,
-            name: slot.name.clone(),
-            offset: 0,
-            type_symbol: pointee_descriptor.storage_symbol(),
-            type_name: "".into(),
-            type_descriptor: pointee_descriptor.clone(),
-            layout: pointee_layout,
-        };
-        resolve_nested_field_layout_with_symbols(&input.layouts, &root_field, suffix, |index| {
-            path.member_symbol(index + 1)
-        })?
-    };
-    (field_layout.size > 0).then_some(RuntimePointeeTarget {
-        pointer_byte_offset: slot.byte_offset,
-        field_byte_offset,
-        pointee_byte_size: field_layout.size,
-    })
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_pointee_slot_offset_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
 }
 
 pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
@@ -1314,37 +1104,9 @@ pub(super) fn resolve_runtime_pointee_fixed_indexed_target(
     source_key: StateKey,
     expression: &Expression,
 ) -> Option<RuntimePointeeTarget> {
-    let fixed = fixed_indexed_target_path(expression)?;
-    let place =
-        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", fixed.collection)?;
-    if place.region != RuntimeStorageRegion::RuntimeFrame {
-        return None;
-    }
-
-    let slot =
-        runtime_frame_slot_for_expression(input, dispatch_index, source_key, fixed.collection)?;
-    let collection_descriptor = slot.type_descriptor.reference_referee()?;
-    let element_descriptor = collection_descriptor.element_type()?;
-    let element_layout = descriptor_layout(input, element_descriptor);
-    let element_index = usize::try_from(fixed.index).ok()?;
-    let element_offset = element_index.checked_mul(element_layout.size)?;
-    let root_field = FieldLayout {
-        symbol: slot.symbol,
-        name: slot.name.clone(),
-        offset: 0,
-        type_symbol: element_descriptor.storage_symbol(),
-        type_name: "".into(),
-        type_descriptor: element_descriptor.clone(),
-        layout: element_layout,
-    };
-    let (field_byte_offset, field_layout) =
-        resolve_indexed_target_suffix_layout(input, &root_field, fixed.suffix_root)?;
-
-    (field_layout.size > 0).then_some(RuntimePointeeTarget {
-        pointer_byte_offset: pointee_pointer_offset(input, place)?,
-        field_byte_offset: element_offset.checked_add(field_byte_offset)?,
-        pointee_byte_size: field_layout.size,
-    })
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_pointee_fixed_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
 }
 
 fn pointee_pointer_offset(
@@ -1791,40 +1553,9 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target(
     source_key: StateKey,
     expression: &Expression,
 ) -> Option<RuntimeFrameFixedIndexedTarget> {
-    let fixed = fixed_indexed_target_path(expression)?;
-    let collection_slot =
-        runtime_frame_slot_for_expression(input, dispatch_index, source_key, fixed.collection)?;
-    if runtime_frame_slot_is_inline_fixed_array_storage(input, collection_slot) {
-        return None;
-    }
-    let descriptor_place =
-        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", fixed.collection)?;
-    if descriptor_place.region != RuntimeStorageRegion::RuntimeFrame {
-        return None;
-    }
-
-    let element_descriptor = collection_slot.type_descriptor.element_type()?;
-    let element_layout = descriptor_layout(input, element_descriptor);
-    let element_index = usize::try_from(fixed.index).ok()?;
-    let root_field = FieldLayout {
-        symbol: collection_slot.symbol,
-        name: collection_slot.name.clone(),
-        offset: 0,
-        type_symbol: element_descriptor.storage_symbol(),
-        type_name: "".into(),
-        type_descriptor: element_descriptor.clone(),
-        layout: element_layout,
-    };
-    let (field_byte_offset, field_layout) =
-        resolve_indexed_target_suffix_layout(input, &root_field, fixed.suffix_root)?;
-
-    Some(RuntimeFrameFixedIndexedTarget {
-        descriptor_offset: descriptor_place.byte_offset,
-        element_index,
-        element_byte_size: element_layout.size,
-        field_byte_offset,
-        byte_count: field_layout.size,
-    })
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_frame_fixed_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1911,26 +1642,6 @@ fn fixed_indexed_target_path_in_table(
                 suffix_root: expression,
             })
         }
-        _ => None,
-    }
-}
-
-fn indexed_target_path(expression: &Expression) -> Option<IndexedTargetPath<'_>> {
-    match expression {
-        Expression::Mutable(target) => indexed_target_path(target),
-        Expression::Member(member) => {
-            let path = indexed_target_path(&member.receiver)?;
-            Some(IndexedTargetPath {
-                collection: path.collection,
-                index: path.index,
-                suffix_root: expression,
-            })
-        }
-        Expression::Indexed(indexed) => Some(IndexedTargetPath {
-            collection: &indexed.collection,
-            index: &indexed.index,
-            suffix_root: expression,
-        }),
         _ => None,
     }
 }
