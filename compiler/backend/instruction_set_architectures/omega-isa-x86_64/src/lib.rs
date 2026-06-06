@@ -375,26 +375,51 @@ pub fn encode_dispatch_case_leave_bytes(loop_byte_distance: isize) -> Result<Vec
     Ok(bytes)
 }
 
-pub fn dispatch_guard_compare_static_width(is_float: bool) -> usize {
+pub fn dispatch_guard_compare_static_width(is_float: bool, byte_size: usize) -> usize {
     // mov r15, imm64 (10) + load r10, [r15+disp32] (7) + mov r11, imm64 (10)
     // + compare + jcc rel32 (6). Integer compare is `cmp r10,r11` (3); float is
-    // movq xmm0,r10 + movq xmm1,r11 + ucomisd (5+5+4 = 14).
-    10 + 7 + 10 + runtime_float_or_integer_compare_width(is_float) + 6
+    // movq/movd + movq/movd + ucomisd/ucomiss.
+    10 + 7 + 10 + runtime_float_or_integer_compare_width(is_float, byte_size) + 6
 }
 
-fn runtime_float_or_integer_compare_width(is_float: bool) -> usize {
-    if is_float { 14 } else { 3 }
+fn runtime_float_or_integer_compare_width(is_float: bool, byte_size: usize) -> usize {
+    if is_float {
+        // f64: movq(5)+movq(5)+ucomisd(4). f32: movd(5)+movd(5)+ucomiss(3) — the
+        // single-precision SSE compare drops the 0x66 prefix, so it is 1 byte shorter.
+        if byte_size == 4 { 13 } else { 14 }
+    } else {
+        3
+    }
 }
 
-/// Compare the bits already in r10 (left) and r11 (right) as f64 via the SSE
-/// unit: move them into xmm0/xmm1 and `ucomisd`. `ucomisd` sets CF/ZF exactly
-/// like an unsigned integer `cmp` (and PF on unordered/NaN, which the unsigned
-/// failure branches ignore — a documented first-cut limitation), so the same
-/// unsigned/equal failure-jcc conditions apply.
-fn append_ucomisd_r10_r11(bytes: &mut Vec<u8>) {
-    bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0, r10
-    bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xcb]); // movq xmm1, r11
-    bytes.extend([0x66, 0x0f, 0x2e, 0xc1]); // ucomisd xmm0, xmm1
+/// Compare the bits already in r10 (left) and r11 (right) as `byte_size`-wide IEEE
+/// floats via the SSE unit. For an 8-byte operand: `movq` into xmm0/xmm1 + `ucomisd`
+/// (double precision). For a 4-byte operand: `movd` the low dword + `ucomiss` (single
+/// precision). `ucomis*` sets CF/ZF exactly like an unsigned integer `cmp` (and PF on
+/// unordered/NaN, which the unsigned failure branches ignore — a documented first-cut
+/// limitation), so the same unsigned/equal failure-jcc conditions apply.
+fn append_float_compare_r10_r11(bytes: &mut Vec<u8>, byte_size: usize) {
+    if byte_size == 4 {
+        bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xc2]); // movd xmm0, r10d
+        bytes.extend([0x66, 0x41, 0x0f, 0x6e, 0xcb]); // movd xmm1, r11d
+        bytes.extend([0x0f, 0x2e, 0xc1]); // ucomiss xmm0, xmm1
+    } else {
+        bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xc2]); // movq xmm0, r10
+        bytes.extend([0x66, 0x49, 0x0f, 0x6e, 0xcb]); // movq xmm1, r11
+        bytes.extend([0x66, 0x0f, 0x2e, 0xc1]); // ucomisd xmm0, xmm1
+    }
+}
+
+/// Narrow a guard's float `expected_value` (stored as f64 bits) to the operand's
+/// width: for a 4-byte float operand the comparison runs in single precision, so the
+/// immediate must be the f32 bit pattern. Exact for any value representable in f32
+/// (which a constant compared against an f32 field always is).
+fn float_compare_expected_bits(expected_value: i64, byte_size: usize) -> u64 {
+    if byte_size == 4 {
+        u64::from((f64::from_bits(expected_value as u64) as f32).to_bits())
+    } else {
+        expected_value as u64
+    }
 }
 
 pub fn encode_dispatch_guard_compare_static_bytes(
@@ -410,14 +435,19 @@ pub fn encode_dispatch_guard_compare_static_bytes(
             "X86_64 MVP encoder cannot compare {byte_size}-byte dispatch guards yet"
         )));
     }
-    let mut bytes = Vec::with_capacity(dispatch_guard_compare_static_width(is_float));
+    let mut bytes = Vec::with_capacity(dispatch_guard_compare_static_width(is_float, byte_size));
     // Storage base; the imm64 (at instruction start + 2) is relocated to the
     // guard's storage-region data symbol by the relocation planner.
     append_mov_r15_imm64(&mut bytes, 0);
     append_load_reg_from_r15(&mut bytes, Reg64::R10, byte_offset, byte_size)?;
-    append_mov_reg_imm64(&mut bytes, Reg64::R11, expected_value as u64);
+    let expected_bits = if is_float {
+        float_compare_expected_bits(expected_value, byte_size)
+    } else {
+        expected_value as u64
+    };
+    append_mov_reg_imm64(&mut bytes, Reg64::R11, expected_bits);
     if is_float {
-        append_ucomisd_r10_r11(&mut bytes);
+        append_float_compare_r10_r11(&mut bytes, byte_size);
     } else {
         append_cmp_r10_r11(&mut bytes, byte_size)?;
     }
@@ -426,7 +456,7 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     // distance helper). The jcc rel is measured from the field's end, 4 bytes
     // later, so the relative target is `skip_byte_distance - 4`.
     append_failure_branch(&mut bytes, operator, skip_byte_distance - 4)?;
-    debug_assert_eq!(bytes.len(), dispatch_guard_compare_static_width(is_float));
+    debug_assert_eq!(bytes.len(), dispatch_guard_compare_static_width(is_float, byte_size));
     Ok(bytes)
 }
 
@@ -1260,13 +1290,13 @@ pub fn encode_runtime_value_compare(
 pub fn runtime_storage_compare_width(
     _left_offset: usize,
     _right_offset: usize,
-    _byte_size: usize,
+    byte_size: usize,
     is_float: bool,
 ) -> usize {
     // mov r15,imm64(left base) + load r10,[r15+left] + mov r15,imm64(right base)
     // + load r11,[r15+right] + compare + jcc rel32. Integer compare = cmp (3);
-    // float = movq+movq+ucomisd (14).
-    10 + 7 + 10 + 7 + runtime_float_or_integer_compare_width(is_float) + 6
+    // float = movq/movd+movq/movd+ucomisd/ucomiss.
+    10 + 7 + 10 + 7 + runtime_float_or_integer_compare_width(is_float, byte_size) + 6
 }
 
 pub fn encode_runtime_storage_compare_bytes(
@@ -1288,7 +1318,7 @@ pub fn encode_runtime_storage_compare_bytes(
     append_mov_r15_imm64(&mut bytes, 0);
     append_load_reg_from_r15(&mut bytes, Reg64::R11, right_offset, byte_size)?;
     if is_float {
-        append_ucomisd_r10_r11(&mut bytes);
+        append_float_compare_r10_r11(&mut bytes, byte_size);
     } else {
         append_cmp_r10_r11(&mut bytes, byte_size)?;
     }
