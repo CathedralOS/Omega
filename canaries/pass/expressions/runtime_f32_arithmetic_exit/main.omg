@@ -62,6 +62,15 @@ machine Main::main(&mut self) {
     state check_div(&mut self) {
         self.r = self.a / self.b; // 2.5
         transition self.r == 2.5 {
+            true -> check_literal()
+            false -> bad()
+        }
+    }
+    state check_literal(&mut self) {
+        // Float-LITERAL operand: the literal must be narrowed to its f32 bits for the
+        // single-precision op, not the f64 bit pattern.
+        self.r = self.a + 4.0; // 14.0
+        transition self.r == 14.0 {
             true -> good()
             false -> bad()
         }

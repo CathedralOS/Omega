@@ -8,7 +8,8 @@ use crate::selection::storage_places::{
 };
 use omega_checked_trees::types::PrimitiveType;
 use omega_abstract_operations::{
-    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
+    RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind,
+    StateGuardOperator,
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_control_flow::StateKey;
@@ -148,23 +149,14 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         right_expression,
     );
 
-    // f32 with a float-LITERAL operand is not wired yet: a float literal resolves to
-    // its f64 bit pattern (value_operands.rs), and the single-precision SSE op reads
-    // the low dword (movd), i.e. the wrong half. f32 field/var arithmetic (no float
-    // literal) lowers correctly; bail the literal case to its prior behavior rather
-    // than emit a wrong single-precision constant.
+    // A direct float-LITERAL operand was resolved to its f64 bit pattern
+    // (value_operands.rs). When the target is f32 the operation runs in single
+    // precision (movd reads the low dword), so narrow such a literal operand to its
+    // f32 bit pattern. f32 field/var operands need no narrowing (loaded from 4-byte
+    // storage); nested float-literal operands (inside an inner binary) are a separate
+    // remaining gap.
     if is_float
         && matches!(
-            expressions.expression(left_expression),
-            ExpressionNode::Float(_)
-        )
-        || is_float
-            && matches!(
-                expressions.expression(right_expression),
-                ExpressionNode::Float(_)
-            )
-    {
-        if matches!(
             resolve_runtime_storage_primitive_type_in_table(
                 input,
                 dispatch_index,
@@ -173,9 +165,10 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
                 target,
             ),
             Some(PrimitiveType::F32)
-        ) {
-            return None;
-        }
+        )
+    {
+        narrow_f32_literal_operand(runtime_value_operands, expressions, left_expression, left);
+        narrow_f32_literal_operand(runtime_value_operands, expressions, right_expression, right);
     }
 
     if !is_float {
@@ -380,6 +373,24 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
         right,
         is_float,
     })
+}
+
+/// When a binary's target is f32, a direct float-literal operand was resolved to its
+/// f64 bit pattern; rewrite it to the f32 bit pattern so the single-precision SSE op
+/// (`movd`, low dword) reads the correct constant. No-op for non-literal operands.
+fn narrow_f32_literal_operand(
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    expressions: &ExpressionTable,
+    operand_expression: ExpressionHandle,
+    operand: RuntimeValueOperandHandle,
+) {
+    let ExpressionNode::Float(literal) = expressions.expression(operand_expression) else {
+        return;
+    };
+    let narrowed = (literal.value() as f32).to_bits() as i64;
+    if let RuntimeValueOperand::Immediate(bits) = runtime_value_operands.get_mut(operand) {
+        *bits = narrowed;
+    }
 }
 
 /// Byte size of a scalar primitive, or `None` for non-scalar (e.g. `String`).
