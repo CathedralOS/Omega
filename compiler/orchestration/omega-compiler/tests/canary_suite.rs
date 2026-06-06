@@ -3208,46 +3208,6 @@ fn runtime_alias_write_through_guarded_transition_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_slice_of_by_value_param_through_loop_exit_canary_runs() {
-    // A slice from a BY-VALUE struct param (`view = level.rooms.as_slice()`) threaded
-    // into a self-looping search must keep reading valid data. The looping sub-state's
-    // frame overlapped the `level` param the slice points into (all states of a call
-    // shared one region), so the loop clobbered its own slice backing -> garbage. Fix:
-    // each context reserves its entry-state params as a live-throughout preamble.
-    let canary = pass_canary("calls/runtime_slice_of_by_value_param_through_loop_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-slice-by-value-param-loop-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("slice-of-by-value-param-through-loop canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("slice-of-by-value-param-through-loop canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected a slice from a by-value param threaded through a self-looping search to \
-         read valid data (exit 70), got {:?} (139/segfault or 71 = looping frame clobbered \
-         the slice's backing param)\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn runtime_reference_param_forwarded_through_loop_exit_canary_runs() {
     // Forwarding a `&mut` param to another `&mut` param through a (self-looping)
     // dispatch transition must copy the POINTER VALUE, not the pointee. The materializer

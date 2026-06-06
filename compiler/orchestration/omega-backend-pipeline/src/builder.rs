@@ -426,58 +426,12 @@ fn stack_runtime_storage_by_call_context(
         .unwrap_or(1);
 
     let context_count = max_context as usize + 1;
-
-    // The ENTRY state of each context (the called machine's first state, which has
-    // the smallest dispatch_index -- arena indices are minted entry-before-sub-state)
-    // owns the call's PARAMETERS. Those params are conceptually live for the WHOLE
-    // call: a slice or reference derived from a by-value param (e.g.
-    // `view = level.rooms.as_slice()`) is threaded into a self-looping sub-state,
-    // so the storage it points INTO must outlive that loop. Reserve the entry
-    // params as a per-context PREAMBLE that no sibling state overlaps; everything
-    // else in the context still shares the region above the preamble (those slots
-    // are copied forward / never simultaneously live with the backing params).
-    let mut entry_dispatch = vec![u32::MAX; context_count];
-    for (_, slot) in storage.frame_slots.iter() {
-        let context = context_of(slot.dispatch_index);
-        entry_dispatch[context] = entry_dispatch[context].min(slot.dispatch_index);
-    }
-
+    let mut sizes = vec![0usize; context_count];
     let mut alignments = vec![1usize; context_count];
     for (_, slot) in storage.frame_slots.iter() {
         let context = context_of(slot.dispatch_index);
+        sizes[context] = sizes[context].max(slot.byte_offset + slot.byte_size);
         alignments[context] = alignments[context].max(slot.alignment.max(1));
-    }
-
-    let mut preambles = vec![0usize; context_count];
-    for (_, slot) in storage.frame_slots.iter() {
-        let context = context_of(slot.dispatch_index);
-        if slot.dispatch_index == entry_dispatch[context]
-            && slot.kind == omega_runtime_storage::RuntimeFrameSlotKind::Parameter
-        {
-            preambles[context] = preambles[context].max(slot.byte_offset + slot.byte_size);
-        }
-    }
-    // Align each preamble up so the slots shifted above it keep their alignment.
-    for context in 0..context_count {
-        preambles[context] = preambles[context].next_multiple_of(alignments[context]);
-    }
-
-    // The shifted in-context offset of a slot: entry-state slots (params AND the
-    // entry's own locals) keep their body offset; every other state's slots are
-    // pushed above the entry-param preamble so they cannot clobber it.
-    let shifted_offset = |slot: &omega_runtime_storage::RuntimeFrameSlot| -> usize {
-        let context = context_of(slot.dispatch_index);
-        if slot.dispatch_index == entry_dispatch[context] {
-            slot.byte_offset
-        } else {
-            slot.byte_offset.saturating_add(preambles[context])
-        }
-    };
-
-    let mut sizes = vec![0usize; context_count];
-    for (_, slot) in storage.frame_slots.iter() {
-        let context = context_of(slot.dispatch_index);
-        sizes[context] = sizes[context].max(shifted_offset(slot) + slot.byte_size);
     }
 
     // Stack contexts into disjoint regions (ROOT first, at base 0). Context ids
@@ -497,7 +451,7 @@ fn stack_runtime_storage_by_call_context(
     for handle in handles {
         let slot = storage.frame_slots.get_mut(handle);
         let base = bases[context_of(slot.dispatch_index)];
-        slot.byte_offset = base.saturating_add(shifted_offset(slot));
+        slot.byte_offset = slot.byte_offset.saturating_add(base);
     }
 
     // Reserve a scratch region ABOVE every stacked context. Argument materialization
