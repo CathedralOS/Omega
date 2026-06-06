@@ -3208,6 +3208,46 @@ fn runtime_alias_write_through_guarded_transition_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_reference_param_forwarded_through_loop_exit_canary_runs() {
+    // Forwarding a `&mut` param to another `&mut` param through a (self-looping)
+    // dispatch transition must copy the POINTER VALUE, not the pointee. The materializer
+    // dereferenced whenever the referent size equalled the target slot size; for a
+    // pointer-sized referent it wrote room data into the pointer slot, so the next write
+    // through it faulted. The deref branch now fires only for VALUE targets.
+    let canary = pass_canary("calls/runtime_reference_param_forwarded_through_loop_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-reference-param-forwarded-loop-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("reference-param-forwarded-through-loop canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("reference-param-forwarded-through-loop canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a &mut param forwarded to another &mut param through a loop to copy the \
+         pointer value (exit 70), got {:?} (139/segfault = pointee written into pointer slot)\
+         \nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_alias_indexed_read_through_transition_exit_canary_runs() {
     // An inlined leaf reading `items[key].field` (constant-index element of a
     // forwarded slice) through a forwarded `&mut` alias: the inlined by-value `key`
