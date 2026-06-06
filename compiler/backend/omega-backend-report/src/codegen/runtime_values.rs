@@ -104,5 +104,18 @@ pub(super) fn runtime_value_operand_name(
             if *is_float { " f" } else { "" },
             runtime_value_operand_name(backend_plan, *right),
         ),
+        RuntimeValueOperand::Convert {
+            source,
+            source_byte_size,
+            target_byte_size,
+            source_is_float,
+            target_is_float,
+            ..
+        } => format!(
+            "({} as {}{source_byte_size}->{}{target_byte_size})",
+            runtime_value_operand_name(backend_plan, *source),
+            if *source_is_float { "f" } else { "i" },
+            if *target_is_float { "f" } else { "i" },
+        ),
     }
 }

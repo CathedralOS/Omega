@@ -56,6 +56,18 @@ pub enum ValueOperand {
         /// SSE unit (addsd/subsd/...), not an integer add over the IEEE bits.
         is_float: bool,
     },
+    /// A numeric `as` cast applied to another operand (`(self.b as f64)` used as a
+    /// binary/comparison operand): load `source`, then convert it in place
+    /// (cvttsd2si / cvtsi2sd / cvtsd2ss / movsxd) to the target scalar. The result
+    /// width is `target_byte_size`.
+    Convert {
+        source: ValueOperandHandle,
+        source_byte_size: usize,
+        target_byte_size: usize,
+        source_is_float: bool,
+        target_is_float: bool,
+        source_signed: bool,
+    },
 }
 
 /// Back-compat alias: the abstract layer's name for the shared value operand.
@@ -89,6 +101,21 @@ impl ValueOperand {
                 operator: *operator,
                 right: remap(*right),
                 is_float: *is_float,
+            },
+            Self::Convert {
+                source,
+                source_byte_size,
+                target_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+            } => Self::Convert {
+                source: remap(*source),
+                source_byte_size: *source_byte_size,
+                target_byte_size: *target_byte_size,
+                source_is_float: *source_is_float,
+                target_is_float: *target_is_float,
+                source_signed: *source_signed,
             },
             other => other.clone(),
         }

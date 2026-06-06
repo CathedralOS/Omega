@@ -133,4 +133,35 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
             )
         })
     }
+
+    fn convert(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(
+        omega_target_operations::RuntimeValueOperandHandle,
+        usize,
+        usize,
+        bool,
+        bool,
+        bool,
+    )> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::Convert {
+                source,
+                source_byte_size,
+                target_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+            } => Some((
+                *source,
+                *source_byte_size,
+                *target_byte_size,
+                *source_is_float,
+                *target_is_float,
+                *source_signed,
+            )),
+            _ => None,
+        }
+    }
 }

@@ -1,5 +1,6 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{RuntimeAliasBinding, resolve_runtime_alias_binding};
+use omega_checked_trees::types::PrimitiveType;
 use crate::selection::storage_places::{
     RuntimeStoragePlace, resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
@@ -118,6 +119,44 @@ pub(super) fn resolve_runtime_value_operand_in_table(
             operator,
             right,
             is_float,
+        }));
+    }
+
+    // A numeric `as` cast in operand position (`self.a + (self.b as f64)`): resolve
+    // the source operand and wrap it in a Convert, which the encoder lowers to the
+    // in-place conversion (cvttsd2si / cvtsi2sd / cvtsd2ss / movsxd).
+    if let ExpressionNode::Cast(cast) = expressions.expression(expression) {
+        let source_expression = cast.value;
+        let target_primitive = expressions
+            .name_path_members(cast.target_type)
+            .last()
+            .and_then(|name| PrimitiveType::from_name(name.as_str()))?;
+        let source_primitive = classify_scalar_value_type_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            source_expression,
+        )?;
+        let target_byte_size = convert_scalar_byte_size(target_primitive)?;
+        let source_byte_size = convert_scalar_byte_size(source_primitive)?;
+        let source = resolve_runtime_value_operand_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            source_expression,
+            static_values,
+            runtime_value_operands,
+        )?;
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Convert {
+            source,
+            source_byte_size,
+            target_byte_size,
+            source_is_float: source_primitive.accepts_float_literal(),
+            target_is_float: target_primitive.accepts_float_literal(),
+            source_signed: source_primitive.is_signed_integer(),
         }));
     }
 
@@ -633,4 +672,17 @@ fn program_state_statements_by_symbol<'a>(
         .statement_table
         .statements(state.statement_nodes);
     Some((source_key, statements))
+}
+
+/// Byte size of a scalar primitive for a Convert operand (1/4/8), or `None` for
+/// non-scalar (e.g. `String`).
+fn convert_scalar_byte_size(primitive: PrimitiveType) -> Option<usize> {
+    match primitive {
+        PrimitiveType::Bool => Some(1),
+        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
+        PrimitiveType::F64 | PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Usize => {
+            Some(8)
+        }
+        PrimitiveType::String => None,
+    }
 }

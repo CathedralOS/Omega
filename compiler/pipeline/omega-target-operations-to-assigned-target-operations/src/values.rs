@@ -89,7 +89,7 @@ fn assign_value_home(
             field_byte_offset: *field_byte_offset,
             byte_size: *byte_size,
         },
-        TargetValueOperand::Binary { .. } => {
+        TargetValueOperand::Binary { .. } | TargetValueOperand::Convert { .. } => {
             let name = registers::scratch_register_name(
                 target_operations.target.architecture,
                 *next_scratch_slot,
