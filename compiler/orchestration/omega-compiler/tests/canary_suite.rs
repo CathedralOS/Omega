@@ -579,6 +579,46 @@ fn runtime_field_default_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_call_result_binary_operand_exit_canary_runs() {
+    // A state-call result used as an operand of a larger value (`x = f() + 1`,
+    // `x = max(y, f()+1)`) must apply the operator, not collapse to just the call's
+    // result. The dispatch-body mutation path had a statement-level "copy call result
+    // to target" shortcut that fired even when the call was a sub-expression, dropping
+    // the `+1`/`max`. It now fires only for a bare, non-builtin call value.
+    let canary = pass_canary("expressions/runtime_call_result_binary_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-call-result-binary-operand-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("call-result-binary-operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("call-result-binary-operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a call result used as a binary/max operand to apply the operator (exit 70), \
+         got {:?} (71 = the surrounding operator was dropped and only the call result written)\
+         \nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_cast_operand_exit_canary_runs() {
     // A numeric `as` cast used as a binary operand (`self.a + (self.b as f64)`) must
     // convert the source in place via a Convert value operand, not be dropped. Covers

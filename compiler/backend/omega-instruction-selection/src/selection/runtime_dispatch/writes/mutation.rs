@@ -966,12 +966,23 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
-    if let Some(source_place) = resolve_runtime_call_result_source_place(
-        input,
-        dispatch_index,
-        value_source_key,
-        statement_index,
-    ) {
+    // Only copy a call result DIRECTLY into the target when the value IS a bare,
+    // non-builtin call (`target = self.f()`). When the call is a sub-expression of a
+    // larger value (`target = self.f() + 1`, `target = max(x, self.f())`), this
+    // statement-level copy would write just the call's result and silently drop the
+    // surrounding operation; such values must fall through to the binary-write path
+    // below, which resolves the call operand to its result slot AND applies the
+    // operator. A builtin operator call (`max`/`min`) is itself an operator, not a
+    // result-producing state call, so it must also fall through.
+    if matches!(&resolved_value.expression, Expression::Call(call)
+            if builtin_runtime_call_operator(input, call).is_none())
+        && let Some(source_place) = resolve_runtime_call_result_source_place(
+            input,
+            dispatch_index,
+            value_source_key,
+            statement_index,
+        )
+    {
         materialize_static_inline_branching_call_argument_results_for_statement(
             input,
             dispatch_index,

@@ -1,0 +1,46 @@
+// A state-call result used as an OPERAND of a larger value expression -- `x = f() + 1`
+// or `x = max(y, f() + 1)` -- must apply the surrounding operator, not silently
+// collapse to just the call's result. The dispatch-body mutation selection had a
+// statement-level "copy the call result into the target" shortcut that fired whenever
+// the statement contained an assignment-value call, even when the call was only a
+// sub-expression -- so `count = cell_index(c) + 1` wrote `cell_index(c)` and dropped
+// the `+ 1` (and `max(...)` was dropped likewise). The shortcut now fires only for a
+// bare, non-builtin call value; anything larger falls through to the binary-write path,
+// which resolves the call operand to its result slot and applies the operator.
+// This is the dungeon generation shape: `level.room_count = max(level.room_count,
+// self.cell_index(cell) + 1)`.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+enum CellId { R00, R01, R02, R03 }
+
+data Main {
+    console: Console;
+    count: usize;
+}
+
+machine Main::cell_index(&mut self, cell: CellId) -> usize {
+    transition cell {
+        CellId::R00 -> 0
+        CellId::R01 -> 1
+        CellId::R02 -> 2
+        _ -> 3
+    }
+}
+
+machine Main::main(&mut self) {
+    self.count = 0;
+    // call result as a binary operand
+    self.count = self.cell_index(CellId::R02) + 1; // 2 + 1 = 3
+    // call result as a nested operand inside a builtin (max)
+    self.count = max(self.count, self.cell_index(CellId::R01) + 5); // max(3, 1+5) = 6
+
+    transition self.count == 6 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
