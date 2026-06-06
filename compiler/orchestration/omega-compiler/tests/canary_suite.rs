@@ -5157,4 +5157,14 @@ struct PendingCanary {
     expectation: PendingCanaryExpectation,
 }
 
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[PendingCanary {
+    // A guard comparing a fixed-array element (`self.cells[2] == 7.0`, cells
+    // [f64; 4]) mis-sizes the operand as the whole 32-byte array instead of the
+    // 8-byte element, so the encoder rejects the 32-byte guard. When the guard
+    // operand resolution applies the index, this will compile and the pending
+    // suite will flag it for promotion to pass/.
+    path: "control_flow/fixed_array_element_guard",
+    expectation: PendingCanaryExpectation::CurrentlyRejects {
+        fragment: "cannot compare 32-byte dispatch guards",
+    },
+}];

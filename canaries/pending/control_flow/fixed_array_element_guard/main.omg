@@ -1,0 +1,38 @@
+// KNOWN GAP: a dispatch guard that compares a FIXED-ARRAY ELEMENT to a constant
+// mis-sizes the operand. `self.cells[2]` is one f64 element (8 bytes), but the
+// guard's place resolution returns the WHOLE array (`cells: [f64; 4]` = 32 bytes),
+// so selection emits a 32-byte dispatch guard and the encoder rejects it:
+// "X86_64 MVP encoder cannot compare 32-byte dispatch guards yet".
+//
+// Storing/reading the element works fine; only the GUARD operand mis-sizes. The
+// fix is to resolve a constant-index fixed-array guard operand to element_offset =
+// index*elem with byte_size = elem (like the storage-place fixed-indexed resolvers
+// already do for writes), in selection/runtime_dispatch/guards.rs. When fixed,
+// this will COMPILE (an 8-byte guard is supported) and the pending suite will flag
+// it for promotion to pass/.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    cells: [f64; 4];
+}
+
+machine Main::main(&mut self) {
+    self.cells[2] = 7.0;
+
+    transition self.cells[2] == 7.0 {
+        true -> matched()
+        false -> missed()
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(1);
+    }
+}
