@@ -653,6 +653,15 @@ pub(super) fn resolve_leaf_binding_expression_handle(
                 indexed.index,
                 bindings,
             );
+            // An index is always a VALUE, never a pointer. An inlined by-value
+            // argument binds as `mut <expr>` (e.g. `items[key]` with `key = mut 2`
+            // becomes `items[mut 2]`), which the index-path resolvers reject because
+            // they expect a bare integer/place. The `mut` wrapper is meaningless on
+            // an index, so strip it here.
+            let index = match table.expression(index) {
+                ExpressionNode::Mutable(inner) => *inner,
+                _ => index,
+            };
             table.insert(ExpressionNode::Indexed(TableIndexedExpression {
                 collection,
                 index,
