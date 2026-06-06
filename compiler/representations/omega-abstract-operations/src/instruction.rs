@@ -12,5 +12,5 @@ pub use operation_kind::{AbstractOperationDomain, AbstractOperationKind, Selecte
 pub use storage::RuntimeStorageRegion;
 pub use value_operand::{
     AbstractValueOperand, AbstractValueOperandHandle, RuntimeValueOperand,
-    RuntimeValueOperandHandle,
+    RuntimeValueOperandHandle, ValueOperand, ValueOperandHandle,
 };
