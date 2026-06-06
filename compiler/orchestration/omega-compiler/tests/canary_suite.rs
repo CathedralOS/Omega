@@ -545,6 +545,77 @@ fn runtime_float_arithmetic_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_fixed_array_field_guard_exit_canary_runs() {
+    // Reading `self.cells[i].value` (fixed-array element field, constant index) in a
+    // GUARD must apply the index: the guard-operand layout consumed the root field
+    // without folding its out-of-band constant index, so `cells[1].value` read
+    // element 0. The canary writes two distinct elements and guards each; a dropped
+    // index exits 71 instead of 70.
+    let canary = pass_canary("expressions/runtime_fixed_array_field_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-fixed-array-field-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("fixed-array field guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("fixed-array field guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `self.cells[i].value` guards to apply the constant index (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn fixed_array_element_guard_canary_runs() {
+    // A guard comparing a fixed-array element to a constant (`self.cells[2] == 7.0`,
+    // cells `[f64; 4]`) must resolve one 8-byte element, not the whole 32-byte array
+    // (which the encoder rejected). Promoted from pending once the guard-operand
+    // layout applied the constant index; exits 0 when the guard reads cells[2].
+    let canary = pass_canary("control_flow/fixed_array_element_guard");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fixed-array-elem-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("fixed-array element guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("fixed-array element guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected `self.cells[2] == 7.0` to resolve one element and match (exit 0), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_float_local_arithmetic_exit_canary_runs() {
     // Float arithmetic whose result is a `let`-bound LOCAL must lower to an SSE
     // op (addsd/...), not an integer add over the IEEE bits. The local-target
@@ -5157,14 +5228,8 @@ struct PendingCanary {
     expectation: PendingCanaryExpectation,
 }
 
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[PendingCanary {
-    // A guard comparing a fixed-array element (`self.cells[2] == 7.0`, cells
-    // [f64; 4]) mis-sizes the operand as the whole 32-byte array instead of the
-    // 8-byte element, so the encoder rejects the 32-byte guard. When the guard
-    // operand resolution applies the index, this will compile and the pending
-    // suite will flag it for promotion to pass/.
-    path: "control_flow/fixed_array_element_guard",
-    expectation: PendingCanaryExpectation::CurrentlyRejects {
-        fragment: "cannot compare 32-byte dispatch guards",
-    },
-}];
+// fixed_array_element_guard was promoted to pass/ once the guard-operand layout
+// applied the constant array index (see fixed_array_element_guard_canary_runs and
+// runtime_fixed_array_field_guard_exit_canary_runs). No active pending gaps remain.
+#[allow(dead_code)]
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];

@@ -1,0 +1,48 @@
+// Reading a FIXED-ARRAY element's FIELD by constant index in a GUARD --
+// `self.cells[1].value` -- must resolve to (array_base + index*element_size +
+// field_offset). The guard operand layout (omega-state-guards) consumed the root
+// machine field (`cells`) without applying its out-of-band constant index
+// (`member_index(1)`, the `[1]`), so `self.cells[i].field` guards always read
+// element 0 -- `cells[1].value` aliased `cells[0].value`. The WRITE applied the
+// index, so write and read disagreed. This is the same `array[const].field` shape
+// as the dungeon `rooms[i].cell` lookup. Two distinct elements are written and
+// each is guarded, so a dropped index (element 1 reading element 0) or a wrong
+// offset exits non-70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    cells: [Cell; 3];
+}
+
+machine Main::main(&mut self) {
+    self.cells[0].value = 70;
+    self.cells[1].value = 42;
+
+    transition self.cells[1].value == 42 {
+        true -> check_first()
+        false -> bad()
+    }
+
+    state check_first(&mut self) {
+        transition self.cells[0].value == 70 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
