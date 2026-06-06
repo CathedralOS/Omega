@@ -2505,6 +2505,14 @@ pub fn runtime_value_operand_width(
             + operation_width
             // push r10 (2) + mov r11,r10 (3) + pop r10 (2) + mov dest,r10 (3)
             + 10
+    } else if let Some((source, src_bytes, tgt_bytes, src_float, tgt_float, src_signed)) =
+        runtime_value_operands.convert(operand)
+    {
+        // Load source into r10, convert it in place, then mov dest,r10 (3). MUST
+        // match the emission below or relocation offsets drift (runtime segfault).
+        runtime_value_operand_width(runtime_value_operands, source)
+            + runtime_convert_operation_width(src_bytes, tgt_bytes, src_float, tgt_float, src_signed)
+            + 3
     } else {
         0
     }
@@ -2613,6 +2621,22 @@ fn append_runtime_value_operand(
         }
         append_mov_reg_reg(bytes, destination, Reg64::R10);
         Ok(())
+    } else if let Some((source, src_bytes, tgt_bytes, src_float, tgt_float, src_signed)) =
+        runtime_value_operands.convert(operand)
+    {
+        // Load the cast's source into r10, convert it in place (cvttsd2si /
+        // cvtsi2sd / cvtsd2ss / movsxd), then move the result to `destination`.
+        append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, source)?;
+        append_runtime_convert_operation(
+            bytes,
+            src_bytes,
+            tgt_bytes,
+            src_float,
+            tgt_float,
+            src_signed,
+        );
+        append_mov_reg_reg(bytes, destination, Reg64::R10);
+        Ok(())
     } else {
         Err(Diagnostic::error(
             "X86_64 runtime value operand is not implemented yet",
@@ -2645,6 +2669,9 @@ fn runtime_value_operand_value_byte_size(
     if let Some((left, _, right)) = operands.binary(operand) {
         return runtime_value_operand_value_byte_size(operands, left)
             .or_else(|| runtime_value_operand_value_byte_size(operands, right));
+    }
+    if let Some((_, _, target_byte_size, _, _, _)) = operands.convert(operand) {
+        return Some(target_byte_size);
     }
     None
 }

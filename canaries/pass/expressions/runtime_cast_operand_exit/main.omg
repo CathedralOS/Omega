@@ -1,0 +1,58 @@
+// A numeric `as` cast used as a binary OPERAND (`self.a + (self.b as f64)`), not as
+// the whole assignment RHS. Casts assigned directly to a place already lowered via
+// WriteRuntimeStorageConvert; in operand position the cast was dropped (the resolver
+// tried to treat `(expr as T)` as a storage place and failed). A `RuntimeValueOperand
+// ::Convert` variant now carries the cast: the encoder loads the source operand and
+// converts it in place (cvtsi2sd / cvttsd2si / movsxd) before the binary op. Covers
+// int->float, float->int, and integer widening; each result is guarded against the
+// exact value so a dropped or wrong conversion exits non-70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: f64;
+    b: i32;
+    x: i64;
+    rf: f64;
+    ri: i32;
+    rl: i64;
+}
+
+machine Main::main(&mut self) {
+    self.a = 10.0;
+    self.b = 4;
+    self.x = 10;
+
+    // int -> float operand
+    self.rf = self.a + (self.b as f64); // 14.0
+    transition self.rf == 14.0 {
+        true -> check_float_to_int()
+        false -> bad()
+    }
+    state check_float_to_int(&mut self) {
+        // float -> int operand
+        self.ri = self.b + (self.a as i32); // 4 + 10 = 14
+        transition self.ri == 14 {
+            true -> check_int_widen()
+            false -> bad()
+        }
+    }
+    state check_int_widen(&mut self) {
+        // integer widening operand
+        self.rl = self.x + (self.b as i64); // 10 + 4 = 14
+        transition self.rl == 14 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

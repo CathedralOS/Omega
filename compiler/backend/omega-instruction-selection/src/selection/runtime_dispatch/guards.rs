@@ -1354,6 +1354,9 @@ fn runtime_value_operand_byte_size(
                 runtime_value_operand_byte_size(runtime_value_operands, *right),
             )
         }
+        RuntimeValueOperand::Convert {
+            target_byte_size, ..
+        } => *target_byte_size,
     }
 }
 

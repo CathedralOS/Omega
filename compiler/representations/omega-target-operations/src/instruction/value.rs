@@ -44,6 +44,12 @@ pub trait RuntimeValueOperandSource {
     /// Returns false for non-binary operands. Kept separate from `binary()` so the
     /// existing tuple accessor (and its many callers) stays unchanged.
     fn binary_is_float(&self, handle: RuntimeValueOperandHandle) -> bool;
+    /// A `Convert` (numeric cast) operand: `(source, source_byte_size,
+    /// target_byte_size, source_is_float, target_is_float, source_signed)`.
+    fn convert(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeValueOperandHandle, usize, usize, bool, bool, bool)>;
 }
 
 impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
@@ -169,5 +175,29 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
             self.get(handle),
             RuntimeValueOperand::Binary { is_float: true, .. }
         )
+    }
+
+    fn convert(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeValueOperandHandle, usize, usize, bool, bool, bool)> {
+        match self.get(handle) {
+            RuntimeValueOperand::Convert {
+                source,
+                source_byte_size,
+                target_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+            } => Some((
+                *source,
+                *source_byte_size,
+                *target_byte_size,
+                *source_is_float,
+                *target_is_float,
+                *source_signed,
+            )),
+            _ => None,
+        }
     }
 }

@@ -42,5 +42,10 @@ pub(super) fn collect_runtime_value_operand_relocations(
                 );
             collect_runtime_value_operand_relocations(context, right_offset, *right);
         }
+        RuntimeValueOperand::Convert { source, .. } => {
+            // The source is loaded first (at the operand's own text offset); the
+            // in-place convert that follows carries no relocation of its own.
+            collect_runtime_value_operand_relocations(context, operand_text_offset, *source);
+        }
     }
 }
