@@ -126,7 +126,32 @@ primary path. The remaining non-table resolver families (place / guard / value) 
 very likely the same dead-emitter shape. NEXT: probe each the same way (len-delta
 around the non-table resolver) before deleting; if any *does* emit, that case is a
 real table-path gap to port first.
-- [x] **mutation-write family — probed dead, deleted (−489 lines, dungeon byte-identical).**
+- [x] **branch mutation-write family — probed dead, deleted (−489 lines, dungeon byte-identical).**
+- [~] **state-body mutation-write (`writes/mod.rs` → `mutation::select_runtime_mutation_writes`)
+  — probed PARTIALLY live.** Same fallback shape (table-first at
+  `select_runtime_storage_resolved_mutation_write_in_table_with_scratch`, then
+  `to_tree`+non-table). Suite reaches it 0×; the dungeon reaches it and emits **exactly
+  1 instruction**. So unlike the branch family it is NOT a free delete — there is ONE
+  real case the `_in_table` storage path doesn't handle. NEXT here is the
+  *port-then-delete* strategy: instrument to print the emitting mutation's
+  target/value/statement (richer probe at the `writes/mod.rs` call site), find why
+  `select_runtime_storage_resolved_mutation_write_in_table_with_scratch` returns false
+  for it, port that one case into the table path, re-probe to 0, then delete the
+  non-table writer + its fallback as before. `insert_tree`+delegate is NOT safe here
+  (the table path already returns false for this case, so delegating would drop the
+  emission) — the gap must be closed in the table path first.
+
+  IDENTIFIED (richer probe): the one emitting case is `MazeBuilder::carve_room` stmt 6
+  — `room.description = self.room_description(depth, branch_id)`, a `Member` target
+  (String field) = `Call` value (value-position stateful method call result). This is
+  the SAME construct as the known-broken `room_description` 5-arm dispatch-
+  specialization (see [[multi-arm-branching-value-middle-arm]] /
+  [[runtime-conditional-value-primitive]]): the table storage-write path has no
+  call-result-to-String-field rule, so it falls back. So this collapse is **entangled
+  with the call/dispatch lowering**, not a clean Phase-4 port — defer it behind that
+  work (Phase 5 frame/dispatch). The branch-family deletion already captured the bulk
+  of the mutation duplication; the place/value/guard resolver pairs are the better
+  next Phase-4 target.
 - [ ] probe + collapse the place-resolver family (non-table `resolve_runtime_storage_place` et al).
 - [ ] probe + collapse the value-operand + guard families.
 - [ ] suite green per family; commit each.
