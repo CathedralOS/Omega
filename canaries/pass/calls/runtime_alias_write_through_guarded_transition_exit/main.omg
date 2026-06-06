@@ -1,0 +1,58 @@
+// A `&mut` reference parameter forwarded as an argument through a GUARDED transition
+// into a sub-state, where the sub-state writes through that forwarded alias, must
+// reach the caller's object. When the called machine is inlined as a branching leaf,
+// the inlined argument binds as `mut <expr>` even for by-value params (e.g. `mut 2`).
+// The leaf guard `key < 4` then had a `Mutable(Integer 2)` operand that neither the
+// static fold nor the runtime guard lowering saw through, so the whole arm -- guard
+// AND its alias mutation -- was dropped: the sub-state's `out.* = ...` writes never
+// emitted and the caller's object kept its (zero/stale) value.
+//
+// `out.val` is written directly in `find` (the easy direct case) and `out.key` is
+// written in the sub-state `read` reached via `key < 4` (the forwarded-alias case).
+// Exits 70 only when BOTH writes reach the caller's `found`.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Item {
+    key: i32;
+    val: i32;
+}
+
+data Store {
+}
+
+machine Store::find(&mut self, key: i32, out: &mut Item) {
+    out.val = 5;
+    transition key < 4 {
+        true -> read(out)
+        false -> {}
+    }
+    state read(&mut self, out: &mut Item) {
+        out.key = 7;
+    }
+}
+
+data Main {
+    console: Console;
+    store: Store;
+}
+
+machine Main::main(&mut self) {
+    let found: Item;
+    self.store.find(2, &mut found);
+
+    transition found.val == 5 {
+        true -> check_key(found)
+        false -> bad()
+    }
+    state check_key(&mut self, found: Item) {
+        transition found.key == 7 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

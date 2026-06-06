@@ -1065,6 +1065,8 @@ fn static_guard_value(expression: &Expression) -> Option<i64> {
     match expression {
         Expression::Boolean(value) => Some(i64::from(*value)),
         Expression::Integer(value) => Some(*value),
+        // Transparent through an inlined-argument `mut <literal>` wrapper.
+        Expression::Mutable(inner) => static_guard_value(inner),
         _ => None,
     }
 }
@@ -1076,6 +1078,7 @@ fn static_guard_value_in_table(
     match expressions.expression(expression) {
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
         ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Mutable(inner) => static_guard_value_in_table(expressions, *inner),
         _ => None,
     }
 }
