@@ -152,9 +152,43 @@ real table-path gap to port first.
   work (Phase 5 frame/dispatch). The branch-family deletion already captured the bulk
   of the mutation duplication; the place/value/guard resolver pairs are the better
   next Phase-4 target.
-- [ ] probe + collapse the place-resolver family (non-table `resolve_runtime_storage_place` et al).
-- [ ] probe + collapse the value-operand + guard families.
-- [ ] suite green per family; commit each.
+- [x] **place-resolver family — collapsed 7 of 10 (aaa24483, −319 lines).** Each
+  non-table place resolver becomes `insert_tree`+delegate to its `_in_table` sibling
+  (`insert_tree` is a faithful inverse of `to_tree` — preserves every symbol handle).
+  Equivalence was PROVEN per-resolver with a **differential probe** (compute orig and
+  delegated, `format!("{:?}",..)`-compare, log mismatches) run across the full suite
+  AND the dungeon. 7 showed zero mismatches in both → delegated (frame_indexed,
+  frame_base_indexed, machine_indexed, pointee_slot_offset, pointee_fixed_indexed,
+  frame_fixed_indexed, fixed_array_length). Dungeon byte-identical, suite 133 green.
+  LESSON: the suite caught a divergence (`fixed_indexed_place`, 60×) the dungeon did
+  NOT — always probe BOTH.
+- [!] **the other 3 place resolvers (`resolve_runtime_storage_place`,
+  `…_primitive_type`, `…_fixed_indexed_place`) are BLOCKED — left non-table.** They
+  diverge from their `_in_table` siblings on `array[const].field`
+  (`rooms[0].cell`): the non-table normalizer folds the index into the segment name
+  (`"rooms[0]"`) and fails to match the slot named `rooms` → None; the `_in_table`
+  form keeps the base name and tracks the index via `member_index`. Delegating them is
+  NOT behavior-preserving. Worse, an experiment delegating all 10 showed the
+  `_in_table` form is *also* wrong for index>0 (`cells[1].value` reads element 0 —
+  the constant array index is never applied to the byte offset). So this is one
+  underlying correctness bug — the **same root** as the existing pending canary
+  `control_flow/fixed_array_element_guard` ("when guard operand resolution applies the
+  index, this will compile") — and it underlies the dungeon `find_room` room lookup.
+  See [[nontable-array-const-field-gap]]. It must be FIXED (apply index*elem to the
+  offset, consistently in read/write/guard) before these 3 — and the value/guard
+  resolvers that bottom out in them — can be collapsed. Not a refactor; a correctness
+  task gated on Phase 5.
+- [!] **value-operand + guard resolvers — NOT clean duplication, deferred.** Two
+  reasons beyond the array-index gap: (a) `writes/mutation/value_operands.rs`
+  non-table takes `aliases`+`alias_expressions` and does alias resolution the
+  `_in_table` form does not — collapsing would drop it; (b) these return **arena
+  handles** (insert into `runtime_value_operands`), so the `{:?}`-diff probe can't
+  compare them without dereffing + arena side-effects. The `guards.rs`
+  `resolve_runtime_value_operand` is a pure dispatcher whose ONLY divergence from its
+  table form is the final `resolve_runtime_storage_place` call — i.e. it too is gated
+  on the same array-index gap. So the whole value/guard collapse reduces to fixing
+  that one resolver; do it after the gap fix, then delegate.
+- [x] suite green per family; commit each (place family committed aaa24483).
 
 ### Phase 5 — Deeper representation redesigns (separate axis; schedule after 1–4)
 Beyond type-dedup; these are correctness/representation rewrites.
