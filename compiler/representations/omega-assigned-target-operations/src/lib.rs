@@ -1,7 +1,6 @@
 mod functions;
 mod homes;
 mod instruction_operands;
-mod operation_conversions;
 mod operation_kinds;
 mod operations;
 mod plan;
