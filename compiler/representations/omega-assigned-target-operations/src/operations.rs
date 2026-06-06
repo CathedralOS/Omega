@@ -1,27 +1,15 @@
-use crate::AssignedOperationKind;
-use omega_control_flow::StateKey;
 use omega_core::arena::{Handle, HandleSpan};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssignedOperation {
-    pub kind: AssignedOperationKind,
-    pub source_key: StateKey,
-    pub source_statement: usize,
-}
+// AssignedOperation is identical to TargetOperation -- the assigned layer adds
+// value-operand homes, not operation fields. Share the one definition.
+pub use omega_target_operations::TargetOperation as AssignedOperation;
 
 pub type SelectedInstruction = AssignedOperation;
 pub type TargetOperation = AssignedOperation;
 
-impl Default for AssignedOperation {
-    fn default() -> Self {
-        Self {
-            kind: AssignedOperationKind::EnterFunction,
-            source_key: StateKey::default(),
-            source_statement: 0,
-        }
-    }
-}
-
+// The assigned operation arena is a 1:1 copy of the target one (same indices), so
+// these span translations are now the identity; kept as named helpers so the
+// pipeline call sites stay unchanged.
 pub fn assigned_operation_span_from_target(
     span: HandleSpan<omega_target_operations::TargetOperation>,
 ) -> HandleSpan<AssignedOperation> {
