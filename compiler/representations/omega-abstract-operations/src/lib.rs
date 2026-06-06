@@ -20,7 +20,7 @@ pub use instruction::{
     AbstractFunctionPlan, AbstractOperation, AbstractOperationDomain, AbstractOperationKind,
     AbstractValueOperand, AbstractValueOperandHandle, FunctionInstructionPlan, InstructionOperand,
     InstructionOperandKind, RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle,
-    SelectedInstruction, SelectedInstructionKind,
+    SelectedInstruction, SelectedInstructionKind, ValueOperand, ValueOperandHandle,
 };
 pub use ownership::{
     AbstractDropEvent, AbstractMoveEvent, AbstractOwnershipEventSource, AbstractOwnershipSummary,

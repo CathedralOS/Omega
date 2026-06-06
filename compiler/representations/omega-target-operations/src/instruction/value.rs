@@ -1,54 +1,17 @@
 use crate::{RuntimeStorageRegion, StateGuardOperator};
 use omega_core::arena::{Arena, Handle};
 
+// The value operand is structurally identical across stages, so the target layer
+// shares the ONE canonical definition from omega-abstract-operations rather than
+// re-declaring it. `TargetValueOperand`/`RuntimeValueOperand` are just this layer's
+// names for it; the per-stage arenas still differ (handles are remapped between
+// them by the abstract->target conversion).
+pub use omega_abstract_operations::ValueOperand;
+pub type TargetValueOperand = ValueOperand;
+pub type RuntimeValueOperand = ValueOperand;
+
 pub type TargetValueOperandHandle = Handle<TargetValueOperand>;
 pub type RuntimeValueOperandHandle = TargetValueOperandHandle;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TargetValueOperand {
-    Immediate(i64),
-    Storage {
-        region: RuntimeStorageRegion,
-        byte_offset: usize,
-        byte_size: usize,
-    },
-    Pointee {
-        pointer_byte_offset: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    FrameIndexed {
-        descriptor_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    FrameBaseIndexed {
-        base_byte_offset: usize,
-        index_offset: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    FrameFixedIndexed {
-        descriptor_offset: usize,
-        element_index: usize,
-        element_byte_size: usize,
-        field_byte_offset: usize,
-        byte_size: usize,
-    },
-    Binary {
-        left: TargetValueOperandHandle,
-        operator: StateGuardOperator,
-        right: TargetValueOperandHandle,
-        /// True when the operands are floating-point: the operation must use the
-        /// SSE unit (addsd/subsd/...), not an integer add over the IEEE bits.
-        is_float: bool,
-    },
-}
-
-pub type RuntimeValueOperand = TargetValueOperand;
 
 pub trait RuntimeValueOperandSource {
     fn immediate_integer(&self, handle: RuntimeValueOperandHandle) -> Option<i64>;
@@ -206,11 +169,5 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
             self.get(handle),
             RuntimeValueOperand::Binary { is_float: true, .. }
         )
-    }
-}
-
-impl Default for TargetValueOperand {
-    fn default() -> Self {
-        Self::Immediate(0)
     }
 }
