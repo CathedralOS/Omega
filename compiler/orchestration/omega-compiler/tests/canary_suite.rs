@@ -3248,6 +3248,46 @@ fn runtime_reference_param_forwarded_through_loop_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_value_call_in_substate_exit_canary_runs() {
+    // Two-level nested call from a sub-state: hall1 -> carve (statement) -> room_mut
+    // (in `let x = self.f()` position). carve was misclassified as a leaf (leaf check
+    // only scanned `OperationKind::Call` ops, missing the call in a `let` initializer),
+    // so its nested room_mut was dropped -> null `&mut Room` -> fault. The classifier
+    // now treats a state that sources any non-host call as non-leaf (InlineExpansion).
+    let canary = pass_canary("calls/runtime_nested_value_call_in_substate_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-value-call-substate-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-value-call-in-substate canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-value-call-in-substate canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a 2-level nested call (sub-state -> helper -> value-position call) to be \
+         expanded (exit 70), got {:?} (139/71 = the helper was treated as a leaf and its \
+         nested call dropped)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_call_in_inlined_substate_exit_canary_runs() {
     // A transition target (sub-state) that calls in `let x = self.f()` position must
     // lower as a straight-line branch so the nested call is expanded. It was
