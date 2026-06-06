@@ -5,8 +5,8 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
-    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
+    classify_scalar_value_type_in_table, resolve_runtime_pointee_slot_offset_in_table,
+    resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
 };
 use omega_abstract_operations::{RuntimeValueOperand, RuntimeValueOperandHandle};
 use omega_checked_trees::expression::{
@@ -41,7 +41,7 @@ pub(super) fn binary_value_operands_are_float(
     right: ExpressionHandle,
 ) -> bool {
     [left, right].into_iter().any(|operand| {
-        resolve_runtime_storage_primitive_type_in_table(
+        classify_scalar_value_type_in_table(
             input,
             dispatch_index,
             source_key,
@@ -49,7 +49,6 @@ pub(super) fn binary_value_operands_are_float(
             operand,
         )
         .is_some_and(|primitive| primitive.accepts_float_literal())
-            || resolve_runtime_static_float_value_in_table(expressions, operand).is_some()
     })
 }
 
