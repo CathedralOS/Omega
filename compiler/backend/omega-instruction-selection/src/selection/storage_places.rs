@@ -416,6 +416,37 @@ pub(super) fn resolve_runtime_storage_primitive_type_in_table(
     descriptor_primitive_type(&descriptor)
 }
 
+/// The scalar primitive type of a VALUE/source expression, for codegen
+/// classification (float-vs-integer, byte width). The single funnel every
+/// binary-write / convert producer should use so they all agree: a storage PLACE
+/// of any shape resolves to its leaf type; a LITERAL classifies from its node (a
+/// float literal is `f64` -- the default float width; an integer literal `i64`;
+/// a boolean `bool`). Returns `None` for non-scalar / unresolved expressions.
+/// (A `Cast` value resolves via its own selection, so it is not classified here.)
+pub(super) fn classify_scalar_value_type_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<PrimitiveType> {
+    if let Some(primitive) = resolve_runtime_storage_primitive_type_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(primitive);
+    }
+    match expressions.expression(expression) {
+        ExpressionNode::Float(_) => Some(PrimitiveType::F64),
+        ExpressionNode::Integer(_) => Some(PrimitiveType::I64),
+        ExpressionNode::Boolean(_) => Some(PrimitiveType::Bool),
+        _ => None,
+    }
+}
+
 /// Non-table counterpart of [`resolve_runtime_storage_primitive_type_in_table`]:
 /// resolve the leaf primitive type of a runtime storage target given as a resolved
 /// `Expression`. First cut handles a DIRECT frame slot (a local or top-level field,

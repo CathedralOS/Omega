@@ -1,6 +1,7 @@
 use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
-    RuntimeStoragePlace, resolve_runtime_frame_indexed_target_in_table,
+    RuntimeStoragePlace, classify_scalar_value_type_in_table,
+    resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
@@ -135,17 +136,29 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     // and only to a machine-owned/frame storage place (the indexed/pointee binary
     // paths below stay integer-only). An f32 target bails to avoid emitting an
     // integer op over float bits — float arithmetic on f32 is not wired yet.
-    let primitive_type = resolve_runtime_storage_primitive_type_in_table(
-        input,
-        dispatch_index,
-        target_source_key,
-        expressions,
-        target,
-    );
-    if matches!(primitive_type, Some(PrimitiveType::F32)) {
+    if matches!(
+        resolve_runtime_storage_primitive_type_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        ),
+        Some(PrimitiveType::F32)
+    ) {
         return None;
     }
-    let is_float = matches!(primitive_type, Some(PrimitiveType::F64));
+    // Float-ness is the operands' (== the target's) scalar type, via the shared
+    // classifier -- the same signal the pre-resolved-place entry below uses, so a
+    // binary write is classified identically no matter which path reaches it.
+    let is_float = binary_value_operands_are_float(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        left_expression,
+        right_expression,
+    );
 
     if !is_float {
         if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
@@ -403,23 +416,15 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_convert_mut
         target,
     )?;
     // The source is usually a storage place, but a CONSTANT source folds to a
-    // literal (`let b: f64 = 10.0; b as i32` becomes `10.0 as i32`). A literal has
-    // no place/type to resolve, so classify it from the node: a float literal is
-    // f64 (the default float width), an integer literal i64 (its bits load whole
-    // and cvtsi2sd/movsxd handle the width). Without this, a literal-source cast
-    // resolved to nothing and emitted no convert at all (the target stayed 0).
-    let source_primitive = resolve_runtime_storage_primitive_type_in_table(
+    // literal (`let b: f64 = 10.0; b as i32` becomes `10.0 as i32`); the shared
+    // classifier resolves either (place leaf type, or the literal's node type).
+    let source_primitive = classify_scalar_value_type_in_table(
         input,
         dispatch_index,
         value_source_key,
         expressions,
         source_expression,
-    )
-    .or_else(|| match expressions.expression(source_expression) {
-        ExpressionNode::Float(_) => Some(PrimitiveType::F64),
-        ExpressionNode::Integer(_) => Some(PrimitiveType::I64),
-        _ => None,
-    })?;
+    )?;
 
     let target_byte_size = scalar_primitive_byte_size(target_primitive)?;
     let source_byte_size = scalar_primitive_byte_size(source_primitive)?;
