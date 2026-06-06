@@ -8,6 +8,7 @@ pub(in crate::selection) fn enum_variant_value(
     expression: &Expression,
 ) -> Option<i64> {
     let (type_symbol, variant_symbol, type_name, variant_name) = match expression {
+        Expression::Mutable(inner) => return enum_variant_value(layouts, inner),
         Expression::Name(path) => {
             let [type_name, variant_name] = path.members() else {
                 return None;
@@ -62,6 +63,10 @@ pub(in crate::selection) fn static_integer_value(
     match expression {
         Expression::Integer(value) => Some(*value),
         Expression::Boolean(value) => Some(i64::from(*value)),
+        // A `mut` wrapper around a value operand is transparent: an inlined
+        // branching argument binds as `mut <expr>` even for a by-value parameter
+        // (e.g. `mut 2`), so the constant must still fold through it.
+        Expression::Mutable(inner) => static_integer_value(layouts, inner),
         _ => enum_variant_value(layouts, expression),
     }
 }
@@ -74,6 +79,7 @@ pub(in crate::selection) fn static_integer_value_in_table(
     match expressions.expression(expression) {
         ExpressionNode::Integer(value) => Some(*value),
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
+        ExpressionNode::Mutable(inner) => static_integer_value_in_table(layouts, expressions, *inner),
         _ => enum_variant_value_in_table(layouts, expressions, expression),
     }
 }
@@ -85,6 +91,9 @@ pub(in crate::selection) fn enum_variant_value_in_table(
 ) -> Option<i64> {
     let (type_symbol, variant_symbol, type_name, variant_name) =
         match expressions.expression(expression) {
+            ExpressionNode::Mutable(inner) => {
+                return enum_variant_value_in_table(layouts, expressions, *inner);
+            }
             ExpressionNode::Name(path) => {
                 let [type_name, variant_name] = expressions.name_path_members(path.members) else {
                     return None;

@@ -3168,6 +3168,46 @@ fn runtime_called_machine_loop_search_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_alias_write_through_guarded_transition_exit_canary_runs() {
+    // A `&mut` param forwarded through a GUARDED transition into a sub-state that
+    // writes through it must reach the caller's object. When the callee inlines as a
+    // branching leaf, by-value args bind as `mut <literal>` (e.g. `mut 2`), so the
+    // leaf guard `key < 4` carried a `Mutable(Integer)` operand the value resolvers
+    // didn't see through -- the arm (guard + its alias write) was dropped entirely.
+    let canary = pass_canary("calls/runtime_alias_write_through_guarded_transition_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-alias-write-guarded-transition-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("alias-write-through-guarded-transition canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("alias-write-through-guarded-transition canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a &mut alias written in a sub-state reached via a guarded transition \
+         to reach the caller (exit 70), got {:?} (71 = the guarded arm's alias write was \
+         dropped)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dispatch_binary_call_argument_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatch_binary_call_argument_exit");
     let main_path = canary.join("main.omg");
