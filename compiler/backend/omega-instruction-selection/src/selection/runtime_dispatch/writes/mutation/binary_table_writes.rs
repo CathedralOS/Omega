@@ -402,13 +402,24 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_convert_mut
         expressions,
         target,
     )?;
+    // The source is usually a storage place, but a CONSTANT source folds to a
+    // literal (`let b: f64 = 10.0; b as i32` becomes `10.0 as i32`). A literal has
+    // no place/type to resolve, so classify it from the node: a float literal is
+    // f64 (the default float width), an integer literal i64 (its bits load whole
+    // and cvtsi2sd/movsxd handle the width). Without this, a literal-source cast
+    // resolved to nothing and emitted no convert at all (the target stayed 0).
     let source_primitive = resolve_runtime_storage_primitive_type_in_table(
         input,
         dispatch_index,
         value_source_key,
         expressions,
         source_expression,
-    )?;
+    )
+    .or_else(|| match expressions.expression(source_expression) {
+        ExpressionNode::Float(_) => Some(PrimitiveType::F64),
+        ExpressionNode::Integer(_) => Some(PrimitiveType::I64),
+        _ => None,
+    })?;
 
     let target_byte_size = scalar_primitive_byte_size(target_primitive)?;
     let source_byte_size = scalar_primitive_byte_size(source_primitive)?;

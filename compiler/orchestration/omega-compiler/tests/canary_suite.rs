@@ -580,6 +580,41 @@ fn runtime_float_local_arithmetic_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_literal_source_cast_exit_canary_runs() {
+    // A numeric `as` cast whose source folds to a literal (`10.0 as i32`) must
+    // still emit a convert. The selector used to bail (no place type for a
+    // literal source) and emit nothing, leaving the destination 0. Guards both
+    // float->int and int->float results, exits 70 only when both are correct.
+    let canary = pass_canary("expressions/runtime_literal_source_cast_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-literal-source-cast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("literal source cast canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("literal source cast canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected literal-source casts (10.0 as i32, 7 as f64) to emit converts and exit 70, got {:?} (71 = wrong/missing convert)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_float_constant_store_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_float_constant_store_exit");
     let main_path = canary.join("main.omg");

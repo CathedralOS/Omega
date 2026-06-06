@@ -1,0 +1,42 @@
+// A numeric `as` cast whose SOURCE is a compile-time constant folds to a LITERAL
+// (`let b: f64 = 10.0; b as i32` becomes `10.0 as i32`). A literal has no storage
+// place to resolve a primitive type from, so the convert selector used to bail and
+// emit NOTHING -- the destination stayed 0. The convert now classifies a literal
+// source from its node (float literal -> f64, integer literal -> i64) and emits
+// cvttsd2si / cvtsi2sd. Both directions are exercised and each result is guarded so
+// a missing/garbage convert fails the comparison instead of silently exiting 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let real: f64 = 10.0;
+    let truncated: i32 = real as i32; // 10 (float literal -> int)
+
+    transition truncated == 10 {
+        true -> check_int_to_float()
+        false -> bad()
+    }
+
+    state check_int_to_float(&mut self) {
+        let whole: i32 = 7;
+        let widened: f64 = whole as f64; // 7.0 (integer literal -> float)
+        transition widened == 7.0 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
