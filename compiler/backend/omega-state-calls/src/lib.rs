@@ -148,11 +148,34 @@ pub fn build_state_call_plan_with_workers(
 
     let required_states = mark_required_state_calls(&context, &mut calls);
 
+    // States that are the SOURCE of a non-host state call (in any position --
+    // statement, `let x = f()`, or `g(f())`) cannot be leaves: their body performs a
+    // call that must be expanded. The leaf classifier in `lowering` only scans for
+    // `OperationKind::Call` ops, which misses calls in `let` initializers / argument
+    // expressions; this set restores them so such a target lowers as InlineExpansion
+    // (whose nested-call recursion delivers the inner call) instead of a leaf (which
+    // silently drops it).
+    let mut calling_states: Vec<StateKey> = Vec::new();
+    for call in &calls {
+        if call.target_key.is_valid()
+            && matches!(
+                call.role,
+                StateCallRole::Statement
+                    | StateCallRole::AssignmentValue
+                    | StateCallRole::CallArgument
+            )
+            && !context.state_statement_has_host_call_by_key(call.source_key, call.statement_index)
+            && !calling_states.contains(&call.source_key)
+        {
+            calling_states.push(call.source_key);
+        }
+    }
+
     let argument_count = collected_call_argument_count(&context, &calls);
     let mut plan = StateCallPlan::with_capacity(calls.len(), argument_count, required_states.len());
     plan.required_states.insert_many(required_states);
     for call in calls {
-        let lowering = state_call_lowering(&context, &call);
+        let lowering = state_call_lowering(&context, &call, &calling_states);
         let arguments = build_call_arguments(
             &context,
             &mut plan.expressions,

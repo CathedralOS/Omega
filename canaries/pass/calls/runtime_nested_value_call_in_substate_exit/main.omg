@@ -1,0 +1,70 @@
+// A two-level nested call from a sub-state: build's sub-state `hall1` calls `carve`
+// (statement), and `carve` itself calls `room_mut` in `let x = self.f()` position.
+// `carve` was misclassified as a LEAF because the leaf classifier only scans for
+// `OperationKind::Call` ops -- it missed `room_mut`'s call, which lives in a `let`
+// initializer (an AssignmentValue call). As a leaf, carve's nested room_mut was
+// dropped, so the `&mut Room` it returns was null and carve's `room.depth = depth`
+// write faulted. The classifier now treats a state that is the SOURCE of any non-host
+// call (statement, let-initializer, or argument position) as non-leaf, so carve lowers
+// as InlineExpansion and its nested call is delivered. Dungeon generation shape
+// (a build segment -> carve_room -> room_mut chain).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+enum CellId { R00, R01, R02, R03 }
+
+data Room {
+    cell: CellId;
+    depth: u32;
+}
+
+data Level {
+    rooms: [Room; 4];
+    room_count: usize;
+}
+
+data Builder {
+}
+
+machine Builder::room_mut(&mut self, level: &mut Level, cell: CellId) -> &mut Room {
+    let rooms: &mut [Room] = level.rooms.as_mut_slice();
+    transition cell {
+        CellId::R00 -> &mut rooms[0]
+        CellId::R01 -> &mut rooms[1]
+        CellId::R02 -> &mut rooms[2]
+        _ -> &mut rooms[3]
+    }
+}
+
+machine Builder::carve(&mut self, level: &mut Level, cell: CellId, depth: u32) {
+    let room: &mut Room = self.room_mut(level, cell);
+    room.cell = cell;
+    room.depth = depth;
+}
+
+machine Builder::build(&mut self, level: &mut Level) {
+    transition {
+        _ -> hall1(level)
+    }
+    state hall1(&mut self, level: &mut Level) {
+        self.carve(level, CellId::R01, 1);
+    }
+}
+
+data Main {
+    console: Console;
+    builder: Builder;
+    level: Level;
+}
+
+machine Main::main(&mut self) {
+    self.builder.build(&mut self.level);
+    transition self.level.rooms[1].depth == 1 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
