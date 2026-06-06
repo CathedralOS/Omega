@@ -7,7 +7,6 @@ pub(super) use leaf::{
     LeafBranchSelectionScratch, select_runtime_leaf_branch_expansions_for_operation,
     select_runtime_leaf_branch_expansions_matching_operation,
 };
-pub(crate) use mutation::select_runtime_resolved_mutation_write;
 pub(in crate::selection) use prelude::{
     BranchPreludeSelectionScratch, select_runtime_branch_preludes_for_operation,
 };

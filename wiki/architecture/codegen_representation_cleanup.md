@@ -58,15 +58,78 @@ they actually change.
 - [ ] suite green; commit.
 
 ### Phase 4 — Selection funnel: collapse `_in_table` / non-table
-One `resolve_place` / `resolve_value_operand` / `classify_scalar` that handles both
-the table-handle and resolved-`Expression` forms, and every target shape, in one
-place. Route all write/guard/convert/branch/straight-line producers through it;
-remove the duplicated per-shape, per-context selectors. (Phase started: ef680466
-added the scalar classifier funnel.)
-- [ ] unify the place resolver (table + non-table + per-shape).
-- [ ] unify the value-operand resolver.
-- [ ] route all producers; delete the duplicates.
-- [ ] suite green; commit.
+NOTE (investigated): this is **not** mechanical duplication like Phases 0–2. The
+`_in_table` resolvers take checked-tree `ExpressionHandle`+`ExpressionTable`; the
+non-table siblings take owned `&Expression` trees produced by **alias/binding
+substitution**. The call pattern is "try the table path; if it returns false,
+`expressions.to_tree(handle)` to OWNED trees and fall back to the non-table path"
+(e.g. branches/leaf.rs ~496–529; same in prelude.rs / straight_line.rs). So the
+non-table path is a more-complete **fallback** over a different expression
+representation, ~40 paired functions deep. Collapsing it is an INCOMPLETE-MIGRATION
+problem, not a rename: porting the non-table-only resolution into the table path,
+case by case, until the fallback is dead, then deleting it. The scalar classifier
+(ef680466) and the value operand already funnel; the place/guard resolvers are the
+bulk.
+
+Two viable strategies (pick per-resolver):
+- **Complete the migration**: make `*_in_table` handle every case the non-table
+  sibling does (verify the fallback stops firing — instrument it), then delete the
+  non-table function. Lowest conceptual surface, but per-case porting.
+- **Generic `ExpressionSource` trait**: one body per resolver, generic over a trait
+  with the few accessors the resolvers need (normalized name path, binary/cast/
+  indexed operands yielding sub-sources), impl'd for both `&Expression` and
+  `(&ExpressionTable, ExpressionHandle)`. Removes the fallback entirely. Bigger
+  up-front design (recursion yields sub-`impl ExpressionSource`), but no per-case
+  porting and no behavior risk.
+
+UPDATE (investigated deeper): the table vs non-table resolvers are **same logic,
+different access** — identical structure (fixed-indexed → normalize name path →
+find slot → nested layout → machine-owned fallback), differing only in
+`normalized_storage_expression(&Expression)`+`NamePath` vs
+`normalized_storage_name_path_in_table(table,handle)`+`StorageNamePath`. So this is
+NOT a divergent migration — the fallback exists only because alias-resolved trees
+are owned, not handles.
+
+`ExpressionTable::insert_tree(&Expression) -> ExpressionHandle` exists (the inverse
+of `to_tree`). So the simplest collapse is: each non-table resolver becomes a thin
+adapter — `insert_tree` the owned expression into a scratch table, then delegate to
+`*_in_table`. One implementation; the non-table bodies disappear.
+
+CAVEAT before doing it: the non-table path has TWO callers — (a) the leaf
+**fallback** (`to_tree` + non-table at leaf.rs ~514) and (b) genuine **alias-resolved
+branch-arm** expressions. For (a), if the resolvers are truly same-logic the
+fallback is already dead (the table path at ~496 would have succeeded); for (b) it
+is load-bearing. So: first instrument the non-table path to confirm whether it ever
+emits where the table path didn't (run the full suite + dungeon). If it never does,
+delete the leaf `to_tree` fallback outright; either way, convert the remaining
+non-table resolvers to `insert_tree`+delegate so the logic lives once.
+
+RESULT (first cut DONE): the non-table **mutation-write** path was instrumented
+exactly as planned — a `selected_instructions.len()` before/after probe around
+`select_runtime_resolved_mutation_write`. Across the full canary suite (133) it was
+reached 0 times; in the dungeon stress sample it was reached **470 times and emitted
+0 instructions**. It is a *dead emitter*: the `_in_table` write + text-builder paths
+handle every case that lowers; the non-table fallback always bailed without pushing.
+So the migration was already **complete** — `insert_tree`+delegate was unnecessary
+(it would have routed to a table path that already returns false for these cases).
+Deleted outright: the ~250-line `select_runtime_resolved_mutation_write` /
+`_impl` pair, all 6 fallback call sites (leaf / prelude / straight_line ×3 /
+state_bodies), and the cascade of non-table-only helpers it uniquely fed
+(`select_runtime_resolved_binary_mutation_write`, the local non-table
+`resolve_runtime_value_operand`, the non-table place-resolver imports, dead local
+`state_names`/`source_machine_name`). Net **−489 lines**. **Proof of safety:** the
+dungeon PE is **byte-identical** before/after (sha256 `ee2f534f…`), suite 133 green.
+
+This validates the hypothesis crate-wide: every non-table caller `to_tree`s a handle
+first, so the non-table path is *always* a fallback after a table attempt — never a
+primary path. The remaining non-table resolver families (place / guard / value) are
+very likely the same dead-emitter shape. NEXT: probe each the same way (len-delta
+around the non-table resolver) before deleting; if any *does* emit, that case is a
+real table-path gap to port first.
+- [x] **mutation-write family — probed dead, deleted (−489 lines, dungeon byte-identical).**
+- [ ] probe + collapse the place-resolver family (non-table `resolve_runtime_storage_place` et al).
+- [ ] probe + collapse the value-operand + guard families.
+- [ ] suite green per family; commit each.
 
 ### Phase 5 — Deeper representation redesigns (separate axis; schedule after 1–4)
 Beyond type-dedup; these are correctness/representation rewrites.

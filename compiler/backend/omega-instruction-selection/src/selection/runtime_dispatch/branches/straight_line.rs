@@ -1,6 +1,5 @@
 use crate::InstructionSelectionInput;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::{OperationKind, StateKey, StateParameterFlow};
 use omega_core::arena::Arena;
@@ -30,7 +29,6 @@ use super::super::writes::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
 };
 use super::mutation::{
-    select_runtime_resolved_mutation_write,
     select_runtime_resolved_mutation_write_in_table_with_scratch,
 };
 use super::prelude::{BranchPreludeSelectionScratch, select_runtime_branch_preludes_for_operation};
@@ -251,22 +249,8 @@ fn select_runtime_straight_line_branch_terminal_value_write(
         return;
     }
 
-    let target = expressions.to_tree(target);
-    let resolved_value = expressions.to_tree(resolved_value);
-    let (source_machine, source_state) = state_names(input, expansion.source_key);
-    select_runtime_resolved_mutation_write(
-        input,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &source_machine,
-        &source_machine,
-        &source_state,
-        expansion.statement_index,
-        &target,
-        &resolved_value,
-        runtime_value_operands,
-        selected_instructions,
-    );
+    // Non-table mutation-write fallback removed (Phase 4): proven dead emitter — the
+    // `_in_table` path above handles every case that lowers.
 }
 
 fn select_runtime_straight_line_assignment_value_target_copy(
@@ -464,22 +448,9 @@ fn select_runtime_straight_line_branch_writes(
                 ) {
                     continue;
                 }
-                let resolved_target = expressions.to_tree(resolved_target);
-                let resolved_value = expressions.to_tree(resolved_value);
-                let (operation_machine, operation_state) = state_names(input, operation.source_key);
-                select_runtime_resolved_mutation_write(
-                    input,
-                    expansion.dispatch_index,
-                    operation.source_key,
-                    &source_machine_name(input, expansion.source_key),
-                    &operation_machine,
-                    &operation_state,
-                    operation.statement_index,
-                    &resolved_target,
-                    &resolved_value,
-                    runtime_value_operands,
-                    selected_instructions,
-                );
+                // Non-table mutation-write fallback removed (Phase 4): proven dead
+                // emitter — the `_in_table` write + text-builder paths above cover
+                // every case that lowers.
             }
             RuntimeStraightLineBranchOperationKind::StateCall {
                 role,
@@ -989,9 +960,6 @@ fn select_runtime_straight_line_inline_state_call(
     );
 }
 
-fn state_names(input: &InstructionSelectionInput<'_>, key: StateKey) -> (Identifier, Identifier) {
-    input.control_flow.state_names_by_key_cloned(key)
-}
 
 #[allow(clippy::too_many_arguments)]
 fn select_runtime_straight_line_leaf_state_call_writes(
@@ -1050,7 +1018,6 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     let Some(operations) = state_operations(input, target_key) else {
         return;
     };
-    let (target_machine, target_state) = state_names(input, target_key);
     let (child_aliases, child_alias_expressions) = leaf_call_alias_bindings(
         input,
         operation.source_key,
@@ -1177,21 +1144,8 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         ) {
             continue;
         }
-        let resolved_target = expressions.to_tree(resolved_target);
-        let resolved_value = expressions.to_tree(resolved_value);
-        select_runtime_resolved_mutation_write(
-            input,
-            expansion.dispatch_index,
-            target_key,
-            &source_machine_name(input, expansion.source_key),
-            &target_machine,
-            &target_state,
-            leaf_operation.statement_index,
-            &resolved_target,
-            &resolved_value,
-            runtime_value_operands,
-            selected_instructions,
-        );
+        // Non-table mutation-write fallback removed (Phase 4): proven dead emitter —
+        // the `_in_table` write + text-builder paths above cover every lowering case.
     }
 }
 
@@ -1597,6 +1551,3 @@ fn leaf_local_initializer_handle(
     })
 }
 
-fn source_machine_name(input: &InstructionSelectionInput<'_>, key: StateKey) -> Identifier {
-    input.control_flow.state_machine_name_by_key_cloned(key)
-}
