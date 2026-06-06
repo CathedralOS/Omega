@@ -481,9 +481,14 @@ fn dispatch_state_call_edges(
             // dispatch path doesn't yet carry return values for them).
             (state_call.required
                 && state_call.role == StateCallRole::Statement
-                && ((state_call.lowering == StateCallLowering::InlineBranching
-                    && state_call.argument_count == 0)
-                    || state_call_target_loops(control_flow, state_calls, state_call.target_key)))
+                && (matches!(
+                    state_call.lowering,
+                    StateCallLowering::InlineBranching | StateCallLowering::InlineExpansion
+                ) || state_call_target_loops(
+                    control_flow,
+                    state_calls,
+                    state_call.target_key,
+                )))
             .then_some(RuntimeStateCallEdge {
                 source_key: state_call.source_key,
                 statement_index: state_call.statement_index,
