@@ -97,9 +97,11 @@ pub(super) fn runtime_value_operand_name(
             left,
             operator,
             right,
+            is_float,
         } => format!(
-            "({} {operator:?} {})",
+            "({} {operator:?}{} {})",
             runtime_value_operand_name(backend_plan, *left),
+            if *is_float { " f" } else { "" },
             runtime_value_operand_name(backend_plan, *right),
         ),
     }

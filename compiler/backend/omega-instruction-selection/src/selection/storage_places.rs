@@ -416,6 +416,34 @@ pub(super) fn resolve_runtime_storage_primitive_type_in_table(
     descriptor_primitive_type(&descriptor)
 }
 
+/// Non-table counterpart of [`resolve_runtime_storage_primitive_type_in_table`]:
+/// resolve the leaf primitive type of a runtime storage target given as a resolved
+/// `Expression`. First cut handles a DIRECT frame slot (a local or top-level field,
+/// no nested-field suffix) -- enough to tell a float arithmetic target (`let c:
+/// f64 = ...`) from an integer one so the binary write picks addsd vs an integer
+/// op. Nested-field targets return `None` (the caller treats that as non-float).
+pub(super) fn resolve_runtime_storage_primitive_type(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<PrimitiveType> {
+    let normalized_expression = normalized_storage_expression(expression)?;
+    let Expression::Name(path) = &normalized_expression else {
+        return None;
+    };
+    if path.is_empty() || path.members().len() != 1 {
+        return None;
+    }
+    let slot = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+        slot_matches_path(slot, path)
+    })
+    .or_else(|| {
+        latest_dispatch_frame_slot(input, dispatch_index, |slot| slot_matches_path(slot, path))
+    })?;
+    descriptor_primitive_type(&slot.type_descriptor)
+}
+
 /// Walk a runtime storage target (frame slot or machine-owned `data` field, plus
 /// any nested-field suffix) to its leaf [`TypeLayoutDescriptor`].
 fn resolve_runtime_storage_leaf_descriptor_in_table(

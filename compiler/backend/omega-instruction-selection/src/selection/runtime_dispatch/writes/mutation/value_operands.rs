@@ -6,7 +6,7 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
 };
 use omega_abstract_operations::{RuntimeValueOperand, RuntimeValueOperandHandle};
 use omega_checked_trees::expression::{
@@ -26,6 +26,32 @@ use super::operators::{
     supports_runtime_value_operand,
 };
 use super::resolve_runtime_call_result_source_place;
+
+/// Whether a binary value operand built from these two operand expressions is
+/// floating-point, so the encoder uses the SSE unit (addsd/...) instead of an
+/// integer add over the IEEE bits. A float operand is either a float-typed place
+/// or a float literal; checking both operands covers `place OP literal` in any
+/// order and `place OP place`.
+pub(super) fn binary_value_operands_are_float(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    [left, right].into_iter().any(|operand| {
+        resolve_runtime_storage_primitive_type_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            operand,
+        )
+        .is_some_and(|primitive| primitive.accepts_float_literal())
+            || resolve_runtime_static_float_value_in_table(expressions, operand).is_some()
+    })
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve_runtime_value_operand_in_table(
@@ -58,13 +84,15 @@ pub(super) fn resolve_runtime_value_operand_in_table(
 
     if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
         let operator = runtime_binary_operator(binary.operator)?;
+        let left_expr = binary.left;
+        let right_expr = binary.right;
         let left = resolve_runtime_value_operand_in_table(
             input,
             dispatch_index,
             source_key,
             statement_index,
             expressions,
-            binary.left,
+            left_expr,
             static_values,
             runtime_value_operands,
         )?;
@@ -74,26 +102,37 @@ pub(super) fn resolve_runtime_value_operand_in_table(
             source_key,
             statement_index,
             expressions,
-            binary.right,
+            right_expr,
             static_values,
             runtime_value_operands,
         )?;
+        let is_float = binary_value_operands_are_float(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            left_expr,
+            right_expr,
+        );
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,
             right,
+            is_float,
         }));
     }
 
     if let ExpressionNode::Call(call) = expressions.expression(expression) {
         if let Some(operator) = builtin_runtime_call_operator_in_table(input, call) {
+            let left_expr = expressions.expression_handle_at_offset(call.arguments, 0);
+            let right_expr = expressions.expression_handle_at_offset(call.arguments, 1);
             let left = resolve_runtime_value_operand_in_table(
                 input,
                 dispatch_index,
                 source_key,
                 statement_index,
                 expressions,
-                expressions.expression_handle_at_offset(call.arguments, 0),
+                left_expr,
                 static_values,
                 runtime_value_operands,
             )?;
@@ -103,14 +142,23 @@ pub(super) fn resolve_runtime_value_operand_in_table(
                 source_key,
                 statement_index,
                 expressions,
-                expressions.expression_handle_at_offset(call.arguments, 1),
+                right_expr,
                 static_values,
                 runtime_value_operands,
             )?;
+            let is_float = binary_value_operands_are_float(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                left_expr,
+                right_expr,
+            );
             return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
                 left,
                 operator,
                 right,
+                is_float,
             }));
         }
 
@@ -271,6 +319,9 @@ pub(super) fn resolve_runtime_value_operand(
             left,
             operator,
             right,
+            // Non-table value-operand path: float detection not wired here yet;
+            // float arithmetic via this fallback stays a known gap.
+            is_float: false,
         }));
     }
 
@@ -310,6 +361,9 @@ pub(super) fn resolve_runtime_value_operand(
             left,
             operator,
             right,
+            // Non-table value-operand path: float detection not wired here yet;
+            // float arithmetic via this fallback stays a known gap.
+            is_float: false,
         }));
     }
 

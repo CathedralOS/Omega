@@ -15,15 +15,17 @@ use omega_core::symbols::{BuiltinFunction, SymbolHandle};
 use super::super::super::storage_places::{
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target, resolve_runtime_frame_indexed_target,
-    resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place, static_integer_value,
+    resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place,
+    resolve_runtime_storage_primitive_type, static_integer_value,
 };
 use super::super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
-    static_integer_value_in_table,
+    resolve_runtime_storage_primitive_type_in_table, static_integer_value_in_table,
 };
+use omega_checked_trees::types::PrimitiveType;
 use super::super::guards::static_guard_conjunct_summary_in_table;
 use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, runtime_text_builder_write_without_aliases_emit,
@@ -1238,6 +1240,18 @@ fn select_runtime_binary_mutation_write_in_table(
         expressions,
         target,
     )?;
+    // A float TARGET (e.g. `let c: f64 = a + b`) must use the SSE unit, not an
+    // integer add over the IEEE bits. f64 only for now (f32 stays a gap).
+    let is_float = matches!(
+        resolve_runtime_storage_primitive_type_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        ),
+        Some(PrimitiveType::F64)
+    );
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
@@ -1245,7 +1259,7 @@ fn select_runtime_binary_mutation_write_in_table(
         left,
         operator,
         right,
-        is_float: false,
+        is_float,
     })
 }
 
@@ -1318,6 +1332,15 @@ fn select_runtime_resolved_binary_mutation_write(
         operation_state,
         resolved_target,
     )?;
+    let is_float = matches!(
+        resolve_runtime_storage_primitive_type(
+            input,
+            dispatch_index,
+            operation_key,
+            resolved_target,
+        ),
+        Some(PrimitiveType::F64)
+    );
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
@@ -1325,7 +1348,7 @@ fn select_runtime_resolved_binary_mutation_write(
         left,
         operator,
         right,
-        is_float: false,
+        is_float,
     })
 }
 
@@ -1366,6 +1389,8 @@ fn resolve_runtime_value_operand(
             left,
             operator,
             right,
+            // Branch-arm value operand: float detection not wired on this path yet.
+            is_float: false,
         }));
     }
 
@@ -1475,6 +1500,8 @@ fn resolve_runtime_value_operand_in_table(
                 left,
                 operator,
                 right,
+                // Branch-arm value operand: float detection not wired on this path yet.
+                is_float: false,
             }));
         }
         ExpressionNode::Call(call) => {
@@ -1499,6 +1526,8 @@ fn resolve_runtime_value_operand_in_table(
                 left,
                 operator,
                 right,
+                // Branch-arm value operand: float detection not wired on this path yet.
+                is_float: false,
             }));
         }
         _ => {}

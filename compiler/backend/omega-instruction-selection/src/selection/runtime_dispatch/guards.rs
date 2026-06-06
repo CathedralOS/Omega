@@ -1122,6 +1122,9 @@ fn resolve_runtime_value_operand(
             left,
             operator,
             right,
+            // Guard comparison operands; float comparisons lower via ucomisd
+            // elsewhere, so the integer value-operand path stays as-is here.
+            is_float: false,
         }));
     }
 
@@ -1232,6 +1235,9 @@ fn resolve_runtime_value_operand_in_table(
             left,
             operator,
             right,
+            // Guard comparison operands; float comparisons lower via ucomisd
+            // elsewhere, so the integer value-operand path stays as-is here.
+            is_float: false,
         }));
     }
 
