@@ -545,6 +545,40 @@ fn runtime_float_arithmetic_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_field_default_exit_canary_runs() {
+    // A `data` field with a default initializer (`x: i32 = 5`) must hold that value at
+    // runtime; the default was captured front-end but never emitted (fields read 0).
+    // Entry-machine constant field defaults are now initialized before the dispatch
+    // loop. Covers int/f64/bool defaults + explicit overwrite; exits 70 when correct.
+    let canary = pass_canary("expressions/runtime_field_default_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-field-default-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("field-default canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("field-default canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `data` field defaults (int/f64/bool) to initialize and overwrite (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_cast_operand_exit_canary_runs() {
     // A numeric `as` cast used as a binary operand (`self.a + (self.b as f64)`) must
     // convert the source in place via a Convert value operand, not be dropped. Covers

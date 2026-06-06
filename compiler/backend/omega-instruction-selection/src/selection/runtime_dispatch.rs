@@ -1,5 +1,6 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_checked_trees::data::DataMember;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
@@ -30,7 +31,8 @@ use branches::{
 };
 use edges::select_runtime_dispatch_edge;
 use omega_abstract_operations::{
-    InstructionOperand, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
+    InstructionOperand, RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction,
+    SelectedInstructionKind,
 };
 use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
@@ -76,12 +78,92 @@ pub(crate) fn select_runtime_unaliased_storage_mutation_write_with_scratch(
     )
 }
 
+/// Emit writes that initialize the entry machine's data fields to their declared
+/// default values (`data Main { x: i32 = 5 }`). Without this a field with a default
+/// reads zero at runtime — the default is captured front-end (`DataField.initial_
+/// value`) but otherwise never emitted. First cut: the ENTRY machine's own fields
+/// (Machine region, offset == the field's storage offset) with a CONSTANT default
+/// (integer / boolean / float literal). Non-constant defaults and nested-machine
+/// fields are follow-ups.
+fn select_entry_machine_field_default_writes(
+    input: &InstructionSelectionInput<'_>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some((_, machine_layout)) = input
+        .layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, layout)| layout.symbol == input.entry_key.machine)
+    else {
+        return;
+    };
+    let Some(fields) = input.layouts.fields.span(machine_layout.fields) else {
+        return;
+    };
+    for field in fields {
+        let Some(initial_value) = entry_machine_field_initial_value(input, field.symbol) else {
+            continue;
+        };
+        if !matches!(field.layout.size, 1 | 4 | 8) {
+            continue;
+        }
+        let value = match input.program.expression_table.expression(initial_value) {
+            ExpressionNode::Integer(value) => *value,
+            ExpressionNode::Boolean(value) => i64::from(*value),
+            ExpressionNode::Float(literal) => {
+                if field.layout.size <= 4 {
+                    i64::from((literal.value() as f32).to_bits())
+                } else {
+                    literal.value().to_bits() as i64
+                }
+            }
+            // Non-constant defaults are not yet emitted (would need startup code that
+            // evaluates the initializer expression).
+            _ => continue,
+        };
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region: RuntimeStorageRegion::Machine,
+                byte_offset: field.offset,
+                byte_size: field.layout.size,
+                value,
+            },
+            source_key: input.entry_key,
+            source_statement: 0,
+        });
+    }
+}
+
+/// The declared default initializer for a data field, looked up by field symbol
+/// across the program's data definitions.
+fn entry_machine_field_initial_value(
+    input: &InstructionSelectionInput<'_>,
+    field_symbol: omega_core::symbols::SymbolHandle,
+) -> Option<ExpressionHandle> {
+    for data_definition in input.program.data_definitions() {
+        for member in input.program.data_members(data_definition) {
+            if let DataMember::Field(field) = member
+                && field.symbol == field_symbol
+                && field.initial_value.is_valid()
+            {
+                return Some(field.initial_value);
+            }
+        }
+    }
+    None
+}
+
 pub(super) fn select_runtime_dispatch_loop_instructions(
     input: &InstructionSelectionInput<'_>,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    // Initialize the entry machine's data-field defaults (`data Main { x: i32 = 5 }`)
+    // before the dispatch loop, so a field starts at its declared value rather than
+    // zero. Runs once at program entry.
+    select_entry_machine_field_default_writes(input, selected_instructions);
+
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index: input.runtime_dispatch_loop.entry_dispatch_index,

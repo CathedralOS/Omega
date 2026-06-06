@@ -1,0 +1,53 @@
+// A `data` field with a default initializer (`x: i32 = 5`) must hold that value at
+// runtime, not zero. The default is captured front-end (DataField.initial_value) but
+// was never emitted — the backend only initialized LOCAL variables, so a field with a
+// default read 0. The entry machine's constant field defaults (integer / boolean /
+// float literal) are now written to their storage once at program entry, before the
+// dispatch loop. Covers int/f64/bool defaults and confirms an explicit assignment
+// still overrides the default.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    n: i32 = 5;
+    ratio: f64 = 2.5;
+    ready: bool = true;
+    overwritten: i32 = 1;
+}
+
+machine Main::main(&mut self) {
+    self.overwritten = 9; // explicit assignment overrides the default
+
+    transition self.n == 5 {
+        true -> check_ratio()
+        false -> bad()
+    }
+    state check_ratio(&mut self) {
+        transition self.ratio == 2.5 {
+            true -> check_ready()
+            false -> bad()
+        }
+    }
+    state check_ready(&mut self) {
+        transition self.ready == true {
+            true -> check_overwritten()
+            false -> bad()
+        }
+    }
+    state check_overwritten(&mut self) {
+        transition self.overwritten == 9 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
