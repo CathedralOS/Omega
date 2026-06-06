@@ -132,22 +132,10 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     // every statement and silently compute the wrong result.
     invalidate_runtime_static_value_in_table(static_values, expressions, target);
 
-    // A float target performs the operation on the SSE unit. First cut: f64 only,
-    // and only to a machine-owned/frame storage place (the indexed/pointee binary
-    // paths below stay integer-only). An f32 target bails to avoid emitting an
-    // integer op over float bits — float arithmetic on f32 is not wired yet.
-    if matches!(
-        resolve_runtime_storage_primitive_type_in_table(
-            input,
-            dispatch_index,
-            target_source_key,
-            expressions,
-            target,
-        ),
-        Some(PrimitiveType::F32)
-    ) {
-        return None;
-    }
+    // A float target performs the operation on the SSE unit, to a machine-owned or
+    // frame storage place (the indexed/pointee binary paths below stay integer-only).
+    // f64 (8-byte, addsd) and f32 (4-byte, addss) — the encoder selects the scalar
+    // width from the target byte_size.
     // Float-ness is the operands' (== the target's) scalar type, via the shared
     // classifier -- the same signal the pre-resolved-place entry below uses, so a
     // binary write is classified identically no matter which path reaches it.
@@ -159,6 +147,36 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         left_expression,
         right_expression,
     );
+
+    // f32 with a float-LITERAL operand is not wired yet: a float literal resolves to
+    // its f64 bit pattern (value_operands.rs), and the single-precision SSE op reads
+    // the low dword (movd), i.e. the wrong half. f32 field/var arithmetic (no float
+    // literal) lowers correctly; bail the literal case to its prior behavior rather
+    // than emit a wrong single-precision constant.
+    if is_float
+        && matches!(
+            expressions.expression(left_expression),
+            ExpressionNode::Float(_)
+        )
+        || is_float
+            && matches!(
+                expressions.expression(right_expression),
+                ExpressionNode::Float(_)
+            )
+    {
+        if matches!(
+            resolve_runtime_storage_primitive_type_in_table(
+                input,
+                dispatch_index,
+                target_source_key,
+                expressions,
+                target,
+            ),
+            Some(PrimitiveType::F32)
+        ) {
+            return None;
+        }
+    }
 
     if !is_float {
         if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(

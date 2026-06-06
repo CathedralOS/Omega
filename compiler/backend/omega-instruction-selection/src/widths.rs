@@ -95,7 +95,7 @@ pub fn dispatch_guard_compare_static_width(
         Architecture::Aarch64 => {
             aarch64::dispatch_guard_compare_static_width(byte_offset, byte_size)
         }
-        Architecture::X86_64 => x86_64::dispatch_guard_compare_static_width(is_float),
+        Architecture::X86_64 => x86_64::dispatch_guard_compare_static_width(is_float, byte_size),
     }
 }
 

@@ -1623,7 +1623,8 @@ fn select_runtime_binary_mutation_write(
     // A float TARGET performs the op on the SSE unit (matches the table path's
     // is_float keying). Without this, float arithmetic into a LOCAL (`let c: f64 =
     // a + b`, which routes through this non-table path) emits an integer add over
-    // the IEEE bit patterns. First cut: f64 only (f32 stays a gap).
+    // the IEEE bit patterns. f64 (8-byte, addsd) and f32 (4-byte, addss) — the
+    // encoder selects the scalar width from the target byte_size.
     let is_float = matches!(
         resolve_runtime_storage_primitive_type(
             input,
@@ -1631,7 +1632,7 @@ fn select_runtime_binary_mutation_write(
             target_source_key,
             resolved_target,
         ),
-        Some(PrimitiveType::F64)
+        Some(PrimitiveType::F64 | PrimitiveType::F32)
     );
 
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {

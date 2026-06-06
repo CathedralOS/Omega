@@ -545,6 +545,40 @@ fn runtime_float_arithmetic_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_f32_arithmetic_exit_canary_runs() {
+    // Single-precision f32 store/copy/compare and field arithmetic must use the
+    // single-precision SSE forms (movd + ucomiss/addss/...) keyed on byte_size 4,
+    // with is_float recognizing F32 -- previously f32 was compared/operated as an
+    // integer or as double precision. Exits 70 only when every f32 op is correct.
+    let canary = pass_canary("expressions/runtime_f32_arithmetic_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-f32-arith-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 arithmetic canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 arithmetic canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32 store/copy/compare + add/sub/mul/div to evaluate correctly (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_multi_arm_value_transition_exit_canary_runs() {
     // A value-returning machine whose body is a 3-arm guarded transition must select
     // the MIDDLE arm, not fall through to the default. The guard-failure jump used to

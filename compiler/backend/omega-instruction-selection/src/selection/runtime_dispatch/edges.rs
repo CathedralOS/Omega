@@ -109,7 +109,7 @@ fn guard_comparison_operands_float(
             binary.right,
         )
     });
-    matches!(primitive, Some(PrimitiveType::F64))
+    matches!(primitive, Some(PrimitiveType::F64 | PrimitiveType::F32))
 }
 
 fn unsigned_comparison_operator(operator: StateGuardOperator) -> StateGuardOperator {

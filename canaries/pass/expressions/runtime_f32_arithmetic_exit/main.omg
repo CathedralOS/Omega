@@ -1,0 +1,76 @@
+// Single-precision (f32) storage, copy, comparison, and arithmetic. The float SSE
+// path was f64-only: comparisons hardcoded `ucomisd` + `movq` (8-byte) and the
+// is_float detection only recognized F64, so an f32 field was compared/operated as
+// an integer over the low bits (or the wrong f64 half). f32 needs the single-
+// precision SSE forms — `movd` + `ucomiss` for compares, `movd` + `addss`/`subss`/
+// `mulss`/`divss` for arithmetic — selected by the operand byte_size (4), plus
+// is_float recognizing F32. Each result is guarded against the exact value, so a
+// double-precision mis-encode or an integer op over the bits exits non-70.
+// (f32 with a float-LITERAL operand, e.g. `x + 2.5`, is a separate remaining gap:
+// the literal still resolves to f64 bits. Field/var arithmetic is covered here.)
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: f32;
+    b: f32;
+    r: f32;
+}
+
+machine Main::main(&mut self) {
+    self.a = 10.0;
+    self.b = 4.0;
+
+    // Store + compare an f32 field.
+    transition self.a == 10.0 {
+        true -> check_copy()
+        false -> bad()
+    }
+
+    state check_copy(&mut self) {
+        // f32 field-to-field copy.
+        self.r = self.b;
+        transition self.r == 4.0 {
+            true -> check_add()
+            false -> bad()
+        }
+    }
+    state check_add(&mut self) {
+        self.r = self.a + self.b; // 14.0
+        transition self.r == 14.0 {
+            true -> check_sub()
+            false -> bad()
+        }
+    }
+    state check_sub(&mut self) {
+        self.r = self.a - self.b; // 6.0
+        transition self.r == 6.0 {
+            true -> check_mul()
+            false -> bad()
+        }
+    }
+    state check_mul(&mut self) {
+        self.r = self.a * self.b; // 40.0
+        transition self.r == 40.0 {
+            true -> check_div()
+            false -> bad()
+        }
+    }
+    state check_div(&mut self) {
+        self.r = self.a / self.b; // 2.5
+        transition self.r == 2.5 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

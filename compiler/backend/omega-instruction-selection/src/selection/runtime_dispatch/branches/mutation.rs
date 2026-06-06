@@ -1015,7 +1015,8 @@ fn select_runtime_binary_mutation_write_in_table(
         target,
     )?;
     // A float TARGET (e.g. `let c: f64 = a + b`) must use the SSE unit, not an
-    // integer add over the IEEE bits. f64 only for now (f32 stays a gap).
+    // integer add over the IEEE bits. f64 (addsd) and f32 (addss) — the encoder
+    // picks the scalar width from the target byte_size.
     let is_float = matches!(
         resolve_runtime_storage_primitive_type_in_table(
             input,
@@ -1024,7 +1025,7 @@ fn select_runtime_binary_mutation_write_in_table(
             expressions,
             target,
         ),
-        Some(PrimitiveType::F64)
+        Some(PrimitiveType::F64 | PrimitiveType::F32)
     );
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region: target_place.region,
