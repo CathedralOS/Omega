@@ -58,10 +58,17 @@ pub fn simplify_state_expression_for_role(
     expression: &Expression,
 ) -> Expression {
     let bindings = simple_local_bindings(program, state, statement_index);
-    let preserve_call_locals = matches!(
-        role,
-        StateValueRole::CallArgument | StateValueRole::TransitionArgument
-    );
+    // Never fold a call-result local into its use site, for ANY role. The call's
+    // result is materialized once into that local's own call-result slot at the `let`
+    // statement; substituting the call expression into a later statement (e.g.
+    // `let index = self.f(c); ... = max(.., index + 1)`) re-references a call that is
+    // not collected there, so its result slot can't be resolved and the value/write
+    // fails to lower (especially in a dispatched callee). Keeping the local a Name
+    // lets it resolve to its populated slot. (Previously only Call/Transition
+    // arguments preserved call locals; AssignmentValue folded them -- the source of
+    // the dispatched carve_room `max(.., self.cell_index(cell) + 1)` failure.)
+    let _ = role;
+    let preserve_call_locals = true;
     simplify_expression_with_bindings(
         program,
         machine,
