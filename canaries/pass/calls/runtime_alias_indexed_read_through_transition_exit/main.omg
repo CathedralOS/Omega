@@ -1,0 +1,58 @@
+// An inlined branching leaf that reads `items[key].field` (a constant-index element
+// of a forwarded slice) and writes it through a forwarded `&mut` alias must resolve
+// the index. The inlined by-value argument `key` binds as `mut <expr>`, so `items[key]`
+// became `items[mut 2]`; the index-path resolvers require a bare integer/place and
+// rejected the `Mutable`-wrapped index, dropping the copy. An index is always a value
+// (never a pointer), so the `mut` wrapper is stripped on a resolved leaf index.
+//
+// Mirrors the dungeon find_room shape: a by-value struct param, `as_slice`, and an
+// indexed element copied through a `&mut out` alias inside a guarded sub-state.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Item {
+    key: i32;
+    val: i32;
+}
+
+data Level {
+    rooms: [Item; 4];
+    room_count: i32;
+}
+
+data Store {
+}
+
+machine Store::find(&mut self, level: Level, key: i32, out: &mut Item) {
+    let items: &[Item] = level.rooms.as_slice();
+    transition key < 4 {
+        true -> read(items, key, out)
+        false -> {}
+    }
+    state read(&mut self, items: &[Item], key: i32, out: &mut Item) {
+        out.val = items[key].val;
+    }
+}
+
+data Main {
+    console: Console;
+    store: Store;
+}
+
+machine Main::main(&mut self) {
+    let level: Level;
+    level.room_count = 4;
+    level.rooms[2].val = 102;
+
+    let found: Item;
+    self.store.find(level, 2, &mut found);
+
+    transition found.val == 102 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
