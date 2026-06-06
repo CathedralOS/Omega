@@ -217,10 +217,21 @@ fn next_guarded_runtime_write_target_offset(
     let first_site = selected_instruction_site(input, &machine_instructions[first_write_index]);
 
     if current_site.is_some() && current_site != first_site {
+        // Land on the arm's failure boundary that carries the guard's source_key.
+        // Skip same-site guarded EFFECTS: a matched arm's own body (e.g. its
+        // assignment-value target copy) shares the guard's source_key and sits
+        // before the arm's `ForwardBranchSkip` + trailing NoOp landing. Landing on
+        // that copy makes a FAILED guard fall into the matched-arm skip and jump
+        // past the next arm — with 3+ arms the middle arm is skipped and the default
+        // runs. The real boundary is the first same-site NON-effect (the NoOp marker
+        // leaf.rs emits after the ForwardBranchSkip).
         if let Some(boundary) = machine_instructions
             .iter()
             .skip(first_write_index + 1)
-            .find(|instruction| selected_instruction_site(input, instruction) == current_site)
+            .find(|instruction| {
+                selected_instruction_site(input, instruction) == current_site
+                    && !is_guarded_effect(instruction)
+            })
         {
             return Some(boundary.offset);
         }

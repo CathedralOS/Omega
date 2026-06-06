@@ -1,0 +1,63 @@
+// A value-returning machine whose body is a 3+-arm guarded transition must select
+// the MIDDLE arm at runtime, not fall through to the default. Each arm lowers to a
+// guarded value write followed by a forward skip to the transition end and a
+// failure-landing NoOp marker; a failed guard must fall through to the NEXT arm.
+// The guard-failure jump distance used to land on the matched arm's own body copy
+// (which shares the guard's source_key and sits BEFORE the arm's forward skip), so a
+// failed first-arm guard ran the skip and jumped past the middle arm to the default
+// -- with 3+ arms, the middle arm was unreachable (first arm + default worked, the
+// middle silently returned the default). Each arm is exercised at runtime (operands
+// are runtime read-modify-write, not constant-folded), so a mis-selected arm exits
+// 71 instead of 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: i32;
+    a: i32;
+    b: i32;
+    c: i32;
+}
+
+machine Main::classify(&mut self, x: i32) -> i32 {
+    transition {
+        x > 5 -> 100
+        x > 0 -> 200
+        _ -> 300
+    }
+}
+
+machine Main::main(&mut self) {
+    self.v = 0; self.v = self.v + 9; // 9 -> first arm -> 100
+    self.a = self.classify(self.v);
+    self.v = 0; self.v = self.v + 3; // 3 -> MIDDLE arm -> 200
+    self.b = self.classify(self.v);
+    self.v = 0; self.v = self.v - 4; // -4 -> default -> 300
+    self.c = self.classify(self.v);
+
+    transition self.a == 100 {
+        true -> check_middle()
+        false -> bad()
+    }
+    state check_middle(&mut self) {
+        transition self.b == 200 {
+            true -> check_default()
+            false -> bad()
+        }
+    }
+    state check_default(&mut self) {
+        transition self.c == 300 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
