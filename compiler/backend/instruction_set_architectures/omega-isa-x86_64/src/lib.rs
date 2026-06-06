@@ -2460,11 +2460,19 @@ pub fn runtime_value_operand_width(
         // + load dest,[rax+const] (7).
         24
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
-        runtime_value_operand_width(runtime_value_operands, left)
-            + runtime_value_operand_width(runtime_value_operands, right)
+        let operation_width = if runtime_value_operands.binary_is_float(operand) {
+            // Float operands: the SSE op (movq xmm<-r, op, movq r<-xmm) is a fixed
+            // width regardless of operator. MUST match the emission below or the
+            // recorded relocation offsets drift (silent runtime segfault).
+            runtime_float_binary_operation_width()
+        } else {
             // Nested binary operands do not carry their result width; assume the
             // 64-bit form (correct for i64 and for non-negative i32 division).
-            + runtime_binary_operation_width(operator, 8)
+            runtime_binary_operation_width(operator, 8)
+        };
+        runtime_value_operand_width(runtime_value_operands, left)
+            + runtime_value_operand_width(runtime_value_operands, right)
+            + operation_width
             // push r10 (2) + mov r11,r10 (3) + pop r10 (2) + mov dest,r10 (3)
             + 10
     } else {
@@ -2557,14 +2565,22 @@ fn append_runtime_value_operand(
         append_runtime_value_operand(runtime_value_operands, bytes, Reg64::R10, right)?;
         append_mov_reg_reg(bytes, Reg64::R11, Reg64::R10); // right -> r11
         append_pop_r10(bytes); // restore left -> r10
-        // Comparisons use the operand width; other nested binaries do not carry
-        // their result width, so assume 64-bit (matches runtime_value_operand_
-        // width above for relocation consistency).
-        append_runtime_binary_operation(
-            bytes,
-            operator,
-            runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, 8),
-        )?;
+        if runtime_value_operands.binary_is_float(operand) {
+            // Float operands carry their IEEE bits in r10/r11; do the SSE op on the
+            // bits (addsd/...) rather than an integer add over them. Default f64
+            // width (8); f32 value-operand arithmetic is a further gap. MUST match
+            // runtime_float_binary_operation_width() used in the width fn above.
+            append_runtime_float_binary_operation(bytes, operator, 8)?;
+        } else {
+            // Comparisons use the operand width; other nested binaries do not carry
+            // their result width, so assume 64-bit (matches runtime_value_operand_
+            // width above for relocation consistency).
+            append_runtime_binary_operation(
+                bytes,
+                operator,
+                runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, 8),
+            )?;
+        }
         append_mov_reg_reg(bytes, destination, Reg64::R10);
         Ok(())
     } else {

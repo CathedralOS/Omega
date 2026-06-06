@@ -17,7 +17,9 @@ use super::super::static_values::{
     RuntimeStaticValues, invalidate_runtime_static_value_in_table,
 };
 use super::operators::{builtin_runtime_call_operator_in_table, runtime_binary_operator};
-use super::value_operands::resolve_runtime_value_operand_in_table;
+use super::value_operands::{
+    binary_value_operands_are_float, resolve_runtime_value_operand_in_table,
+};
 
 pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_binary_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
@@ -325,6 +327,19 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
         runtime_value_operands,
     )?;
 
+    // No target expression here (pre-resolved place), so classify float vs integer
+    // from the OPERAND expressions: a float-typed place or a float literal on
+    // either side means the op runs on the SSE unit (addsd/...). Without this, a
+    // float arithmetic into a local (`let c: f64 = a + b`) -- which reaches this
+    // entry point -- emits an integer add over the IEEE bits.
+    let is_float = binary_value_operands_are_float(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        left_expression,
+        right_expression,
+    );
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region,
         target_offset,
@@ -332,10 +347,7 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
         left,
         operator,
         right,
-        // This entry point receives a pre-resolved storage place without the
-        // target expression, so it cannot classify float vs integer; float
-        // arithmetic is routed through the targeted binary-write path instead.
-        is_float: false,
+        is_float,
     })
 }
 

@@ -45,6 +45,9 @@ pub enum AbstractValueOperand {
         left: AbstractValueOperandHandle,
         operator: StateGuardOperator,
         right: AbstractValueOperandHandle,
+        /// True when the operands are floating-point: the operation must use the
+        /// SSE unit (addsd/subsd/...), not an integer add over the IEEE bits.
+        is_float: bool,
     },
 }
 

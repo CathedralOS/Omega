@@ -20,7 +20,10 @@ use super::super::super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, append_place_suffix,
     resolve_runtime_alias_binding_handle, strip_mutable_expression,
 };
-use super::super::super::storage_places::resolve_runtime_storage_place;
+use super::super::super::storage_places::{
+    resolve_runtime_storage_place, resolve_runtime_storage_primitive_type,
+};
+use omega_checked_trees::types::PrimitiveType;
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place,
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
@@ -1617,6 +1620,20 @@ fn select_runtime_binary_mutation_write(
         resolved_target,
     )?;
 
+    // A float TARGET performs the op on the SSE unit (matches the table path's
+    // is_float keying). Without this, float arithmetic into a LOCAL (`let c: f64 =
+    // a + b`, which routes through this non-table path) emits an integer add over
+    // the IEEE bit patterns. First cut: f64 only (f32 stays a gap).
+    let is_float = matches!(
+        resolve_runtime_storage_primitive_type(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_target,
+        ),
+        Some(PrimitiveType::F64)
+    );
+
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
@@ -1624,6 +1641,6 @@ fn select_runtime_binary_mutation_write(
         left,
         operator,
         right,
-        is_float: false,
+        is_float,
     })
 }

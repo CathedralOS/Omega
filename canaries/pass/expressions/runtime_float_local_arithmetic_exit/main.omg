@@ -1,0 +1,37 @@
+// Floating-point arithmetic whose result is a `let`-bound LOCAL (not a field)
+// must still lower to an SSE scalar-double op (addsd/subsd/mulsd/divsd), NOT an
+// integer add over the f64 bit patterns. The local-target binary write used to
+// emit an integer op, producing a garbage f64 (e.g. 10.0+5.0 became the integer
+// sum of their IEEE bits). Each step here feeds the next, mixing float literals
+// and prior local results; the final guard compares the exact value so a wrong
+// (integer) op fails the comparison instead of silently exiting 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a: f64 = 10.0;
+    let b: f64 = 4.0;
+    let sum: f64 = a + b; // 14.0
+    let diff: f64 = sum - 1.0; // 13.0
+    let prod: f64 = diff * 2.0; // 26.0
+    let quotient: f64 = prod / 4.0; // 6.5
+
+    transition quotient == 6.5 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

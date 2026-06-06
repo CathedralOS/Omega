@@ -42,6 +42,9 @@ pub enum TargetValueOperand {
         left: TargetValueOperandHandle,
         operator: StateGuardOperator,
         right: TargetValueOperandHandle,
+        /// True when the operands are floating-point: the operation must use the
+        /// SSE unit (addsd/subsd/...), not an integer add over the IEEE bits.
+        is_float: bool,
     },
 }
 
@@ -74,6 +77,10 @@ pub trait RuntimeValueOperandSource {
         StateGuardOperator,
         RuntimeValueOperandHandle,
     )>;
+    /// Whether a `Binary` operand is floating-point (SSE op) rather than integer.
+    /// Returns false for non-binary operands. Kept separate from `binary()` so the
+    /// existing tuple accessor (and its many callers) stays unchanged.
+    fn binary_is_float(&self, handle: RuntimeValueOperandHandle) -> bool;
 }
 
 impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
@@ -188,9 +195,17 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
                 left,
                 operator,
                 right,
+                ..
             } => Some((*left, *operator, *right)),
             _ => None,
         }
+    }
+
+    fn binary_is_float(&self, handle: RuntimeValueOperandHandle) -> bool {
+        matches!(
+            self.get(handle),
+            RuntimeValueOperand::Binary { is_float: true, .. }
+        )
     }
 }
 

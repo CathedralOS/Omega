@@ -70,10 +70,12 @@ pub(crate) fn translate_runtime_value_operand(
             left,
             operator,
             right,
+            is_float,
         } => TargetValueOperand::Binary {
             left: remap::runtime_value_handle(*left),
             operator: *operator,
             right: remap::runtime_value_handle(*right),
+            is_float: *is_float,
         },
     }
 }

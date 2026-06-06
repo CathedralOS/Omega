@@ -54,6 +54,9 @@ pub enum AssignedValueOperandKind {
         left: AssignedValueOperandHandle,
         operator: StateGuardOperator,
         right: AssignedValueOperandHandle,
+        /// True when the operands are floating-point: the operation must use the
+        /// SSE unit (addsd/subsd/...), not an integer add over the IEEE bits.
+        is_float: bool,
     },
 }
 
@@ -122,10 +125,12 @@ impl From<omega_target_operations::TargetValueOperand> for AssignedValueOperandK
                 left,
                 operator,
                 right,
+                is_float,
             } => Self::Binary {
                 left,
                 operator,
                 right,
+                is_float,
             },
         }
     }
@@ -196,10 +201,12 @@ impl From<AssignedValueOperandKind> for omega_target_operations::TargetValueOper
                 left,
                 operator,
                 right,
+                is_float,
             } => Self::Binary {
                 left,
                 operator,
                 right,
+                is_float,
             },
         }
     }

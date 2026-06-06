@@ -119,8 +119,18 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
                 left,
                 operator,
                 right,
+                ..
             } => Some((*left, *operator, *right)),
             _ => None,
         }
+    }
+
+    fn binary_is_float(&self, handle: omega_target_operations::RuntimeValueOperandHandle) -> bool {
+        AssignedTargetOperationPlan::runtime_value_operand(self, handle).is_some_and(|operand| {
+            matches!(
+                operand.kind,
+                AssignedValueOperandKind::Binary { is_float: true, .. }
+            )
+        })
     }
 }
