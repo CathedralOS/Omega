@@ -144,6 +144,7 @@ fn bind_prior_local_aliases(
             continue;
         };
         if !local_data.initial_value.is_valid()
+            || local_initial_value_is_call(input, local_data.initial_value)
             || local_requires_runtime_storage(
                 input,
                 operation.source_key,
@@ -158,6 +159,11 @@ fn bind_prior_local_aliases(
                 local_data.symbol,
             )
         {
+            // A local whose initializer is a CALL has its result materialized once
+            // into its own call-result slot; do NOT alias it to the call expression
+            // (that would re-reference the call at a later statement where it is not
+            // collected, breaking value/write lowering -- esp. in a dispatched callee).
+            // The local stays a Name and resolves to its call-result slot.
             continue;
         }
 
@@ -177,6 +183,21 @@ fn bind_prior_local_aliases(
             expression: resolved_initializer.expression,
         });
     }
+}
+
+fn local_initial_value_is_call(
+    input: &InstructionSelectionInput<'_>,
+    initial_value: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Call(call) = input.program.expression_table.expression(initial_value) else {
+        return false;
+    };
+    // Slice-VIEW calls (`as_slice`/`as_mut_slice`) are NOT result-producing value
+    // calls -- they materialize a slice descriptor from the alias and MUST stay
+    // aliased so the descriptor lowering can see the receiver. Only a real
+    // result-producing call (e.g. `self.idx(c)`, with its own call-result slot) is
+    // excluded from aliasing here.
+    !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
 }
 
 fn local_requires_runtime_storage(
