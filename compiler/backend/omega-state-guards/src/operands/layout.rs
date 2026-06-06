@@ -67,6 +67,11 @@ pub(super) fn resolve_guard_operand_layout(
         }
         let field_symbol = path.member_symbol(1);
         let field_name = path.member(1)?;
+        // A constant array index on the root machine field (`self.cells[1].value`)
+        // is carried out of band as `member_index(1)`; it must be folded into the
+        // root field before the rest of the path resolves, or every `self.arr[i].f`
+        // guard reads element 0.
+        let root_field_index = path.member_index(1);
         let rest = path.suffix(2);
         if let Some((_, machine_layout)) = layouts
             .machine_layouts
@@ -82,6 +87,14 @@ pub(super) fn resolve_guard_operand_layout(
                     field_symbol,
                     field_name,
                 ) {
+                    let indexed_root;
+                    let root_field = match root_field_index {
+                        Some(index) => {
+                            indexed_root = indexed_root_field(root_field, index)?;
+                            &indexed_root
+                        }
+                        None => root_field,
+                    };
                     return resolve_nested_field_layout_with_symbols(layouts, root_field, rest)
                         .map(|(byte_offset, layout)| ResolvedOperandLayout {
                             storage: StateGuardOperandStorage::MachineOwned,
@@ -104,6 +117,14 @@ pub(super) fn resolve_guard_operand_layout(
                     field_symbol,
                     field_name,
                 )?;
+                let indexed_root;
+                let root_field = match root_field_index {
+                    Some(index) => {
+                        indexed_root = indexed_root_field(root_field, index)?;
+                        &indexed_root
+                    }
+                    None => root_field,
+                };
 
                 resolve_nested_field_layout_with_symbols(layouts, root_field, rest).map(
                     |(byte_offset, layout)| ResolvedOperandLayout {
@@ -571,6 +592,30 @@ fn field_machine_layout<'plan>(
         .iter()
         .find(|(_, machine_layout)| machine_layout.symbol == type_symbol)
         .map(|(_, machine_layout)| machine_layout)
+}
+
+/// Fold a constant array index into a root machine field (`cells` in
+/// `self.cells[1].value`): advance the offset by `index * element_size` and narrow
+/// the type to the element. The suffix walk handles indices on later segments, but
+/// the root field is consumed before the suffix, so its index must be applied here.
+fn indexed_root_field(root_field: &FieldLayout, index: usize) -> Option<FieldLayout> {
+    let (element_type, length) = root_field.type_descriptor.fixed_array()?;
+    if index >= length {
+        return None;
+    }
+    let element_size = root_field.layout.size / length;
+    Some(FieldLayout {
+        symbol: root_field.symbol,
+        name: root_field.name.clone(),
+        offset: root_field.offset + element_size * index,
+        type_symbol: element_type.storage_symbol(),
+        type_name: root_field.type_name.clone(),
+        type_descriptor: element_type.clone(),
+        layout: TypeLayout {
+            size: element_size,
+            alignment: root_field.layout.alignment,
+        },
+    })
 }
 
 fn resolve_nested_field_layout_with_symbols(

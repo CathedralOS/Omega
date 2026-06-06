@@ -1,0 +1,35 @@
+// A dispatch guard comparing a FIXED-ARRAY ELEMENT to a constant -- `self.cells[2]
+// == 7.0`, cells `[f64; 4]` -- must resolve the operand to one element (8 bytes at
+// index*elem), not the whole 32-byte array. Previously the guard-operand layout
+// (omega-state-guards) consumed the root field without applying its constant index,
+// so it returned the whole array and selection emitted an unsupported 32-byte guard
+// (the encoder rejected it). Folding the root index into the field layout
+// (`index * element_size`, type narrowed to the element) fixes both the size and
+// the offset; an 8-byte guard is supported, so this now compiles and the guard
+// reads `cells[2]` correctly -- exit 0.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    cells: [f64; 4];
+}
+
+machine Main::main(&mut self) {
+    self.cells[2] = 7.0;
+
+    transition self.cells[2] == 7.0 {
+        true -> matched()
+        false -> missed()
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(1);
+    }
+}
