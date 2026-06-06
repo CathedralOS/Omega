@@ -29,23 +29,24 @@ own commit. Tick the boxes as phases complete.
 
 ## Phases
 
-### Phase 1 — Share the operation-kind enum (target ⟷ assigned)
-Same move as the value operand (proven). One canonical operation-kind defined in
-`omega-target-operations`; `omega-assigned-target-operations` re-exports it; drop
-the reflexive `From`. Eliminates the 63-variant duplicate + its conversion.
-- [ ] target: canonical `TargetOperationKind`; assigned: alias + drop the `From`.
-- [ ] suite green; commit.
+### Phase 1 — Share the operation-kind enum (target ⟷ assigned) — DONE (cbf75337)
+`AssignedOperationKind` is an alias of `omega_target_operations::TargetOperationKind`
+(domain too); the `semantic_domain` classification is inherited from the impl on the
+shared type (trait + domain enum already in shared `omega-core`). The two ~700-line
+reflexive `From` conversion files + the duplicate classification + tests are gone.
+- [x] target canonical; assigned alias; drop the `From`s. Net −2076 lines.
 
-### Phase 2 — Collapse `target → assigned` into a side-table
-`assigned` becomes the **target plan + a `homes` side-table** keyed by value-operand
-handle, not a parallel representation. Delete the `AssignedOperation` /
-`AssignedValueOperand` wrapper structs and the `assign_operation` / value
-conversions; the `assigned → machine-instructions` consumer reads target ops + the
-homes table. This is the proof that an annotation stage need not be a rep.
-- [ ] `homes` side-table on the assigned plan.
-- [ ] consumer reads target ops + homes by handle.
-- [ ] delete wrapper structs + conversions.
-- [ ] suite green; commit.
+### Phase 2 — Remove the rest of the assigned type duplication — DONE (7b0ac210)
+`AssignedOperation`, `AssignedInstructionOperand(/Kind)`, and
+`AssignedTargetOperationFunction` were verbatim target copies; now aliases. Their
+duplicate defs, `Default`s, the `InstructionOperandLike` impl, and the operand
+`From`s are gone. **The assigned crate now declares only what it actually adds:**
+register/scratch `homes` (homes.rs) + the `AssignedValueOperand { kind, home }`
+wrapper. The abstract/target/assigned representation triplication is eliminated.
+- [x] alias the remaining wrapper structs; suite green.
+- [ ] (optional Phase 2b) stop COPYING the target arenas into the assigned plan
+  — make the assigned plan = target plan + the homes side-table (no clone). This
+  is the perf/structure optimization; the dedup itself is already done.
 
 ### Phase 3 — Composite reps from a shared vocabulary crate
 Extract the cross-stage vocabulary (`ValueOperand`, the shared operation-kind,
