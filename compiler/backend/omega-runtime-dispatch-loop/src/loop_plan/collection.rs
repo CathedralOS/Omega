@@ -67,6 +67,7 @@ pub(super) fn runtime_dispatch_loop_edges<'context>(
                 guard_has_right_storage: guard_comparison.has_right_storage,
                 action: dispatch_action(&edge.target),
                 forms_cycle: edge.forms_cycle,
+                call_result: edge.call_result,
             });
             continue;
         }

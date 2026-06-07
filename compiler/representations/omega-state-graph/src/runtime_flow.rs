@@ -56,6 +56,16 @@ pub struct RuntimeCycle {
     pub states: HandleSpan<RuntimeState>,
 }
 
+/// Identifies the caller's call-result slot a dispatched value call returns into.
+/// Carried on a callee clone's TERMINAL edge so that, when the clone returns, the
+/// terminal's value (`-> acc` / `-> 99`) is written back to the caller's `let n`
+/// slot keyed by `(call_source_key, statement_index)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CallResultReturn {
+    pub call_source_key: StateKey,
+    pub statement_index: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeEdge {
     pub from: StateKey,
@@ -67,6 +77,9 @@ pub struct RuntimeEdge {
     pub continuation: RuntimeTransitionTarget,
     pub expressions: TransitionExpressionRefs,
     pub forms_cycle: bool,
+    /// Set on a value-returning callee clone's terminal edge: where to write the
+    /// terminal value (the caller's call-result slot). `None` for ordinary edges.
+    pub call_result: Option<CallResultReturn>,
 }
 
 impl Default for RuntimeEdge {
@@ -79,6 +92,7 @@ impl Default for RuntimeEdge {
             continuation: RuntimeTransitionTarget::None,
             expressions: TransitionExpressionRefs::default(),
             forms_cycle: false,
+            call_result: None,
         }
     }
 }

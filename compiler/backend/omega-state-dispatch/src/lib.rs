@@ -87,6 +87,7 @@ fn build_dispatch_state(
             continuation: edge.continuation,
             expressions: edge.expressions,
             forms_cycle: edge.forms_cycle,
+            call_result: edge.call_result,
         });
     }
 
@@ -171,6 +172,7 @@ fn append_terminal_continuation_edges(
                 ..Default::default()
             },
             forms_cycle: false,
+            call_result: None,
         });
     }
 }

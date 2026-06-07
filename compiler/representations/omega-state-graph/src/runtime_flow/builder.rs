@@ -34,6 +34,11 @@ pub(super) struct RuntimeFlowBuilder<'plan> {
     /// tail call it is empty.
     context_entry_arguments:
         Vec<omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle>>,
+    /// The caller call-result slot a clone returns into, indexed by context id.
+    /// `Some` only for a clone created by a VALUE-position call (`let n = f(..)`):
+    /// its terminal value is written to this slot when the clone returns. `None`
+    /// for ROOT and statement-position calls.
+    context_call_result: Vec<Option<crate::CallResultReturn>>,
 }
 
 impl<'plan> RuntimeFlowBuilder<'plan> {
@@ -68,6 +73,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             // Index 0 == ROOT: the entry machine terminates the program.
             context_entry_continuation: vec![crate::RuntimeTransitionTarget::Terminal],
             context_entry_arguments: vec![omega_core::arena::HandleSpan::empty()],
+            context_call_result: vec![None],
         }
     }
 
@@ -89,6 +95,15 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             .get(context.0 as usize)
             .copied()
             .unwrap_or_else(omega_core::arena::HandleSpan::empty)
+    }
+
+    /// The caller call-result slot a clone in `context` returns into (`Some` only
+    /// for a value-position call's clone), or `None`.
+    fn context_call_result(&self, context: CallContext) -> Option<crate::CallResultReturn> {
+        self.context_call_result
+            .get(context.0 as usize)
+            .copied()
+            .flatten()
     }
 
     pub(super) fn finish(self) -> RuntimeFlowPlan {
@@ -156,7 +171,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         // is covered.
         let mut has_unconditional = transition_count == 0;
         for transition_index in 0..transition_count {
-            let (statement_index, target, continuation, expressions) = {
+            let (statement_index, target, continuation, expressions, call_result) = {
                 let transition = self
                     .control_flow
                     .transitions
@@ -171,16 +186,23 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
 
                 let raw_target =
                     self.runtime_target(state_key.machine, &transition.target, context);
+                let is_terminal = matches!(raw_target, crate::RuntimeTransitionTarget::Terminal);
                 // A terminal target returns into the clone's entry continuation;
                 // if that is the next chained call, its arguments ride along.
-                let expressions = if matches!(raw_target, crate::RuntimeTransitionTarget::Terminal)
-                {
+                let expressions = if is_terminal {
                     TransitionExpressionRefs {
                         target_arguments: self.entry_arguments(context),
                         ..transition.expressions
                     }
                 } else {
                     transition.expressions
+                };
+                // A value-returning callee's terminal (`-> acc` / `-> 99`) carries
+                // the caller call-result slot so selection writes the value back.
+                let call_result = if is_terminal && transition.expressions.target_value.is_valid() {
+                    self.context_call_result(context)
+                } else {
+                    None
                 };
 
                 (
@@ -191,6 +213,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                         context,
                     ),
                     expressions,
+                    call_result,
                 )
             };
 
@@ -205,6 +228,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 target,
                 continuation,
                 expressions,
+                call_result,
             )?;
         }
 
@@ -226,6 +250,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                     target_arguments: fall_through_arguments,
                     ..TransitionExpressionRefs::default()
                 },
+                None,
             )?;
         }
 
@@ -287,8 +312,22 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             },
             context,
         };
-        let callee_context =
-            self.next_callee_context(next_segment_target, omega_core::arena::HandleSpan::empty())?;
+        // A value-position call (`let n = count(..)`) carries a call-result slot;
+        // its callee clone writes the terminal value back there when it returns.
+        // A statement call (`count(..)`) discards the result -> no slot.
+        let call_result = if self.statement_call_is_value(control_key, call_edge.statement_index) {
+            Some(crate::CallResultReturn {
+                call_source_key: control_key,
+                statement_index: call_edge.statement_index,
+            })
+        } else {
+            None
+        };
+        let callee_context = self.next_callee_context(
+            next_segment_target,
+            omega_core::arena::HandleSpan::empty(),
+            call_result,
+        )?;
         let call_target = crate::RuntimeTransitionTarget::State {
             key: call_edge.target_key,
             context: callee_context,
@@ -308,6 +347,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 target_arguments,
                 ..TransitionExpressionRefs::default()
             },
+            None,
         )?;
 
         Ok(true)
@@ -375,6 +415,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         return_arguments: omega_core::arena::HandleSpan<
             omega_checked_trees::expression::ExpressionHandle,
         >,
+        call_result: Option<crate::CallResultReturn>,
     ) -> Result<CallContext, Diagnostic> {
         if self.next_context >= self.context_budget {
             return Err(Diagnostic::error(
@@ -389,6 +430,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         debug_assert_eq!(self.context_entry_continuation.len(), context.0 as usize);
         self.context_entry_continuation.push(return_continuation);
         self.context_entry_arguments.push(return_arguments);
+        self.context_call_result.push(call_result);
         Ok(context)
     }
 
@@ -402,17 +444,72 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         let Ok(state) = self.state_flow_by_key(state_key) else {
             return omega_core::arena::HandleSpan::empty();
         };
+        // A statement state call's arguments may live on the operation directly
+        // (`f(x)` -> Call) or inside the value expression of a value-position call
+        // (`let n = f(x)` -> a LocalData/Assignment whose value expression is the
+        // Call). Without descending into the value expression, a dispatched value
+        // call materializes NO arguments and the callee runs on garbage.
+        for operation in self
+            .control_flow
+            .operations
+            .span(state.operations)
+            .into_iter()
+            .flatten()
+            .filter(|operation| operation.statement_index == statement_index)
+        {
+            let value = match operation.expressions {
+                omega_control_flow::OperationExpressionRefs::Call { arguments } => {
+                    return arguments;
+                }
+                omega_control_flow::OperationExpressionRefs::Assignment { value, .. } => value,
+                omega_control_flow::OperationExpressionRefs::Expression(value) => value,
+                omega_control_flow::OperationExpressionRefs::None => continue,
+            };
+            if let Some(arguments) = self.first_call_arguments(value) {
+                return arguments;
+            }
+        }
+        omega_core::arena::HandleSpan::empty()
+    }
+
+    /// Whether the dispatched call at `statement_index` is a VALUE-position call
+    /// (`let n = f(..)`, whose operation carries the call in a value/expression
+    /// position) rather than a discarded statement call (`f(..)`, an
+    /// `OperationKind::Call`). Only value calls return into a call-result slot.
+    fn statement_call_is_value(&self, state_key: StateKey, statement_index: usize) -> bool {
+        let Ok(state) = self.state_flow_by_key(state_key) else {
+            return false;
+        };
         self.control_flow
             .operations
             .span(state.operations)
             .into_iter()
             .flatten()
-            .find(|operation| operation.statement_index == statement_index)
-            .and_then(|operation| match operation.expressions {
-                omega_control_flow::OperationExpressionRefs::Call { arguments } => Some(arguments),
-                _ => None,
+            .filter(|operation| operation.statement_index == statement_index)
+            .any(|operation| {
+                matches!(
+                    operation.expressions,
+                    omega_control_flow::OperationExpressionRefs::Assignment { .. }
+                        | omega_control_flow::OperationExpressionRefs::Expression(_)
+                )
             })
-            .unwrap_or_else(omega_core::arena::HandleSpan::empty)
+    }
+
+    /// The argument span of the first call expression reachable from `expression`
+    /// (descending operand subexpressions), or `None` if there is no call.
+    fn first_call_arguments(
+        &self,
+        expression: omega_checked_trees::expression::ExpressionHandle,
+    ) -> Option<omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle>>
+    {
+        use omega_checked_trees::expression::ExpressionNode;
+        match self.control_flow.expressions.expression(expression) {
+            ExpressionNode::Call(call) => Some(call.arguments),
+            ExpressionNode::Binary(binary) => self
+                .first_call_arguments(binary.left)
+                .or_else(|| self.first_call_arguments(binary.right)),
+            _ => None,
+        }
     }
 
     /// Resolve a `Terminal` target to the clone's entry continuation, so a clone
@@ -438,6 +535,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         target: crate::RuntimeTransitionTarget,
         continuation: crate::RuntimeTransitionTarget,
         expressions: TransitionExpressionRefs,
+        call_result: Option<crate::CallResultReturn>,
     ) -> Result<(), Diagnostic> {
         let forms_cycle = self.target_is_active(&target);
 
@@ -449,6 +547,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             continuation,
             expressions,
             forms_cycle,
+            call_result,
         });
 
         if forms_cycle {

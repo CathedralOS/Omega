@@ -3247,6 +3247,41 @@ fn runtime_called_machine_loop_search_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_recursive_value_return_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_recursive_value_return_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-recursive-value-return-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime recursive value return canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime recursive value return canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a VALUE-position call to a looping machine (`let n = count(s, 0)`) to \
+         dispatch the loop AND write the callee's terminal value back into n's call-result \
+         slot, yielding n == 5 (exit 70); a 0 return (the pre-keystone bug) exits 71. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_alias_write_through_guarded_transition_exit_canary_runs() {
     // A `&mut` param forwarded through a GUARDED transition into a sub-state that
     // writes through it must reach the caller's object. When the callee inlines as a

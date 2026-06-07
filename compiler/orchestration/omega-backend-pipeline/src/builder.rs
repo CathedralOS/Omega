@@ -119,9 +119,11 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             },
         )?)
     };
-    let state_calls = if runtime_state_call_edges.is_empty()
-        || state_calls_cover_runtime_flow(state_calls.as_ref(), runtime_flow.as_ref())
-    {
+    // Rebuild the state-call plan against the dispatched runtime flow whenever any
+    // call dispatched. The cover-check short-circuit left a dispatched value call's
+    // lowering stale (still InlineBranching) so it would double-lower; rebuilding
+    // re-lowers every call against the clone graph.
+    let state_calls = if runtime_state_call_edges.is_empty() {
         state_calls
     } else {
         Arc::new(record_backend_phase(
@@ -480,26 +482,20 @@ fn dispatch_state_call_edges(
             // parameter slots. Acyclic calls keep inlining (works, and the
             // dispatch path doesn't yet carry return values for them).
             //
-            // NOTE (keystone TODO): a LOOPING value-position call (`let n =
-            // count(s[1..], acc+1)`) is ALSO mis-handled here -- it stays
-            // Statement-gated so it inline-UNROLLS and returns 0. Dispatching it
-            // (drop the `role == Statement` guard for looping callees) is verified
-            // to make it dispatch with a correct cycle, BUT the dispatch terminal
-            // does not yet write the return value to the caller's call-result slot
-            // (select_runtime_dispatch_return_value only fires on Terminate ->
-            // return register, not on the EnterState-to-continuation cloned return),
-            // so doing so regresses pass_canaries_compile. Fix = dispatch-terminal
-            // value-return plumbing first (see [[inline-branching-value-runtime-guard]]).
+            // A LOOPING callee must dispatch REGARDLESS of role: a value-position
+            // call (`let n = count(s[1..], acc+1)`) whose callee loops would
+            // otherwise inline-UNROLL and return 0. Dispatching it makes the loop
+            // a real back-edge, and the dispatch terminal writes the callee's
+            // return value back to the caller's call-result slot (see
+            // select_runtime_dispatch_call_result_return). Non-looping Statement
+            // calls still inline (acyclic, works).
             (state_call.required
-                && state_call.role == StateCallRole::Statement
-                && (matches!(
-                    state_call.lowering,
-                    StateCallLowering::InlineBranching | StateCallLowering::InlineExpansion
-                ) || state_call_target_loops(
-                    control_flow,
-                    state_calls,
-                    state_call.target_key,
-                )))
+                && (state_call_target_loops(control_flow, state_calls, state_call.target_key)
+                    || (state_call.role == StateCallRole::Statement
+                        && matches!(
+                            state_call.lowering,
+                            StateCallLowering::InlineBranching | StateCallLowering::InlineExpansion
+                        ))))
             .then_some(RuntimeStateCallEdge {
                 source_key: state_call.source_key,
                 statement_index: state_call.statement_index,
@@ -595,12 +591,3 @@ fn state_call_target_loops(
     )
 }
 
-fn state_calls_cover_runtime_flow(
-    state_calls: &StateCallPlan,
-    runtime_flow: &RuntimeFlowPlan,
-) -> bool {
-    runtime_flow
-        .states
-        .iter()
-        .all(|(_, state)| state_calls.required_source_or_statement_target(state.key))
-}

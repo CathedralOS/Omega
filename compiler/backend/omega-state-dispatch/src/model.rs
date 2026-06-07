@@ -1,6 +1,6 @@
 use omega_control_flow::{StateKey, TransitionExpressionRefs};
 use omega_core::arena::{Arena, HandleSpan};
-use omega_state_graph::RuntimeTransitionTarget;
+use omega_state_graph::{CallResultReturn, RuntimeTransitionTarget};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateDispatchPlan {
@@ -34,6 +34,7 @@ pub struct DispatchEdge {
     pub continuation_dispatch_index: u32,
     pub expressions: TransitionExpressionRefs,
     pub forms_cycle: bool,
+    pub call_result: Option<CallResultReturn>,
 }
 
 impl Default for DispatchEdge {
@@ -46,6 +47,7 @@ impl Default for DispatchEdge {
             continuation_dispatch_index: 0,
             expressions: TransitionExpressionRefs::default(),
             forms_cycle: false,
+            call_result: None,
         }
     }
 }

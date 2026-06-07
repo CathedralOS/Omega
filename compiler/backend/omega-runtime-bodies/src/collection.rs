@@ -277,15 +277,20 @@ fn append_state_body_operations(
         if let Some(state_call) =
             state_assignment_value_call(context, state_key, operation.statement_index)
         {
-            append_state_call_body_operation(
-                context,
-                state_call,
-                operations,
-                expressions,
-                invariant_names,
-                type_references,
-                visiting,
-            );
+            // A DISPATCHED value call's result arrives via the dispatch terminal
+            // writing the callee's return into the call-result slot; do not also
+            // inline-expand it here (that would double-lower and unroll a loop).
+            if !state_call_is_dispatched(context, state_call) {
+                append_state_call_body_operation(
+                    context,
+                    state_call,
+                    operations,
+                    expressions,
+                    invariant_names,
+                    type_references,
+                    visiting,
+                );
+            }
         }
 
         if let Some(local_storage) =
@@ -401,7 +406,14 @@ fn state_call_splits_runtime_body(
     context: &RuntimeDispatchBodyContext,
     state_call: &StateCall,
 ) -> bool {
-    state_call.role == StateCallRole::Statement && state_call_is_dispatched(context, state_call)
+    // A dispatched call ends a segment so its callee runs as its own dispatch
+    // case(s). This holds for a value-position call (`let n = count(..)`) too: the
+    // callee is dispatched (e.g. it loops) and writes its result back to the
+    // caller's call-result slot, so the inline expansion must NOT also be emitted.
+    matches!(
+        state_call.role,
+        StateCallRole::Statement | StateCallRole::AssignmentValue
+    ) && state_call_is_dispatched(context, state_call)
 }
 
 fn append_state_call_body_operation(
