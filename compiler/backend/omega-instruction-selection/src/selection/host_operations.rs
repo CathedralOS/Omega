@@ -75,14 +75,28 @@ pub(super) fn select_host_call(
             .is_some()
         && let Some(newline) = newline_data_object(input)
     {
+        // The newline is a second WriteFile to the same destination handle as the
+        // call body. Recover that destination capability (Stdout vs Stderr) from
+        // the lowering's own WriteFile operation so the newline targets the same
+        // stream rather than always defaulting to stdout.
+        let write_capability = operations
+            .iter()
+            .find(|operation| {
+                matches!(
+                    operation.operation_key.operation,
+                    HostOperation::Write | HostOperation::WriteFile
+                )
+            })
+            .map(|operation| operation.operation_key.capability)
+            .unwrap_or(HostCapability::Stdout);
         let uses_write_file = operations.iter().any(|operation| {
             operation.operation_key
-                == HostOperationKey::new(HostCapability::Stdout, HostOperation::WriteFile)
+                == HostOperationKey::new(write_capability, HostOperation::WriteFile)
         });
         if uses_write_file
             && let Some(get_std_handle) = operations.iter().find(|operation| {
                 operation.operation_key
-                    == HostOperationKey::new(HostCapability::Stdout, HostOperation::GetStdHandle)
+                    == HostOperationKey::new(write_capability, HostOperation::GetStdHandle)
             })
         {
             let handle_operands = select_host_operation_operands(
@@ -95,6 +109,7 @@ pub(super) fn select_host_call(
             );
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::PreparePlatformOutputHandle {
+                    capability: write_capability,
                     operands: handle_operands,
                 },
                 source_key: host_call.source_key,
@@ -119,6 +134,7 @@ pub(super) fn select_host_call(
         };
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WritePlatformNewline {
+                capability: write_capability,
                 use_file_api: uses_write_file,
                 operands: newline_operands,
             },

@@ -4081,6 +4081,55 @@ fn runtime_stdin_command_branch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_stderr_write_exit_canary_runs() {
+    // The `write_error` host capability mirrors `write` but targets the stderr
+    // handle (GetStdHandle(-12)) instead of stdout (-11). The program must emit
+    // its text on stderr only, leaving stdout empty, and exit with the requested
+    // code.
+    let canary = pass_canary("text/runtime_stderr_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-stderr-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime stderr write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("runtime stderr write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected runtime stderr write canary to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "hello-stderr\n",
+        "expected runtime stderr write canary to emit its text on stderr"
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "expected runtime stderr write canary to leave stdout empty, got {:?}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_stdin_line_buffering_exit_canary_runs() {
     let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
     let main_path = canary.join("main.omg");
@@ -5430,6 +5479,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dungeon/runtime_room_use_reentry_guard",
     "dungeon/runtime_room_use_reentry_exit",
     "text/runtime_text_storage",
+    "text/runtime_stderr_write_exit",
     "text/runtime_stdin_command_branch_exit",
     "text/runtime_stdin_line_buffering_exit",
     "calls/runtime_transition_subject_call_guard",
