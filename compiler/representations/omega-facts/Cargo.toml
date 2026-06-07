@@ -10,4 +10,4 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
+omega-typed-trees = { path = "../omega-typed-trees" }
