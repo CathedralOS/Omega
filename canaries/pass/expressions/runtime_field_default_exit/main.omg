@@ -4,10 +4,22 @@
 // default read 0. The entry machine's constant field defaults (integer / boolean /
 // float literal) are now written to their storage once at program entry, before the
 // dispatch loop. Covers int/f64/bool defaults and confirms an explicit assignment
-// still overrides the default.
+// still overrides the default. Also covers NESTED data: a field whose type is another
+// `data` record gets that record's own defaults emitted at the accumulated offset
+// (`Main.nested.deep` below). The `+ 1 == 6` guard forces a real runtime read rather
+// than letting the prover const-fold the known default.
 
 boundary trait Console {
     machine exit_process(return_code: i32);
+}
+
+data Deep {
+    base: i32 = 5;
+}
+
+data Nested {
+    deep: Deep;
+    flag: bool = true;
 }
 
 data Main {
@@ -16,10 +28,12 @@ data Main {
     ratio: f64 = 2.5;
     ready: bool = true;
     overwritten: i32 = 1;
+    nested: Nested;
 }
 
 machine Main::main(&mut self) {
     self.overwritten = 9; // explicit assignment overrides the default
+    self.bump(&mut self.nested.deep); // 5 -> 6, forces a runtime read of the default
 
     transition self.n == 5 {
         true -> check_ratio()
@@ -39,6 +53,18 @@ machine Main::main(&mut self) {
     }
     state check_overwritten(&mut self) {
         transition self.overwritten == 9 {
+            true -> check_nested_flag()
+            false -> bad()
+        }
+    }
+    state check_nested_flag(&mut self) {
+        transition self.nested.flag == true {
+            true -> check_nested_deep()
+            false -> bad()
+        }
+    }
+    state check_nested_deep(&mut self) {
+        transition self.nested.deep.base == 6 {
             true -> good()
             false -> bad()
         }
@@ -50,4 +76,8 @@ machine Main::main(&mut self) {
     state bad(&mut self) {
         self.console.exit_process(71);
     }
+}
+
+machine Main::bump(&mut self, d: &mut Deep) {
+    d.base = d.base + 1;
 }
