@@ -383,7 +383,12 @@ fn build_resolve_report_with_optional_sources(
                     ResolvedDefinitionKind::Target,
                 );
             }
-            Item::Provider(_) | Item::HostProvider(_) | Item::WireData(_) | Item::Export(_) => {}
+            Item::Provider(_)
+            | Item::HostProvider(_)
+            | Item::WireData(_)
+            | Item::Export(_)
+            | Item::Module(_)
+            | Item::Package(_) => {}
         }
     }
 
@@ -606,6 +611,18 @@ fn collect_statement(
         StatementNode::Expression(expression) => {
             collect_expression(report, syntax_trees, *expression, owner, context);
         }
+        StatementNode::Relax(relax) => {
+            collect_expression(
+                report,
+                syntax_trees,
+                relax.target,
+                &format!("{owner} relax target"),
+                context,
+            );
+            for nested in syntax_trees.items.statements(relax.statements) {
+                collect_statement(report, syntax_trees, *nested, owner, context);
+            }
+        }
         StatementNode::LocalData(local_data) => {
             collect_type_reference(
                 report,
@@ -717,7 +734,7 @@ fn collect_type_reference(
                 collect_type_reference(report, syntax_trees, *argument, owner);
             }
         }
-        TypeReferenceNode::Named(name) => {
+        TypeReferenceNode::DynamicTrait(name) | TypeReferenceNode::Named(name) => {
             let symbol = resolve_global_name(report, name.as_str());
             insert_reference(report, name, ResolvedReferenceKind::Type, owner, symbol);
         }
@@ -857,6 +874,9 @@ fn collect_expression(
         }
         ExpressionNode::Mutable(inner) => {
             collect_expression(report, syntax_trees, *inner, owner, context);
+        }
+        ExpressionNode::Unary(unary) => {
+            collect_expression(report, syntax_trees, unary.operand, owner, context);
         }
         ExpressionNode::Name(path) => {
             let path_members = syntax_trees.expressions.identifier_path_members(*path);
@@ -1164,6 +1184,8 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             | Item::Invariant(_)
             | Item::Measure(_)
             | Item::Target(_)
+            | Item::Module(_)
+            | Item::Package(_)
             | Item::Use(_) => {}
         }
     }
@@ -1214,6 +1236,11 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
                 DataMember::Field(field) => source_symbol_seed(SymbolKind::Field, &field.name),
                 DataMember::Variant(variant) => {
                     source_symbol_seed(SymbolKind::Variant, &variant.name)
+                }
+                // Data versions are metadata only (downstream lowering skips them);
+                // keep the child slot aligned with `members` but emit no resolvable symbol.
+                DataMember::Version(version) => {
+                    source_symbol_seed(SymbolKind::Unknown, &version.name)
                 }
             }),
         );
@@ -1458,7 +1485,9 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             TypeReferenceNode::Slice { element_type } => {
                 self.insert_type_children(parent, *element_type, depth + 1);
             }
-            TypeReferenceNode::Generic { base_name, .. } | TypeReferenceNode::Named(base_name) => {
+            TypeReferenceNode::Generic { base_name, .. }
+            | TypeReferenceNode::DynamicTrait(base_name)
+            | TypeReferenceNode::Named(base_name) => {
                 self.insert_named_type_children(parent, base_name.as_str(), depth + 1);
             }
             TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
@@ -1510,6 +1539,8 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             | Item::Invariant(_)
             | Item::Measure(_)
             | Item::Target(_)
+            | Item::Module(_)
+            | Item::Package(_)
             | Item::Use(_) => {}
         }
     }
@@ -1559,6 +1590,8 @@ fn root_item_symbol_seed<'syntax>(
         | Item::WireData(_)
         | Item::Export(_)
         | Item::Measure(_)
+        | Item::Module(_)
+        | Item::Package(_)
         | Item::Use(_) => None,
     }
 }
@@ -1580,6 +1613,8 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
         | Item::Export(_)
         | Item::Measure(_)
         | Item::Operator(_)
+        | Item::Module(_)
+        | Item::Package(_)
         | Item::Use(_) => None,
     }
 }

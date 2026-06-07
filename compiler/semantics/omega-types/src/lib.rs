@@ -158,6 +158,8 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
             | Item::HostProvider(_)
             | Item::WireData(_)
             | Item::Export(_)
+            | Item::Module(_)
+            | Item::Package(_)
             | Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Measure(measure) => {
@@ -400,7 +402,9 @@ fn collect_type_reference(
                 collect_type_reference(report, syntax_trees, *argument, kind, owner);
             }
         }
-        TypeReferenceNode::Named(name) => insert_reference(report, name.as_str(), kind, owner),
+        TypeReferenceNode::DynamicTrait(name) | TypeReferenceNode::Named(name) => {
+            insert_reference(report, name.as_str(), kind, owner)
+        }
         TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
