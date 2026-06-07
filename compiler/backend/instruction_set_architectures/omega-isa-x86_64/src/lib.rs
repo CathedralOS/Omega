@@ -2415,6 +2415,72 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_width(
     34 + runtime_storage_copy_chunk_count(0, 0, byte_count) * 14
 }
 
+pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
+    _element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    // mov r15,imm64(frame) (10) + mov r14,[r15+desc] (7) + mov r11d,[r15+idx] (7)
+    // + imul r11,r11,elem (7) + add r14,r11 (3) + mov r15,[r15+ptr] (7)
+    // + per chunk: load rax (7) + store rax (7).
+    41 + runtime_storage_copy_chunk_count(
+        source_field_byte_offset,
+        target_field_byte_offset,
+        byte_count,
+    ) * 14
+}
+
+/// Copies `byte_count` bytes from a runtime-frame slice element field
+/// (`*(frame[descriptor]) + index*elem + source_field`, index read from
+/// `frame[index_offset]`) through a `&mut` reference into its pointee field
+/// (`*(frame[pointer]) + target_field`). Runtime-index sibling of
+/// `encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee`.
+pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
+            element_byte_size,
+            source_field_byte_offset,
+            target_field_byte_offset,
+            byte_count,
+        ),
+    );
+    append_mov_r15_imm64(&mut bytes, 0); // r15 = frame base (reloc @ +2)
+    append_load_r14_from_r15(&mut bytes, descriptor_offset)?; // r14 = descriptor.ptr
+    append_load_index_r11_from_r15(&mut bytes, index_offset)?; // r11 = index (32-bit)
+    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
+    append_add_r14_r11(&mut bytes); // r14 = element base
+    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = target pointer (frame base consumed last)
+    for_each_runtime_copy_chunk(
+        source_field_byte_offset,
+        target_field_byte_offset,
+        byte_count,
+        |offset, chunk_size| {
+            append_load_rax_from_r14(&mut bytes, source_field_byte_offset + offset, chunk_size)?;
+            append_store_rax_to_r15(&mut bytes, target_field_byte_offset + offset, chunk_size)?;
+            Ok(())
+        },
+    )?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
+            element_byte_size,
+            source_field_byte_offset,
+            target_field_byte_offset,
+            byte_count,
+        )
+    );
+    Ok(bytes)
+}
+
 /// Copies `byte_count` bytes from a runtime-frame slice element field
 /// (`*(frame[descriptor]) + index*elem + field`, where `index` is read from
 /// `frame[index_offset]`) into `frame[target_offset]`. The runtime-index sibling
@@ -2437,7 +2503,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     // the copy source is [r14 + field + offset]; target is [r15 + target + offset].
     append_mov_r15_imm64(&mut bytes, 0);
     append_load_r14_from_r15(&mut bytes, descriptor_offset)?;
-    append_load_r11_from_r15(&mut bytes, index_offset)?;
+    append_load_index_r11_from_r15(&mut bytes, index_offset)?;
     append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
     append_add_r14_r11(&mut bytes);
     for_each_runtime_copy_chunk(
@@ -3122,6 +3188,22 @@ fn append_load_r11_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(
     Ok(())
 }
 
+/// Load an array INDEX into r11 from `[r15 + disp32]` as a 32-bit zero-extended
+/// value (`mov r11d`). An index always fits in 32 bits and is non-negative, but
+/// its frame slot may be a 4-byte `i32` whose adjacent bytes hold an unrelated
+/// value; a 64-bit load would splice that garbage into the high half of the index
+/// and compute a wild element address. (Same rationale as the r14-based index
+/// load; the length/pointer r15 loads stay 64-bit.)
+fn append_load_index_r11_from_r15(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x45, 0x8b, 0x9f]); // mov r11d, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
 fn append_store_r11_to_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x4d, 0x89, 0x9f]); // mov [r15 + disp32], r11
@@ -3217,7 +3299,14 @@ fn append_store_r15_to_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<()
 
 fn append_load_r11_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
-    bytes.extend([0x4d, 0x8b, 0x9e]); // mov r11, [r14 + disp32]
+    // 32-bit load (`mov r11d`), which zero-extends into the full r11. This is the
+    // array-INDEX load (every caller follows it with `imul r11, element_scale`).
+    // An index is a non-negative array offset that always fits in 32 bits, but its
+    // frame slot may be a 4-byte `i32` whose adjacent 4 bytes hold an unrelated
+    // value; a 64-bit load would splice that garbage into the high half of the
+    // index and compute a wild element address. Reading exactly 4 zero-extended
+    // bytes is correct for both `i32` and (small) `usize` indices.
+    bytes.extend([0x45, 0x8b, 0x9e]); // mov r11d, [r14 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }

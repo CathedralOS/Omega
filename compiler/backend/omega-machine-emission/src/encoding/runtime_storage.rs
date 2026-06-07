@@ -712,6 +712,29 @@ pub(super) fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_ru
     )
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(super) fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee(
+    input: MachineEmissionContext<'_>,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee(
+        input.target.architecture,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        source_field_byte_offset,
+        pointer_byte_offset,
+        target_field_byte_offset,
+        byte_count,
+    )
+}
+
 pub(super) fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
     input: MachineEmissionContext<'_>,
     base_byte_offset: usize,

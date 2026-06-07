@@ -401,6 +401,40 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
     target: ExpressionHandle,
     value: ExpressionHandle,
 ) -> Option<SelectedInstructionKind> {
+    // `out.f = items[i].f` where `out` is a `&mut` parameter: the target is a
+    // pointee (deref `out`) and the source a runtime-frame slice element. Resolve
+    // the pointee target BEFORE the plain-place path below -- otherwise the
+    // reference slot is treated as inline data (`out_slot + field`) and the value
+    // is written INTO the pointer instead of through it. (The dungeon `out.field =
+    // rooms[index].field` shape.)
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) && let Some(indexed_source) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && pointer_target.pointee_byte_size == indexed_source.byte_count
+        && indexed_source.byte_count > 0
+    {
+        return Some(
+            SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimePointee {
+                descriptor_offset: indexed_source.descriptor_offset,
+                index_offset: indexed_source.index_offset,
+                element_byte_size: indexed_source.element_byte_size,
+                source_field_byte_offset: indexed_source.field_byte_offset,
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                target_field_byte_offset: pointer_target.field_byte_offset,
+                byte_count: indexed_source.byte_count,
+            },
+        );
+    }
+
     let target_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
