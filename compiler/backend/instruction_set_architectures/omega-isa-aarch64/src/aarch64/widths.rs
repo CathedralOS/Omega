@@ -76,8 +76,12 @@ pub fn runtime_storage_compare_width(
     left_offset: usize,
     right_offset: usize,
     byte_size: usize,
+    is_float: bool,
 ) -> usize {
-    24 + load_data_offset_width(left_offset, byte_size)
+    // Float adds two `FMOV` (GPR -> FP) instructions (8 bytes) before the FCMP.
+    let float_move_width = if is_float { 8 } else { 0 };
+    24 + float_move_width
+        + load_data_offset_width(left_offset, byte_size)
         + load_data_offset_width(right_offset, byte_size)
 }
 
@@ -240,7 +244,7 @@ pub fn runtime_storage_binary_write_width(
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
-    _is_float: bool,
+    is_float: bool,
 ) -> usize {
     let indexed_operand_restore_width = if runtime_value_operands.frame_indexed(left).is_some()
         || runtime_value_operands.frame_indexed(right).is_some()
@@ -252,11 +256,23 @@ pub fn runtime_storage_binary_write_width(
         0
     };
 
+    let operation_width = if is_float {
+        runtime_float_binary_operation_width()
+    } else {
+        runtime_binary_operation_width(operator)
+    };
+
     8 + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
-        + runtime_binary_operation_width(operator)
+        + operation_width
         + indexed_operand_restore_width
         + runtime_result_write_width(target_offset, byte_size)
+}
+
+/// Width of the float binary-operation sequence: two `FMOV` from GPR (4 bytes
+/// each), the single scalar FP op (4), and one `FMOV` back to a GPR (4).
+fn runtime_float_binary_operation_width() -> usize {
+    16
 }
 
 pub fn runtime_pointee_binary_write_width(

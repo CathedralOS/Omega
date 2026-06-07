@@ -154,6 +154,21 @@ pub(in crate::aarch64) fn encode_msub_x_register(
     )
 }
 
+/// `SXTW Xd, Wn` — sign-extend the low 32 bits of `source_register` into the
+/// full 64-bit `destination_register` (an `SBFM` alias). Needed when widening a
+/// signed 32-bit integer source in a numeric `as` cast.
+///
+/// Ready for the numeric `as` cast lowering; not yet wired.
+#[allow(dead_code)]
+pub(in crate::aarch64) fn encode_sign_extend_word_to_x(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9340_7C00 | (u32::from(source_register) << 5) | u32::from(destination_register),
+    )
+}
+
 pub(in crate::aarch64) fn encode_subs_x_immediate(
     destination_register: u8,
     source_register: u8,
