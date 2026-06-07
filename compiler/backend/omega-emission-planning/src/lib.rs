@@ -1,4 +1,4 @@
-use omega_artifacts::{EmissionBlocker, emission_blocker};
+use omega_backend_report_types::{EmissionBlocker, emission_blocker};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_layout::LayoutPlan;

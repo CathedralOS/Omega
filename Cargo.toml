@@ -4,6 +4,7 @@ members = [
     "compiler/foundation/omega-core",
     "compiler/foundation/omega-target",
     "compiler/foundation/omega-calling-conventions",
+    "compiler/foundation/omega-backend-report-types",
     "compiler/representations/omega-tokens",
     "compiler/representations/omega-syntax-trees",
     "compiler/pipeline/omega-source-files-to-tokens",

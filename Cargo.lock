@@ -117,6 +117,7 @@ dependencies = [
 name = "omega-artifacts"
 version = "0.1.0"
 dependencies = [
+ "omega-backend-report-types",
  "omega-checked-trees",
  "omega-core",
  "omega-image",
@@ -217,8 +218,8 @@ name = "omega-backend-report"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
- "omega-artifacts",
  "omega-assigned-target-operations",
+ "omega-backend-report-types",
  "omega-calling-conventions",
  "omega-checked-trees",
  "omega-control-flow",
@@ -242,6 +243,14 @@ dependencies = [
  "omega-state-values",
  "omega-target",
  "omega-target-operations",
+]
+
+[[package]]
+name = "omega-backend-report-types"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-target",
 ]
 
 [[package]]
@@ -403,7 +412,7 @@ dependencies = [
 name = "omega-emission-planning"
 version = "0.1.0"
 dependencies = [
- "omega-artifacts",
+ "omega-backend-report-types",
  "omega-calling-conventions",
  "omega-checked-trees",
  "omega-control-flow",
