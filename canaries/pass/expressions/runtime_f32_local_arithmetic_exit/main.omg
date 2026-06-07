@@ -1,0 +1,91 @@
+// Single-precision (f32) arithmetic and comparison into LOCAL variables (frame
+// slots), the companion to runtime_f32_arithmetic_exit (which covers f32 fields).
+//
+// A local f32 binary write reaches a different selection entry point than a field
+// write (select_runtime_storage_binary_write_in_table, the pre-resolved-place path),
+// which previously did no f32 narrowing -- so `let c: f32 = a + b` ran addss over an
+// f64 bit pattern (movd reads the low dword = garbage). Each operand is a constant
+// local folded to its `Float` initializer, so the immediate carries f64 bits and
+// must be narrowed to f32 before the single-precision op.
+//
+// Also exercises a cast of a folded f32 arithmetic expression into a local
+// (`let n: i32 = c as i32`, where `c` inlines to `a + b`): the cast source is a
+// float Binary, which the convert selection must classify as f32 and narrow.
+//
+// Every result is guarded against its exact value, so a double-precision mis-encode,
+// an integer op over the bits, or a missing narrow exits non-70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a: f32 = 2.5;
+    let b: f32 = 1.5;
+
+    // Local f32 addition (4.0), then compare the local.
+    let c: f32 = a + b;
+    transition c == 4.0 {
+        true -> check_sub()
+        false -> bad()
+    }
+
+    state check_sub(&mut self) {
+        let a: f32 = 2.5;
+        let b: f32 = 1.5;
+        let c: f32 = a - b; // 1.0
+        transition c == 1.0 {
+            true -> check_mul()
+            false -> bad()
+        }
+    }
+    state check_mul(&mut self) {
+        let a: f32 = 2.5;
+        let b: f32 = 1.5;
+        let c: f32 = a * b; // 3.75
+        transition c == 3.75 {
+            true -> check_div()
+            false -> bad()
+        }
+    }
+    state check_div(&mut self) {
+        let a: f32 = 6.0;
+        let b: f32 = 1.5;
+        let c: f32 = a / b; // 4.0
+        transition c == 4.0 {
+            true -> check_compare()
+            false -> bad()
+        }
+    }
+    state check_compare(&mut self) {
+        // Single-precision comparison (ucomiss, no 0x66 prefix; forced-unsigned).
+        let a: f32 = 1.5;
+        let b: f32 = 2.5;
+        transition a < b {
+            true -> check_cast()
+            false -> bad()
+        }
+    }
+    state check_cast(&mut self) {
+        // Cast of a folded f32 arithmetic expression into a local integer.
+        let a: f32 = 2.5;
+        let b: f32 = 1.5;
+        let c: f32 = a + b;    // 4.0
+        let n: i32 = c as i32; // 4
+        transition n == 4 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -443,7 +443,65 @@ pub(super) fn classify_scalar_value_type_in_table(
         ExpressionNode::Float(_) => Some(PrimitiveType::F64),
         ExpressionNode::Integer(_) => Some(PrimitiveType::I64),
         ExpressionNode::Boolean(_) => Some(PrimitiveType::Bool),
+        // An arithmetic sub-expression (a folded `let c = a + b` inlined into a
+        // later cast `c as i32`) has the type of its operands. Classify from a
+        // resolvable operand: a float operand makes the whole binary float (its
+        // width is the float operand's), otherwise the operand's integer type. This
+        // lets a convert see through a binary source to pick single vs double
+        // precision and the source width.
+        ExpressionNode::Binary(binary) => {
+            let left = classify_scalar_value_type_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.left,
+            );
+            let right = classify_scalar_value_type_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.right,
+            );
+            // Prefer a place-resolved operand (its width is exact) over a bare
+            // literal (which defaults to the widest f64/i64); a float on either side
+            // makes the result float.
+            match (left, right) {
+                (Some(l), Some(r)) if l.accepts_float_literal() && !r.accepts_float_literal() => {
+                    Some(l)
+                }
+                (Some(l), Some(r)) if r.accepts_float_literal() && !l.accepts_float_literal() => {
+                    Some(r)
+                }
+                (Some(l), Some(r)) => {
+                    // Same float-ness: take the narrower (place-resolved) width.
+                    if scalar_primitive_rank(r) < scalar_primitive_rank(l) {
+                        Some(r)
+                    } else {
+                        Some(l)
+                    }
+                }
+                (l, r) => l.or(r),
+            }
+        }
         _ => None,
+    }
+}
+
+/// A coarse width rank for picking the narrower of two same-float-ness primitives
+/// when classifying a binary's type from its operands (a 4-byte f32/i32 ranks below
+/// an 8-byte f64/i64; a literal that resolved to the widest default loses to a
+/// place-resolved narrower operand).
+fn scalar_primitive_rank(primitive: PrimitiveType) -> u8 {
+    match primitive {
+        PrimitiveType::Bool => 0,
+        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => 1,
+        PrimitiveType::F64
+        | PrimitiveType::I64
+        | PrimitiveType::U64
+        | PrimitiveType::Usize
+        | PrimitiveType::String => 2,
     }
 }
 
@@ -536,7 +594,7 @@ fn descriptor_primitive_is_signed(descriptor: &TypeLayoutDescriptor) -> Option<b
     Some(descriptor_primitive_type(descriptor)?.is_signed_integer())
 }
 
-fn descriptor_primitive_type(descriptor: &TypeLayoutDescriptor) -> Option<PrimitiveType> {
+pub(super) fn descriptor_primitive_type(descriptor: &TypeLayoutDescriptor) -> Option<PrimitiveType> {
     match descriptor {
         TypeLayoutDescriptor::Named { name, .. } => PrimitiveType::from_name(name),
         TypeLayoutDescriptor::Constrained { base_type } => descriptor_primitive_type(base_type),
