@@ -23,6 +23,7 @@ mod builder;
 mod guard_expression_support;
 mod host_argument_blockers;
 mod host_binding_blockers;
+mod required_emission_verification;
 mod runtime_dispatch_blockers;
 mod runtime_text_blockers;
 mod selected_instruction_queries;
