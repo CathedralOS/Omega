@@ -73,7 +73,11 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
         .stdin
         .as_mut()
         .expect("stdin should be piped")
-        .write_all(b"north\r\nlook\r\nquit\r\n")
+        // Drive the full non-visual game loop: move into deeper rooms, claim the
+        // treasure (inventory mutation), and resolve combat. This exercises
+        // movement-at-depth, room events, the item/use path, and the enemy/fight
+        // path -- the systems that make the dungeon a real integration marker.
+        .write_all(b"north\r\nnorth\r\nuse\r\nnorth\r\nfight\r\nquit\r\n")
         .expect("scripted dungeon input should be written");
     let output = child
         .wait_with_output()
@@ -112,6 +116,17 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
     assert!(
         stdout.contains("A shallow limestone room with fresh claw marks."),
         "deeper room (R01) description should render after moving north\nstdout:\n{stdout}"
+    );
+    // The item/use path: claiming the treasure cache (deeper room) mutates state
+    // and reports it -- a cross-machine inventory write driven from a command.
+    assert!(
+        stdout.contains("You take the treasure."),
+        "the `use` command should claim the treasure in the treasure room\nstdout:\n{stdout}"
+    );
+    // The combat path: an enemy room resolves a fight to a win + reward.
+    assert!(
+        stdout.contains("The enemy collapses."),
+        "the `fight` command should resolve combat in an enemy room\nstdout:\n{stdout}"
     );
 
     let _ = fs::remove_dir_all(&build_dir);
