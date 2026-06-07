@@ -1278,6 +1278,33 @@ pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee_
     }
 }
 
+pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
+    architecture: Architecture,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
+                element_byte_size,
+                source_field_byte_offset,
+                target_field_byte_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
+                element_byte_size,
+                source_field_byte_offset,
+                target_field_byte_offset,
+                byte_count,
+            )
+        }
+    }
+}
+
 pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
     architecture: Architecture,
     base_byte_offset: usize,

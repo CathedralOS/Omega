@@ -620,6 +620,20 @@ pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee_
         + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
+pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    // index setup (x16 = element source-field addr) + load x20 = pointer (4)
+    // + add target field to x20 + data copy.
+    runtime_frame_index_setup_width(element_byte_size, source_field_byte_offset)
+        + 4
+        + add_constant_width(target_field_byte_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
 pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
     base_byte_offset: usize,
     element_byte_size: usize,

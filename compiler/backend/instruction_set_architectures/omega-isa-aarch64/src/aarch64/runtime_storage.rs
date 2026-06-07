@@ -1092,6 +1092,45 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_p
     Ok(bytes)
 }
 
+pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    source_field_byte_offset: usize,
+    pointer_byte_offset: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
+            element_byte_size,
+            source_field_byte_offset,
+            target_field_byte_offset,
+            byte_count,
+        ),
+    );
+    // x16 = element source-field address (`*(frame[descriptor]) + index*elem +
+    // source_field`); leaves x20 = frame base.
+    append_runtime_frame_index_target_address(
+        &mut bytes,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        source_field_byte_offset,
+    )?;
+    // x20 = target pointer value (`*(frame[pointer])`), then + target field.
+    bytes.extend(encode_load_x_from_x(20, 20, pointer_byte_offset)?);
+    append_add_constant_to_x_register(&mut bytes, 20, target_field_byte_offset)?;
+
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 18)?;
+        append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
+        Ok(())
+    })?;
+
+    Ok(bytes)
+}
+
 pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
     base_byte_offset: usize,
     index_offset: usize,

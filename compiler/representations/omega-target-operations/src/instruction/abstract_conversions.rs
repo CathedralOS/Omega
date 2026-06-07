@@ -663,6 +663,23 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_field_byte_offset: *target_field_byte_offset,
                 byte_count: *byte_count,
             },
+            omega_abstract_operations::AbstractOperationKind::CopyRuntimeFrameIndexedToRuntimePointee {
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                source_field_byte_offset,
+                pointer_byte_offset,
+                target_field_byte_offset,
+                byte_count,
+            } => Self::CopyRuntimeFrameIndexedToRuntimePointee {
+                descriptor_offset: *descriptor_offset,
+                index_offset: *index_offset,
+                element_byte_size: *element_byte_size,
+                source_field_byte_offset: *source_field_byte_offset,
+                pointer_byte_offset: *pointer_byte_offset,
+                target_field_byte_offset: *target_field_byte_offset,
+                byte_count: *byte_count,
+            },
             omega_abstract_operations::AbstractOperationKind::CopyRuntimeMachineIndexedToRuntimeStorage {
                 base_byte_offset,
                 index_offset,

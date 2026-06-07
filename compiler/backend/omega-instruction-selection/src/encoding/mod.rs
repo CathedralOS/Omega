@@ -31,6 +31,7 @@ pub use runtime_storage::{
     encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee,
     encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage,
     encode_runtime_storage_copy_from_runtime_frame_indexed,
+    encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee,
     encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage,
     encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage,
     encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame,

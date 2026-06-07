@@ -321,6 +321,7 @@ fn is_guarded_effect(instruction: &LaidOutMachineInstruction) -> bool {
             | MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameIndexed
             | MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameFixedIndexed
             | MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameFixedIndexedToRuntimePointee
+            | MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameIndexedToRuntimePointee
             | MachineInstructionKind::RuntimeStorageCopyFromRuntimePointeeToRuntimeFrame
             | MachineInstructionKind::RuntimeTextBufferMaterialize
             | MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimePointee
