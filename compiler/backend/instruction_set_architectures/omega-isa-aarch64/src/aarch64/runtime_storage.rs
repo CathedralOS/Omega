@@ -1292,7 +1292,9 @@ fn append_runtime_frame_index_target_address(
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
     append_fixed_width_load_x_from_x_offset(bytes, 16, 20, descriptor_offset, 19);
-    append_fixed_width_load_x_from_x_offset(bytes, 17, 20, index_offset, 21);
+    // Index is a 32-bit value: load it zero-extended so high bytes of the
+    // adjacent slot can't be spliced into the index (see helper doc comment).
+    append_fixed_width_load_index_w_from_x_offset(bytes, 17, 20, index_offset, 21);
     append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(16, 16, 18));
     append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
@@ -1335,14 +1337,16 @@ fn append_runtime_machine_index_target_address(
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_move_x_register(20, 16));
     append_add_constant_to_x_register(bytes, 16, base_byte_offset)?;
+    // Index is a 32-bit value: load it zero-extended (LDR Wt) so high bytes of
+    // the adjacent slot can't be spliced into the index.
     match index_region {
         omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
             bytes.extend(encode_adrp_placeholder(20));
             bytes.extend(encode_add_page_offset_placeholder(20));
-            bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
+            bytes.extend(encode_load_w_from_x(17, 20, index_offset, 4)?);
         }
         omega_target_operations::RuntimeStorageRegion::Machine => {
-            bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
+            bytes.extend(encode_load_w_from_x(17, 20, index_offset, 4)?);
         }
     }
     append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
@@ -1362,7 +1366,9 @@ fn append_runtime_frame_base_index_target_address(
     bytes.extend(encode_add_page_offset_placeholder(20));
     bytes.extend(encode_move_x_register(16, 20));
     append_add_constant_to_x_register(bytes, 16, base_byte_offset)?;
-    append_load_data_from_x_offset(bytes, 17, 20, index_offset, 8, 19)?;
+    // Index is a 32-bit value: load it zero-extended so high bytes of the
+    // adjacent slot can't be spliced into the index.
+    append_load_data_from_x_offset(bytes, 17, 20, index_offset, 4, 19)?;
     append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(16, 16, 18));
     append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
@@ -1888,11 +1894,146 @@ fn append_fixed_width_load_x_from_x_offset(
     );
 }
 
+/// Loads a 32-bit array INDEX (zero-extended into the full X register) from
+/// `[base_register + byte_offset]`. Array indices are always non-negative and
+/// fit in 32 bits; loading the full 64-bit slot would splice adjacent bytes
+/// into the high half of an `i32` index and produce a wild element address.
+/// `LDR Wt` auto-zeroes the upper 32 bits of Xt, which is exactly what we want.
+///
+/// Emits the SAME 24-byte sequence as `append_fixed_width_load_x_from_x_offset`
+/// (padded 4-instruction immediate = 16 bytes, ADD = 4, load = 4) — only the
+/// final load differs (`LDR Wt` vs `LDR Xt`, both 4 bytes) — so width functions
+/// are unchanged.
+fn append_fixed_width_load_index_w_from_x_offset(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    scratch_register: u8,
+) {
+    append_unsigned_immediate_padded(bytes, scratch_register, byte_offset as u64);
+    bytes.extend(encode_add_x_register(
+        scratch_register,
+        base_register,
+        scratch_register,
+    ));
+    bytes.extend(
+        encode_load_w_from_x(destination_register, scratch_register, 0, 4)
+            .expect("zero-offset w-register load should always encode"),
+    );
+}
+
 fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
     match byte_size {
         1 => byte_offset <= 4095,
         4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
         8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::widths;
+
+    /// The zero-extending index load must keep the exact byte width of the
+    /// 64-bit variant (only the final opcode changes), so width functions are
+    /// undisturbed.
+    #[test]
+    fn index_w_load_matches_x_load_width() {
+        let mut w_bytes = Vec::new();
+        append_fixed_width_load_index_w_from_x_offset(&mut w_bytes, 17, 20, 0x40, 21);
+        let mut x_bytes = Vec::new();
+        append_fixed_width_load_x_from_x_offset(&mut x_bytes, 17, 20, 0x40, 21);
+        assert_eq!(w_bytes.len(), x_bytes.len());
+        assert_eq!(w_bytes.len(), 24);
+    }
+
+    /// The final instruction must be `LDR Wt` (opcode family 0xB9400000), which
+    /// zero-extends the upper 32 bits, NOT `LDR Xt` (0xF9400000).
+    #[test]
+    fn index_w_load_emits_w_register_load() {
+        let mut bytes = Vec::new();
+        append_fixed_width_load_index_w_from_x_offset(&mut bytes, 17, 20, 0x40, 21);
+        let last = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap());
+        // size field (bits 30-31) of LDR Wt is 0b10; LDR Xt is 0b11.
+        assert_eq!(last & 0xFFC0_0000, 0xB940_0000, "expected LDR Wt (32-bit)");
+    }
+
+    /// The frame-index target-address setup width must still match what the
+    /// encoder emits after switching the index load to 32-bit.
+    #[test]
+    fn frame_index_setup_width_matches_emission() {
+        for &(element_size, field_offset) in
+            &[(1usize, 0usize), (4, 0), (8, 8), (24, 16), (40, 0)]
+        {
+            let mut bytes = Vec::new();
+            append_runtime_frame_index_target_address(&mut bytes, 0x10, 0x40, element_size, field_offset)
+                .unwrap();
+            assert_eq!(
+                bytes.len(),
+                widths::runtime_frame_index_setup_width(element_size, field_offset),
+                "element_size={element_size}, field_offset={field_offset}"
+            );
+        }
+    }
+
+    /// New frame-indexed -> pointee copy encoder length must equal its width.
+    #[test]
+    fn frame_indexed_to_pointee_copy_width_matches_emission() {
+        let cases = [
+            // (element_size, source_field, pointer_offset, target_field, byte_count)
+            (24usize, 0usize, 0usize, 0usize, 8usize),
+            (40, 8, 16, 8, 16),
+            (16, 0, 24, 0, 4),
+            (32, 16, 8, 16, 24),
+        ];
+        for &(element_size, source_field, pointer_offset, target_field, byte_count) in &cases {
+            let bytes = encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee(
+                0x10,
+                0x40,
+                element_size,
+                source_field,
+                pointer_offset,
+                target_field,
+                byte_count,
+            )
+            .unwrap();
+            let expected = widths::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
+                element_size,
+                source_field,
+                target_field,
+                byte_count,
+            );
+            assert_eq!(
+                bytes.len(),
+                expected,
+                "element_size={element_size}, source_field={source_field}, pointer_offset={pointer_offset}, target_field={target_field}, byte_count={byte_count}"
+            );
+        }
+    }
+
+    /// The frame-base-indexed setup loads the index as 4 bytes; the integer
+    /// write width must agree with the encoder.
+    #[test]
+    fn frame_base_indexed_integer_write_width_matches_emission() {
+        for &(base, index_off, element_size, field, value_size) in &[
+            (0x20usize, 0x48usize, 4usize, 0usize, 4usize),
+            (0x20, 0x48, 8, 8, 8),
+            (0x20, 0x40, 16, 0, 1),
+        ] {
+            let bytes = encode_runtime_frame_base_indexed_integer_write(
+                base, index_off, element_size, field, value_size, 7,
+            )
+            .unwrap();
+            assert_eq!(
+                bytes.len(),
+                widths::runtime_frame_base_indexed_integer_write_width(
+                    base, index_off, element_size, field, value_size,
+                ),
+                "value_size={value_size}"
+            );
+        }
     }
 }
