@@ -224,17 +224,62 @@ pub fn runtime_pointee_integer_write_width(
 
 #[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_convert_width(
-    _runtime_value_operands: &impl RuntimeValueOperandSource,
-    _source: RuntimeValueOperandHandle,
-    _source_byte_size: usize,
-    _target_byte_size: usize,
-    _source_is_float: bool,
-    _target_is_float: bool,
-    _source_signed: bool,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    target_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
 ) -> usize {
-    // aarch64 conversion is unimplemented; the encoder errors. Report 0 so layout
-    // never reserves bytes for a converting cast on this target.
-    0
+    // `adrp x16 + add x16` (8) — target base, held across source evaluation —
+    // then load the source into x17, convert it in place, and store the result.
+    8 + runtime_value_operand_width(runtime_value_operands, source)
+        + runtime_convert_operation_width(
+            source_byte_size,
+            target_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+        )
+        + runtime_result_write_width(target_offset, target_byte_size)
+}
+
+/// Width of the in-register conversion sequence (see
+/// `runtime_storage::append_runtime_convert_operation`). The source bits start in
+/// x17 and the converted result is left in x17.
+fn runtime_convert_operation_width(
+    source_byte_size: usize,
+    target_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+) -> usize {
+    match (source_is_float, target_is_float) {
+        // int -> float: SCVTF (4) + FMOV result back to GPR (4).
+        (false, true) => 8,
+        // float -> int: FMOV bits into FP bank (4) + FCVTZS (4).
+        (true, false) => 8,
+        (true, true) => {
+            if source_byte_size == target_byte_size {
+                0 // same precision: bits already in x17.
+            } else {
+                // FMOV into FP bank (4) + FCVT precision change (4) + FMOV back (4).
+                12
+            }
+        }
+        (false, false) => {
+            // Sign-extend a narrow signed source when widening; otherwise the load
+            // already zero-extended and the store truncates. SXTW (4) handles the
+            // signed 32->64 widening case.
+            if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
+                4 // SXTW x17, w17
+            } else {
+                0
+            }
+        }
+    }
 }
 
 pub fn runtime_storage_binary_write_width(
