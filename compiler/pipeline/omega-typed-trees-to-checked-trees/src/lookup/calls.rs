@@ -88,7 +88,7 @@ pub(crate) fn resolve_state_call_target(
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     receiver: Option<&[Identifier]>,
-    _target_state: &Identifier,
+    target_state: &Identifier,
 ) -> SymbolHandle {
     if receiver.is_none() || receiver_symbol == machine.symbol {
         return resolve_state_symbol_in_machine(program, machine, target_symbol);
@@ -128,6 +128,15 @@ pub(crate) fn resolve_state_call_target(
         return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
     }
 
+    // A method call on a reference PARAMETER of a DATA type (`s: &mut Circle`,
+    // `s.code()`): the param's type is a data type, not a machine, so resolve the
+    // method (by name) in the machine ATTACHED to that data type -- the same way a
+    // contained-object call resolves. Also covers a devirtualized `dyn Trait` param.
+    let attached = attached_machine_state_symbol(program, type_symbol, target_symbol, target_state);
+    if attached.is_valid() {
+        return attached;
+    }
+
     if target_symbol.is_valid()
         && program
             .machines()
@@ -139,6 +148,61 @@ pub(crate) fn resolve_state_call_target(
     }
 
     SymbolHandle::invalid()
+}
+
+/// The state symbol of method `target_state` (matched by symbol or NAME) in the
+/// machine ATTACHED to data type `data_symbol`, or invalid. Resolves a method call
+/// on a data-typed reference receiver (a `&mut Data` param, or a devirtualized
+/// `dyn Trait`) to the implementing machine's state.
+fn attached_machine_state_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    data_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    target_state: &Identifier,
+) -> SymbolHandle {
+    if !data_symbol.is_valid() {
+        return SymbolHandle::invalid();
+    }
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == data_symbol)
+    else {
+        return SymbolHandle::invalid();
+    };
+    for candidate in program
+        .machines()
+        .iter()
+        .filter(|candidate| candidate.attached_data.as_ref() == Some(&data.name))
+    {
+        for state in program.machine_states(candidate) {
+            if (target_symbol.is_valid() && state.symbol == target_symbol)
+                || state.name == *target_state
+            {
+                return state.symbol;
+            }
+        }
+    }
+    SymbolHandle::invalid()
+}
+
+/// Whether `data_symbol` is a data type that has at least one machine attached to
+/// it (so a `&mut Data` receiver can dispatch a method call to that machine).
+fn data_type_has_attached_machine(
+    program: &omega_typed_trees::TypedTrees,
+    data_symbol: SymbolHandle,
+) -> bool {
+    data_symbol.is_valid()
+        && program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == data_symbol)
+            .is_some_and(|data| {
+                program
+                    .machines()
+                    .iter()
+                    .any(|machine| machine.attached_data.as_ref() == Some(&data.name))
+            })
 }
 
 pub(crate) fn receiver_can_dispatch_to_machine(
@@ -176,6 +240,7 @@ pub(crate) fn receiver_can_dispatch_to_machine(
 
     machine_by_symbol(program, receiver_symbol).is_some()
         || (type_symbol.is_valid() && machine_by_symbol(program, type_symbol).is_some())
+        || data_type_has_attached_machine(program, type_symbol)
 }
 
 fn receiver_field_type_machine_symbol(

@@ -1,0 +1,45 @@
+// dyn trait-object dispatch via DEVIRTUALIZATION. Omega has no runtime vtable;
+// when exactly one data type satisfies a trait, a `&mut dyn Trait` receiver
+// resolves unambiguously to that single implementation. Here only Circle satisfies
+// Shape, so `s.code()` through `&mut dyn Shape` dispatches to Circle::code() == 99,
+// the guard takes `good`, and it exits 70. (Previously dyn dispatch returned 0.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+trait Shape {
+    machine code(&mut self) -> i32;
+}
+
+data Circle {}
+
+machine Circle::code(&mut self) -> i32 {
+    transition {
+        _ -> 99
+    }
+}
+
+data Main {
+    console: Console;
+    c: Circle;
+}
+
+machine Main::main(&mut self) {
+    let n: i32 = self.dispatch(&mut self.c);
+    transition n == 99 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::dispatch(&mut self, s: &mut dyn Shape) -> i32 {
+    s.code()
+}

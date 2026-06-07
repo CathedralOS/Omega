@@ -1,0 +1,41 @@
+// A method call on a reference PARAMETER of a data type (`s: &mut Circle`,
+// `s.code()`). The param's type is a data type, not a machine, so resolution must
+// find the machine ATTACHED to that data type (like a contained-object call) --
+// previously this returned 0 (the call resolved to nothing). Here dispatch returns
+// Circle::code() == 99, so the guard takes the `good` arm and exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Circle {}
+
+machine Circle::code(&mut self) -> i32 {
+    transition {
+        _ -> 99
+    }
+}
+
+data Main {
+    console: Console;
+    c: Circle;
+}
+
+machine Main::main(&mut self) {
+    let n: i32 = self.dispatch(&mut self.c);
+    transition n == 99 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::dispatch(&mut self, s: &mut Circle) -> i32 {
+    s.code()
+}
