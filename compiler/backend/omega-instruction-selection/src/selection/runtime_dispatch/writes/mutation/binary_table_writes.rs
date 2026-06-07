@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
-    RuntimeStoragePlace, classify_scalar_value_type_in_table,
+    RuntimeStoragePlace, classify_scalar_value_type_in_table, descriptor_primitive_type,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
@@ -155,20 +155,21 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     // f32 bit pattern. f32 field/var operands need no narrowing (loaded from 4-byte
     // storage); nested float-literal operands (inside an inner binary) are a separate
     // remaining gap.
-    if is_float
-        && matches!(
-            resolve_runtime_storage_primitive_type_in_table(
-                input,
-                dispatch_index,
-                target_source_key,
-                expressions,
-                target,
-            ),
-            Some(PrimitiveType::F32)
-        )
-    {
-        narrow_f32_literal_operand(runtime_value_operands, expressions, left_expression, left);
-        narrow_f32_literal_operand(runtime_value_operands, expressions, right_expression, right);
+    let target_is_f32 = matches!(
+        resolve_runtime_storage_primitive_type_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        ),
+        Some(PrimitiveType::F32)
+    ) || target_place
+        .as_ref()
+        .is_some_and(|place| place.byte_count == 4);
+    if is_float && target_is_f32 {
+        narrow_f32_literal_operands(runtime_value_operands, expressions, left_expression, left);
+        narrow_f32_literal_operands(runtime_value_operands, expressions, right_expression, right);
     }
 
     if !is_float {
@@ -364,6 +365,16 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
         left_expression,
         right_expression,
     );
+
+    // A 4-byte float target is f32: the operation runs in single precision (movd,
+    // low dword), so a float-LITERAL operand -- including a constant local folded to
+    // its `Float` initializer (`let a: f32 = 2.5; ... a + b`) -- carries the wrong
+    // (f64) bit pattern and must be narrowed to f32 bits. This is the LOCAL
+    // float-arithmetic entry point; without it the addss reads garbage.
+    if is_float && byte_size == 4 {
+        narrow_f32_literal_operands(runtime_value_operands, expressions, left_expression, left);
+        narrow_f32_literal_operands(runtime_value_operands, expressions, right_expression, right);
+    }
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region,
         target_offset,
@@ -375,21 +386,40 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
     })
 }
 
-/// When a binary's target is f32, a direct float-literal operand was resolved to its
-/// f64 bit pattern; rewrite it to the f32 bit pattern so the single-precision SSE op
-/// (`movd`, low dword) reads the correct constant. No-op for non-literal operands.
-fn narrow_f32_literal_operand(
+/// When a binary's target is f32, a float-LITERAL operand was resolved to its f64
+/// bit pattern (`resolve_runtime_static_float_value_in_table` returns the literal's
+/// `f64` value); the single-precision SSE op (`movd`, low dword) needs the f32 bits,
+/// so rewrite such an operand's immediate from its f64 bits to its f32 bits. This is
+/// keyed on the operand EXPRESSION being a float literal -- the only operand kind
+/// that carries an f64-bit immediate. A folded PLACE operand (`self.a`, a constant
+/// f32 field) folds through the integer static-value tracker, whose stored bits are
+/// ALREADY the f32 pattern (`static_writes.rs` narrows on the way in); re-narrowing
+/// those would corrupt them, so this must not touch them. Recurses through a nested
+/// Binary operand expression in lockstep with the operand tree so a float literal
+/// inside an inner sub-expression is narrowed too. No-op for non-literal operands.
+fn narrow_f32_literal_operands(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     expressions: &ExpressionTable,
     operand_expression: ExpressionHandle,
     operand: RuntimeValueOperandHandle,
 ) {
-    let ExpressionNode::Float(literal) = expressions.expression(operand_expression) else {
-        return;
-    };
-    let narrowed = (literal.value() as f32).to_bits() as i64;
-    if let RuntimeValueOperand::Immediate(bits) = runtime_value_operands.get_mut(operand) {
-        *bits = narrowed;
+    match expressions.expression(operand_expression) {
+        ExpressionNode::Float(literal) => {
+            let narrowed = (literal.value() as f32).to_bits() as i64;
+            if let RuntimeValueOperand::Immediate(bits) = runtime_value_operands.get_mut(operand) {
+                *bits = narrowed;
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            let (left_expr, right_expr) = (binary.left, binary.right);
+            if let RuntimeValueOperand::Binary { left, right, .. } =
+                *runtime_value_operands.get(operand)
+            {
+                narrow_f32_literal_operands(runtime_value_operands, expressions, left_expr, left);
+                narrow_f32_literal_operands(runtime_value_operands, expressions, right_expr, right);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -444,9 +474,84 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_convert_mut
         expressions,
         target,
     )?;
+
+    let kind = build_runtime_convert_write(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        target_place.region,
+        target_place.byte_offset,
+        target_primitive,
+        source_expression,
+        static_values,
+        runtime_value_operands,
+    )?;
+    invalidate_runtime_static_value_in_table(static_values, expressions, target);
+    Some(kind)
+}
+
+/// A numeric `as` cast assigned to a frame slot (`let n: i32 = c as i32`, where the
+/// LOCAL target's place is a pre-resolved frame slot, not a target expression). The
+/// cast source is often a folded arithmetic expression (`c` inlined to `a + b`), so
+/// this reuses the shared convert builder, which classifies the source through a
+/// binary and resolves it as a runtime value operand. The target primitive comes
+/// from the slot's leaf type descriptor.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_frame_slot_convert_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let ExpressionNode::Cast(cast) = expressions.expression(value) else {
+        return None;
+    };
+    let target_primitive = descriptor_primitive_type(&slot.type_descriptor)?;
+
+    build_runtime_convert_write(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        RuntimeStorageRegion::RuntimeFrame,
+        slot.byte_offset,
+        target_primitive,
+        cast.value,
+        static_values,
+        runtime_value_operands,
+    )
+}
+
+/// Shared body of the two convert-write entry points: classify the source scalar
+/// type, build it as a runtime value operand, narrow f32 float constants, and emit
+/// the converting store. The target place (region + offset + primitive) is supplied
+/// by the caller -- from a target expression or a pre-resolved frame slot.
+#[allow(clippy::too_many_arguments)]
+fn build_runtime_convert_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    target_primitive: PrimitiveType,
+    source_expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
     // The source is usually a storage place, but a CONSTANT source folds to a
-    // literal (`let b: f64 = 10.0; b as i32` becomes `10.0 as i32`); the shared
-    // classifier resolves either (place leaf type, or the literal's node type).
+    // literal (`let b: f64 = 10.0; b as i32` becomes `10.0 as i32`) or a folded
+    // arithmetic expression (`(a + b) as i32`); the shared classifier resolves a
+    // place leaf type, a literal node type, or a binary's operand type.
     let source_primitive = classify_scalar_value_type_in_table(
         input,
         dispatch_index,
@@ -472,11 +577,16 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_convert_mut
         runtime_value_operands,
     )?;
 
-    invalidate_runtime_static_value_in_table(static_values, expressions, target);
+    // An f32 source computed in single precision (`(a + b) as i32`, a/b folded to
+    // `Float` literals) needs its float-literal constants narrowed to f32 bits before
+    // the convert reads them (movd, low dword).
+    if source_primitive == PrimitiveType::F32 {
+        narrow_f32_literal_operands(runtime_value_operands, expressions, source_expression, source);
+    }
 
     Some(SelectedInstructionKind::WriteRuntimeStorageConvert {
-        target_region: target_place.region,
-        target_offset: target_place.byte_offset,
+        target_region,
+        target_offset,
         target_byte_size,
         source,
         source_byte_size,
