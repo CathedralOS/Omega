@@ -302,7 +302,9 @@ pub fn runtime_frame_base_indexed_integer_write_width(
     byte_size: usize,
 ) -> usize {
     16 + add_constant_width(base_byte_offset)
-        + load_data_offset_width(index_offset, 8)
+        // Index is loaded as a 32-bit (4-byte) value, see
+        // append_runtime_frame_base_index_target_address.
+        + load_data_offset_width(index_offset, 4)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
         + runtime_store_data_width(byte_size)
@@ -365,7 +367,9 @@ pub fn runtime_frame_base_indexed_binary_write_width(
     right: RuntimeValueOperandHandle,
 ) -> usize {
     16 + add_constant_width(base_byte_offset)
-        + load_data_offset_width(index_offset, 8)
+        // Index is loaded as a 32-bit (4-byte) value, see
+        // append_runtime_frame_base_index_target_address.
+        + load_data_offset_width(index_offset, 4)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
         + runtime_value_operand_width(runtime_value_operands, left)
@@ -505,7 +509,9 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width(
     target_offset: usize,
 ) -> usize {
     16 + add_constant_width(base_byte_offset)
-        + load_data_offset_width(index_offset, 8)
+        // Index is loaded as a 32-bit (4-byte) value, see
+        // append_runtime_frame_base_index_target_address.
+        + load_data_offset_width(index_offset, 4)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
         + store_x_offset_width(target_offset)
