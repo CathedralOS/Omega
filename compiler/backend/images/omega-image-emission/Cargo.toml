@@ -15,4 +15,4 @@ omega-image-elf = { path = "../omega-image-elf" }
 omega-image-macho = { path = "../omega-image-macho" }
 omega-image-pe = { path = "../omega-image-pe" }
 omega-object-file = { path = "../../object/omega-object-file" }
-omega-target = { path = "../../omega-target" }
+omega-target = { path = "../../../foundation/omega-target" }

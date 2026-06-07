@@ -12,7 +12,7 @@ path = "src/lib.rs"
 omega-core = { path = "../../foundation/omega-core" }
 omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
 omega-syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/omega-syntax-trees-to-symbol-resolved-trees" }
-omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-emission-planning = { path = "../../backend/omega-emission-planning" }
 omega-image = { path = "../../backend/images/omega-image" }
@@ -44,7 +44,7 @@ omega-state-guards = { path = "../../backend/omega-state-guards" }
 omega-state-schedule = { path = "../../backend/omega-state-schedule" }
 omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-state-values = { path = "../../backend/omega-state-values" }
-omega-target = { path = "../../backend/omega-target" }
+omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }
 omega-visualizations = { path = "../omega-visualizations" }

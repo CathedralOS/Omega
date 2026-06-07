@@ -12,7 +12,7 @@ path = "src/lib.rs"
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-abstract-operations-to-target-operations = { path = "../../pipeline/omega-abstract-operations-to-target-operations" }
 omega-backend-plan = { path = "../../representations/omega-backend-plan" }
-omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow-to-abstract-operations = { path = "../../pipeline/omega-control-flow-to-abstract-operations" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
@@ -39,7 +39,7 @@ omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-guards = { path = "../../backend/omega-state-guards" }
 omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-state-values = { path = "../../backend/omega-state-values" }
-omega-target = { path = "../../backend/omega-target" }
+omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
 omega-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-target-operations-to-assigned-target-operations" }
 omega-assigned-target-operations-to-machine-instructions = { path = "../../pipeline/omega-assigned-target-operations-to-machine-instructions" }
