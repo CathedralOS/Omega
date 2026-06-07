@@ -459,3 +459,290 @@ fn rejects_declared_machine_effects_below_reached_effects() {
         "expected transitive effect ceiling diagnostic, got {diagnostics:#?}"
     );
 }
+
+/// Tests relocated from `omega-effects` when that crate moved into the
+/// `representations` layer. They exercise the effect/capability *analysis*
+/// passes, which require building a `TypedTrees` through the front-of-pipeline
+/// lowering crates. Those pipeline crates are dev-dependencies here (a
+/// semantics crate may depend up into pipeline for tests), but must not be
+/// dev-dependencies of `omega-effects` itself, since that would re-introduce a
+/// `representations -> pipeline` upward edge.
+mod effects_analysis {
+    use omega_effects::{
+        EffectSet, audit_host_calls, build_host_authority_registry, infer_effects,
+    };
+    use omega_typed_trees::TypedTrees;
+
+    use omega_source_files_to_tokens::Lexer;
+    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    fn lower(source: &str) -> TypedTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve");
+        lower_symbol_resolved_trees(&resolved).expect("type")
+    }
+
+    #[test]
+    fn effect_sets_are_bitsets_with_named_edges() {
+        let mut effects = EffectSet::empty();
+        assert!(effects.insert_name("stdout_io"));
+        assert!(effects.insert_name("process_exit"));
+        assert!(!effects.insert_name("nope"));
+        assert!(effects.contains_all(EffectSet::from_name("stdout_io").unwrap()));
+        assert_eq!(
+            effects.names().collect::<Vec<_>>(),
+            ["stdout_io", "process_exit"]
+        );
+    }
+
+    #[test]
+    fn propagates_machine_effects_to_call_sites() {
+        let source = r#"
+        boundary trait Console {
+            machine write_line(text: String)
+            effects
+                stdout_io;
+        }
+
+        data ConsoleImpl {
+        }
+
+        machine ConsoleImpl::write_line(text: String) satisfies Console
+        effects
+            stdout_io
+        {
+        }
+
+        data Main {
+            console: ConsoleImpl;
+        }
+
+        machine Main::main(&mut self) {
+            self.console.write_line("hello");
+        }
+        "#;
+
+        let typed = lower(source);
+        let plan = infer_effects(&typed);
+
+        let main_machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("main machine");
+        let main_effects = plan
+            .machines()
+            .iter()
+            .find(|effects| effects.symbol == main_machine.symbol)
+            .expect("main effects");
+        assert!(
+            main_effects
+                .transitive
+                .contains_all(EffectSet::from_name("stdout_io").unwrap())
+        );
+
+        let main_state = plan
+            .states
+            .span_or_empty(main_effects.states)
+            .first()
+            .expect("state");
+        let call = plan
+            .calls
+            .span_or_empty(main_state.calls)
+            .first()
+            .expect("call");
+        assert!(
+            call.transitive
+                .contains_all(EffectSet::from_name("stdout_io").unwrap())
+        );
+    }
+
+    #[test]
+    fn abstract_boundary_provider_is_authorized() {
+        let program = lower(
+            r#"
+            boundary trait Console {
+                machine write_line(text: String)
+                effects
+                    stdout_io;
+            }
+
+            data Main {
+                console: Console;
+            }
+
+            machine Main::main(&mut self) {
+                self.console.write_line("hello");
+            }
+            "#,
+        );
+        let effects = infer_effects(&program);
+        let registry = build_host_authority_registry(&program);
+        let unapproved = audit_host_calls(&program, &effects, &registry);
+        assert!(
+            unapproved.is_empty(),
+            "abstract provider should be approved"
+        );
+    }
+
+    #[test]
+    fn in_package_host_provider_is_unapproved() {
+        let program = lower(
+            r#"
+            boundary trait LocalFiles {
+                machine write_bytes(path: String)
+                effects
+                    filesystem_io;
+            }
+
+            data Disk {
+            }
+
+            machine Disk::write_bytes(path: String) satisfies LocalFiles
+            effects
+                filesystem_io
+            {
+            }
+
+            data Main {
+                disk: Disk;
+            }
+
+            machine Main::main(&mut self) {
+                self.disk.write_bytes("/etc/passwd");
+            }
+            "#,
+        );
+        let effects = infer_effects(&program);
+        let registry = build_host_authority_registry(&program);
+        let unapproved = audit_host_calls(&program, &effects, &registry);
+        assert_eq!(
+            unapproved.len(),
+            1,
+            "in-package host provider should be flagged as unapproved"
+        );
+        assert_eq!(
+            unapproved[0].missing_authority.names().collect::<Vec<_>>(),
+            ["filesystem_io"]
+        );
+    }
+}
+
+/// Tests relocated from `omega-effects::capabilities::providers` when that
+/// crate moved into the `representations` layer. They parse source into
+/// `SyntaxTrees` to exercise the boundary-provider registry, which needs the
+/// front-of-pipeline lexer/parser (dev-dependencies allowed here, but not on
+/// `omega-effects` itself - see `effects_analysis` above for the rationale).
+mod provider_registry {
+    use omega_core::operator_spelling::ProviderCategory;
+    use omega_effects::{build_provider_registry, host_authority_effects};
+    use omega_syntax_trees::SyntaxTrees;
+
+    use omega_source_files_to_tokens::Lexer;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    fn parse(source: &str) -> SyntaxTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        parse_syntax_trees(&tokens).expect("parse")
+    }
+
+    #[test]
+    fn host_abi_provider_metadata_comes_from_bound_operator() {
+        let syntax = parse(
+            r#"
+            provider omega::host::WriteBytes : HostAbiCall;
+
+            boundary operator omega::host::write(handle: i64, length: usize) -> usize
+            provider omega::host::WriteBytes
+            requires
+                length > 0;
+            "#,
+        );
+
+        let mut diagnostics = Vec::new();
+        let registry = build_provider_registry(&syntax, &mut diagnostics);
+        assert!(
+            diagnostics.is_empty(),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
+
+        let provider = registry
+            .resolve("omega::host::WriteBytes")
+            .expect("provider should be registered");
+        assert_eq!(provider.category, ProviderCategory::HostAbiCall);
+
+        // contract_ref: sourced from the bound operator's `requires` clause,
+        // referenced by the operator's qualified name.
+        assert_eq!(provider.contract_ref.as_deref(), Some("omega::host::write"));
+
+        // effect_set: a host-ABI provider carries host authority.
+        assert!(
+            !provider.effect_set.is_empty(),
+            "host-ABI provider should carry host authority effects"
+        );
+        assert_eq!(
+            provider.effect_set,
+            host_authority_effects(),
+            "host-ABI provider should carry the full host authority set"
+        );
+    }
+
+    #[test]
+    fn compute_provider_carries_no_authority() {
+        let syntax = parse(
+            r#"
+            provider omega::language::core::Slice : SliceIndexing;
+
+            boundary operator omega::language::core::index<T>(items: &[T], index: usize) -> T
+            spelling []
+            provider omega::language::core::Slice
+            requires
+                index < items.len;
+            "#,
+        );
+
+        let mut diagnostics = Vec::new();
+        let registry = build_provider_registry(&syntax, &mut diagnostics);
+        assert!(
+            diagnostics.is_empty(),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
+
+        let provider = registry
+            .resolve("omega::language::core::Slice")
+            .expect("provider should be registered");
+        assert_eq!(provider.category, ProviderCategory::SliceIndexing);
+        assert_eq!(
+            provider.contract_ref.as_deref(),
+            Some("omega::language::core::index")
+        );
+        // Pure-compute primitive: no host authority.
+        assert!(
+            provider.effect_set.is_empty(),
+            "slice indexing provider should not carry host authority"
+        );
+    }
+
+    #[test]
+    fn unbound_provider_keeps_empty_metadata() {
+        let syntax = parse("provider omega::host::Unbound : HostAbiCall;");
+
+        let mut diagnostics = Vec::new();
+        let registry = build_provider_registry(&syntax, &mut diagnostics);
+        assert!(
+            diagnostics.is_empty(),
+            "unexpected diagnostics: {diagnostics:?}"
+        );
+
+        let provider = registry
+            .resolve("omega::host::Unbound")
+            .expect("provider should be registered");
+        // No operator binds it, so metadata stays at empty defaults.
+        assert_eq!(provider.contract_ref, None);
+        assert!(provider.effect_set.is_empty());
+        assert!(provider.target_applicability.is_empty());
+    }
+}

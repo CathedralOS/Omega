@@ -15,8 +15,8 @@ omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
-omega-effects = { path = "../../semantics/omega-effects" }
-omega-facts = { path = "../../semantics/omega-facts" }
+omega-effects = { path = "../../representations/omega-effects" }
+omega-facts = { path = "../../representations/omega-facts" }
 omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }

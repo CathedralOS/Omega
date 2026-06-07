@@ -1,16 +1,14 @@
 [package]
-name = "omega-control-flow"
+name = "omega-effects"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_control_flow"
+name = "omega_effects"
 path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
-omega-checked-trees = { path = "../omega-checked-trees" }
-omega-effects = { path = "../omega-effects" }
-omega-facts = { path = "../omega-facts" }
+omega-syntax-trees = { path = "../omega-syntax-trees" }
 omega-typed-trees = { path = "../omega-typed-trees" }
