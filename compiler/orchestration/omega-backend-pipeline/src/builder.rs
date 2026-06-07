@@ -479,6 +479,17 @@ fn dispatch_state_call_edges(
             // states real dispatch cases (the loop a back-edge) with stable
             // parameter slots. Acyclic calls keep inlining (works, and the
             // dispatch path doesn't yet carry return values for them).
+            //
+            // NOTE (keystone TODO): a LOOPING value-position call (`let n =
+            // count(s[1..], acc+1)`) is ALSO mis-handled here -- it stays
+            // Statement-gated so it inline-UNROLLS and returns 0. Dispatching it
+            // (drop the `role == Statement` guard for looping callees) is verified
+            // to make it dispatch with a correct cycle, BUT the dispatch terminal
+            // does not yet write the return value to the caller's call-result slot
+            // (select_runtime_dispatch_return_value only fires on Terminate ->
+            // return register, not on the EnterState-to-continuation cloned return),
+            // so doing so regresses pass_canaries_compile. Fix = dispatch-terminal
+            // value-return plumbing first (see [[inline-branching-value-runtime-guard]]).
             (state_call.required
                 && state_call.role == StateCallRole::Statement
                 && (matches!(
