@@ -16,4 +16,4 @@ omega-layout = { path = "../omega-layout" }
 omega-runtime-bodies = { path = "../omega-runtime-bodies" }
 omega-state-calls = { path = "../omega-state-calls" }
 omega-state-storage = { path = "../omega-state-storage" }
-omega-target = { path = "../omega-target" }
+omega-target = { path = "../../foundation/omega-target" }
