@@ -1,0 +1,29 @@
+// isize: a SIGNED pointer-width integer. It was a registered builtin symbol but
+// missing from PrimitiveType (from_name mapped usize but not isize), so an isize
+// field failed at layout with "unknown layout-bearing type `isize`". Wired as
+// pointer-width + signed: -42 - 8 == -50 -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: isize;
+}
+
+machine Main::main(&mut self) {
+    self.v = -42;
+    self.v = self.v - 8;
+    transition self.v == -50 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

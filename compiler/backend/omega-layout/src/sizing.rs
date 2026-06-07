@@ -36,7 +36,7 @@ pub(super) fn primitive_type_layout(
             size: 8,
             alignment: 8,
         },
-        PrimitiveType::Usize => TypeLayout {
+        PrimitiveType::Usize | PrimitiveType::Isize => TypeLayout {
             size: target.pointer_size,
             alignment: target.pointer_alignment,
         },
