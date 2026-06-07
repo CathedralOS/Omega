@@ -1,0 +1,13 @@
+boundary trait Console {
+    machine write_error(text: String);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_error("hello-stderr\n");
+    self.console.exit_process(70);
+}

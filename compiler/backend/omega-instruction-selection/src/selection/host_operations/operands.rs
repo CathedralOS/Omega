@@ -54,7 +54,10 @@ pub(super) fn select_host_operation_operands(
                 operand(InstructionOperandKind::ByteLength(byte_count)),
             ])
         }
-        (HostCapability::Stdout, HostOperation::Write | HostOperation::WriteFile) => {
+        (
+            HostCapability::Stdout | HostCapability::Stderr,
+            HostOperation::Write | HostOperation::WriteFile,
+        ) => {
             if let Some(place) =
                 runtime_string_descriptor_place(input, host_call, dispatch_index, alias_context)
             {
