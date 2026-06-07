@@ -469,6 +469,50 @@ impl TypedTrees {
             .span_or_empty(machine.satisfies)
     }
 
+    /// The DATA symbol of the UNIQUE data type that structurally satisfies the
+    /// (non-boundary) trait `trait_symbol` -- i.e. for every trait method there is
+    /// a machine attached to that data type with a state of that name. Returns
+    /// `None` if zero or more than one data types satisfy it, or `trait_symbol` is
+    /// not such a trait. Used to DEVIRTUALIZE a `dyn Trait` receiver to its single
+    /// concrete implementation (Omega has no runtime vtable). The conformance
+    /// registry (`Machine::satisfies`) is not populated, so satisfaction is
+    /// computed structurally here.
+    pub fn single_trait_impl_data_symbol(
+        &self,
+        trait_symbol: omega_core::symbols::SymbolHandle,
+    ) -> Option<omega_core::symbols::SymbolHandle> {
+        if !trait_symbol.is_valid() {
+            return None;
+        }
+        let trait_definition = self.traits().iter().find(|t| t.symbol == trait_symbol)?;
+        if trait_definition.is_boundary {
+            return None;
+        }
+        let signatures = self.trait_machine_signatures(trait_definition);
+        if signatures.is_empty() {
+            return None;
+        }
+        let mut found: Option<omega_core::symbols::SymbolHandle> = None;
+        for data in self.data_definitions() {
+            let satisfies = signatures.iter().all(|signature| {
+                self.machines().iter().any(|machine| {
+                    machine.attached_data.as_ref() == Some(&data.name)
+                        && self
+                            .machine_states(machine)
+                            .iter()
+                            .any(|state| state.name == signature.name)
+                })
+            });
+            if satisfies {
+                if found.is_some() {
+                    return None;
+                }
+                found = Some(data.symbol);
+            }
+        }
+        found
+    }
+
     pub fn push_machine_effect(
         &mut self,
         machine: &mut machine::Machine,

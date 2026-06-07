@@ -33,11 +33,16 @@ pub(crate) fn machine_symbol_from_type_reference_handle(
         | omega_typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             ..
-        }
-        | omega_typed_trees::types::TypeReferenceNode::DynamicTrait {
-            symbol: base_symbol,
-            ..
         } => *base_symbol,
+        // A `dyn Trait`'s symbol is the TRAIT, not a machine. Devirtualize it to the
+        // single data type that satisfies the trait (Omega has no vtable); ambiguous
+        // or unimplemented traits keep the trait symbol (stays unresolved).
+        omega_typed_trees::types::TypeReferenceNode::DynamicTrait {
+            symbol: trait_symbol,
+            ..
+        } => program
+            .single_trait_impl_data_symbol(*trait_symbol)
+            .unwrap_or(*trait_symbol),
         omega_typed_trees::types::TypeReferenceNode::FixedArray { .. }
         | omega_typed_trees::types::TypeReferenceNode::Slice { .. }
         | omega_typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),

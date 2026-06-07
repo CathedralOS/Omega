@@ -735,6 +735,26 @@ fn resolve_state_call_target(
             });
         }
 
+        // A method call on a reference PARAMETER of a DATA type (`s: &mut Circle`,
+        // `s.code()`): the param's type is a data type, not a machine, so resolve
+        // the method in the machine ATTACHED to that data type -- the same way a
+        // contained-object call (`self.c.code()`) resolves. Also covers a
+        // devirtualized `dyn Trait` param (its type resolves to the impl's data type).
+        if let Some(type_name) =
+            source_state_parameter_type_name(control_flow, source_key, receiver_symbol)
+            && let Some(key) = resolve_attached_data_state_key_by_name(
+                control_flow,
+                &type_name,
+                target_symbol,
+                target_state,
+            )
+        {
+            return Some(ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::ContainedMachine,
+            });
+        }
+
         if target_symbol.is_valid()
             && let Some((key, _)) = control_flow
                 .states
@@ -790,6 +810,51 @@ fn resolve_attached_data_state_key(
                 .find(|state| state.key.state == target_symbol && state.key.segment_index == 0)
                 .map(|state| state.key)
         })
+}
+
+/// Like [`resolve_attached_data_state_key`] but also matches the target by NAME,
+/// not just symbol. A method call on a reference param (`s.code()`) may carry the
+/// trait/declared method symbol rather than the concrete impl's state symbol, so
+/// name matching is the reliable fallback (the type checker already validated it).
+fn resolve_attached_data_state_key_by_name(
+    control_flow: &ControlFlowPlan,
+    attached_data: &Identifier,
+    target_symbol: SymbolHandle,
+    target_state: &Identifier,
+) -> Option<StateKey> {
+    control_flow
+        .machines
+        .iter()
+        .filter_map(|(_, candidate)| {
+            (candidate.attached_data.as_ref() == Some(attached_data)).then_some(candidate)
+        })
+        .find_map(|candidate| {
+            control_flow
+                .states
+                .span(candidate.states)?
+                .iter()
+                .find_map(|state| {
+                    let matches = (target_symbol.is_valid() && state.key.state == target_symbol)
+                        || (state.key.segment_index == 0 && state.name == *target_state);
+                    matches.then_some(state.key)
+                })
+        })
+}
+
+fn source_state_parameter_type_name(
+    control_flow: &ControlFlowPlan,
+    source_key: StateKey,
+    receiver_symbol: SymbolHandle,
+) -> Option<Identifier> {
+    let state = control_flow
+        .states
+        .iter()
+        .find_map(|(_, state)| (state.key == source_key).then_some(state))?;
+    control_flow
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == receiver_symbol)
+        .map(|parameter| parameter.type_name.clone())
 }
 
 fn resolve_state_key_in_machine(
