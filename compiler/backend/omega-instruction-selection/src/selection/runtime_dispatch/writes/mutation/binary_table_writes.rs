@@ -429,9 +429,11 @@ fn scalar_primitive_byte_size(primitive: PrimitiveType) -> Option<usize> {
         PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => Some(1),
         PrimitiveType::I16 | PrimitiveType::U16 => Some(2),
         PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
-        PrimitiveType::F64 | PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Usize => {
-            Some(8)
-        }
+        PrimitiveType::F64
+        | PrimitiveType::I64
+        | PrimitiveType::U64
+        | PrimitiveType::Usize
+        | PrimitiveType::Isize => Some(8),
         PrimitiveType::String => None,
     }
 }

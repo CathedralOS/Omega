@@ -477,6 +477,7 @@ pub enum PrimitiveType {
     I16,
     I32,
     I64,
+    Isize,
     String,
     U8,
     U16,
@@ -495,6 +496,7 @@ impl PrimitiveType {
             "i16" => Some(Self::I16),
             "i32" => Some(Self::I32),
             "i64" => Some(Self::I64),
+            "isize" => Some(Self::Isize),
             "String" => Some(Self::String),
             "u8" => Some(Self::U8),
             "u16" => Some(Self::U16),
@@ -514,6 +516,7 @@ impl PrimitiveType {
             Self::I16 => "i16",
             Self::I32 => "i32",
             Self::I64 => "i64",
+            Self::Isize => "isize",
             Self::String => "String",
             Self::U8 => "u8",
             Self::U16 => "u16",
@@ -530,6 +533,7 @@ impl PrimitiveType {
                 | Self::I16
                 | Self::I32
                 | Self::I64
+                | Self::Isize
                 | Self::U8
                 | Self::U16
                 | Self::U32
@@ -559,6 +563,7 @@ impl PrimitiveType {
                 | Self::I16
                 | Self::I32
                 | Self::I64
+                | Self::Isize
                 | Self::U8
                 | Self::U16
                 | Self::U32

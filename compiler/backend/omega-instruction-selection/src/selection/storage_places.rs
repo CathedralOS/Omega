@@ -505,6 +505,7 @@ fn scalar_primitive_rank(primitive: PrimitiveType) -> u8 {
         | PrimitiveType::I64
         | PrimitiveType::U64
         | PrimitiveType::Usize
+        | PrimitiveType::Isize
         | PrimitiveType::String => 2,
     }
 }
@@ -2020,7 +2021,7 @@ fn primitive_layout(
             size: 8,
             alignment: 8,
         },
-        PrimitiveType::Usize => TypeLayout {
+        PrimitiveType::Usize | PrimitiveType::Isize => TypeLayout {
             size: input.runtime_abi.pointer_size,
             alignment: input.runtime_abi.pointer_alignment,
         },
