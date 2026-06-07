@@ -74,9 +74,6 @@ const KNOWN_EXCEPTIONS: &[(&str, &str)] = &[
     // The object/relocation layer depends on backend crates omega-layout and
     // omega-instruction-selection.
     ("object", "backend"),
-    // `omega-backend-report` / `omega-emission-planning` depend on
-    // `omega-artifacts` (orchestration) for shared artifact/report types.
-    ("backend", "orchestration"),
     // `omega-backend-plan` (a representation) depends on `omega-object-file`.
     ("representations", "object"),
     // Core IR representations (checked/control-flow/state-graph) carry

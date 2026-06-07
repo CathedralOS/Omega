@@ -1,0 +1,13 @@
+[package]
+name = "omega-backend-report-types"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_backend_report_types"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../omega-core" }
+omega-target = { path = "../omega-target" }
