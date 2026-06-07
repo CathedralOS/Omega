@@ -18,7 +18,7 @@ omega-facts = { path = "../../semantics/omega-facts" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
-omega-runtime-abi = { path = "../../backend/omega-runtime-abi" }
+omega-runtime-abi = { path = "../../foundation/omega-runtime-abi" }
 omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }
 omega-runtime-branching = { path = "../../backend/omega-runtime-branching" }
 omega-runtime-dispatch-loop = { path = "../../backend/omega-runtime-dispatch-loop" }
