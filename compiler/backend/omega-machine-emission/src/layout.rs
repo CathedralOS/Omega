@@ -317,6 +317,7 @@ fn machine_instruction_width(
             *is_float,
         ),
         SelectedInstructionKind::WriteRuntimeStorageConvert {
+            target_offset,
             target_byte_size,
             source,
             source_byte_size,
@@ -327,6 +328,7 @@ fn machine_instruction_width(
         } => runtime_storage_convert_width(
             input.target.architecture,
             input.assigned_target_operations,
+            *target_offset,
             *source,
             *source_byte_size,
             *target_byte_size,
