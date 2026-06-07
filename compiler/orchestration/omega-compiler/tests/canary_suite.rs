@@ -3295,6 +3295,68 @@ fn runtime_recursive_value_return_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_u8_field_arith_exit_canary_runs() {
+    let canary = pass_canary("types/runtime_u8_field_arith_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-u8-field-arith-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("u8 field arithmetic canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("u8 field arithmetic canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected u8 fields to store/add/compare as 1-byte values (100+50==150, exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_i8_signed_arith_exit_canary_runs() {
+    let canary = pass_canary("types/runtime_i8_signed_arith_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-i8-signed-arith-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("i8 signed arithmetic canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("i8 signed arithmetic canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i8 fields to be SIGNED 1-byte values (-10+4==-6, exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_alias_write_through_guarded_transition_exit_canary_runs() {
     // A `&mut` param forwarded through a GUARDED transition into a sub-state that
     // writes through it must reach the caller's object. When the callee inlines as a

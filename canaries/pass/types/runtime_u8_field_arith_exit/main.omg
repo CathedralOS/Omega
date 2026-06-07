@@ -1,0 +1,32 @@
+// u8 fields: store, unsigned arithmetic, and compare. u8/u16/i8/i16 were
+// registered as builtin type symbols but missing from PrimitiveType, so they had
+// no layout ("unknown layout-bearing type `u8`"). With u8 wired (size 1), a u8
+// field stores, adds, and compares as a 1-byte value: 100 + 50 == 150 -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: u8;
+    b: u8;
+    c: u8;
+}
+
+machine Main::main(&mut self) {
+    self.a = 100;
+    self.b = 50;
+    self.c = self.a + self.b;
+    transition self.c == 150 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

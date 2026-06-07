@@ -615,9 +615,13 @@ pub enum PrimitiveType {
     Bool,
     F32,
     F64,
+    I8,
+    I16,
     I32,
     I64,
     String,
+    U8,
+    U16,
     U32,
     U64,
     Usize,
@@ -645,9 +649,13 @@ impl PrimitiveType {
             "bool" => Some(Self::Bool),
             "f32" => Some(Self::F32),
             "f64" => Some(Self::F64),
+            "i8" => Some(Self::I8),
+            "i16" => Some(Self::I16),
             "i32" => Some(Self::I32),
             "i64" => Some(Self::I64),
             "String" => Some(Self::String),
+            "u8" => Some(Self::U8),
+            "u16" => Some(Self::U16),
             "u32" => Some(Self::U32),
             "u64" => Some(Self::U64),
             "usize" => Some(Self::Usize),
@@ -660,9 +668,13 @@ impl PrimitiveType {
             Self::Bool => "bool",
             Self::F32 => "f32",
             Self::F64 => "f64",
+            Self::I8 => "i8",
+            Self::I16 => "i16",
             Self::I32 => "i32",
             Self::I64 => "i64",
             Self::String => "String",
+            Self::U8 => "u8",
+            Self::U16 => "u16",
             Self::U32 => "u32",
             Self::U64 => "u64",
             Self::Usize => "usize",
@@ -670,7 +682,18 @@ impl PrimitiveType {
     }
 
     pub fn accepts_integer_literal(self) -> bool {
-        matches!(self, Self::I32 | Self::I64 | Self::U32 | Self::U64 | Self::Usize)
+        matches!(
+            self,
+            Self::I8
+                | Self::I16
+                | Self::I32
+                | Self::I64
+                | Self::U8
+                | Self::U16
+                | Self::U32
+                | Self::U64
+                | Self::Usize
+        )
     }
 
     pub fn accepts_float_literal(self) -> bool {
@@ -680,7 +703,17 @@ impl PrimitiveType {
     pub fn accepts_range_constraint(self) -> bool {
         matches!(
             self,
-            Self::F32 | Self::F64 | Self::I32 | Self::I64 | Self::U32 | Self::U64 | Self::Usize
+            Self::F32
+                | Self::F64
+                | Self::I8
+                | Self::I16
+                | Self::I32
+                | Self::I64
+                | Self::U8
+                | Self::U16
+                | Self::U32
+                | Self::U64
+                | Self::Usize
         )
     }
 
