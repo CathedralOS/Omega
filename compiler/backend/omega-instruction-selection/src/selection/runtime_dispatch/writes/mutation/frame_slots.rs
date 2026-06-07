@@ -203,6 +203,20 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         );
     }
 
+    if let Some(kind) = super::select_runtime_frame_slot_convert_write_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        slot,
+        value,
+        static_values,
+        runtime_value_operands,
+    ) {
+        return Some(kind);
+    }
+
     super::select_runtime_storage_binary_write_in_table(
         input,
         dispatch_index,
