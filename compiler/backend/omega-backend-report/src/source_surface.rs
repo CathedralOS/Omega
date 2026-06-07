@@ -1,4 +1,4 @@
-use omega_artifacts::BackendSurfaceReport;
+use omega_backend_report_types::BackendSurfaceReport;
 
 pub(super) fn write_source_native_surface(
     output: &mut String,

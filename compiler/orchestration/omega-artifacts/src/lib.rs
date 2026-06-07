@@ -6,7 +6,15 @@ use omega_core::allocations::AllocationDelta;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{EmittedImageOutput, ImageOutputKind};
-use omega_target::{NativeTarget, ObjectFormat};
+use omega_target::NativeTarget;
+
+// Foundational report/plan data types live in `omega-backend-report-types` so the
+// backend report passes can depend on them downward. Re-exported here so existing
+// `omega_artifacts::{EmissionPlan, BackendSurfaceReport, ...}` paths keep working.
+pub use omega_backend_report_types::{
+    BackendEntryPoint, BackendMachineSurface, BackendPlatformSurface, BackendSurfaceReport,
+    EmissionBlocker, EmissionPlan, emission_blocker,
+};
 
 pub struct ArtifactWriter {
     root: PathBuf,
@@ -897,63 +905,6 @@ pub struct BoundaryContract {
 pub struct UncheckedBoundaryPolicy {
     pub target: String,
     pub name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EmissionPlan {
-    pub image_format: ObjectFormat,
-    pub entry_symbol: String,
-    pub sections: usize,
-    pub symbols: usize,
-    pub host_bindings: usize,
-    pub host_calls: usize,
-    pub data_bytes: usize,
-    pub selected_instructions: usize,
-    pub instruction_operands: usize,
-    pub machine_code_bytes: usize,
-    pub encoded_machine_bytes: usize,
-    pub relocations: usize,
-    pub blockers: Arena<EmissionBlocker>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct EmissionBlocker {
-    pub stage: String,
-    pub reason: String,
-}
-
-pub fn emission_blocker(stage: &str, reason: &str) -> EmissionBlocker {
-    EmissionBlocker {
-        stage: stage.to_owned(),
-        reason: reason.to_owned(),
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BackendSurfaceReport {
-    pub entry_points: Arena<BackendEntryPoint>,
-    pub machines: Arena<BackendMachineSurface>,
-    pub platforms: Arena<BackendPlatformSurface>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BackendEntryPoint {
-    pub machine: String,
-    pub state: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BackendMachineSurface {
-    pub name: String,
-    pub contained_objects: usize,
-    pub owned_data: usize,
-    pub states: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct BackendPlatformSurface {
-    pub name: String,
-    pub states: usize,
 }
 
 pub fn build_backend_surface_report(program: &CheckedTrees) -> BackendSurfaceReport {

@@ -17,7 +17,7 @@ mod state_calls;
 mod stats;
 mod storage;
 
-use omega_artifacts::BackendSurfaceReport;
+use omega_backend_report_types::BackendSurfaceReport;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_state_calls::StateCall;
