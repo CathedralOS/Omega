@@ -204,9 +204,12 @@ pub fn runtime_storage_compare_width(
     is_float: bool,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_storage_compare_width(left_offset, right_offset, byte_size)
-        }
+        Architecture::Aarch64 => aarch64::runtime_storage_compare_width(
+            left_offset,
+            right_offset,
+            byte_size,
+            is_float,
+        ),
         Architecture::X86_64 => omega_isa_x86_64::runtime_storage_compare_width(
             left_offset,
             right_offset,

@@ -6,7 +6,9 @@ use omega_target_operations::{
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
     encode_add_page_offset_placeholder, encode_add_x_register, encode_adrp_placeholder,
-    encode_and_x_register, encode_compare_w_register, encode_compare_w17_immediate,
+    encode_and_x_register, encode_float_add, encode_float_compare, encode_float_divide,
+    encode_float_move_from_gpr, encode_float_move_to_gpr, encode_float_multiply,
+    encode_float_subtract, encode_compare_w_register, encode_compare_w17_immediate,
     encode_compare_x_register, encode_compare_x17_immediate, encode_conditional_branch_equal,
     encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
     encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
@@ -47,6 +49,11 @@ pub fn encode_runtime_storage_convert(
     _target_is_float: bool,
     _source_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    // The single-precision FCVT/SCVTF/FCVTZS encoders exist (see
+    // `primitives::float`) and are unit-tested, but the converting-cast store
+    // width is offset-dependent on aarch64 while the shared width dispatcher does
+    // not thread `target_offset` here, so wiring it would risk a layout/emission
+    // length mismatch. Left as an explicit error until the width plumbing lands.
     Err(Diagnostic::error(
         "aarch64 numeric `as` conversion is not implemented yet".to_string(),
     ))
@@ -60,35 +67,49 @@ pub fn encode_runtime_storage_compare_bytes(
     operator: StateGuardOperator,
     is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if is_float {
-        return Err(Diagnostic::error(
-            "aarch64 float storage comparison is not implemented yet".to_string(),
-        ));
-    }
     let mut bytes = Vec::with_capacity(runtime_storage_compare_width(
         left_offset,
         right_offset,
         byte_size,
+        is_float,
     ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    match byte_size {
-        1 | 4 => {
-            append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
-            append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
-            bytes.extend(encode_compare_w_register(18, 19));
-        }
-        8 => {
-            append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
-            append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
-            bytes.extend(encode_compare_x_register(18, 19));
-        }
-        _ => {
+    if is_float {
+        if !matches!(byte_size, 4 | 8) {
             return Err(Diagnostic::error(format!(
-                "AArch64 MVP encoder cannot compare {byte_size}-byte runtime guard operands yet"
+                "AArch64 encoder cannot compare {byte_size}-byte runtime float guard operands yet"
             )));
+        }
+        // Load the raw float bits into GPRs (reusing the integer load path), move
+        // them into the FP bank, then FCMP. The result NZCV drives the same
+        // signed conditional branch as the integer path; for ordered (non-NaN)
+        // operands the signed conditions are exact (NaN handling is a documented
+        // first-cut limitation, matching the x86 `ucomis*` path).
+        append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
+        append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
+        bytes.extend(encode_float_move_from_gpr(byte_size, 0, 18)?);
+        bytes.extend(encode_float_move_from_gpr(byte_size, 1, 19)?);
+        bytes.extend(encode_float_compare(byte_size, 0, 1)?);
+    } else {
+        match byte_size {
+            1 | 4 => {
+                append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
+                append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
+                bytes.extend(encode_compare_w_register(18, 19));
+            }
+            8 => {
+                append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
+                append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
+                bytes.extend(encode_compare_x_register(18, 19));
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "AArch64 MVP encoder cannot compare {byte_size}-byte runtime guard operands yet"
+                )));
+            }
         }
     }
     bytes.extend(encode_conditional_branch_for_operator_bytes(
@@ -97,7 +118,7 @@ pub fn encode_runtime_storage_compare_bytes(
     )?);
     debug_assert_eq!(
         bytes.len(),
-        runtime_storage_compare_width(left_offset, right_offset, byte_size)
+        runtime_storage_compare_width(left_offset, right_offset, byte_size, is_float)
     );
     Ok(bytes)
 }
@@ -281,11 +302,6 @@ pub fn encode_runtime_storage_binary_write(
     right: RuntimeValueOperandHandle,
     is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if is_float {
-        return Err(Diagnostic::error(
-            "aarch64 runtime float binary writes are not implemented yet".to_string(),
-        ));
-    }
     let mut bytes = Vec::with_capacity(runtime_storage_binary_write_width(
         runtime_value_operands,
         target_offset,
@@ -311,7 +327,11 @@ pub fn encode_runtime_storage_binary_write(
         RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
         right,
     )?;
-    append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
+    if is_float {
+        append_runtime_float_binary_operation(&mut bytes, byte_size, 17, operator, 18)?;
+    } else {
+        append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
+    }
     if runtime_value_operands.frame_indexed(left).is_some()
         || runtime_value_operands.frame_indexed(right).is_some()
         || runtime_value_operands.frame_base_indexed(left).is_some()
@@ -1680,6 +1700,38 @@ fn append_runtime_binary_operation(
     Ok(())
 }
 
+/// Run an IEEE-754 binary operation on the raw float bits already materialized in
+/// the GPRs `left_register` (left operand) and `right_register` (right operand),
+/// leaving the result bits back in `left_register`.
+///
+/// The operand width selects single (4) vs double (8) precision, mirroring the
+/// x86 backend's `addss`/`addsd` selection. The integers are moved into the FP
+/// bank via `FMOV` (a raw bit copy, no numeric conversion), the scalar FP op runs
+/// in `S0`/`D0` and `S1`/`D1`, and the result is moved back with `FMOV`.
+fn append_runtime_float_binary_operation(
+    bytes: &mut Vec<u8>,
+    byte_size: usize,
+    left_register: u8,
+    operator: StateGuardOperator,
+    right_register: u8,
+) -> Result<(), Diagnostic> {
+    bytes.extend(encode_float_move_from_gpr(byte_size, 0, left_register)?);
+    bytes.extend(encode_float_move_from_gpr(byte_size, 1, right_register)?);
+    match operator {
+        StateGuardOperator::Add => bytes.extend(encode_float_add(byte_size, 0, 0, 1)?),
+        StateGuardOperator::Subtract => bytes.extend(encode_float_subtract(byte_size, 0, 0, 1)?),
+        StateGuardOperator::Multiply => bytes.extend(encode_float_multiply(byte_size, 0, 0, 1)?),
+        StateGuardOperator::Divide => bytes.extend(encode_float_divide(byte_size, 0, 0, 1)?),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot lower runtime float binary operator `{operator:?}` yet"
+            )));
+        }
+    }
+    bytes.extend(encode_float_move_to_gpr(byte_size, left_register, 0)?);
+    Ok(())
+}
+
 fn append_runtime_storage_result_write(
     bytes: &mut Vec<u8>,
     byte_offset: usize,
@@ -2035,5 +2087,66 @@ mod tests {
                 "value_size={value_size}"
             );
         }
+    }
+
+    /// The float storage compare adds two FMOVs + an FCMP; its emitted length
+    /// must equal the (float-aware) width for both single and double precision.
+    #[test]
+    fn float_storage_compare_width_matches_emission() {
+        for &byte_size in &[4usize, 8] {
+            let bytes = encode_runtime_storage_compare_bytes(
+                0x10,
+                0x20,
+                byte_size,
+                8,
+                StateGuardOperator::Less,
+                true,
+            )
+            .unwrap();
+            assert_eq!(
+                bytes.len(),
+                widths::runtime_storage_compare_width(0x10, 0x20, byte_size, true),
+                "byte_size={byte_size}"
+            );
+            // The float path must be exactly 8 bytes (two FMOVs) longer than the
+            // integer path at the same offsets/width.
+            assert_eq!(
+                widths::runtime_storage_compare_width(0x10, 0x20, byte_size, true),
+                widths::runtime_storage_compare_width(0x10, 0x20, byte_size, false) + 8,
+            );
+        }
+    }
+
+    /// The float storage compare must emit an FCMP (single `0x1e22_2020` family /
+    /// double `0x1e62_2020` family) — i.e. ftype follows the operand width — and
+    /// not an integer `CMP`.
+    #[test]
+    fn float_storage_compare_emits_fcmp_of_correct_precision() {
+        let single = encode_runtime_storage_compare_bytes(
+            0x10,
+            0x20,
+            4,
+            8,
+            StateGuardOperator::Less,
+            true,
+        )
+        .unwrap();
+        let double = encode_runtime_storage_compare_bytes(
+            0x10,
+            0x20,
+            8,
+            8,
+            StateGuardOperator::Less,
+            true,
+        )
+        .unwrap();
+        // The FCMP is the instruction immediately before the trailing branch.
+        let fcmp_word = |bytes: &[u8]| {
+            let start = bytes.len() - 8;
+            u32::from_le_bytes(bytes[start..start + 4].try_into().unwrap())
+        };
+        // FCMP base (Rm/Rn cleared): single 0x1e202000, double 0x1e602000.
+        assert_eq!(fcmp_word(&single) & 0xFFE0_FC1F, 0x1e20_2000, "single FCMP");
+        assert_eq!(fcmp_word(&double) & 0xFFE0_FC1F, 0x1e60_2000, "double FCMP");
     }
 }

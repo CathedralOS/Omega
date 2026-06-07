@@ -1,6 +1,7 @@
 mod arithmetic;
 mod branch;
 mod compare;
+mod float;
 mod immediate;
 mod instruction;
 mod memory;
@@ -11,6 +12,7 @@ mod text;
 pub(super) use arithmetic::*;
 pub(super) use branch::*;
 pub(super) use compare::*;
+pub(super) use float::*;
 pub(super) use immediate::*;
 pub(super) use instruction::*;
 pub(super) use memory::*;
