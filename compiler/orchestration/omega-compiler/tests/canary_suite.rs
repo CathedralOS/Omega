@@ -549,7 +549,8 @@ fn runtime_field_default_exit_canary_runs() {
     // A `data` field with a default initializer (`x: i32 = 5`) must hold that value at
     // runtime; the default was captured front-end but never emitted (fields read 0).
     // Entry-machine constant field defaults are now initialized before the dispatch
-    // loop. Covers int/f64/bool defaults + explicit overwrite; exits 70 when correct.
+    // loop, recursing into nested `data` members. Covers int/f64/bool defaults +
+    // explicit overwrite + nested-data defaults; exits 70 when correct.
     let canary = pass_canary("expressions/runtime_field_default_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-field-default-{}", std::process::id()));
