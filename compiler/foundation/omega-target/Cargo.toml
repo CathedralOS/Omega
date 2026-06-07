@@ -9,4 +9,4 @@ name = "omega_target"
 path = "src/lib.rs"
 
 [dependencies]
-omega-core = { path = "../../foundation/omega-core" }
+omega-core = { path = "../omega-core" }

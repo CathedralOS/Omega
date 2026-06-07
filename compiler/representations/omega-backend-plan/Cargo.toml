@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-abstract-operations = { path = "../omega-abstract-operations" }
-omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-control-flow = { path = "../omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-layout = { path = "../../backend/omega-layout" }
@@ -30,5 +30,5 @@ omega-state-graph = { path = "../omega-state-graph" }
 omega-state-guards = { path = "../../backend/omega-state-guards" }
 omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-state-values = { path = "../../backend/omega-state-values" }
-omega-target = { path = "../../backend/omega-target" }
+omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../omega-target-operations" }
