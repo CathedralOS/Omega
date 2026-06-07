@@ -9,4 +9,4 @@ name = "omega_runtime_abi"
 path = "src/lib.rs"
 
 [dependencies]
-omega-target = { path = "../../foundation/omega-target" }
+omega-target = { path = "../omega-target" }
