@@ -496,12 +496,14 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     match (operation_key.capability, operation_key.operation) {
-        (HostCapability::Stdin | HostCapability::Stdout, HostOperation::GetStdHandle) => {
-            encode_get_std_handle(operands)
-        }
-        (HostCapability::Stdout, HostOperation::Write | HostOperation::WriteFile) => {
-            encode_file_operation(operation_key, operands)
-        }
+        (
+            HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
+            HostOperation::GetStdHandle,
+        ) => encode_get_std_handle(operands),
+        (
+            HostCapability::Stdout | HostCapability::Stderr,
+            HostOperation::Write | HostOperation::WriteFile,
+        ) => encode_file_operation(operation_key, operands),
         (HostCapability::Stdin, HostOperation::ReadFile) => {
             encode_file_operation(operation_key, operands)
         }
@@ -627,7 +629,10 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Vec<X86_64RelocationSite> {
     match (operation_key.capability, operation_key.operation) {
-        (HostCapability::Stdin | HostCapability::Stdout, HostOperation::GetStdHandle)
+        (
+            HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
+            HostOperation::GetStdHandle,
+        )
         | (HostCapability::Process, HostOperation::ExitProcess) => {
             vec![X86_64RelocationSite {
                 operand_index: None,
@@ -636,7 +641,10 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
                 kind: X86_64RelocationSiteKind::Relative32,
             }]
         }
-        (HostCapability::Stdout, HostOperation::Write | HostOperation::WriteFile)
+        (
+            HostCapability::Stdout | HostCapability::Stderr,
+            HostOperation::Write | HostOperation::WriteFile,
+        )
         | (HostCapability::Stdin, HostOperation::ReadFile) => {
             let mut sites = Vec::new();
             let Ok((pointer_index, length_index)) = file_pointer_and_length_indices(operands)

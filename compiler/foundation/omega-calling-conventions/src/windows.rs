@@ -24,6 +24,9 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         windows_import("Stdout", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
         windows_import("Stdout", "write", "Kernel32.dll", "WriteFile"),
         windows_import("Stdout", "write_file", "Kernel32.dll", "WriteFile"),
+        windows_import("Stderr", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+        windows_import("Stderr", "write", "Kernel32.dll", "WriteFile"),
+        windows_import("Stderr", "write_file", "Kernel32.dll", "WriteFile"),
         windows_import("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
     ]);
 
@@ -46,6 +49,30 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [
             host_operation("Stdout", "get_std_handle"),
             host_operation("Stdout", "write_file"),
+        ],
+        PlatformCallData::FirstTextArgument {
+            append_newline: false,
+        },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "write_error_line",
+        [
+            host_operation("Stderr", "get_std_handle"),
+            host_operation("Stderr", "write_file"),
+        ],
+        PlatformCallData::FirstTextArgument {
+            append_newline: true,
+        },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "write_error",
+        [
+            host_operation("Stderr", "get_std_handle"),
+            host_operation("Stderr", "write_file"),
         ],
         PlatformCallData::FirstTextArgument {
             append_newline: false,

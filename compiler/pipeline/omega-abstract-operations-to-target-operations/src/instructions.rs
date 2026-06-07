@@ -1,4 +1,4 @@
-use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
+use omega_calling_conventions::{HostOperation, HostOperationKey};
 use omega_platform_interface::HostCallPlan;
 use omega_target_operations::{TargetOperation, TargetOperationKind};
 
@@ -32,20 +32,19 @@ fn translate_instruction_kind(
             }
         }
         omega_abstract_operations::AbstractOperationKind::PreparePlatformOutputHandle {
+            capability,
             operands,
         } => TargetOperationKind::HostOperation {
-            operation_key: HostOperationKey::new(
-                HostCapability::Stdout,
-                HostOperation::GetStdHandle,
-            ),
+            operation_key: HostOperationKey::new(*capability, HostOperation::GetStdHandle),
             operands: remap::operand_span(*operands),
         },
         omega_abstract_operations::AbstractOperationKind::WritePlatformNewline {
+            capability,
             use_file_api,
             operands,
         } => TargetOperationKind::HostOperation {
             operation_key: HostOperationKey::new(
-                HostCapability::Stdout,
+                *capability,
                 if *use_file_api {
                     HostOperation::WriteFile
                 } else {

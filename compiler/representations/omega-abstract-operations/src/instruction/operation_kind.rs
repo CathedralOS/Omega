@@ -2,6 +2,7 @@ use crate::{
     AbstractDataObjectHandle, AbstractValueOperandHandle, InstructionOperand, RuntimeStorageRegion,
     StateGuardLowering, StateGuardOperator,
 };
+use omega_calling_conventions::HostCapability;
 use omega_core::arena::HandleSpan;
 use std::sync::Arc;
 
@@ -424,9 +425,11 @@ pub enum AbstractOperationKind {
         operands: HandleSpan<InstructionOperand>,
     },
     PreparePlatformOutputHandle {
+        capability: HostCapability,
         operands: HandleSpan<InstructionOperand>,
     },
     WritePlatformNewline {
+        capability: HostCapability,
         use_file_api: bool,
         operands: HandleSpan<InstructionOperand>,
     },

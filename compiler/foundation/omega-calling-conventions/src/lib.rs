@@ -43,6 +43,7 @@ pub enum HostCapability {
     Process,
     Stdin,
     Stdout,
+    Stderr,
 }
 
 impl HostCapability {
@@ -51,6 +52,7 @@ impl HostCapability {
             "Process" => Self::Process,
             "Stdin" => Self::Stdin,
             "Stdout" => Self::Stdout,
+            "Stderr" => Self::Stderr,
             _ => Self::Unknown,
         }
     }
@@ -61,6 +63,7 @@ impl HostCapability {
             Self::Process => "Process",
             Self::Stdin => "Stdin",
             Self::Stdout => "Stdout",
+            Self::Stderr => "Stderr",
         }
     }
 }
@@ -263,6 +266,7 @@ pub fn host_operation_fixed_leading_immediate(
     ) {
         (ObjectFormat::Coff, HostCapability::Stdout, HostOperation::GetStdHandle) => Some(-11),
         (ObjectFormat::Coff, HostCapability::Stdin, HostOperation::GetStdHandle) => Some(-10),
+        (ObjectFormat::Coff, HostCapability::Stderr, HostOperation::GetStdHandle) => Some(-12),
         _ => None,
     }
 }
