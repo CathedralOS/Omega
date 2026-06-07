@@ -73,7 +73,7 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
         .stdin
         .as_mut()
         .expect("stdin should be piped")
-        .write_all(b"look\r\nquit\r\n")
+        .write_all(b"north\r\nlook\r\nquit\r\n")
         .expect("scripted dungeon input should be written");
     let output = child
         .wait_with_output()
@@ -99,6 +99,19 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
     assert!(
         stdout.contains("[Paths] north"),
         "room paths line should render, not echo the description\nstdout:\n{stdout}"
+    );
+    // Look-AT-DEPTH: after moving north (R00 -> R01) the deeper room must render its
+    // OWN generated data, not blank/stale. find_room is a VALUE-position call to a
+    // looping machine; before the value-return-in-dispatch keystone it returned a
+    // too-small room_count at the real program's scale so deeper rooms rendered
+    // empty. Guards that the keystone fixed the dungeon's "trash on move" bug.
+    assert!(
+        stdout.contains("== Branch Room =="),
+        "deeper room (R01) name should render after moving north\nstdout:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("A shallow limestone room with fresh claw marks."),
+        "deeper room (R01) description should render after moving north\nstdout:\n{stdout}"
     );
 
     let _ = fs::remove_dir_all(&build_dir);
