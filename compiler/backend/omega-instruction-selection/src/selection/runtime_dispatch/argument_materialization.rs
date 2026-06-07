@@ -759,6 +759,20 @@ fn emit_runtime_detached_frame_slice_argument_materialization(
     true
 }
 
+/// Whether `initial_value` is a real result-producing call (i.e. a local
+/// initialized by `self.foo(..)` with its own call-result slot), as opposed to a
+/// `as_slice`/`as_mut_slice` slice view (which is materialized from its receiver
+/// and must stay folded).
+fn initial_value_is_result_call(
+    input: &InstructionSelectionInput<'_>,
+    initial_value: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Call(call) = input.program.expression_table.expression(initial_value) else {
+        return false;
+    };
+    !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
+}
+
 fn source_local_initial_value(
     input: &InstructionSelectionInput<'_>,
     source_key: StateKey,
@@ -814,6 +828,17 @@ fn resolve_prior_local_initializers_in_table(
             ) else {
                 return expression;
             };
+            // A local whose initializer is a real (result-producing) call has its
+            // OWN call-result slot; folding the Name back into the call expression
+            // here destroys the place (the call is not re-evaluable at this site)
+            // and an arg like `&mut room.event` -- where `room` is such a local --
+            // resolves to no place, leaving the callee's parameter slot null. Keep
+            // it as a Name so it resolves to its call-result slot. (`as_slice` /
+            // `as_mut_slice` views are NOT result calls and MUST stay folded so the
+            // slice materialization can see the receiver.)
+            if initial_value_is_result_call(input, initial_value) {
+                return expression;
+            }
             let copied = expressions.copy_from(&input.program.expression_table, initial_value);
             resolve_prior_local_initializers_in_table(
                 input,
