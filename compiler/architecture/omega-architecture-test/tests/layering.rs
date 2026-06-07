@@ -76,11 +76,8 @@ const KNOWN_EXCEPTIONS: &[(&str, &str)] = &[
     ("object", "backend"),
     // `omega-backend-plan` (a representation) depends on `omega-object-file`.
     ("representations", "object"),
-    // Core IR representations (checked/control-flow/state-graph) carry
-    // `omega-effects` / `omega-facts` (semantics) data inline.
-    ("representations", "semantics"),
-    // The semantics crates `omega-effects` / `omega-validation` re-run the
-    // front-of-pipeline passes (source->tokens->...->typed) to analyse code.
+    // The semantics crate `omega-validation` re-runs the front-of-pipeline
+    // passes (source->tokens->...->typed) in its tests to analyse code.
     ("semantics", "pipeline"),
 ];
 

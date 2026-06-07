@@ -306,6 +306,8 @@ fn expression_places_resolve_attached_data_members() {
     let mut machine = omega_typed_trees::machine::Machine {
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
+        abi: None,
+        type_parameters: HandleSpan::empty(),
         attached_data: Some(Identifier::generated("Main")),
         contains: HandleSpan::empty(),
         owned_data: HandleSpan::empty(),

@@ -400,11 +400,7 @@ name = "omega-effects"
 version = "0.1.0"
 dependencies = [
  "omega-core",
- "omega-source-files-to-tokens",
- "omega-symbol-resolved-trees-to-typed-trees",
  "omega-syntax-trees",
- "omega-syntax-trees-to-symbol-resolved-trees",
- "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
 ]
 
@@ -1013,6 +1009,7 @@ dependencies = [
  "omega-facts",
  "omega-source-files-to-tokens",
  "omega-symbol-resolved-trees-to-typed-trees",
+ "omega-syntax-trees",
  "omega-syntax-trees-to-symbol-resolved-trees",
  "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
