@@ -63,20 +63,17 @@ const LAYER_RANK: &[(&str, u32)] = &[
 /// the policy is green on `main` while still blocking any genuinely NEW
 /// upward dependency between two layers.
 const KNOWN_EXCEPTIONS: &[(&str, &str)] = &[
-    // The `backend` layer hosts the foundational *target description* crates
-    // (`omega-target`, `omega-calling-conventions`) that lower layers legitimately
-    // need. Those types arguably belong below `representations`; until they are
-    // relocated, representations -> backend is the single largest cyclic pair.
+    // `representations` crates still reach UP into genuine backend helper crates
+    // (omega-layout, omega-runtime-*, omega-state-*, omega-platform-interface)
+    // for shared lowering types. (The former target-description root cause -
+    // omega-target / omega-calling-conventions - was relocated to `foundation`.)
     ("representations", "backend"),
-    // Same root cause: pipeline passes reach into `omega-target` /
-    // `omega-calling-conventions` / runtime-* backend helper crates.
+    // Same as above: pipeline passes reach into runtime-* / state-* / selection
+    // backend helper crates.
     ("pipeline", "backend"),
-    // ISA encoders depend on `omega-calling-conventions` (a backend crate).
-    ("isa", "backend"),
-    // The object/relocation layer depends on `omega-target` & friends.
+    // The object/relocation layer depends on backend crates omega-layout and
+    // omega-instruction-selection.
     ("object", "backend"),
-    // Image writers depend on `omega-target`.
-    ("images", "backend"),
     // `omega-backend-report` / `omega-emission-planning` depend on
     // `omega-artifacts` (orchestration) for shared artifact/report types.
     ("backend", "orchestration"),

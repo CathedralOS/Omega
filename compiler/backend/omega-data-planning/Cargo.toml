@@ -9,7 +9,7 @@ name = "omega_data_planning"
 path = "src/lib.rs"
 
 [dependencies]
-omega-calling-conventions = { path = "../omega-calling-conventions" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-platform-interface = { path = "../omega-platform-interface" }
