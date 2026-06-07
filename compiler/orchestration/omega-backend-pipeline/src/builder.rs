@@ -489,6 +489,15 @@ fn dispatch_state_call_edges(
             // return value back to the caller's call-result slot (see
             // select_runtime_dispatch_call_result_return). Non-looping Statement
             // calls still inline (acyclic, works).
+            //
+            // NOTE: dispatching NON-looping value calls broadly regresses ~13
+            // canaries -- the inline-branching value path handles shapes (binary
+            // operands, reference/slice-element results, aliases, multi-arm) the
+            // dispatch return-write does not yet serve. A value call with a
+            // runtime-guarded arm (`let n = classify(s)`) is still mishandled
+            // inline (returns 0); fixing it needs the dispatch return-write to
+            // cover those shapes first, or a runtime value-select in the inline
+            // path. See [[inline-branching-value-runtime-guard]].
             (state_call.required
                 && (state_call_target_loops(control_flow, state_calls, state_call.target_key)
                     || (state_call.role == StateCallRole::Statement
