@@ -493,6 +493,7 @@ pub fn runtime_storage_binary_write_width(
 pub fn runtime_storage_convert_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
     source: RuntimeValueOperandHandle,
     source_byte_size: usize,
     target_byte_size: usize,
@@ -503,6 +504,7 @@ pub fn runtime_storage_convert_width(
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_storage_convert_width(
             runtime_value_operands,
+            target_offset,
             source,
             source_byte_size,
             target_byte_size,
@@ -510,15 +512,21 @@ pub fn runtime_storage_convert_width(
             target_is_float,
             source_signed,
         ),
-        Architecture::X86_64 => x86_64::runtime_storage_convert_width(
-            runtime_value_operands,
-            source,
-            source_byte_size,
-            target_byte_size,
-            source_is_float,
-            target_is_float,
-            source_signed,
-        ),
+        Architecture::X86_64 => {
+            // The x86_64 converting store reaches the target through `r14`-relative
+            // addressing with a fixed-width displacement, so its width is
+            // offset-independent; ignore `target_offset` here.
+            let _ = target_offset;
+            x86_64::runtime_storage_convert_width(
+                runtime_value_operands,
+                source,
+                source_byte_size,
+                target_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+            )
+        }
     }
 }
 

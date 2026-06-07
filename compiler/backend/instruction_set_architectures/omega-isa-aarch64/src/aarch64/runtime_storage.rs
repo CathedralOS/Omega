@@ -6,8 +6,11 @@ use omega_target_operations::{
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
     encode_add_page_offset_placeholder, encode_add_x_register, encode_adrp_placeholder,
-    encode_and_x_register, encode_float_add, encode_float_compare, encode_float_divide,
-    encode_float_move_from_gpr, encode_float_move_to_gpr, encode_float_multiply,
+    encode_and_x_register, encode_float_add, encode_float_compare,
+    encode_float_convert_double_to_single, encode_float_convert_single_to_double,
+    encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
+    encode_float_multiply, encode_float_to_signed_int, encode_signed_int_to_float,
+    encode_sign_extend_word_to_x,
     encode_float_subtract, encode_compare_w_register, encode_compare_w17_immediate,
     encode_compare_x_register, encode_compare_x17_immediate, encode_conditional_branch_equal,
     encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
@@ -29,7 +32,7 @@ use super::widths::{
     runtime_pointee_address_to_runtime_frame_write_width, runtime_pointee_binary_write_width,
     runtime_pointee_integer_write_width, runtime_pointee_string_write_width,
     runtime_storage_address_to_runtime_frame_write_width, runtime_storage_binary_write_width,
-    runtime_storage_compare_width,
+    runtime_storage_compare_width, runtime_storage_convert_width,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width,
     runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
     runtime_storage_value_compare_width, runtime_value_operand_width,
@@ -38,25 +41,132 @@ use super::widths::{
 const RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS: &[u8] = &[18, 15, 14, 13, 12, 11, 10, 9];
 const RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS: &[u8] = &[15, 14, 13, 12, 11, 10, 9];
 
+/// `target = source as T`: hold the target base in x16 (untouched by source
+/// evaluation, which uses x17/x18/x19), load the source bits into x17, convert
+/// them in place between integer/float representations, then store the result at
+/// `target_offset`. Mirrors the x86_64 convert path (`cvttsd2si`/`cvtsi2sd`/
+/// `cvtsd2ss`/`cvtss2sd` + sized int moves).
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_convert(
-    _runtime_value_operands: &impl RuntimeValueOperandSource,
-    _target_offset: usize,
-    _target_byte_size: usize,
-    _source: RuntimeValueOperandHandle,
-    _source_byte_size: usize,
-    _source_is_float: bool,
-    _target_is_float: bool,
-    _source_signed: bool,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    target_byte_size: usize,
+    source: RuntimeValueOperandHandle,
+    source_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    // The single-precision FCVT/SCVTF/FCVTZS encoders exist (see
-    // `primitives::float`) and are unit-tested, but the converting-cast store
-    // width is offset-dependent on aarch64 while the shared width dispatcher does
-    // not thread `target_offset` here, so wiring it would risk a layout/emission
-    // length mismatch. Left as an explicit error until the width plumbing lands.
-    Err(Diagnostic::error(
-        "aarch64 numeric `as` conversion is not implemented yet".to_string(),
-    ))
+    let mut bytes = Vec::with_capacity(runtime_storage_convert_width(
+        runtime_value_operands,
+        target_offset,
+        source,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+    ));
+    // x16 = target base (held across operand evaluation, which uses x17/x18/x19).
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        source,
+    )?;
+    append_runtime_convert_operation(
+        &mut bytes,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+    )?;
+    append_runtime_storage_result_write(&mut bytes, target_offset, target_byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_convert_width(
+            runtime_value_operands,
+            target_offset,
+            source,
+            source_byte_size,
+            target_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+        ),
+        "convert encoder length must match its width"
+    );
+    Ok(bytes)
+}
+
+/// Convert the value whose raw bits are in `x17` between integer/float
+/// representations, leaving the converted result back in `x17`. Uses FP register
+/// 0 (`S0`/`D0`) as the scratch FP bank. See `runtime_convert_operation_width`
+/// in `widths.rs` — the emitted length MUST match it.
+fn append_runtime_convert_operation(
+    bytes: &mut Vec<u8>,
+    source_byte_size: usize,
+    target_byte_size: usize,
+    source_is_float: bool,
+    target_is_float: bool,
+    source_signed: bool,
+) -> Result<(), Diagnostic> {
+    match (source_is_float, target_is_float) {
+        (false, true) => {
+            // int -> float: SCVTF d0/s0, x17/w17 (signed int in GPR -> FP), then
+            // FMOV the float bits back into x17.
+            bytes.extend(encode_signed_int_to_float(
+                source_byte_size,
+                target_byte_size,
+                0,
+                17,
+            )?);
+            bytes.extend(encode_float_move_to_gpr(target_byte_size, 17, 0)?);
+        }
+        (true, false) => {
+            // float -> int: FMOV the source bits into d0/s0, then FCVTZS x17/w17,
+            // d0/s0 (round toward zero). The result write truncates to the target
+            // width for i8/i16.
+            let int_gpr_byte_size = if target_byte_size > 4 { 8 } else { 4 };
+            bytes.extend(encode_float_move_from_gpr(source_byte_size, 0, 17)?);
+            bytes.extend(encode_float_to_signed_int(
+                source_byte_size,
+                int_gpr_byte_size,
+                17,
+                0,
+            )?);
+        }
+        (true, true) => {
+            if source_byte_size == target_byte_size {
+                // same precision: bits already in x17, nothing to do.
+            } else {
+                // f32 <-> f64: FMOV into the FP bank, FCVT precision change, FMOV
+                // back. FCVT reads/writes the source/target precision registers,
+                // so the surrounding FMOVs use the matching widths.
+                bytes.extend(encode_float_move_from_gpr(source_byte_size, 0, 17)?);
+                if source_byte_size > target_byte_size {
+                    // double -> single
+                    bytes.extend(encode_float_convert_double_to_single(0, 0));
+                } else {
+                    // single -> double
+                    bytes.extend(encode_float_convert_single_to_double(0, 0));
+                }
+                bytes.extend(encode_float_move_to_gpr(target_byte_size, 17, 0)?);
+            }
+        }
+        (false, false) => {
+            // Sign-extend a narrow signed source when widening; otherwise the load
+            // already zero-extended and the store truncates.
+            if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
+                bytes.extend(encode_sign_extend_word_to_x(17, 17));
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn encode_runtime_storage_compare_bytes(
@@ -2148,5 +2258,148 @@ mod tests {
         // FCMP base (Rm/Rn cleared): single 0x1e202000, double 0x1e602000.
         assert_eq!(fcmp_word(&single) & 0xFFE0_FC1F, 0x1e20_2000, "single FCMP");
         assert_eq!(fcmp_word(&double) & 0xFFE0_FC1F, 0x1e60_2000, "double FCMP");
+    }
+
+    /// Build a value-operand arena holding a single storage source operand and
+    /// return both the arena and the source handle. The convert encoder loads the
+    /// source via the generic value-operand path; a storage source gives a
+    /// deterministic, offset-free load width.
+    fn storage_source(
+        byte_size: usize,
+    ) -> (
+        omega_core::arena::Arena<omega_target_operations::RuntimeValueOperand>,
+        omega_target_operations::RuntimeValueOperandHandle,
+    ) {
+        let mut arena = omega_core::arena::Arena::new();
+        let handle = arena.insert(omega_target_operations::RuntimeValueOperand::Storage {
+            region: omega_target_operations::RuntimeStorageRegion::Machine,
+            byte_offset: 0x20,
+            byte_size,
+        });
+        (arena, handle)
+    }
+
+    /// The converting-store encoder length must equal its width function for every
+    /// (target_offset, source/target width, float/int) combination — layout and
+    /// relocation placement both rely on the width being exact.
+    #[test]
+    fn convert_encoder_length_matches_width() {
+        // (target_offset, src_size, tgt_size, src_float, tgt_float, src_signed)
+        let cases = [
+            // int -> float
+            (0x10usize, 4usize, 8usize, false, true, true),
+            (0x20, 8, 8, false, true, true),
+            (0x18, 4, 4, false, true, true),
+            // float -> int
+            (0x10, 8, 4, true, false, true),
+            (0x20, 8, 8, true, false, true),
+            (0x28, 4, 4, true, false, true),
+            (0x30, 4, 1, true, false, true),
+            // float -> float
+            (0x10, 8, 4, true, true, true),  // f64 -> f32 (FCVT narrow)
+            (0x20, 4, 8, true, true, true),  // f32 -> f64 (FCVT widen)
+            (0x18, 8, 8, true, true, true),  // f64 -> f64 (no-op convert)
+            // int -> int
+            (0x10, 4, 8, false, false, true),  // signed widen (SXTW)
+            (0x20, 4, 8, false, false, false), // unsigned widen (no SXTW)
+            (0x28, 8, 4, false, false, true),  // narrow (store truncates)
+            (0x30, 4, 4, false, false, true),  // same width
+            // a larger, non-trivially-encodable target offset
+            (0x4000, 8, 8, false, true, true),
+        ];
+        for &(target_offset, src_size, tgt_size, src_float, tgt_float, src_signed) in &cases {
+            let (arena, source) = storage_source(src_size);
+            let bytes = encode_runtime_storage_convert(
+                &arena,
+                target_offset,
+                tgt_size,
+                source,
+                src_size,
+                src_float,
+                tgt_float,
+                src_signed,
+            )
+            .unwrap();
+            let width = widths::runtime_storage_convert_width(
+                &arena,
+                target_offset,
+                source,
+                src_size,
+                tgt_size,
+                src_float,
+                tgt_float,
+                src_signed,
+            );
+            assert_eq!(
+                bytes.len(),
+                width,
+                "len != width for target_offset={target_offset:#x}, src_size={src_size}, tgt_size={tgt_size}, src_float={src_float}, tgt_float={tgt_float}, src_signed={src_signed}"
+            );
+        }
+    }
+
+    /// int -> float must emit SCVTF then FMOV(result -> GPR); float -> int must
+    /// emit FMOV(bits -> FP) then FCVTZS. Check the opcode families of the two
+    /// trailing convert instructions (they sit right before the result store).
+    #[test]
+    fn convert_emits_expected_conversion_opcodes() {
+        // int(w) -> double: SCVTF d0,w17 (0x1e62_0000 family) + FMOV x17,d0
+        // (0x9e66_0000 family).
+        let (arena, source) = storage_source(4);
+        let bytes =
+            encode_runtime_storage_convert(&arena, 0x10, 8, source, 4, false, true, true).unwrap();
+        // The store is a single 4-byte STR at offset 0x10 (encodable), so the two
+        // convert words are at len-12..len-4.
+        let word_at = |b: &[u8], from_end: usize| {
+            let start = b.len() - from_end;
+            u32::from_le_bytes(b[start..start + 4].try_into().unwrap())
+        };
+        let scvtf = word_at(&bytes, 12);
+        let fmov_back = word_at(&bytes, 8);
+        // SCVTF d0, w17: base 0x1e620000, Rn=17 -> (17<<5).
+        assert_eq!(scvtf, 0x1e62_0000 | (17 << 5), "SCVTF d0, w17");
+        // FMOV x17, d0: base 0x9e660000, Rd=17.
+        assert_eq!(fmov_back, 0x9e66_0000 | 17, "FMOV x17, d0");
+
+        // double -> int(w): FMOV d0,x17 (0x9e67_0000) + FCVTZS w17,d0
+        // (0x1e38_0000 family).
+        let (arena, source) = storage_source(8);
+        let bytes =
+            encode_runtime_storage_convert(&arena, 0x10, 4, source, 8, true, false, true).unwrap();
+        let fmov_in = word_at(&bytes, 12);
+        let fcvtzs = word_at(&bytes, 8);
+        // FMOV d0, x17: base 0x9e670000, Rn=17 -> (17<<5).
+        assert_eq!(fmov_in, 0x9e67_0000 | (17 << 5), "FMOV d0, x17");
+        // FCVTZS w17, d0: base 0x1e780000 (double src, 32-bit dst), Rd=17.
+        assert_eq!(fcvtzs, 0x1e78_0000 | 17, "FCVTZS w17, d0");
+    }
+
+    /// A signed 32->64 int widening must emit SXTW x17,w17; an unsigned widening
+    /// (or any non-widening) must emit nothing for the convert step.
+    #[test]
+    fn convert_int_widening_uses_sxtw_only_when_signed() {
+        let (arena, source) = storage_source(4);
+        // signed widen: convert step = SXTW (one 4-byte word). Width must include it.
+        let signed_width = widths::runtime_storage_convert_width(
+            &arena, 0x10, source, 4, 8, false, false, true,
+        );
+        let unsigned_width = widths::runtime_storage_convert_width(
+            &arena, 0x10, source, 4, 8, false, false, false,
+        );
+        assert_eq!(
+            signed_width,
+            unsigned_width + 4,
+            "signed widen must be exactly one SXTW longer than unsigned"
+        );
+        let signed_bytes =
+            encode_runtime_storage_convert(&arena, 0x10, 8, source, 4, false, false, true).unwrap();
+        // SXTW x17, w17: 0x93407c00 | (17<<5) | 17 — it sits right before the store.
+        let store_width = if signed_bytes.len() >= 8 { 4 } else { 0 };
+        let _ = store_width;
+        let sxtw_start = signed_bytes.len() - 8; // SXTW (4) + STR (4)
+        let sxtw = u32::from_le_bytes(
+            signed_bytes[sxtw_start..sxtw_start + 4].try_into().unwrap(),
+        );
+        assert_eq!(sxtw, 0x9340_7c00 | (17 << 5) | 17, "SXTW x17, w17");
     }
 }
