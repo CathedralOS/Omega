@@ -346,6 +346,20 @@ fn machine_storage_offset(
     }
 
     let source_attached_data = source_attached_data_name(layouts, source_machine);
+
+    // A free machine that operates on the SAME data instance as the entry machine
+    // -- e.g. `machine Main::outer(&mut self)` whose `self` IS the entry's `Main`
+    // data -- shares the entry machine-owned region at offset 0; it is not a nested
+    // field of the entry, so the field search below would not find it. Detect this
+    // by matching their attached-data type. (Embedded sub-machine instances, like a
+    // `store: Store` field, have a DIFFERENT attached data and resolve via the
+    // nested search.)
+    if source_attached_data.is_some()
+        && source_attached_data == source_attached_data_name(layouts, entry_machine)
+    {
+        return Some(0);
+    }
+
     let entry_layout = layouts
         .machine_layouts
         .iter()
