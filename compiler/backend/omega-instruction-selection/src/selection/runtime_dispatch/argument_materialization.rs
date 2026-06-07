@@ -759,18 +759,21 @@ fn emit_runtime_detached_frame_slice_argument_materialization(
     true
 }
 
-/// Whether `initial_value` is a real result-producing call (i.e. a local
-/// initialized by `self.foo(..)` with its own call-result slot), as opposed to a
-/// `as_slice`/`as_mut_slice` slice view (which is materialized from its receiver
-/// and must stay folded).
-fn initial_value_is_result_call(
+/// Whether a local with this `initial_value` must NOT be folded back into its
+/// initializer during argument resolution -- because it owns a frame slot whose
+/// address an arg may take. True for a real result-producing call (a call-result
+/// slot; but NOT `as_slice`/`as_mut_slice` views, which must stay folded so the
+/// slice materialization sees the receiver) and for aggregate literals (array /
+/// struct, which are materialized into a frame slot).
+fn initial_value_blocks_inline_fold(
     input: &InstructionSelectionInput<'_>,
     initial_value: ExpressionHandle,
 ) -> bool {
-    let ExpressionNode::Call(call) = input.program.expression_table.expression(initial_value) else {
-        return false;
-    };
-    !matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
+    match input.program.expression_table.expression(initial_value) {
+        ExpressionNode::Call(call) => !matches!(call.target.as_str(), "as_slice" | "as_mut_slice"),
+        ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_) => true,
+        _ => false,
+    }
 }
 
 fn source_local_initial_value(
@@ -828,15 +831,18 @@ fn resolve_prior_local_initializers_in_table(
             ) else {
                 return expression;
             };
-            // A local whose initializer is a real (result-producing) call has its
-            // OWN call-result slot; folding the Name back into the call expression
-            // here destroys the place (the call is not re-evaluable at this site)
-            // and an arg like `&mut room.event` -- where `room` is such a local --
-            // resolves to no place, leaving the callee's parameter slot null. Keep
-            // it as a Name so it resolves to its call-result slot. (`as_slice` /
-            // `as_mut_slice` views are NOT result calls and MUST stay folded so the
-            // slice materialization can see the receiver.)
-            if initial_value_is_result_call(input, initial_value) {
+            // A local that has its OWN frame slot must NOT be folded back into its
+            // initializer: the fold destroys the place, so an arg like
+            // `&mut room.event` or `&mut rooms[0]` -- whose root is such a local --
+            // resolves to no place and the callee's parameter slot is left null.
+            // Keep it as a Name so it resolves to its slot. This covers:
+            //   - result-producing calls (`room = self.room_mut(..)`), which have a
+            //     call-result slot (but NOT `as_slice`/`as_mut_slice` views, which
+            //     must stay folded so the slice materialization sees the receiver);
+            //   - aggregate literals (`rooms = [..]`, `r = Foo{..}`), which are
+            //     stored in a frame slot (the state-values binding layer likewise
+            //     refuses to inline these).
+            if initial_value_blocks_inline_fold(input, initial_value) {
                 return expression;
             }
             let copied = expressions.copy_from(&input.program.expression_table, initial_value);
