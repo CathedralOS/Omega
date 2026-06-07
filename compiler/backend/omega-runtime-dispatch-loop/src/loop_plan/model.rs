@@ -1,7 +1,7 @@
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_state_graph::RuntimeTransitionTarget;
+use omega_state_graph::{CallResultReturn, RuntimeTransitionTarget};
 use omega_state_guards::{StateGuardLowering, StateGuardOperandStorage, StateGuardOperator};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -56,6 +56,7 @@ pub struct RuntimeDispatchLoopEdge {
     pub guard_has_right_storage: bool,
     pub action: RuntimeDispatchLoopAction,
     pub forms_cycle: bool,
+    pub call_result: Option<CallResultReturn>,
 }
 
 impl Default for RuntimeDispatchLoopEdge {
@@ -83,6 +84,7 @@ impl Default for RuntimeDispatchLoopEdge {
             guard_has_right_storage: false,
             action: RuntimeDispatchLoopAction::Unknown,
             forms_cycle: false,
+            call_result: None,
         }
     }
 }

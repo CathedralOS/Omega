@@ -1,0 +1,44 @@
+// A VALUE-position call to a machine whose state LOOPS (`let n = self.m.count(s, 0)`,
+// where count walks the slice via a self-transition `count(s[1..], acc + 1)`).
+//
+// Such a call must DISPATCH (so the loop is a real back-edge, not an inline unroll)
+// AND deliver the looped result back: the callee's terminal `false -> acc` writes
+// `acc` into the caller's call-result slot for `n`. Before the value-return-in-
+// dispatch keystone this returned 0 (n stayed at its init), so `n == 5` was false
+// and the program exited 71. With the keystone, count returns the slice length 5,
+// `n == 5` holds, and it exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data M {}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    m: M;
+}
+
+machine Main::main(&mut self) {
+    let s: &[i32] = self.arr.as_slice();
+    let n: i32 = self.m.count(s, 0);
+    transition n == 5 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine M::count(&mut self, s: &[i32], acc: i32) -> i32 {
+    transition s.len > 0 {
+        true -> count(s[1..], acc + 1)
+        false -> acc
+    }
+}

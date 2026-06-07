@@ -9,9 +9,12 @@ use super::guards::{
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasBinding;
 use crate::selection::storage_places::{
-    resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_primitive_type_in_table,
+    resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_primitive_type_in_table,
 };
-use omega_checked_trees::expression::{BinaryOperator, ExpressionNode, ExpressionTable};
+use omega_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_checked_trees::types::PrimitiveType;
 use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
@@ -160,6 +163,14 @@ pub(super) fn select_runtime_dispatch_edge(
                 selected_instructions,
             );
 
+            select_runtime_dispatch_call_result_return(
+                input,
+                edge,
+                source_key,
+                source_dispatch_index,
+                selected_instructions,
+            );
+
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::SetDispatchState {
                     dispatch_index: edge.target_dispatch_index,
@@ -197,6 +208,95 @@ fn select_runtime_dispatch_return_value(
         source_key,
         source_statement: edge.statement_index,
     });
+}
+
+/// When this EnterState edge is a value-returning callee clone's TERMINAL (it
+/// carries a `call_result`), write the terminal's value back to the caller's
+/// call-result slot before leaving the callee. The callee runs in its own context
+/// (`source_dispatch_index`) but shares the frame, so the slot offset resolved
+/// across dispatch indices is valid here. Handles a static literal terminal
+/// (`-> 99`) and a runtime place terminal (`-> acc`, resolved in the callee).
+fn select_runtime_dispatch_call_result_return(
+    input: &InstructionSelectionInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+    source_key: StateKey,
+    source_dispatch_index: u32,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(call_result) = edge.call_result else {
+        return;
+    };
+    let Some(slot) = input.runtime_storage.assignment_value_result_slot_any_dispatch(
+        call_result.call_source_key,
+        call_result.statement_index,
+    ) else {
+        return;
+    };
+    let target_offset = slot.byte_offset;
+    let byte_size = slot.byte_size;
+    if byte_size == 0 {
+        return;
+    }
+
+    let Some(value_expr) = terminal_target_value_expression(input, source_key, edge.order) else {
+        return;
+    };
+
+    // Static literal terminal (`-> 99`): write the constant directly.
+    if let Some(value) =
+        static_runtime_argument_value(input.control_flow.expressions.expression(value_expr))
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: target_offset,
+                byte_size,
+                value,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return;
+    }
+
+    // Runtime place terminal (`-> acc`): resolve the value's slot in the CALLEE
+    // context and copy it into the caller's call-result slot.
+    if let Some(place) = resolve_runtime_storage_place_in_table(
+        input,
+        source_dispatch_index,
+        source_key,
+        &input.control_flow.expressions,
+        value_expr,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorage {
+                source_region: RuntimeStorageRegion::RuntimeFrame,
+                source_offset: place.byte_offset,
+                target_region: RuntimeStorageRegion::RuntimeFrame,
+                target_offset,
+                byte_count: byte_size,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+    }
+}
+
+/// The terminal target-value expression of the transition at `edge_order` in
+/// `source_key` (the `-> <value>` of a value-returning callee), if valid.
+fn terminal_target_value_expression(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    edge_order: usize,
+) -> Option<ExpressionHandle> {
+    let state = input.control_flow.state_by_key(source_key)?;
+    let transition = input
+        .control_flow
+        .transitions
+        .span(state.transitions)?
+        .get(edge_order)?;
+    let value = transition.expressions.target_value;
+    value.is_valid().then_some(value)
 }
 
 fn static_terminal_target_value(

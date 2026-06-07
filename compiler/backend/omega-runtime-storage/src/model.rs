@@ -113,6 +113,42 @@ impl RuntimeStoragePlan {
         )
     }
 
+    /// The caller's value-call-result slot for `(source_key, statement_index)`,
+    /// searched across ALL dispatch indices. A dispatched value call's terminal
+    /// write happens in the CALLEE's context (a different dispatch index than the
+    /// caller's), but every context shares one frame region, so the slot's
+    /// byte_offset is valid from the callee too. Prefers the StateCallResult slot
+    /// (the `let n` the call feeds, which guards read); falls back to the matching
+    /// LocalStorage slot when the result was allocated as a plain local.
+    pub fn assignment_value_result_slot_any_dispatch(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&RuntimeFrameSlot> {
+        self.frame_slots
+            .iter()
+            .find_map(|(_, slot)| {
+                (Self::source_matches(slot.source_key, source_key)
+                    && slot.statement_index == statement_index
+                    && matches!(
+                        slot.kind,
+                        RuntimeFrameSlotKind::StateCallResult {
+                            role: StateCallRole::AssignmentValue,
+                            ..
+                        }
+                    ))
+                .then_some(slot)
+            })
+            .or_else(|| {
+                self.frame_slots.iter().find_map(|(_, slot)| {
+                    (Self::source_matches(slot.source_key, source_key)
+                        && slot.statement_index == statement_index
+                        && matches!(slot.kind, RuntimeFrameSlotKind::LocalStorage))
+                    .then_some(slot)
+                })
+            })
+    }
+
     pub fn call_result_slot_by_ordinal(
         &self,
         dispatch_index: u32,
