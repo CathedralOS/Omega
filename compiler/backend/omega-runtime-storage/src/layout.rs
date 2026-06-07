@@ -158,9 +158,13 @@ fn builtin_type_layout(
 
 fn primitive_layout(context: &RuntimeStorageContext, primitive_type: PrimitiveType) -> TypeLayout {
     match primitive_type {
-        PrimitiveType::Bool => TypeLayout {
+        PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => TypeLayout {
             size: 1,
             alignment: 1,
+        },
+        PrimitiveType::I16 | PrimitiveType::U16 => TypeLayout {
+            size: 2,
+            alignment: 2,
         },
         PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => TypeLayout {
             size: 4,

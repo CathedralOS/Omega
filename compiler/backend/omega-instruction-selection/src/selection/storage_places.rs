@@ -495,7 +495,11 @@ pub(super) fn classify_scalar_value_type_in_table(
 /// place-resolved narrower operand).
 fn scalar_primitive_rank(primitive: PrimitiveType) -> u8 {
     match primitive {
-        PrimitiveType::Bool => 0,
+        PrimitiveType::Bool
+        | PrimitiveType::I8
+        | PrimitiveType::U8
+        | PrimitiveType::I16
+        | PrimitiveType::U16 => 0,
         PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => 1,
         PrimitiveType::F64
         | PrimitiveType::I64
@@ -2000,9 +2004,13 @@ fn primitive_layout(
     primitive_type: PrimitiveType,
 ) -> TypeLayout {
     match primitive_type {
-        PrimitiveType::Bool => TypeLayout {
+        PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => TypeLayout {
             size: 1,
             alignment: 1,
+        },
+        PrimitiveType::I16 | PrimitiveType::U16 => TypeLayout {
+            size: 2,
+            alignment: 2,
         },
         PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => TypeLayout {
             size: 4,
