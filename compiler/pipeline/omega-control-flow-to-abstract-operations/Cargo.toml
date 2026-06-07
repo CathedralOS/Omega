@@ -14,7 +14,7 @@ omega-calling-conventions = { path = "../../foundation/omega-calling-conventions
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
-omega-facts = { path = "../../semantics/omega-facts" }
+omega-facts = { path = "../../representations/omega-facts" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
