@@ -12,7 +12,7 @@ use crate::state_call_blockers::collect_state_call_blockers;
 use crate::state_codegen_blockers::collect_state_codegen_blockers;
 use crate::state_guard_blockers::collect_state_guard_blockers;
 use crate::storage_blockers::collect_state_storage_blockers;
-use omega_artifacts::{EmissionPlan, emission_blocker};
+use omega_backend_report_types::{EmissionPlan, emission_blocker};
 use omega_core::arena::Arena;
 use omega_image_emission::can_emit_executable_image;
 use omega_platform_interface::UnsupportedHostCallReason;

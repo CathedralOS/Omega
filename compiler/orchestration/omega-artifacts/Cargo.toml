@@ -9,6 +9,7 @@ name = "omega_artifacts"
 path = "src/lib.rs"
 
 [dependencies]
+omega-backend-report-types = { path = "../../foundation/omega-backend-report-types" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-image = { path = "../../backend/images/omega-image" }
