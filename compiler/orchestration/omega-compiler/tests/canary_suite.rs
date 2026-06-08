@@ -20,8 +20,12 @@ use std::process::Stdio;
 fn windows_x64_cli_mvp_emits_runnable_pe() {
     let sample = repo_root().join("samples").join("cli_mvp");
     let main_path = sample.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-windows-x64-cli-mvp-{}", std::process::id()));
+    // Build into the in-repo `build/` so the committed/runnable artifact always
+    // matches HEAD: a passing suite leaves a fresh exe at samples/cli_mvp/build/.
+    // (Regenerated clean each run; NOT deleted afterward, unlike the temp-dir
+    // canaries.) Prevents the "run the exe in the folder and see stale garbage"
+    // trap.
+    let build_dir = sample.join("build");
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -43,8 +47,6 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout), "Hello, Omega.\n");
-
-    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[cfg(windows)]
@@ -52,8 +54,11 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
 fn windows_x64_dungeon_crawler_emits_runnable_pe() {
     let sample = repo_root().join("samples").join("dungeon_crawler_cli");
     let main_path = sample.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-windows-x64-dungeon-{}", std::process::id()));
+    // Build into the in-repo `build/` so the runnable artifact always matches HEAD
+    // (regenerated clean each run, NOT deleted afterward). This is the durable fix
+    // for the stale-artifact trap: `samples/dungeon_crawler_cli/build/omega-program.exe`
+    // is rewritten by every green suite run.
+    let build_dir = sample.join("build");
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -128,8 +133,8 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
         stdout.contains("The enemy collapses."),
         "the `fight` command should resolve combat in an enemy room\nstdout:\n{stdout}"
     );
-
-    let _ = fs::remove_dir_all(&build_dir);
+    // Intentionally NOT removing build_dir: leave the fresh, verified artifact in
+    // samples/dungeon_crawler_cli/build/ so running the in-repo exe matches HEAD.
 }
 
 #[test]
