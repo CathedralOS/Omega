@@ -56,6 +56,46 @@ pub(in crate::aarch64) fn encode_conditional_branch_less_or_equal(
     ))
 }
 
+/// `b.hs` (a.k.a. `b.cs`, cond `0b0010`) — branch if unsigned higher-or-same.
+pub(in crate::aarch64) fn encode_conditional_branch_higher_or_same(
+    byte_distance: isize,
+) -> Result<[u8; 4], Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.hs")?;
+    Ok(encode_instruction(
+        0x54000002 | ((instruction_distance as u32 & 0x7ffff) << 5),
+    ))
+}
+
+/// `b.lo` (a.k.a. `b.cc`, cond `0b0011`) — branch if unsigned lower.
+pub(in crate::aarch64) fn encode_conditional_branch_lower(
+    byte_distance: isize,
+) -> Result<[u8; 4], Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.lo")?;
+    Ok(encode_instruction(
+        0x54000003 | ((instruction_distance as u32 & 0x7ffff) << 5),
+    ))
+}
+
+/// `b.hi` (cond `0b1000`) — branch if unsigned higher.
+pub(in crate::aarch64) fn encode_conditional_branch_higher(
+    byte_distance: isize,
+) -> Result<[u8; 4], Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.hi")?;
+    Ok(encode_instruction(
+        0x54000008 | ((instruction_distance as u32 & 0x7ffff) << 5),
+    ))
+}
+
+/// `b.ls` (cond `0b1001`) — branch if unsigned lower-or-same.
+pub(in crate::aarch64) fn encode_conditional_branch_lower_or_same(
+    byte_distance: isize,
+) -> Result<[u8; 4], Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.ls")?;
+    Ok(encode_instruction(
+        0x54000009 | ((instruction_distance as u32 & 0x7ffff) << 5),
+    ))
+}
+
 pub(in crate::aarch64) fn encode_cbz_x(
     register: u8,
     byte_distance: isize,

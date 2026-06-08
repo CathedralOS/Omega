@@ -139,6 +139,51 @@ pub(in crate::aarch64) fn encode_udiv_x_register(
     )
 }
 
+/// `LSLV Xd, Xn, Xm` — logical shift left of `left_register` by the low bits of
+/// `right_register`. Data-processing (2 source), opcode `0b001000` (`0x08 << 10`).
+pub(in crate::aarch64) fn encode_lslv_x_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9AC02000
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `LSRV Xd, Xn, Xm` — LOGICAL shift right (zero-fill), opcode `0b001001`. Used for
+/// an unsigned `>>` (`ShiftRightLogical`).
+pub(in crate::aarch64) fn encode_lsrv_x_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9AC02400
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `ASRV Xd, Xn, Xm` — ARITHMETIC shift right (sign-fill), opcode `0b001010`. Used
+/// for a signed `>>` (`ShiftRight`).
+pub(in crate::aarch64) fn encode_asrv_x_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9AC02800
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
 pub(in crate::aarch64) fn encode_msub_x_register(
     destination_register: u8,
     left_register: u8,
