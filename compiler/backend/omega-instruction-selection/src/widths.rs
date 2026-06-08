@@ -1092,7 +1092,12 @@ pub fn runtime_text_line_read_width(
                 aarch64::runtime_text_line_read_syscall_width(byte_capacity, *number)
             }
         },
-        Architecture::X86_64 => x86_64::runtime_text_line_read_width(byte_capacity),
+        Architecture::X86_64 => match binding {
+            HostBindingMechanism::Import { .. } => {
+                x86_64::runtime_text_line_read_width(byte_capacity)
+            }
+            HostBindingMechanism::Syscall { .. } => x86_64::runtime_text_line_read_syscall_width(),
+        },
     }
 }
 
@@ -1109,7 +1114,14 @@ pub fn runtime_text_line_read_target_address_offset(
                 aarch64::runtime_text_line_read_syscall_target_address_offset(*number)
             }
         },
-        Architecture::X86_64 => x86_64::runtime_text_line_read_target_imm_offset(),
+        Architecture::X86_64 => match binding {
+            HostBindingMechanism::Import { .. } => {
+                x86_64::runtime_text_line_read_target_imm_offset()
+            }
+            HostBindingMechanism::Syscall { .. } => {
+                x86_64::runtime_text_line_read_syscall_target_imm_offset()
+            }
+        },
     }
 }
 

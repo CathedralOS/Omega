@@ -94,6 +94,65 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Cross-compile the dungeon crawler (the richest non-visual sample) to a linux_x64
+// ELF. Unlike cli_mvp this drives runtime-storage syscall arguments: the room
+// descriptions are String descriptors in statically-allocated state regions, so the
+// write(2) syscall marshals a runtime pointer/length into rsi/rdx via the r15/rax
+// staging path. No execution (Windows host); validated by the emitted ELF + the
+// presence of the runtime-storage load sequence (`mov r15, imm64` then a load).
+#[test]
+fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
+    let sample = repo_root().join("samples").join("dungeon_crawler_cli");
+    let main_path = sample.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-linux-x64-dungeon-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("linux_x64 dungeon crawler should compile to an ELF executable");
+
+    let elf = fs::read(build_dir.join("omega-program")).expect("linux_x64 ELF should be emitted");
+
+    assert_eq!(&elf[0..4], b"\x7fELF", "ELF magic");
+    assert_eq!(
+        u16::from_le_bytes([elf[18], elf[19]]),
+        62,
+        "e_machine should be EM_X86_64"
+    );
+    assert!(
+        elf.windows(2).any(|w| w == [0x0f, 0x05]),
+        "ELF should contain a `syscall` (0F 05) instruction"
+    );
+    // Runtime-storage syscall marshalling: `mov r15, imm64` (49 BF, the relocated
+    // region base) followed somewhere by `mov rax, [r15 + disp32]` (49 8B 87) and the
+    // staging `mov rsi, rax` (48 89 C6). Their presence proves a runtime String was
+    // marshalled into a syscall argument rather than rejected by the encoder.
+    assert!(
+        elf.windows(2).any(|w| w == [0x49, 0xbf]),
+        "ELF should load a relocated region base into r15 for a runtime-storage syscall arg"
+    );
+    assert!(
+        elf.windows(3).any(|w| w == [0x49, 0x8b, 0x87]),
+        "ELF should read a String descriptor field into rax (mov rax, [r15+disp32])"
+    );
+    // The line read (read_line) lowers to a byte-at-a-time read(2) loop, NOT a win32
+    // ReadFile import: each iteration reads one byte -- `mov edx,1` (count) + `mov eax,0`
+    // (read syscall number) + syscall. Its presence proves stdin input works via the
+    // syscall path (a win32-import read would emit a `call rel32`, no read syscall).
+    assert!(
+        elf.windows(12).any(|w| w
+            == [0xba, 0x01, 0x00, 0x00, 0x00, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05]),
+        "ELF should set up a read(2) line-read loop (mov edx,1; mov eax,0; syscall)"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_x64_dungeon_crawler_emits_runnable_pe() {
