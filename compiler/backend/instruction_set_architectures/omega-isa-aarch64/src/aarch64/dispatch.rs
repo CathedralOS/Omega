@@ -5,8 +5,10 @@ use super::primitives::{
     append_add_x_constant, encode_add_page_offset_placeholder, encode_adrp_placeholder,
     encode_compare_w_immediate, encode_compare_w17_immediate, encode_compare_x17_immediate,
     encode_conditional_branch_equal, encode_conditional_branch_greater,
-    encode_conditional_branch_greater_or_equal, encode_conditional_branch_less,
-    encode_conditional_branch_less_or_equal, encode_conditional_branch_not_equal,
+    encode_conditional_branch_greater_or_equal, encode_conditional_branch_higher,
+    encode_conditional_branch_higher_or_same, encode_conditional_branch_less,
+    encode_conditional_branch_less_or_equal, encode_conditional_branch_lower,
+    encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
     encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
     encode_unconditional_branch,
 };
@@ -100,6 +102,20 @@ pub fn encode_dispatch_guard_compare_static_bytes(
         StateGuardOperator::GreaterOrEqual => encode_conditional_branch_less(skip_byte_distance)?,
         StateGuardOperator::Less => encode_conditional_branch_greater_or_equal(skip_byte_distance)?,
         StateGuardOperator::LessOrEqual => encode_conditional_branch_greater(skip_byte_distance)?,
+        // Unsigned comparisons skip on the negated UNSIGNED condition (cf. the x86
+        // jcc skip-branches: LessUnsigned->jae, GreaterUnsigned->jbe, etc.).
+        StateGuardOperator::LessUnsigned => {
+            encode_conditional_branch_higher_or_same(skip_byte_distance)?
+        }
+        StateGuardOperator::GreaterUnsigned => {
+            encode_conditional_branch_lower_or_same(skip_byte_distance)?
+        }
+        StateGuardOperator::LessOrEqualUnsigned => {
+            encode_conditional_branch_higher(skip_byte_distance)?
+        }
+        StateGuardOperator::GreaterOrEqualUnsigned => {
+            encode_conditional_branch_lower(skip_byte_distance)?
+        }
         _ => {
             return Err(Diagnostic::error(format!(
                 "AArch64 MVP encoder cannot lower dispatch guard operator `{operator:?}` yet"

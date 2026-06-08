@@ -15,10 +15,12 @@ use super::primitives::{
     encode_compare_x_register, encode_compare_x17_immediate, encode_conditional_branch_equal,
     encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
     encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
+    encode_conditional_branch_higher_or_same, encode_conditional_branch_lower_or_same,
     encode_conditional_branch_not_equal, encode_load_w_from_x, encode_load_x_from_x,
-    encode_move_x_register, encode_movz_w, encode_msub_x_register, encode_mul_x_register,
-    encode_orr_x_register, encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x,
-    encode_store_x17_to_x16, encode_sub_x_register, encode_udiv_x_register,
+    encode_asrv_x_register, encode_lslv_x_register, encode_lsrv_x_register, encode_move_x_register,
+    encode_movz_w, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
+    encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
+    encode_sub_x_register, encode_udiv_x_register,
 };
 use super::widths::{
     runtime_frame_base_indexed_address_to_runtime_frame_write_width,
@@ -1746,6 +1748,29 @@ fn append_runtime_binary_operation(
                 right_register,
             ));
         }
+        StateGuardOperator::ShiftLeft => {
+            bytes.extend(encode_lslv_x_register(
+                destination_register,
+                destination_register,
+                right_register,
+            ));
+        }
+        // Arithmetic (sign-filling) right shift for a signed `>>`.
+        StateGuardOperator::ShiftRight => {
+            bytes.extend(encode_asrv_x_register(
+                destination_register,
+                destination_register,
+                right_register,
+            ));
+        }
+        // Logical (zero-filling) right shift for an unsigned `>>`.
+        StateGuardOperator::ShiftRightLogical => {
+            bytes.extend(encode_lsrv_x_register(
+                destination_register,
+                destination_register,
+                right_register,
+            ));
+        }
         StateGuardOperator::Divide => {
             bytes.extend(encode_udiv_x_register(
                 destination_register,
@@ -1766,14 +1791,23 @@ fn append_runtime_binary_operation(
                 destination_register,
             ));
         }
-        StateGuardOperator::Max | StateGuardOperator::Min => {
+        StateGuardOperator::Max
+        | StateGuardOperator::Min
+        | StateGuardOperator::MaxUnsigned
+        | StateGuardOperator::MinUnsigned => {
             bytes.extend(encode_compare_x_register(
                 destination_register,
                 right_register,
             ));
+            // Keep `dst` (skip the move) when it is already the winner; the unsigned
+            // variants use the unsigned condition (HS/LS) instead of signed (GE/LE).
             bytes.extend(match operator {
                 StateGuardOperator::Max => encode_conditional_branch_greater_or_equal(8)?,
                 StateGuardOperator::Min => encode_conditional_branch_less_or_equal(8)?,
+                StateGuardOperator::MaxUnsigned => {
+                    encode_conditional_branch_higher_or_same(8)?
+                }
+                StateGuardOperator::MinUnsigned => encode_conditional_branch_lower_or_same(8)?,
                 _ => unreachable!(),
             });
             bytes.extend(encode_move_x_register(destination_register, right_register));
