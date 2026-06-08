@@ -482,46 +482,105 @@ pub fn host_call_data_relocation_site<T: InstructionOperandLike>(
         })
 }
 
-/// Each x86_64 Linux syscall argument is a fixed 10-byte `mov reg, imm64`, so the
-/// relocation for a DATA-ADDRESS argument lands at `operand_index * 10 + 2` (the 2
-/// is the opcode prefix before the imm64). See `encode_syscall_sequence`.
+/// A `mov <arg-reg>, imm64` is 10 bytes (2-byte REX.W+B8 prefix, then the imm64), and
+/// for both an immediate/data-address argument (`mov arg, imm64`) and a runtime-storage
+/// argument (whose first instruction is `mov r15, imm64=0` for the relocated region base)
+/// the relocated imm64 sits at the argument's start + 2.
 pub const SYSCALL_ARG_MOV_WIDTH: usize = 10;
 
-pub fn syscall_data_relocation_byte_offset(operand_index: usize) -> usize {
-    operand_index * SYSCALL_ARG_MOV_WIDTH + 2
+/// Byte width of marshalling a single syscall argument into its register. Simple
+/// arguments (immediate, byte-length, data-address) are a direct `mov arg, imm64`;
+/// runtime-storage arguments stage the value through r15/rax (see `encode_syscall_sequence`).
+fn syscall_arg_operand_width<T: InstructionOperandLike>(operand: &T) -> usize {
+    if operand.runtime_pointee_string_pointer().is_some()
+        || operand.runtime_pointee_string_length().is_some()
+    {
+        // mov r15,imm64 (10) + mov r15,[r15+off] (7) + mov rax,[r15+disp] (7) + mov arg,rax (3)
+        SYSCALL_ARG_MOV_WIDTH + 7 + 7 + 3
+    } else if operand.runtime_string_pointer().is_some()
+        || operand.runtime_string_length().is_some()
+    {
+        // mov r15,imm64 (10) + mov rax,[r15+disp] (7) + mov arg,rax (3)
+        SYSCALL_ARG_MOV_WIDTH + 7 + 3
+    } else {
+        // mov arg,imm64
+        SYSCALL_ARG_MOV_WIDTH
+    }
 }
 
-/// Total byte width of a Linux syscall sequence: one `mov reg, imm64` per argument,
-/// plus `mov rax, imm64` (the syscall number) and the 2-byte `syscall`.
+/// Byte offset (within the syscall sequence) of the relocated imm64 for the argument at
+/// `operand_index`: the sum of the widths of all preceding arguments, plus the 2-byte
+/// prefix before the imm64. Applies to both data-address and runtime-storage arguments,
+/// whose relocated `mov`/`mov r15` is always the argument's first instruction.
+pub fn syscall_data_relocation_byte_offset<T: InstructionOperandLike>(
+    operands: &[T],
+    operand_index: usize,
+) -> usize {
+    operands
+        .iter()
+        .take(operand_index)
+        .map(syscall_arg_operand_width)
+        .sum::<usize>()
+        + 2
+}
+
+/// Total byte width of a Linux syscall sequence: each argument's marshalling, plus
+/// `mov rax, imm64` (the syscall number) and the 2-byte `syscall`.
 pub fn syscall_sequence_width<T: InstructionOperandLike>(operands: &[T]) -> usize {
-    (operands.len() + 1) * SYSCALL_ARG_MOV_WIDTH + 2
+    operands.iter().map(syscall_arg_operand_width).sum::<usize>() + SYSCALL_ARG_MOV_WIDTH + 2
 }
 
 /// x86_64 Linux (System V) syscall sequence: marshal each argument into the syscall
 /// argument registers in order (RDI, RSI, RDX, R10, R8, R9), load the syscall number
-/// into RAX, then `syscall` (0F 05). DATA-ADDRESS arguments emit `mov reg, imm64=0`
-/// and are fixed up by an Absolute64 relocation (see syscall_data_relocation_byte_offset).
+/// into RAX, then `syscall` (0F 05).
+///
+/// Simple arguments emit a direct `mov arg, imm64` (data-address arguments use imm64=0
+/// fixed up by an Absolute64 relocation). Runtime-storage arguments (a String descriptor
+/// in a statically-allocated frame/machine/data region) stage through r15 and rax: load
+/// the relocated region base into r15, read the pointer/length field (descriptor layout:
+/// pointer at +0, length at +8) into rax, then `mov arg, rax`. r15 is used as the scratch
+/// base because it is neither a syscall argument register nor clobbered by `syscall`.
 pub fn encode_syscall_sequence<T: InstructionOperandLike>(
     operands: &[T],
     syscall_number: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(syscall_sequence_width(operands));
     for (index, operand) in operands.iter().enumerate() {
-        let opcode = syscall_arg_mov_imm64_opcode(index)?;
-        let value = if let Some(value) = operand.immediate_integer() {
-            value as u64
-        } else if let Some(value) = operand.byte_length() {
-            value as u64
-        } else if operand.data_address().is_some() {
-            0 // relocated to the data symbol's address
+        if let Some((_, byte_offset)) = operand.runtime_pointee_string_pointer() {
+            append_mov_r15_imm64(&mut bytes, 0); // relocated region base
+            append_load_r15_from_r15(&mut bytes, byte_offset)?; // r15 = &descriptor
+            append_load_rax_from_r15(&mut bytes, 0)?; // rax = descriptor.pointer
+            append_mov_syscall_arg_from_rax(&mut bytes, index)?;
+        } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_length() {
+            append_mov_r15_imm64(&mut bytes, 0);
+            append_load_r15_from_r15(&mut bytes, byte_offset)?;
+            append_load_rax_from_r15(&mut bytes, 8)?; // rax = descriptor.length
+            append_mov_syscall_arg_from_rax(&mut bytes, index)?;
+        } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
+            append_mov_r15_imm64(&mut bytes, 0);
+            append_load_rax_from_r15(&mut bytes, byte_offset)?; // rax = descriptor.pointer
+            append_mov_syscall_arg_from_rax(&mut bytes, index)?;
+        } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
+            append_mov_r15_imm64(&mut bytes, 0);
+            append_load_rax_from_r15(&mut bytes, byte_offset + 8)?; // rax = descriptor.length
+            append_mov_syscall_arg_from_rax(&mut bytes, index)?;
         } else {
-            return Err(Diagnostic::error(
-                "X86_64 syscall encoder cannot marshal a runtime-storage argument yet \
-                 (only immediate, byte-length, and data-address arguments are supported)",
-            ));
-        };
-        bytes.extend(opcode);
-        bytes.extend(value.to_le_bytes());
+            let opcode = syscall_arg_mov_imm64_opcode(index)?;
+            let value = if let Some(value) = operand.immediate_integer() {
+                value as u64
+            } else if let Some(value) = operand.byte_length() {
+                value as u64
+            } else if operand.data_address().is_some() {
+                0 // relocated to the data symbol's address
+            } else {
+                return Err(Diagnostic::error(
+                    "X86_64 syscall encoder cannot marshal this argument yet (expected \
+                     immediate, byte-length, data-address, or runtime-storage)",
+                ));
+            };
+            bytes.extend(opcode);
+            bytes.extend(value.to_le_bytes());
+        }
     }
     append_mov_rax_imm64(&mut bytes, u64::from(syscall_number));
     bytes.extend([0x0f, 0x05]); // syscall
@@ -545,6 +604,25 @@ fn syscall_arg_mov_imm64_opcode(index: usize) -> Result<[u8; 2], Diagnostic> {
             ));
         }
     })
+}
+
+/// `mov <syscall-arg-reg>, rax` (opcode 89 /r, source rax = reg field 0), for staging a
+/// runtime-storage value computed in rax into syscall argument `index`'s register.
+fn append_mov_syscall_arg_from_rax(bytes: &mut Vec<u8>, index: usize) -> Result<(), Diagnostic> {
+    bytes.extend(match index {
+        0 => [0x48, 0x89, 0xc7], // mov rdi, rax
+        1 => [0x48, 0x89, 0xc6], // mov rsi, rax
+        2 => [0x48, 0x89, 0xc2], // mov rdx, rax
+        3 => [0x49, 0x89, 0xc2], // mov r10, rax
+        4 => [0x49, 0x89, 0xc0], // mov r8,  rax
+        5 => [0x49, 0x89, 0xc1], // mov r9,  rax
+        _ => {
+            return Err(Diagnostic::error(
+                "X86_64 syscall encoder supports at most 6 arguments",
+            ));
+        }
+    });
+    Ok(())
 }
 
 pub fn host_call_external_relocation_site<T: InstructionOperandLike>(
@@ -1809,6 +1887,121 @@ pub fn runtime_text_line_read_read_file_call_offset() -> usize {
 
 pub fn runtime_text_line_read_target_imm_offset() -> usize {
     runtime_text_line_read_layout().target_imm_offset
+}
+
+/// x86_64 Linux line read via the `read(2)` syscall (no GetStdHandle/ReadFile imports).
+/// Byte-at-a-time read from stdin (fd 0) into the relocated buffer (r14), tracking the
+/// line length in r15, with the same CRLF/NUL terminator handling as the win32 import
+/// path, then store the {pointer, length} String descriptor into the target region.
+pub fn encode_runtime_text_line_read_syscall(
+    target_offset: usize,
+    byte_capacity: usize,
+    number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let capacity = u32::try_from(byte_capacity).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
+        ))
+    })?;
+    Ok(build_runtime_text_line_read_syscall(target_offset, capacity, number)?.0)
+}
+
+fn build_runtime_text_line_read_syscall(
+    target_offset: usize,
+    capacity: u32,
+    number: u32,
+) -> Result<(Vec<u8>, usize), Diagnostic> {
+    let target_ptr_disp = disp32(target_offset)?;
+    let target_len_disp = disp32(target_offset + 8)?;
+    let mut bytes = Vec::with_capacity(128);
+
+    // r14 = buffer (imm64 at +2 relocated to the buffer data symbol); r15 = length.
+    bytes.extend([0x49, 0xbe]);
+    bytes.extend(0u64.to_le_bytes());
+    bytes.extend([0x4d, 0x31, 0xff]); // xor r15, r15
+
+    let loop_start = bytes.len();
+    bytes.extend([0x31, 0xff]); // xor edi, edi (fd = 0, stdin)
+    bytes.extend([0x4b, 0x8d, 0x34, 0x3e]); // lea rsi, [r14+r15] (buffer + length)
+    bytes.extend([0xba, 0x01, 0x00, 0x00, 0x00]); // mov edx, 1 (read one byte)
+    bytes.push(0xb8); // mov eax, read-syscall-number
+    bytes.extend(number.to_le_bytes());
+    bytes.extend([0x0f, 0x05]); // syscall
+    bytes.extend([0x48, 0x85, 0xc0]); // test rax, rax (rax = bytes read / -errno)
+
+    // Forward jumps to `done`, patched after `done` is known.
+    let mut done_fixups: Vec<usize> = Vec::new();
+    let mut jcc_done = |bytes: &mut Vec<u8>, opcode: u8| {
+        bytes.push(0x0f);
+        bytes.push(opcode);
+        done_fixups.push(bytes.len());
+        bytes.extend([0, 0, 0, 0]);
+    };
+    jcc_done(&mut bytes, 0x8e); // jle done (read returned 0 (EOF) or < 0 (error))
+    bytes.extend([0x43, 0x8a, 0x04, 0x3e]); // mov al, [r14+r15] (byte read)
+    // A '\n'/'\r' delimiter terminates the line only once content is present
+    // (r15 > 0); a LEADING one is skipped (loop back without accepting it), so CRLF
+    // is a single terminator. Mirrors the win32 import path's terminator handling.
+    for delim in [0x0au8, 0x0du8] {
+        bytes.extend([0x3c, delim]); // cmp al, delim
+        bytes.push(0x75); // jne over
+        let jne_over = bytes.len();
+        bytes.push(0x00);
+        bytes.extend([0x4d, 0x85, 0xff]); // test r15, r15
+        jcc_done(&mut bytes, 0x85); // jnz done (content present -> finish line)
+        bytes.push(0xe9); // jmp loop_start (leading delimiter: skip, read next)
+        let jmp_loop = bytes.len();
+        bytes.extend([0, 0, 0, 0]);
+        let rel = loop_start as isize - (jmp_loop as isize + 4);
+        bytes[jmp_loop..jmp_loop + 4].copy_from_slice(&(rel as i32).to_le_bytes());
+        let over = bytes.len();
+        bytes[jne_over] = (over - (jne_over + 1)) as u8;
+    }
+    bytes.extend([0x3c, 0x00]); // cmp al, 0
+    jcc_done(&mut bytes, 0x84); // a NUL always terminates (EOF sentinel)
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15 (accept the byte)
+    bytes.extend([0x49, 0x81, 0xff]); // cmp r15, imm32
+    bytes.extend(capacity.to_le_bytes());
+    bytes.extend([0x0f, 0x82]); // jb rel32 -> loop_start (keep reading while < capacity)
+    let loop_jmp_disp = bytes.len();
+    bytes.extend([0, 0, 0, 0]);
+    {
+        let rel = loop_start as isize - (loop_jmp_disp as isize + 4);
+        bytes[loop_jmp_disp..loop_jmp_disp + 4].copy_from_slice(&(rel as i32).to_le_bytes());
+    }
+
+    // done:
+    let done = bytes.len();
+    for fixup in done_fixups {
+        let rel = done as isize - (fixup as isize + 4);
+        bytes[fixup..fixup + 4].copy_from_slice(&(rel as i32).to_le_bytes());
+    }
+    // mov r13, imm64(target) (relocated at +2); store the descriptor.
+    let target_mov_offset = bytes.len();
+    bytes.extend([0x49, 0xbd]);
+    bytes.extend(0u64.to_le_bytes());
+    bytes.extend([0x4d, 0x89, 0xb5]); // mov [r13+target_offset], r14 (descriptor.ptr)
+    bytes.extend(target_ptr_disp.to_le_bytes());
+    bytes.extend([0x4d, 0x89, 0xbd]); // mov [r13+target_offset+8], r15 (descriptor.len)
+    bytes.extend(target_len_disp.to_le_bytes());
+
+    Ok((bytes, target_mov_offset))
+}
+
+fn runtime_text_line_read_syscall_layout() -> (usize, usize) {
+    // Capacity/number/target are all fixed-width immediates, so they do not affect the
+    // layout; encode once with placeholders to recover the width + target imm offset.
+    let (bytes, target_mov_offset) = build_runtime_text_line_read_syscall(0, 1, 0)
+        .expect("runtime text line read syscall layout encodes");
+    (bytes.len(), target_mov_offset)
+}
+
+pub fn runtime_text_line_read_syscall_width() -> usize {
+    runtime_text_line_read_syscall_layout().0
+}
+
+pub fn runtime_text_line_read_syscall_target_imm_offset() -> usize {
+    runtime_text_line_read_syscall_layout().1
 }
 
 pub fn encode_runtime_text_line_read(
