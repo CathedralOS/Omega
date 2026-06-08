@@ -49,6 +49,51 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
     assert_eq!(String::from_utf8_lossy(&output.stdout), "Hello, Omega.\n");
 }
 
+// Cross-compile cli_mvp to a linux_x64 ELF and verify its structure + syscall
+// sequences. No execution (the suite host is Windows): the x86_64 Linux System V
+// syscall host-call path + ELF emission are validated by the emitted bytes. Guards
+// the genericized host-call pipeline (x86_64 now has both win32-import and
+// linux-syscall host calls).
+#[test]
+fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
+    let sample = repo_root().join("samples").join("cli_mvp");
+    let main_path = sample.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-linux-x64-cli-mvp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("linux_x64 cli_mvp should compile to an ELF executable");
+
+    let elf = fs::read(build_dir.join("omega-program")).expect("linux_x64 ELF should be emitted");
+
+    // ELF64 magic + e_machine == EM_X86_64 (62) at offset 18.
+    assert_eq!(&elf[0..4], b"\x7fELF", "ELF magic");
+    assert_eq!(
+        u16::from_le_bytes([elf[18], elf[19]]),
+        62,
+        "e_machine should be EM_X86_64"
+    );
+    // The `syscall` instruction (0F 05) and the exit_group syscall number setup
+    // (`mov rax, 231`) must be present -- the System V syscall sequence.
+    assert!(
+        elf.windows(2).any(|w| w == [0x0f, 0x05]),
+        "ELF should contain a `syscall` (0F 05) instruction"
+    );
+    assert!(
+        elf.windows(10)
+            .any(|w| w == [0x48, 0xb8, 0xe7, 0, 0, 0, 0, 0, 0, 0]),
+        "ELF should set rax = 231 (exit_group) for the exit syscall"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_x64_dungeon_crawler_emits_runnable_pe() {

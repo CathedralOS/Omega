@@ -32,7 +32,7 @@ pub fn syscall_sequence_width<T: InstructionOperandLike>(
             operands.iter().map(aarch64_call_operand),
             syscall_number,
         ),
-        Architecture::X86_64 => operands.len() * 8 + 7,
+        Architecture::X86_64 => x86_64::syscall_sequence_width(operands),
     }
 }
 

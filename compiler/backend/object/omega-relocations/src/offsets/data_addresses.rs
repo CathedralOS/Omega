@@ -8,7 +8,15 @@ pub(crate) fn data_address_relocation_offset(
     operands: &[InstructionOperand],
     selected_text_offset: usize,
     operand_index: usize,
+    is_syscall: bool,
 ) -> usize {
+    // x86_64 Linux syscalls lay every argument out as a fixed 10-byte
+    // `mov reg, imm64`, so the data-address fixup is at operand_index*10 + 2 -- a
+    // different layout than the win32 import host-call sequence handled below.
+    if architecture == Architecture::X86_64 && is_syscall {
+        return selected_text_offset
+            + omega_isa_x86_64::syscall_data_relocation_byte_offset(operand_index);
+    }
     if architecture == Architecture::X86_64
         && let Some(operation_key) = operation_key
         && let Some(site) =
@@ -43,12 +51,17 @@ mod tests {
         ];
 
         assert_eq!(
-            data_address_relocation_offset(Architecture::Aarch64, None, &operands, 20, 1),
+            data_address_relocation_offset(Architecture::Aarch64, None, &operands, 20, 1, false),
             24
         );
         assert_eq!(
-            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1),
+            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, false),
             28
+        );
+        // x86_64 Linux syscall layout: arg 1's data-address fixup is at 20 + 1*10 + 2.
+        assert_eq!(
+            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, true),
+            32
         );
     }
 }

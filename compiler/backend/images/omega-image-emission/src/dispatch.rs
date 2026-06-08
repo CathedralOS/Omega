@@ -10,6 +10,7 @@ pub fn emit_executable_image(
 ) -> Option<Result<EmittedImageOutput, Diagnostic>> {
     match (input.target.object_format, input.target.architecture) {
         (ObjectFormat::Elf, Architecture::Aarch64) => Some(emit_elf_aarch64_executable(input)),
+        (ObjectFormat::Elf, Architecture::X86_64) => Some(emit_elf_x86_64_executable(input)),
         (ObjectFormat::MachO, Architecture::Aarch64) => Some(emit_macho_aarch64_executable(input)),
         (ObjectFormat::Coff, Architecture::X86_64) => Some(emit_pe_x86_64_executable(input)),
         _ => None,
@@ -21,6 +22,14 @@ fn emit_elf_aarch64_executable(
 ) -> Result<EmittedImageOutput, Diagnostic> {
     let image = build_final_image(input);
     let output = omega_image_elf::emit_elf_aarch64_executable(image)?;
+    Ok(emitted_direct_executable_output(output))
+}
+
+fn emit_elf_x86_64_executable(
+    input: ExecutableImageInput<'_>,
+) -> Result<EmittedImageOutput, Diagnostic> {
+    let image = build_final_image(input);
+    let output = omega_image_elf::emit_elf_x86_64_executable(image)?;
     Ok(emitted_direct_executable_output(output))
 }
 
