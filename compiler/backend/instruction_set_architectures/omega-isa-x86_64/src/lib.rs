@@ -482,6 +482,71 @@ pub fn host_call_data_relocation_site<T: InstructionOperandLike>(
         })
 }
 
+/// Each x86_64 Linux syscall argument is a fixed 10-byte `mov reg, imm64`, so the
+/// relocation for a DATA-ADDRESS argument lands at `operand_index * 10 + 2` (the 2
+/// is the opcode prefix before the imm64). See `encode_syscall_sequence`.
+pub const SYSCALL_ARG_MOV_WIDTH: usize = 10;
+
+pub fn syscall_data_relocation_byte_offset(operand_index: usize) -> usize {
+    operand_index * SYSCALL_ARG_MOV_WIDTH + 2
+}
+
+/// Total byte width of a Linux syscall sequence: one `mov reg, imm64` per argument,
+/// plus `mov rax, imm64` (the syscall number) and the 2-byte `syscall`.
+pub fn syscall_sequence_width<T: InstructionOperandLike>(operands: &[T]) -> usize {
+    (operands.len() + 1) * SYSCALL_ARG_MOV_WIDTH + 2
+}
+
+/// x86_64 Linux (System V) syscall sequence: marshal each argument into the syscall
+/// argument registers in order (RDI, RSI, RDX, R10, R8, R9), load the syscall number
+/// into RAX, then `syscall` (0F 05). DATA-ADDRESS arguments emit `mov reg, imm64=0`
+/// and are fixed up by an Absolute64 relocation (see syscall_data_relocation_byte_offset).
+pub fn encode_syscall_sequence<T: InstructionOperandLike>(
+    operands: &[T],
+    syscall_number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(syscall_sequence_width(operands));
+    for (index, operand) in operands.iter().enumerate() {
+        let opcode = syscall_arg_mov_imm64_opcode(index)?;
+        let value = if let Some(value) = operand.immediate_integer() {
+            value as u64
+        } else if let Some(value) = operand.byte_length() {
+            value as u64
+        } else if operand.data_address().is_some() {
+            0 // relocated to the data symbol's address
+        } else {
+            return Err(Diagnostic::error(
+                "X86_64 syscall encoder cannot marshal a runtime-storage argument yet \
+                 (only immediate, byte-length, and data-address arguments are supported)",
+            ));
+        };
+        bytes.extend(opcode);
+        bytes.extend(value.to_le_bytes());
+    }
+    append_mov_rax_imm64(&mut bytes, u64::from(syscall_number));
+    bytes.extend([0x0f, 0x05]); // syscall
+    debug_assert_eq!(bytes.len(), syscall_sequence_width(operands));
+    Ok(bytes)
+}
+
+/// The `mov <syscall-arg-reg>, imm64` opcode prefix (REX.W + B8+rd) for syscall
+/// argument `index`, mapping to RDI, RSI, RDX, R10, R8, R9 in order.
+fn syscall_arg_mov_imm64_opcode(index: usize) -> Result<[u8; 2], Diagnostic> {
+    Ok(match index {
+        0 => [0x48, 0xbf], // mov rdi, imm64
+        1 => [0x48, 0xbe], // mov rsi, imm64
+        2 => [0x48, 0xba], // mov rdx, imm64
+        3 => [0x49, 0xba], // mov r10, imm64
+        4 => [0x49, 0xb8], // mov r8,  imm64
+        5 => [0x49, 0xb9], // mov r9,  imm64
+        _ => {
+            return Err(Diagnostic::error(
+                "X86_64 syscall encoder supports at most 6 arguments",
+            ));
+        }
+    })
+}
+
 pub fn host_call_external_relocation_site<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],

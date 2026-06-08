@@ -5,6 +5,7 @@ use crate::constants::{
 
 pub(crate) fn write_elf_header(
     bytes: &mut Vec<u8>,
+    machine: u16,
     entry_address: u64,
     text_offset: usize,
     data_offset: usize,
@@ -16,7 +17,8 @@ pub(crate) fn write_elf_header(
     bytes.push(0);
     bytes.extend([0; 8]);
     write_u16(bytes, 2);
-    write_u16(bytes, 183);
+    // e_machine: 183 = EM_AARCH64, 62 = EM_X86_64.
+    write_u16(bytes, machine);
     write_u32(bytes, 1);
     write_u64(bytes, entry_address);
     write_u64(bytes, ELF_HEADER_SIZE as u64);

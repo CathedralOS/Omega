@@ -79,7 +79,7 @@ mod tests {
         // x86_64 computes the indexed target address into r14 before the value
         // operands: mov r14,imm64 (10) + mov r15,[r14+idx] (7) + imul (7) + add (3).
         assert_eq!(
-            runtime_frame_base_indexed_binary_left_operand_offset(Architecture::X86_64, 4, 8, 12),
+            runtime_frame_base_indexed_binary_left_operand_offset(Architecture::X86_64, 4, 8, 12, 0),
             27
         );
     }

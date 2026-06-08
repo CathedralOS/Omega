@@ -33,7 +33,12 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
             number_register,
             supervisor_call,
         ),
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        // x86_64 Linux: number_register/supervisor_call are aarch64-shaped (X8/SVC);
+        // the System V syscall ABI fixes RAX + `syscall` (0F 05), so they are unused.
+        Architecture::X86_64 => {
+            let _ = (number_register, supervisor_call);
+            x86_64::encode_syscall_sequence(operands, syscall_number)
+        }
     }
 }
 
@@ -83,10 +88,4 @@ pub fn encode_return_register_integer_write_bytes(
             Ok((bytes, byte_count))
         }
     }
-}
-
-fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
-    Err(Diagnostic::error(
-        "X86_64 host instruction encoding is not implemented",
-    ))
 }

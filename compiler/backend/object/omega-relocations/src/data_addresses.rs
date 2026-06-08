@@ -1,7 +1,8 @@
 use crate::RelocationPlanningInput;
 use crate::data_address_records::insert_data_address_relocations;
+use crate::lookups::find_host_binding;
 use crate::offsets::data_address_relocation_offset;
-use omega_calling_conventions::HostOperationKey;
+use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
 use omega_object_file::{
     ObjectSymbolHandle, RelocationPlan, object_symbol_handle_by_name, storage_region_symbol_name,
 };
@@ -23,6 +24,12 @@ pub(super) fn collect_data_address_relocations(
         return;
     };
 
+    // A Linux syscall host call lays its arguments out differently than a win32
+    // import call, so the data-address fixup offset must use the syscall layout.
+    let is_syscall = operation_key
+        .and_then(|key| find_host_binding(input, key))
+        .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Syscall { .. }));
+
     for (operand_index, operand) in operands.iter().enumerate() {
         if let Some(data) = operand.data_address() {
             if !data.is_valid() {
@@ -43,6 +50,7 @@ pub(super) fn collect_data_address_relocations(
                     operands,
                     selected_text_offset,
                     operand_index,
+                    is_syscall,
                 ),
                 symbol,
             );
@@ -78,6 +86,7 @@ pub(super) fn collect_data_address_relocations(
                     operands,
                     selected_text_offset,
                     operand_index,
+                    is_syscall,
                 ),
                 symbol,
             );
