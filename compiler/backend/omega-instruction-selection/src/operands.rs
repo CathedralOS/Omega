@@ -20,6 +20,8 @@ pub(crate) fn aarch64_call_operand(operand: &impl InstructionOperandLike) -> Aar
         Aarch64CallOperand::RuntimePointeeStringPointer { byte_offset }
     } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_length() {
         Aarch64CallOperand::RuntimePointeeStringLength { byte_offset }
+    } else if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
+        Aarch64CallOperand::RuntimeScalarInteger { byte_offset }
     } else if let Some(value) = operand.immediate_integer() {
         Aarch64CallOperand::ImmediateInteger(value)
     } else if let Some(value) = operand.byte_length() {

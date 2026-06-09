@@ -70,6 +70,11 @@ pub(super) fn collect_data_address_relocations(
                 operand
                     .runtime_pointee_string_length()
                     .map(|(region, _)| region)
+            })
+            .or_else(|| {
+                operand
+                    .runtime_scalar_integer()
+                    .map(|(region, _, _)| region)
             });
 
         if let Some(region) = region {

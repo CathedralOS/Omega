@@ -3494,6 +3494,43 @@ fn runtime_recursive_value_return_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_exit_code_exit_canary_runs() {
+    // `exit_process(self.v)` with a RUNTIME (non-constant) i32 must exit with the
+    // computed value. Regression guard for the documented footgun where a runtime
+    // exit-code operand was ignored and the process silently exited 0. The canary
+    // computes 5 + 65 = 70 and exits with `self.v`.
+    let canary = pass_canary("calls/runtime_exit_code_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-exit-code-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime exit code canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime exit code canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `exit_process(self.v)` with a runtime i32 (5 + 65) to exit with the \
+         computed value 70; a 0 exit is the pre-fix bug where the runtime exit-code \
+         operand was ignored. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_u8_field_arith_exit_canary_runs() {
     let canary = pass_canary("types/runtime_u8_field_arith_exit");
     let main_path = canary.join("main.omg");
@@ -5945,6 +5982,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_numeric_cast_exit",
     "calls/runtime_value_position_branching_call_exit",
     "calls/runtime_value_transition_unsigned_guard_exit",
+    "calls/runtime_exit_code_exit",
     "operators/integer_literal_suffix_exit",
     "operators/runtime_shift_operators_exit",
     "calls/free_standing_machine_helper_compile",

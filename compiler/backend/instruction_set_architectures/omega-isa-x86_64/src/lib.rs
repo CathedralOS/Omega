@@ -499,6 +499,7 @@ fn syscall_arg_operand_width<T: InstructionOperandLike>(operand: &T) -> usize {
         SYSCALL_ARG_MOV_WIDTH + 7 + 7 + 3
     } else if operand.runtime_string_pointer().is_some()
         || operand.runtime_string_length().is_some()
+        || operand.runtime_scalar_integer().is_some()
     {
         // mov r15,imm64 (10) + mov rax,[r15+disp] (7) + mov arg,rax (3)
         SYSCALL_ARG_MOV_WIDTH + 7 + 3
@@ -563,6 +564,10 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
         } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
             append_mov_r15_imm64(&mut bytes, 0);
             append_load_rax_from_r15(&mut bytes, byte_offset + 8)?; // rax = descriptor.length
+            append_mov_syscall_arg_from_rax(&mut bytes, index)?;
+        } else if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
+            append_mov_r15_imm64(&mut bytes, 0); // relocated region base
+            append_load_rax_from_r15(&mut bytes, byte_offset)?; // rax = scalar value
             append_mov_syscall_arg_from_rax(&mut bytes, index)?;
         } else {
             let opcode = syscall_arg_mov_imm64_opcode(index)?;
@@ -756,14 +761,40 @@ fn append_file_length_operand<T: InstructionOperandLike>(
     }
 }
 
+/// Marshalling width of the exit-code argument: a constant is `mov ecx, imm32` (5 bytes),
+/// a runtime-storage scalar is `mov r15, imm64=0` (10, relocated to the region base) +
+/// `mov rcx, [r15+disp32]` (7).
+fn exit_process_exit_code_width<T: InstructionOperandLike>(operands: &[T]) -> usize {
+    if operands
+        .first()
+        .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
+    {
+        17
+    } else {
+        5
+    }
+}
+
 fn encode_exit_process<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
-    let exit_code = immediate_i32(operands, 0, "ExitProcess exit code")?;
-    let mut bytes = Vec::with_capacity(18);
+    let mut bytes = Vec::with_capacity(13 + exit_process_exit_code_width(operands));
     bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
-    bytes.push(0xb9); // mov ecx, imm32
-    bytes.extend(exit_code.to_le_bytes());
+    match operands.first() {
+        Some(operand) if operand.runtime_scalar_integer().is_some() => {
+            let (_, byte_offset, _) = operand.runtime_scalar_integer().unwrap();
+            // mov r15, imm64=0 (relocated to the exit code's storage-region base), then
+            // mov rcx, [r15 + byte_offset]. ExitProcess reads ecx (the low 32 bits).
+            append_mov_r15_imm64(&mut bytes, 0);
+            append_load_rcx_from_r15(&mut bytes, byte_offset)?;
+        }
+        _ => {
+            let exit_code = immediate_i32(operands, 0, "ExitProcess exit code")?;
+            bytes.push(0xb9); // mov ecx, imm32
+            bytes.extend(exit_code.to_le_bytes());
+        }
+    }
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32
     bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
+    debug_assert_eq!(bytes.len(), 13 + exit_process_exit_code_width(operands));
     Ok(bytes)
 }
 
@@ -775,14 +806,40 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
         (
             HostCapability::Stdin | HostCapability::Stdout | HostCapability::Stderr,
             HostOperation::GetStdHandle,
-        )
-        | (HostCapability::Process, HostOperation::ExitProcess) => {
+        ) => {
             vec![X86_64RelocationSite {
                 operand_index: None,
                 byte_offset: 10,
                 byte_width: 4,
                 kind: X86_64RelocationSiteKind::Relative32,
             }]
+        }
+        (HostCapability::Process, HostOperation::ExitProcess) => {
+            // Layout: sub rsp,40 (4) + exit-code marshalling + call rel32.
+            let exit_code_width = exit_process_exit_code_width(operands);
+            let mut sites = Vec::new();
+            if operands
+                .first()
+                .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
+            {
+                // The relocated region-base imm64 sits inside `mov r15, imm64` at
+                // (sub rsp = 4) + 2.
+                sites.push(X86_64RelocationSite {
+                    operand_index: Some(0),
+                    byte_offset: 4 + 2,
+                    byte_width: 8,
+                    kind: X86_64RelocationSiteKind::Absolute64,
+                });
+            }
+            // `call rel32`: skip sub rsp (4), the exit-code marshalling, and the call
+            // opcode (1).
+            sites.push(X86_64RelocationSite {
+                operand_index: None,
+                byte_offset: 4 + exit_code_width + 1,
+                byte_width: 4,
+                kind: X86_64RelocationSiteKind::Relative32,
+            });
+            sites
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,
