@@ -1,11 +1,19 @@
-//! Differential oracle test: for a curated set of SIMPLE canaries that use only the
-//! interpreter's supported subset, compile + run the NATIVE binary (windows_x64) AND run
-//! the reference interpreter, then assert their exit code and stdout MATCH.
+//! Differential oracle test: over every RUN canary (a `canaries/pass/**` program the
+//! canary suite compiles, executes, and asserts a known exit code for), run the reference
+//! interpreter and -- when it SUPPORTS the program -- compile + run the NATIVE binary and
+//! assert their exit code and stdout MATCH.
 //!
-//! This proves the oracle works: on supported programs, `interpret() == native`. When the
-//! interpreter returns an error (unsupported construct), the canary is SKIPPED rather than
-//! failed -- a missing feature is not a backend mismatch. As interpreter coverage grows,
-//! a genuine `interpret() != native` divergence localizes a native backend bug.
+//! Framing: these are PASSING run canaries, so the native binary is correct-by-definition
+//! (the suite asserts its exact exit code). Therefore any `interpret() != native` here is
+//! an INTERPRETER bug, and the test fails so it gets fixed. When the interpreter returns an
+//! error (unsupported construct) the canary is SKIPPED -- a missing feature is not a
+//! mismatch. As the interpreter's coverage grows, more canaries leave the skip bucket and
+//! must agree with native.
+//!
+//! The set below mirrors how `omega-compiler/tests/canary_suite.rs` runs canaries: only the
+//! programs it actually executes-and-checks an exit code for (no compile-only or
+//! visualization canaries, whose native exit code is undefined). The companion expected
+//! code documents the suite's own assertion and lets us sanity-check native against it.
 
 use omega_compiler::{compile, compile_to_checked, CompileOptions};
 use omega_interpreter::interpret;
@@ -13,87 +21,274 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Canaries known to use only the supported subset (scalar fields/locals, arithmetic,
-/// comparison, guarded multi-arm transitions, value-calls returning a scalar, enum match
-/// desugaring, `&mut`-argument aliasing, the Console boundary `exit_process`). Each exits
-/// 70 on success with no stdout.
-const DIFFERENTIAL_CANARIES: &[&str] = &[
-    "expressions/runtime_field_default_exit",
-    "expressions/runtime_match_value_exit",
-    "expressions/runtime_call_result_binary_operand_exit",
-    "arithmetic/runtime_chained_field_mutation_exit",
-    "arithmetic/runtime_comparison_guard_signedness_exit",
-    "arithmetic/runtime_comparison_value_signedness_exit",
-    "arithmetic/runtime_min_max_signedness_exit",
-    "arithmetic/runtime_copy_then_read_exit",
-    "operators/compound_assignment_exit",
-    "operators/unary_negation_exit",
+/// The RUN canaries: `(relative path under canaries/pass, exit code the suite asserts)`.
+/// Extracted from `canary_suite.rs` (every test that runs `executable_name()` and asserts
+/// `output.status.code() == Some(N)`).
+const RUN_CANARIES: &[(&str, i32)] = &[
+    ("arithmetic/runtime_chained_field_mutation_exit", 70),
+    ("arithmetic/runtime_comparison_guard_signedness_exit", 70),
+    ("arithmetic/runtime_comparison_value_signedness_exit", 70),
+    ("arithmetic/runtime_copy_then_read_exit", 70),
+    ("arithmetic/runtime_i64_full_width_exit", 70),
+    ("arithmetic/runtime_min_max_signedness_exit", 70),
+    ("arithmetic/runtime_signed_division_exit", 70),
+    ("arithmetic/runtime_unsigned_division_exit", 70),
+    ("calls/runtime_alias_indexed_read_through_transition_exit", 70),
+    ("calls/runtime_alias_write_through_guarded_transition_exit", 70),
+    ("calls/runtime_call_in_inlined_substate_exit", 70),
+    ("calls/runtime_call_result_through_reference_field_exit", 183),
+    ("calls/runtime_called_machine_loop_search_exit", 70),
+    ("calls/runtime_dispatch_binary_call_argument_exit", 70),
+    ("calls/runtime_exit_code_exit", 70),
+    ("calls/runtime_local_string_field_copy_through_mut_exit", 70),
+    ("calls/runtime_multi_arm_value_transition_exit", 70),
+    ("calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit", 175),
+    ("calls/runtime_mutable_local_indexed_parameter_write_exit", 171),
+    ("calls/runtime_mutable_local_parameter_write_exit", 171),
+    ("calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit", 173),
+    ("calls/runtime_mutable_machine_owned_parameter_write_exit", 141),
+    ("calls/runtime_mutable_parameter_read_modify_write_exit", 191),
+    ("calls/runtime_nested_called_machine_loop_exit", 70),
+    ("calls/runtime_nested_guarded_reference_returned_slice_element_exit", 184),
+    ("calls/runtime_nested_value_call_in_substate_exit", 70),
+    ("calls/runtime_offset_string_call_results_through_reference_fields_exit", 196),
+    ("calls/runtime_recursive_value_return_exit", 70),
+    ("calls/runtime_reference_param_forwarded_through_loop_exit", 70),
+    ("calls/runtime_reference_returned_slice_element_through_param_exit", 70),
+    ("calls/runtime_reference_returned_slice_element_write_exit", 181),
+    ("calls/runtime_string_call_result_through_reference_field_exit", 186),
+    ("calls/runtime_two_string_call_results_through_reference_fields_exit", 194),
+    ("calls/runtime_value_call_through_alias_in_dispatch_exit", 70),
+    ("calls/runtime_value_position_branching_call_exit", 70),
+    ("calls/runtime_value_transition_unsigned_guard_exit", 70),
+    ("control_flow/fixed_array_element_guard", 0),
+    ("control_flow/runtime_boolean_or_guard_exit", 71),
+    ("control_flow/runtime_boolean_transition_argument_after_string_guard_exit", 247),
+    ("control_flow/runtime_direct_boolean_transition_argument_exit", 211),
+    ("control_flow/runtime_local_boolean_conjunction_value_exit", 74),
+    ("control_flow/runtime_local_boolean_or_value_exit", 251),
+    ("control_flow/runtime_local_boolean_transition_argument_exit", 201),
+    ("control_flow/runtime_local_scalar_comparison_value_exit", 76),
+    ("control_flow/runtime_local_string_comparison_value_exit", 78),
+    ("control_flow/runtime_negated_boolean_place_guard_exit", 73),
+    ("control_flow/runtime_negated_comparison_guard_exit", 75),
+    ("control_flow/runtime_state_loop_indexed_search_exit", 70),
+    ("control_flow/runtime_tuple_transition_exit", 22),
+    ("domains/executable_domain_membership_expression_exit", 81),
+    ("domains/executable_domain_membership_intersection_guard_exit", 231),
+    ("domains/executable_domain_membership_intersection_value_exit", 233),
+    ("domains/executable_domain_membership_union_guard_exit", 241),
+    ("domains/executable_domain_membership_union_value_exit", 205),
+    ("domains/executable_imported_domain_membership_exit", 91),
+    ("domains/executable_imported_domain_membership_guard_exit", 81),
+    ("domains/executable_imported_domain_membership_intersection_guard_exit", 219),
+    ("domains/executable_imported_domain_membership_intersection_value_exit", 217),
+    ("domains/executable_imported_domain_membership_union_guard_exit", 217),
+    ("domains/executable_imported_domain_membership_union_value_exit", 215),
+    ("dungeon/runtime_clear_carve_render_string_fields_exit", 198),
+    ("dungeon/runtime_direct_boolean_conjunction_exit", 21),
+    ("dungeon/runtime_enemy_clear_reentry_exit", 51),
+    ("dungeon/runtime_full_level_wrapper_lookup_string_field_exit", 202),
+    ("dungeon/runtime_guarded_inline_leaf_arm_skip_exit", 70),
+    ("dungeon/runtime_multi_room_reentry_exit", 63),
+    ("dungeon/runtime_ordered_room_dispatch_after_call_exit", 83),
+    ("dungeon/runtime_ordered_room_dispatch_exit", 73),
+    ("dungeon/runtime_ordered_room_dispatch_game_shape_exit", 93),
+    ("dungeon/runtime_ordered_room_dispatch_large_machine_exit", 103),
+    ("dungeon/runtime_room_use_reentry_exit", 41),
+    ("expressions/runtime_call_result_binary_operand_exit", 70),
+    ("expressions/runtime_cast_operand_exit", 70),
+    ("expressions/runtime_f32_arithmetic_exit", 70),
+    ("expressions/runtime_f32_local_arithmetic_exit", 70),
+    ("expressions/runtime_field_default_exit", 70),
+    ("expressions/runtime_fixed_array_field_guard_exit", 70),
+    ("expressions/runtime_fixed_array_field_value_exit", 70),
+    ("expressions/runtime_float_arithmetic_exit", 70),
+    ("expressions/runtime_float_comparison_exit", 70),
+    ("expressions/runtime_float_constant_store_exit", 70),
+    ("expressions/runtime_float_local_arithmetic_exit", 70),
+    ("expressions/runtime_float_place_comparison_exit", 70),
+    ("expressions/runtime_literal_source_cast_exit", 70),
+    ("expressions/runtime_match_value_exit", 70),
+    ("expressions/runtime_numeric_cast_exit", 70),
+    ("operators/compound_assignment_exit", 70),
+    ("operators/integer_literal_suffix_exit", 70),
+    ("operators/runtime_shift_operators_exit", 70),
+    ("operators/unary_negation_exit", 70),
+    ("slices/runtime_dispatch_mutable_slice_element_write_exit", 31),
+    ("slices/runtime_frame_array_slice_parameter_alias_exit", 72),
+    ("slices/runtime_local_slice_len_comparison_value_exit", 191),
+    ("slices/runtime_mutable_slice_element_write_exit", 21),
+    ("slices/runtime_nested_subslice_dynamic_index_exit", 213),
+    ("slices/runtime_nested_subslice_fixed_index_exit", 215),
+    ("slices/runtime_slice_fixed_index_guard_exit", 121),
+    ("slices/runtime_slice_index_copy_dispatch_exit", 61),
+    ("slices/runtime_slice_index_copy_exit", 51),
+    ("slices/runtime_slice_index_read_dispatch_exit", 43),
+    ("slices/runtime_slice_index_read_exit", 41),
+    ("slices/runtime_slice_index_transition_exit", 111),
+    ("slices/runtime_slice_iteration_exit", 91),
+    ("slices/runtime_slice_len_transition_exit", 101),
+    ("slices/runtime_subslice_bounded_dynamic_index_exit", 209),
+    ("slices/runtime_subslice_bounded_range_len_exit", 215),
+    ("slices/runtime_subslice_dynamic_index_exit", 207),
+    ("slices/runtime_subslice_end_dynamic_index_exit", 211),
+    ("slices/runtime_subslice_of_slice_param_exit", 70),
+    ("slices/runtime_subslice_range_len_exit", 203),
+    ("slices/runtime_subslice_range_pointer_exit", 205),
+    ("storage/runtime_dispatch_helper_local_alias_add_exit", 181),
+    ("storage/runtime_dispatch_local_index_binary_write_exit", 191),
+    ("storage/runtime_machine_owned_fixed_indexed_struct_copy_exit", 83),
+    ("storage/runtime_machine_owned_indexed_integer_write_exit", 79),
+    ("storage/runtime_machine_owned_indexed_nested_exit_write_exit", 89),
+    ("storage/runtime_machine_owned_indexed_nested_room_copy_exit", 87),
+    ("storage/runtime_machine_owned_indexed_struct_copy_exit", 85),
+    ("storage/runtime_slice_alias_indexed_field_write_exit", 201),
+    ("text/runtime_call_argument_struct_string_field_slice_alias_exit", 77),
+    ("text/runtime_chained_string_append_exit", 70),
+    ("text/runtime_large_lookup_struct_field_concat_exit", 192),
+    ("text/runtime_large_room_lookup_struct_field_concat_exit", 200),
+    ("text/runtime_local_struct_string_field_concat_exit", 188),
+    ("text/runtime_lookup_struct_field_concat_exit", 190),
+    ("text/runtime_machine_owned_indexed_string_field_concat_exit", 81),
+    ("text/runtime_machine_string_append_in_place_exit", 70),
+    ("text/runtime_mutable_string_parameter_concat_exit", 77),
+    ("text/runtime_mutable_string_parameter_concat_write_line", 77),
+    ("text/runtime_mutable_string_parameter_wrapped_concat_write_line", 77),
+    ("text/runtime_mutable_struct_string_field_copy_concat_exit", 77),
+    ("text/runtime_mutable_struct_string_field_copy_concat_write_line", 77),
+    ("text/runtime_slice_alias_indexed_string_field_concat_exit", 77),
+    ("text/runtime_string_concat_membership_exit", 71),
+    ("text/runtime_string_concat_two_fields_exit", 70),
+    ("text/runtime_string_field_concat_exit", 73),
+    ("traits/runtime_dyn_single_impl_dispatch_exit", 70),
+    ("traits/runtime_ref_param_method_dispatch_exit", 70),
+    ("types/runtime_i8_signed_arith_exit", 70),
+    ("types/runtime_isize_signed_arith_exit", 70),
+    ("types/runtime_u8_field_arith_exit", 70),
 ];
 
 #[test]
 fn interpreter_matches_native_on_supported_canaries() {
-    let mut matched = Vec::new();
-    let mut skipped = Vec::new();
+    let mut matched: Vec<String> = Vec::new();
+    let mut skipped: Vec<(String, String)> = Vec::new();
+    let mut mismatches: Vec<String> = Vec::new();
 
-    for canary_name in DIFFERENTIAL_CANARIES {
-        let canary = pass_canary(canary_name);
-        let main_path = canary.join("main.omg");
+    for (name, expected_code) in RUN_CANARIES {
+        if std::env::var("DIFF_TRACE").is_ok() {
+            eprintln!("[trace] {name}");
+        }
+        let main_path = pass_canary(name).join("main.omg");
 
         let checked = match compile_to_checked(&main_path, None) {
             Ok(checked) => checked,
             Err(diagnostics) => panic!(
-                "{canary_name}: frontend compile failed:\n{}",
+                "{name}: frontend compile to checked failed:\n{}",
                 join_diagnostics(&diagnostics)
             ),
         };
 
         let outcome = interpret(&checked, b"");
         if outcome.is_error() {
-            // Unsupported construct -> skip (not a mismatch).
-            skipped.push((canary_name, outcome.error.clone().unwrap_or_default()));
+            skipped.push((name.to_string(), outcome.error.clone().unwrap_or_default()));
             continue;
         }
 
-        // Native: compile to a windows_x64 PE and run it.
-        let (native_code, native_stdout) = compile_and_run_native(canary_name, &main_path);
+        let (native_code, native_stdout) = compile_and_run_native(name, &main_path);
 
+        // Native is the source of truth, but sanity-check the suite's documented code too:
+        // if native disagrees with the recorded expected code the corpus drifted.
         assert_eq!(
-            outcome.exit_code, native_code,
-            "{canary_name}: interpreter exit {} != native exit {}",
-            outcome.exit_code, native_code
-        );
-        assert_eq!(
-            outcome.stdout, native_stdout,
-            "{canary_name}: interpreter stdout {:?} != native stdout {:?}",
-            String::from_utf8_lossy(&outcome.stdout),
-            String::from_utf8_lossy(&native_stdout)
+            native_code, *expected_code,
+            "{name}: native exit {native_code} != suite-recorded expected {expected_code} \
+             (RUN_CANARIES is stale)"
         );
 
-        matched.push(canary_name);
+        let mut local_failures = Vec::new();
+        if outcome.exit_code != native_code {
+            local_failures.push(format!(
+                "exit code: interp {} != native {native_code}",
+                outcome.exit_code
+            ));
+        }
+        if outcome.stdout != native_stdout {
+            local_failures.push(format!(
+                "stdout: interp {:?} != native {:?}",
+                String::from_utf8_lossy(&outcome.stdout),
+                String::from_utf8_lossy(&native_stdout)
+            ));
+        }
+
+        if local_failures.is_empty() {
+            matched.push(name.to_string());
+        } else {
+            mismatches.push(format!("{name}:\n    {}", local_failures.join("\n    ")));
+        }
     }
 
     eprintln!(
-        "differential oracle: {} matched (interp==native), {} skipped (unsupported)",
+        "\ndifferential oracle over {} RUN canaries:\n  {} matched (interp==native)\n  {} skipped (interpreter unsupported)\n  {} MISMATCH",
+        RUN_CANARIES.len(),
         matched.len(),
-        skipped.len()
+        skipped.len(),
+        mismatches.len(),
     );
-    for (name, reason) in &skipped {
-        eprintln!("  skipped {name}: {reason}");
+    eprintln!("\ntop unsupported constructs (interpreter skips):");
+    for (reason, count) in summarize_reasons(&skipped, 15) {
+        eprintln!("  {count:>3}  {reason}");
     }
+    eprintln!("\nmatched canaries ({}):", matched.len());
     for name in &matched {
-        eprintln!("  matched {name}");
+        eprintln!("  {name}");
     }
 
-    // The oracle is only meaningful if at least one canary actually matched.
     assert!(
         !matched.is_empty(),
-        "expected at least one canary where interpreter == native, but all were skipped:\n{}",
-        skipped
-            .iter()
-            .map(|(name, reason)| format!("  {name}: {reason}"))
-            .collect::<Vec<_>>()
-            .join("\n")
+        "expected at least one canary where interpreter == native"
     );
+
+    assert!(
+        mismatches.is_empty(),
+        "interpreter disagreed with native on {} passing RUN canaries (these are INTERPRETER bugs -- native is correct on a passing canary):\n\n{}",
+        mismatches.len(),
+        mismatches.join("\n\n")
+    );
+}
+
+/// Collapse skip reasons to a normalized phrase so we can rank the most common unsupported
+/// constructs (program-specific identifiers in backticks are stripped).
+fn summarize_reasons(skipped: &[(String, String)], top: usize) -> Vec<(String, usize)> {
+    use std::collections::BTreeMap;
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for (_, reason) in skipped {
+        *counts.entry(normalize_reason(reason)).or_default() += 1;
+    }
+    let mut ranked: Vec<(String, usize)> = counts.into_iter().collect();
+    ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    ranked.truncate(top);
+    ranked
+}
+
+fn normalize_reason(reason: &str) -> String {
+    let mut out = String::new();
+    let mut in_quote = false;
+    for ch in reason.chars() {
+        if ch == '`' {
+            in_quote = !in_quote;
+            if in_quote {
+                out.push_str("`…`");
+            }
+            continue;
+        }
+        if !in_quote {
+            out.push(ch);
+        }
+    }
+    // Drop any debug-formatted tail (e.g. `Indexed(TableIndexedExpression { ... })`).
+    if let Some(index) = out.find('(') {
+        out.truncate(index);
+    }
+    out.trim().to_owned()
 }
 
 fn compile_and_run_native(canary_name: &str, main_path: &Path) -> (i32, Vec<u8>) {
