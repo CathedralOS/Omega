@@ -17,8 +17,29 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 const STEP_BUDGET: u64 = 10_000_000;
+/// Max native recursion depth (call / cross-machine transition nesting) before we decline
+/// rather than overflow the host stack. Deep recursive programs are skipped (reported as
+/// unsupported), never crash the differential harness.
+const CALL_DEPTH_BUDGET: u32 = 512;
 
 pub(crate) fn run(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
+    // Run on a worker thread with a generous stack: the tree-walker recurses with the
+    // program's call/expression nesting, which can exceed the default test-thread stack on
+    // deep programs even with the call-depth budget. A scoped thread lets us keep the
+    // borrow of `checked`/`stdin`.
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn_scoped(scope, || run_on_current_thread(checked, stdin))
+            .expect("spawn interpreter worker thread")
+            .join()
+            .unwrap_or_else(|_| {
+                InterpretOutcome::error("interpreter thread panicked", Vec::new())
+            })
+    })
+}
+
+fn run_on_current_thread(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
     let mut evaluator = Evaluator::new(checked, stdin);
     match evaluator.run_entry() {
         Ok(()) => {
@@ -57,6 +78,10 @@ fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
 struct Frame {
     locals: RefCell<BTreeMap<String, Cell>>,
     self_cell: Cell,
+    /// The machine whose state is currently executing. Lets a call/transition that names a
+    /// SIBLING state resolve it within this machine (rather than re-entering the machine's
+    /// entry state, which would recurse forever).
+    machine_symbol: SymbolHandle,
 }
 
 struct Evaluator<'program> {
@@ -65,6 +90,7 @@ struct Evaluator<'program> {
     #[allow(dead_code)]
     stdin: &'program [u8],
     steps: u64,
+    call_depth: u32,
 }
 
 impl<'program> Evaluator<'program> {
@@ -74,6 +100,7 @@ impl<'program> Evaluator<'program> {
             stdout: Vec::new(),
             stdin,
             steps: 0,
+            call_depth: 0,
         }
     }
 
@@ -99,7 +126,17 @@ impl<'program> Evaluator<'program> {
         };
 
         let instance = self.instantiate_machine(entry_machine)?;
-        self.run_state_in_machine(entry_machine, entry_state_name, instance, Vec::new())
+        // The entry machine's value (its terminal `Value` transition / final expression)
+        // becomes the process exit code when it has no explicit `exit_process`. Mirrors the
+        // backend: `machine Main::main(...) -> i32` returns the exit status.
+        let returned =
+            self.run_state_collect(entry_machine, entry_state_name, instance, Vec::new())?;
+        if let Some(value) = returned {
+            if let Some(code) = value.as_int() {
+                return Err(Halt::Exit(code as i32));
+            }
+        }
+        Ok(())
     }
 
     // ---- machine / data instantiation --------------------------------------
@@ -121,6 +158,7 @@ impl<'program> Evaluator<'program> {
                 let frame = Frame {
                     locals: RefCell::new(BTreeMap::new()),
                     self_cell: Value::Unit.cell(),
+                    machine_symbol: SymbolHandle::invalid(),
                 };
                 self.eval_expression(owned.initial_value, &frame)?
             } else {
@@ -170,6 +208,7 @@ impl<'program> Evaluator<'program> {
                 let frame = Frame {
                     locals: RefCell::new(BTreeMap::new()),
                     self_cell: Value::Unit.cell(),
+                    machine_symbol: SymbolHandle::invalid(),
                 };
                 self.eval_expression(field.initial_value, &frame)?
             } else {
@@ -239,7 +278,26 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Run a state; returns the value produced by a `Value` transition target, if any.
+    /// Guards native recursion depth so a deeply recursive program is declined (skipped)
+    /// instead of overflowing the host stack.
     fn run_state_collect(
+        &mut self,
+        machine: &Machine,
+        state_name: &str,
+        instance: Cell,
+        args: Vec<Cell>,
+    ) -> EvalResult<Option<Value>> {
+        self.call_depth += 1;
+        if self.call_depth > CALL_DEPTH_BUDGET {
+            self.call_depth -= 1;
+            return unsupported("recursion depth budget exceeded");
+        }
+        let result = self.run_state_collect_inner(machine, state_name, instance, args);
+        self.call_depth -= 1;
+        result
+    }
+
+    fn run_state_collect_inner(
         &mut self,
         machine: &Machine,
         state_name: &str,
@@ -256,10 +314,14 @@ impl<'program> Evaluator<'program> {
                 .ok_or_else(|| Halt::Unsupported(format!("unknown state `{current_state}`")))?
                 .clone();
 
-            let frame = self.bind_frame(&state, Rc::clone(&instance), &current_args)?;
+            let frame =
+                self.bind_frame(&state, Rc::clone(&instance), &current_args, machine.symbol)?;
 
-            // Execute statements, watching for the first satisfied transition.
+            // Execute statements, watching for the first satisfied transition. A state
+            // whose body ends in a bare expression (`{ 22 }`) returns that expression's
+            // value as its result (the backend's value-state form).
             let mut next: Option<TransitionDecision> = None;
+            let mut tail_value: Option<Value> = None;
             for statement in self.program.statement_table.statements(state.statement_nodes) {
                 let statement = statement.clone();
                 match &statement {
@@ -269,6 +331,9 @@ impl<'program> Evaluator<'program> {
                             break;
                         }
                     }
+                    StatementNode::Expression(expression) => {
+                        tail_value = Some(self.eval_expression(*expression, &frame)?);
+                    }
                     other => {
                         self.exec_statement(other, &frame)?;
                     }
@@ -276,7 +341,7 @@ impl<'program> Evaluator<'program> {
             }
 
             match next {
-                None => return Ok(None),
+                None => return Ok(tail_value),
                 Some(TransitionDecision::Value(value)) => return Ok(Some(value)),
                 Some(TransitionDecision::Terminal) => return Ok(None),
                 Some(TransitionDecision::SelfTarget) => {
@@ -315,6 +380,7 @@ impl<'program> Evaluator<'program> {
         state: &State,
         self_cell: Cell,
         args: &[Cell],
+        machine_symbol: SymbolHandle,
     ) -> EvalResult<Frame> {
         let mut locals = BTreeMap::new();
         let mut arg_index = 0;
@@ -332,6 +398,7 @@ impl<'program> Evaluator<'program> {
         Ok(Frame {
             locals: RefCell::new(locals),
             self_cell,
+            machine_symbol,
         })
     }
 
@@ -475,23 +542,151 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
-        // A state call on `self`'s machine group: target machine is `Main::<target>`.
         let target = call.target.as_str();
-        let machine = self
-            .find_machine_for_call(target, frame)
-            .ok_or_else(|| Halt::Unsupported(format!("unknown call target `{target}`")))?;
+        let (machine, state_name, instance) = self.resolve_state_call(call.receiver, target, frame)?;
 
         let mut args = Vec::new();
         for argument in self.program.statement_table.expression_handles(call.arguments) {
             args.push(self.eval_argument(*argument, frame)?);
         }
 
-        let instance = Rc::clone(&frame.self_cell);
+        self.run_state_collect(&machine, &state_name, instance, args)
+            .map(|value| value.unwrap_or(Value::Unit))
+    }
+
+    /// Resolve a call target -- a state name with an optional receiver path -- to the
+    /// (machine, state, instance) it runs against. Priority:
+    /// 1. An explicit receiver path naming a CONTAINED sub-machine instance field whose
+    ///    type defines the target state (`self.dungeon.foo()`): run on that sub-instance.
+    /// 2. A SIBLING state of the current machine (`self.foo()` where `foo` is a state of
+    ///    the machine currently executing): run that state on the same `self`.
+    /// 3. A free helper machine named `<group>::<target>` or any machine with that state:
+    ///    run its entry state on the current `self`.
+    fn resolve_state_call(
+        &self,
+        receiver: omega_core::arena::HandleSpan<omega_typed_trees::name::Identifier>,
+        target: &str,
+        frame: &Frame,
+    ) -> EvalResult<(Machine, String, Cell)> {
+        // (1) Explicit receiver path to a contained sub-machine instance.
+        if let Some(resolved) = self.resolve_receiver_state_call(receiver, target, frame)? {
+            return Ok(resolved);
+        }
+
+        // (2) Sibling state of the current machine.
+        if let Some(machine) = self.current_machine(frame) {
+            if self.find_state(machine, target).is_some() {
+                return Ok((machine.clone(), target.to_owned(), Rc::clone(&frame.self_cell)));
+            }
+        }
+
+        // (3) A free helper machine.
+        let machine = self
+            .find_machine_for_call(target, frame)
+            .ok_or_else(|| Halt::Unsupported(format!("unknown call target `{target}`")))?;
         let entry_state = self
             .machine_entry_state_name(&machine)
             .ok_or_else(|| Halt::Unsupported(format!("call target `{target}` has no state")))?;
-        self.run_state_collect(&machine, &entry_state, instance, args)
-            .map(|value| value.unwrap_or(Value::Unit))
+        Ok((machine, entry_state, Rc::clone(&frame.self_cell)))
+    }
+
+    /// If the call has a receiver path that resolves (relative to `self`) to a CONTAINED
+    /// sub-machine instance whose machine defines the target state, return that instance and
+    /// machine. The receiver path's leaf is the field; the head may be `self`.
+    fn resolve_receiver_state_call(
+        &self,
+        receiver: omega_core::arena::HandleSpan<omega_typed_trees::name::Identifier>,
+        target: &str,
+        frame: &Frame,
+    ) -> EvalResult<Option<(Machine, String, Cell)>> {
+        let members: Vec<String> = self
+            .program
+            .statement_table
+            .name_path_members(receiver)
+            .iter()
+            .map(|name| name.as_str().to_owned())
+            .collect();
+        if members.is_empty() {
+            return Ok(None);
+        }
+
+        // Walk the receiver path to a cell, starting at `self` (an implicit-self leaf like
+        // `console` is a single-member path; `self.dungeon` is `[self, dungeon]`).
+        let mut cell = Rc::clone(&frame.self_cell);
+        let mut start = 0;
+        if members[0] == "self" {
+            start = 1;
+        } else if let Some(local) = frame.get(&members[0]) {
+            cell = local;
+            start = 1;
+        }
+        for member in &members[start..] {
+            cell = self.deref_cell(cell);
+            match self.field_cell(&cell, member) {
+                Ok(next) => cell = next,
+                Err(_) => return Ok(None),
+            }
+        }
+        cell = self.deref_cell(cell);
+
+        // Only treat this as a sub-machine call if the receiver is NOT just `self` (a bare
+        // self receiver is handled by the sibling-state path).
+        let bare_self = members.len() == start && start == 1;
+        if bare_self {
+            return Ok(None);
+        }
+        Ok(self
+            .machine_for_instance_state(&cell, target)
+            .map(|machine| (machine, target.to_owned(), cell)))
+    }
+
+    /// Find the machine that operates on `instance` and defines `target` as a state. The
+    /// instance is a `Struct` whose `type_name` is the data/machine type (e.g. `Circle`); a
+    /// free machine `Circle::code` lives in that type's group. Matches by machine symbol, by
+    /// attached-data name, or by the `<type>::<target>` group-qualified machine name.
+    fn machine_for_instance_state(&self, instance: &Cell, target: &str) -> Option<Machine> {
+        let (type_symbol, type_name) = match &*instance.borrow() {
+            Value::Struct {
+                type_symbol,
+                type_name,
+                ..
+            } => (*type_symbol, type_name.clone()),
+            _ => return None,
+        };
+        // The group is the leading segment of the type name (e.g. `Circle` from `Circle`).
+        let group = type_name.split("::").next().unwrap_or(&type_name).to_owned();
+        for machine in self.program.machines() {
+            if self.find_state(machine, target).is_none() {
+                continue;
+            }
+            let machine_group = machine
+                .name
+                .as_str()
+                .split("::")
+                .next()
+                .unwrap_or("")
+                .to_owned();
+            let by_symbol = type_symbol.is_valid() && machine.symbol == type_symbol;
+            let by_attached = machine
+                .attached_data
+                .as_ref()
+                .is_some_and(|data| data.as_str() == group);
+            let by_group = machine_group == group;
+            if by_symbol || by_attached || by_group {
+                return Some(machine.clone());
+            }
+        }
+        None
+    }
+
+    fn current_machine(&self, frame: &Frame) -> Option<&'program Machine> {
+        if !frame.machine_symbol.is_valid() {
+            return None;
+        }
+        self.program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == frame.machine_symbol)
     }
 
     /// Find the machine invoked by a call whose `target` is a state name. A free helper
@@ -721,21 +916,54 @@ impl<'program> Evaluator<'program> {
             }
         }
 
-        // A state/machine value call: target machine `<group>::<target>`, run to its
-        // terminal Value transition.
-        let machine = self
-            .find_machine_for_call(target, frame)
-            .ok_or_else(|| Halt::Unsupported(format!("unknown value-call target `{target}`")))?;
+        // Resolve the value-call. A bare-self receiver naming a SIBLING state of the
+        // current machine runs that state; a receiver expression resolving to a contained
+        // sub-machine instance runs on that instance; otherwise a free helper machine.
+        let (machine, entry_state, instance) =
+            self.resolve_value_call_target(call, target, frame)?;
         let mut args = Vec::new();
         for argument in self.program.expression_table.expression_handles(call.arguments) {
             args.push(self.eval_call_expression_argument(*argument, frame)?);
         }
-        let instance = Rc::clone(&frame.self_cell);
+        self.run_state_collect(&machine, &entry_state, instance, args)
+            .map(|value| value.unwrap_or(Value::Unit))
+    }
+
+    fn resolve_value_call_target(
+        &mut self,
+        call: &omega_typed_trees::expression::TableCallExpression,
+        target: &str,
+        frame: &Frame,
+    ) -> EvalResult<(Machine, String, Cell)> {
+        // (1) Receiver expression resolving to a contained sub-machine / data instance
+        // (e.g. `s.code()` where `s: &mut Circle`): run on that instance's machine.
+        if call.receiver.is_valid() {
+            if let Ok(cell) = self.resolve_place(call.receiver, frame) {
+                let cell = self.deref_cell(cell);
+                let is_self = Rc::ptr_eq(&cell, &frame.self_cell);
+                if !is_self {
+                    if let Some(machine) = self.machine_for_instance_state(&cell, target) {
+                        return Ok((machine, target.to_owned(), cell));
+                    }
+                }
+            }
+        }
+
+        // (2) Sibling state of the current machine.
+        if let Some(machine) = self.current_machine(frame) {
+            if self.find_state(machine, target).is_some() {
+                return Ok((machine.clone(), target.to_owned(), Rc::clone(&frame.self_cell)));
+            }
+        }
+
+        // (3) A free helper machine.
+        let machine = self
+            .find_machine_for_call(target, frame)
+            .ok_or_else(|| Halt::Unsupported(format!("unknown value-call target `{target}`")))?;
         let entry_state = self
             .machine_entry_state_name(&machine)
             .ok_or_else(|| Halt::Unsupported(format!("value-call `{target}` has no state")))?;
-        self.run_state_collect(&machine, &entry_state, instance, args)
-            .map(|value| value.unwrap_or(Value::Unit))
+        Ok((machine, entry_state, Rc::clone(&frame.self_cell)))
     }
 
     fn eval_call_expression_argument(
