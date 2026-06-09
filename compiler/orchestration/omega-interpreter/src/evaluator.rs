@@ -162,7 +162,7 @@ impl<'program> Evaluator<'program> {
                 };
                 self.eval_expression(owned.initial_value, &frame)?
             } else {
-                self.default_for_type(owned.type_reference)
+                self.default_value_for_type(owned.type_reference)?
             };
             fields.insert(owned.name.as_str().to_owned(), value.cell());
         }
@@ -188,22 +188,6 @@ impl<'program> Evaluator<'program> {
             };
             let name = field.name.as_str().to_owned();
 
-            // Nested `data` record? Recurse to a sub-Struct holding its own defaults.
-            if let Some(nested) = self.field_nested_data(field.type_reference) {
-                let mut nested_fields = BTreeMap::new();
-                self.populate_data_fields(nested, &mut nested_fields)?;
-                fields.insert(
-                    name,
-                    Value::Struct {
-                        type_symbol: nested.symbol,
-                        type_name: nested.name.as_str().to_owned(),
-                        fields: nested_fields,
-                    }
-                    .cell(),
-                );
-                continue;
-            }
-
             let value = if field.initial_value.is_valid() {
                 let frame = Frame {
                     locals: RefCell::new(BTreeMap::new()),
@@ -212,11 +196,53 @@ impl<'program> Evaluator<'program> {
                 };
                 self.eval_expression(field.initial_value, &frame)?
             } else {
-                self.default_for_type(field.type_reference)
+                self.default_value_for_type(field.type_reference)?
             };
             fields.insert(name, value.cell());
         }
         Ok(())
+    }
+
+    /// Build a default-initialized value for a declared type, recursing into nested `data`
+    /// records (a sub-Struct with its own defaults) and fixed arrays (an `Array` of
+    /// per-element default cells). Falls back to the primitive/unit default.
+    fn default_value_for_type(
+        &mut self,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> EvalResult<Value> {
+        if type_reference.is_valid() {
+            // Fixed array `[T; N]` -> N default-initialized element cells.
+            if let omega_typed_trees::types::TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } = self
+                .program
+                .type_reference_table
+                .type_reference(type_reference)
+            {
+                let element_type = *element_type;
+                if let omega_typed_trees::types::FixedArrayLength::Literal(count) = length {
+                    let count = *count;
+                    let mut elements = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        elements.push(self.default_value_for_type(element_type)?.cell());
+                    }
+                    return Ok(Value::Array(elements));
+                }
+            }
+
+            // Nested `data` record -> a sub-Struct of its own defaults.
+            if let Some(nested) = self.field_nested_data(type_reference) {
+                let mut nested_fields = BTreeMap::new();
+                self.populate_data_fields(nested, &mut nested_fields)?;
+                return Ok(Value::Struct {
+                    type_symbol: nested.symbol,
+                    type_name: nested.name.as_str().to_owned(),
+                    fields: nested_fields,
+                });
+            }
+        }
+        Ok(self.default_for_type(type_reference))
     }
 
     /// If a field's declared type is a (non-primitive) `data` record, return it.
@@ -261,21 +287,6 @@ impl<'program> Evaluator<'program> {
     }
 
     // ---- state execution ----------------------------------------------------
-
-    /// Run a state by name within `machine` on the given `self` instance. `args` are the
-    /// already-evaluated argument cells bound positionally to the state's non-self params.
-    /// Returns Ok on a terminal/named-without-target completion; the returned value (for
-    /// value transitions) is delivered via the call path, not here.
-    fn run_state_in_machine(
-        &mut self,
-        machine: &Machine,
-        state_name: &str,
-        instance: Cell,
-        args: Vec<Cell>,
-    ) -> EvalResult<()> {
-        let _ = self.run_state_collect(machine, state_name, instance, args)?;
-        Ok(())
-    }
 
     /// Run a state; returns the value produced by a `Value` transition target, if any.
     /// Guards native recursion depth so a deeply recursive program is declined (skipped)
@@ -417,7 +428,7 @@ impl<'program> Evaluator<'program> {
                 let value = if local.initial_value.is_valid() {
                     self.eval_expression(local.initial_value, frame)?
                 } else {
-                    self.default_for_type(local.type_reference)
+                    self.default_value_for_type(local.type_reference)?
                 };
                 // A `let` introduces a fresh local cell, bound through the frame's
                 // interior-mutable locals map.
@@ -885,13 +896,25 @@ impl<'program> Evaluator<'program> {
                 self.eval_binary(binary.operator, left, right)
             }
             ExpressionNode::Call(call) => self.eval_call_expression(handle, &call, frame),
-            ExpressionNode::Cast(_) => unsupported("cast expressions not yet supported"),
-            ExpressionNode::Indexed(_) => unsupported("indexed expressions not yet supported"),
-            ExpressionNode::ArrayLiteral(_) => unsupported("array literals not yet supported"),
-            ExpressionNode::Range(_) => unsupported("range expressions not yet supported"),
-            ExpressionNode::StructLiteral(_) => {
-                unsupported("struct literals not yet supported")
+            ExpressionNode::Cast(cast) => {
+                let value = self.eval_expression(cast.value, frame)?;
+                let target = self.cast_target_primitive(cast.target_type);
+                self.eval_cast(value, target)
             }
+            ExpressionNode::Indexed(_) => {
+                let cell = self.resolve_place(handle, frame)?;
+                let value = self.deref_cell(cell).borrow().clone();
+                Ok(value)
+            }
+            ExpressionNode::ArrayLiteral(values) => {
+                let mut elements = Vec::new();
+                for value in self.program.expression_table.expression_handles(values) {
+                    elements.push(self.eval_expression(*value, frame)?.cell());
+                }
+                Ok(Value::Array(elements))
+            }
+            ExpressionNode::Range(_) => unsupported("range expressions not yet supported"),
+            ExpressionNode::StructLiteral(literal) => self.eval_struct_literal(&literal, frame),
         }
     }
 
@@ -913,6 +936,26 @@ impl<'program> Evaluator<'program> {
                 let left = self.eval_expression(args[0], frame)?;
                 let right = self.eval_expression(args[1], frame)?;
                 return self.eval_min_max(target, left, right);
+            }
+        }
+
+        // Slice/array view builtins on an array-valued receiver. `.as_slice()` /
+        // `.as_mut_slice()` produce a slice that SHARES the array's element cells (so a
+        // write through the slice aliases the array); `.len()` returns the element count.
+        if matches!(target, "as_slice" | "as_mut_slice" | "len") && call.receiver.is_valid() {
+            if let Ok(cell) = self.resolve_place(call.receiver, frame) {
+                let cell = self.deref_cell(cell);
+                let elements = match &*cell.borrow() {
+                    Value::Array(elements) => Some(elements.clone()),
+                    _ => None,
+                };
+                if let Some(elements) = elements {
+                    return Ok(match target {
+                        "len" => Value::Int(elements.len() as i64),
+                        // A slice view shares the same element `Rc`s.
+                        _ => Value::Array(elements),
+                    });
+                }
             }
         }
 
@@ -1008,6 +1051,7 @@ impl<'program> Evaluator<'program> {
         });
         is_variant.then(|| Value::Enum {
             variant_name: variant_name.to_owned(),
+            payload: Vec::new(),
         })
     }
 
@@ -1020,6 +1064,11 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Member(member) => {
                 let receiver = self.resolve_place(member.receiver, frame)?;
                 self.field_cell(&receiver, member.member.as_str())
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let collection = self.resolve_place(indexed.collection, frame)?;
+                let index = self.eval_index(indexed.index, frame)?;
+                self.element_cell(&collection, index)
             }
             ExpressionNode::Mutable(inner) => self.resolve_place(inner, frame),
             other => unsupported(format!("place expression not supported: {other:?}")),
@@ -1067,6 +1116,56 @@ impl<'program> Evaluator<'program> {
         inner.unwrap_or(cell)
     }
 
+    /// Evaluate an index expression to a `usize` element index.
+    fn eval_index(&mut self, index: ExpressionHandle, frame: &Frame) -> EvalResult<usize> {
+        let value = self.eval_expression(index, frame)?;
+        let raw = value
+            .as_int()
+            .ok_or_else(|| Halt::Trap("array index is not an integer".to_owned()))?;
+        usize::try_from(raw).map_err(|_| Halt::Trap(format!("array index {raw} out of range")))
+    }
+
+    /// Resolve one element CELL of an `Array` place (sharing the same `Rc`, so a write
+    /// through the returned cell aliases the array element).
+    fn element_cell(&self, container: &Cell, index: usize) -> EvalResult<Cell> {
+        let container = self.deref_cell(Rc::clone(container));
+        let borrowed = container.borrow();
+        match &*borrowed {
+            Value::Array(elements) => elements
+                .get(index)
+                .cloned()
+                .ok_or_else(|| Halt::Trap(format!("array index {index} out of bounds"))),
+            other => trap(format!("cannot index {other:?}")),
+        }
+    }
+
+    /// Construct a `data` value from a struct literal `Type { field: value, .. }`. Fields
+    /// not named take the type's default; named fields override.
+    fn eval_struct_literal(
+        &mut self,
+        literal: &omega_typed_trees::expression::TableStructLiteral,
+        frame: &Frame,
+    ) -> EvalResult<Value> {
+        let type_name = literal.type_name.as_str().to_owned();
+        let data = self.find_data_by_name(&type_name);
+        let (type_symbol, mut fields) = if let Some(data) = data {
+            let mut fields = BTreeMap::new();
+            self.populate_data_fields(data, &mut fields)?;
+            (data.symbol, fields)
+        } else {
+            (SymbolHandle::invalid(), BTreeMap::new())
+        };
+        for field in self.program.expression_table.struct_fields(literal.fields) {
+            let value = self.eval_expression(field.value, frame)?;
+            fields.insert(field.name.as_str().to_owned(), value.cell());
+        }
+        Ok(Value::Struct {
+            type_symbol,
+            type_name,
+            fields,
+        })
+    }
+
     fn field_cell(&self, container: &Cell, field: &str) -> EvalResult<Cell> {
         let container = self.deref_cell(Rc::clone(container));
         let borrowed = container.borrow();
@@ -1080,6 +1179,55 @@ impl<'program> Evaluator<'program> {
     }
 
     // ---- operators ----------------------------------------------------------
+
+    /// The target `PrimitiveType` of a cast's `target_type` name-path (its leaf member).
+    fn cast_target_primitive(
+        &self,
+        target_type: omega_core::arena::HandleSpan<omega_typed_trees::name::Identifier>,
+    ) -> Option<PrimitiveType> {
+        self.program
+            .expression_table
+            .name_path_members(target_type)
+            .last()
+            .and_then(|name| PrimitiveType::from_name(name.as_str()))
+    }
+
+    /// Apply an `as` cast with width/signedness semantics: int<->float conversions and
+    /// integer narrowing/widening (wrapping to the target width, sign- or zero-extending on
+    /// read per the SOURCE signedness, which the value carries as its width tag).
+    fn eval_cast(&self, value: Value, target: Option<PrimitiveType>) -> EvalResult<Value> {
+        let Some(target) = target else {
+            // A cast to a non-primitive (e.g. a trait object) is a no-op identity here.
+            return Ok(value);
+        };
+        match target {
+            PrimitiveType::F32 => {
+                let source = value
+                    .as_float()
+                    .ok_or_else(|| Halt::Trap("cast to f32 of non-numeric".to_owned()))?;
+                Ok(Value::Float(source as f32 as f64))
+            }
+            PrimitiveType::F64 => {
+                let source = value
+                    .as_float()
+                    .ok_or_else(|| Halt::Trap("cast to f64 of non-numeric".to_owned()))?;
+                Ok(Value::Float(source))
+            }
+            PrimitiveType::Bool => Ok(Value::Bool(value.as_bool().unwrap_or(false))),
+            PrimitiveType::String => Ok(value),
+            integer => {
+                // Float -> int truncates toward zero; int -> int reinterprets at the target
+                // width. The result keeps the target's width tag so later ops/casts wrap.
+                let raw = match value {
+                    Value::Float(f) => f.trunc() as i64,
+                    other => other
+                        .as_int()
+                        .ok_or_else(|| Halt::Trap("cast to integer of non-numeric".to_owned()))?,
+                };
+                Ok(Value::Int(wrap_to_width(raw, integer)))
+            }
+        }
+    }
 
     fn eval_unary(&self, operator: UnaryOperator, operand: Value) -> EvalResult<Value> {
         match operator {
@@ -1209,7 +1357,23 @@ impl<'program> Evaluator<'program> {
 
     fn values_equal(&self, left: &Value, right: &Value) -> EvalResult<bool> {
         Ok(match (left, right) {
-            (Value::Enum { variant_name: a }, Value::Enum { variant_name: b }) => a == b,
+            (
+                Value::Enum {
+                    variant_name: a,
+                    payload: pa,
+                },
+                Value::Enum {
+                    variant_name: b,
+                    payload: pb,
+                },
+            ) => {
+                a == b
+                    && pa.len() == pb.len()
+                    && pa.iter().zip(pb.iter()).all(|(x, y)| {
+                        self.values_equal(&x.borrow().clone(), &y.borrow().clone())
+                            .unwrap_or(false)
+                    })
+            }
             (Value::Str(a), Value::Str(b)) => *a.borrow() == *b.borrow(),
             (Value::Bool(a), Value::Bool(b)) => a == b,
             _ => {
@@ -1243,6 +1407,31 @@ impl<'program> Evaluator<'program> {
             .data_definitions()
             .iter()
             .find(|data| data.name.as_str() == name)
+    }
+}
+
+/// Reinterpret an i64 at an integer primitive's width, sign- or zero-extending back to i64
+/// so the value carries the same numeric meaning the target type would observe. `u8` 250
+/// stays 250; `i8` 250 wraps to -6; `u32` of a negative becomes its 32-bit unsigned value.
+fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
+    match ty {
+        PrimitiveType::I8 => raw as i8 as i64,
+        PrimitiveType::U8 => raw as u8 as i64,
+        PrimitiveType::I16 => raw as i16 as i64,
+        PrimitiveType::U16 => raw as u16 as i64,
+        PrimitiveType::I32 => raw as i32 as i64,
+        PrimitiveType::U32 => raw as u32 as i64,
+        // 64-bit and pointer-width types keep the full value (unsigned reinterpretation of a
+        // u64 is still represented by the same bit pattern in i64).
+        PrimitiveType::I64
+        | PrimitiveType::U64
+        | PrimitiveType::Isize
+        | PrimitiveType::Usize => raw,
+        // Non-integer primitives do not reach this path.
+        PrimitiveType::Bool
+        | PrimitiveType::F32
+        | PrimitiveType::F64
+        | PrimitiveType::String => raw,
     }
 }
 

@@ -28,10 +28,17 @@ pub enum Value {
         type_name: String,
         fields: BTreeMap<String, Cell>,
     },
-    /// An enum value identified by its variant name (Omega enums are unit variants).
+    /// An enum value, identified by its variant name, optionally carrying ordered payload
+    /// cells (tuple-style variant data). Unit variants have an empty payload.
     Enum {
         variant_name: String,
+        payload: Vec<Cell>,
     },
+    /// A fixed array or a slice view. Both are an ordered list of element CELLS; a slice
+    /// shares the array's element `Rc`s (so writes through the slice alias the array). The
+    /// interpreter does not distinguish their static type -- indexing and `.len` work the
+    /// same -- which is enough for the slice/array canaries.
+    Array(Vec<Cell>),
     /// A mutable reference: holds the SAME cell as the place it points at.
     Ref(Cell),
 }

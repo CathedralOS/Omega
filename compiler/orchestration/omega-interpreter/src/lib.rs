@@ -25,16 +25,21 @@
 //! terminal). Host-boundary calls (`exit_process`, `write`, `write_line`) on a
 //! `boundary trait` machine drive exit code / stdout.
 //!
-//! ## Scope (first milestone)
-//! Supported: a `Main` machine; self-field assignment; `let` locals; Integer / Bool /
-//! Float / Binary (arith + compare + logical) / Unary / Name / Member expressions; a
-//! multi-arm value/guard transition (subject and boolean forms); a value-call to another
-//! state/machine returning a scalar; `&mut`-aliased argument passing; the Console
-//! boundary `exit_process` and `write`/`write_line`. Anything outside this subset
-//! returns [`InterpretOutcome::error`] so a differential harness can SKIP (xfail) rather
-//! than report a false mismatch. The long tail (slices, arrays beyond the simplest
-//! cases, enums in payloads, dyn/traits, casts across widths, recursion-heavy dungeon
-//! `&mut` chains) is deferred to follow-on milestones.
+//! ## Scope
+//! Supported: multiple machines with per-instance contained sub-objects; symbol/group-based
+//! machine + sibling-state resolution; self-field assignment; `let` locals; Integer / Bool /
+//! Float / Binary (arith + compare + logical) / Unary / Name / Member / Indexed / Cast /
+//! ArrayLiteral / StructLiteral expressions; fixed arrays and `.as_slice()`/`.as_mut_slice()`
+//! slice views (a slice shares the array's element cells, preserving `&mut` aliasing);
+//! width/signedness-aware `as` casts (int<->float, integer narrow/widen); multi-arm
+//! value/guard transitions (subject, tuple, and boolean forms); value-calls returning a
+//! scalar/struct; method calls on `&mut Data` reference params; `&mut`-aliased argument
+//! passing; the entry machine's value as the exit code; the Console boundary `exit_process`
+//! and `write`/`write_line`. Anything outside this subset returns
+//! [`InterpretOutcome::error`] so a differential harness SKIPS (xfail) rather than reporting
+//! a false mismatch. Still deferred: ranges/subslices, enum-payload construction,
+//! string concatenation host paths, dyn multi-impl dispatch, and the deepest recursion-heavy
+//! dungeon `&mut` chains.
 
 mod evaluator;
 mod value;
