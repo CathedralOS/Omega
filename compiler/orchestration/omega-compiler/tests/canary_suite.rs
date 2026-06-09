@@ -898,6 +898,44 @@ fn runtime_multi_arm_value_transition_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
+    // A value-transition arm guard on an UNSIGNED (u32) operand must branch with
+    // unsigned comparison conditions. The leaf value-transition guard path picked
+    // the SIGNED jcc regardless of operand signedness (only the dispatch-edge path
+    // post-processed the operator with the operand's unsignedness). For a u32 with
+    // its top bit set (4000000000 > INT_MAX), `x <= 2` is FALSE unsigned (correct)
+    // but TRUE signed (wrong). A signed mis-compare selects the first arm and exits
+    // 71; a correct unsigned compare selects the default arm and exits 70.
+    let canary = pass_canary("calls/runtime_value_transition_unsigned_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-transition-unsigned-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsigned value-transition guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsigned value-transition guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a u32 value-transition guard to branch unsigned (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_fixed_array_field_guard_exit_canary_runs() {
     // Reading `self.cells[i].value` (fixed-array element field, constant index) in a
     // GUARD must apply the index: the guard-operand layout consumed the root field
@@ -5906,6 +5944,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_float_place_comparison_exit",
     "expressions/runtime_numeric_cast_exit",
     "calls/runtime_value_position_branching_call_exit",
+    "calls/runtime_value_transition_unsigned_guard_exit",
     "operators/integer_literal_suffix_exit",
     "operators/runtime_shift_operators_exit",
     "calls/free_standing_machine_helper_compile",
