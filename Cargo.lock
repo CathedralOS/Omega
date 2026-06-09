@@ -530,6 +530,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-interpreter"
+version = "0.1.0"
+dependencies = [
+ "omega-checked-trees",
+ "omega-compiler",
+ "omega-core",
+ "omega-typed-trees",
+]
+
+[[package]]
 name = "omega-isa-aarch64"
 version = "0.1.0"
 dependencies = [

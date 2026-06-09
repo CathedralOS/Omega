@@ -70,6 +70,7 @@ members = [
     "compiler/orchestration/omega-artifacts",
     "compiler/orchestration/omega-backend-pipeline",
     "compiler/orchestration/omega-compiler",
+    "compiler/orchestration/omega-interpreter",
     "compiler/orchestration/omega-visualizations",
     "compiler/architecture/omega-architecture-test",
 ]
