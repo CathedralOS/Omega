@@ -11,6 +11,7 @@ mod entry;
 mod skeleton;
 mod timing;
 
+pub use builder::render_frame_slot_table;
 pub use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 
 pub fn build_backend_plan_from_control_flow_with_workers(

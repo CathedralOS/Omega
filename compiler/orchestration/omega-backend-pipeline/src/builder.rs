@@ -242,6 +242,16 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     // context still share their range (they are never simultaneously live), so
     // entry-only programs are unchanged.
     stack_runtime_storage_by_call_context(&mut backend_plan.runtime_storage, &runtime_flow);
+    // Observability: dump the absolute frame-slot layout (which logical slot lives
+    // at which runtime byte offset) to stderr when OMEGA_DUMP_SLOTS is set. Inert
+    // by default -- env unset is zero output and zero behavior change. Mirrors the
+    // `slots.txt` build artifact (see render_frame_slot_table).
+    if std::env::var("OMEGA_DUMP_SLOTS").is_ok() {
+        eprint!(
+            "{}",
+            render_frame_slot_table(&backend_plan.runtime_storage, &runtime_flow)
+        );
+    }
     backend_plan.state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
         build_state_guard_plan(
             &program,
@@ -464,6 +474,107 @@ fn stack_runtime_storage_by_call_context(
         storage.frame_scratch_base = next_base.next_multiple_of(scratch_alignment);
         storage.frame_scratch_size = max_state_extent;
     }
+}
+
+/// Render the absolute frame-slot layout as a plain-text table: one line per
+/// frame slot mapping a logical slot (machine/state/param/local) to the runtime
+/// byte range it occupies inside the `omega_runtime_frame_storage` region.
+///
+/// This is the inert-by-default observability side-table. It is emitted to stderr
+/// when `OMEGA_DUMP_SLOTS` is set, and written to `slots.txt` in the build dir on
+/// the compile-to-disk path. Offsets are POST call-context stacking (the absolute
+/// region-relative offsets the running image uses). The region base itself is a
+/// relocation resolved in the image; see the header comment in the output for how
+/// to recover it. Sorted by (context, dispatch_index, byte_offset).
+pub fn render_frame_slot_table(
+    storage: &omega_runtime_storage::RuntimeStoragePlan,
+    runtime_flow: &RuntimeFlowPlan,
+) -> String {
+    use omega_runtime_storage::RuntimeFrameSlotKind;
+
+    // dispatch_index (a state's arena index in the runtime flow) -> CallContext id.
+    let mut contexts: Vec<u32> = Vec::new();
+    for (handle, state) in runtime_flow.states.iter() {
+        let index = handle.arena_index() as usize;
+        if index >= contexts.len() {
+            contexts.resize(index + 1, 0);
+        }
+        contexts[index] = state.context.0;
+    }
+    let context_of = |dispatch_index: u32| -> u32 {
+        contexts.get(dispatch_index as usize).copied().unwrap_or(0)
+    };
+
+    let kind_label = |kind: &RuntimeFrameSlotKind| -> String {
+        match kind {
+            RuntimeFrameSlotKind::Parameter => "param".to_owned(),
+            RuntimeFrameSlotKind::LocalStorage => "local".to_owned(),
+            RuntimeFrameSlotKind::StateCallResult {
+                role, call_ordinal, ..
+            } => format!("call-result({role:?}#{call_ordinal})"),
+        }
+    };
+
+    // Collect, then sort by (context, dispatch_index, byte_offset) for stable,
+    // human-scannable output.
+    let mut rows: Vec<(u32, u32, &omega_runtime_storage::RuntimeFrameSlot)> = storage
+        .frame_slots
+        .iter()
+        .map(|(_, slot)| (context_of(slot.dispatch_index), slot.dispatch_index, slot))
+        .collect();
+    rows.sort_by_key(|(context, dispatch_index, slot)| {
+        (*context, *dispatch_index, slot.byte_offset)
+    });
+
+    let mut output = String::new();
+    output.push_str("# Omega frame-slot layout (region: omega_runtime_frame_storage)\n");
+    output.push_str(
+        "# absolute runtime address of a slot = (relocated region base) + byte_offset.\n",
+    );
+    output.push_str(
+        "# region base = the imm64 of the `movabsq $imm64,%r15` (frame storage) the dispatch\n",
+    );
+    output.push_str(
+        "#   loop loads, OR the address of the `omega_runtime_frame_storage` symbol in the image.\n",
+    );
+    output.push_str(
+        "# cdb (no-ASLR image base 0x140000000): bp <code>; g; dd (base+byte_offset) L<words>.\n",
+    );
+    output.push_str(&format!(
+        "# frame_scratch_base={} frame_scratch_size={}\n",
+        storage.frame_scratch_base, storage.frame_scratch_size
+    ));
+    output.push_str(&format!("# slots: {}\n", rows.len()));
+    output.push_str(
+        "# context  dispatch  stmt  machine#  state#  seg  kind                  name                  type                  offset    end       size\n",
+    );
+
+    for (context, dispatch_index, slot) in &rows {
+        // `usize::MAX` is the sentinel statement index for a parameter slot (it has
+        // no owning statement); render it as `-` for readability.
+        let stmt = if slot.statement_index == usize::MAX {
+            "-".to_owned()
+        } else {
+            slot.statement_index.to_string()
+        };
+        output.push_str(&format!(
+            "{:<8}  {:<8}  {:<4}  {:<8}  {:<6}  {:<3}  {:<20}  {:<20}  {:<20}  {:<8}  {:<8}  {}\n",
+            context,
+            dispatch_index,
+            stmt,
+            slot.source_key.machine.arena_index(),
+            slot.source_key.state.arena_index(),
+            slot.source_key.segment_index,
+            kind_label(&slot.kind),
+            slot.name.as_str(),
+            slot.type_name.as_ref(),
+            slot.byte_offset,
+            slot.byte_offset + slot.byte_size,
+            slot.byte_size,
+        ));
+    }
+
+    output
 }
 
 fn dispatch_state_call_edges(
