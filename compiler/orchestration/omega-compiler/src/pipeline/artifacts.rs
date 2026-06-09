@@ -290,6 +290,16 @@ pub(super) fn write_backend_report(
     // full backend report (state guards, dispatch loop, codegen) directly
     // readable for debugging.
     write_phase_text(options, "backend_report.txt", &report)?;
+    // Machine-readable frame-slot side-table: maps every logical slot
+    // (machine/state/param/local) to its absolute runtime byte offset inside the
+    // `omega_runtime_frame_storage` region, so a debugger/script can translate a
+    // named slot to its frame offset without disassembly. Same content as the
+    // `OMEGA_DUMP_SLOTS` stderr dump.
+    write_phase_text(
+        options,
+        "slots.txt",
+        &omega_backend_pipeline::render_frame_slot_table(&plan.runtime_storage, &plan.runtime_flow),
+    )?;
     write_phase_diagram(
         options,
         "backend_report.html",
@@ -407,6 +417,7 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "09_backend_report.html",
             "09_native_plan.txt",
             "backend_report.txt",
+            "slots.txt",
             "08_abstract_operations.html",
             "09_target_operations.html",
             "10_assigned_target_operations.html",
