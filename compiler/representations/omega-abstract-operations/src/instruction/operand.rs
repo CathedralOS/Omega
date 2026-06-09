@@ -35,6 +35,14 @@ pub enum InstructionOperandKind {
         region: RuntimeStorageRegion,
         byte_offset: usize,
     },
+    /// A scalar integer (e.g. an `i32` exit code) read directly from a statically
+    /// allocated runtime-storage slot at `byte_offset` in `region`, rather than a
+    /// compile-time constant. `byte_count` is the value's width (1/2/4/8).
+    RuntimeScalarInteger {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_count: usize,
+    },
     ImmediateInteger(i64),
     ByteLength(usize),
 }

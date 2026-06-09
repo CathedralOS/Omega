@@ -9,6 +9,7 @@ use super::runtime_text::{
     find_runtime_text_input_buffer_data_object, runtime_string_descriptor_place,
     runtime_text_literal_for_host_call,
 };
+use crate::selection::storage_places::resolve_runtime_storage_place_in_table;
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
@@ -122,9 +123,13 @@ pub(super) fn select_host_operation_operands(
         (
             HostCapability::Process,
             HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess,
-        ) => operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(
-            exit_code(host_call, input),
-        ))]),
+        ) => match exit_code_operand(input, host_call, dispatch_index) {
+            // A resolvable constant or runtime scalar lowers to a marshallable operand.
+            // An unresolvable runtime argument lowers to NO operand, so the architecture
+            // encoder hard-errors ("missing exit code") instead of silently exiting `0`.
+            Some(kind) => operands.insert_many([operand(kind)]),
+            None => HandleSpan::empty(),
+        },
         _ => HandleSpan::empty(),
     }
 }
@@ -194,13 +199,43 @@ pub(super) fn data_object_handle(
         .unwrap_or_else(Handle::invalid)
 }
 
-fn exit_code(host_call: &HostCall, input: &InstructionSelectionInput<'_>) -> i64 {
-    first_argument(host_call, input)
-        .and_then(|argument| match &argument.kind {
-            HostCallArgumentKind::Integer(value) => Some(*value),
-            _ => None,
-        })
-        .unwrap_or(0)
+/// Resolve the operand for an `exit_process`/`exit_group` exit code.
+///
+/// A compile-time-constant argument (`exit_process(70)`) lowers to an `ImmediateInteger`.
+/// A runtime argument (`exit_process(self.v)`, a field/local resolvable to a runtime-storage
+/// scalar slot) lowers to a `RuntimeScalarInteger`, which the encoders load from the relocated
+/// region into the exit-code register — previously these silently became `0`.
+///
+/// Returns `None` for a runtime argument we cannot resolve to a marshallable scalar slot; the
+/// caller then emits no operand at all, so the architecture encoder hard-errors with a
+/// Diagnostic rather than silently exiting `0`.
+fn exit_code_operand(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+) -> Option<InstructionOperandKind> {
+    let Some(argument) = first_argument(host_call, input) else {
+        return Some(InstructionOperandKind::ImmediateInteger(0));
+    };
+    match &argument.kind {
+        HostCallArgumentKind::Integer(value) => {
+            Some(InstructionOperandKind::ImmediateInteger(*value))
+        }
+        HostCallArgumentKind::Expression(expression) => resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index.unwrap_or(0),
+            host_call.source_key,
+            &input.host_calls.expressions,
+            *expression,
+        )
+        .filter(|place| matches!(place.byte_count, 1 | 2 | 4 | 8))
+        .map(|place| InstructionOperandKind::RuntimeScalarInteger {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_count: place.byte_count,
+        }),
+        HostCallArgumentKind::Text(_) => Some(InstructionOperandKind::ImmediateInteger(0)),
+    }
 }
 
 fn first_argument<'plan>(

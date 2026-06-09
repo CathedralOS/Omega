@@ -20,6 +20,9 @@ pub trait InstructionOperandLike {
     fn runtime_string_length(&self) -> Option<(RuntimeStorageRegion, usize)>;
     fn runtime_pointee_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)>;
     fn runtime_pointee_string_length(&self) -> Option<(RuntimeStorageRegion, usize)>;
+    /// A scalar integer read directly from a runtime-storage slot: `(region, byte_offset,
+    /// byte_count)`. Used to marshal a non-constant exit code / host-call argument.
+    fn runtime_scalar_integer(&self) -> Option<(RuntimeStorageRegion, usize, usize)>;
     fn immediate_integer(&self) -> Option<i64>;
     fn byte_length(&self) -> Option<usize>;
 }
@@ -72,6 +75,17 @@ impl InstructionOperandLike for TargetInstructionOperand {
         }
     }
 
+    fn runtime_scalar_integer(&self) -> Option<(RuntimeStorageRegion, usize, usize)> {
+        match self.kind {
+            InstructionOperandKind::RuntimeScalarInteger {
+                region,
+                byte_offset,
+                byte_count,
+            } => Some((region, byte_offset, byte_count)),
+            _ => None,
+        }
+    }
+
     fn immediate_integer(&self) -> Option<i64> {
         match self.kind {
             InstructionOperandKind::ImmediateInteger(value) => Some(value),
@@ -107,6 +121,11 @@ pub enum TargetInstructionOperandKind {
     RuntimePointeeStringLength {
         region: RuntimeStorageRegion,
         byte_offset: usize,
+    },
+    RuntimeScalarInteger {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_count: usize,
     },
     ImmediateInteger(i64),
     ByteLength(usize),

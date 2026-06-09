@@ -45,6 +45,15 @@ fn translate_operand_kind(
             region: *region,
             byte_offset: *byte_offset,
         },
+        omega_abstract_operations::InstructionOperandKind::RuntimeScalarInteger {
+            region,
+            byte_offset,
+            byte_count,
+        } => InstructionOperandKind::RuntimeScalarInteger {
+            region: *region,
+            byte_offset: *byte_offset,
+            byte_count: *byte_count,
+        },
         omega_abstract_operations::InstructionOperandKind::ImmediateInteger(value) => {
             InstructionOperandKind::ImmediateInteger(*value)
         }
