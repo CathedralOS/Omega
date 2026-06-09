@@ -934,6 +934,43 @@ fn runtime_fixed_array_field_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_fixed_array_field_value_exit_canary_runs() {
+    // Reading `self.cells[2].value` (fixed-array element field, NON-ZERO constant
+    // index) as a VALUE must apply the index. The GUARD path was fixed in 8e775fbd,
+    // but the non-guard place resolvers used for value reads dropped the constant
+    // index, so every `arr[const].field` value read aliased element 0. The canary
+    // writes three distinct elements, reads the middle-high one into a field, and
+    // guards it; a dropped index exits 71 instead of 70.
+    let canary = pass_canary("expressions/runtime_fixed_array_field_value_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-fixed-array-field-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("fixed-array field value canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("fixed-array field value canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `let d = self.cells[i].value` to apply the constant index (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn fixed_array_element_guard_canary_runs() {
     // A guard comparing a fixed-array element to a constant (`self.cells[2] == 7.0`,
     // cells `[f64; 4]`) must resolve one 8-byte element, not the whole 32-byte array

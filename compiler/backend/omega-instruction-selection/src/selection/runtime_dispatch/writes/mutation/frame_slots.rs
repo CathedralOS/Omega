@@ -6,6 +6,7 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
+    resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
 };
 use omega_abstract_operations::{
@@ -125,6 +126,31 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     ) && pointee.pointee_byte_size == slot.byte_size
         && pointee.pointee_byte_size > 0
         && !matches!(expressions.expression(value), ExpressionNode::Mutable(_))
+    {
+        return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            pointer_byte_offset: pointee.pointer_byte_offset,
+            field_byte_offset: pointee.field_byte_offset,
+            target_offset: slot.byte_offset,
+            byte_count: slot.byte_size,
+        });
+    }
+
+    // `let d = rooms[2].depth` where `rooms: &[Room]` is a slice DESCRIPTOR local:
+    // read the element field through the descriptor's pointer. The fixed-indexed
+    // pointee target folds the CONSTANT index into its field offset (deref ptr +
+    // index*element_size + field_offset). Without this, the flat storage-place
+    // fallback below treats the descriptor as a struct and reads its bytes at the
+    // bare field offset -- dropping both the index and the deref, so every constant
+    // index aliased element 0's garbage. (A dynamic index lowers via the
+    // FrameIndexed path; this mirrors the guard-side constant-index fix 8e775fbd.)
+    if let Some(pointee) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && pointee.pointee_byte_size == slot.byte_size
+        && pointee.pointee_byte_size > 0
     {
         return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
             pointer_byte_offset: pointee.pointer_byte_offset,

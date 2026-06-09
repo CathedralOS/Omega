@@ -1,0 +1,58 @@
+// Reading a SLICE element's FIELD by a non-zero CONSTANT index as a VALUE
+// (`let d: i32 = rooms[2].depth` where `rooms: &[Room]` is a slice descriptor)
+// must dereference the descriptor's pointer and apply
+// (index * element_size + field_offset). The GUARD path applied the constant
+// index (fixed in 8e775fbd, omega-state-guards), but the non-guard value-read
+// copy path dropped it: a slice-descriptor `slice[const].field` read was lowered
+// as a flat frame read at the bare field offset -- dropping BOTH the index and
+// the pointer deref -- so every constant index aliased element 0's garbage. A
+// DYNAMIC index already worked (it lowers via the FrameIndexed pointee path).
+//
+// `rooms` is a slice descriptor passed as a state parameter. Element 2's `depth`
+// (a non-first field) is read into a local and guarded against 33; a dropped
+// index reads element 0's `depth` (11) and exits 71.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    id: i32;
+    depth: i32;
+}
+
+data Main {
+    console: Console;
+    rooms: [Room; 4];
+}
+
+machine Main::main(&mut self) {
+    self.rooms[0].depth = 11;
+    self.rooms[1].depth = 22;
+    self.rooms[2].depth = 33;
+    self.rooms[3].depth = 44;
+
+    let r: &[Room] = self.rooms.as_slice();
+
+    transition true {
+        true -> inspect(r)
+        false -> bad()
+    }
+
+    state inspect(&mut self, rooms: &[Room]) {
+        let d: i32 = rooms[2].depth;
+
+        transition d == 33 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
