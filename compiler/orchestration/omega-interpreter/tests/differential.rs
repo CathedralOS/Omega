@@ -255,6 +255,33 @@ fn interpreter_matches_native_on_supported_canaries() {
     );
 }
 
+/// The `cli_mvp` sample is a stable end-to-end program (prints "Hello, Omega." and exits
+/// 0). It exercises the imported-std `console` host-boundary path (write_line + exit_process)
+/// that the canaries' inline boundary traits do not, so it is a useful permanent guard that
+/// the interpreter and native agree there too.
+#[test]
+fn interpreter_matches_native_on_cli_mvp_sample() {
+    let main_path = repo_root().join("samples").join("cli_mvp").join("main.omg");
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|diagnostics| panic!("cli_mvp compile failed:\n{}", join_diagnostics(&diagnostics)));
+
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "cli_mvp should be fully supported by the interpreter, got: {:?}",
+        outcome.error
+    );
+
+    let (native_code, native_stdout) = compile_and_run_native("cli_mvp", &main_path);
+    assert_eq!(outcome.exit_code, native_code, "cli_mvp exit code");
+    assert_eq!(
+        outcome.stdout, native_stdout,
+        "cli_mvp stdout: interp {:?} != native {:?}",
+        String::from_utf8_lossy(&outcome.stdout),
+        String::from_utf8_lossy(&native_stdout)
+    );
+}
+
 /// Collapse skip reasons to a normalized phrase so we can rank the most common unsupported
 /// constructs (program-specific identifiers in backticks are stripped).
 fn summarize_reasons(skipped: &[(String, String)], top: usize) -> Vec<(String, usize)> {

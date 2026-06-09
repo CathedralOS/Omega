@@ -87,8 +87,8 @@ struct Frame {
 struct Evaluator<'program> {
     program: &'program CheckedTrees,
     stdout: Vec<u8>,
-    #[allow(dead_code)]
     stdin: &'program [u8],
+    stdin_cursor: usize,
     steps: u64,
     call_depth: u32,
 }
@@ -99,6 +99,7 @@ impl<'program> Evaluator<'program> {
             program,
             stdout: Vec::new(),
             stdin,
+            stdin_cursor: 0,
             steps: 0,
             call_depth: 0,
         }
@@ -841,8 +842,47 @@ impl<'program> Evaluator<'program> {
                 }
                 Ok(Some(Value::Unit))
             }
+            "read_line" => {
+                // Read up to (and including) the next newline from the remaining stdin into
+                // the `&mut String` out-parameter. CRLF is normalized (a trailing `\r` is
+                // dropped). Returns whether a line was available (some programs ignore it).
+                let line = self.read_stdin_line();
+                if let Some(first) = arguments.first() {
+                    if let Ok(cell) = self.resolve_place(*first, frame) {
+                        let cell = self.deref_cell(cell);
+                        if let Value::Str(text) = &*cell.borrow() {
+                            *text.borrow_mut() = line.clone();
+                        } else {
+                            *cell.borrow_mut() = Value::str(line.clone());
+                        }
+                    }
+                }
+                Ok(Some(Value::Bool(!line.is_empty())))
+            }
             other => unsupported(format!("host boundary call `{other}` not yet supported")),
         }
+    }
+
+    /// Consume the next line from the remaining stdin (without the line terminator). CRLF
+    /// and LF are both handled; returns an empty string at end of input.
+    fn read_stdin_line(&mut self) -> String {
+        let mut line = String::new();
+        while self.stdin_cursor < self.stdin.len() {
+            let byte = self.stdin[self.stdin_cursor];
+            self.stdin_cursor += 1;
+            if byte == b'\n' {
+                break;
+            }
+            if byte == b'\r' {
+                // Drop a CRLF terminator; a lone CR also ends the line.
+                if self.stdin_cursor < self.stdin.len() && self.stdin[self.stdin_cursor] == b'\n' {
+                    self.stdin_cursor += 1;
+                }
+                break;
+            }
+            line.push(byte as char);
+        }
+        line
     }
 
     /// A call is a host-boundary call when its target state is declared on a
@@ -886,7 +926,17 @@ impl<'program> Evaluator<'program> {
                                 if field.name.as_str() == leaf {
                                     let type_symbol =
                                         self.program.type_reference_symbol(field.type_reference);
-                                    return self.is_boundary_trait_symbol(type_symbol);
+                                    if self.is_boundary_trait_symbol(type_symbol) {
+                                        return true;
+                                    }
+                                    // Fallback for an imported boundary trait whose
+                                    // `is_boundary` flag did not survive resolution (the std
+                                    // `console`): a canonical host method on a `Console`-typed
+                                    // field is a host call.
+                                    let type_name =
+                                        self.program.display_type_reference(field.type_reference);
+                                    return type_name.contains("Console")
+                                        && is_canonical_host_method(call.target.as_str());
                                 }
                             }
                         }
@@ -1511,6 +1561,11 @@ impl<'program> Evaluator<'program> {
             .iter()
             .find(|data| data.name.as_str() == name)
     }
+}
+
+/// The canonical Console host-boundary method names the interpreter drives directly.
+fn is_canonical_host_method(name: &str) -> bool {
+    matches!(name, "write" | "write_line" | "read_line" | "exit_process")
 }
 
 /// Reinterpret an i64 at an integer primitive's width, sign- or zero-extending back to i64

@@ -34,8 +34,9 @@
 //! width/signedness-aware `as` casts (int<->float, integer narrow/widen); multi-arm
 //! value/guard transitions (subject, tuple, and boolean forms); value-calls returning a
 //! scalar/struct; method calls on `&mut Data` reference params; `&mut`-aliased argument
-//! passing; the entry machine's value as the exit code; the Console boundary `exit_process`
-//! and `write`/`write_line`. Anything outside this subset returns
+//! passing; the entry machine's value as the exit code; the Console boundary `exit_process`,
+//! `write`/`write_line`, and `read_line` (consuming `stdin`), including the imported std
+//! `console`. Anything outside this subset returns
 //! [`InterpretOutcome::error`] so a differential harness SKIPS (xfail) rather than reporting
 //! a false mismatch. Still deferred: ranges/subslices, enum-payload construction,
 //! string concatenation host paths, dyn multi-impl dispatch, and the deepest recursion-heavy
