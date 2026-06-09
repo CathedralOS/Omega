@@ -1,0 +1,43 @@
+// A value-returning machine whose body is a guarded transition on an UNSIGNED
+// (u32) operand must branch with UNSIGNED comparison conditions. The leaf value-
+// transition guard path selected the SIGNED jcc (jg/jle) regardless of operand
+// signedness, unlike the dispatch-edge path which post-processes the operator
+// with the operand's unsignedness. For a u32 whose top bit is set
+// (4000000000 > INT_MAX), the signed compare treats it as negative: `4000000000
+// <= 2` is FALSE unsigned (correct) but TRUE signed (wrong). The value flows
+// through a runtime field read (not constant-folded), so the arm guard is
+// exercised at runtime. A signed mis-compare selects arm A (10) instead of arm
+// B (20) and exits 71; a correct unsigned compare exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: u32;
+    r: u32;
+}
+
+machine Main::classify(&mut self, x: u32) -> u32 {
+    transition {
+        x <= 2 -> 10
+        _ -> 20
+    }
+}
+
+machine Main::main(&mut self) {
+    self.v = 4000000000u32; // > INT_MAX: looks negative under a signed compare
+    self.r = self.classify(self.v);
+
+    transition self.r == 20 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

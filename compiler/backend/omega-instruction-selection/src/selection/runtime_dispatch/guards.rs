@@ -14,8 +14,9 @@ use super::super::storage_places::{
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
-    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_in_table, resolve_runtime_transition_guard_call_result_place,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
+    resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+    resolve_runtime_transition_guard_call_result_place,
 };
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
@@ -1030,7 +1031,23 @@ fn runtime_value_guard_in_table(
     let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
         return None;
     };
-    let operator = runtime_compare_operator(binary.operator)?;
+    let mut operator = runtime_compare_operator(binary.operator)?;
+    // An ordered comparison on an unsigned operand (e.g. a `u32` value-transition
+    // arm guard `x <= 2`) must branch unsigned; `runtime_compare_operator` only
+    // produces the signed form. The dispatch-edge path post-processes this; the
+    // leaf value-transition path (this function) did not, so a u32 > INT_MAX
+    // compared as a negative number and took the wrong arm.
+    if comparison_operands_unsigned_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        operator,
+        expressions,
+        binary.left,
+        binary.right,
+    ) {
+        operator = unsigned_comparison_operator(operator);
+    }
     let left = resolve_runtime_value_operand_in_table(
         input,
         dispatch_index,
@@ -1403,6 +1420,58 @@ fn runtime_compare_operator(operator: BinaryOperator) -> Option<StateGuardOperat
         | BinaryOperator::ShiftRight
         | BinaryOperator::Subtract => None,
     }
+}
+
+/// Swap an ordered comparison operator to its unsigned form. Equal/NotEqual and
+/// already-unsigned/arithmetic operators are returned unchanged. Mirrors the
+/// dispatch-edge path's `unsigned_comparison_operator`.
+fn unsigned_comparison_operator(operator: StateGuardOperator) -> StateGuardOperator {
+    match operator {
+        StateGuardOperator::Greater => StateGuardOperator::GreaterUnsigned,
+        StateGuardOperator::GreaterOrEqual => StateGuardOperator::GreaterOrEqualUnsigned,
+        StateGuardOperator::Less => StateGuardOperator::LessUnsigned,
+        StateGuardOperator::LessOrEqual => StateGuardOperator::LessOrEqualUnsigned,
+        other => other,
+    }
+}
+
+/// True when an ordered comparison's operands are an unsigned integer type, so the
+/// branch must use unsigned conditions. The operand type is read from whichever
+/// side resolves to a storage place (the literal side does not). Only the four
+/// ordered operators are affected; Equal/NotEqual are signedness-agnostic and pass
+/// through unchanged via `unsigned_comparison_operator`. Mirrors the dispatch-edge
+/// path's `guard_comparison_operands_unsigned`, which the leaf value-transition
+/// guard path does not run through.
+fn comparison_operands_unsigned_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    operator: StateGuardOperator,
+    expressions: &ExpressionTable,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
+    if !matches!(
+        operator,
+        StateGuardOperator::Greater
+            | StateGuardOperator::GreaterOrEqual
+            | StateGuardOperator::Less
+            | StateGuardOperator::LessOrEqual
+    ) {
+        return false;
+    }
+    let signed =
+        resolve_runtime_storage_is_signed_in_table(input, dispatch_index, source_key, expressions, left)
+            .or_else(|| {
+                resolve_runtime_storage_is_signed_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    right,
+                )
+            });
+    signed == Some(false)
 }
 
 fn runtime_arithmetic_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
