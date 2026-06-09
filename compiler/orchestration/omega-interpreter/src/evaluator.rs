@@ -317,6 +317,11 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Option<Value>> {
         let mut current_state = state_name.to_owned();
         let mut current_args = args;
+        // Locals accumulated across SAME-machine sibling transitions: the backend models a
+        // machine as one frame whose slots persist, so an inlined sub-state still sees the
+        // enclosing state's params/`let`s (e.g. `mark_current_room` reading `enter_room`'s
+        // `room_index`). New args bind on top; carried-over names stay visible.
+        let mut carried: BTreeMap<String, Cell> = BTreeMap::new();
 
         loop {
             self.tick()?;
@@ -325,8 +330,13 @@ impl<'program> Evaluator<'program> {
                 .ok_or_else(|| Halt::Unsupported(format!("unknown state `{current_state}`")))?
                 .clone();
 
-            let frame =
-                self.bind_frame(&state, Rc::clone(&instance), &current_args, machine.symbol)?;
+            let frame = self.bind_frame(
+                &state,
+                Rc::clone(&instance),
+                &current_args,
+                machine.symbol,
+                &carried,
+            )?;
 
             // Execute statements, watching for the first satisfied transition. A state
             // whose body ends in a bare expression (`{ 22 }`) returns that expression's
@@ -356,7 +366,9 @@ impl<'program> Evaluator<'program> {
                 Some(TransitionDecision::Value(value)) => return Ok(Some(value)),
                 Some(TransitionDecision::Terminal) => return Ok(None),
                 Some(TransitionDecision::SelfTarget) => {
-                    // Re-run the same state (rare; guard against infinite loops via budget).
+                    // Re-run the same state (rare; guard against infinite loops via budget),
+                    // carrying its bindings forward.
+                    carried = frame.locals.into_inner();
                     continue;
                 }
                 Some(TransitionDecision::Named {
@@ -368,6 +380,8 @@ impl<'program> Evaluator<'program> {
                     if target_machine.symbol == machine.symbol
                         && Rc::ptr_eq(&target_instance, &instance)
                     {
+                        // Carry this state's bindings forward to the sibling state.
+                        carried = frame.locals.into_inner();
                         current_state = state_name;
                         current_args = args;
                         continue;
@@ -385,15 +399,18 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// Bind a state's parameters (skipping `self`) to the positional argument cells.
+    /// Bind a state's parameters (skipping `self`) to the positional argument cells. Seeds
+    /// from `carried` (the enclosing same-machine state's bindings) so an inlined sub-state
+    /// still sees outer params/locals; the state's own params override on top.
     fn bind_frame(
         &self,
         state: &State,
         self_cell: Cell,
         args: &[Cell],
         machine_symbol: SymbolHandle,
+        carried: &BTreeMap<String, Cell>,
     ) -> EvalResult<Frame> {
-        let mut locals = BTreeMap::new();
+        let mut locals = carried.clone();
         let mut arg_index = 0;
         for parameter in self.program.state_parameters(state) {
             if parameter.is_self {
@@ -421,6 +438,10 @@ impl<'program> Evaluator<'program> {
             StatementNode::Assignment(assignment) => {
                 let value = self.eval_expression(assignment.value, frame)?;
                 let target = self.resolve_place(assignment.target, frame)?;
+                // Assigning to a `&mut` place writes THROUGH the reference into the aliased
+                // cell (so `out_line = ...` on an `out_line: &mut String` param mutates the
+                // caller's String), rather than rebinding the local to a non-reference value.
+                let target = self.deref_cell(target);
                 *target.borrow_mut() = value;
                 Ok(())
             }
@@ -748,9 +769,31 @@ impl<'program> Evaluator<'program> {
     fn eval_argument(&mut self, argument: ExpressionHandle, frame: &Frame) -> EvalResult<Cell> {
         match self.program.expression_table.expression(argument) {
             ExpressionNode::Mutable(inner) => {
-                // &mut place -> alias the SAME cell (this is the whole point of the oracle).
+                // &mut place -> a Ref to the SAME cell (the whole point of the oracle). The
+                // param binding holds a `Ref`, so a later forward of that param (as a bare
+                // name) can detect it is a reference and keep aliasing -- otherwise a
+                // `&mut String` field passed down a call chain detaches after the first hop.
                 let cell = self.resolve_place(*inner, frame)?;
-                Ok(cell)
+                Ok(Value::Ref(cell).cell())
+            }
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                // A bare place argument that is ALREADY a reference (a forwarded `&mut`
+                // parameter, e.g. `out_room` of type `&mut Room`) must keep aliasing the
+                // same underlying cell -- otherwise a chain of forwarding calls silently
+                // detaches the write. If the place resolves and holds a `Ref`, forward that
+                // cell; otherwise evaluate the expression normally (handles enum-value name
+                // paths, plain values, etc.).
+                if let Ok(place) = self.resolve_place(argument, frame) {
+                    let forwarded = match &*place.borrow() {
+                        Value::Ref(target) => Some(Rc::clone(target)),
+                        _ => None,
+                    };
+                    if let Some(target) = forwarded {
+                        return Ok(target);
+                    }
+                }
+                let value = self.eval_expression(argument, frame)?;
+                Ok(value.cell())
             }
             _ => {
                 let value = self.eval_expression(argument, frame)?;
@@ -901,7 +944,14 @@ impl<'program> Evaluator<'program> {
                 let target = self.cast_target_primitive(cast.target_type);
                 self.eval_cast(value, target)
             }
-            ExpressionNode::Indexed(_) => {
+            ExpressionNode::Indexed(indexed) => {
+                // A range index `arr[start..end]` produces a SUBSLICE view sharing the
+                // collection's element cells; a scalar index reads one element.
+                if let ExpressionNode::Range(range) =
+                    self.program.expression_table.expression(indexed.index).clone()
+                {
+                    return self.eval_subslice(indexed.collection, &range, frame);
+                }
                 let cell = self.resolve_place(handle, frame)?;
                 let value = self.deref_cell(cell).borrow().clone();
                 Ok(value)
@@ -1014,15 +1064,23 @@ impl<'program> Evaluator<'program> {
         argument: ExpressionHandle,
         frame: &Frame,
     ) -> EvalResult<Cell> {
-        match self.program.expression_table.expression(argument) {
-            ExpressionNode::Mutable(inner) => Ok(self.resolve_place(*inner, frame)?),
-            _ => Ok(self.eval_expression(argument, frame)?.cell()),
-        }
+        // Share the same argument-evaluation rules as state calls (incl. reference
+        // forwarding for bare-place args that already hold a `&mut`).
+        self.eval_argument(argument, frame)
     }
 
     fn eval_name(&mut self, path: &TableNamePath, frame: &Frame) -> EvalResult<Value> {
-        // An enum value reference (`CellId::R02` / `Command::Look`) resolves to an Enum.
+        // The boolean keywords `true`/`false` can arrive as single-member name paths in
+        // value/transition position (the parser does not always fold them to a literal).
         let members = self.program.expression_table.name_path_members(path.members);
+        if members.len() == 1 {
+            match members[0].as_str() {
+                "true" => return Ok(Value::Bool(true)),
+                "false" => return Ok(Value::Bool(false)),
+                _ => {}
+            }
+        }
+        // An enum value reference (`CellId::R02` / `Command::Look`) resolves to an Enum.
         if let Some(enum_value) = self.enum_value_from_path(members) {
             return Ok(enum_value);
         }
@@ -1139,6 +1197,40 @@ impl<'program> Evaluator<'program> {
         }
     }
 
+    /// Evaluate a subslice `collection[start..end]` into an `Array` view that SHARES the
+    /// collection's element cells (so writes through the subslice alias the original). A
+    /// missing start defaults to 0; a missing end to the length; `end_inclusive` extends by
+    /// one.
+    fn eval_subslice(
+        &mut self,
+        collection: ExpressionHandle,
+        range: &omega_typed_trees::expression::TableRangeExpression,
+        frame: &Frame,
+    ) -> EvalResult<Value> {
+        let collection_cell = self.resolve_place(collection, frame)?;
+        let elements = match &*self.deref_cell(collection_cell).borrow() {
+            Value::Array(elements) => elements.clone(),
+            other => return trap(format!("cannot subslice {other:?}")),
+        };
+        let len = elements.len();
+        let start = if range.start.is_valid() {
+            self.eval_index(range.start, frame)?
+        } else {
+            0
+        };
+        let mut end = if range.end.is_valid() {
+            self.eval_index(range.end, frame)?
+        } else {
+            len
+        };
+        if range.end_inclusive {
+            end = end.saturating_add(1);
+        }
+        let end = end.min(len);
+        let start = start.min(end);
+        Ok(Value::Array(elements[start..end].to_vec()))
+    }
+
     /// Construct a `data` value from a struct literal `Type { field: value, .. }`. Fields
     /// not named take the type's default; named fields override.
     fn eval_struct_literal(
@@ -1174,6 +1266,8 @@ impl<'program> Evaluator<'program> {
                 .get(field)
                 .cloned()
                 .ok_or_else(|| Halt::Trap(format!("no field `{field}` on `{type_name}`"))),
+            // `slice.len` / `array.len` (member form, no parens) -> a fresh length cell.
+            Value::Array(elements) if field == "len" => Ok(Value::Int(elements.len() as i64).cell()),
             other => trap(format!("cannot read field `{field}` of {other:?}")),
         }
     }
@@ -1265,6 +1359,15 @@ impl<'program> Evaluator<'program> {
         if matches!(operator, Equal | NotEqual) {
             let equal = self.values_equal(&left, &right)?;
             return Ok(Value::Bool(if operator == Equal { equal } else { !equal }));
+        }
+
+        // String concatenation: `a + b` over two strings yields a fresh string.
+        if let (Value::Str(a), Value::Str(b)) = (&left, &right) {
+            if operator == Add {
+                let mut joined = a.borrow().clone();
+                joined.push_str(&b.borrow());
+                return Ok(Value::str(joined));
+            }
         }
 
         // Float arithmetic / comparison if either operand is float.
