@@ -3424,6 +3424,41 @@ fn runtime_mutable_parameter_read_modify_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_referenced_local_outlives_sibling_guard_call_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-referenced-local-outlives-sibling-guard-call-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("referenced-local-outlives-sibling-guard-call canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("referenced-local-outlives-sibling-guard-call canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a `&mut local` pointee to survive a sibling state's value-call guard chain \
+         (hall_two must run and write room_count = 8 -> exit 70; exit 2 means the dispatch \
+         silently fell through after the guard), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_called_machine_loop_search_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_called_machine_loop_search_exit");
     let main_path = canary.join("main.omg");
