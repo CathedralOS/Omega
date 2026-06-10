@@ -724,6 +724,77 @@ impl ExpressionTable {
         self.name_path_member_symbols.span_or_empty(span)
     }
 
+    /// Whether two expressions in this table are structurally identical: same node
+    /// shapes, literals, names/symbols, and operators, recursively. Lowering copies
+    /// expression trees per use site, so a SHARED source expression (e.g. the subject
+    /// of `transition self.f(x) { true -> a false -> b }`, which the parser inserts
+    /// once and references from every arm's guard) arrives as several distinct
+    /// handles; structural equality recognizes those copies so consumers can evaluate
+    /// the source expression ONCE. Conservative: node kinds not listed compare as not
+    /// equal.
+    pub fn expressions_structurally_equal(&self, a: ExpressionHandle, b: ExpressionHandle) -> bool {
+        if a == b {
+            return true;
+        }
+        if !a.is_valid() || !b.is_valid() {
+            return false;
+        }
+        match (self.expression(a), self.expression(b)) {
+            (ExpressionNode::Integer(x), ExpressionNode::Integer(y)) => x == y,
+            (ExpressionNode::Boolean(x), ExpressionNode::Boolean(y)) => x == y,
+            (ExpressionNode::String(x), ExpressionNode::String(y)) => x == y,
+            (ExpressionNode::Float(x), ExpressionNode::Float(y)) => x == y,
+            (ExpressionNode::Name(x), ExpressionNode::Name(y)) => {
+                x.head_symbol == y.head_symbol
+                    && x.symbol == y.symbol
+                    && identifier_texts_equal(
+                        self.name_path_members(x.members),
+                        self.name_path_members(y.members),
+                    )
+            }
+            (ExpressionNode::Member(x), ExpressionNode::Member(y)) => {
+                x.member_symbol == y.member_symbol
+                    && x.member.as_str() == y.member.as_str()
+                    && self.expressions_structurally_equal(x.receiver, y.receiver)
+            }
+            (ExpressionNode::Mutable(x), ExpressionNode::Mutable(y)) => {
+                self.expressions_structurally_equal(*x, *y)
+            }
+            (ExpressionNode::Unary(x), ExpressionNode::Unary(y)) => {
+                x.operator == y.operator && self.expressions_structurally_equal(x.operand, y.operand)
+            }
+            (ExpressionNode::Binary(x), ExpressionNode::Binary(y)) => {
+                x.operator == y.operator
+                    && self.expressions_structurally_equal(x.left, y.left)
+                    && self.expressions_structurally_equal(x.right, y.right)
+            }
+            (ExpressionNode::Indexed(x), ExpressionNode::Indexed(y)) => {
+                self.expressions_structurally_equal(x.collection, y.collection)
+                    && self.expressions_structurally_equal(x.index, y.index)
+            }
+            (ExpressionNode::Call(x), ExpressionNode::Call(y)) => {
+                x.target_symbol == y.target_symbol
+                    && x.target.as_str() == y.target.as_str()
+                    && self.expressions_structurally_equal(x.receiver, y.receiver)
+                    && self.expression_spans_structurally_equal(x.arguments, y.arguments)
+            }
+            _ => false,
+        }
+    }
+
+    fn expression_spans_structurally_equal(
+        &self,
+        a: HandleSpan<ExpressionHandle>,
+        b: HandleSpan<ExpressionHandle>,
+    ) -> bool {
+        let a = self.expression_handles(a);
+        let b = self.expression_handles(b);
+        a.len() == b.len()
+            && a.iter()
+                .zip(b.iter())
+                .all(|(x, y)| self.expressions_structurally_equal(*x, *y))
+    }
+
     pub fn copy_name_path_members_with_suffix(
         &mut self,
         members: HandleSpan<Identifier>,
@@ -1710,6 +1781,13 @@ impl<'path> IntoIterator for &'path NamePath {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FloatLiteral {
     bits: u64,
+}
+
+fn identifier_texts_equal(a: &[Identifier], b: &[Identifier]) -> bool {
+    a.len() == b.len()
+        && a.iter()
+            .zip(b.iter())
+            .all(|(left, right)| left.as_str() == right.as_str())
 }
 
 impl FloatLiteral {

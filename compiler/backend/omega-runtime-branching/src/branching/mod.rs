@@ -55,6 +55,14 @@ pub fn build_runtime_branching_call_plan(
             context,
             &operations,
         ));
+        // Transition-guard subject calls already EVALUATED in this body. The parser
+        // lowers `transition self.f(x) { true -> a false -> b }` into one guard call
+        // PER ARM, all sharing the same subject CALL expression handle. The subject
+        // must evaluate ONCE: the first arm's call runs the callee (prelude); later
+        // arms reuse the callee's result slots, so only their value-selection leafs
+        // are appended (no second prelude = no second side effect).
+        let mut evaluated_guard_subjects: Vec<omega_checked_trees::expression::ExpressionHandle> =
+            Vec::new();
 
         for operation in operations.iter() {
             let state_call = state_call_for_runtime_operation(context, operation);
@@ -91,6 +99,32 @@ pub fn build_runtime_branching_call_plan(
             let branch_edges_slice = branch_edges_vec.as_slice();
             let mut expansion = classify_branch_call_expansion(branch_edges_slice);
             let has_prelude = branch_target_has_prelude(context, state_call.target_key);
+            // A transition subject evaluates ONCE per transition evaluation. The parser
+            // lowers `transition self.f(x) { true -> a false -> b }` into one guard
+            // call PER ARM, each holding a COPY of the subject call (lowering breaks
+            // handle sharing, so compare structurally). The first arm's prelude runs
+            // the callee; later arms keep their prelude expansion but with an EMPTY
+            // operation list (bindings + value selection only), re-reading the shared
+            // callee result slots without re-running its side effects.
+            let mut repeated_guard_subject = false;
+            if has_prelude
+                && state_call.role == omega_state_calls::StateCallRole::TransitionGuard
+            {
+                let subject =
+                    transition_guard_subject_call(context, operation.source_key, operation.statement_index);
+                if subject.is_valid() {
+                    if evaluated_guard_subjects.iter().any(|seen| {
+                        context
+                            .control_flow
+                            .expressions
+                            .expressions_structurally_equal(*seen, subject)
+                    }) {
+                        repeated_guard_subject = true;
+                    } else {
+                        evaluated_guard_subjects.push(subject);
+                    }
+                }
+            }
             if has_prelude {
                 expansion = RuntimeBranchCallExpansion::NeedsBranchPrelude;
             }
@@ -116,6 +150,7 @@ pub fn build_runtime_branching_call_plan(
                     body.dispatch_index,
                     state_call,
                     &aliases,
+                    !repeated_guard_subject,
                 );
             }
             if matches!(
@@ -274,4 +309,54 @@ fn branch_target_has_prelude(context: &RuntimeBranchingContext, target_key: Stat
         .state_by_key(target_key)
         .and_then(|state| context.control_flow.operations.span(state.operations))
         .is_some_and(|operations| !operations.is_empty())
+}
+
+/// The CALL subexpression of the transition guard at `statement_index` in `source_key`'s
+/// state, if any. The per-arm guards of a subject-form transition (`transition self.f(x)
+/// { true -> a false -> b }`) all wrap the SAME subject call handle -- the parser inserts
+/// the subject expression once and references it per arm -- so handle equality identifies
+/// "this arm re-tests the same subject" precisely (two distinct source-level calls never
+/// share a handle).
+fn transition_guard_subject_call(
+    context: &RuntimeBranchingContext,
+    source_key: StateKey,
+    statement_index: usize,
+) -> omega_checked_trees::expression::ExpressionHandle {
+    let invalid = omega_checked_trees::expression::ExpressionHandle::invalid();
+    let Some(state) = context.control_flow.state_by_key(source_key) else {
+        return invalid;
+    };
+    let Some(transitions) = context.control_flow.transitions.span(state.transitions) else {
+        return invalid;
+    };
+    let Some(flow) = transitions
+        .iter()
+        .find(|flow| flow.statement_index == statement_index)
+    else {
+        return invalid;
+    };
+    first_call_subexpression(&context.control_flow.expressions, flow.expressions.guard)
+}
+
+fn first_call_subexpression(
+    table: &omega_checked_trees::expression::ExpressionTable,
+    handle: omega_checked_trees::expression::ExpressionHandle,
+) -> omega_checked_trees::expression::ExpressionHandle {
+    use omega_checked_trees::expression::ExpressionNode;
+    if !handle.is_valid() {
+        return handle;
+    }
+    match table.expression(handle) {
+        ExpressionNode::Call(_) => handle,
+        ExpressionNode::Binary(binary) => {
+            let left = first_call_subexpression(table, binary.left);
+            if left.is_valid() {
+                left
+            } else {
+                first_call_subexpression(table, binary.right)
+            }
+        }
+        ExpressionNode::Unary(unary) => first_call_subexpression(table, unary.operand),
+        _ => omega_checked_trees::expression::ExpressionHandle::invalid(),
+    }
 }

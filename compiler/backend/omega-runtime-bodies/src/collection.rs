@@ -477,14 +477,8 @@ fn append_state_call_body_operation(
     }
 
     // The callee has transitions, so its return value is materialised by the branch
-    // expansion. But its NON-transition body (local initializers such as
-    // `let cells = self.bag.cells.as_mut_slice();`, and mutations through its `&mut`
-    // params) still has to be emitted -- exactly like the InlineLeaf / no-transition
-    // branches above. Without it, a machine returning `&mut cells[index]` reads an
-    // uninitialized slice descriptor for the returned address -> bad pointer ->
-    // segfault. Insert the StateCall op FIRST so its arg->param aliases are bound
-    // before the recursed body operations resolve against them; the branch expansion
-    // still materialises the transition/return.
+    // expansion. Insert the StateCall op FIRST so its arg->param aliases are bound
+    // before anything resolves against them.
     operations.insert(body_operation(
         state_call.source_key,
         state_call.statement_index,
@@ -496,16 +490,33 @@ fn append_state_call_body_operation(
             lowering: state_call.lowering,
         },
     ));
-    append_state_body_operations(
-        context,
-        state_call.target_key,
-        None,
-        operations,
-        expressions,
-        invariant_names,
-        type_references,
-        visiting,
-    );
+    // The callee's NON-transition body (local initializers such as
+    // `let cells = self.bag.cells.as_mut_slice();`, and mutations through its `&mut`
+    // params) is spliced here so it executes before the branch expansion materialises
+    // the transition/return -- without it, a machine returning `&mut cells[index]`
+    // reads an uninitialized slice descriptor (bad pointer -> segfault).
+    //
+    // EXCEPT for an inline-branching TRANSITION-GUARD call: its callee body is emitted
+    // by the BRANCH PRELUDE expansion (omega-runtime-branching emits one whenever the
+    // callee has operations), and splicing it here as well ran the guard callee's side
+    // effects TWICE per evaluation (e.g. an RNG advancing through `&mut state`). Other
+    // roles keep the splice because not every inline-branching shape reliably reaches
+    // the prelude path (devirtualized dyn-receiver calls broke without it); their
+    // splice+prelude double-execution is a separate known gap.
+    if state_call.lowering != StateCallLowering::InlineBranching
+        || state_call.role != omega_state_calls::StateCallRole::TransitionGuard
+    {
+        append_state_body_operations(
+            context,
+            state_call.target_key,
+            None,
+            operations,
+            expressions,
+            invariant_names,
+            type_references,
+            visiting,
+        );
+    }
 }
 
 fn append_state_call_result_operation(

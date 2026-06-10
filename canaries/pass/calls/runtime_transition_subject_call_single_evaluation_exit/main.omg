@@ -1,0 +1,70 @@
+// A transition's guard SUBJECT evaluates exactly ONCE per transition evaluation.
+// The parser lowers `transition self.roll(x) { true -> a false -> b }` into one
+// guard per arm, each holding a copy of the subject call; the backend must run
+// the callee a single time and let every arm's comparison reuse that result
+// (native: one branch prelude, per-arm value-selection leafs; interpreter:
+// per-frame guard-call memo). The callee counts its invocations through a
+// `&mut Tally`, returns FALSE so the SECOND arm is the one taken (the reuse
+// path), and the probe ladder asserts exactly one increment.
+//
+// Regression shapes this pins:
+// - callee body spliced into the caller AND emitted via the branch prelude
+//   (double execution per evaluation),
+// - one eager evaluation PER ARM (double execution for a two-arm subject).
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Tally {
+    calls: u64;
+    pad: u64;
+}
+
+data Main {
+    console: Console;
+    tally: Tally;
+}
+
+machine Main::roll(
+    &mut self,
+    tally: &mut Tally
+    ) -> bool {
+    tally.calls = tally.calls + 1;
+
+    transition {
+        _ -> false
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.tally.calls = 40;
+    self.tally.pad = 0;
+
+    transition {
+        _ -> decide()
+    }
+
+
+    state decide(&mut self) {
+        transition self.roll(&mut self.tally) {
+            true -> report()
+            false -> report()
+        }
+    }
+
+    state report(&mut self) {
+        transition {
+            self.tally.calls == 40 -> exit_never_ran()
+            self.tally.calls == 41 -> exit_once()
+            self.tally.calls == 42 -> exit_twice()
+            _ -> exit_other()
+        }
+    }
+
+    state exit_never_ran(&mut self) { self.console.exit_process(10); }
+    state exit_once(&mut self) { self.console.exit_process(70); }
+    state exit_twice(&mut self) { self.console.exit_process(2); }
+    state exit_other(&mut self) { self.console.exit_process(77); }
+}
