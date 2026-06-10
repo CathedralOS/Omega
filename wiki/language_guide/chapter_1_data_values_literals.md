@@ -60,53 +60,89 @@ Working interpretation:
 The `self.` prefix is intentionally visible. It lets a reader distinguish stored
 state from locals and parameters at a glance.
 
-## Enums
+## Case Members (Sum Shapes)
 
-`enum` declarations describe a closed set of alternatives: a value is exactly
-one named variant at a time.
+Omega does not have a separate `enum` type. Alternatives are a MEMBER CLASS of
+`data`: a `case` member declares one shape of a closed set, and a value
+inhabits exactly one case at a time.
 
 ```omega
-enum Direction {
-    None,
-    North,
-    South,
-    East,
-    West,
+data Direction {
+    case None;
+    case North;
+    case South;
+    case East;
+    case West;
 }
 ```
 
-The direction is Rust-like sum types: variants may carry typed payloads, and
-matching a variant binds its payload.
+Cases may carry named payload fields, owned by the value exactly like ordinary
+fields:
 
 ```omega
-enum Command {
-    None,
-    Quit,
-    Move(Direction),
-    Say(String),
+data Command {
+    case None;
+    case Quit;
+    case Move(direction: Direction);
+    case Say(text: String);
 }
 ```
+
+A declaration's shape follows from its members: only fields is a RECORD, only
+cases is a SUM, fields AND cases together is MIXED -- common fields shared by
+every case, plus a case part:
+
+```omega
+data RoomEvent {
+    consumed: bool;                 // present in every case
+    case Nothing;
+    case Treasure(gold: u32);
+    case Enemy(enemy: Enemy);
+}
+```
+
+The mixed shape replaces the two-type split other languages force (a struct
+holding a separately-named `Kind` enum). The header and the tag belong to one
+declaration, so the compiler -- and the wire schema, and the version block --
+sees them as one thing.
+
+Because cases are data members, everything that works on `data` works on
+case-bearing data: domains classify case subsets, versions and `wire data`
+cover the case part, and the zero rules apply uniformly.
+
+```omega
+domain Command::Movement when self case Move;
+```
+
+A case-subset domain replaces the shadow-enum pattern (`Direction` vs
+`HorizontalDirection`): a narrower set of cases is a domain over the same
+type, not a new type.
 
 Working rules:
 
-- The FIRST variant is the zero variant: its tag is `0`, and it should be the
-  empty/none-like case. This is what makes a zeroed enum a valid value (see
+- The FIRST case is the zero case: its tag is `0`, and it should be the
+  empty/none-like case. This is what makes a zeroed value valid (see
   [Memory Layout And ABI](chapter_19_memory_layout_abi.md) on zero
   initialization).
-- Variant payloads are owned by the value, exactly like `data` fields.
-- Matching is exhaustive: every variant is handled or a `_` arm exists.
+- Matching over a case-bearing data is exhaustive: every case is handled or a
+  `_` arm exists. A mixed shape matches on its case part.
+- Cases, domains, and machines share the type's `Type::member` namespace;
+  member names must be unique within it. The `case` spelling at declaration
+  and pattern sites distinguishes a case pattern from a domain pattern.
 - The compiler never repurposes invalid payload bit patterns to elide the tag
   (no niche optimization); the zero bit pattern must stay a valid value.
 
-Payload-carrying variants are a committed direction, not yet an implemented
-one: today the compiler accepts payload-less enums end-to-end, and rejects
-payload declarations at parse time.[^enum-payloads]
+Transitional note: today's compiler spells variant-only sums with an `enum`
+keyword and rejects payloads. `enum` is retired by this decision; `case`
+members, payloads, and the mixed shape are pending parser/lowering
+work.[^case-members]
 
-[^enum-payloads]: Open details for payload support: pattern-binding syntax in
-`transition` arms vs `match` arms, generic payloads (`Option<T>`-style), and
-the layout rule for payload storage (tag-prefixed union with the zero variant
-payload-free). The no-niche rule above is decided; the rest should be settled
-when the parser work starts.
+[^case-members]: Open details: pattern-binding spelling in `transition` arms
+vs `match` arms (expected to reuse the data-destructure guard machinery:
+`case Move { direction } -> go(direction)`); generic payloads
+(`Option<T>`-style); the layout rule for payload storage (tag-prefixed
+overlay with the zero case payload-free); and whether a case-subset domain
+gets dedicated sugar beyond `when self case ...`.
 
 ## Locals
 

@@ -95,13 +95,17 @@ implementation work. Each one gets more expensive to retrofit every month.
    image emission bet is aligned with this; the gap is the freestanding
    flavor of it.
 
-8. **Enum payloads / sum types** (frontend REJECTS `enum E { A(i32) }`
-   today). Cathedral's error model is `data Failure { cause: FailureCause; … }`
-   with typed, matchable causes — that wants real tagged unions, as does any
-   driver/protocol code. Currently `Value::Enum.payload` machinery exists in
-   the interpreter but the parser rejects the declaration syntax. This is an
-   ordinary language feature with no design controversy — just needs doing,
-   and the longer samples avoid it, the more code is written around it.
+8. **Case members (sum/mixed data shapes)** — DESIGN DECIDED, implementation
+   pending. There is no separate `enum` type: alternatives are a member class
+   of `data` (`case` members, named payload fields, MIXED shapes = common
+   fields + a case part in one declaration), so case-bearing types get
+   domains, versions, and `wire data` for free, and case-subset domains
+   replace shadow enums. See chapter 1 + TASKS.md frozen decision 7. The
+   typed trees already model this (`DataMember::Field | Variant`,
+   `DataShapeKind::Mixed`); the work is parser (`case` syntax, payloads),
+   pattern binding, and layout/lowering. Cathedral's typed `Failure` causes
+   and every driver/protocol record want this; the longer samples avoid it,
+   the more code is written around it.
 
 ## Tier 2 — note now, design later (TBD register)
 
