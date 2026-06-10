@@ -1,0 +1,147 @@
+// A LOCAL whose address escapes into a sibling-state transition (`&mut random`)
+// must keep its frame storage while the sibling runs. The sibling's guard is a
+// value call whose inlined callee chain (should_carve -> chance -> range ->
+// next_u32) allocates guard call-results and chain locals; if the frame stacker
+// overlays sibling states within one call context, those land INSIDE the
+// still-referenced RandomState, and next_u32's write through `&mut state` at
+// pointee offset 0 clobbers the first arm's guard result byte. Both arm compares
+// then fail and the dispatch silently falls through to the continuation, skipping
+// hall_two -- the dungeon "generation stalls after the first should_carve" bug.
+// The unused pass-through `seed: u64` shifts the layout so the overlap hits the
+// result byte (mirrors MazeBuilder::build's signature).
+//
+// Expected: build runs hall_two, room_count == 8 -> exit 70.
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data RandomState {
+    seed: u64;
+    calls: u64;
+}
+
+data Random {
+}
+
+machine Random::next_u32(
+    &mut self,
+    state: &mut RandomState
+    ) -> u32 {
+    state.seed = state.seed + 1;
+
+    transition {
+        _ -> 7
+    }
+}
+
+machine Random::range(
+    &mut self,
+    state: &mut RandomState,
+    exclusive_max: u32
+    ) -> u32 {
+    let raw: u32 = self.next_u32(state);
+
+    transition {
+        _ -> (raw % exclusive_max)
+    }
+}
+
+machine Random::chance(
+    &mut self,
+    state: &mut RandomState,
+    numerator: u32,
+    denominator: u32
+    ) -> bool {
+    let roll: u32 = self.range(state, denominator);
+
+    transition {
+        _ -> (roll < numerator)
+    }
+}
+
+data Level {
+    room_count: usize;
+    deepest_depth: u32;
+}
+
+data MazeBuilder {
+    rng: Random;
+}
+
+machine MazeBuilder::build(
+    &mut self,
+    seed: u64,
+    level: &mut Level
+) {
+    let random: RandomState;
+
+    level.room_count = 2;
+
+    transition {
+        _ -> maybe_side(level, &mut random)
+    }
+
+
+    state maybe_side(
+        &mut self,
+        level: &mut Level,
+        random: &mut RandomState
+    ) {
+        transition self.should_carve(random) {
+            true -> hall_two(level, random)
+            false -> hall_two(level, random)
+        }
+    }
+
+    state hall_two(
+        &mut self,
+        level: &mut Level,
+        random: &mut RandomState
+    ) {
+        level.room_count = 8;
+    }
+}
+
+machine MazeBuilder::should_carve(
+    &mut self,
+    random: &mut RandomState
+    ) -> bool {
+    let rolled: bool = self.rng.chance(random, 50, 100);
+
+    transition {
+        _ -> rolled
+    }
+}
+
+data Dungeon {
+    maze: MazeBuilder;
+    level: Level;
+}
+
+machine Dungeon::initialize(
+    &mut self,
+    seed: u64
+) {
+    self.maze.build(seed, &mut self.level);
+}
+
+data Main {
+    console: Console;
+    dungeon: Dungeon;
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.dungeon.initialize(7);
+
+    transition {
+        self.dungeon.level.room_count == 8 -> probe_correct()
+        self.dungeon.level.room_count == 2 -> probe_stalled()
+        _ -> probe_other()
+    }
+
+    state probe_correct(&mut self) { self.console.exit_process(70); }
+    state probe_stalled(&mut self) { self.console.exit_process(2); }
+    state probe_other(&mut self) { self.console.exit_process(77); }
+}

@@ -386,12 +386,19 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     Ok(backend_plan)
 }
 
-/// Give each call-context (specialized clone) a disjoint frame region so a
-/// caller's live slots survive the dispatched calls it makes. Slots are built
-/// per dispatch body from offset 0; this shifts every slot by its context's
-/// cumulative base. States within one context keep sharing their range (they are
-/// never simultaneously live), and the entry context (`ROOT`) stays at base 0, so
-/// programs without dispatched calls are unchanged.
+/// Give each call-context (specialized clone) -- and each STATE within a context
+/// -- a disjoint frame region so live slots survive both the dispatched calls a
+/// caller makes and the sibling-state transitions within one machine. Slots are
+/// built per dispatch body from offset 0; this shifts every slot by its
+/// (context, state) group's cumulative base.
+///
+/// States within one context must NOT share a range: a state's local stays live
+/// across a sibling transition whenever its address escapes (`&mut local` passed
+/// as a transition argument). Overlaying siblings let the successor's guard
+/// call-results and inlined callee-chain locals land INSIDE the predecessor's
+/// still-referenced local, so a write through the forwarded `&mut` clobbered the
+/// successor's guard result (and vice versa) -- the dungeon "generation stalls
+/// after the first should_carve" bug.
 fn stack_runtime_storage_by_call_context(
     storage: &mut omega_runtime_storage::RuntimeStoragePlan,
     runtime_flow: &RuntimeFlowPlan,
@@ -410,11 +417,7 @@ fn stack_runtime_storage_by_call_context(
         }
         contexts[index] = state.context.0;
     }
-    let Some(&max_context) = contexts.iter().max() else {
-        return;
-    };
-    if max_context == 0 {
-        // Only the entry context: every body already lays out from 0.
+    if contexts.is_empty() {
         return;
     }
     let context_of = |dispatch_index: u32| -> usize {
@@ -437,22 +440,25 @@ fn stack_runtime_storage_by_call_context(
         .max()
         .unwrap_or(1);
 
-    let context_count = max_context as usize + 1;
-    let mut sizes = vec![0usize; context_count];
-    let mut alignments = vec![1usize; context_count];
+    // Group by (context, dispatch_index) and stack the groups into disjoint
+    // regions ordered context-major (ROOT's states first; context ids are minted
+    // parent-before-child, so any caller's region precedes its callees').
+    let mut groups: std::collections::BTreeMap<(usize, u32), (usize, usize)> =
+        std::collections::BTreeMap::new();
     for (_, slot) in storage.frame_slots.iter() {
-        let context = context_of(slot.dispatch_index);
-        sizes[context] = sizes[context].max(slot.byte_offset + slot.byte_size);
-        alignments[context] = alignments[context].max(slot.alignment.max(1));
+        let key = (context_of(slot.dispatch_index), slot.dispatch_index);
+        let entry = groups.entry(key).or_insert((0usize, 1usize));
+        entry.0 = entry.0.max(slot.byte_offset + slot.byte_size);
+        entry.1 = entry.1.max(slot.alignment.max(1));
     }
 
-    // Stack contexts into disjoint regions (ROOT first, at base 0). Context ids
-    // are minted parent-before-child, so any caller precedes its callees.
-    let mut bases = vec![0usize; context_count];
+    let mut bases: std::collections::BTreeMap<(usize, u32), usize> =
+        std::collections::BTreeMap::new();
     let mut next_base = 0usize;
-    for context in 0..context_count {
-        bases[context] = next_base.next_multiple_of(alignments[context]);
-        next_base = bases[context] + sizes[context];
+    for (key, (size, alignment)) in &groups {
+        let base = next_base.next_multiple_of(*alignment);
+        bases.insert(*key, base);
+        next_base = base + size;
     }
 
     let handles: Vec<_> = storage
@@ -462,7 +468,8 @@ fn stack_runtime_storage_by_call_context(
         .collect();
     for handle in handles {
         let slot = storage.frame_slots.get_mut(handle);
-        let base = bases[context_of(slot.dispatch_index)];
+        let key = (context_of(slot.dispatch_index), slot.dispatch_index);
+        let base = bases.get(&key).copied().unwrap_or(0);
         slot.byte_offset = slot.byte_offset.saturating_add(base);
     }
 

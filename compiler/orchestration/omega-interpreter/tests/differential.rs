@@ -54,6 +54,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_nested_value_call_in_substate_exit", 70),
     ("calls/runtime_offset_string_call_results_through_reference_fields_exit", 196),
     ("calls/runtime_recursive_value_return_exit", 70),
+    ("calls/runtime_referenced_local_outlives_sibling_guard_call_exit", 70),
     ("calls/runtime_reference_param_forwarded_through_loop_exit", 70),
     ("calls/runtime_reference_returned_slice_element_through_param_exit", 70),
     ("calls/runtime_reference_returned_slice_element_write_exit", 181),
@@ -544,13 +545,12 @@ fn interpreter_dungeon_renders_depth_correct_rooms() {
     );
 }
 
-/// Strict interpreter-vs-native equality over the dungeon sample. IGNORED until the
-/// backend deep-room bug is fixed: native renders R03+ with the depth<=2 description
-/// (lost `&mut Level` mutations through dispatched generation), so today this fails with
-/// exactly that diff. Run on demand (`cargo test ... -- --ignored`) to see the live
-/// divergence; un-ignore once the backend fix lands so it becomes the permanent guard.
+/// Strict interpreter-vs-native equality over the dungeon sample: the full game binary
+/// and the reference interpreter must produce byte-identical stdout (and the same exit
+/// code) for a deep `north x4` walk. This is the end-to-end differential guard that
+/// caught the frame-stacker sibling-overlay bug (generation silently stalled after the
+/// first `should_carve` guard, so R03+ rendered the shallow description).
 #[test]
-#[ignore = "native loses &mut Level depth mutations through dispatched generation (R03+ renders the shallow description)"]
 fn interpreter_matches_native_on_dungeon_sample() {
     let main_path = repo_root()
         .join("samples")
