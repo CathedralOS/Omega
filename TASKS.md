@@ -9,6 +9,12 @@ representation machinery behind a deliberate boundary.
 
 ## Current Strategic Focus
 
+- Omega's first real consumer is the Cathedral OS (`../Cathedral`). The gap
+  analysis between Cathedral's architectural bets and the language's current
+  state lives in [wiki/cathedral_alignment.md](wiki/cathedral_alignment.md) —
+  Tier 1 items there (ZII guarantee, wire data semantics, versioned data,
+  separate-compilation awareness, concurrency/atomics decisions, freestanding
+  target, enum payloads) should bias which vertical slices get picked next.
 - Drive vertical slices instead of endless cleanup. Refactor when it unblocks a
   feature, clarifies semantic ownership, or adds a canary.
 - Make capabilities/authority, proof-backed indexing/subslicing, ranking views,
