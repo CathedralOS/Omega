@@ -82,6 +82,15 @@ struct Frame {
     /// SIBLING state resolve it within this machine (rather than re-entering the machine's
     /// entry state, which would recurse forever).
     machine_symbol: SymbolHandle,
+    /// Value-call results computed while evaluating THIS state pass's transition guards,
+    /// keyed by call-expression handle. A transition subject is evaluated ONCE per
+    /// transition evaluation: the parser lowers `transition self.f(x) { true -> a
+    /// false -> b }` into one guard per arm, each holding a COPY of the subject call, so
+    /// a later arm must reuse the first arm's result (matching the native lowering)
+    /// instead of re-running the callee's side effects. Copies have distinct handles, so
+    /// lookups compare structurally. The frame is rebuilt for every state (re)entry, so
+    /// loops re-evaluate naturally.
+    guard_call_results: RefCell<Vec<(ExpressionHandle, Value)>>,
 }
 
 struct Evaluator<'program> {
@@ -91,6 +100,10 @@ struct Evaluator<'program> {
     stdin_cursor: usize,
     steps: u64,
     call_depth: u32,
+    /// Non-zero while evaluating a transition GUARD expression. Value-calls evaluated
+    /// under a guard memoize into the frame's `guard_call_results` so the per-arm
+    /// copies of one transition subject evaluate the callee once (see `Frame`).
+    guard_depth: u32,
 }
 
 impl<'program> Evaluator<'program> {
@@ -102,6 +115,7 @@ impl<'program> Evaluator<'program> {
             stdin_cursor: 0,
             steps: 0,
             call_depth: 0,
+            guard_depth: 0,
         }
     }
 
@@ -160,6 +174,7 @@ impl<'program> Evaluator<'program> {
                     locals: RefCell::new(BTreeMap::new()),
                     self_cell: Value::Unit.cell(),
                     machine_symbol: SymbolHandle::invalid(),
+                    guard_call_results: RefCell::new(Vec::new()),
                 };
                 self.eval_expression(owned.initial_value, &frame)?
             } else {
@@ -194,6 +209,7 @@ impl<'program> Evaluator<'program> {
                     locals: RefCell::new(BTreeMap::new()),
                     self_cell: Value::Unit.cell(),
                     machine_symbol: SymbolHandle::invalid(),
+                    guard_call_results: RefCell::new(Vec::new()),
                 };
                 self.eval_expression(field.initial_value, &frame)?
             } else {
@@ -430,6 +446,7 @@ impl<'program> Evaluator<'program> {
             locals: RefCell::new(locals),
             self_cell,
             machine_symbol,
+            guard_call_results: RefCell::new(Vec::new()),
         })
     }
 
@@ -484,7 +501,10 @@ impl<'program> Evaluator<'program> {
         let holds = match transition.guard {
             TransitionGuardNode::Always => true,
             TransitionGuardNode::When(expression) => {
-                let value = self.eval_expression(expression, frame)?;
+                self.guard_depth += 1;
+                let value = self.eval_expression(expression, frame);
+                self.guard_depth -= 1;
+                let value = value?;
                 value
                     .as_bool()
                     .ok_or_else(|| Halt::Trap("transition guard is not boolean".to_owned()))?
@@ -1039,7 +1059,7 @@ impl<'program> Evaluator<'program> {
 
     fn eval_call_expression(
         &mut self,
-        _handle: ExpressionHandle,
+        handle: ExpressionHandle,
         call: &omega_typed_trees::expression::TableCallExpression,
         frame: &Frame,
     ) -> EvalResult<Value> {
@@ -1078,6 +1098,24 @@ impl<'program> Evaluator<'program> {
             }
         }
 
+        // A transition's guard subject evaluates ONCE per transition evaluation: the
+        // parser lowers `transition self.f(x) { true -> a false -> b }` into one guard
+        // per arm, each holding a COPY of the subject call (distinct handles, identical
+        // structure). A later arm reuses the earlier arm's result instead of re-running
+        // the callee's side effects -- matching the native lowering's shared prelude.
+        if self.guard_depth > 0 {
+            let memo = frame.guard_call_results.borrow();
+            for (seen, value) in memo.iter() {
+                if self
+                    .program
+                    .expression_table
+                    .expressions_structurally_equal(*seen, handle)
+                {
+                    return Ok(value.clone());
+                }
+            }
+        }
+
         // Resolve the value-call. A bare-self receiver naming a SIBLING state of the
         // current machine runs that state; a receiver expression resolving to a contained
         // sub-machine instance runs on that instance; otherwise a free helper machine.
@@ -1087,8 +1125,23 @@ impl<'program> Evaluator<'program> {
         for argument in self.program.expression_table.expression_handles(call.arguments) {
             args.push(self.eval_call_expression_argument(*argument, frame)?);
         }
-        self.run_state_collect(&machine, &entry_state, instance, args)
-            .map(|value| value.unwrap_or(Value::Unit))
+        // Suspend the guard flag while the callee RUNS: distinct same-shaped calls
+        // inside its body are genuine repeat calls, not copies of one source
+        // expression, and must not memoize against each other.
+        let entered_guard_depth = self.guard_depth;
+        self.guard_depth = 0;
+        let value = self
+            .run_state_collect(&machine, &entry_state, instance, args)
+            .map(|value| value.unwrap_or(Value::Unit));
+        self.guard_depth = entered_guard_depth;
+        let value = value?;
+        if entered_guard_depth > 0 {
+            frame
+                .guard_call_results
+                .borrow_mut()
+                .push((handle, value.clone()));
+        }
+        Ok(value)
     }
 
     fn resolve_value_call_target(

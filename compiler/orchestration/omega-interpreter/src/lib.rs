@@ -38,6 +38,10 @@
 //! to a nested call or a transition-target state -- stays aliased, hop after hop);
 //! `dyn Trait` dispatch by the receiver's RUNTIME type (works for any number of
 //! impls -- AHEAD of the native backend, which only devirtualizes single-impl traits); the
+//! transition guard SUBJECTS evaluate exactly once per transition evaluation (the
+//! parser copies the subject call into every arm's guard; the per-frame memo reuses
+//! the first arm's result instead of re-running the callee's side effects, matching
+//! the native lowering's shared branch prelude); the
 //! entry machine's value as the exit code; the Console boundary `exit_process`,
 //! `write`/`write_line`, and `read_line` (consuming `stdin`), including the imported std
 //! `console`. The full `dungeon_crawler_cli` sample interprets end-to-end with
