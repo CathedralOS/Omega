@@ -159,6 +159,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("text/runtime_mutable_struct_string_field_copy_concat_exit", 77),
     ("text/runtime_mutable_struct_string_field_copy_concat_write_line", 77),
     ("text/runtime_slice_alias_indexed_string_field_concat_exit", 77),
+    ("text/runtime_stderr_write_exit", 70),
     ("text/runtime_string_concat_membership_exit", 71),
     ("text/runtime_string_concat_two_fields_exit", 70),
     ("text/runtime_string_field_concat_exit", 73),
@@ -168,6 +169,198 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("types/runtime_isize_signed_arith_exit", 70),
     ("types/runtime_u8_field_arith_exit", 70),
 ];
+
+/// Run canaries the suite executes that are DELIBERATELY not in `RUN_CANARIES`,
+/// each with the reason. The drift guard below asserts that every run canary the
+/// suite asserts an exit code for appears in exactly one of the two lists, so an
+/// exclusion can never be silent (and a stale exclusion fails the guard too).
+///
+/// `(relative path under canaries/pass, reason for exclusion)`.
+const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
+    (
+        "dungeon/runtime_ordered_room_dispatch_loop_exit",
+        "suite feeds stdin (b\"east\\n\"); differential harness runs with empty stdin, so the recorded exit code 135 does not apply",
+    ),
+    (
+        "dungeon/runtime_ordered_room_dispatch_real_show_states_exit",
+        "suite feeds stdin (b\"east\\n\"); differential harness runs with empty stdin, so the recorded exit code 145 does not apply",
+    ),
+    (
+        "text/runtime_stdin_command_branch_exit",
+        "suite feeds stdin (b\"look\\n\" command); differential harness runs with empty stdin, so the recorded exit code 0 does not apply",
+    ),
+    (
+        "text/runtime_stdin_line_buffering_exit",
+        "suite feeds stdin (b\"hello\\nworld\\n\", plus a CRLF variant test reusing this canary); differential harness runs with empty stdin, so the recorded exit code 0 does not apply",
+    ),
+];
+
+/// Drift guard: re-parse `canary_suite.rs` at test time and assert every
+/// `*_canary_runs` test that calls `pass_canary(..)` and asserts `Some(code)` is
+/// mirrored in `RUN_CANARIES` (or explicitly listed in `EXCLUDED_RUN_CANARIES`).
+/// Fails with copy-paste-ready entries when the lists drift.
+#[test]
+fn run_canary_list_matches_canary_suite() {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let suite_path = repo_root()
+        .join("compiler/orchestration/omega-compiler/tests/canary_suite.rs");
+    let source = fs::read_to_string(&suite_path).unwrap_or_else(|error| {
+        panic!("failed to read canary suite source at {}: {error}", suite_path.display())
+    });
+
+    let parsed = parse_suite_run_canaries(&source);
+    assert!(
+        parsed.len() >= 130,
+        "parsed only {} (path, code) pairs from {} -- the canary_suite.rs parser \
+         in this test has likely regressed (expected at least 130)",
+        parsed.len(),
+        suite_path.display()
+    );
+
+    let expected: BTreeMap<&str, i32> = RUN_CANARIES.iter().copied().collect();
+    let excluded: BTreeMap<&str, &str> = EXCLUDED_RUN_CANARIES.iter().copied().collect();
+    let parsed_paths: BTreeSet<&str> = parsed.iter().map(|(path, _)| path.as_str()).collect();
+
+    let mut problems: Vec<String> = Vec::new();
+
+    // Suite canaries that are neither mirrored nor explicitly excluded.
+    let missing: Vec<&(String, i32)> = parsed
+        .iter()
+        .filter(|(path, _)| {
+            !expected.contains_key(path.as_str()) && !excluded.contains_key(path.as_str())
+        })
+        .collect();
+    if !missing.is_empty() {
+        let lines: Vec<String> = missing
+            .iter()
+            .map(|(path, code)| format!("    (\"{path}\", {code}),"))
+            .collect();
+        problems.push(format!(
+            "MISSING from RUN_CANARIES (paste into the sorted list, or add to \
+             EXCLUDED_RUN_CANARIES with a reason):\n{}",
+            lines.join("\n")
+        ));
+    }
+
+    // Mirrored canaries whose suite-asserted exit code drifted.
+    let mut wrong_code: Vec<String> = Vec::new();
+    for (path, code) in &parsed {
+        if let Some(recorded) = expected.get(path.as_str()) {
+            if recorded != code {
+                wrong_code.push(format!(
+                    "    (\"{path}\", {code}),  // RUN_CANARIES records {recorded}"
+                ));
+            }
+        }
+    }
+    if !wrong_code.is_empty() {
+        problems.push(format!(
+            "EXIT CODE DRIFT (suite now asserts a different code; update RUN_CANARIES):\n{}",
+            wrong_code.join("\n")
+        ));
+    }
+
+    // RUN_CANARIES entries the suite no longer runs.
+    let stale: Vec<String> = RUN_CANARIES
+        .iter()
+        .filter(|(path, _)| !parsed_paths.contains(path))
+        .map(|(path, code)| format!("    (\"{path}\", {code}),"))
+        .collect();
+    if !stale.is_empty() {
+        problems.push(format!(
+            "STALE in RUN_CANARIES (no matching `pass_canary` run canary in the suite; remove):\n{}",
+            stale.join("\n")
+        ));
+    }
+
+    // Exclusions must reference a live suite canary and must not shadow RUN_CANARIES.
+    for (path, reason) in EXCLUDED_RUN_CANARIES {
+        if !parsed_paths.contains(path) {
+            problems.push(format!(
+                "STALE EXCLUSION: (\"{path}\", \"{reason}\") -- the suite no longer runs it; remove from EXCLUDED_RUN_CANARIES"
+            ));
+        }
+        if expected.contains_key(path) {
+            problems.push(format!(
+                "OVERLAP: \"{path}\" is in both RUN_CANARIES and EXCLUDED_RUN_CANARIES; pick one"
+            ));
+        }
+    }
+
+    assert!(
+        problems.is_empty(),
+        "RUN_CANARIES drifted from canary_suite.rs ({} suite run canaries parsed):\n\n{}",
+        parsed.len(),
+        problems.join("\n\n")
+    );
+}
+
+/// Extract every `(pass_canary path, asserted exit code)` pair from the canary
+/// suite source: function boundaries via `fn <name>_canary_runs(`, then the first
+/// `pass_canary("..")` and the first `Some(<digits>)` within that function's text
+/// (up to the next top-level `fn `). Functions without a `pass_canary` call (e.g.
+/// sample-based run tests) or without a numeric `Some(..)` assertion are skipped.
+/// Pairs are deduplicated (one canary program can back multiple suite tests).
+fn parse_suite_run_canaries(source: &str) -> Vec<(String, i32)> {
+    use std::collections::BTreeSet;
+
+    // Byte offsets of every top-level-looking `fn ` (start of file or preceded by a
+    // newline); each function's text runs until the next such offset.
+    let mut fn_starts: Vec<usize> = source
+        .match_indices("\nfn ")
+        .map(|(index, _)| index + 1)
+        .collect();
+    if source.starts_with("fn ") {
+        fn_starts.insert(0, 0);
+    }
+
+    let mut pairs: BTreeSet<(String, i32)> = BTreeSet::new();
+    for (position, &start) in fn_starts.iter().enumerate() {
+        let end = fn_starts.get(position + 1).copied().unwrap_or(source.len());
+        let body = &source[start..end];
+
+        // `fn <name>(` -- only `_canary_runs` tests are run canaries.
+        let after_fn = &body["fn ".len()..];
+        let name_end = after_fn
+            .find(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_')
+            .unwrap_or(after_fn.len());
+        let name = &after_fn[..name_end];
+        if !name.ends_with("_canary_runs") || !after_fn[name_end..].starts_with('(') {
+            continue;
+        }
+
+        // First pass_canary("...") -- absent for sample-based tests: skip those.
+        let Some(path) = body
+            .split_once("pass_canary(\"")
+            .and_then(|(_, rest)| rest.split_once('"'))
+            .map(|(path, _)| path)
+        else {
+            continue;
+        };
+
+        // First `Some(` whose payload is a numeric literal (the asserted exit code).
+        let Some(code) = first_numeric_some(body) else {
+            continue;
+        };
+
+        pairs.insert((path.to_string(), code));
+    }
+    pairs.into_iter().collect()
+}
+
+/// First `Some(<digits>)` in `text`, parsed as the exit code.
+fn first_numeric_some(text: &str) -> Option<i32> {
+    let mut remaining = text;
+    while let Some((_, rest)) = remaining.split_once("Some(") {
+        let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+        if !digits.is_empty() && rest[digits.len()..].starts_with(')') {
+            return digits.parse().ok();
+        }
+        remaining = rest;
+    }
+    None
+}
 
 #[test]
 fn interpreter_matches_native_on_supported_canaries() {
