@@ -103,6 +103,53 @@ Examples:
 The declaration can live in a standard type, platform entry, syscall surface, or
 boundary host package. The important rule is that blocking must not be invisible.
 
+## Atomics
+
+Ownership is the primary mutual-exclusion story: two concurrent graphs cannot
+hold `&mut` to the same data, so most code never sees a data race. Atomics are
+the sanctioned carve-out -- the "data types whose contracts permit concurrent
+access" -- for the places where genuinely shared mutable state is the point:
+schedulers, shared rings, counters, and lock-free structures.
+
+The direction is Rust-like atomics: dedicated core types with explicit
+orderings on every operation.
+
+```omega
+data TicketLine {
+    next_ticket: AtomicU32;
+}
+
+machine TicketLine::take(&mut self) -> u32 {
+    self.next_ticket.fetch_add(1, Ordering::Relaxed)
+}
+```
+
+Working rules:
+
+- Atomic types are distinct core types (`AtomicU32`, `AtomicU64`, `AtomicBool`,
+  `AtomicUsize`); ordinary integers never silently become atomic.
+- Every operation names its ordering: `Relaxed`, `Acquire`, `Release`,
+  `AcqRel`, `SeqCst` -- the C11/Rust vocabulary, because hardware, existing
+  literature, and audit expectations all speak it.
+- The operation set is load, store, swap, `compare_exchange` (with separate
+  success/failure orderings), and the fetch-and-modify family.
+- Atomics are exempt from the exclusive-`&mut` aliasing rule by their
+  contracts: shared access is the type's documented purpose, not a borrow
+  checker escape used elsewhere.
+- A zeroed atomic is the value zero, consistent with zero initialization
+  ([Memory Layout And ABI](chapter_19_memory_layout_abi.md)).
+
+Atomics underpin the waitable types above (`Mutex`, `Barrier`) and shared-ring
+IPC, so they sit below `spawn` in the implementation order even though they
+appear later in this chapter.[^atomics-open]
+
+[^atomics-open]: Open details: whether atomics lower as compiler intrinsics or
+boundary operators with instruction contracts (intrinsics are the working
+assumption -- they need exact codegen, not auditability, and have no authority
+semantics); standalone fences; whether `SeqCst` is restricted or discouraged
+in proofs; and how the TLA-style model treats relaxed-ordering visibility
+(first cut: the deadlock model ignores ordering and only tracks waits).
+
 ## TLA-Style Model
 
 The proof checker can extract a small transition model from concurrent machine

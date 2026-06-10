@@ -20,6 +20,15 @@ covers at all (atomics, volatile/MMIO, enum payloads, separate compilation).**
 These are decisions whose *absence is silently being decided* by ongoing
 implementation work. Each one gets more expensive to retrofit every month.
 
+> Scaffolding status: the clear-direction items below are now CAPTURED in the
+> language guide with footnotes marking the muddy parts — ZII (chapter 19),
+> enums (chapter 1), atomics (chapter 17), volatile/MMIO (chapter 19),
+> freestanding targets + hardware facts (chapter 18), whole-program
+> assumptions (wiki/architecture/whole_program_assumptions.md) — and recorded
+> as Current Answers in the appendix. `wire data` (chapter 20) and versioned
+> data (chapter 21) were already design-complete in the guide; their gap is
+> implementation only.
+
 1. **ZII as a language guarantee — and its collision with bounded invariants.**
    Cathedral adopts "the all-zero bit pattern is a valid, coherent value for
    every construct" as a system-wide convention. Omega never promises this.

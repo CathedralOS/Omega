@@ -524,6 +524,51 @@ The exact provider syntax is provisional. The important design point is that
 raw syscall tables, imported DLL functions, firmware jumps, and loader hooks
 are provider details for boundary traits, not normal Omega machines.
 
+## Freestanding Targets And Hardware Facts
+
+A hosted target's lowest boundary is an operating system. A FREESTANDING
+target (ring 0, kernel, firmware payload) has no host below it: there is no
+syscall surface, no stdin/stdout capability, no process exit. The lowest
+boundary is the hardware itself.
+
+The direction: freestanding is a target whose host-provider set is EMPTY and
+whose boundary providers instead declare facts about hardware. The same
+trust model applies unchanged -- a boundary is where proved Omega code accepts
+declared, audited guarantees it cannot itself verify -- but the guarantees are
+now hardware claims rather than OS claims:
+
+- "after writing this value to the translation-base register, the mapping
+  described by this page-table value is active" (an MMU provider),
+- "this MSR read returns the current value of register X" (a register
+  provider),
+- "stores to this physical region reach device Y in program order" (an MMIO
+  region provider, see
+  [Memory Layout And ABI](chapter_19_memory_layout_abi.md) on volatile),
+- "this instruction sequence masks interrupts until the matching unmask" (an
+  interrupt-control provider).
+
+These are the most serious trust statements in any system built on Omega: a
+kernel's trusted computing base is, in large part, exactly this provider set,
+and it is enumerable in the build artifact like every other boundary. The
+audited inline-assembly subset
+([Inline Assembly](chapter_22_inline_assembly.md)) is the implementation
+vehicle for many of these providers -- the asm instruction contracts ARE
+hardware-fact declarations in small form.
+
+A freestanding target also needs an entry contract: who calls `Main::main`,
+in what machine state (which firmware handoff, what is mapped, what is
+zeroed), expressed as the entry provider's declared guarantees rather than
+ambient assumption.[^freestanding-open]
+
+[^freestanding-open]: Largely undesigned; this section records direction, not
+decisions. Open: the target-declaration shape for "no host" (today every
+target block names a host package); the entry-provider contract spelling
+(UEFI handoff vs multiboot vs bare reset vector); how hardware facts compose
+with domains (is "paging enabled" a fact a provider establishes and later
+providers require?); interrupt-handler entry into a machine graph (calling
+convention, what `&mut self` means when hardware preempts); and how image
+emission grows section/physical-address placement control for boot layouts.
+
 ## Invariant Parameters
 
 Imported signatures should lean on invariant-parameterized types rather than

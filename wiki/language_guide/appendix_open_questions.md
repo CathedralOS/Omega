@@ -48,6 +48,29 @@ This page tracks design pressure that is not fully nailed down yet.
 - Semantic states remain branch-free. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states or basic blocks with explicit edges and cleanup.
 - A machine enters at the top of its body. Machines may still need target-specific startup rules, but function callability and runtime startup should not be conflated.
 - Omega should avoid reserving keywords aggressively. Prefer contextual keywords when grammar position is enough, especially for words like `entry`, `where`, `boundary`, `requires`, and `ensures`. Fully reserved words should be rare and justified by parser clarity, safety, or proof semantics.
+- Zero is initialization. The all-zero bit pattern is a valid, memory-safe
+  inhabitant of every `data` and `enum` type; invariants and domains describe
+  ESTABLISHED values, so a zeroed object carries no facts but is never
+  undefined behavior. No niche-style layout optimization may repurpose the
+  zero pattern. Enum tag `0` is the first declared variant (declare the
+  empty case first). See Memory Layout And ABI.
+- Enums are Rust-like sum types. Payload-carrying variants
+  (`enum Command { None, Move(Direction) }`) are the committed direction;
+  payload-less enums work today. Tag-prefixed layout, exhaustive matching,
+  zero variant first.
+- Atomics are Rust/C11-like: dedicated core atomic types with explicit
+  orderings (`Relaxed`, `Acquire`, `Release`, `AcqRel`, `SeqCst`) on every
+  operation; the sanctioned shared-mutation carve-out from exclusive `&mut`.
+  Working assumption: compiler intrinsics, not boundary operators. See
+  Concurrency.
+- Volatile/device-memory access goes through boundary operators with volatile
+  contracts (each access exactly once, declared width, program order among
+  volatile accesses on a region), not a type qualifier. Hardware ordering is
+  the boundary contract's job, not volatility's. See Memory Layout And ABI.
+- Freestanding (ring-0) targets have an EMPTY host-provider set; the lowest
+  boundary declares facts about hardware (MMU, MSRs, MMIO regions, interrupt
+  control), and the asm instruction-contract subset is the implementation
+  vehicle for many such providers. See Capabilities, Effects, And Boundaries.
 
 ## Still Open
 
@@ -82,3 +105,17 @@ This page tracks design pressure that is not fully nailed down yet.
 - Which words must be globally reserved, and which should remain contextual keywords only?
 - How should imported library/syscall signatures and target bindings describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
 - Should the language eventually support explicit tail calls into machines, and if so what spelling avoids confusing them with ordinary `-> state()` transitions?
+- Enum payloads: pattern-binding syntax in `transition` vs `match` arms,
+  generic payloads, exact tag-prefixed layout rule.
+- Zero-is-initialization follow-ups: the zero-excluding-invariant lint, and
+  whether any type may opt into constructed-only semantics.
+- Atomics follow-ups: standalone fences, `compare_exchange` failure-ordering
+  surface, and how the concurrency proof model treats relaxed visibility.
+- Volatile/hardware follow-ups: the operator surface for MMIO regions, `repr`
+  spelling for packed/explicit-offset hardware structures, untagged unions.
+- Freestanding follow-ups: target-declaration shape for "no host", the entry
+  provider contract (firmware handoff state), interrupt-handler entry into a
+  machine graph, section/physical-address placement in image emission.
+- What is the component artifact + cross-component ABI for separately
+  compiled, hot-swappable machines? (Inventory of current whole-program
+  assumptions: wiki/architecture/whole_program_assumptions.md.)
