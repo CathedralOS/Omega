@@ -436,6 +436,39 @@ language may need staged support here:
 - richer proof facts for boundary constructors and validated transformations,
 - and only later more expressive sequence-wide invariants.
 
+## Domains On Foreign Types
+
+A package may declare a domain over a type it does not own. This is the
+analog of Rust's extension traits: downstream code names its own validity
+classes over upstream data (`domain Entity::Quarantined when ...` in a policy
+package, over a core `Entity`).
+
+Working rules:
+
+- Visibility is import-gated. A foreign-declared domain is not in scope on
+  the type unless the declaring module is imported, so unrelated packages
+  cannot quietly grow a type's namespace for everyone.
+- Collisions are hard errors, never priority. If the owning package and an
+  extending package (or two extenders visible in the same program) declare
+  the same `Type::Name` -- as a case, domain, or machine -- compilation
+  fails at the second declaration. Rust resolves the analogous conflict by
+  silent priority (inherent methods win over extension traits), which lets an
+  upstream addition rebind downstream behavior without an error; Omega
+  rejects that outright because match arms and contracts carry authority
+  decisions.
+- Upstream additions are therefore loud breaking changes downstream. Adding
+  a case or member that collides with an extender's domain breaks the
+  extender's build -- the same severity class as adding a case under an
+  exhaustive match, and the same place it gets caught (whole-program
+  compilation today; package-admission compatibility checking
+  later).[^foreign-domains]
+
+[^foreign-domains]: Open details: the import-gate spelling (does `use
+policy::quarantine;` suffice, or does domain visibility need its own form);
+whether a stricter orphan-style rule (domains only in the type's own package)
+should be available per package or per type; and how foreign-declared domains
+appear in authority-flow and boundary reports.
+
 ## No Hidden RTTI
 
 Omega should not inject hidden domain tags to make classification work.
