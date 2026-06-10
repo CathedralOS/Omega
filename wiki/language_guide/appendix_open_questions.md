@@ -54,10 +54,17 @@ This page tracks design pressure that is not fully nailed down yet.
   undefined behavior. No niche-style layout optimization may repurpose the
   zero pattern. Enum tag `0` is the first declared variant (declare the
   empty case first). See Memory Layout And ABI.
-- Enums are Rust-like sum types. Payload-carrying variants
-  (`enum Command { None, Move(Direction) }`) are the committed direction;
-  payload-less enums work today. Tag-prefixed layout, exhaustive matching,
-  zero variant first.
+- There is no separate `enum` type: alternatives are a MEMBER CLASS of `data`
+  (`case` members with named payload fields). Member shape determines the kind
+  -- fields only is a record, cases only is a sum, both is MIXED (common
+  fields shared by every case plus a case part). Case-bearing data gets the
+  full `data` machinery: domains classify case subsets
+  (`domain Command::Movement when self case Move;` replaces shadow enums),
+  versions and `wire data` cover the case part, zero rules apply uniformly
+  (first case is the zero case). Cases, domains, and machines share the
+  `Type::member` namespace. Exhaustive matching follows from the shape, not a
+  keyword. Today's `enum` spelling is transitional and retired by this
+  decision.
 - Atomics are Rust/C11-like: dedicated core atomic types with explicit
   orderings (`Relaxed`, `Acquire`, `Release`, `AcqRel`, `SeqCst`) on every
   operation; the sanctioned shared-mutation carve-out from exclusive `&mut`.
@@ -105,8 +112,9 @@ This page tracks design pressure that is not fully nailed down yet.
 - Which words must be globally reserved, and which should remain contextual keywords only?
 - How should imported library/syscall signatures and target bindings describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
 - Should the language eventually support explicit tail calls into machines, and if so what spelling avoids confusing them with ordinary `-> state()` transitions?
-- Enum payloads: pattern-binding syntax in `transition` vs `match` arms,
-  generic payloads, exact tag-prefixed layout rule.
+- Case members: pattern-binding spelling in `transition` vs `match` arms
+  (expected to reuse data-destructure guards), generic payloads, the exact
+  tag-prefixed overlay layout, and possible sugar for case-subset domains.
 - Zero-is-initialization follow-ups: the zero-excluding-invariant lint, and
   whether any type may opt into constructed-only semantics.
 - Atomics follow-ups: standalone fences, `compare_exchange` failure-ordering

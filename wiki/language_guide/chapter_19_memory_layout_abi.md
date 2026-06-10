@@ -6,7 +6,7 @@ drivers, inline assembly, and generated machine bytes.
 ## Zero Is Initialization
 
 Omega guarantees that the ALL-ZERO BIT PATTERN is a valid inhabitant of every
-`data` and `enum` type. Reading a zeroed value is never undefined behavior,
+`data` type. Reading a zeroed value is never undefined behavior,
 never a trap, and never breaks memory safety. Zero-filling a value's storage is
 a supported way to construct or reset it.
 
@@ -24,8 +24,9 @@ What makes this hold layer by layer:
 - Fat descriptors (slices, text windows, `String`): `{ ptr: 0, len: 0 }` is
   the canonical empty carrier. Reads see emptiness; nothing dereferences a
   zero pointer with a zero length.
-- Enums: tag `0` is the first declared variant, so declare the empty/none-like
-  case first (see [Enums](chapter_1_data_values_literals.md)).
+- Case-bearing data (sum and mixed shapes): tag `0` is the first declared
+  case, so declare the empty/none-like case first (see
+  [Case Members](chapter_1_data_values_literals.md)).
 - Aggregates: zero recursively zeroes every field, so the guarantee composes.
 - The compiler never performs niche-style layout optimization that gives the
   zero pattern a different meaning or makes it unrepresentable.

@@ -70,6 +70,15 @@ Implementation slices below build against these. Minor/easily-reversible details
    borrowed share layout, differing only by an ownership tag in the semantic
    spine. `omega-runtime-abi` owns the shape (field-offset + subslice accessors);
    `omega-layout` and instruction-selection are consumers.
+7. **Case members, not `enum`.** Alternatives are a member class of `data`:
+   `case` members with named payload fields, shape derived from members
+   (record / sum / MIXED -- common fields plus a case part in one declaration).
+   First case is the zero case (ZII); matching is exhaustive over the case
+   set; no niche layout; cases/domains/machines share the `Type::member`
+   namespace; case-subset domains (`when self case Move`) replace shadow
+   enums. The `enum` keyword is retired once `case` parsing lands (today it
+   remains the transitional spelling for payload-less sums). See chapter 1 +
+   appendix.
 
 ## Next Up (highest leverage)
 
