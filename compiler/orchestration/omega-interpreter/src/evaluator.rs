@@ -790,7 +790,11 @@ impl<'program> Evaluator<'program> {
                         _ => None,
                     };
                     if let Some(target) = forwarded {
-                        return Ok(target);
+                        // Keep the Ref WRAPPER (not the bare target cell) so reference-ness
+                        // survives the NEXT hop too: the callee's param must itself look like
+                        // a `&mut` binding when it forwards the bare name onward (e.g. a
+                        // transition arm `gate_title(out_line)` two machines deep).
+                        return Ok(Value::Ref(target).cell());
                     }
                 }
                 let value = self.eval_expression(argument, frame)?;

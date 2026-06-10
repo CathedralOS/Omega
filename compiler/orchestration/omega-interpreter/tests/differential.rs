@@ -18,8 +18,9 @@
 use omega_compiler::{compile, compile_to_checked, CompileOptions};
 use omega_interpreter::interpret;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// The RUN canaries: `(relative path under canaries/pass, exit code the suite asserts)`.
 /// Extracted from `canary_suite.rs` (every test that runs `executable_name()` and asserts
@@ -282,6 +283,109 @@ fn interpreter_matches_native_on_cli_mvp_sample() {
     );
 }
 
+/// The dungeon script the canary suite's PE test could use to visit R00..R04: four `north`
+/// moves walk the main hall chain, then `quit`.
+const DUNGEON_SCRIPT: &[u8] = b"north\r\nnorth\r\nnorth\r\nnorth\r\nquit\r\n";
+
+/// The full dungeon sample, interpreted end-to-end, pins the ORACLE-SIDE GROUND TRUTH for
+/// the known native deep-room bug. Room descriptions are depth-derived
+/// (`MazeBuilder::room_description`: depth <= 2 shallow limestone, depth <= 5 winding
+/// branch, deeper tiers darker), and the interpreter renders R03/R04 (depth 3/4) with the
+/// "winding branch" text. The NATIVE binary currently renders the depth<=2 text there
+/// (lost `&mut Level` mutations through dispatched generation), which is why this asserts
+/// against the interpreter only -- see `interpreter_matches_native_on_dungeon_sample`.
+#[test]
+fn interpreter_dungeon_renders_depth_correct_rooms() {
+    let main_path = repo_root()
+        .join("samples")
+        .join("dungeon_crawler_cli")
+        .join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "dungeon compile to checked failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+
+    let outcome = interpret(&checked, DUNGEON_SCRIPT);
+    assert!(
+        !outcome.is_error(),
+        "the dungeon should be fully supported by the interpreter, got: {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 0, "dungeon should exit 0 after `quit`");
+    let stdout = String::from_utf8_lossy(&outcome.stdout).into_owned();
+
+    // R00, the gate.
+    assert!(stdout.contains("== Gate =="), "gate title\n{stdout}");
+    assert!(
+        stdout.contains("A bottomless dark room near the dungeon heart."),
+        "gate description\n{stdout}"
+    );
+    // R01/R02 are depth <= 2.
+    assert!(
+        stdout.contains("A shallow limestone room with fresh claw marks."),
+        "shallow-tier description\n{stdout}"
+    );
+    // R03/R04 are depth 3/4 -- the tier the native backend currently collapses to the
+    // shallow text. This line is the ground truth the backend fix must reproduce.
+    assert!(
+        stdout.contains("A winding branch room where the walls sweat mineral dust."),
+        "deep rooms (R03/R04) must render the depth-3..5 description\n{stdout}"
+    );
+    // The per-line formatter machines (title/event/paths) write through `&mut String`
+    // params forwarded INTO transition-target states; guard that they render their own
+    // text rather than echoing the stale description (multi-hop ref-forwarding).
+    assert!(stdout.contains("The room is quiet."), "event line\n{stdout}");
+    assert!(
+        stdout.contains("[Paths] south | north | east"),
+        "paths line\n{stdout}"
+    );
+    assert!(
+        stdout.contains("A dungeon bat blocks the way. Type fight."),
+        "enemy event line (R03)\n{stdout}"
+    );
+    assert!(
+        stdout.contains("A fountain of life glows here. Type use to drink."),
+        "fountain event line (R04)\n{stdout}"
+    );
+}
+
+/// Strict interpreter-vs-native equality over the dungeon sample. IGNORED until the
+/// backend deep-room bug is fixed: native renders R03+ with the depth<=2 description
+/// (lost `&mut Level` mutations through dispatched generation), so today this fails with
+/// exactly that diff. Run on demand (`cargo test ... -- --ignored`) to see the live
+/// divergence; un-ignore once the backend fix lands so it becomes the permanent guard.
+#[test]
+#[ignore = "native loses &mut Level depth mutations through dispatched generation (R03+ renders the shallow description)"]
+fn interpreter_matches_native_on_dungeon_sample() {
+    let main_path = repo_root()
+        .join("samples")
+        .join("dungeon_crawler_cli")
+        .join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "dungeon compile to checked failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, DUNGEON_SCRIPT);
+    assert!(
+        !outcome.is_error(),
+        "the dungeon should be fully supported by the interpreter, got: {:?}",
+        outcome.error
+    );
+
+    let (native_code, native_stdout) =
+        compile_and_run_native_with_stdin("dungeon_crawler_cli", &main_path, DUNGEON_SCRIPT);
+    assert_eq!(outcome.exit_code, native_code, "dungeon exit code");
+    assert_eq!(
+        String::from_utf8_lossy(&outcome.stdout),
+        String::from_utf8_lossy(&native_stdout),
+        "dungeon stdout: interpreter (left) vs native (right)"
+    );
+}
+
 /// Collapse skip reasons to a normalized phrase so we can rank the most common unsupported
 /// constructs (program-specific identifiers in backticks are stripped).
 fn summarize_reasons(skipped: &[(String, String)], top: usize) -> Vec<(String, usize)> {
@@ -319,6 +423,14 @@ fn normalize_reason(reason: &str) -> String {
 }
 
 fn compile_and_run_native(canary_name: &str, main_path: &Path) -> (i32, Vec<u8>) {
+    compile_and_run_native_with_stdin(canary_name, main_path, b"")
+}
+
+fn compile_and_run_native_with_stdin(
+    canary_name: &str,
+    main_path: &Path,
+    stdin: &[u8],
+) -> (i32, Vec<u8>) {
     let build_dir = std::env::temp_dir().join(format!(
         "omega-interp-diff-{}-{}",
         canary_name.replace(['/', '\\'], "_"),
@@ -339,8 +451,19 @@ fn compile_and_run_native(canary_name: &str, main_path: &Path) -> (i32, Vec<u8>)
         )
     });
 
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|error| panic!("{canary_name}: native spawn failed: {error}"));
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(stdin)
+        .unwrap_or_else(|error| panic!("{canary_name}: native stdin write failed: {error}"));
+    let output = child
+        .wait_with_output()
         .unwrap_or_else(|error| panic!("{canary_name}: native run failed: {error}"));
 
     let code = output.status.code().unwrap_or(-1);
