@@ -266,11 +266,13 @@ impl<'program> Evaluator<'program> {
             .iter()
             .find(|data| data.symbol == symbol)
             .filter(|data| {
-                // Only RECORDS (have fields) instantiate as nested structs; enums don't.
-                self.program
-                    .data_members(data)
-                    .iter()
-                    .any(|member| matches!(member, DataMember::Field(_)))
+                // Records instantiate as nested structs; enums don't. EMPTY records (e.g.
+                // `data Circle {}`) must still instantiate as a typed struct -- the type
+                // identity is what a `dyn Trait` receiver dispatches on at runtime.
+                !matches!(
+                    DataDefinition::shape_kind_from_members(self.program.data_members(data)),
+                    omega_typed_trees::data::DataShapeKind::Enum
+                )
             })
     }
 
@@ -743,12 +745,21 @@ impl<'program> Evaluator<'program> {
         if let Some(machine) = self.find_machine_by_name(&qualified) {
             return Some(machine.clone());
         }
-        // Otherwise a machine that simply has a state named `target`.
-        self.program
+        // Otherwise a machine that simply has a state named `target` -- but only when that
+        // is UNAMBIGUOUS. With several candidates (e.g. two impls of the same trait
+        // machine), guessing the first would silently dispatch to the wrong type; decline
+        // instead so the caller reports unsupported (dispatch by the RECEIVER's runtime
+        // type is handled earlier, in `machine_for_instance_state`).
+        let mut candidates = self
+            .program
             .machines()
             .iter()
-            .find(|machine| self.find_state(machine, target).is_some())
-            .cloned()
+            .filter(|machine| self.find_state(machine, target).is_some());
+        let first = candidates.next().cloned();
+        if candidates.next().is_some() {
+            return None;
+        }
+        first
     }
 
     fn machine_entry_state_name(&self, machine: &Machine) -> Option<String> {
@@ -1013,7 +1024,11 @@ impl<'program> Evaluator<'program> {
                 }
                 Ok(Value::Array(elements))
             }
-            ExpressionNode::Range(_) => unsupported("range expressions not yet supported"),
+            // The frontend only produces a Range under an index expression (handled in the
+            // Indexed arm above as a subslice); general/open ranges in value or argument
+            // position are parse errors (probed in tests/coverage.rs). Decline defensively
+            // in case a future frontend starts emitting them elsewhere.
+            ExpressionNode::Range(_) => unsupported("range expression outside index position"),
             ExpressionNode::StructLiteral(literal) => self.eval_struct_literal(&literal, frame),
         }
     }
