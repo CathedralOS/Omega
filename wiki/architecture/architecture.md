@@ -11,6 +11,7 @@ lowers?"
 - [Repository Layout](repository_layout.md): workspace/folder shape and placement rules.
 - [Pipeline Architecture](pipeline/pipeline.md): semantic spine, durable stages, and the normalized questions every stage should answer.
 - [Codegen Representation Cleanup](codegen_representation_cleanup.md): standing plan to remove re-declared representations and annotation-only stages so the backend obeys the Architecture Rule below.
+- [Whole-Program Assumptions](whole_program_assumptions.md): tracked inventory of where the backend assumes whole-program compilation, against the eventual separately-compiled-component story.
 
 ## Architecture Rule
 

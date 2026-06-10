@@ -60,6 +60,54 @@ Working interpretation:
 The `self.` prefix is intentionally visible. It lets a reader distinguish stored
 state from locals and parameters at a glance.
 
+## Enums
+
+`enum` declarations describe a closed set of alternatives: a value is exactly
+one named variant at a time.
+
+```omega
+enum Direction {
+    None,
+    North,
+    South,
+    East,
+    West,
+}
+```
+
+The direction is Rust-like sum types: variants may carry typed payloads, and
+matching a variant binds its payload.
+
+```omega
+enum Command {
+    None,
+    Quit,
+    Move(Direction),
+    Say(String),
+}
+```
+
+Working rules:
+
+- The FIRST variant is the zero variant: its tag is `0`, and it should be the
+  empty/none-like case. This is what makes a zeroed enum a valid value (see
+  [Memory Layout And ABI](chapter_19_memory_layout_abi.md) on zero
+  initialization).
+- Variant payloads are owned by the value, exactly like `data` fields.
+- Matching is exhaustive: every variant is handled or a `_` arm exists.
+- The compiler never repurposes invalid payload bit patterns to elide the tag
+  (no niche optimization); the zero bit pattern must stay a valid value.
+
+Payload-carrying variants are a committed direction, not yet an implemented
+one: today the compiler accepts payload-less enums end-to-end, and rejects
+payload declarations at parse time.[^enum-payloads]
+
+[^enum-payloads]: Open details for payload support: pattern-binding syntax in
+`transition` arms vs `match` arms, generic payloads (`Option<T>`-style), and
+the layout rule for payload storage (tag-prefixed union with the zero variant
+payload-free). The no-niche rule above is decided; the rest should be settled
+when the parser work starts.
+
 ## Locals
 
 Locals are values introduced inside executable machine/state bodies.
