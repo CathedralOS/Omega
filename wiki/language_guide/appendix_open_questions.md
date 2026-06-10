@@ -56,15 +56,26 @@ This page tracks design pressure that is not fully nailed down yet.
   empty case first). See Memory Layout And ABI.
 - There is no separate `enum` type: alternatives are a MEMBER CLASS of `data`
   (`case` members with named payload fields). Member shape determines the kind
-  -- fields only is a record, cases only is a sum, both is MIXED (common
-  fields shared by every case plus a case part). Case-bearing data gets the
-  full `data` machinery: domains classify case subsets
-  (`domain Command::Movement when self case Move;` replaces shadow enums),
-  versions and `wire data` cover the case part, zero rules apply uniformly
-  (first case is the zero case). Cases, domains, and machines share the
-  `Type::member` namespace. Exhaustive matching follows from the shape, not a
-  keyword. Today's `enum` spelling is transitional and retired by this
-  decision.
+  -- fields only is a record, cases only is a sum, both is MIXED (sum-only
+  ships first; mixed is a severable later step). Case-bearing data gets the
+  full `data` machinery: versions and `wire data` cover the case part, zero
+  rules apply uniformly (first case is the zero case). Today's `enum`
+  spelling is transitional and retired by this decision.
+- Cases ARE domains. A case implicitly declares the same-named domain (tag
+  compare as a free classifier); `case` never appears at a use site. Case
+  subsets are ordinary domain unions (`when self in Command::Move |
+  Command::Say`), replacing shadow enums. Match arms are classifications:
+  case arms and domain arms mix in one match with identical `Type::Name`
+  spelling, first satisfied arm wins; payload binding is legal only on case
+  arms; exhaustiveness counts only decidable arms (cases + pure case-union
+  domains), predicate-domain arms require `_`. Subject shape decides
+  admissible arms (scalar -> values, record -> domains, case-bearing -> both).
+- Cases, domains, and machines share one `Type::member` namespace; any
+  collision is a hard compile error -- no shadowing, no resolution priority
+  (silently rebinding a match arm's meaning is never acceptable). Domains MAY
+  be declared over foreign types (extension-trait analog), import-gated, with
+  the same loud-collision rule; upstream additions that collide are loud
+  breaking changes caught at whole-program compile (later: package admission).
 - Atomics are Rust/C11-like: dedicated core atomic types with explicit
   orderings (`Relaxed`, `Acquire`, `Release`, `AcqRel`, `SeqCst`) on every
   operation; the sanctioned shared-mutation carve-out from exclusive `&mut`.
@@ -112,9 +123,13 @@ This page tracks design pressure that is not fully nailed down yet.
 - Which words must be globally reserved, and which should remain contextual keywords only?
 - How should imported library/syscall signatures and target bindings describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
 - Should the language eventually support explicit tail calls into machines, and if so what spelling avoids confusing them with ordinary `-> state()` transitions?
-- Case members: pattern-binding spelling in `transition` vs `match` arms
+- Case members: payload-binding spelling in `transition` vs `match` arms
   (expected to reuse data-destructure guards), generic payloads, the exact
-  tag-prefixed overlay layout, and possible sugar for case-subset domains.
+  tag-prefixed overlay layout, and whether case-union domains are recognized
+  for exhaustiveness syntactically or by classifier analysis.
+- Foreign-type domains: the import-gate spelling, whether an orphan-strict
+  mode (domains only in the owning package) is offered, and how
+  foreign-declared domains surface in authority-flow reports.
 - Zero-is-initialization follow-ups: the zero-excluding-invariant lint, and
   whether any type may opt into constructed-only semantics.
 - Atomics follow-ups: standalone fences, `compare_exchange` failure-ordering

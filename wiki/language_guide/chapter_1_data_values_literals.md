@@ -104,19 +104,39 @@ data RoomEvent {
 The mixed shape replaces the two-type split other languages force (a struct
 holding a separately-named `Kind` enum). The header and the tag belong to one
 declaration, so the compiler -- and the wire schema, and the version block --
-sees them as one thing.
+sees them as one thing. Sequencing: sum-only ships first; the mixed shape is
+a severable later step (nesting a sum-shaped field expresses the same data in
+the meantime), even though the compiler's trees already model it.
 
-Because cases are data members, everything that works on `data` works on
-case-bearing data: domains classify case subsets, versions and `wire data`
-cover the case part, and the zero rules apply uniformly.
+## Cases Are Domains
+
+Declaring a case implicitly declares the same-named domain: `case Move(...)`
+on `Command` declares `Command::Move`, the set of values whose tag is `Move`,
+with a free constant-time classifier (a tag compare). `case` therefore never
+appears at a USE site. Checks, patterns, and compositions all use the one
+`Type::Name` spelling and the ordinary domain algebra
+([Domains](chapter_8_domains.md)):
 
 ```omega
-domain Command::Movement when self case Move;
+domain Command::Interactive when self in Command::Move | Command::Say;
 ```
 
 A case-subset domain replaces the shadow-enum pattern (`Direction` vs
-`HorizontalDirection`): a narrower set of cases is a domain over the same
-type, not a new type.
+`HorizontalDirection`): a narrower set of cases is a union of case-domains
+over the same type, not a new type.
+
+Match arms are CLASSIFICATIONS -- case arms and domain arms mix freely in one
+match, spelled identically, and the first satisfied arm wins (the same rule
+transitions use):
+
+```omega
+match entity {
+    Entity::Dead -> loot()              // domain (predicate)
+    Entity::Monster { ai } -> hunt(ai)  // case, payload bound
+    Entity::Hostile -> flee()           // domain (case union)
+    _ -> ignore()
+}
+```
 
 Working rules:
 
@@ -124,25 +144,36 @@ Working rules:
   empty/none-like case. This is what makes a zeroed value valid (see
   [Memory Layout And ABI](chapter_19_memory_layout_abi.md) on zero
   initialization).
-- Matching over a case-bearing data is exhaustive: every case is handled or a
-  `_` arm exists. A mixed shape matches on its case part.
-- Cases, domains, and machines share the type's `Type::member` namespace;
-  member names must be unique within it. The `case` spelling at declaration
-  and pattern sites distinguishes a case pattern from a domain pattern.
+- The subject's shape decides what an arm can be: a scalar subject takes
+  value patterns, a record subject takes domain arms, a case-bearing subject
+  takes case arms and domain arms together.
+- Payload binding (`Entity::Monster { ai }`) is legal only on a case arm,
+  because only a case implies a payload shape. A binding arm is therefore
+  visibly a case; an unbound `Type::Name` arm requires the declaration (or
+  tooling) to tell case from domain -- accepted, since wanting domains over
+  case-bearing types makes that ambiguity intrinsic.
+- Exhaustiveness counts DECIDABLE arms: case arms and pure case-union
+  domains (those are finite tag sets). A match relying on any predicate
+  domain needs a `_` arm.
+- Cases, domains, and machines share the type's `Type::member` namespace.
+  Names must be unique; any collision -- including a later domain or machine
+  declared against an existing case -- is a hard compile error. There is no
+  shadowing and no resolution priority: silently rebinding what a match arm
+  means is never acceptable.
 - The compiler never repurposes invalid payload bit patterns to elide the tag
   (no niche optimization); the zero bit pattern must stay a valid value.
 
 Transitional note: today's compiler spells variant-only sums with an `enum`
 keyword and rejects payloads. `enum` is retired by this decision; `case`
-members, payloads, and the mixed shape are pending parser/lowering
+members, payloads, and the implicit case-domains are pending parser/lowering
 work.[^case-members]
 
-[^case-members]: Open details: pattern-binding spelling in `transition` arms
-vs `match` arms (expected to reuse the data-destructure guard machinery:
-`case Move { direction } -> go(direction)`); generic payloads
-(`Option<T>`-style); the layout rule for payload storage (tag-prefixed
-overlay with the zero case payload-free); and whether a case-subset domain
-gets dedicated sugar beyond `when self case ...`.
+[^case-members]: Open details: payload-binding spelling in `transition` arms
+vs `match` arms (expected to reuse the data-destructure guard machinery);
+generic payloads (`Option<T>`-style); the layout rule for payload storage
+(tag-prefixed overlay with the zero case payload-free); and whether a domain
+DECLARED as a pure case union gets recognized for exhaustiveness
+syntactically or by classifier analysis.
 
 ## Locals
 

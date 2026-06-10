@@ -72,12 +72,19 @@ Implementation slices below build against these. Minor/easily-reversible details
    `omega-layout` and instruction-selection are consumers.
 7. **Case members, not `enum`.** Alternatives are a member class of `data`:
    `case` members with named payload fields, shape derived from members
-   (record / sum / MIXED -- common fields plus a case part in one declaration).
-   First case is the zero case (ZII); matching is exhaustive over the case
-   set; no niche layout; cases/domains/machines share the `Type::member`
-   namespace; case-subset domains (`when self case Move`) replace shadow
-   enums. The `enum` keyword is retired once `case` parsing lands (today it
-   remains the transitional spelling for payload-less sums). See chapter 1 +
+   (record / sum / MIXED; sum-only ships first, mixed is severable). First
+   case is the zero case (ZII); no niche layout. A case implicitly declares
+   the same-named DOMAIN (free tag-compare classifier), so `case` never
+   appears at use sites: match arms are classifications -- case arms and
+   domain arms mix with identical `Type::Name` spelling, first satisfied arm
+   wins, payload binding only on case arms, exhaustiveness counts only
+   decidable arms (cases + case-union domains). Case subsets are domain
+   unions (`when self in A | B`), replacing shadow enums.
+   Cases/domains/machines share the `Type::member` namespace; collisions are
+   hard errors, never priority. Foreign-type domains are allowed
+   (extension-trait analog), import-gated, same loud-collision rule. The
+   `enum` keyword is retired once `case` parsing lands (today it remains the
+   transitional spelling for payload-less sums). See chapters 1 + 8 +
    appendix.
 
 ## Next Up (highest leverage)
