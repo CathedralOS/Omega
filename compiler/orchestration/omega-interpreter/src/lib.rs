@@ -34,13 +34,15 @@
 //! width/signedness-aware `as` casts (int<->float, integer narrow/widen); multi-arm
 //! value/guard transitions (subject, tuple, and boolean forms); value-calls returning a
 //! scalar/struct; method calls on `&mut Data` reference params; `&mut`-aliased argument
-//! passing; the entry machine's value as the exit code; the Console boundary `exit_process`,
+//! passing, including MULTI-HOP forwarding (a `&mut` param passed onward as a bare name --
+//! to a nested call or a transition-target state -- stays aliased, hop after hop); the
+//! entry machine's value as the exit code; the Console boundary `exit_process`,
 //! `write`/`write_line`, and `read_line` (consuming `stdin`), including the imported std
-//! `console`. Anything outside this subset returns
+//! `console`. The full `dungeon_crawler_cli` sample interprets end-to-end with
+//! depth-correct room rendering. Anything outside this subset returns
 //! [`InterpretOutcome::error`] so a differential harness SKIPS (xfail) rather than reporting
-//! a false mismatch. Still deferred: ranges/subslices, enum-payload construction,
-//! string concatenation host paths, dyn multi-impl dispatch, and the deepest recursion-heavy
-//! dungeon `&mut` chains.
+//! a false mismatch. Still deferred: open/general range expressions, enum-payload
+//! construction, and dyn multi-impl dispatch.
 
 mod evaluator;
 mod value;
