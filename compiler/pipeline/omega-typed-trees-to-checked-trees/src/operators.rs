@@ -6,14 +6,13 @@ use omega_core::arena::Arena;
 use omega_core::operator_spelling::OperatorSpelling;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::domain::DomainDefinition;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use omega_typed_trees::operator::OperatorDefinition;
+use omega_typed_trees::operator::{SpelledOperator, resolve_spelling};
 use omega_typed_trees::types::TypeReferenceHandle;
 
 mod receiver;
 
-use receiver::{candidate_matches_receiver, expression_type_reference_for_origin};
+use receiver::expression_type_reference_for_origin;
 
 pub(crate) fn build_operator_facts(
     program: &TypedTrees,
@@ -147,6 +146,8 @@ fn indexed_operator_spelling(program: &TypedTrees, index: ExpressionHandle) -> O
     }
 }
 
+/// Records the typed-trees resolution outcome for one use site as checked
+/// evidence: the resolution itself is `omega_typed_trees::operator::resolve_spelling`.
 fn operator_use_fact(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -155,12 +156,12 @@ fn operator_use_fact(
     receiver_type: Option<TypeReferenceHandle>,
     candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
 ) -> CheckedOperatorUseFact {
-    let candidates = operator_candidates_by_spelling(program, spelling, receiver_type);
+    let candidates = resolve_spelling(program, spelling, receiver_type);
     let candidate_count = candidates.len();
     let candidate_span = candidate_facts.insert_many(
         candidates
             .iter()
-            .map(|candidate| candidate.as_checked_candidate(program)),
+            .map(|candidate| checked_candidate(program, candidate)),
     );
     let selected_operator_symbol = match candidates.as_slice() {
         [candidate] => candidate.operator.symbol,
@@ -183,67 +184,25 @@ fn operator_use_fact(
     }
 }
 
-struct OperatorCandidate<'program> {
-    operator: &'program OperatorDefinition,
-    domain: Option<&'program DomainDefinition>,
-}
-
-impl OperatorCandidate<'_> {
-    fn as_checked_candidate(&self, program: &TypedTrees) -> CheckedOperatorCandidateFact {
-        let candidate = if let Some(domain) = self.domain {
-            CheckedOperatorCandidateFact::domain(self.operator.symbol, domain.symbol)
-        } else {
-            CheckedOperatorCandidateFact::root(self.operator.symbol)
-        };
-        candidate.with_signature(
-            program
-                .operator_parameters(self.operator)
-                .first()
-                .map(|parameter| parameter.type_reference)
-                .unwrap_or_else(TypeReferenceHandle::invalid),
-            self.operator.return_type,
-            self.operator.contracts,
-            program.operator_type_parameters(self.operator).len(),
-            program.operator_parameters(self.operator).len(),
-            self.operator.is_boundary,
-        )
-    }
-}
-
-fn operator_candidates_by_spelling(
+fn checked_candidate(
     program: &TypedTrees,
-    spelling: OperatorSpelling,
-    receiver_type: Option<TypeReferenceHandle>,
-) -> Vec<OperatorCandidate<'_>> {
-    let root_candidates = program
-        .operators()
-        .iter()
-        .filter(|operator| operator.spelling == Some(spelling))
-        .map(|operator| OperatorCandidate {
-            operator,
-            domain: None,
-        });
-    let domain_candidates = program.domain_definitions().iter().flat_map(|domain| {
-        program
-            .domain_operators(domain)
-            .iter()
-            .filter(move |operator| operator.spelling == Some(spelling))
-            .map(move |operator| OperatorCandidate {
-                operator,
-                domain: Some(domain),
-            })
-    });
-
-    let candidates = root_candidates.chain(domain_candidates).collect::<Vec<_>>();
-
-    if let Some(receiver_type) = receiver_type {
-        candidates
-            .into_iter()
-            .filter(|candidate| {
-                candidate_matches_receiver(program, candidate.operator, receiver_type)
-            })
-            .collect()
+    candidate: &SpelledOperator<'_>,
+) -> CheckedOperatorCandidateFact {
+    let fact = if let Some(domain) = candidate.domain {
+        CheckedOperatorCandidateFact::domain(candidate.operator.symbol, domain.symbol)
     } else {
-        candidates
-    }
+        CheckedOperatorCandidateFact::root(candidate.operator.symbol)
+    };
+    fact.with_signature(
+        program
+            .operator_parameters(candidate.operator)
+            .first()
+            .map(|parameter| parameter.type_reference)
+            .unwrap_or_else(TypeReferenceHandle::invalid),
+        candidate.operator.return_type,
+        candidate.operator.contracts,
+        program.operator_type_parameters(candidate.operator).len(),
+        program.operator_parameters(candidate.operator).len(),
+        candidate.operator.is_boundary,
+    )
 }
