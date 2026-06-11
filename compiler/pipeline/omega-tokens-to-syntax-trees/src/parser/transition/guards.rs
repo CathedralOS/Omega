@@ -12,11 +12,25 @@ use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::statement::TransitionGuardNode;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
+/// The named bindings a destructure pattern arm introduces: each bound `field`
+/// rewrites to `subject.field` in the arm's guard and transition-target arguments.
+pub(super) struct DestructureBindings {
+    pub(super) subject: ExpressionHandle,
+    pub(super) fields: Vec<Identifier>,
+}
+
 pub(super) fn parse_transition_guard_node<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     subject: &[ExpressionHandle],
-) -> Result<(TransitionGuardNode, Input<'tokens, 'source>), ParseError> {
+) -> Result<
+    (
+        TransitionGuardNode,
+        Option<DestructureBindings>,
+        Input<'tokens, 'source>,
+    ),
+    ParseError,
+> {
     let (pattern_input, rest) =
         input.split_at_top_level_punctuation(PunctuationKind::Arrow, "expected `->`")?;
     if looks_like_version_match_arm(pattern_input) {
@@ -24,9 +38,10 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
     }
 
     if subject.len() == 1
-        && let Some(guard) = parse_data_destructure_guard(syntax_trees, pattern_input, subject[0])?
+        && let Some((guard, bindings)) =
+            parse_destructure_pattern_arm(syntax_trees, pattern_input, subject[0])?
     {
-        return Ok((TransitionGuardNode::When(guard), rest));
+        return Ok((guard, Some(bindings), rest));
     }
 
     let (patterns, pattern_rest) = parse_transition_pattern_list(syntax_trees, pattern_input)?;
@@ -40,13 +55,13 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
                 Some(expression) => TransitionGuardNode::When(expression),
                 None => TransitionGuardNode::Always,
             };
-            return Ok((guard, rest));
+            return Ok((guard, None, rest));
         }
         return Err(input.error_here("anonymous transition blocks do not support tuple patterns"));
     }
 
     if patterns.len() == 1 && patterns[0].is_none() {
-        return Ok((TransitionGuardNode::Always, rest));
+        return Ok((TransitionGuardNode::Always, None, rest));
     }
 
     if subject.len() != patterns.len() {
@@ -89,6 +104,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         } else {
             TransitionGuardNode::Always
         },
+        None,
         rest,
     ))
 }
@@ -184,40 +200,108 @@ where
     Ok((T::from_expression(expression), input))
 }
 
-fn parse_data_destructure_guard<'tokens, 'source>(
+/// Parse a single-subject DESTRUCTURE pattern arm, with or without an `if` guard:
+///
+/// - `Type::Case { field, .. } [if guard] -> ...` -- a CASE pattern: the arm
+///   matches when the subject's tag is `Type::Case` (an equality guard against
+///   the case name), and each bound `field` rewrites to `subject.field` (a
+///   payload read) in the `if` guard and in the transition target's arguments.
+/// - `Type { field, .. } if guard -> ...` -- a record destructure: no tag
+///   compare (the subject IS that type); bindings rewrite the same way.
+///
+/// Returns `Ok(None)` when the arm is not a destructure pattern (no `{` after a
+/// leading path), so the caller falls back to the plain pattern list.
+fn parse_destructure_pattern_arm<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     subject: ExpressionHandle,
-) -> Result<Option<ExpressionHandle>, ParseError> {
-    let Some(if_index) = find_top_level_keyword(input, KeywordKind::If) else {
+) -> Result<Option<(TransitionGuardNode, DestructureBindings)>, ParseError> {
+    if !input.at_name_like() {
         return Ok(None);
+    }
+
+    let (pattern_input, guard_input) = match find_top_level_keyword(input, KeywordKind::If) {
+        Some(if_index) => {
+            let (pattern_tokens, guard_tokens_with_if) = input.tokens.split_at(if_index);
+            (
+                Input::new(input.source_id, pattern_tokens),
+                Some(Input::new(
+                    input.source_id,
+                    guard_tokens_with_if
+                        .get(1..)
+                        .expect("if keyword split should include guard tokens"),
+                )),
+            )
+        }
+        None => (input, None),
     };
 
-    let (pattern_tokens, guard_tokens_with_if) = input.tokens.split_at(if_index);
-    let pattern_input = Input::new(input.source_id, pattern_tokens);
-    let guard_input = Input::new(
-        input.source_id,
-        guard_tokens_with_if
-            .get(1..)
-            .expect("if keyword split should include guard tokens"),
-    );
+    let (path, after_path) = parse_path_handle_span(pattern_input, |member| {
+        syntax_trees
+            .expressions
+            .append_identifier_path_member(member)
+    })?;
+    if !after_path.at_punctuation(PunctuationKind::LeftBrace) {
+        // Without `if` this is an ordinary pattern; with `if` the arm must be a
+        // destructure (a bare `pattern if guard` arm has no other meaning here).
+        if guard_input.is_some() {
+            return Err(after_path
+                .error_here("expected `{` to open a destructure pattern before `if` guard"));
+        }
+        return Ok(None);
+    }
 
-    let (fields, pattern_rest) =
-        parse_data_destructure_pattern_fields(syntax_trees, pattern_input)?;
+    let (fields, pattern_rest) = parse_data_destructure_pattern_fields(syntax_trees, after_path)?;
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected data destructure pattern"));
     }
-    let (guard, rest) = parse_expression_handle_without_struct_literals(syntax_trees, guard_input)?;
-    if !rest.tokens.is_empty() {
-        return Err(rest.error_here("expected transition pattern guard"));
+
+    // A two-member path names a case of the subject's type: the arm matches on
+    // the TAG, so the guard starts with `subject == Type::Case`.
+    let mut combined = match syntax_trees.expressions.identifier_path_members(path).len() {
+        1 => ExpressionHandle::invalid(),
+        2 => {
+            let case_reference = syntax_trees.expressions.insert(ExpressionNode::Name(path));
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: subject,
+                    operator: BinaryOperator::Equal,
+                    right: case_reference,
+                }))
+        }
+        _ => {
+            return Err(pattern_input
+                .error_here("destructure pattern path must be `Type { .. }` or `Type::Case { .. }`"));
+        }
+    };
+
+    if let Some(guard_input) = guard_input {
+        let (guard, rest) =
+            parse_expression_handle_without_struct_literals(syntax_trees, guard_input)?;
+        if !rest.tokens.is_empty() {
+            return Err(rest.error_here("expected transition pattern guard"));
+        }
+        let guard = rewrite_destructure_guard_expression(syntax_trees, guard, subject, &fields);
+        combined = if combined.is_valid() {
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: combined,
+                    operator: BinaryOperator::And,
+                    right: guard,
+                }))
+        } else {
+            guard
+        };
     }
 
-    Ok(Some(rewrite_destructure_guard_expression(
-        syntax_trees,
-        guard,
-        subject,
-        &fields,
-    )))
+    let guard = if combined.is_valid() {
+        TransitionGuardNode::When(combined)
+    } else {
+        TransitionGuardNode::Always
+    };
+    Ok(Some((guard, DestructureBindings { subject, fields })))
 }
 
 fn find_top_level_keyword(input: Input<'_, '_>, keyword: KeywordKind) -> Option<usize> {
@@ -248,15 +332,12 @@ fn find_top_level_keyword(input: Input<'_, '_>, keyword: KeywordKind) -> Option<
     None
 }
 
+/// Parse the `{ field, .. }` part of a destructure pattern (the leading path is
+/// already consumed by the caller).
 fn parse_data_destructure_pattern_fields<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
+    _syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Vec<Identifier>> {
-    let (_, input) = parse_path_handle_span(input, |member| {
-        syntax_trees
-            .expressions
-            .append_identifier_path_member(member)
-    })?;
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut fields = Vec::new();
 
@@ -280,7 +361,7 @@ fn parse_data_destructure_pattern_fields<'tokens, 'source>(
     Ok((fields, input))
 }
 
-fn rewrite_destructure_guard_expression(
+pub(super) fn rewrite_destructure_guard_expression(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
     subject: ExpressionHandle,
@@ -387,6 +468,7 @@ fn rewrite_destructure_guard_expression(
                 .collect::<Vec<_>>();
             ExpressionNode::StructLiteral(TableStructLiteral {
                 type_name: struct_literal.type_name,
+                case_name: struct_literal.case_name,
                 fields: syntax_trees.expressions.insert_struct_fields(struct_fields),
             })
         }

@@ -481,6 +481,7 @@ impl SyntaxTrees {
                 }),
                 DataMember::Variant(variant) => DataMember::Variant(DataVariant {
                     name: variant.name.clone(),
+                    payload: this.copy_data_payload_field_span(other, variant.payload),
                 }),
                 DataMember::Version(version) => DataMember::Version(DataVersion {
                     name: version.name.clone(),
@@ -488,6 +489,22 @@ impl SyntaxTrees {
                 }),
             },
             |this, member| this.items.append_data_member(member),
+        )
+    }
+
+    fn copy_data_payload_field_span(
+        &mut self,
+        other: &SyntaxTrees,
+        span: HandleSpan<DataField>,
+    ) -> HandleSpan<DataField> {
+        self.copy_mapped_span(
+            other.items.data_payload_fields(span),
+            |this, field| DataField {
+                name: field.name.clone(),
+                type_reference: this.copy_type_reference_handle(other, field.type_reference),
+                initial_value: this.copy_expression_handle(other, field.initial_value),
+            },
+            |this, field| this.items.append_data_payload_field(field),
         )
     }
 
@@ -959,6 +976,7 @@ impl SyntaxTrees {
             ExpressionNode::StructLiteral(struct_literal) => {
                 ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    case_name: struct_literal.case_name.clone(),
                     fields: self.copy_struct_field_span(other, struct_literal.fields),
                 })
             }

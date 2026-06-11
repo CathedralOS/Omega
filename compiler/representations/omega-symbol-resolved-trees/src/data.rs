@@ -111,4 +111,6 @@ impl Default for DataField {
 pub struct DataVariant {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    /// Named payload fields (`case Say(text: String);`); empty for payload-less cases.
+    pub payload: HandleSpan<DataField>,
 }

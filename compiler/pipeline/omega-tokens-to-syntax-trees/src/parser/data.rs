@@ -77,7 +77,7 @@ fn parse_data_member<'tokens, 'source>(
         // (`case: i32;`) by what follows the contextual keyword.
         let after_case = input.take_contextual("case")?;
         if after_case.at_name_like() {
-            return parse_case_member(after_case);
+            return parse_case_member(syntax_trees, after_case);
         }
     }
 
@@ -113,32 +113,87 @@ fn parse_data_member<'tokens, 'source>(
         ));
     }
 
-    input = if input.at_punctuation(PunctuationKind::Semicolon) {
-        input.take_punctuation(PunctuationKind::Semicolon, ";")?
-    } else {
-        input
-    };
-    Ok((DataMember::Variant(DataVariant { name: field_name }), input))
+    // A bare `Name;` member (the pre-`case` variant spelling) is retired:
+    // `case Name;` is the canonical alternative member.
+    Err(input.error_here(format!(
+        "expected `:` after data field `{}` (alternatives are spelled `case {};`)",
+        field_name.as_str(),
+        field_name.as_str()
+    )))
 }
 
 fn parse_case_member<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataMember> {
     let (case_name, mut input) = input.take_identifier()?;
 
-    if input.at_punctuation(PunctuationKind::LeftParen) {
-        return Err(input.error_here(format!(
-            "case payloads are not implemented yet; declare `case {};` and carry the payload elsewhere for now",
-            case_name.as_str()
-        )));
-    }
+    let payload = if input.at_punctuation(PunctuationKind::LeftParen) {
+        let (payload, next) = parse_case_payload_fields(syntax_trees, input)?;
+        input = next;
+        payload
+    } else {
+        HandleSpan::empty()
+    };
 
     input = if input.at_punctuation(PunctuationKind::Semicolon) {
         input.take_punctuation(PunctuationKind::Semicolon, ";")?
     } else {
         input
     };
-    Ok((DataMember::Variant(DataVariant { name: case_name }), input))
+    Ok((
+        DataMember::Variant(DataVariant {
+            name: case_name,
+            payload,
+        }),
+        input,
+    ))
+}
+
+/// Parse the named payload field list of a case member:
+/// `case Say(text: String, repeat: i32);`. Fields are name-and-type only;
+/// payload fields take no default initializer (a case payload only exists once
+/// the case is constructed).
+fn parse_case_payload_fields<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HandleSpan<DataField>> {
+    let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+    let mut payload_start = Handle::invalid();
+    let mut payload_count = 0u32;
+
+    while !input.at_punctuation(PunctuationKind::RightParen) {
+        let (field_name, next) = input.take_identifier()?;
+        input = next.take_punctuation(PunctuationKind::Colon, ":")?;
+        let (type_reference, next) = parse_type_reference_handle(syntax_trees, input)?;
+        input = next;
+
+        let handle = syntax_trees.items.append_data_payload_field(DataField {
+            name: field_name,
+            type_reference,
+            initial_value: omega_syntax_trees::expression::ExpressionHandle::invalid(),
+        });
+        if payload_count == 0 {
+            payload_start = handle;
+        }
+        payload_count = payload_count
+            .checked_add(1)
+            .expect("case payload field span count overflow");
+
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+        } else {
+            break;
+        }
+    }
+
+    let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+    let payload = if payload_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(payload_start, payload_count)
+    };
+    Ok((payload, input))
 }
 
 pub(super) fn parse_type_parameters<'tokens, 'source>(

@@ -193,6 +193,9 @@ pub struct TableCallExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteral {
     pub type_name: Identifier,
+    /// `Some` when the literal constructs a CASE of `type_name`
+    /// (`Command::Say { text: ... }`); `None` for a plain record literal.
+    pub case_name: Option<Identifier>,
     pub fields: HandleSpan<TableStructLiteralField>,
 }
 
@@ -200,6 +203,7 @@ impl Default for TableStructLiteral {
     fn default() -> Self {
         Self {
             type_name: Identifier::generated(""),
+            case_name: None,
             fields: HandleSpan::empty(),
         }
     }

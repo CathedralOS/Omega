@@ -131,6 +131,10 @@ impl Default for FieldLayout {
 pub struct VariantLayout {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    /// Payload field layouts for this case. Offsets are ABSOLUTE within the
+    /// enum value (the tag-prefixed overlay: tag at 0, every case's payload
+    /// packed from the shared payload base offset). Empty for payload-less cases.
+    pub fields: HandleSpan<FieldLayout>,
 }
 
 impl Default for VariantLayout {
@@ -138,6 +142,7 @@ impl Default for VariantLayout {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            fields: HandleSpan::empty(),
         }
     }
 }

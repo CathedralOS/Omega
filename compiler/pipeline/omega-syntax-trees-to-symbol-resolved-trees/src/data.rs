@@ -111,10 +111,33 @@ fn lower_data_member(
                 .transpose()?
                 .unwrap_or_else(omega_symbol_resolved_trees::expression::ExpressionHandle::invalid),
         })),
-        syntax::item::DataMember::Variant(variant) => Ok(DataMember::Variant(DataVariant {
-            symbol: SymbolHandle::invalid(),
-            name: crate::name::lower_name(&variant.name),
-        })),
+        syntax::item::DataMember::Variant(variant) => {
+            let mut payload = HandleSpan::empty();
+            for field in syntax_trees.items.data_payload_fields(variant.payload) {
+                let lowered = DataField {
+                    symbol: SymbolHandle::invalid(),
+                    name: crate::name::lower_name(&field.name),
+                    type_reference: lower_type_reference_handle(
+                        lowerer,
+                        syntax_trees,
+                        field.type_reference,
+                    )?,
+                    initial_value:
+                        omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
+                };
+                lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .declarations
+                    .data_payload_fields
+                    .append_to_span(&mut payload, lowered);
+            }
+            Ok(DataMember::Variant(DataVariant {
+                symbol: SymbolHandle::invalid(),
+                name: crate::name::lower_name(&variant.name),
+                payload,
+            }))
+        }
         syntax::item::DataMember::Version(_) => unreachable!("data versions are metadata"),
     }
 }

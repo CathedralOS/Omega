@@ -229,7 +229,14 @@ pub enum DataMemberSnapshot {
     },
     Variant {
         name: String,
+        payload: Vec<DataPayloadFieldSnapshot>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DataPayloadFieldSnapshot {
+    pub name: String,
+    pub type_reference: TypeReferenceSnapshot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -537,6 +544,14 @@ fn data_member_snapshot(program: &TypedTrees, member: &DataMember) -> DataMember
         },
         DataMember::Variant(variant) => DataMemberSnapshot::Variant {
             name: variant.name.to_string(),
+            payload: program
+                .data_payload_fields(variant)
+                .iter()
+                .map(|field| DataPayloadFieldSnapshot {
+                    name: field.name.to_string(),
+                    type_reference: type_reference_snapshot(program, field.type_reference),
+                })
+                .collect(),
         },
     }
 }

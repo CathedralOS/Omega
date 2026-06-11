@@ -204,6 +204,7 @@ fn simplify_expression_with_bindings(
             .unwrap_or_else(|| expression.clone()),
         Expression::StructLiteral(struct_literal) => Expression::StructLiteral(StructLiteral {
             type_name: struct_literal.type_name.clone(),
+            case_name: struct_literal.case_name.clone(),
             fields: Arc::from(
                 struct_literal
                     .fields

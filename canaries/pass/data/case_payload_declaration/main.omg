@@ -1,0 +1,18 @@
+// Case members may declare NAMED payload fields. A declaration-only program
+// (nothing constructs the payload case) compiles all the way through native
+// lowering: the layout plan gives the sum a tag-prefixed overlay sized to the
+// largest case payload, and tag-only dispatch is unaffected.
+
+data Command {
+    case None;
+    case Quit;
+    case Say(text: String);
+    case Move(dx: i32, dy: i32);
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

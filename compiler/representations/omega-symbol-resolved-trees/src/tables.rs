@@ -40,6 +40,7 @@ impl SymbolResolvedTreeTables {
         tables.bodies.expressions = source_expressions.clone();
         let SymbolResolvedDeclarationStorage {
             data_members,
+            data_payload_fields,
             machine_owned_data,
             machine_state_handles,
             machine_states,
@@ -56,6 +57,7 @@ impl SymbolResolvedTreeTables {
         for data_definition in &roots.data_definitions {
             tables.insert_data_definition(
                 data_members.span_or_empty(data_definition.members),
+                data_payload_fields,
                 child_type_references,
                 type_constraints,
                 source_expressions,
@@ -176,18 +178,31 @@ impl SymbolResolvedTreeTables {
     fn insert_data_definition(
         &mut self,
         members: &[DataMember],
+        data_payload_fields: &Arena<crate::data::DataField>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
         source_expressions: &ExpressionTable,
     ) {
         for member in members {
-            if let DataMember::Field(field) = member {
-                self.insert_type_reference(
-                    &field.type_reference,
-                    child_type_references,
-                    type_constraints,
-                    source_expressions,
-                );
+            match member {
+                DataMember::Field(field) => {
+                    self.insert_type_reference(
+                        &field.type_reference,
+                        child_type_references,
+                        type_constraints,
+                        source_expressions,
+                    );
+                }
+                DataMember::Variant(variant) => {
+                    for field in data_payload_fields.span_or_empty(variant.payload) {
+                        self.insert_type_reference(
+                            &field.type_reference,
+                            child_type_references,
+                            type_constraints,
+                            source_expressions,
+                        );
+                    }
+                }
             }
         }
     }

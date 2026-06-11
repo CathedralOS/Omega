@@ -21,6 +21,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
         .expressions
         .insert(ExpressionNode::StructLiteral(TableStructLiteral {
             type_name: Identifier::generated("Boxed"),
+            case_name: None,
             fields: omega_core::arena::HandleSpan::from_parts(field, 1),
         }));
 
