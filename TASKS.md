@@ -617,14 +617,17 @@ exit.
   implementation behind. Promote pending quickly when fixed; don't let
   compile-only pass canaries imply runtime support.
 - Current local suite status (2026-06-11, macOS ARM64 host): `cargo test -p
-  omega-compiler --test canary_suite` is 181/183 — the 2 failures are the
-  dungeon hot-potato (frame-overlap pointer corruption; lldb-diagnosed, see
-  the backend-residue bullet). The aarch64 encoder convergence wave closed
-  the previous 30-failure arm64 gap, so this host is now a trustworthy
-  runtime verifier. No registered pending canaries (the proofs false twins
-  were promoted to `fail/proofs/` by the entailment engine; see
-  `wiki/proof_engine_roadmap.md`). Keep this line current when backend/runtime
-  work moves canaries between `pass`, `fail`, and `pending`.
+  omega-compiler --test canary_suite` is 184/184 and the differential oracle
+  is 5/5, dungeon included — FULLY GREEN. The aarch64 encoder convergence
+  wave closed the 30-failure arm64 gap, and the dungeon "hot-potato" root
+  cause was the encoder using x18 (the Darwin reserved platform register,
+  zeroed by XNU on kernel→user returns) as copy scratch — fixed by register
+  substitution, pinned by the interrupt-soak canary under `pass/dungeon/`.
+  Full `cargo test --workspace` is also green. No registered pending
+  canaries (the proofs false twins were promoted to `fail/proofs/` by the
+  entailment engine; see `wiki/proof_engine_roadmap.md`). Keep this line
+  current when backend/runtime work moves canaries between `pass`, `fail`,
+  and `pending`.
 
 ### Docs
 
