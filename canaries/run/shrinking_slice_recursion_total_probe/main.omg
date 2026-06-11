@@ -1,0 +1,62 @@
+// Shrinking-slice recursion executes at runtime, pure tail dispatch end to
+// end (no statement-position calls — those still over-execute natively; see
+// the non-guard executor-of-record residue in TASKS.md). Each true arm
+// tail-calls with the items[1..] window (the guard fact proves the [0] read
+// and the subslice) and threads the head element's value, folded into machine
+// state on entry. 10+20+15+25 = 70 in self.total drives exit 70 only when
+// every shrinking window executed its descriptor update and element read.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Entry {
+    value: u32;
+}
+
+data Main {
+    console: Console;
+    entries: [Entry; 4];
+    total: u32;
+}
+
+machine Main::main(&mut self) {
+    self.entries[0].value = 10;
+    self.entries[1].value = 20;
+    self.entries[2].value = 15;
+    self.entries[3].value = 25;
+
+    let view: &[Entry] = self.entries.as_slice();
+
+    transition {
+        _ -> self.accumulate(view, 0)
+    }
+}
+
+machine Main::accumulate(&mut self, items: &[Entry], take: u32)
+terminates {
+    decreases items -> Slice::Length;
+}
+{
+    self.total = self.total + take;
+
+    transition items.len > 0 {
+        true -> self.accumulate(items[1..], items[0].value)
+        false -> finished()
+    }
+
+    state finished(&mut self) {
+        transition self.total {
+            70 -> matched()
+            _ -> missed()
+        }
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

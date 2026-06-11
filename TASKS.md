@@ -660,20 +660,17 @@ exit.
 
 ### Slice Runtime Descriptor Semantics
 
-- [ ] Audit descriptor-backed fixed-index reads/copies now that writes and local
-  descriptor materialization work for `rooms[0].exits.as_mut_slice()`. Native
-  dungeon initialization no longer crashes at that descriptor shape, but room
-  lookup/render still observes blank room data. Recent progress fixed the
-  descriptor-header copy bug: `RoomLookup::find_room.apply_room` now emits
-  `frame_fixed_indexed(descriptor@..., index 0, elem 232, field +...)` reads and
-  fixed-indexed field copies instead of copying the slice descriptor header.
-  Remaining bug appears to be string/text descriptor initialization or
-  materialization: labels/descriptions/path commands still render blank/NUL even
-  after the room struct fields are copied through descriptor element reads.
+- [x] Blank-room rendering RESOLVED (verified 2026-06-11): native dungeon
+  room lookup/render now produces labels/descriptions byte-identical to the
+  interpreter on the canonical scripted loop (the x18 reserved-register fix
+  closed the remaining corruption). The only dungeon divergence left is
+  R05's data-driven description, owned by the non-guard executor-of-record
+  residue bullet — descriptor initialization itself is fixed.
 - [ ] Generalize subslice descriptor pointer offsets beyond fixed-array alias
   copy special cases (the `FatDescriptorAbi::subslice` seam exists; widen its
-  callers past literal fixed-array bases — several `runtime_subslice_*` canaries
-  still need runtime verification after the zero-byte relocation fix).
+  callers past literal fixed-array bases). Runtime verification is in place:
+  all nine `runtime_subslice_*`/nested-subslice canaries are registered
+  runtime tests in the suite and differential oracle (verified 2026-06-11).
 - [ ] Generalize start-only/end-only/bounded descriptors beyond literal
   fixed-array-backed views.
 - [ ] Add focused pass/fail canaries for each newly supported subslice descriptor
@@ -703,8 +700,17 @@ exit.
   non-`usize` unsigned widths).
 - [ ] Replace arithmetic-facing proof UX such as `limit - index` with named
   bounded-distance rankings.
-- [ ] Add a runtime exit canary for shrinking-slice recursion once runtime
-  dispatch reliably executes descriptor updates (blocked on emission).
+- [ ] Add a runtime exit canary for shrinking-slice recursion — BLOCKED on a
+  probe-confirmed accumulation bug (2026-06-11): a bare len-countdown
+  recursion runs correctly, but a recursion that ACCUMULATES (threading
+  `items[0].value` as a scalar parameter folded into a machine field per
+  entry) computes the wrong total natively in ALL THREE shapes probed
+  (value-position recursive call, statement call + field, pure tail
+  dispatch + field). Minimal repro parked at
+  `canaries/run/shrinking_slice_recursion_total_probe` (expected exit 70,
+  observed 71). Likely the recursive-dispatch threaded-argument family
+  (overlapping per-call frame slots), distinct from the fixed x18 zeroing.
+  Verify the interpreter agrees on 70 first, then chase the native fold.
 
 ### Operators And Domains
 
