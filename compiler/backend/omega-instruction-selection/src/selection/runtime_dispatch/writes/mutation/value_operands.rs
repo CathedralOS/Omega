@@ -3,7 +3,7 @@ use crate::selection::bindings::{RuntimeAliasBinding, resolve_runtime_alias_bind
 use omega_checked_trees::types::PrimitiveType;
 use crate::selection::storage_places::{
     RuntimeStoragePlace, clamp_runtime_case_comparison_operands,
-    clamp_runtime_case_comparison_operands_in_table,
+    clamp_runtime_case_comparison_operands_in_table, enum_variant_value_in_table,
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
@@ -88,23 +88,27 @@ pub(super) fn resolve_runtime_value_operand_in_table(
         let operator = runtime_binary_operator(binary.operator)?;
         let left_expr = binary.left;
         let right_expr = binary.right;
-        let left = resolve_runtime_value_operand_in_table(
+        let left = resolve_runtime_comparison_operand_in_table(
             input,
             dispatch_index,
             source_key,
             statement_index,
             expressions,
             left_expr,
+            Some(binary.operator),
+            right_expr,
             static_values,
             runtime_value_operands,
         )?;
-        let right = resolve_runtime_value_operand_in_table(
+        let right = resolve_runtime_comparison_operand_in_table(
             input,
             dispatch_index,
             source_key,
             statement_index,
             expressions,
             right_expr,
+            Some(binary.operator),
+            left_expr,
             static_values,
             runtime_value_operands,
         )?;
@@ -312,6 +316,60 @@ pub(super) fn resolve_runtime_value_operand_in_table(
         byte_offset: place.byte_offset,
         byte_size: place.byte_count,
     }))
+}
+
+/// Resolve one operand of a TAG comparison: when the OTHER side of an
+/// `==`/`!=` names a CASE (the lowered form of `in`, payload-less case
+/// `==`, and the tag guards of synthesized structural equality), the place
+/// side reads only its 4-byte tag prefix. Resolving the full enum value
+/// would fail for sums whose payload exceeds one scalar (e.g. a two-field
+/// case, 12 bytes) and silently drop the whole write.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn resolve_runtime_comparison_operand_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    comparison_operator: Option<omega_checked_trees::expression::BinaryOperator>,
+    other_expression: ExpressionHandle,
+    static_values: &RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
+    if matches!(
+        comparison_operator,
+        Some(
+            omega_checked_trees::expression::BinaryOperator::Equal
+                | omega_checked_trees::expression::BinaryOperator::NotEqual
+        )
+    ) && enum_variant_value_in_table(&input.layouts, expressions, other_expression).is_some()
+        && let Some(place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            expression,
+        )
+        && !supports_runtime_value_operand(place.byte_count)
+    {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: omega_layout::ENUM_TAG_BYTES,
+        }));
+    }
+
+    resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        expressions,
+        expression,
+        static_values,
+        runtime_value_operands,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]

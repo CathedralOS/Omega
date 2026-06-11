@@ -194,9 +194,14 @@ binding in transition arms), and the implicit case-domains at use sites now
 lower for `in` (`cmd in Command::Move`, unions included, value position and
 guard subjects; transition case arms desugar to membership, and the bare
 payload-bearing case name in `==` errors everywhere with a suggestion to use
-`in`). Still pending: `match`-statement arms, mixed shapes, exhaustiveness
-counting over case domains, and Equatable synthesis (until it lands, `==`
-against a CONSTRUCTED payload-bearing case value is a compile error).[^case-members]
+`in`). Equatable synthesis is LIVE: `Type satisfies Equatable;` on a record
+or payload-bearing sum makes `==`/`!=` legal, expanded inline into
+field-by-field compares (tag-guarded per case for sums; constructed case
+literals compare structurally). Without the conformance, `==` on a
+structural type is a compile error suggesting the one-line conformance.
+Still pending: `match`-statement arms, mixed shapes, exhaustiveness counting
+over case domains, and `String`-bearing / recursive Equatable types (both
+rejected loudly at the conformance item).[^case-members]
 
 [^case-members]: Open details: payload-binding spelling in `transition` arms
 vs `match` arms (expected to reuse the data-destructure guard machinery);

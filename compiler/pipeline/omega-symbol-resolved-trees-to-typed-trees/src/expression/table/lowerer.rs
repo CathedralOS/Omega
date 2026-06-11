@@ -1,3 +1,4 @@
+use crate::equatable::EqualityScope;
 use crate::expression::domain_membership::{
     lower_case_membership_expression, lower_domain_membership_expression,
 };
@@ -10,25 +11,28 @@ use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
 
-pub(super) struct ExpressionTableLowerer<'program, 'target> {
-    program: Option<&'program resolved::SymbolResolvedTrees>,
-    source: &'program resolved::expression::ExpressionTable,
-    target: &'target mut typed::expression::ExpressionTable,
+pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
+    pub(super) program: Option<&'program resolved::SymbolResolvedTrees>,
+    pub(super) source: &'program resolved::expression::ExpressionTable,
+    pub(super) target: &'target mut typed::expression::ExpressionTable,
     self_substitution: Option<typed::expression::ExpressionHandle>,
+    pub(super) equality_scope: Option<&'scope EqualityScope>,
 }
 
-impl<'program, 'target> ExpressionTableLowerer<'program, 'target> {
+impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
     pub(super) fn new(
         program: Option<&'program resolved::SymbolResolvedTrees>,
         source: &'program resolved::expression::ExpressionTable,
         target: &'target mut typed::expression::ExpressionTable,
         self_substitution: Option<typed::expression::ExpressionHandle>,
+        equality_scope: Option<&'scope EqualityScope>,
     ) -> Self {
         Self {
             program,
             source,
             target,
             self_substitution,
+            equality_scope,
         }
     }
 
@@ -44,6 +48,16 @@ impl<'program, 'target> ExpressionTableLowerer<'program, 'target> {
                     .insert(typed::expression::ExpressionNode::ArrayLiteral(values)))
             }
             resolved::expression::ExpressionNode::Binary(binary) => {
+                // `==`/`!=` on a conforming record / payload-bearing sum
+                // expands to synthesized structural equality (decision 11).
+                if matches!(
+                    binary.operator,
+                    resolved::expression::BinaryOperator::Equal
+                        | resolved::expression::BinaryOperator::NotEqual
+                ) && let Some(lowered) = self.try_lower_structural_equality(binary)?
+                {
+                    return Ok(lowered);
+                }
                 let left = self.lower(binary.left)?;
                 let right = self.lower(binary.right)?;
                 Ok(self

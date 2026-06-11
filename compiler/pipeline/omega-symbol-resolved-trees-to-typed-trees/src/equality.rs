@@ -2,9 +2,11 @@
 //! equality. A bare PAYLOAD-BEARING case name (`Command::Move`) denotes no
 //! value -- only its domain -- so comparing against it is an error that
 //! suggests `in`. The brace form (`Command::Move { dx: 1 }`) IS a constructed
-//! value, but structural equality is not synthesized yet, so it keeps the
-//! interim error. Payload-less cases stay legal `==` operands everywhere
-//! (tag identity is the only thing equality could mean for them).
+//! value: when the sum declares `Type satisfies Equatable;` the compare is
+//! legal and expands to synthesized structural equality (`crate::equatable`);
+//! without the conformance it stays an error that now suggests declaring it.
+//! Payload-less cases stay legal `==` operands everywhere (tag identity is
+//! the only thing equality could mean for them).
 //!
 //! This check runs on the RESOLVED trees, BEFORE membership lowering: `in`
 //! is still a distinct `Membership` node here, and transition case arms
@@ -216,8 +218,14 @@ fn check_equality_operand(
             else {
                 return Ok(());
             };
+            // A declared `Type satisfies Equatable;` synthesizes structural
+            // equality, so the constructed-case compare is legal and lowers
+            // to the inline expansion (`expression::table::structural_equality`).
+            if crate::equatable::equatable_conformance_declared(program, &data_name) {
+                return Ok(());
+            }
             Err(Diagnostic::error(format!(
-                "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is not synthesized yet -- match on the case in a transition to bind its payload"
+                "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is not synthesized for non-conforming types -- match on the case in a transition to bind its payload, or declare `{data_name} satisfies Equatable;` to synthesize structural equality"
             )))
         }
         _ => Ok(()),
