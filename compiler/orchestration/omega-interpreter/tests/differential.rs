@@ -66,6 +66,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_transition_unsigned_guard_exit", 70),
     ("control_flow/fixed_array_element_guard", 0),
     ("control_flow/runtime_boolean_or_guard_exit", 71),
+    ("control_flow/runtime_case_member_dispatch_exit", 70),
     ("control_flow/runtime_boolean_transition_argument_after_string_guard_exit", 247),
     ("control_flow/runtime_direct_boolean_transition_argument_exit", 211),
     ("control_flow/runtime_local_boolean_conjunction_value_exit", 74),

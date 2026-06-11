@@ -1,0 +1,13 @@
+// The `enum` keyword is retired: alternatives are `case` members of `data`.
+
+enum Direction {
+    North,
+    South,
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,15 @@
+// Sum-only ships first: a declaration mixing fields and case members parses
+// (the trees model it) but is rejected until the mixed shape is implemented.
+
+data RoomEvent {
+    consumed: bool;
+    case Nothing;
+    case Treasure;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}
