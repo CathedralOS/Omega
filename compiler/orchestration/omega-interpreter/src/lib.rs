@@ -50,14 +50,14 @@
 //! [`InterpretOutcome::error`] so a differential harness SKIPS (xfail) rather than reporting
 //! a false mismatch.
 //!
-//! CASE PAYLOADS are interpreter-supported AHEAD of the native backend: construction
-//! (`Command::Move { steps: 70 }`, the brace spelling shared with record literals),
-//! case-pattern binding in transition arms (`Command::Move { steps } -> done(steps)`,
-//! with the bound names rewritten to payload member reads), and TAG-ONLY `==` (payloads
-//! never participate in equality, matching the native constant tag compare). The native
-//! pipeline rejects payload-case CONSTRUCTION after checked trees ("case payload
-//! construction is not lowered natively yet"), so payload coverage lives in
-//! `tests/coverage.rs` rather than the differential RUN canaries for now.
+//! CASE PAYLOADS are supported in BOTH engines: construction (`Command::Move
+//! { steps: 70 }`, the brace spelling shared with record literals), case-pattern
+//! binding in transition arms (`Command::Move { steps } -> done(steps)`, with the
+//! bound names rewritten to payload member reads), and TAG-ONLY `==` (payloads
+//! never participate in equality, matching the native 4-byte tag compare). The
+//! native backend lowers construction as a tag-prefix write plus payload field
+//! writes, so payload coverage now runs differentially via the `data/case_*`
+//! RUN canaries (plus the deeper probes in `tests/coverage.rs`).
 //!
 //! One formerly-deferred construct is FRONTEND-REJECTED today (probed in
 //! `tests/coverage.rs`), so there is nothing to interpret:

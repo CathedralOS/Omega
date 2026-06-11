@@ -84,10 +84,22 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
 ) -> Option<NestedFieldLayoutCursor<'layout>> {
     let field_segment = parse_field_segment(field_name, field_index)?;
     let data_layout = data_layout(layouts, cursor.type_descriptor.storage_symbol())?;
-    let DataShape::Record { fields } = &data_layout.shape else {
-        return None;
+    let field = match &data_layout.shape {
+        DataShape::Record { fields } => {
+            field_layout_by_symbol_or_name(layouts, *fields, field_symbol, field_name)?
+        }
+        // A CASE PAYLOAD member (`cmd.steps` where `cmd` is enum-shaped data):
+        // search every variant's payload span. Payload offsets are ABSOLUTE
+        // within the enum value (tag at 0, payloads packed from the shared
+        // base), so the offset arithmetic below is identical to a record field.
+        DataShape::Enum { variants } => layouts
+            .variants
+            .span_or_empty(*variants)
+            .iter()
+            .find_map(|variant| {
+                field_layout_by_symbol_or_name(layouts, variant.fields, field_symbol, field_name)
+            })?,
     };
-    let field = field_layout_by_symbol_or_name(layouts, *fields, field_symbol, field_name)?;
     let mut next = NestedFieldLayoutCursor {
         byte_offset: cursor.byte_offset + field.offset,
         type_symbol: field.type_symbol,

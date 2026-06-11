@@ -26,9 +26,10 @@ use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, string_literal_data_handle,
 };
 use super::super::writes::{
-    runtime_storage_copy_in_table,
+    RuntimeStaticValues, runtime_storage_copy_in_table,
     runtime_storage_fixed_indexed_source_copy_in_table,
     runtime_storage_indexed_source_copy_in_table, runtime_storage_indirect_copy_in_table,
+    select_runtime_case_tag_write_in_table,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 
@@ -135,6 +136,26 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
         expressions.expression(resolved_value).clone()
     {
         let mut emitted = false;
+        // Constructing a CASE writes the i32 tag prefix before the payload
+        // fields (mirrors the dispatch-body struct-literal decomposition).
+        // This path tracks no static values; pass a throwaway for the
+        // invalidation bookkeeping.
+        if let Some(case_name) = &struct_literal.case_name {
+            let mut static_values = RuntimeStaticValues::new();
+            emitted |= select_runtime_case_tag_write_in_table(
+                input,
+                dispatch_index,
+                operation_key,
+                target_source_key,
+                statement_index,
+                expressions,
+                resolved_target,
+                &struct_literal.type_name,
+                case_name,
+                &mut static_values,
+                selected_instructions,
+            );
+        }
         for offset in 0..struct_literal.fields.count() {
             let field = expressions
                 .struct_field_at_offset(struct_literal.fields, offset)
