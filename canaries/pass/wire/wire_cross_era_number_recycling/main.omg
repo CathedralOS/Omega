@@ -1,0 +1,28 @@
+// Chapter 20 (Wire Protocols), frozen decision 10: `reserved` protects
+// against ACCIDENTAL reuse within an era; deliberate CROSS-ERA recycling of a
+// retired number is legal because the era discriminator disambiguates which
+// table decodes the payload. v1 used field 2, v2 retired it (reserving the
+// number in the retiring era), and the current body deliberately reuses
+// number 2 for a new field with a different type.
+
+wire data CounterMessage {
+    version v1 {
+        1: counter: i32;
+        2: legacy_flags: i64;
+    }
+
+    version v2 {
+        1: counter: i32;
+
+        reserved 2;
+    }
+
+    1: counter: i32;
+    2: retry_count: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

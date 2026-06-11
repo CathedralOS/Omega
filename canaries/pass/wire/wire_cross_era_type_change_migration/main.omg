@@ -1,0 +1,27 @@
+// Chapter 20 (Wire Protocols), frozen decision 10: a field number changing
+// type ACROSS eras is legitimate evolution, not a compile error. The era
+// discriminator lets the decoder pick the old era's table and migrate up the
+// chain, so this compiles and the wire protocol compatibility report records
+// a "requires migration" verdict for field 0 on each hop (v1 -> v2 widens
+// i32 -> i64, v2 -> current moves to f64).
+
+wire data CounterMessage {
+    version v1 {
+        0: counter: i32;
+        1: timestamp_millis: i64;
+    }
+
+    version v2 {
+        0: counter: i64;
+        1: timestamp_millis: i64;
+    }
+
+    0: counter: f64;
+    1: timestamp_millis: i64;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

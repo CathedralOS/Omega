@@ -1,0 +1,25 @@
+// Chapter 20 (Wire Protocols): compatibility checks run along the VERSION
+// CHAIN -- each declared era against its successor. Field 0 exists in v1 but
+// v2 neither declares nor reserves it, so the v1 -> v2 hop contradicts the
+// declared history. A `reserved 0;` in the CURRENT body does not excuse the
+// v1 -> v2 retirement: the era that retires a number must reserve it.
+
+wire data CounterMessage {
+    version v1 {
+        0: counter: i32;
+        1: timestamp_millis: i64;
+    }
+
+    version v2 {
+        1: timestamp_millis: i64;
+    }
+
+    reserved 0;
+    1: timestamp_millis: i64;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

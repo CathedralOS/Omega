@@ -7,8 +7,9 @@ use omega_typed_trees::wire::{WireField, WireMember, WireReserved, WireSchema, W
 
 /// Validates `wire data` protocol schemas (chapter 20): stable field numbers,
 /// reserved (retired) tags, version eras, resolvable field types, and the
-/// checkable compatibility rules between each declared version and the current
-/// schema body.
+/// checkable compatibility rules along the VERSION CHAIN -- each declared era
+/// against its successor (v1 against v2, the newest era against the current
+/// schema body).
 pub(crate) fn validate_wire_schemas(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
@@ -107,8 +108,15 @@ fn validate_schema(
         }
     }
 
-    for scope in &version_scopes {
-        validate_version_against_current(program, schema, scope, &current, diagnostics);
+    // Compatibility checks run along the version chain: each declared era is
+    // checked against its successor; the newest declared era is checked
+    // against the current schema body. Eras are NOT all compared against
+    // current -- migrations compose hop by hop.
+    let mut chain: Vec<&WireScope<'_>> = version_scopes.iter().collect();
+    chain.push(&current);
+
+    for pair in chain.windows(2) {
+        validate_adjacent_eras(schema, pair[0], pair[1], diagnostics);
     }
 }
 
@@ -261,52 +269,47 @@ fn push_unknown_field_type(
     )));
 }
 
-/// Chapter 20 compatibility rules that are checkable between a declared
-/// version era and the current schema body:
-/// - a field number keeping its number but changing type needs an explicit
-///   compatibility rule (none exist yet, so it is rejected);
-/// - a field number retired from an old era must reserve the old number.
+/// Chapter 20 compatibility rules that are checkable between a declared era
+/// and its SUCCESSOR era in the version chain (frozen decision 10):
+/// - retiring a documented field number without reserving it in the successor
+///   era is a declared-history contradiction and stays a hard error;
+/// - a field number changing type across eras is legitimate evolution -- the
+///   era discriminator lets the decoder pick the old era's table -- so it is
+///   reported as "requires migration" in the wire protocol compatibility
+///   artifact, NOT rejected here;
+/// - cross-era recycling of a retired (reserved) number is legal: `reserved`
+///   is era-scoped, so a later era declaring a field on a number a prior era
+///   reserved produces no diagnostic.
 /// Renames (same number, same type, new name) and additive fields are
 /// compatible and produce no diagnostics.
-fn validate_version_against_current(
-    program: &TypedTrees,
+fn validate_adjacent_eras(
     schema: &WireSchema,
-    version: &WireScope<'_>,
-    current: &WireScope<'_>,
+    predecessor: &WireScope<'_>,
+    successor: &WireScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let version_name = version.version.unwrap_or_default();
+    let predecessor_name = predecessor.version.unwrap_or_default();
 
-    for field in &version.fields {
-        let current_field = current
+    for field in &predecessor.fields {
+        let successor_field = successor
             .fields
             .iter()
             .find(|candidate| candidate.number == field.number);
 
-        match current_field {
-            Some(current_field) => {
-                let old_type = program.display_type_reference(field.type_reference);
-                let new_type = program.display_type_reference(current_field.type_reference);
+        if successor_field.is_none() {
+            let is_reserved = successor
+                .reserved
+                .iter()
+                .any(|reserved| reserved.number == field.number);
 
-                if old_type != new_type {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "wire data `{}` field number {} changes type from `{old_type}` in version `{version_name}` to `{new_type}` without an explicit compatibility rule",
-                        schema.name, field.number
-                    )));
-                }
-            }
-            None => {
-                let is_reserved = current
-                    .reserved
-                    .iter()
-                    .any(|reserved| reserved.number == field.number);
-
-                if !is_reserved {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "wire data `{}` retires field number {} (`{}` in version `{version_name}`) without reserving it; add `reserved {};`",
-                        schema.name, field.number, field.name, field.number
-                    )));
-                }
+            if !is_reserved {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{} retires field number {} (`{}` in version `{predecessor_name}`) without reserving it; add `reserved {};`",
+                    scope_label(schema, successor),
+                    field.number,
+                    field.name,
+                    field.number
+                )));
             }
         }
     }
