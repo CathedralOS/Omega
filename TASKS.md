@@ -120,8 +120,18 @@ remains tracked in its bullet below.
   canaries keep asserting R05's event/paths lines instead of its description
   until the executor-of-record story (splice vs prelude vs nested walk) is
   fixed for non-guard roles.
-- [ ] 3 pre-existing `_compile` canaries hang at runtime (slice-subslice /
-  mutable-local family); suite never runs them.
+- [x] 3 pre-existing `_compile` canaries hang at runtime — STALE (probed
+  2026-06-11): the slice-write `_compile` canaries run now (the hang was the
+  x18 zeroing below) and their dispatch shape already has a runtime `_exit`
+  sibling in the suite; `calls/runtime_mutable_local_parameter_write_compile`
+  "hangs" by its own unconditional `true -> main()` self-loop (source
+  structure, not a backend bug; its `_exit` sibling verifies the behavior).
+- [ ] Straight-line `main` terminal LOCALS/EXPRESSIONS don't deliver as the
+  exit code (probed 2026-06-11): a bare literal terminal (`70`) exits 70,
+  but `let exit_code: i32 = 70; exit_code` — and field read-backs and
+  arithmetic terminals — exit 1 in a no-transition body. Every runtime
+  canary terminates through states, so the shape was never exercised. Check
+  interpreter parity first, then fix the native terminal-value path.
 - [x] aarch64 runtime convergence (dungeon hot-potato). ROOT CAUSE FOUND AND
   FIXED: the aarch64 encoder used x18 as a general scratch for frame-slot
   copies (`ldr x18, [src]; str x18, [dst]`), but x18 is the reserved platform
