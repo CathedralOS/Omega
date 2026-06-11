@@ -1,7 +1,7 @@
-enum CommandKind {
-    Quit,
-    Look,
-    Invalid,
+data CommandKind {
+    case Quit;
+    case Look;
+    case Invalid;
 }
 
 data Command {

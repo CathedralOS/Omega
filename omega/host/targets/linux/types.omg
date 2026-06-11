@@ -1,6 +1,6 @@
-enum LinuxErrno {
-    Interrupted,
-    BrokenPipe,
-    PermissionDenied,
-    Unknown,
+data LinuxErrno {
+    case Interrupted;
+    case BrokenPipe;
+    case PermissionDenied;
+    case Unknown;
 }

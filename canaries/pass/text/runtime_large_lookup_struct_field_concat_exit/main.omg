@@ -2,9 +2,9 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-enum CellId {
-    C0,
-    C1,
+data CellId {
+    case C0;
+    case C1;
 }
 
 data Room {

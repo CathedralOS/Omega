@@ -1,0 +1,14 @@
+// Slice 1 of case members is payload-less; a payload declaration must be
+// rejected with a dedicated diagnostic, not a generic parse error.
+
+data Command {
+    case None;
+    case Say(text: String);
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

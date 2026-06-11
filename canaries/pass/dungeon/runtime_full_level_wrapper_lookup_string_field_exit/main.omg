@@ -2,49 +2,49 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-enum CellId {
-    Empty,
-    R00,
-    R01,
+data CellId {
+    case Empty;
+    case R00;
+    case R01;
 }
 
-enum Direction {
-    North,
-    South,
-    East,
-    West,
+data Direction {
+    case North;
+    case South;
+    case East;
+    case West;
 }
 
-enum RoomEventKind {
-    Nothing,
-    FountainOfLife,
-    Treasure,
-    GoldCache,
-    Enemy,
+data RoomEventKind {
+    case Nothing;
+    case FountainOfLife;
+    case Treasure;
+    case GoldCache;
+    case Enemy;
 }
 
-enum EnemyKind {
-    Bat,
-    Spider,
-    Skeleton,
-    Cultist,
-    Hellhound,
-    PitFiend,
+data EnemyKind {
+    case Bat;
+    case Spider;
+    case Skeleton;
+    case Cultist;
+    case Hellhound;
+    case PitFiend;
 }
 
-enum RewardKind {
-    None,
-    Gold,
-    Item,
-    GoldAndItem,
+data RewardKind {
+    case None;
+    case Gold;
+    case Item;
+    case GoldAndItem;
 }
 
-enum ItemKind {
-    RustedDagger,
-    CrackedBuckler,
-    HealingCharm,
-    EmberBlade,
-    DeepKey,
+data ItemKind {
+    case RustedDagger;
+    case CrackedBuckler;
+    case HealingCharm;
+    case EmberBlade;
+    case DeepKey;
 }
 
 data Enemy {

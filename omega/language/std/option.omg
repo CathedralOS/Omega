@@ -7,7 +7,7 @@
 // Variant payloads and fully source-defined Some/None behavior are still
 // evolving. This definition gives Option<T> a real bundled module path today.
 
-enum Option<T> {
-    None,
-    Some,
+data Option<T> {
+    case None;
+    case Some;
 }

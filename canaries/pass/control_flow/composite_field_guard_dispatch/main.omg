@@ -1,6 +1,6 @@
-enum EventKind {
-    Quiet,
-    Treasure,
+data EventKind {
+    case Quiet;
+    case Treasure;
 }
 
 data Event {

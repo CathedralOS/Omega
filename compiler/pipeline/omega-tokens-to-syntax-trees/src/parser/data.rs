@@ -72,6 +72,15 @@ fn parse_data_member<'tokens, 'source>(
         ));
     }
 
+    if input.at_contextual("case") {
+        // Distinguish a `case Name;` member from a field named `case`
+        // (`case: i32;`) by what follows the contextual keyword.
+        let after_case = input.take_contextual("case")?;
+        if after_case.at_name_like() {
+            return parse_case_member(after_case);
+        }
+    }
+
     let (field_name, next) = input.take_identifier()?;
     input = next;
 
@@ -112,51 +121,24 @@ fn parse_data_member<'tokens, 'source>(
     Ok((DataMember::Variant(DataVariant { name: field_name }), input))
 }
 
-pub(super) fn parse_enum_definition<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
+fn parse_case_member<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, DataDefinition> {
-    let (name, mut input) = input.take_identifier()?;
-    let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
-    input = next;
-    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut member_start = Handle::invalid();
-    let mut member_count = 0u32;
+) -> ParseResult<'tokens, 'source, DataMember> {
+    let (case_name, mut input) = input.take_identifier()?;
 
-    while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (variant_name, next) = input.take_identifier()?;
-        input = next;
-        let handle = syntax_trees
-            .items
-            .append_data_member(DataMember::Variant(DataVariant { name: variant_name }));
-        if member_count == 0 {
-            member_start = handle;
-        }
-        member_count = member_count
-            .checked_add(1)
-            .expect("data member span count overflow");
-
-        if input.at_punctuation(PunctuationKind::Comma) {
-            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-        } else if input.at_punctuation(PunctuationKind::Semicolon) {
-            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        }
+    if input.at_punctuation(PunctuationKind::LeftParen) {
+        return Err(input.error_here(format!(
+            "case payloads are not implemented yet; declare `case {};` and carry the payload elsewhere for now",
+            case_name.as_str()
+        )));
     }
 
-    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let members = if member_count == 0 {
-        HandleSpan::empty()
+    input = if input.at_punctuation(PunctuationKind::Semicolon) {
+        input.take_punctuation(PunctuationKind::Semicolon, ";")?
     } else {
-        HandleSpan::from_parts(member_start, member_count)
+        input
     };
-    Ok((
-        DataDefinition {
-            name,
-            type_parameters,
-            members,
-        },
-        input,
-    ))
+    Ok((DataMember::Variant(DataVariant { name: case_name }), input))
 }
 
 pub(super) fn parse_type_parameters<'tokens, 'source>(

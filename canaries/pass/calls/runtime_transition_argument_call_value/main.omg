@@ -1,5 +1,5 @@
-enum NavigationChoice { Invalid; Move; }
-enum CellId { Empty; }
+data NavigationChoice { case Invalid; case Move; }
+data CellId { case Empty; }
 data Navigation { choice: NavigationChoice; destination: CellId; }
 data ConsoleLine { text: String; }
 

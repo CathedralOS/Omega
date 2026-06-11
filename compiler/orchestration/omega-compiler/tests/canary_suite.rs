@@ -2351,6 +2351,41 @@ fn runtime_negated_comparison_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_case_member_dispatch_exit_canary_runs() {
+    // Payload-less `case` members (the spelling that replaces `enum`) must
+    // dispatch in a transition exactly like the retired keyword did.
+    let canary = pass_canary("control_flow/runtime_case_member_dispatch_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-case-member-dispatch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime case member dispatch canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime case member dispatch canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected case-member transition dispatch to select Direction::South (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_tuple_transition_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_tuple_transition_exit");
     let main_path = canary.join("main.omg");
@@ -5860,6 +5895,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/call_requires_domain_membership_preserved_across_disjoint_literal_element_mutation",
     "control_flow/composite_field_guard_dispatch",
     "control_flow/composite_range_guard_dispatch",
+    "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/termination_countdown_compile",
     "control_flow/termination_index_distance_compile",
@@ -6157,6 +6193,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/unapproved_host_call",
+    "data/case_payload_unimplemented",
+    "data/enum_keyword_retired",
+    "data/mixed_data_shape_unimplemented",
     "domains/call_requires_invalidated_by_mutation",
     "domains/call_requires_domain_intersection_invalidated_by_mutation",
     "domains/call_requires_boolean_expression_invalidated_by_mutating_call",
