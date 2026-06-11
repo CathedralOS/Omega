@@ -408,6 +408,17 @@ fn static_inline_branching_call_value_in_table(
     expressions: &ExpressionTable,
     call: &TableCallExpression,
 ) -> Option<ExpressionHandle> {
+    // Candidates are matched by target state NAME, which collides for same-named
+    // methods on different data types; restrict to the machine the RECEIVER's
+    // static type dispatches to when it is derivable (see
+    // `static_receiver_machine_for_call`).
+    let receiver_machine = crate::selection::lookups::static_receiver_machine_for_table_call(
+        input,
+        expressions,
+        call.receiver,
+        call.target_symbol,
+        &call.target,
+    );
     let candidates = input
         .runtime_branching_calls
         .leaf_expansions
@@ -419,6 +430,8 @@ fn static_inline_branching_call_value_in_table(
                 .state_names_by_key_cloned(expansion.branch_key);
             (expansion.branch_key.state == call.target_symbol
                 || branch_state.as_str() == &*call.target)
+                && receiver_machine
+                    .is_none_or(|machine| expansion.branch_key.machine == machine)
                 && expansion.target_value.is_valid()
                 && leaf_expansion_bindings_match_table_call_arguments(
                     input,
@@ -450,6 +463,13 @@ fn static_inline_branching_call_value(
     input: &InstructionSelectionInput<'_>,
     call: &omega_checked_trees::expression::CallExpression,
 ) -> Option<Expression> {
+    // Same receiver-type discrimination as the table variant above.
+    let receiver_machine = crate::selection::lookups::static_receiver_machine_for_call(
+        input,
+        call.receiver.as_deref(),
+        call.target_symbol,
+        &call.target,
+    );
     let candidates = input
         .runtime_branching_calls
         .leaf_expansions
@@ -461,6 +481,8 @@ fn static_inline_branching_call_value(
                 .state_names_by_key_cloned(expansion.branch_key);
             (expansion.branch_key.state == call.target_symbol
                 || branch_state.as_str() == &*call.target)
+                && receiver_machine
+                    .is_none_or(|machine| expansion.branch_key.machine == machine)
                 && expansion.target_value.is_valid()
                 && leaf_expansion_bindings_match_call_arguments(input, expansion, call)
         })

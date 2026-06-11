@@ -3799,6 +3799,46 @@ fn runtime_ref_param_method_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_typed_two_method_receivers_exit_canary_runs() {
+    // Two data types implement a SAME-NAMED method (`Circle::code` == 9,
+    // `Square::code` == 4), each called through a typed `&mut` reference param.
+    // The inline value fold matched callee leafs by state NAME, so the
+    // lexically-first impl won at every call site (both calls 9 -> n == 99).
+    // Receiver-type discrimination keeps them apart: n == 9*10+4 == 94 -> 70.
+    let canary = pass_canary("traits/runtime_typed_two_method_receivers_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-typed-two-method-receivers-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("typed two-method receivers canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("typed two-method receivers canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected same-named methods on two data types to dispatch by the \
+         receiver's static type (9*10+4 == 94 -> exit 70); the name-keyed fold \
+         picked the first impl for both calls (99 -> exit 71). got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dyn_single_impl_dispatch_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_dyn_single_impl_dispatch_exit");
     let main_path = canary.join("main.omg");
