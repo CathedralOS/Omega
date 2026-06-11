@@ -107,8 +107,9 @@ invalidation now rejects through source-visible `Vec<T>::push`, and the last
 physical pending canaries were promoted to active fail coverage for expression
 `match` and version migration matching. Full canary suite is green locally at
 106 Rust tests passing; pass/fail canary counts can change without changing the
-Rust harness test count because many canaries are batched. There are currently
-no files under `canaries/pending`.
+Rust harness test count because many canaries are batched. The files under
+`canaries/pending/proofs/` are FALSE theorems (entailment-engine acceptance
+tests, registered `CurrentlyAccepts`); see `wiki/proof_engine_roadmap.md`.
 
 **Inline asm control-flow follow-up.** Current inline asm support is deliberately
 narrow: `asm { jmp state(...) }` parses and lowers to an ordinary Omega
@@ -482,7 +483,9 @@ under full-suite parallelism (build-dir race); it passes run alone / with
   implementation behind. Promote pending quickly when fixed; don't let
   compile-only pass canaries imply runtime support.
 - Current local suite status: `cargo test -p omega-compiler --test canary_suite`
-  passes all active canaries, with no registered pending canaries. Keep this
+  passes all active canaries; the registered pending canaries are the
+  `pending/proofs/` false twins of the proof ladder (currently accepted because
+  ensures entailment is undischarged; see `wiki/proof_engine_roadmap.md`). Keep this
   line current when backend/runtime work moves canaries between `pass`, `fail`,
   and `pending`.
 

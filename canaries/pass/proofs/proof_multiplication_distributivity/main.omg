@@ -1,0 +1,15 @@
+// Ladder rung L6 (ring normalization): multiplication distributes over
+// addition with no hypotheses. Lean analog: `Nat.add_mul` (also reachable via
+// `ring`). Needs polynomial normalization of both sides.
+
+machine multiply_distributes(a: usize, b: usize, c: usize)
+ensures
+    (a + b) * c == a * c + b * c
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

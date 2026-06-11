@@ -1,0 +1,18 @@
+// Ladder rung L1 (ordering transitivity): a < b and b < c entail a < c.
+// Lean analog: `Nat.lt_trans`. Requires chaining two strict-order facts,
+// one entailment hop past direct fact matching.
+
+machine less_than_transitive(a: usize, b: usize, c: usize)
+requires
+    a < b
+    b < c
+ensures
+    a < c
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

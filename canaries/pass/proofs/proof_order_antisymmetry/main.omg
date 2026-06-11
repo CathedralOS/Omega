@@ -1,0 +1,18 @@
+// Ladder rung L6 (order structure): mutual <= entails equality.
+// Lean analog: `Nat.le_antisymm`. Needs combining two non-strict order facts
+// into an equation.
+
+machine less_equal_antisymmetric(a: usize, b: usize)
+requires
+    a <= b
+    b <= a
+ensures
+    a == b
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
