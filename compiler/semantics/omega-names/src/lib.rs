@@ -210,13 +210,39 @@ fn build_resolve_report_with_optional_sources(
                 );
 
                 for member in syntax_trees.items.data_members(data_definition.members) {
-                    if let DataMember::Field(field) = member {
-                        collect_type_reference(
-                            &mut report,
-                            syntax_trees,
-                            field.type_reference,
-                            &format!("data `{}` field `{}`", data_definition.name, field.name),
-                        );
+                    match member {
+                        DataMember::Field(field) => {
+                            collect_type_reference(
+                                &mut report,
+                                syntax_trees,
+                                field.type_reference,
+                                &format!("data `{}` field `{}`", data_definition.name, field.name),
+                            );
+                        }
+                        DataMember::Version(version) => {
+                            let shape_name = version.shape_name(data_definition.name.as_str());
+                            insert_definition(
+                                &mut report,
+                                &shape_name,
+                                ResolvedDefinitionKind::Data,
+                            );
+                            for version_member in
+                                syntax_trees.items.data_members(version.members)
+                            {
+                                if let DataMember::Field(field) = version_member {
+                                    collect_type_reference(
+                                        &mut report,
+                                        syntax_trees,
+                                        field.type_reference,
+                                        &format!(
+                                            "data `{shape_name}` field `{}`",
+                                            field.name
+                                        ),
+                                    );
+                                }
+                            }
+                        }
+                        DataMember::Variant(_) => {}
                     }
                 }
             }
@@ -1073,6 +1099,14 @@ enum RootSymbolSeed<'syntax> {
     Name(SymbolKind, String),
 }
 
+/// A root symbol owner: a source item, or a historical-shape `version vN`
+/// block hoisted out of its parent `data` declaration.
+#[derive(Debug)]
+enum SymbolizedRoot<'syntax> {
+    Item(&'syntax Item),
+    DataVersion(&'syntax omega_syntax_trees::item::DataVersion),
+}
+
 impl RootSymbolSeed<'_> {
     fn as_symbol_seed(&self) -> SymbolSeed<'_> {
         match self {
@@ -1107,10 +1141,32 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             .builder
             .insert_root(SymbolKind::Root, SymbolNameRef::Static("program"));
         let syntax_trees = self.syntax_trees;
-        let symbolized_items = syntax_trees
-            .root_items()
-            .filter_map(|item| root_item_symbol_seed(syntax_trees, item).map(|seed| (item, seed)))
-            .collect::<Vec<_>>();
+        let mut symbolized_items: Vec<(SymbolizedRoot<'syntax>, RootSymbolSeed<'syntax>)> =
+            Vec::new();
+        for item in syntax_trees.root_items() {
+            if let Some(seed) = root_item_symbol_seed(syntax_trees, item) {
+                symbolized_items.push((SymbolizedRoot::Item(item), seed));
+            }
+
+            // Each `version vN { ... }` block inside a `data` declaration
+            // introduces a root-level historical-shape type (`Counter::v1`)
+            // immediately after its parent data symbol. Keeping the version
+            // shapes adjacent preserves the positional Data-kind alignment the
+            // symbol-assignment pass relies on.
+            if let Item::Data(data_definition) = item {
+                for member in syntax_trees.items.data_members(data_definition.members) {
+                    if let DataMember::Version(version) = member {
+                        symbolized_items.push((
+                            SymbolizedRoot::DataVersion(version),
+                            RootSymbolSeed::Name(
+                                SymbolKind::Data,
+                                version.shape_name(data_definition.name.as_str()),
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
         let root_children = self.builder.insert_children(
             root,
             builtin_type_symbols().into_iter().chain(
@@ -1126,9 +1182,14 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
                 self.insert_builtin_type_children(builtin_symbol, builtin_type);
             }
         }
-        for (item, _) in symbolized_items {
+        for (entry, _) in symbolized_items {
             if let Some(item_symbol) = root_children.next() {
-                self.insert_item_children(item_symbol, item);
+                match entry {
+                    SymbolizedRoot::Item(item) => self.insert_item_children(item_symbol, item),
+                    SymbolizedRoot::DataVersion(version) => {
+                        self.insert_data_children(item_symbol, version.members, 0);
+                    }
+                }
             }
         }
 
@@ -1229,7 +1290,16 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
         member_depth: usize,
     ) {
         let syntax_trees = self.syntax_trees;
-        let members = syntax_trees.items.data_members(members);
+        // Version blocks are NOT members of the current shape: they become
+        // root-level historical-shape symbols (`Counter::v1`) instead, so they
+        // must not occupy a child slot here (the symbol-resolved member list
+        // skips them, and the positional symbol assignment would desync).
+        let members = syntax_trees
+            .items
+            .data_members(members)
+            .iter()
+            .filter(|member| !matches!(member, DataMember::Version(_)))
+            .collect::<Vec<_>>();
         let children = self.builder.insert_children(
             parent,
             members.iter().map(|member| match member {
@@ -1237,11 +1307,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
                 DataMember::Variant(variant) => {
                     source_symbol_seed(SymbolKind::Variant, &variant.name)
                 }
-                // Data versions are metadata only (downstream lowering skips them);
-                // keep the child slot aligned with `members` but emit no resolvable symbol.
-                DataMember::Version(version) => {
-                    source_symbol_seed(SymbolKind::Unknown, &version.name)
-                }
+                DataMember::Version(_) => unreachable!("version members are filtered out above"),
             }),
         );
 
@@ -1496,6 +1562,33 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
 
     fn insert_named_type_children(&mut self, parent: SymbolHandle, type_name: &str, depth: usize) {
         if depth > 8 {
+            return;
+        }
+
+        // A historical-shape type name (`Counter::v1`) resolves to the version
+        // block's members, not the current data body.
+        if let Some((data_name, version_name)) = type_name.split_once("::") {
+            let version_members = self.syntax_trees.root_items().find_map(|item| {
+                let Item::Data(data_definition) = item else {
+                    return None;
+                };
+                if data_definition.name.as_str() != data_name {
+                    return None;
+                }
+                self.syntax_trees
+                    .items
+                    .data_members(data_definition.members)
+                    .iter()
+                    .find_map(|member| match member {
+                        DataMember::Version(version) if version.name.as_str() == version_name => {
+                            Some(version.members)
+                        }
+                        _ => None,
+                    })
+            });
+            if let Some(members) = version_members {
+                self.insert_data_children(parent, members, depth + 1);
+            }
             return;
         }
 

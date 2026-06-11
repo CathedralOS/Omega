@@ -1,0 +1,1 @@
+data `Counter` declares duplicate version `v1`

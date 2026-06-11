@@ -1,0 +1,19 @@
+// Chapter 21 (Versioned Data): version blocks name flat historical shapes; a
+// version block cannot itself declare nested versions.
+
+data Counter {
+    version v2 {
+        version v1 {
+            counter: i32;
+        }
+        counter: i32;
+    }
+
+    count: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

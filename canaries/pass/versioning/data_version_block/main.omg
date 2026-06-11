@@ -1,7 +1,8 @@
 // Chapter 21 (Versioned Data): a `data` declaration may carry historical runtime
-// shapes in `version v1 { ... }` blocks alongside the current body. Unimplemented:
-// the data-body parser expects a field identifier and rejects the `version`
-// block opener.
+// shapes in `version v1 { ... }` blocks alongside the current body. The current
+// shape is the body outside the version block; the version block becomes the
+// nameable historical type `Counter::v1`. The current fields must keep resolving
+// (and stay mutable) with a version block declared before them.
 
 data Counter {
     version v1 {
@@ -13,6 +14,11 @@ data Counter {
 }
 
 data Main {
+}
+
+machine Counter::tick(&mut self) {
+    self.counter = self.counter + 1;
+    self.timestamp = self.timestamp + 1;
 }
 
 machine Main::main(&mut self) {

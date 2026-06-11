@@ -262,7 +262,11 @@ fn lowers_attached_main_state_name_as_main() {
 fn lowers_version_scoped_machine_as_attached_data_method() {
     let source = r#"
     data Counter {
-        counter: i32;
+        version v1 {
+            counter: i32;
+        }
+
+        count: i32;
     }
 
     machine Counter::increment::v1(&mut self) {
@@ -276,6 +280,12 @@ fn lowers_version_scoped_machine_as_attached_data_method() {
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
     let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
+    // The version block becomes a root-level historical-shape data definition
+    // right after its parent, and the version-scoped machine attaches to it.
+    assert_eq!(program.data_definitions.len(), 2);
+    assert_eq!(program.data_definitions[0].name.as_str(), "Counter");
+    assert_eq!(program.data_definitions[1].name.as_str(), "Counter::v1");
+
     assert_eq!(program.machines.len(), 1);
     assert_eq!(program.machines[0].name.as_str(), "Counter::increment::v1");
     assert_eq!(
@@ -283,7 +293,7 @@ fn lowers_version_scoped_machine_as_attached_data_method() {
             .attached_data
             .as_ref()
             .map(|name| name.as_str()),
-        Some("Counter")
+        Some("Counter::v1")
     );
     let state = program
         .machine_state_handles(program.machines[0].states)

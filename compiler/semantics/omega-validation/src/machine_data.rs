@@ -12,6 +12,50 @@ use omega_typed_trees::machine::Machine;
 use omega_typed_trees::types::TypeReferenceHandle;
 use std::fmt;
 
+/// A version-scoped machine (`machine Counter::increment::v1`) attaches to the
+/// historical shape `Counter::v1`. That shape only exists when the data
+/// declaration carries a matching `version v1 { ... }` block; targeting an
+/// undeclared version (or a version of unknown data) is a declared-history
+/// contradiction.
+pub(crate) fn validate_version_scoped_target(
+    program: &TypedTrees,
+    machine: &Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(attached_data) = machine.attached_data.as_ref() else {
+        return;
+    };
+    // Top-level data names are single identifiers, so a `::` in the attached
+    // data name only appears for version-scoped machines.
+    let Some((data_name, version_name)) = attached_data.as_str().split_once("::") else {
+        return;
+    };
+
+    if program
+        .data_definitions()
+        .iter()
+        .any(|definition| definition.name.as_str() == attached_data.as_str())
+    {
+        return;
+    }
+
+    if program
+        .data_definitions()
+        .iter()
+        .any(|definition| definition.name.as_str() == data_name)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` targets version `{version_name}` of data `{data_name}`, but `{data_name}` does not declare a `version {version_name}` block",
+            machine.name
+        )));
+    } else {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` targets version `{version_name}` of unknown data `{data_name}`",
+            machine.name
+        )));
+    }
+}
+
 pub(crate) fn validate_contained_types(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
