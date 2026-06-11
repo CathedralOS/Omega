@@ -164,10 +164,36 @@ Working rules:
 - The compiler never repurposes invalid payload bit patterns to elide the tag
   (no niche optimization); the zero bit pattern must stay a valid value.
 
-Transitional note: today's compiler spells variant-only sums with an `enum`
-keyword and rejects payloads. `enum` is retired by this decision; `case`
-members, payloads, and the implicit case-domains are pending parser/lowering
-work.[^case-members]
+### Equality Vs Membership
+
+`==` is always VALUE equality (resolved through core `Equatable`,
+[Traits](chapter_13_traits.md)); `in` is always DOMAIN membership (the tag
+test, for case domains). A bare payload-bearing case name denotes no value --
+only its domain -- so comparing against it is a category error:
+
+```omega
+let q: bool = cmd == Command::Quit;                  // ok: payload-less name IS a value (tag identity)
+let m: bool = cmd in Command::Move;                  // ok: membership -- "is this case"
+let e: bool = cmd in Command::Quit | Command::None;  // ok: domain unions, value position
+let v: bool = cmd == Command::Move { dx: 1, dy: 2 }; // ok: constructed value, STRUCTURAL equality
+let x: bool = cmd == Command::Move;                  // ERROR: `Move` is not a value; use `in`
+```
+
+Equatable is implicit for primitives and payload-less sums (tag identity is
+the only thing it could mean); records and payload-bearing sums declare it
+(`Command satisfies Equatable;`), which synthesizes structural `equals` from
+the members. Adding a payload case to a payload-less sum flips the type from
+implicit to declared, erroring every `==` site until the one-line conformance
+is written -- a deliberate re-affirmation after equality's meaning changed.
+Guard-level equality never silently degrades to a tag compare; the tag test
+is what `in` lowers to.
+
+Transitional note: case members with named payloads now parse, validate, and
+lower natively (construction, payload reads, tag dispatch with payload
+binding in transition arms). Still pending: the implicit case-domains at use
+sites (`in` lowering), `match`-statement arms, mixed shapes, and Equatable
+synthesis (until it lands, `==` against a payload-bearing case value is a
+compile error).[^case-members]
 
 [^case-members]: Open details: payload-binding spelling in `transition` arms
 vs `match` arms (expected to reuse the data-destructure guard machinery);
