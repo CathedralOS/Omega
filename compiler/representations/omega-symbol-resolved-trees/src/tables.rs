@@ -409,6 +409,7 @@ mod tests {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("main"),
             attached_data: None,
+            abi: None,
             storage: MachineStorage {
                 type_parameters: HandleSpan::empty(),
                 contains: HandleSpan::empty(),
