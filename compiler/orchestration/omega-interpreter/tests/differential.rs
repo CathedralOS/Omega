@@ -392,7 +392,8 @@ fn interpreter_matches_native_on_supported_canaries() {
             continue;
         }
 
-        let (native_code, native_stdout) = compile_and_run_native(name, &main_path);
+        let (native_code, native_stdout, native_stderr) =
+            compile_and_run_native(name, &main_path);
 
         // Native is the source of truth, but sanity-check the suite's documented code too:
         // if native disagrees with the recorded expected code the corpus drifted.
@@ -414,6 +415,13 @@ fn interpreter_matches_native_on_supported_canaries() {
                 "stdout: interp {:?} != native {:?}",
                 String::from_utf8_lossy(&outcome.stdout),
                 String::from_utf8_lossy(&native_stdout)
+            ));
+        }
+        if outcome.stderr != native_stderr {
+            local_failures.push(format!(
+                "stderr: interp {:?} != native {:?}",
+                String::from_utf8_lossy(&outcome.stderr),
+                String::from_utf8_lossy(&native_stderr)
             ));
         }
 
@@ -470,13 +478,20 @@ fn interpreter_matches_native_on_cli_mvp_sample() {
         outcome.error
     );
 
-    let (native_code, native_stdout) = compile_and_run_native("cli_mvp", &main_path);
+    let (native_code, native_stdout, native_stderr) =
+        compile_and_run_native("cli_mvp", &main_path);
     assert_eq!(outcome.exit_code, native_code, "cli_mvp exit code");
     assert_eq!(
         outcome.stdout, native_stdout,
         "cli_mvp stdout: interp {:?} != native {:?}",
         String::from_utf8_lossy(&outcome.stdout),
         String::from_utf8_lossy(&native_stdout)
+    );
+    assert_eq!(
+        outcome.stderr, native_stderr,
+        "cli_mvp stderr: interp {:?} != native {:?}",
+        String::from_utf8_lossy(&outcome.stderr),
+        String::from_utf8_lossy(&native_stderr)
     );
 }
 
@@ -572,13 +587,18 @@ fn interpreter_matches_native_on_dungeon_sample() {
         outcome.error
     );
 
-    let (native_code, native_stdout) =
+    let (native_code, native_stdout, native_stderr) =
         compile_and_run_native_with_stdin("dungeon_crawler_cli", &main_path, DUNGEON_SCRIPT);
     assert_eq!(outcome.exit_code, native_code, "dungeon exit code");
     assert_eq!(
         String::from_utf8_lossy(&outcome.stdout),
         String::from_utf8_lossy(&native_stdout),
         "dungeon stdout: interpreter (left) vs native (right)"
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&outcome.stderr),
+        String::from_utf8_lossy(&native_stderr),
+        "dungeon stderr: interpreter (left) vs native (right)"
     );
 }
 
@@ -618,15 +638,17 @@ fn normalize_reason(reason: &str) -> String {
     out.trim().to_owned()
 }
 
-fn compile_and_run_native(canary_name: &str, main_path: &Path) -> (i32, Vec<u8>) {
+fn compile_and_run_native(canary_name: &str, main_path: &Path) -> (i32, Vec<u8>, Vec<u8>) {
     compile_and_run_native_with_stdin(canary_name, main_path, b"")
 }
 
+/// Compile + run the native binary with the given stdin; returns
+/// `(exit code, stdout bytes, stderr bytes)`.
 fn compile_and_run_native_with_stdin(
     canary_name: &str,
     main_path: &Path,
     stdin: &[u8],
-) -> (i32, Vec<u8>) {
+) -> (i32, Vec<u8>, Vec<u8>) {
     let build_dir = std::env::temp_dir().join(format!(
         "omega-interp-diff-{}-{}",
         canary_name.replace(['/', '\\'], "_"),
@@ -650,6 +672,7 @@ fn compile_and_run_native_with_stdin(
     let mut child = Command::new(build_dir.join(executable_name()))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .unwrap_or_else(|error| panic!("{canary_name}: native spawn failed: {error}"));
     child
@@ -664,8 +687,9 @@ fn compile_and_run_native_with_stdin(
 
     let code = output.status.code().unwrap_or(-1);
     let stdout = output.stdout.clone();
+    let stderr = output.stderr.clone();
     let _ = fs::remove_dir_all(&build_dir);
-    (code, stdout)
+    (code, stdout, stderr)
 }
 
 fn join_diagnostics(diagnostics: &[omega_core::diagnostics::Diagnostic]) -> String {
