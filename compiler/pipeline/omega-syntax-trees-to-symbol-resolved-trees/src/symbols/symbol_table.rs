@@ -67,6 +67,9 @@ pub(super) fn build_symbol_table(
                 )
                 .chain(program.traits.iter().map(|trait_definition| {
                     symbol_seed(SymbolKind::Trait, &trait_definition.name, has_sources)
+                }))
+                .chain(program.wire_schemas.iter().map(|wire_schema| {
+                    symbol_seed(SymbolKind::WireSchema, &wire_schema.name, has_sources)
                 })),
         );
     let mut root_children = SymbolTableBuilder::child_handles(root_children);

@@ -16,6 +16,7 @@ pub mod symbol_resolved_trees;
 pub mod tables;
 pub mod trait_definition;
 pub mod types;
+pub mod wire;
 
 pub use omega_core::arena::OrderedRootArena;
 pub use snapshot::SymbolResolvedTreesSnapshot;

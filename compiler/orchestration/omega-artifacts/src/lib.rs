@@ -474,6 +474,38 @@ impl ArtifactWriter {
         self.write_html_report("00_timings.html", "phase_timings", &output)
     }
 
+    pub fn write_wire_protocol_report(
+        &self,
+        wire_report: &WireProtocolReport,
+    ) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+
+        output.push_str("# Omega Wire Protocols\n\n");
+        output.push_str(&format!("wire data schemas: {}\n", wire_report.schemas.len()));
+
+        for schema in &wire_report.schemas {
+            output.push_str(&format!("\n## wire data {}\n", schema.name));
+            output.push_str(&format!(
+                "encoding: {}\n",
+                schema.encoding.as_deref().unwrap_or("(default)")
+            ));
+
+            push_wire_field_table(&mut output, &schema.fields, &schema.reserved);
+
+            for version in &schema.versions {
+                output.push_str(&format!("\n### version {}\n", version.name));
+                push_wire_field_table(&mut output, &version.fields, &version.reserved);
+
+                output.push_str(&format!("\n### compatibility {} -> current\n", version.name));
+                push_wire_verdicts(&mut output, "compatible", &version.verdicts.compatible);
+                push_wire_verdicts(&mut output, "reserved", &version.verdicts.reserved);
+                push_wire_verdicts(&mut output, "incompatible", &version.verdicts.incompatible);
+            }
+        }
+
+        self.write_text("04_wire_protocols.txt", &output)
+    }
+
     pub fn write_boundary_report(
         &self,
         boundary_report: &BoundaryReport,
@@ -857,6 +889,82 @@ pub struct AstFileArtifact {
     pub type_constraint_count: usize,
     pub item_summaries: Vec<String>,
     pub item_range_valid: bool,
+}
+
+fn push_wire_field_table(output: &mut String, fields: &[WireFieldReportEntry], reserved: &[i64]) {
+    output.push_str("fields:\n");
+    if fields.is_empty() {
+        output.push_str("  none\n");
+    } else {
+        for field in fields {
+            output.push_str(&format!(
+                "  {} {} {}\n",
+                field.number, field.name, field.type_display
+            ));
+        }
+    }
+
+    if !reserved.is_empty() {
+        output.push_str(&format!(
+            "reserved: {}\n",
+            reserved
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+}
+
+fn push_wire_verdicts(output: &mut String, label: &str, verdicts: &[String]) {
+    output.push_str(&format!("{label}:\n"));
+    if verdicts.is_empty() {
+        output.push_str("  none\n");
+    } else {
+        for verdict in verdicts {
+            output.push_str(&format!("  {verdict}\n"));
+        }
+    }
+}
+
+/// Compatibility report for `wire data` protocol schemas (chapter 20): field
+/// tables, retired numbers, declared version eras, and per-version verdicts
+/// against the current schema body. Built from typed trees by the compiler
+/// pipeline; this crate only owns the artifact shape and rendering.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WireProtocolReport {
+    pub schemas: Vec<WireSchemaReportEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WireSchemaReportEntry {
+    pub name: String,
+    pub encoding: Option<String>,
+    pub fields: Vec<WireFieldReportEntry>,
+    pub reserved: Vec<i64>,
+    pub versions: Vec<WireVersionReportEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WireFieldReportEntry {
+    pub number: i64,
+    pub name: String,
+    pub type_display: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WireVersionReportEntry {
+    pub name: String,
+    pub fields: Vec<WireFieldReportEntry>,
+    pub reserved: Vec<i64>,
+    pub verdicts: WireCompatibilityVerdicts,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WireCompatibilityVerdicts {
+    pub compatible: Vec<String>,
+    pub reserved: Vec<String>,
+    pub incompatible: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

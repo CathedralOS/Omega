@@ -1,0 +1,26 @@
+// Chapter 20 (Wire Protocols): a schema with two historical version eras that
+// evolved by the safe rules. v1 field 0 was retired (and is reserved in the
+// current body), field 1 kept its number and type across every era (renaming
+// it in v2 is compatible because the wire identity is the number), and the
+// current body added field 2.
+
+wire data CounterMessage encoding compact_binary {
+    version v1 {
+        0: counter: i32;
+        1: created_millis: i64;
+    }
+
+    version v2 {
+        1: timestamp_millis: i64;
+    }
+
+    reserved 0;
+    1: timestamp_millis: i64;
+    2: retry_count: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

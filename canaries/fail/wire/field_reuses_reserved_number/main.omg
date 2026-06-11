@@ -1,0 +1,16 @@
+// Chapter 20 (Wire Protocols): reserved field numbers prevent accidental
+// reuse after a field is retired; declaring a field on a reserved number in
+// the same schema scope is rejected.
+
+wire data CounterMessage {
+    0: counter: i32;
+    3: retry_count: i32;
+
+    reserved 3;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -15,6 +15,7 @@ pub mod statement;
 pub mod trait_definition;
 pub mod typed_trees;
 pub mod types;
+pub mod wire;
 
 pub use snapshot::TypedTreesSnapshot;
 pub use typed_trees::{TypedTreeRoots, TypedTreeTables, TypedTrees};

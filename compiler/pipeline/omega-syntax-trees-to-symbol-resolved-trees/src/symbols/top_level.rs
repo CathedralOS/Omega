@@ -37,6 +37,11 @@ pub(super) fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbol
     assign_root_operator_symbols(program, symbols, &mut root_children);
     assign_platform_symbols(program, symbols, &mut root_children);
     assign_trait_symbols(program, symbols, &mut root_children);
+
+    program.wire_schemas.for_each_mut(|wire_schema| {
+        wire_schema.symbol =
+            next_child_of_kind(&mut root_children, symbols, SymbolKind::WireSchema);
+    });
 }
 
 pub(super) fn next_child_of_kind(

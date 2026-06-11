@@ -1,0 +1,19 @@
+// Chapter 20 (Wire Protocols): "Removing a field should reserve the old
+// number." A field number present in a version era but neither declared nor
+// reserved in the current schema is rejected, because the retired number
+// could be silently reused later.
+
+wire data CounterMessage {
+    version v1 {
+        0: counter: i32;
+    }
+
+    1: counter: i32;
+    2: timestamp_millis: i64;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

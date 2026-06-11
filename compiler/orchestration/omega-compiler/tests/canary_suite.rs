@@ -6118,9 +6118,21 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/wire_generic_trait",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",
+    "wire/wire_data_field_numbers",
+    "wire/wire_data_reserved_field",
+    "wire/wire_data_version_block",
+    "wire/wire_data_encoding_family",
+    "wire/wire_multi_version_evolution",
+    "wire/wire_field_references_program_types",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "wire/duplicate_field_number",
+    "wire/field_reuses_reserved_number",
+    "wire/duplicate_version_declaration",
+    "wire/unknown_field_type",
+    "wire/version_field_type_change",
+    "wire/version_field_retired_without_reserved",
     "capabilities/unapproved_host_call",
     "domains/call_requires_invalidated_by_mutation",
     "domains/call_requires_domain_intersection_invalidated_by_mutation",

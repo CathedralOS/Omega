@@ -1,0 +1,1 @@
+wire data `CounterMessage` field `retry_count` reuses reserved field number 3
