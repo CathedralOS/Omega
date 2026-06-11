@@ -6,10 +6,6 @@ pub(in crate::aarch64) fn encode_compare_w17_immediate(value: u32) -> Result<[u8
     encode_compare_w_immediate(17, value)
 }
 
-pub(in crate::aarch64) fn encode_compare_x17_immediate(value: u64) -> Result<[u8; 4], Diagnostic> {
-    encode_compare_x_immediate(17, value)
-}
-
 pub(in crate::aarch64) fn encode_compare_w_immediate(
     register: u8,
     value: u32,
@@ -22,21 +18,6 @@ pub(in crate::aarch64) fn encode_compare_w_immediate(
 
     Ok(encode_instruction(
         0x7100001F | (value << 10) | (u32::from(register) << 5),
-    ))
-}
-
-pub(in crate::aarch64) fn encode_compare_x_immediate(
-    register: u8,
-    value: u64,
-) -> Result<[u8; 4], Diagnostic> {
-    if value > 4095 {
-        return Err(Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot compare guard value `{value}` yet"
-        )));
-    }
-
-    Ok(encode_instruction(
-        0xF100001F | ((value as u32) << 10) | (u32::from(register) << 5),
     ))
 }
 
