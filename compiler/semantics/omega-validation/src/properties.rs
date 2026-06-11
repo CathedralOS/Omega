@@ -118,12 +118,11 @@ fn type_satisfies_structural_property(
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
     property: &str,
 ) -> bool {
-    if program
-        .type_reference_table
-        .primitive_type(type_reference)
-        .is_some()
-    {
-        return true;
+    if let Some(primitive) = program.type_reference_table.primitive_type(type_reference) {
+        // String is lexed as a primitive but owns text storage: a bitwise copy
+        // aliases the buffer, and crossing a spawn boundary moves ownership of
+        // it. Scalars are the only copy/send-satisfying primitives.
+        return !matches!(primitive, omega_typed_trees::types::PrimitiveType::String);
     }
 
     match program.type_reference_table.type_reference(type_reference) {
