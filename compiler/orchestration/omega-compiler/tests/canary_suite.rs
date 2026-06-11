@@ -2416,6 +2416,80 @@ fn runtime_local_boolean_or_value_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Straight-line `main` with NO transitions whose terminal expression is a
+// LOCAL read. Pre-fix, only a bare literal terminal delivered as the exit
+// code; a local terminal silently fell through to the default exit path
+// (exit 1). Guards the terminal-value constant fold through local
+// initializers.
+#[test]
+fn runtime_straight_line_terminal_local_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_straight_line_terminal_local_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-straight-line-terminal-local-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("straight-line terminal local canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("straight-line terminal local canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the terminal local read to deliver as the exit code 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The runtime half of the straight-line terminal shape: a field WRITE followed
+// by a terminal field READ-BACK. Unlike the local variant this cannot constant
+// fold — it exercises the CopyRuntimeStorageToReturnRegister load.
+#[test]
+fn runtime_straight_line_terminal_field_readback_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_straight_line_terminal_field_readback_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-straight-line-terminal-field-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("straight-line terminal field read-back canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("straight-line terminal field read-back canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the terminal field read-back to deliver as the exit code 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_negated_boolean_place_guard_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_negated_boolean_place_guard_exit");
@@ -3187,6 +3261,43 @@ fn runtime_mutable_slice_element_write_exit_canary_runs() {
         output.status.code(),
         Some(21),
         "expected runtime mutable slice write canary to preserve alias mutation and exit 21, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The promoted straight-line sibling: same mutable-slice-view write, but the
+// machine body has NO transitions and delivers a field READ-BACK as its
+// terminal value. Guards the straight-line terminal-value path (the
+// CopyRuntimeStorageToReturnRegister load) end to end through a slice write.
+#[test]
+fn runtime_mutable_slice_element_write_straight_line_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_mutable_slice_element_write_straight_line_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-slice-write-straight-line-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable slice write straight-line canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable slice write straight-line canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the slice-view write to land and the terminal field read-back to exit 70, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -6845,6 +6956,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/composite_range_guard_dispatch",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
+    "control_flow/runtime_straight_line_terminal_local_exit",
+    "control_flow/runtime_straight_line_terminal_field_readback_exit",
     "control_flow/termination_countdown_compile",
     "control_flow/termination_index_distance_compile",
     "termination/custom_ranking_field_countdown_compile",
@@ -6962,7 +7075,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_negated_boolean_place_guard_exit",
     "control_flow/runtime_negated_comparison_guard_exit",
     "dungeon/runtime_multi_room_reentry_exit",
-    "slices/runtime_mutable_slice_element_write_compile",
+    "slices/runtime_mutable_slice_element_write_straight_line_exit",
     "slices/runtime_mutable_slice_element_write_exit",
     "slices/guarded_slice_parameter_empty_false_index_compile",
     "slices/guarded_slice_parameter_empty_false_tail_compile",

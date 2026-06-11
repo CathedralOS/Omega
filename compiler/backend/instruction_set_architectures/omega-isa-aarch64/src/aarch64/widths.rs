@@ -44,6 +44,13 @@ pub fn return_register_integer_write_width() -> usize {
     4
 }
 
+pub fn runtime_storage_copy_to_return_register_width(byte_offset: usize, byte_size: usize) -> usize {
+    // adrp+add (8) + scalar load into w0/x0 + sign extension for narrow operands
+    // (SXTB/SXTH, 4) so a negative i8/i16 terminal survives the widening read.
+    let extend_width = if matches!(byte_size, 1 | 2) { 4 } else { 0 };
+    8 + load_data_offset_width(byte_offset, byte_size) + extend_width
+}
+
 pub fn dispatch_loop_enter_width() -> usize {
     4
 }

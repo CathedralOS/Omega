@@ -398,6 +398,14 @@ pub enum TargetOperationKind {
         byte_size: usize,
         value: i64,
     },
+    /// Load a runtime-storage scalar into the platform return register (w0/eax)
+    /// so a NON-CONSTANT terminal value (a local read, a field read-back) becomes
+    /// the process exit code, exactly like the constant path above.
+    CopyRuntimeStorageToReturnRegister {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_size: usize,
+    },
     TerminateDispatch,
     LeaveDispatchCase,
     LeaveDispatchLoop,

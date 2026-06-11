@@ -25,6 +25,7 @@ use omega_instruction_selection::{
     runtime_storage_copy_from_runtime_frame_indexed_width,
     runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width,
+    runtime_storage_copy_to_return_register_width,
     runtime_storage_copy_to_runtime_frame_indexed_width,
     runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
     runtime_storage_value_compare_width, runtime_text_buffer_materialize_width,
@@ -730,6 +731,15 @@ fn machine_instruction_width(
         SelectedInstructionKind::WriteReturnRegisterInteger { .. } => {
             return_register_integer_write_width(input.target.architecture)
         }
+        SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+            byte_offset,
+            byte_size,
+            ..
+        } => runtime_storage_copy_to_return_register_width(
+            input.target.architecture,
+            *byte_offset,
+            *byte_size,
+        ),
         SelectedInstructionKind::LeaveDispatchCase => {
             dispatch_case_leave_width(input.target.architecture)
         }

@@ -10,8 +10,9 @@ use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasBinding;
 use crate::selection::storage_places::{
     resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_place_in_table,
-    resolve_runtime_storage_primitive_type_in_table,
+    resolve_runtime_storage_primitive_type_in_table, static_integer_value,
 };
+use omega_state_values::simplify_state_expression;
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
@@ -180,7 +181,13 @@ pub(super) fn select_runtime_dispatch_edge(
             });
         }
         RuntimeDispatchLoopAction::Terminate => {
-            select_runtime_dispatch_return_value(input, edge, source_key, selected_instructions);
+            select_runtime_dispatch_return_value(
+                input,
+                edge,
+                source_key,
+                source_dispatch_index,
+                selected_instructions,
+            );
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::TerminateDispatch,
                 source_key,
@@ -191,23 +198,117 @@ pub(super) fn select_runtime_dispatch_edge(
     }
 }
 
+/// Deliver a terminating state's terminal value as the process exit code.
+///
+/// Three shapes lower, in order:
+/// 1. a CONSTANT terminal (`70`, `state shutdown { 0 }`) writes the immediate
+///    into the return register (the original literal-only path);
+/// 2. a RUNTIME PLACE terminal (`self.count` read-back, a local with a frame
+///    slot) loads the place into the return register at runtime — locals that
+///    are reassigned always have storage, so the stale-initializer fold below
+///    can never apply to them;
+/// 3. a STORAGE-LESS local / constant arithmetic terminal (`let x = 1 + 69; x`)
+///    substitutes simple local initializers and constant-folds; such locals
+///    were culled from storage precisely because nothing mutates them, so the
+///    initializer IS the terminal value.
+///
+/// Anything else still emits no return-value write (the silent pre-existing
+/// fallthrough, now reduced to runtime ARITHMETIC terminals like `self.n + 1`).
 fn select_runtime_dispatch_return_value(
     input: &InstructionSelectionInput<'_>,
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
+    source_dispatch_index: u32,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let Some(value) = static_terminal_target_value(input, source_key, edge.order) else {
+    if let Some(value) = static_terminal_target_value(input, source_key, edge.order) {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteReturnRegisterInteger {
+                byte_size: 4,
+                value,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return;
+    }
+
+    let Some(value_expr) = terminal_target_value_expression(input, source_key, edge.order) else {
         return;
     };
-    selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteReturnRegisterInteger {
-            byte_size: 4,
-            value,
-        },
+
+    if let Some(place) = resolve_runtime_storage_place_in_table(
+        input,
+        source_dispatch_index,
         source_key,
-        source_statement: edge.statement_index,
-    });
+        &input.control_flow.expressions,
+        value_expr,
+    ) && matches!(place.byte_count, 1 | 2 | 4 | 8)
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+                region: place.region,
+                byte_offset: place.byte_offset,
+                byte_size: place.byte_count,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return;
+    }
+
+    if let Some(value) =
+        simplified_static_terminal_value(input, source_key, edge.statement_index, value_expr)
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteReturnRegisterInteger {
+                byte_size: 4,
+                value,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+    }
+}
+
+/// Constant-fold a terminal value through SIMPLE local initializers
+/// (`let exit_code: i32 = 70; exit_code`, `let x: i32 = 1 + 69; x`). Locals
+/// that anything reassigns always receive a frame slot (see
+/// `local_data_requires_storage`), so they resolve as runtime places before
+/// this fold is consulted and the initializer substitution stays sound.
+fn simplified_static_terminal_value(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    value_expr: ExpressionHandle,
+) -> Option<i64> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    // Substitution and folding are separate passes inside the simplifier (a
+    // Name's binding value comes back UNFOLDED), so iterate to a small
+    // fixpoint: pass 1 turns `x` into `1 + 69`, pass 2 folds it to `70`.
+    // The bound covers chains of locals (`let a = ...; let b = a + 1; b`).
+    let mut expression = input.control_flow.expressions.to_tree(value_expr);
+    for _ in 0..4 {
+        let simplified =
+            simplify_state_expression(input.program, machine, state, statement_index, &expression);
+        if let Some(value) = static_integer_value(input.layouts, &simplified) {
+            return Some(value);
+        }
+        if simplified == expression {
+            return None;
+        }
+        expression = simplified;
+    }
+    None
 }
 
 /// When this EnterState edge is a value-returning callee clone's TERMINAL (it
