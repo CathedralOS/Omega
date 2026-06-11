@@ -64,7 +64,7 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         };
         input = after_default.take_keyword(KeywordKind::Machine, "machine")?;
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
-        let ((effects, contracts), rest) = parse_trait_signature_clauses(syntax_trees, rest)?;
+        let ((effects, contracts), rest) = parse_signature_clauses(syntax_trees, rest)?;
         signature.is_default = is_default;
         signature.effects = effects;
         signature.contracts = contracts;
@@ -170,7 +170,10 @@ fn parse_trait_requirement<'tokens, 'source>(
     Ok((required_trait, input))
 }
 
-fn parse_trait_signature_clauses<'tokens, 'source>(
+/// Parses the `effects`/`requires`/`ensures` clauses that may follow a bodyless
+/// machine signature: trait machine signatures and platform entry signatures
+/// share this clause grammar.
+pub(super) fn parse_signature_clauses<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> Result<
