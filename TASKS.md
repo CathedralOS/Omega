@@ -403,8 +403,11 @@ exit.
 
 ### Core Boundary Primitive Registry
 
-- [ ] Populate `BoundaryProvider.contract_ref`/`effect_set`/`target_applicability`
-  from the bound operator instead of empty defaults.
+- [x] Populate `BoundaryProvider.contract_ref`/`effect_set`/`target_applicability`
+  from the bound operator instead of empty defaults. The populated registry is
+  surfaced in the boundary report artifact (`10_boundary.html`, "Boundary
+  Providers" section): per provider, the governing contract, authority effects,
+  target applicability, and origin package.
 
 ### Proof-Backed Indexing And Subslicing
 

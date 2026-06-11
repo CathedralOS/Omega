@@ -527,9 +527,42 @@ impl ArtifactWriter {
             boundary_report.contracts.len()
         ));
         output.push_str(&format!(
-            "unchecked policies: {}\n\n",
+            "unchecked policies: {}\n",
             boundary_report.unchecked_policies.len()
         ));
+        output.push_str(&format!(
+            "boundary providers: {}\n\n",
+            boundary_report.providers.len()
+        ));
+
+        output.push_str("## Boundary Providers\n");
+        if boundary_report.providers.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, provider) in boundary_report.providers.iter() {
+                let contract = provider.contract_ref.as_deref().unwrap_or("none");
+                let authority = if provider.authority_effects.is_empty() {
+                    "none".to_owned()
+                } else {
+                    provider.authority_effects.join(", ")
+                };
+                let targets = if provider.target_applicability.is_empty() {
+                    "all".to_owned()
+                } else {
+                    provider.target_applicability.join(", ")
+                };
+                output.push_str(&format!(
+                    "- provider `{}` [{}] contract `{}` authority {{{}}} targets {{{}}} origin `{}`\n",
+                    provider.name,
+                    provider.category,
+                    contract,
+                    authority,
+                    targets,
+                    provider.origin_package,
+                ));
+            }
+        }
+        output.push('\n');
 
         output.push_str("## Targets\n");
         if boundary_report.targets.is_empty() {
@@ -989,6 +1022,22 @@ pub struct BoundaryReport {
     pub contracts: Arena<BoundaryContract>,
     pub unchecked_policies: Arena<UncheckedBoundaryPolicy>,
     pub capability_blast_radius: Arena<CapabilityBlastRadius>,
+    pub providers: Arena<BoundaryProviderEntry>,
+}
+
+/// One registered boundary primitive provider (frozen Wave 0 decision #4):
+/// the governing contract, the authority effects it carries, and the targets
+/// it applies to, sourced from the boundary operator(s) bound to it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct BoundaryProviderEntry {
+    pub name: String,
+    pub category: String,
+    /// The contract governing the provider, when a bound operator declares one.
+    pub contract_ref: Option<String>,
+    pub authority_effects: Vec<String>,
+    /// Targets the provider applies to; empty means all targets.
+    pub target_applicability: Vec<String>,
+    pub origin_package: String,
 }
 
 /// Theoretical blast radius for a single boundary capability: the host-authority
