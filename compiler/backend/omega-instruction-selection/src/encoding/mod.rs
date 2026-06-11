@@ -10,7 +10,8 @@ pub use dispatch::{
 };
 pub use host::{
     encode_function_enter_bytes, encode_host_call_sequence, encode_return_bytes,
-    encode_return_register_integer_write_bytes, encode_syscall_sequence,
+    encode_return_register_integer_write_bytes,
+    encode_runtime_storage_copy_to_return_register_bytes, encode_syscall_sequence,
 };
 pub use runtime_storage::{
     encode_runtime_frame_base_indexed_address_to_runtime_frame_write,

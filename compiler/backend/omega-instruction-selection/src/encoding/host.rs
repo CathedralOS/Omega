@@ -70,6 +70,21 @@ pub fn encode_return_bytes(architecture: Architecture) -> Result<(Vec<u8>, usize
     }
 }
 
+pub fn encode_runtime_storage_copy_to_return_register_bytes(
+    architecture: Architecture,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_to_return_register_bytes(byte_offset, byte_size)
+        }
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_to_return_register_bytes(byte_offset, byte_size)
+        }
+    }
+}
+
 pub fn encode_return_register_integer_write_bytes(
     architecture: Architecture,
     byte_size: usize,
