@@ -1,0 +1,15 @@
+// Ladder rung L6 (euclidean facts): a remainder is bounded by its modulus.
+// Lean analog: `Nat.mod_lt`. Needs a built-in lemma about `%`, not interval
+// propagation of the operands.
+
+machine remainder_bounded(a: usize)
+ensures
+    a % 2 in 0..=1
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

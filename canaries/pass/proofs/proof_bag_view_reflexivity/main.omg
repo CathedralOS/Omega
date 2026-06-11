@@ -1,0 +1,20 @@
+// Ladder rung L6 (proof views): the Bag multiset view from the compile-time
+// proofs chapter parses and typechecks in contracts, and a view equality
+// carries from requires to ensures unchanged. Lean analog:
+// `Multiset.coe_eq_coe` transport / plain `exact h`. Pins the accepted
+// frontier: Bag(...) is contract surface today even though view lowering is
+// not implemented.
+
+machine bag_equality_carries(before: &[u64], items: &[u64])
+requires
+    Bag(items) == Bag(before)
+ensures
+    Bag(items) == Bag(before)
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

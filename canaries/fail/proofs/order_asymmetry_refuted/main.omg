@@ -1,0 +1,19 @@
+// False twin of proofs/proof_order_transitivity's rung (ladder rung L1).
+// `requires i < j` can never entail `ensures j < i`: strict orders are
+// asymmetric. The contract refutation pass normalizes both spellings of the
+// strict order and rejects the direct contradiction. The requires set itself
+// is consistent, so this is not the vacuous-hypotheses case.
+
+machine false_order_asymmetry(i: usize, j: usize)
+requires
+    i < j
+ensures
+    j < i
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

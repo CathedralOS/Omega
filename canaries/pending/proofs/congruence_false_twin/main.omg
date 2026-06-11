@@ -1,0 +1,18 @@
+// False twin of proofs/proof_congruence_add_constant (ladder rung L3).
+// a == b entails a + 1 == b + 1, never a + 1 == b + 2. Accepted today; an
+// engine that rewrites under equations and normalizes constants must reject
+// it.
+
+machine false_add_congruence(a: usize, b: usize)
+requires
+    a == b
+ensures
+    a + 1 == b + 2
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

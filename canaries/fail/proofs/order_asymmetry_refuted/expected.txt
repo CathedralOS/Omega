@@ -1,0 +1,1 @@
+machine `false_order_asymmetry` ensures contract proof fact `j < i` contradicts requires proof fact `i < j`: strict orders are asymmetric

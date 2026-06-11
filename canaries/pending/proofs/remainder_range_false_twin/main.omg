@@ -1,0 +1,15 @@
+// False twin of proofs/proof_remainder_range (ladder rung L6). a % 2 is 1 for
+// any odd a, so `ensures a % 2 in 0..=0` is wrong. Accepted today; a built-in
+// euclidean remainder lemma must reject it.
+
+machine false_remainder_bounded(a: usize)
+ensures
+    a % 2 in 0..=0
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

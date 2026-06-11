@@ -22,4 +22,5 @@ Current samples:
 
 - `cli_mvp/`: smallest console program.
 - `dungeon_crawler_cli/`: console input/output and room navigation.
+- `math_proofs/`: theorem ladder of empty-body proof machines (check-only).
 - `point_and_click/`: windowed game/state-machine sketch.

@@ -1,4 +1,5 @@
 mod calls;
+mod contract_refutation;
 mod data;
 mod domains;
 mod effects;
@@ -19,6 +20,7 @@ mod transitions;
 mod type_references;
 
 use crate::calls::validate_call_node;
+use crate::contract_refutation::validate_machine_contract_refutation;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;
 use crate::entry_point::validate_entry_point;
@@ -60,6 +62,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
         validate_machine_effects(program, machine, &mut diagnostics);
         validate_machine_contracts(program, machine, &mut diagnostics);
+        validate_machine_contract_refutation(program, machine, &mut diagnostics);
         validate_machine_trait_conformances(program, machine, &mut diagnostics);
 
         for state in program.machine_states(machine) {
