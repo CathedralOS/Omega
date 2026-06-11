@@ -3634,6 +3634,43 @@ fn runtime_recursive_value_return_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_call_slice_len_guard_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_slice_len_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-value-call-slice-len-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime value call slice len guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime value call slice len guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an inline-leaf VALUE call (`let n = self.m.classify(s)`) whose arm guard \
+         reads the slice param's length (`s.len > 0`, `s` bound through the call to an \
+         ELIDED caller local aliasing a fixed [i32; 5]) to fold the length to the static \
+         element count and take the matching arm (n == 99, exit 70); a dropped arm leaves \
+         n == 0 and exits 71. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_exit_code_exit_canary_runs() {
     // `exit_process(self.v)` with a RUNTIME (non-constant) i32 must exit with the
     // computed value. Regression guard for the documented footgun where a runtime
