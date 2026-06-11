@@ -82,6 +82,14 @@ fn contract_name_path_place(
 
     let (mut place, start_index) = if path.head_symbol.is_valid() {
         (facts.append_symbol_place(path.head_symbol), 1usize)
+    } else if let Some(parameter_symbol) =
+        contract_owner_parameter_symbol(program, contract.owner, path, members.first())
+    {
+        // A head name that resolves to a parameter of the contract's owner
+        // (for example `item` in `requires item in Item::Ready`) roots the
+        // place at that parameter, matching how call-site obligations
+        // instantiate the same contract against caller arguments.
+        (facts.append_symbol_place(parameter_symbol), 1usize)
     } else {
         let self_symbol = contract_owner_self_symbol(program, contract.owner)?;
         let start_index = usize::from(
@@ -115,6 +123,38 @@ fn contract_owner_self_symbol(
     program: &omega_typed_trees::TypedTrees,
     owner: ContractProofFactOwner,
 ) -> Option<SymbolHandle> {
+    contract_owner_parameter(program, owner, |parameter| parameter.is_self)
+        .map(|parameter| parameter.symbol)
+}
+
+/// Resolves a contract name-path head that names one of the owner's
+/// parameters (for example `item` in `requires item in Item::Ready`). Returns
+/// the parameter symbol so the fact place is rooted at the parameter, which
+/// is how call-site obligations instantiate the same contract.
+fn contract_owner_parameter_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    owner: ContractProofFactOwner,
+    path: &omega_typed_trees::expression::TableNamePath,
+    head_name: Option<&omega_typed_trees::name::Identifier>,
+) -> Option<SymbolHandle> {
+    let head_name = head_name?.as_str();
+    if head_name == "self" {
+        return None;
+    }
+
+    contract_owner_parameter(program, owner, |parameter| {
+        !parameter.is_self
+            && (parameter.name.as_str() == head_name
+                || (path.symbol.is_valid() && parameter.symbol == path.symbol))
+    })
+    .map(|parameter| parameter.symbol)
+}
+
+fn contract_owner_parameter<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    owner: ContractProofFactOwner,
+    mut matches: impl FnMut(&omega_typed_trees::signature::StateParameter) -> bool,
+) -> Option<&'program omega_typed_trees::signature::StateParameter> {
     let state_symbol = match owner {
         ContractProofFactOwner::MachineState { state_symbol, .. }
         | ContractProofFactOwner::StateSignature { state_symbol, .. } => state_symbol,
@@ -128,8 +168,7 @@ fn contract_owner_self_symbol(
                         program
                             .state_parameters(state)
                             .iter()
-                            .find(|parameter| parameter.is_self)
-                            .map(|parameter| parameter.symbol)
+                            .find(|parameter| matches(parameter))
                     })
                 });
         }
@@ -142,6 +181,5 @@ fn contract_owner_self_symbol(
     program
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.is_self)
-        .map(|parameter| parameter.symbol)
+        .find(|parameter| matches(parameter))
 }
