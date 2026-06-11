@@ -3902,6 +3902,46 @@ fn runtime_ref_param_method_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_typed_two_method_receivers_exit_canary_runs() {
+    // Two data types implement a SAME-NAMED method (`Circle::code` == 9,
+    // `Square::code` == 4), each called through a typed `&mut` reference param.
+    // The inline value fold matched callee leafs by state NAME, so the
+    // lexically-first impl won at every call site (both calls 9 -> n == 99).
+    // Receiver-type discrimination keeps them apart: n == 9*10+4 == 94 -> 70.
+    let canary = pass_canary("traits/runtime_typed_two_method_receivers_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-typed-two-method-receivers-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("typed two-method receivers canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("typed two-method receivers canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected same-named methods on two data types to dispatch by the \
+         receiver's static type (9*10+4 == 94 -> exit 70); the name-keyed fold \
+         picked the first impl for both calls (99 -> exit 71). got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dyn_single_impl_dispatch_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_dyn_single_impl_dispatch_exit");
     let main_path = canary.join("main.omg");
@@ -3929,6 +3969,83 @@ fn runtime_dyn_single_impl_dispatch_exit_canary_runs() {
         "expected `&mut dyn Shape` to devirtualize to the single impl Circle and dispatch \
          Circle::code() == 99 -> exit 70; pre-devirtualization dyn dispatch returned 0 \
          (exit 71). got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_dyn_two_impl_dispatch_exit_canary_runs() {
+    // TWO data types satisfy Shape, so the `&mut dyn Shape` receiver cannot
+    // devirtualize; the call is monomorphized over the trait's closed world and
+    // each call site's receiver type picks the impl: Circle::code() == 9 then
+    // Square::code() == 4 -> n == 94 -> exit 70. Mirrors the interpreter
+    // coverage test dyn_two_impl_dispatch_selects_impl_by_runtime_type.
+    let canary = pass_canary("traits/runtime_dyn_two_impl_dispatch_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-dyn-two-impl-dispatch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dyn two-impl dispatch canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dyn two-impl dispatch canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `&mut dyn Shape` with TWO impls to dispatch by the call site's \
+         receiver type (Circle 9, Square 4 -> n == 94 -> exit 70); an unresolved \
+         dyn call returns 0 for both (exit 71). got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_dyn_two_impl_dispatch_swapped_exit_canary_runs() {
+    // Same two impls, call order swapped: Square (4) first, then Circle (9)
+    // -> n == 49 -> exit 70. A dispatcher that always picks the lexically-first
+    // impl cannot pass both this and the unswapped canary (it scores 99 twice).
+    let canary = pass_canary("traits/runtime_dyn_two_impl_dispatch_swapped_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-dyn-two-impl-dispatch-swapped-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dyn two-impl swapped dispatch canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dyn two-impl swapped dispatch canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the swapped call order to dispatch Square (4) then Circle (9) \
+         -> n == 49 -> exit 70. got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );

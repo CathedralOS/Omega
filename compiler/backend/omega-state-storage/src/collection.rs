@@ -314,6 +314,13 @@ fn local_data_requires_storage(
                     local_name,
                 )
                 || assignment_targets_symbol(expressions, statement, local_symbol, local_name)
+                || statement_call_references_symbol(
+                    expressions,
+                    statement_table,
+                    statement,
+                    local_symbol,
+                    local_name,
+                )
                 || statement_uses_symbol_mutably(
                     expressions,
                     statement_table,
@@ -322,6 +329,28 @@ fn local_data_requires_storage(
                     local_name,
                 )
         })
+}
+
+/// Whether a CALL statement references the local in one of its ARGUMENTS
+/// (`self.console.exit_process(n)`). The call marshals the argument from the
+/// local's storage slot, so the local needs one even when nothing else reads
+/// it -- without this the host-call argument resolved to no place, the call
+/// emitted zero bytes, and its relocation corrupted the following code.
+fn statement_call_references_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    let StatementNode::Call(call) = statement else {
+        return false;
+    };
+    statement_table
+        .expression_handles(call.arguments)
+        .iter()
+        .copied()
+        .any(|expression| expression_references_symbol(expressions, expression, symbol, local_name))
 }
 
 fn statement_references_symbol_in_transition(

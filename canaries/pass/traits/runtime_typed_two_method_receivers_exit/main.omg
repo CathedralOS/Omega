@@ -1,0 +1,61 @@
+// TWO data types with a SAME-NAMED method, called through typed `&mut` reference
+// params. The inline value fold matches callee leafs by target state NAME
+// (`code`), which both Circle::code and Square::code answer to -- without the
+// receiver's static type the lexically-first impl won at EVERY call site (both
+// calls returned 9 -> n == 99). The receiver-type discrimination keeps them
+// apart: a == 9, b == 4, n == 9 * 10 + 4 == 94 -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+trait Shape {
+    machine code(&mut self) -> i32;
+}
+
+data Circle {}
+
+machine Circle::code(&mut self) -> i32 {
+    transition {
+        _ -> 9
+    }
+}
+
+data Square {}
+
+machine Square::code(&mut self) -> i32 {
+    transition {
+        _ -> 4
+    }
+}
+
+data Main {
+    console: Console;
+    c: Circle;
+    q: Square;
+}
+
+machine Main::main(&mut self) {
+    let a: i32 = self.dispatchc(&mut self.c);
+    let b: i32 = self.dispatchq(&mut self.q);
+    let n: i32 = a * 10 + b;
+    transition n == 94 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::dispatchc(&mut self, s: &mut Circle) -> i32 {
+    s.code()
+}
+
+machine Main::dispatchq(&mut self, s: &mut Square) -> i32 {
+    s.code()
+}

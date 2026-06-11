@@ -336,10 +336,10 @@ machine Main::main(&mut self) {
 
 /// TWO data types satisfy `Shape`; a `&mut dyn Shape` parameter must dispatch by the
 /// RECEIVER'S RUNTIME TYPE: Circle::code() == 9, Square::code() == 4, so
-/// 9 * 10 + 4 == 94. Interpreter-only: the native backend currently supports only
-/// single-impl devirtualization (this program compiles natively but the binary crashes),
-/// so the interpreter is deliberately AHEAD of the backend here -- once the backend gains
-/// multi-impl dispatch, the differential harness inherits this oracle for free.
+/// 9 * 10 + 4 == 94. The native backend now matches via call-site monomorphization
+/// (one resolved candidate per impl; each call site's receiver type selects one) --
+/// see the run canary traits/runtime_dyn_two_impl_dispatch_exit, which the
+/// differential harness checks against this same semantics.
 #[test]
 fn dyn_two_impl_dispatch_selects_impl_by_runtime_type() {
     let main_path = write_program(

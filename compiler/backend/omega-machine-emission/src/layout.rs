@@ -77,18 +77,30 @@ fn machine_instruction_width(
             .assigned_target_operations
             .instruction_operands(host_operation.operands)
             .unwrap_or(&[]);
-        return Ok(
-            match host_binding_mechanism(input, host_operation.operation_key) {
-                Some(HostBindingMechanism::Syscall { number, .. }) => {
-                    syscall_sequence_width(input.target.architecture, operands, *number)
-                }
-                _ => host_call_sequence_width(
-                    input.target.architecture,
-                    host_operation.operation_key,
-                    operands,
-                ),
-            },
-        );
+        let width = match host_binding_mechanism(input, host_operation.operation_key) {
+            Some(HostBindingMechanism::Syscall { number, .. }) => {
+                syscall_sequence_width(input.target.architecture, operands, *number)
+            }
+            _ => host_call_sequence_width(
+                input.target.architecture,
+                host_operation.operation_key,
+                operands,
+            ),
+        };
+        // A host call is never legitimately empty: a zero width means the
+        // encoder rejected the operands (e.g. an argument that failed to
+        // marshal). Refuse loudly -- a zero-byte call would still have its
+        // import relocation applied, which corrupts whatever instruction
+        // lands at that offset and crashes the binary at runtime.
+        if width == 0 {
+            return Err(Diagnostic::error(format!(
+                "host operation {}.{} has no encodable call sequence (an argument \
+                 did not marshal to an operand); refusing to emit a zero-byte host call",
+                host_operation.operation_key.capability_name(),
+                host_operation.operation_key.operation_name(),
+            )));
+        }
+        return Ok(width);
     }
 
     Ok(match kind {
