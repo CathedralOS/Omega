@@ -457,6 +457,17 @@ impl<'program> Evaluator<'program> {
         match statement {
             StatementNode::Assignment(assignment) => {
                 let value = self.eval_expression(assignment.value, frame)?;
+                // Match the native backend's truncating store: an integer written to a
+                // narrower-than-64-bit field keeps only the field's low bytes (a u16
+                // field assigned 70000 reads back 4464).
+                let value = if let Value::Int(raw) = value {
+                    match self.assignment_target_primitive(assignment.target, frame) {
+                        Some(primitive) => Value::Int(wrap_to_width(raw, primitive)),
+                        None => value,
+                    }
+                } else {
+                    value
+                };
                 let target = self.resolve_place(assignment.target, frame)?;
                 // Assigning to a `&mut` place writes THROUGH the reference into the aliased
                 // cell (so `out_line = ...` on an `out_line: &mut String` param mutates the
@@ -470,6 +481,12 @@ impl<'program> Evaluator<'program> {
                     self.eval_expression(local.initial_value, frame)?
                 } else {
                     self.default_value_for_type(local.type_reference)?
+                };
+                // Wrap an integer initializer to the local's declared width (the native
+                // frame-slot store truncates the same way).
+                let value = match (&value, self.program.primitive_type_reference(local.type_reference)) {
+                    (Value::Int(raw), Some(primitive)) => Value::Int(wrap_to_width(*raw, primitive)),
+                    _ => value,
                 };
                 // A `let` introduces a fresh local cell, bound through the frame's
                 // interior-mutable locals map.
@@ -1284,6 +1301,121 @@ impl<'program> Evaluator<'program> {
             cell = self.field_cell(&cell, member)?;
         }
         Ok(cell)
+    }
+
+    /// Declared integer primitive of an assignment target, when it is a FIELD whose
+    /// receiver resolves to a typed struct (`self.c`, `obj.field`, or the equivalent
+    /// name path). Used to wrap an assigned integer to the field's declared width,
+    /// matching the native backend's truncating store. Returns `None` for bare locals
+    /// (whose cells carry no declared type) and non-field places.
+    fn assignment_target_primitive(
+        &mut self,
+        handle: ExpressionHandle,
+        frame: &Frame,
+    ) -> Option<PrimitiveType> {
+        let (receiver, field_name) = match self.program.expression_table.expression(handle).clone()
+        {
+            ExpressionNode::Member(member) => {
+                let receiver = self.resolve_place(member.receiver, frame).ok()?;
+                (receiver, member.member.as_str().to_owned())
+            }
+            ExpressionNode::Name(path) => {
+                let names = self
+                    .program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .iter()
+                    .map(|name| name.as_str().to_owned())
+                    .collect::<Vec<_>>();
+                match names.as_slice() {
+                    [] => return None,
+                    [single] => {
+                        // A single name is either a local (no declared-type record
+                        // here) or an implicit self-field.
+                        if single == "self" || frame.get(single).is_some() {
+                            return None;
+                        }
+                        (Rc::clone(&frame.self_cell), single.clone())
+                    }
+                    [head, middle @ .., last] => {
+                        let mut cell = if head == "self" {
+                            Rc::clone(&frame.self_cell)
+                        } else if let Some(local) = frame.get(head) {
+                            local
+                        } else {
+                            self.field_cell(&frame.self_cell, head).ok()?
+                        };
+                        for member in middle {
+                            cell = self.deref_cell(cell);
+                            cell = self.field_cell(&cell, member).ok()?;
+                        }
+                        (cell, last.clone())
+                    }
+                }
+            }
+            _ => return None,
+        };
+        let receiver = self.deref_cell(receiver);
+        let type_symbol = match &*receiver.borrow() {
+            Value::Struct { type_symbol, .. } => *type_symbol,
+            _ => return None,
+        };
+        self.field_primitive_type(type_symbol, &field_name)
+    }
+
+    /// Declared primitive type of `field_name` on the data record or machine
+    /// identified by `type_symbol`. A machine instance's struct carries the
+    /// MACHINE's symbol while its fields come from the attached data (plus the
+    /// machine-owned cells), so both field sources are searched.
+    fn field_primitive_type(
+        &self,
+        type_symbol: SymbolHandle,
+        field_name: &str,
+    ) -> Option<PrimitiveType> {
+        if let Some(data) = self
+            .program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == type_symbol)
+        {
+            return self.data_field_primitive_type(data, field_name);
+        }
+        if let Some(machine) = self
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == type_symbol)
+        {
+            if let Some(data) = machine
+                .attached_data
+                .as_ref()
+                .and_then(|name| self.find_data_by_name(name.as_str()))
+                && let Some(primitive) = self.data_field_primitive_type(data, field_name)
+            {
+                return Some(primitive);
+            }
+            for owned in self.program.machine_owned_data(machine) {
+                if owned.name.as_str() == field_name {
+                    return self.program.primitive_type_reference(owned.type_reference);
+                }
+            }
+        }
+        None
+    }
+
+    fn data_field_primitive_type(
+        &self,
+        data: &DataDefinition,
+        field_name: &str,
+    ) -> Option<PrimitiveType> {
+        for member in self.program.data_members(data) {
+            if let DataMember::Field(field) = member
+                && field.name.as_str() == field_name
+            {
+                return self.program.primitive_type_reference(field.type_reference);
+            }
+        }
+        None
     }
 
     /// If a cell holds a `Ref`, return the referenced cell (so field access on a `&mut`
