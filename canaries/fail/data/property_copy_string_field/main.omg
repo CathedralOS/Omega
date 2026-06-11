@@ -1,0 +1,14 @@
+// `String` is spelled like a primitive but owns text storage: a bitwise copy
+// aliases the buffer, so a String field cannot satisfy a declared `[copy]`.
+// Pins the carve-out in the structural property verifier.
+
+data Label [copy] {
+    text: String;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

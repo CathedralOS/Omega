@@ -1,0 +1,1 @@
+declares `[copy]` but field `text` is not `copy`
