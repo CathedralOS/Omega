@@ -134,6 +134,18 @@ This page tracks design pressure that is not fully nailed down yet.
   encode/decode is generated at boundaries. Version type identity moves from
   display-string comparison to symbol identity when validation does
   generally.
+- Era discriminator + recycling: generated wire encodings always carry one
+  era varint per top-level message/record (never per struct, never in
+  memory); no-version schemas encode era 0, and adding versioning later
+  snapshots the old body as that era. Cross-era field-number recycling is
+  legal (era tables disambiguate); cross-era type changes report "requires
+  migration" instead of erroring. Cross-binary case openness is a wire
+  decode policy for unknown case tags (reject / preserve / decode as the
+  zero case), never a weakening of in-language exhaustiveness -- the
+  `[open]` property is permanently dropped, subsumed by wire.
+- Discarding a non-unit return value is a compile error; intentional
+  discards are spelled `_ = call();`. No per-type must_use marker exists --
+  the default is the strict behavior.
 
 ## Still Open
 

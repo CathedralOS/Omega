@@ -112,7 +112,26 @@ The safe path should be easy:
 - Changing defaults is a compatibility question, not just an implementation
   detail.
 - Unknown fields may be rejected, ignored, or preserved depending on the schema
-  policy.
+  policy. The same policy question covers unknown CASE TAGS on case-bearing
+  wire fields (a newer era's case arriving at an older reader): reject,
+  preserve raw, or decode as the zero case. In-language match exhaustiveness
+  is never weakened for this -- cross-binary openness is a wire decode
+  policy, not a type-system property.
+
+Declared versions change the reservation story. Generated encodings always
+carry an ERA DISCRIMINATOR (one varint per top-level message or record --
+never per struct, never in native layout); a schema with no version blocks
+encodes era `0`, and introducing versioning later snapshots the old body as
+that era, so pre-versioning data stays decodable. Because the decoder always
+knows a message's era:
+
+- `reserved` protects against ACCIDENTAL reuse within an era; deliberate
+  cross-era recycling of a retired number is legal -- the era tables
+  disambiguate what proto must treat as radioactive forever.
+- A field number changing type ACROSS eras is legitimate evolution, reported
+  as "requires migration" (decode via the old era's table, migrate up the
+  chain), not a compile error. Hard errors are for within-era violations and
+  declared-history contradictions.
 
 Example:
 
