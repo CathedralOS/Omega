@@ -1,0 +1,30 @@
+// FROZEN DECISION 9 -- STRICT RESULT USE: a statement-position call whose callee
+// returns a non-unit value is a compile error unless the discard is explicit
+// (`_ = call();`). `roll()` returns bool; the bare statement call must reject.
+data Main {
+    value: i32;
+}
+
+machine Main::roll(&mut self) -> bool {
+    transition {
+        _ -> true
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    transition {
+        _ -> drop_result()
+    }
+
+    state drop_result(&mut self) {
+        self.roll();
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
+    }
+}

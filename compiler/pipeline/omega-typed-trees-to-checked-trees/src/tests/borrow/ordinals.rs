@@ -59,6 +59,8 @@ fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
             receiver: Default::default(),
             target: Identifier::generated("outer"),
             arguments: outer_arguments,
+
+            discards_result: false,
         }),
     );
     program.push_state_parameter(

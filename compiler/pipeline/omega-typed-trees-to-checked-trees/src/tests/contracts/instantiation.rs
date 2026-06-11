@@ -50,6 +50,8 @@ fn instantiates_call_contract_places_onto_caller_arguments() {
             receiver: HandleSpan::empty(),
             target: Identifier::generated("run"),
             arguments: caller_arguments,
+
+            discards_result: false,
         }));
 
     let mut caller_state = State {
@@ -236,6 +238,8 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
             receiver: Default::default(),
             target: Identifier::generated("heal"),
             arguments: caller_arguments,
+
+            discards_result: false,
         }),
     );
     program.push_machine_state(&mut caller_machine, caller_state);

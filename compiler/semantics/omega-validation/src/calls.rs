@@ -8,6 +8,7 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::statement::TableCall;
+use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_call_node(
     program: &TypedTrees,
@@ -25,6 +26,13 @@ pub(crate) fn validate_call_node(
         || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
     {
         if let Some(state) = machine_symbols.state(&call.target) {
+            validate_result_use(
+                program,
+                call,
+                state.name.as_str(),
+                state.return_type,
+                diagnostics,
+            );
             validate_call_arguments_handles(
                 program,
                 arguments,
@@ -54,6 +62,13 @@ pub(crate) fn validate_call_node(
             return;
         };
 
+        validate_result_use(
+            program,
+            call,
+            state.name.as_str(),
+            state.return_type,
+            diagnostics,
+        );
         validate_call_arguments_handles(
             program,
             arguments,
@@ -84,6 +99,13 @@ pub(crate) fn validate_call_node(
             return;
         };
 
+        validate_result_use(
+            program,
+            call,
+            &state_signature.name,
+            state_signature.return_type,
+            diagnostics,
+        );
         validate_call_arguments_handles(
             program,
             arguments,
@@ -104,6 +126,7 @@ pub(crate) fn validate_call_node(
             .iter()
             .find(|state| state.name == call.target)
         {
+            validate_result_use(program, call, &state.name, state.return_type, diagnostics);
             validate_call_arguments_handles(
                 program,
                 arguments,
@@ -125,6 +148,7 @@ pub(crate) fn validate_call_node(
     if let Some((_, state)) = receiver_type.and_then(|type_name| {
         symbols.attached_machine_state(program, type_name, call.target.as_str())
     }) {
+        validate_result_use(program, call, &state.name, state.return_type, diagnostics);
         validate_call_arguments_handles(
             program,
             arguments,
@@ -136,7 +160,57 @@ pub(crate) fn validate_call_node(
         return;
     }
 
+    // Boundary/trait receivers (e.g. `self.console.exit_process(0)`) resolve to a
+    // trait machine signature. Argument validation for trait calls lives elsewhere;
+    // strict result use still applies here.
+    if let Some(signature) = receiver_type
+        .and_then(|type_name| symbols.trait_definition(type_name))
+        .and_then(|trait_definition| {
+            program
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .find(|signature| signature.name == call.target)
+        })
+    {
+        validate_result_use(
+            program,
+            call,
+            &signature.name,
+            signature.return_type,
+            diagnostics,
+        );
+        return;
+    }
+
     let _ = diagnostics;
+}
+
+/// FROZEN DECISION 9 -- STRICT RESULT USE: a statement-position call whose callee
+/// returns a non-unit value must not silently drop that value. Intentional
+/// discards are spelled `_ = call();` (which sets `discards_result`). "Non-unit"
+/// means the resolved callee declares a return type (`-> T`) that is not `()`.
+fn validate_result_use(
+    program: &TypedTrees,
+    call: &TableCall,
+    target_name: &str,
+    return_type: TypeReferenceHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if call.discards_result || !return_type.is_valid() {
+        return;
+    }
+
+    if matches!(
+        program.type_reference_table.type_reference(return_type),
+        TypeReferenceNode::Unit
+    ) {
+        return;
+    }
+
+    diagnostics.push(Diagnostic::error(format!(
+        "call to `{target_name}` discards its non-unit `{}` result; consume the value or discard it explicitly with `_ = {target_name}(...);`",
+        program.display_type_reference_with_constraints(return_type)
+    )));
 }
 
 pub(crate) fn validate_call_arguments_handles(
