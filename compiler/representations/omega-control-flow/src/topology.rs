@@ -108,4 +108,10 @@ pub struct StateParameterFlow {
     pub type_symbol: SymbolHandle,
     pub type_name: Identifier,
     pub is_mutable_reference: bool,
+    /// For a `dyn Trait` parameter with MULTIPLE satisfying impls: every impl's
+    /// data type name (the trait's closed world), in data-definition order.
+    /// A method call through this parameter resolves to one candidate per impl;
+    /// the receiver's static type at each call site selects among them. Empty
+    /// for non-`dyn` parameters and single-impl `dyn` (devirtualized upstream).
+    pub dyn_impl_type_names: Vec<Identifier>,
 }

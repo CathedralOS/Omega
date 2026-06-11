@@ -1,0 +1,56 @@
+// The two-impl dyn dispatch with the CALL ORDER swapped: Square (4) first, then
+// Circle (9), so n == 4 * 10 + 9 == 49 -> exit 70. A dispatcher that always
+// picks the lexically-first impl scores 99 on this program and 99 on the
+// unswapped one -- it cannot pass both. Mirrors the interpreter coverage test
+// dyn_two_impl_dispatch_swapped_order.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+trait Shape {
+    machine code(&mut self) -> i32;
+}
+
+data Circle {}
+
+machine Circle::code(&mut self) -> i32 {
+    transition {
+        _ -> 9
+    }
+}
+
+data Square {}
+
+machine Square::code(&mut self) -> i32 {
+    transition {
+        _ -> 4
+    }
+}
+
+data Main {
+    console: Console;
+    c: Circle;
+    q: Square;
+}
+
+machine Main::main(&mut self) {
+    let a: i32 = self.dispatch(&mut self.q);
+    let b: i32 = self.dispatch(&mut self.c);
+    let n: i32 = a * 10 + b;
+    transition n == 49 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::dispatch(&mut self, s: &mut dyn Shape) -> i32 {
+    s.code()
+}
