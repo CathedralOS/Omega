@@ -3,6 +3,8 @@ use omega_core::operator_spelling::OperatorSpelling;
 use omega_core::symbols::SymbolHandle;
 
 use crate::TypedTrees;
+use crate::data::TypeParameter;
+use crate::domain::DomainDefinition;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -19,58 +21,249 @@ pub struct OperatorDefinition {
     pub token_count: usize,
 }
 
-/// Outcome of resolving an operator spelling at an expression site against a
-/// candidate set, keyed on operator path + parameter types. Per Wave 0 decision
-/// #3 the spelling is the first-level discriminator; the operand types must then
-/// uniquely select a single candidate. Return types never distinguish.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SpellingDispatch {
-    /// No declared operator carries this spelling for these operand types.
-    NoCandidate,
-    /// Exactly one candidate matched: its index within the supplied slice.
-    Unique(usize),
-    /// Two or more candidates share the spelling and operand-type key, so the
-    /// meaning is ambiguous and cannot be selected. Carries their indices.
-    Ambiguous(Vec<usize>),
+/// A spelled operator meaning visible at a use site: a root operator, or a
+/// domain operator together with its owning domain.
+#[derive(Debug, Clone, Copy)]
+pub struct SpelledOperator<'program> {
+    pub operator: &'program OperatorDefinition,
+    pub domain: Option<&'program DomainDefinition>,
 }
 
-impl SpellingDispatch {
-    pub fn unique(&self) -> Option<usize> {
-        match self {
-            Self::Unique(index) => Some(*index),
-            _ => None,
-        }
-    }
-
-    pub fn is_ambiguous(&self) -> bool {
-        matches!(self, Self::Ambiguous(_))
-    }
-}
-
-/// Resolve `spelling` against `operators`, selecting the unique candidate whose
-/// normalized operand-type key matches `operand_key`. This is the expression
-/// level dispatch rule: it keys on operator path + parameter types only.
+/// Resolve an operator `spelling` at a use site. Per Wave 0 decision #3 the
+/// spelling is the first-level discriminator; the receiver type (the first
+/// operand) then narrows the candidate set when the site knows it. Return
+/// types never distinguish. The surviving candidates decide the dispatch:
+/// exactly one selects the meaning, none is a missing operator, two or more
+/// are ambiguous.
 ///
-/// `operand_key` is produced by [`operator_operand_signature`] over the same
-/// `program`, ensuring the operand normalization is identical on both sides.
-pub fn resolve_spelling(
-    program: &TypedTrees,
-    operators: &[OperatorDefinition],
+/// This is the single use-site resolution authority. The checked stage records
+/// its outcome as durable evidence (`CheckedOperatorFacts`) for diagnostics and
+/// proof lowering rather than re-resolving.
+pub fn resolve_spelling<'program>(
+    program: &'program TypedTrees,
     spelling: OperatorSpelling,
-    operand_key: &str,
-) -> SpellingDispatch {
-    let matches: Vec<usize> = operators
+    receiver_type: Option<TypeReferenceHandle>,
+) -> Vec<SpelledOperator<'program>> {
+    let root_candidates = program
+        .operators()
         .iter()
-        .enumerate()
-        .filter(|(_, operator)| operator.spelling == Some(spelling))
-        .filter(|(_, operator)| operator_operand_signature(program, operator) == operand_key)
-        .map(|(index, _)| index)
-        .collect();
+        .filter(|operator| operator.spelling == Some(spelling))
+        .map(|operator| SpelledOperator {
+            operator,
+            domain: None,
+        });
+    let domain_candidates = program.domain_definitions().iter().flat_map(|domain| {
+        program
+            .domain_operators(domain)
+            .iter()
+            .filter(move |operator| operator.spelling == Some(spelling))
+            .map(move |operator| SpelledOperator {
+                operator,
+                domain: Some(domain),
+            })
+    });
 
-    match matches.len() {
-        0 => SpellingDispatch::NoCandidate,
-        1 => SpellingDispatch::Unique(matches[0]),
-        _ => SpellingDispatch::Ambiguous(matches),
+    root_candidates
+        .chain(domain_candidates)
+        .filter(|candidate| match receiver_type {
+            Some(receiver_type) => {
+                operator_matches_receiver(program, candidate.operator, receiver_type)
+            }
+            None => true,
+        })
+        .collect()
+}
+
+/// Whether the operator's first parameter (its receiver) accepts a value of
+/// `receiver_type`, binding the operator's own type parameters structurally.
+fn operator_matches_receiver(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    receiver_type: TypeReferenceHandle,
+) -> bool {
+    let Some(receiver_parameter) = program.operator_parameters(operator).first() else {
+        return false;
+    };
+    type_reference_matches(
+        program,
+        receiver_type,
+        receiver_parameter.type_reference,
+        program.operator_type_parameters(operator),
+        &mut Vec::new(),
+    )
+}
+
+fn type_reference_matches(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+    type_parameters: &[TypeParameter],
+    bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+) -> bool {
+    if !actual.is_valid() || !expected.is_valid() {
+        return false;
+    }
+    if let Some(type_parameter) = expected_type_parameter(program, expected, type_parameters) {
+        if let Some((_, bound_actual)) = bindings
+            .iter()
+            .find(|(symbol, _)| *symbol == type_parameter.symbol)
+        {
+            return type_reference_matches(program, actual, *bound_actual, &[], &mut Vec::new());
+        }
+        bindings.push((type_parameter.symbol, actual));
+        return true;
+    }
+
+    match (
+        program.type_reference_table.type_reference(actual),
+        program.type_reference_table.type_reference(expected),
+    ) {
+        (
+            TypeReferenceNode::Reference {
+                referee: actual_referee,
+                is_mutable: actual_mutable,
+                is_relaxed: actual_relaxed,
+            },
+            TypeReferenceNode::Reference {
+                referee: expected_referee,
+                is_mutable: expected_mutable,
+                is_relaxed: expected_relaxed,
+            },
+        ) => {
+            actual_mutable == expected_mutable
+                && actual_relaxed == expected_relaxed
+                && type_reference_matches(
+                    program,
+                    *actual_referee,
+                    *expected_referee,
+                    type_parameters,
+                    bindings,
+                )
+        }
+        (
+            TypeReferenceNode::Constrained {
+                base_type: actual_base,
+                ..
+            },
+            _,
+        ) => type_reference_matches(program, *actual_base, expected, type_parameters, bindings),
+        (
+            _,
+            TypeReferenceNode::Constrained {
+                base_type: expected_base,
+                ..
+            },
+        ) => type_reference_matches(program, actual, *expected_base, type_parameters, bindings),
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: actual_element,
+                length: actual_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: expected_element,
+                length: expected_length,
+            },
+        ) => {
+            actual_length == expected_length
+                && type_reference_matches(
+                    program,
+                    *actual_element,
+                    *expected_element,
+                    type_parameters,
+                    bindings,
+                )
+        }
+        (
+            TypeReferenceNode::Slice {
+                element_type: actual_element,
+            },
+            TypeReferenceNode::Slice {
+                element_type: expected_element,
+            },
+        ) => type_reference_matches(
+            program,
+            *actual_element,
+            *expected_element,
+            type_parameters,
+            bindings,
+        ),
+        (
+            TypeReferenceNode::Named {
+                symbol: actual_symbol,
+                name: actual_name,
+            },
+            TypeReferenceNode::Named {
+                symbol: expected_symbol,
+                name: expected_name,
+            },
+        ) => {
+            (actual_symbol.is_valid() && actual_symbol == expected_symbol)
+                || actual_name == expected_name
+        }
+        (
+            TypeReferenceNode::Generic {
+                base_symbol: actual_symbol,
+                base_name: actual_name,
+                arguments: actual_arguments,
+            },
+            TypeReferenceNode::Generic {
+                base_symbol: expected_symbol,
+                base_name: expected_name,
+                arguments: expected_arguments,
+            },
+        ) => {
+            ((actual_symbol.is_valid() && actual_symbol == expected_symbol)
+                || actual_name == expected_name)
+                && type_reference_spans_match(
+                    program,
+                    *actual_arguments,
+                    *expected_arguments,
+                    type_parameters,
+                    bindings,
+                )
+        }
+        (TypeReferenceNode::Unit, TypeReferenceNode::Unit) => true,
+        _ => false,
+    }
+}
+
+fn type_reference_spans_match(
+    program: &TypedTrees,
+    actual: HandleSpan<TypeReferenceHandle>,
+    expected: HandleSpan<TypeReferenceHandle>,
+    type_parameters: &[TypeParameter],
+    bindings: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+) -> bool {
+    let actual = program.type_reference_table.type_reference_handles(actual);
+    let expected = program
+        .type_reference_table
+        .type_reference_handles(expected);
+    actual.len() == expected.len()
+        && actual.iter().zip(expected).all(|(actual, expected)| {
+            type_reference_matches(program, *actual, *expected, type_parameters, bindings)
+        })
+}
+
+fn expected_type_parameter<'a>(
+    program: &TypedTrees,
+    expected: TypeReferenceHandle,
+    type_parameters: &'a [TypeParameter],
+) -> Option<&'a TypeParameter> {
+    match program.type_reference_table.type_reference(expected) {
+        TypeReferenceNode::Named { symbol, name }
+        | TypeReferenceNode::Generic {
+            base_symbol: symbol,
+            base_name: name,
+            ..
+        } => type_parameters.iter().find(|parameter| {
+            (symbol.is_valid() && parameter.symbol == *symbol) || parameter.name == *name
+        }),
+        TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::Constrained { .. }
+        | TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Slice { .. }
+        | TypeReferenceNode::Unit => None,
     }
 }
 
