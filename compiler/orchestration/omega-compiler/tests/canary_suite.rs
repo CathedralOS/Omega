@@ -5954,6 +5954,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/uses_caller_folder",
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
+    "data/case_payload_declaration",
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
     "domains/call_requires_boolean_expression_from_domain_fact",
@@ -6290,7 +6291,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/version_field_type_change",
     "wire/version_field_retired_without_reserved",
     "capabilities/unapproved_host_call",
-    "data/case_payload_unimplemented",
+    "data/case_payload_malformed",
+    "data/case_zero_payload",
     "data/enum_keyword_retired",
     "data/mixed_data_shape_unimplemented",
     "domains/call_requires_invalidated_by_mutation",
@@ -6436,4 +6438,17 @@ struct PendingCanary {
 // ladder pins the proving side; the rungs map to engine increments in
 // wiki/proof_engine_roadmap.md.
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    // Case payload CONSTRUCTION (`Command::Move { steps: 70 }`) parses,
+    // type-checks, and interprets (omega-interpreter/tests/coverage.rs runs the
+    // same program to exit 70), but the native backend cannot lower the
+    // tag-plus-payload write / payload member read yet -- emitting would take
+    // the wrong arm, so the compiler rejects after checked trees. Promote to a
+    // RUN canary (expected exit 70) when payload codegen lands.
+    PendingCanary {
+        path: "data/case_payload_native_construction",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "case payload construction is not lowered natively yet",
+        },
+    },
+];

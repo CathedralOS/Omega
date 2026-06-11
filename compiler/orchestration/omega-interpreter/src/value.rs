@@ -28,11 +28,15 @@ pub enum Value {
         type_name: String,
         fields: BTreeMap<String, Cell>,
     },
-    /// An enum value, identified by its variant name, optionally carrying ordered payload
-    /// cells (tuple-style variant data). Unit variants have an empty payload.
+    /// A case (enum) value, identified by its case name -- the TAG -- optionally
+    /// carrying NAMED payload field cells (`case Say(text: String)` constructs
+    /// `Enum { "Say", [("text", cell)] }`). Payload-less cases and bare case
+    /// references (`Command::Quit`, including those used as tag-compare operands)
+    /// have an empty payload. Equality between enum values compares the TAG only,
+    /// matching the native backend's constant tag compare.
     Enum {
         variant_name: String,
-        payload: Vec<Cell>,
+        payload: Vec<(String, Cell)>,
     },
     /// A fixed array or a slice view. Both are an ordered list of element CELLS; a slice
     /// shares the array's element `Rc`s (so writes through the slice alias the array). The

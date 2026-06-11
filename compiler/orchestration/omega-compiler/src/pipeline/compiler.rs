@@ -42,6 +42,33 @@ fn validate_boundary_providers(
     }
 }
 
+/// NATIVE-LOWERING GATE for case payloads: constructing a payload-carrying case
+/// (`Command::Say { text: ... }`) parses, type-checks, and INTERPRETS, but the
+/// native backend does not lower the tag-plus-payload write or the payload
+/// member read yet -- emitting would silently take the wrong transition arm.
+/// Reject loudly here, after checked trees, so `compile_to_checked` (the
+/// interpreter / differential-oracle entry) is unaffected.
+fn reject_unlowered_case_payload_constructions(
+    checked: &omega_checked_trees::CheckedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    use omega_typed_trees::expression::ExpressionNode;
+
+    let constructs_case_payload = checked
+        .expression_table
+        .expression_nodes()
+        .any(|node| match node {
+            ExpressionNode::StructLiteral(struct_literal) => struct_literal.case_name.is_some(),
+            _ => false,
+        });
+
+    if constructs_case_payload {
+        return Err(vec![Diagnostic::error(
+            "case payload construction is not lowered natively yet (the interpreter supports it; native tag-plus-payload codegen is pending)",
+        )]);
+    }
+    Ok(())
+}
+
 pub struct Compiler {
     options: CompileOptions,
 }
@@ -76,6 +103,7 @@ impl Compiler {
 
         let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
         write_checked_snapshot(&self.options, &checked.program)?;
+        reject_unlowered_case_payload_constructions(&checked.program)?;
         write_boundary_report_with_capabilities(&self.options, &syntax_trees, &checked.program)?;
         let backend_surface = build_backend_surface_report(&checked.program);
 

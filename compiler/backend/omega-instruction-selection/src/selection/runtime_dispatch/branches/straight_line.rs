@@ -1463,6 +1463,7 @@ fn resolve_leaf_call_expression_handle(
             table.insert(ExpressionNode::StructLiteral(
                 omega_checked_trees::expression::TableStructLiteral {
                     type_name: struct_literal.type_name,
+                    case_name: struct_literal.case_name,
                     fields: copied_fields,
                 },
             ))

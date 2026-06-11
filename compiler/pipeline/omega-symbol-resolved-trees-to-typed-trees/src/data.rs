@@ -73,10 +73,30 @@ fn lower_data_member(
             }))
         }
         resolved::data::DataMember::Variant(variant) => {
-            Ok(typed::data::DataMember::Variant(typed::data::DataVariant {
+            let mut typed_variant = typed::data::DataVariant {
                 symbol: variant.symbol,
                 name: crate::name::lower_name(&variant.name),
-            }))
+                payload: omega_core::arena::HandleSpan::empty(),
+            };
+            let payload_fields = lowerer
+                .source_trees
+                .data_payload_fields(variant.payload)
+                .to_vec();
+            for field in &payload_fields {
+                let lowered = typed::data::DataField {
+                    symbol: field.symbol,
+                    name: crate::name::lower_name(&field.name),
+                    type_reference: lower_type_reference_into_table(
+                        lowerer,
+                        &field.type_reference,
+                    )?,
+                    initial_value: typed::expression::ExpressionHandle::invalid(),
+                };
+                lowerer
+                    .typed_trees
+                    .push_data_payload_field(&mut typed_variant, lowered);
+            }
+            Ok(typed::data::DataMember::Variant(typed_variant))
         }
     }
 }

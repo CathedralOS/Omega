@@ -296,6 +296,7 @@ pub(super) fn resolve_runtime_alias_binding(
                 expression: Expression::StructLiteral(
                     omega_checked_trees::expression::StructLiteral {
                         type_name: struct_literal.type_name.clone(),
+                        case_name: struct_literal.case_name.clone(),
                         fields: struct_literal
                             .fields
                             .iter()
@@ -536,6 +537,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                 expression: alias_expressions.insert(ExpressionNode::StructLiteral(
                     omega_checked_trees::expression::TableStructLiteral {
                         type_name: struct_literal.type_name.clone(),
+                        case_name: struct_literal.case_name.clone(),
                         fields: copied_fields,
                     },
                 )),
@@ -749,6 +751,7 @@ pub(super) fn resolve_leaf_binding_expression_handle(
             table.insert(ExpressionNode::StructLiteral(
                 omega_checked_trees::expression::TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    case_name: struct_literal.case_name.clone(),
                     fields: copied_fields,
                 },
             ))
@@ -946,6 +949,7 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
             table.insert(ExpressionNode::StructLiteral(
                 omega_checked_trees::expression::TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    case_name: struct_literal.case_name.clone(),
                     fields: copied_fields,
                 },
             ))

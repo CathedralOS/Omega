@@ -338,6 +338,7 @@ impl ExpressionTable {
                 let fields = self.copy_struct_literal_fields(source, struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    case_name: struct_literal.case_name.clone(),
                     fields,
                 }))
             }
@@ -1088,6 +1089,7 @@ impl ExpressionTable {
                 let fields = self.copy_own_struct_literal_fields(struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name,
+                    case_name: struct_literal.case_name,
                     fields,
                 }))
             }
@@ -1135,6 +1137,10 @@ impl ExpressionTable {
 
     pub fn expression_count(&self) -> usize {
         self.expressions.len()
+    }
+
+    pub fn expression_nodes(&self) -> impl Iterator<Item = &ExpressionNode> {
+        self.expressions.iter().map(|(_, node)| node)
     }
 
     pub fn copy_capacity(&self) -> ExpressionTableCapacity {
@@ -1254,6 +1260,7 @@ impl ExpressionTable {
                 let fields = self.insert_struct_field_span_from_tree(&struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    case_name: struct_literal.case_name.clone(),
                     fields,
                 }))
             }
@@ -1335,6 +1342,7 @@ impl ExpressionTable {
             ExpressionNode::StructLiteral(struct_literal) => {
                 Expression::StructLiteral(StructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    case_name: struct_literal.case_name.clone(),
                     fields: self
                         .struct_fields(struct_literal.fields)
                         .iter()
@@ -1555,6 +1563,9 @@ pub struct TableNamePath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteral {
     pub type_name: Identifier,
+    /// `Some` when the literal constructs a CASE of `type_name`
+    /// (`Command::Say { text: ... }`); `None` for a plain record literal.
+    pub case_name: Option<Identifier>,
     pub fields: HandleSpan<TableStructLiteralField>,
 }
 
@@ -1562,6 +1573,7 @@ impl Default for TableStructLiteral {
     fn default() -> Self {
         Self {
             type_name: Identifier::default(),
+            case_name: None,
             fields: HandleSpan::empty(),
         }
     }
@@ -1863,6 +1875,9 @@ pub struct IndexedExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructLiteral {
     pub type_name: Identifier,
+    /// `Some` when the literal constructs a CASE of `type_name`; `None` for a
+    /// plain record literal.
+    pub case_name: Option<Identifier>,
     pub fields: Arc<[StructLiteralField]>,
 }
 

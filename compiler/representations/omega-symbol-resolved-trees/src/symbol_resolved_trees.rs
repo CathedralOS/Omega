@@ -61,6 +61,7 @@ pub struct SymbolResolvedTableStorage {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolResolvedDeclarationStorage {
     pub data_members: Arena<data::DataMember>,
+    pub data_payload_fields: Arena<data::DataField>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub proof_facts: Arena<domain::ProofFact>,
     pub domain_path_members: Arena<crate::name::DiagnosticName>,
@@ -110,6 +111,13 @@ impl SymbolResolvedTrees {
 
     pub fn data_members(&self, span: HandleSpan<data::DataMember>) -> &[data::DataMember] {
         self.tables.declarations.data_members.span_or_empty(span)
+    }
+
+    pub fn data_payload_fields(&self, span: HandleSpan<data::DataField>) -> &[data::DataField] {
+        self.tables
+            .declarations
+            .data_payload_fields
+            .span_or_empty(span)
     }
 
     pub fn data_type_parameters(
