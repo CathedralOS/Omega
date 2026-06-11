@@ -1,6 +1,7 @@
 use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
-    RuntimeStoragePlace, classify_scalar_value_type_in_table, descriptor_primitive_type,
+    RuntimeStoragePlace, clamp_runtime_case_comparison_operands_in_table,
+    classify_scalar_value_type_in_table, descriptor_primitive_type,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
@@ -72,20 +73,22 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
-    let (operator, left_expression, right_expression) = match expressions.expression(value) {
-        ExpressionNode::Binary(binary) => (
-            runtime_binary_operator(binary.operator)?,
-            binary.left,
-            binary.right,
-        ),
-        ExpressionNode::Call(call) => {
-            let operator = builtin_runtime_call_operator_in_table(input, call)?;
-            let left = expressions.expression_handle_at_offset(call.arguments, 0);
-            let right = expressions.expression_handle_at_offset(call.arguments, 1);
-            (operator, left, right)
-        }
-        _ => return None,
-    };
+    let (operator, comparison_operator, left_expression, right_expression) =
+        match expressions.expression(value) {
+            ExpressionNode::Binary(binary) => (
+                runtime_binary_operator(binary.operator)?,
+                Some(binary.operator),
+                binary.left,
+                binary.right,
+            ),
+            ExpressionNode::Call(call) => {
+                let operator = builtin_runtime_call_operator_in_table(input, call)?;
+                let left = expressions.expression_handle_at_offset(call.arguments, 0);
+                let right = expressions.expression_handle_at_offset(call.arguments, 1);
+                (operator, None, left, right)
+            }
+            _ => return None,
+        };
 
     // Division, modulo, right shift, min/max, and comparisons differ by
     // signedness; pick the unsigned encoding when the operands are unsigned.
@@ -123,6 +126,22 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         static_values,
         runtime_value_operands,
     )?;
+    // A case-name equality (the lowered form of `in`) compares the TAG only;
+    // the place operand must not read payload bytes. The encoder compares at
+    // the operand's recorded width, so an unclamped enum place would fold
+    // payload bytes into the comparison.
+    if let Some(comparison_operator) = comparison_operator {
+        clamp_runtime_case_comparison_operands_in_table(
+            &input.layouts,
+            expressions,
+            comparison_operator,
+            left_expression,
+            right_expression,
+            left,
+            right,
+            runtime_value_operands,
+        );
+    }
 
     // The operands above were resolved against the pre-write static state (so a
     // first read-modify-write still folds its own operands). The write itself
@@ -316,20 +335,22 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
-    let (operator, left_expression, right_expression) = match expressions.expression(value) {
-        ExpressionNode::Binary(binary) => (
-            runtime_binary_operator(binary.operator)?,
-            binary.left,
-            binary.right,
-        ),
-        ExpressionNode::Call(call) => {
-            let operator = builtin_runtime_call_operator_in_table(input, call)?;
-            let left = expressions.expression_handle_at_offset(call.arguments, 0);
-            let right = expressions.expression_handle_at_offset(call.arguments, 1);
-            (operator, left, right)
-        }
-        _ => return None,
-    };
+    let (operator, comparison_operator, left_expression, right_expression) =
+        match expressions.expression(value) {
+            ExpressionNode::Binary(binary) => (
+                runtime_binary_operator(binary.operator)?,
+                Some(binary.operator),
+                binary.left,
+                binary.right,
+            ),
+            ExpressionNode::Call(call) => {
+                let operator = builtin_runtime_call_operator_in_table(input, call)?;
+                let left = expressions.expression_handle_at_offset(call.arguments, 0);
+                let right = expressions.expression_handle_at_offset(call.arguments, 1);
+                (operator, None, left, right)
+            }
+            _ => return None,
+        };
 
     let left = resolve_runtime_value_operand_in_table(
         input,
@@ -351,6 +372,20 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
         static_values,
         runtime_value_operands,
     )?;
+    // A case-name equality (the lowered form of `in`) compares the TAG only;
+    // see the same clamp in the targeted-mutation path above.
+    if let Some(comparison_operator) = comparison_operator {
+        clamp_runtime_case_comparison_operands_in_table(
+            &input.layouts,
+            expressions,
+            comparison_operator,
+            left_expression,
+            right_expression,
+            left,
+            right,
+            runtime_value_operands,
+        );
+    }
 
     // No target expression here (pre-resolved place), so classify float vs integer
     // from the OPERAND expressions: a float-typed place or a float literal on
