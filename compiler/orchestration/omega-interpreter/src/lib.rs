@@ -54,9 +54,9 @@
 //! - General/open range expressions outside the index position (`let r: i32 = 1..5;`,
 //!   `f(1..5)`) are parse errors; `ExpressionNode::Range` only ever appears under
 //!   `collection[...]`, which the subslice support already covers.
-//! - Enum variant payload declarations (`enum E { A(i32) }`) are parse errors (the typed
-//!   `DataVariant` has no payload slot); `Value::Enum::payload` stays empty until the
-//!   language grows the syntax. A paren'd construction against a payload-less variant
+//! - Case payload declarations (`data E { case A(value: i32); }`) are parse errors (the
+//!   typed `DataVariant` has no payload slot); `Value::Enum::payload` stays empty until
+//!   the language grows the syntax. A paren'd construction against a payload-less case
 //!   (`E::A(5)`) parses as a CALL but resolves to nothing; the interpreter declines it.
 //!
 //! Still deferred: the stderr host capability (`write_error`/`write_error_line`).

@@ -46,7 +46,7 @@ fn validate_data_shape(
     match omega_typed_trees::data::DataDefinition::shape_kind_from_members(data_members) {
         DataShapeKind::Empty => {}
         DataShapeKind::Mixed => diagnostics.push(Diagnostic::error(format!(
-            "data `{}` mixes fields and variants; split record data from enum-like data",
+            "data `{}` mixes fields and case members; mixed data shapes are not implemented yet (nest a sum-shaped data field instead)",
             data_definition.name
         ))),
         DataShapeKind::Enum | DataShapeKind::Record => {}

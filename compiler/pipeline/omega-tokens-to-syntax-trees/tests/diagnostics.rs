@@ -15,7 +15,25 @@ fn top_level_item_error_lists_expected_items() {
     let message = parse_error_message("{");
     assert_eq!(
         message,
-        "expected one of `use`, `export`, `data`, `domain`, `enum`, `abi`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `pub`, `provider`, `trait`, `wire data`, `boundary operator`, `boundary trait`, found punctuation `{`"
+        "expected one of `use`, `export`, `data`, `domain`, `abi`, `machine`, `target`, `capability`, `invariant`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `pub`, `provider`, `trait`, `wire data`, `boundary operator`, `boundary trait`, found punctuation `{`"
+    );
+}
+
+#[test]
+fn enum_keyword_reports_retirement() {
+    let message = parse_error_message("enum Direction { North, South }");
+    assert_eq!(
+        message,
+        "`enum` is retired; spell alternatives as `case` members of a `data` declaration"
+    );
+}
+
+#[test]
+fn case_payload_reports_unimplemented() {
+    let message = parse_error_message("data Command { case None; case Say(text: String); }");
+    assert_eq!(
+        message,
+        "case payloads are not implemented yet; declare `case Say;` and carry the payload elsewhere for now"
     );
 }
 

@@ -1,7 +1,7 @@
-enum CellId {
-    Empty,
-    A1,
-    A2,
+data CellId {
+    case Empty;
+    case A1;
+    case A2;
 }
 
 data Exit {

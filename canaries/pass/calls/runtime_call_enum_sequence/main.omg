@@ -17,14 +17,14 @@ machine Random::range(&mut self, state: &mut RandomState, exclusive_max: u32) ->
     raw % exclusive_max
 }
 
-enum ItemKind {
-    RustedDagger,
-    DeepKey,
+data ItemKind {
+    case RustedDagger;
+    case DeepKey;
 }
 
-enum RewardKind {
-    Gold,
-    GoldAndItem,
+data RewardKind {
+    case Gold;
+    case GoldAndItem;
 }
 
 data Reward {

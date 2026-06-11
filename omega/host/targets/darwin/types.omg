@@ -1,6 +1,6 @@
-enum DarwinErrno {
-    Interrupted,
-    BrokenPipe,
-    PermissionDenied,
-    Unknown,
+data DarwinErrno {
+    case Interrupted;
+    case BrokenPipe;
+    case PermissionDenied;
+    case Unknown;
 }
