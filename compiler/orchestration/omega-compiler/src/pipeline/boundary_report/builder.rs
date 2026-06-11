@@ -68,6 +68,7 @@ pub(crate) fn append_capability_blast_radius(report: &mut BoundaryReport, checke
                     trait_definition.symbol,
                     CapabilityFlowKind::Derives,
                 ),
+                propagated_flows: propagated_flow_lines(checked, trait_definition.symbol),
             });
     }
 }
@@ -83,6 +84,46 @@ fn capability_verb_count(
         .flows()
         .filter(|flow| flow.kind == kind && flow.capability_symbol == capability_symbol)
         .count()
+}
+
+/// Provenance lines for authority-flow verbs that reached a state through a
+/// nested helper call rather than a direct boundary call, e.g.
+/// `Main::main acquires via Vault::expose`.
+fn propagated_flow_lines(checked: &CheckedTrees, capability_symbol: SymbolHandle) -> Vec<String> {
+    checked
+        .facts
+        .capabilities
+        .flows()
+        .filter(|flow| flow.capability_symbol == capability_symbol && flow.is_propagated())
+        .map(|flow| {
+            format!(
+                "{} {} via {}",
+                state_path(checked, flow.state_symbol),
+                flow.kind.as_str(),
+                state_path(checked, flow.via_state_symbol),
+            )
+        })
+        .collect()
+}
+
+/// Renders the `Machine::state` path that owns `state_symbol`. Machine names
+/// already spell the attached-data path (`Vault::expose`), so the state segment
+/// is appended only when the machine name does not already end with it.
+fn state_path(checked: &CheckedTrees, state_symbol: SymbolHandle) -> String {
+    for machine in checked.machines() {
+        for state in checked.machine_states(machine) {
+            if state.symbol != state_symbol {
+                continue;
+            }
+            let machine_name = machine.name.as_str();
+            let state_name = state.name.as_str();
+            if machine_name == state_name || machine_name.ends_with(&format!("::{state_name}")) {
+                return machine_name.to_owned();
+            }
+            return format!("{machine_name}::{state_name}");
+        }
+    }
+    "unknown".to_owned()
 }
 
 pub(super) fn build_boundary_report(syntax: &SyntaxTrees) -> BoundaryReport {
