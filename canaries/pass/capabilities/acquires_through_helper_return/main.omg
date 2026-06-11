@@ -1,0 +1,51 @@
+// Chapter 18 "Capabilities And Authority Flow" (Acquires, nested): a helper
+// machine ACQUIRES fresh host authority at the `Desktop` boundary and hands it
+// onward through its capability-typed return. `Backup::stage` and `Main::main`
+// never touch the boundary directly — they receive the minted `Folder` through
+// nested helper returns, so the authority-flow report must propagate `acquires`
+// up the call graph with the helper recorded as provenance
+// (`Backup::stage acquires via Vault::pick`).
+
+data Folder {
+}
+
+domain Folder::Writable {
+}
+
+boundary trait Desktop {
+    machine choose_folder(prompt: String) -> Folder
+    ensures
+        result in Folder::Writable
+    effects
+        filesystem_io;
+}
+
+data Vault {
+    desktop: Desktop;
+}
+
+machine Vault::pick(&mut self) -> Folder
+effects
+    filesystem_io
+{
+    self.desktop.choose_folder("choose a backup folder")
+}
+
+data Backup {
+    vault: Vault;
+}
+
+machine Backup::stage(&mut self) -> Folder
+effects
+    filesystem_io
+{
+    self.vault.pick()
+}
+
+data Main {
+    backup: Backup;
+}
+
+machine Main::main(&mut self) {
+    let staged: Folder = self.backup.stage();
+}
