@@ -119,7 +119,7 @@ fn select_field_default_writes(
     let field_offset = base_offset + field.offset;
 
     if let Some(initial_value) = entry_machine_field_initial_value(input, field.symbol)
-        && matches!(field.layout.size, 1 | 4 | 8)
+        && matches!(field.layout.size, 1 | 2 | 4 | 8)
         && let Some(value) =
             constant_default_value(input, initial_value, field.layout.size)
     {
