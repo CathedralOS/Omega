@@ -2680,6 +2680,77 @@ fn runtime_case_payload_guard_read_exit_canary_runs() {
 }
 
 #[test]
+fn case_membership_value_exit_canary_runs() {
+    // Decision 11: `cmd in Command::Move` in VALUE position lowers to a
+    // tag-only compare. The constructed payload (`dx: 3`) exits 71 if the
+    // compare reads payload bytes instead of clamping to the tag.
+    let canary = pass_canary("data/case_membership_value_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-case-membership-value-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("case membership value canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("case membership value canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `self.cmd in Command::Move` to be a true tag test (exit 70), got {:?} (71 = membership missed, e.g. payload bytes leaked into the compare)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn case_membership_union_guard_exit_canary_runs() {
+    // Decision 11: a union of implicit case domains as a transition guard
+    // subject; the held value matches the SECOND (payload-bearing) arm.
+    let canary = pass_canary("data/case_membership_union_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-case-membership-union-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("case membership union guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("case membership union guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `self.cmd in Command::Quit | Command::Move` to take the matched arm (exit 70), got {:?} (71 = union membership missed)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_case_reassignment_exit_canary_runs() {
     // Overwriting one payload-carrying case with another (`Walk { pace: 9 }`
     // then `Run { speed: 70 }`) must rewrite both the tag and the overlaying
@@ -6819,6 +6890,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/version_field_retired_without_reserved",
     "wire/version_chain_retired_without_reserved",
     "capabilities/unapproved_host_call",
+    "data/bare_payload_case_equality_guard",
+    "data/bare_payload_case_equality_suggests_in",
+    "data/case_payload_equality_interim",
     "data/case_payload_malformed",
     "data/case_zero_payload",
     "data/enum_keyword_retired",

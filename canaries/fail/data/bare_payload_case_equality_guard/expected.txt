@@ -1,0 +1,1 @@
+`Command::Move` carries a payload, so the bare case name is not a value -- use `in` to test the case

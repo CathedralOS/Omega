@@ -12,6 +12,11 @@ use omega_typed_trees::TypedTrees;
 pub fn lower_symbol_resolved_trees(
     symbol_resolved_trees: &SymbolResolvedTrees,
 ) -> Result<TypedTrees, Diagnostic> {
+    // Decision 11: user-written `==` against bare payload-bearing case names
+    // must be rejected BEFORE membership lowering synthesizes its internal
+    // tag-equality compares, which are deliberately the same typed shape.
+    crate::equality::validate_equality_operands(symbol_resolved_trees)?;
+
     let mut lowerer = Lowerer {
         typed_trees: TypedTrees::default(),
         source_trees: symbol_resolved_trees,
