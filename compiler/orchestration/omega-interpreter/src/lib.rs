@@ -43,7 +43,8 @@
 //! the first arm's result instead of re-running the callee's side effects, matching
 //! the native lowering's shared branch prelude); the
 //! entry machine's value as the exit code; the Console boundary `exit_process`,
-//! `write`/`write_line`, and `read_line` (consuming `stdin`), including the imported std
+//! `write`/`write_line`, `write_error`/`write_error_line` (collected on a separate
+//! stderr stream), and `read_line` (consuming `stdin`), including the imported std
 //! `console`. The full `dungeon_crawler_cli` sample interprets end-to-end with
 //! depth-correct room rendering. Anything outside this subset returns
 //! [`InterpretOutcome::error`] so a differential harness SKIPS (xfail) rather than reporting
@@ -58,8 +59,6 @@
 //!   typed `DataVariant` has no payload slot); `Value::Enum::payload` stays empty until
 //!   the language grows the syntax. A paren'd construction against a payload-less case
 //!   (`E::A(5)`) parses as a CALL but resolves to nothing; the interpreter declines it.
-//!
-//! Still deferred: the stderr host capability (`write_error`/`write_error_line`).
 
 mod evaluator;
 mod value;
@@ -76,24 +75,28 @@ pub struct InterpretOutcome {
     pub exit_code: i32,
     /// Bytes written to stdout via `write` / `write_line`.
     pub stdout: Vec<u8>,
+    /// Bytes written to stderr via `write_error` / `write_error_line`.
+    pub stderr: Vec<u8>,
     /// `Some` when the interpreter hit an UNSUPPORTED construct (so a harness can skip),
     /// or a genuine trap. `None` on a clean run.
     pub error: Option<String>,
 }
 
 impl InterpretOutcome {
-    fn exited(exit_code: i32, stdout: Vec<u8>) -> Self {
+    fn exited(exit_code: i32, stdout: Vec<u8>, stderr: Vec<u8>) -> Self {
         Self {
             exit_code,
             stdout,
+            stderr,
             error: None,
         }
     }
 
-    fn error(message: impl Into<String>, stdout: Vec<u8>) -> Self {
+    fn error(message: impl Into<String>, stdout: Vec<u8>, stderr: Vec<u8>) -> Self {
         Self {
             exit_code: 0,
             stdout,
+            stderr,
             error: Some(message.into()),
         }
     }
