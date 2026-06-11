@@ -85,10 +85,60 @@ Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
   omega-state-calls each have failing unit tests; architecture_boundaries
   3/6 fail. All pre-date the wave.
 
-**Bigger arcs (Cathedral tier 1, untouched):** concurrency/atomics decisions,
-freestanding target + volatile/MMIO, separate-compilation awareness; proof
-engine next rungs (anchoring for machines WITH bodies, induction via
-recursive contracts, quantifiers).
+**Long view (deliberately deferred — big designs or revamps; listed so they
+stay visible, not because they're next):**
+
+- [ ] **Concurrency model.** Chapter 17 is a sketch; every target declares
+  `threads = disabled`, zero canaries. Needs the hard answers first:
+  scheduler suspension across ticks, cancellation/deadline propagation,
+  ownership-vs-scheduler interaction. Gates Cathedral's scheduler chapter.
+- [ ] **Atomics + memory model.** Absent entirely. Shape decision (intrinsics
+  vs boundary operators vs core library) + which orderings. Gates IPC rings,
+  `spawn`, SMP anything.
+- [ ] **Separate compilation / component artifact model.** Whole-program
+  compiler, one image, absolute frame offsets, fused dispatch loop —
+  Cathedral wants independently compiled/signed/hot-swapped components.
+  Full backend revamp; meanwhile, codegen decisions keep deepening the
+  whole-program assumption (see wiki/architecture/whole_program_assumptions.md
+  for which layers are ALLOWED to assume it).
+- [ ] **Freestanding target + hardware vocabulary.** No-host-bindings target,
+  custom entry, linker/section/physical-address control, volatile/MMIO
+  semantics, inline asm beyond `asm { jmp state(...) }` (CR3/MSR/port-IO
+  contracts).
+- [ ] **Comptime (const eval + trait generators).** Effect-free machines in
+  constant positions; `default machine` bodies with `Self::fields` member
+  reflection expanded per conformance. Direction frozen (no macros, no #run);
+  implementation is a large interpreter+expansion arc. Equatable/Hashable
+  synthesis becomes ordinary once this lands.
+- [ ] **Generics completion.** Pending canaries exist (generic data
+  instantiation, machine-call monomorphization, type params in states);
+  const-parameter instantiation/substitution, layout for symbolic lengths.
+  Properties on generics (decision 13) adds bound checking at instantiation.
+- [ ] **Allocator story.** `Vec` has no runtime; `alloc` is an effect name
+  only. Decide explicit allocator/arena capabilities vs ambient heap BEFORE
+  implementing Vec lowering.
+- [ ] **Repr control for hardware structures.** packed, explicit
+  offsets/alignment, untagged unions (page tables, descriptor tables, device
+  registers). Chapter 19 has `repr native` only.
+- [ ] **Proof engine arcs.** Anchoring for machines WITH bodies, induction
+  via recursive contracts + decreases, quantifiers, Bag/Seq lowering,
+  growing the Lean ladder past L6.
+- [ ] **Hot-swap semantics.** Quiescence proofs, borrows as swap
+  back-pressure, multi-version concurrency mode, replacement declarations
+  (`replaces`/`migrates`) — versioned data stage 3+, depends on the
+  concurrency model.
+- [ ] **Wire encoding families + negotiation.** Beyond stage-2 encoders:
+  fixed-width/text families, canonicalization, unknown-field preservation
+  policy surface, version negotiation.
+- [ ] **Serialized capabilities.** Attenuation + revocability across
+  IPC/reboot/network (Cathedral's #1 flagged gap). Depends on wire + the
+  capability runtime story.
+- [ ] **aarch64 runtime convergence.** Compiles all targets; dungeon runtime
+  on arm64 still hot-potato. Needs a dedicated backend push or an arm test
+  host.
+- [ ] **Text/string proof domains.** `String::Utf8`/`NoNul` as
+  boundary-established carried facts without a byte-level proof tax (frozen
+  direction in decision 5; the domains themselves unbuilt).
 
 ## Resolved Design Decisions (frozen)
 
