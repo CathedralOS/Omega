@@ -64,6 +64,20 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 target.as_str(),
             );
         }
+        // A call through a DATA TYPE name (`Counter::from_v1(old, &mut current)`)
+        // targets the machine attached to that data type: chapter 21's migration
+        // machines take the old shape and the migration target as ordinary
+        // parameters, so they are called through the type, not through a value.
+        if matches!(receiver_kind, SymbolKind::Data) {
+            let target_symbol = call_target_for_attached_data(
+                symbols,
+                symbols.name(receiver_symbol),
+                target.as_str(),
+            );
+            if target_symbol.is_valid() {
+                return target_symbol;
+            }
+        }
         if matches!(
             receiver_kind,
             SymbolKind::Machine | SymbolKind::Platform | SymbolKind::Trait

@@ -45,12 +45,12 @@ their respective bullets below.
   encoding families, version negotiation. Differential-oracle-friendly:
   byte-exact expected outputs. (Decision 10 chain checks + migration
   verdicts already landed.)
-- [ ] **Versioned data stage 2.** Construction of historical-shape VALUES
-  (struct literals currently parse single-identifier type names only — no
-  runtime migration canary exists because a `Counter::v1` value cannot be
-  built); version MATCH arms (`Counter::v1(old) ->` still rejects);
-  migration chains, `replaces`, quiescence obligations; era tag + the wire
-  integration decision 10 assumes.
+- [ ] **Versioned data stage 3.** Era tag + the wire integration decision 10
+  assumes; era-tagged containers that make version MATCH arms selectable
+  (stage 2 ruled them unreachable — no value can hold a historical era yet);
+  migration chains, `replaces`, quiescence obligations. (Stage 2 landed
+  2026-06-11: historical-shape construction, the type-name migration call,
+  the first runtime migration canary, struct-literal field validation.)
 - [ ] **Equatable synthesis / conformance defaults.** Conformance items
   validate written members only; trait `default machine` instantiation and
   the synthesized core derivable set (structural `equals`) are unimplemented
@@ -393,11 +393,23 @@ end-to-end including native lowering, and version-scoped machine paths
 (`Counter::increment::v1`) type-check `self` against the v1 field set.
 Declared-history contradictions (duplicate/non-canonical/nested version
 names, version-scoped machines targeting undeclared versions) are compile
-errors. STAGE 2 frontier: no construction of historical-shape VALUES (struct
-literals only parse single-identifier type names, so no runtime migration
-canary yet), version MATCH arms (`Counter::v1(old) ->`) still reject,
-migration chains / `replaces` / quiescence obligations not started, and no
-era tag or wire-era integration (decision 10's migration ride).
+errors. STAGE 2 DONE (2026-06-11): historical-shape VALUES construct —
+`Counter::v1 { counter: 3 }` resolves the brace literal to the version
+block's shape definition (NOT a case of `Counter`; constructing an
+undeclared version is a compile error), struct-literal field names now
+validate against the constructed shape's declared members (current shape,
+historical shape, and case-payload literals alike), and a call through the
+data TYPE name (`Counter::from_v1(old, &mut current)`) resolves to the
+attached machine, so the chapter-21 migration runs end-to-end — the first
+runtime migration canary (`versioning/runtime_version_migration_exit`,
+exit 70) passes natively AND in the differential oracle. Version MATCH arms
+(`Counter::v1(old) ->`) got their stage-2 ruling: values carry no era tag,
+so every value has the current shape and a version arm can never be
+selected — the arm is rejected as UNREACHABLE (fail canary
+`versioning/match_on_version` pins the diagnostic) rather than lowered with
+fake runtime semantics. STAGE 3 frontier: the era tag itself (and decision
+10's wire-era ride), era-tagged containers that make version matching
+selectable, migration chains / `replaces` / quiescence obligations.
 
 **Wire data semantics follow-up.** Stage 1 (validation + compatibility) is
 done: wire schemas now lower through symbol-resolved and typed trees as their
