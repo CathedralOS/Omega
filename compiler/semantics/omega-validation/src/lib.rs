@@ -14,6 +14,7 @@ mod places;
 mod proof_facts;
 mod properties;
 mod state_signatures;
+mod struct_literals;
 mod symbols;
 #[cfg(test)]
 mod tests;
@@ -62,6 +63,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_data_field_types(program, &symbols, &mut diagnostics);
     properties::validate_data_properties(program, &symbols, &mut diagnostics);
     equality::validate_equality_operands(program, &mut diagnostics);
+    struct_literals::validate_struct_literal_fields(program, &mut diagnostics);
     wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
     operators::validate_operator_declarations(program, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
