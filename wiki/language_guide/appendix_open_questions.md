@@ -121,7 +121,19 @@ This page tracks design pressure that is not fully nailed down yet.
   code lives in target packages); lint policy lives at the package/build
   declaration, never per-item in source; deprecation is versioned-data
   metadata, not a marker; field-level codegen metadata is wire data, not
-  attributes; optimization hints deliberately deferred.
+  attributes; optimization hints deliberately deferred. `[open]`
+  (non-exhaustive evolution contracts) is DROPPED until separate compilation
+  gives it teeth; an in-language test surface is deferred.
+- Wire compatibility rulings: declared `version` blocks are checked schema
+  history -- violating them (including retiring a documented field number
+  without reserving it) is a compile error; schemas without version blocks
+  get only self-contained checks. Compatibility runs along the version chain
+  (adjacent eras), not all-versions-vs-current. Wire schemas are ordinary
+  data (native in-memory layout, usable in any signature -- the chapter's
+  examples already do this) that additionally carry the wire schema;
+  encode/decode is generated at boundaries. Version type identity moves from
+  display-string comparison to symbol identity when validation does
+  generally.
 
 ## Still Open
 

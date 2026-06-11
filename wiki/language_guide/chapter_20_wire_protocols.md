@@ -97,7 +97,15 @@ Wire schemas need explicit evolution rules.
 The safe path should be easy:
 
 - Adding an optional field is usually compatible.
-- Removing a field should reserve the old number.
+- Removing a field should reserve the old number. When a declared `version`
+  era documents the field, this is enforced: retiring a documented number
+  without reserving it is a compile error. A schema with no version blocks
+  is checked only for self-contained rules (duplicate tags, reserved reuse)
+  -- the compiler cannot know undeclared history.
+- Compatibility checks run along the VERSION CHAIN: each declared era is
+  checked against its successor (v1 against v2, the newest era against the
+  current body), matching how migrations compose in
+  [Versioned Data](chapter_21_versioned_data.md).
 - Renaming a field is compatible if the field number and meaning stay stable.
 - Changing a field type requires an explicit compatibility rule.
 - Changing requiredness or presence semantics is a protocol change.
