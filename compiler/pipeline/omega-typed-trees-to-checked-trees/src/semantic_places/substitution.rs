@@ -23,10 +23,10 @@ pub(crate) fn call_contract_place_substitution(
         call.statement_index,
         call.call_ordinal,
     )?;
-    let target_state = super::find_state(program, call.target_state_symbol)?;
+    let target_parameters = super::call_target_parameters(program, call.target_state_symbol)?;
     let mut argument_index = 0usize;
 
-    for parameter in program.state_parameters(target_state) {
+    for parameter in target_parameters {
         let parameter_matches = parameter.symbol == parameter_symbol
             || symbol_name(program, parameter_symbol) == parameter.name.as_str();
         let substitution_place = if parameter.is_self {

@@ -44,7 +44,7 @@ pub(crate) fn validate_call_node(
             return;
         }
 
-        let Some((_, state)) = current_machine
+        let attached_state = current_machine
             .attached_data
             .as_ref()
             .and_then(|attached_data| {
@@ -54,6 +54,12 @@ pub(crate) fn validate_call_node(
                     call.target.as_str(),
                 )
             })
+            .map(|(_, state)| state);
+        // A receiverless call can also target a FREE top-level machine
+        // (`machine compute(item: &Item) -> i32`, called as `compute(item)`);
+        // its implicit entry state carries the parameters and return type.
+        let Some(state) = attached_state
+            .or_else(|| free_machine_entry_state(program, symbols, call.target.as_str()))
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no local state `{}`",
@@ -62,17 +68,19 @@ pub(crate) fn validate_call_node(
             return;
         };
 
+        // Diagnostics name the call as spelled (`compute`), not the free
+        // machine's generated entry-state name (`entry`).
         validate_result_use(
             program,
             call,
-            state.name.as_str(),
+            call.target.as_str(),
             state.return_type,
             diagnostics,
         );
         validate_call_arguments_handles(
             program,
             arguments,
-            state.name.as_str(),
+            call.target.as_str(),
             program.state_parameters(state),
             writable_roots,
             diagnostics,
@@ -183,6 +191,28 @@ pub(crate) fn validate_call_node(
     }
 
     let _ = diagnostics;
+}
+
+/// The entry state of the FREE top-level machine named `target` (`machine
+/// compute(item: &Item) -> i32 { ... }`), or None. The parser names a free
+/// machine's implicit entry state `entry`; explicit entry states matching the
+/// call target name win first.
+fn free_machine_entry_state<'program>(
+    program: &'program TypedTrees,
+    symbols: &TopLevelSymbols<'program>,
+    target: &str,
+) -> Option<&'program omega_typed_trees::state::State> {
+    let machine = symbols.machine(target)?;
+    if machine.attached_data.is_some() {
+        return None;
+    }
+
+    let states = program.machine_states(machine);
+    states
+        .iter()
+        .find(|state| state.name.as_str() == target)
+        .or_else(|| states.iter().find(|state| state.name.as_str() == "entry"))
+        .or_else(|| states.first())
 }
 
 /// FROZEN DECISION 9 -- STRICT RESULT USE: a statement-position call whose callee

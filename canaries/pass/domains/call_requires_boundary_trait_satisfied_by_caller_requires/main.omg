@@ -1,0 +1,39 @@
+// Chapter 18 authority flow: a boundary trait machine's `requires` is the
+// caller's proof obligation, discharged here by the caller's own `requires`
+// carrying the same fact for the forwarded argument. Companion to
+// fail/domains/call_requires_boundary_trait_unproven.
+
+data Item {
+    value: i32;
+}
+
+domain Item::Ready {
+    self.value > 0;
+}
+
+boundary trait Console {
+    machine show(item: &Item)
+    requires
+        item in Item::Ready
+    effects
+        stdout_io;
+}
+
+data Worker {
+    console: Console;
+}
+
+machine Worker::run(&self, item: &Item)
+requires
+    item in Item::Ready
+{
+    self.console.show(item);
+}
+
+data Main {
+    worker: Worker;
+    item: Item;
+}
+
+machine Main::main(&mut self) {
+}

@@ -146,9 +146,17 @@ fn append_contract_fact_refs(
                 owner_machine_symbol == machine_symbol
                     && state_symbol.is_some_and(|state_symbol| state_symbol == owner_state_symbol)
             }
-            ContractProofFactOwner::Unknown
-            | ContractProofFactOwner::StateSignature { .. }
-            | ContractProofFactOwner::OperatorUse { .. } => false,
+            // A trait machine signature's contracts (boundary trait `requires`/
+            // `ensures`) are owned by the trait symbol plus the signature symbol;
+            // calls through trait-typed receivers target exactly that pair.
+            ContractProofFactOwner::StateSignature {
+                owner_symbol,
+                state_symbol: owner_state_symbol,
+            } => {
+                owner_symbol == machine_symbol
+                    && state_symbol.is_some_and(|state_symbol| state_symbol == owner_state_symbol)
+            }
+            ContractProofFactOwner::Unknown | ContractProofFactOwner::OperatorUse { .. } => false,
         };
 
         if owner_matches && fact.kind == kind {
@@ -167,11 +175,23 @@ pub(crate) fn contract_target_from_state_symbol(
         return None;
     }
 
-    let target_machine = program.machines().iter().find(|machine| {
+    if let Some(target_machine) = program.machines().iter().find(|machine| {
         program
             .machine_states(machine)
             .iter()
             .any(|state| state.symbol == target_state_symbol)
+    }) {
+        return Some((target_machine.symbol, target_state_symbol));
+    }
+
+    // A call through a trait-typed receiver targets a trait machine signature
+    // rather than a machine state; the owning trait stands in for the machine
+    // so the signature's requires/ensures contracts attach to the call.
+    let target_trait = program.traits().iter().find(|trait_definition| {
+        program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .any(|signature| signature.symbol == target_state_symbol)
     })?;
-    Some((target_machine.symbol, target_state_symbol))
+    Some((target_trait.symbol, target_state_symbol))
 }

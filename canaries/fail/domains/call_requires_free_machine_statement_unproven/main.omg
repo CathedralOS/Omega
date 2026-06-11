@@ -1,0 +1,26 @@
+// A FREE machine callee in STATEMENT position (`consume(&self.item);`) carries
+// a requires contract the caller has not established. Receiverless statement
+// calls to free machines did not even resolve (only local states and attached
+// machine states were considered), so the contract was vacuous; it must reject.
+
+data Item {
+    value: i32;
+}
+
+domain Item::Ready {
+    self.value > 0;
+}
+
+machine consume(item: &Item)
+requires
+    item in Item::Ready
+{
+}
+
+data Main {
+    item: Item;
+}
+
+machine Main::main(&mut self) {
+    consume(&self.item);
+}

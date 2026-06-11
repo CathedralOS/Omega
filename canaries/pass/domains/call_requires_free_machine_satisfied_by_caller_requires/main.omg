@@ -1,0 +1,47 @@
+// A caller whose own `requires` carries the fact discharges a FREE machine
+// callee's requires contract in both statement and value position. Companion
+// to fail/domains/call_requires_free_machine_{value,statement}_unproven: the
+// obligation now exists, and the caller-requires fact satisfies it.
+
+data Item {
+    value: i32;
+}
+
+domain Item::Ready {
+    self.value > 0;
+}
+
+machine compute(item: &Item) -> i32
+requires
+    item in Item::Ready
+{
+    transition {
+        _ -> 1
+    }
+}
+
+machine consume(item: &Item)
+requires
+    item in Item::Ready
+{
+}
+
+data Worker {
+    dummy: i32;
+}
+
+machine Worker::run(&self, item: &Item)
+requires
+    item in Item::Ready
+{
+    consume(item);
+    let x: i32 = compute(item);
+}
+
+data Main {
+    worker: Worker;
+    item: Item;
+}
+
+machine Main::main(&mut self) {
+}

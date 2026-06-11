@@ -1,6 +1,6 @@
 use crate::context::*;
 use crate::flow::effective_member_symbol;
-use crate::semantic_calls::find_state;
+use crate::semantic_calls::call_target_parameters;
 use crate::semantic_places::{append_place_segment, resolve_place_member_symbol};
 use omega_facts::PlaceHandle;
 
@@ -177,9 +177,10 @@ fn contract_owner_parameter<'program>(
         }
     };
 
-    let state = find_state(program, state_symbol)?;
-    program
-        .state_parameters(state)
+    // Machine states resolve through their machine; a StateSignature owner can
+    // also be a trait machine signature (boundary trait contracts), whose
+    // parameters live on the signature itself.
+    call_target_parameters(program, state_symbol)?
         .iter()
         .find(|parameter| matches(parameter))
 }
