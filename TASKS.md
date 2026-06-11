@@ -181,10 +181,6 @@ The invariant-weakening semantics still need a checked-tree/proof pass that mark
 which place is relaxed, verifies exclusivity, and restores obligations at scope
 exit.
 
-Note: `capability_pass_canaries_compile_in_isolation` can show a spurious FAILED
-under full-suite parallelism (build-dir race); it passes run alone / with
-`--test-threads=1`. Not a real failure.
-
 ## Vertical Slices
 
 ### Capabilities And Authority
