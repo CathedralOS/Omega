@@ -30,6 +30,7 @@ fn operation_kinds_expose_runtime_storage_domains() {
         byte_size: 8,
         expected_value: 1,
         has_storage: true,
+        is_float: false,
     };
     let copy = TargetOperationKind::CopyRuntimeStorage {
         source_region: RuntimeStorageRegion::Machine,

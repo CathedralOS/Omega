@@ -284,12 +284,14 @@ fn expression_places_resolve_attached_data_members() {
         symbol: player_type_symbol,
         name: Identifier::generated("Player"),
         type_parameters: HandleSpan::empty(),
+        properties: omega_typed_trees::data::DataProperties::default(),
         members: HandleSpan::empty(),
     });
     let mut main_data = omega_typed_trees::data::DataDefinition {
         symbol: main_data_symbol,
         name: Identifier::generated("Main"),
         type_parameters: HandleSpan::empty(),
+        properties: omega_typed_trees::data::DataProperties::default(),
         members: HandleSpan::empty(),
     };
     program.push_data_member(

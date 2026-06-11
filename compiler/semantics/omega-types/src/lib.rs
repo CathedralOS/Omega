@@ -483,7 +483,7 @@ mod tests {
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{
         DomainDefinition, Item, Machine, OperatorDefinition, State, StateParameterNode,
-        TypeParameter,
+        TypeParameter, TypeParameterKind,
     };
     use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
@@ -497,6 +497,7 @@ mod tests {
         ]);
         let type_parameter = syntax_trees.items.append_type_parameter(TypeParameter {
             name: Identifier::generated("T"),
+            kind: TypeParameterKind::Type,
         });
         let generic_type = syntax_trees
             .type_references
@@ -684,6 +685,8 @@ mod tests {
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
             attached_data: None,
+            abi: None,
+            type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,
             decreases: HandleSpan::empty(),
