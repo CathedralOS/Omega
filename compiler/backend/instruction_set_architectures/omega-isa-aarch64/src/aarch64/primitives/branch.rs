@@ -106,6 +106,16 @@ pub(in crate::aarch64) fn encode_cbz_x(
     ))
 }
 
+pub(in crate::aarch64) fn encode_cbnz_x(
+    register: u8,
+    byte_distance: isize,
+) -> Result<[u8; 4], Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "cbnz")?;
+    Ok(encode_instruction(
+        0xB5000000 | ((instruction_distance as u32 & 0x7ffff) << 5) | u32::from(register),
+    ))
+}
+
 pub(in crate::aarch64) fn encode_unconditional_branch(
     byte_distance: isize,
 ) -> Result<[u8; 4], Diagnostic> {

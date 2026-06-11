@@ -2,10 +2,11 @@ use omega_core::diagnostics::Diagnostic;
 
 use super::super::primitives::{
     append_unsigned_immediate, encode_add_page_offset_placeholder, encode_add_x_immediate,
-    encode_adrp_placeholder, encode_branch_link_placeholder, encode_cbz_x,
+    encode_adrp_placeholder, encode_branch_link_placeholder, encode_cbnz_x, encode_cbz_x,
     encode_compare_w_immediate, encode_conditional_branch_equal,
     encode_conditional_branch_not_equal, encode_load_byte_w_from_x, encode_move_x_register,
     encode_movz, encode_store_byte_w_to_x, encode_store_x_to_x, encode_svc,
+    encode_unconditional_branch,
 };
 use super::super::widths::{
     runtime_text_line_read_import_width, runtime_text_line_read_syscall_width,
@@ -91,12 +92,20 @@ fn encode_runtime_text_line_read(
             bytes.extend(encode_svc(supervisor_call));
         }
     }
-    bytes.extend(encode_cbz_x(0, 48)?);
+    bytes.extend(encode_cbz_x(0, 64)?);
     bytes.extend(encode_load_byte_w_from_x(24, 21, 0)?);
-    bytes.extend(encode_compare_w_immediate(24, 10)?);
-    bytes.extend(encode_conditional_branch_equal(36)?);
-    bytes.extend(encode_compare_w_immediate(24, 13)?);
-    bytes.extend(encode_conditional_branch_equal(28)?);
+    // A '\n'/'\r' delimiter terminates the line only once content is present
+    // (x22 > 0); a LEADING one is skipped (branch back to the read loop without
+    // accepting it), so CRLF acts as a single terminator -- the '\n' trailing a
+    // '\r'-ended line never surfaces as a phantom empty line to the next
+    // read_line. Mirrors the x86_64 reference loop.
+    for (delimiter, finish_line_distance) in [(10, 48isize), (13, 32isize)] {
+        bytes.extend(encode_compare_w_immediate(24, delimiter)?);
+        bytes.extend(encode_conditional_branch_not_equal(12)?);
+        bytes.extend(encode_cbnz_x(22, finish_line_distance)?);
+        let skip_leading_delimiter_distance = read_loop_offset as isize - bytes.len() as isize;
+        bytes.extend(encode_unconditional_branch(skip_leading_delimiter_distance)?);
+    }
     bytes.extend(encode_compare_w_immediate(24, 0)?);
     bytes.extend(encode_conditional_branch_equal(20)?);
     bytes.extend(encode_add_x_immediate(21, 21, 1)?);
