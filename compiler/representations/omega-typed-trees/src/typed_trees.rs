@@ -19,6 +19,7 @@ pub struct TypedTreeTables {
     pub data_definitions: Arena<data::DataDefinition>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub data_members: Arena<data::DataMember>,
+    pub data_payload_fields: Arena<data::DataField>,
     pub domain_definitions: Arena<domain::DomainDefinition>,
     pub proof_facts: Arena<domain::ProofFact>,
     pub domain_path_members: Arena<crate::name::Identifier>,
@@ -137,6 +138,19 @@ impl TypedTrees {
 
     pub fn data_members(&self, data_definition: &data::DataDefinition) -> &[data::DataMember] {
         self.data_members.span_or_empty(data_definition.members)
+    }
+
+    pub fn push_data_payload_field(
+        &mut self,
+        variant: &mut data::DataVariant,
+        field: data::DataField,
+    ) {
+        self.data_payload_fields
+            .append_to_span(&mut variant.payload, field);
+    }
+
+    pub fn data_payload_fields(&self, variant: &data::DataVariant) -> &[data::DataField] {
+        self.data_payload_fields.span_or_empty(variant.payload)
     }
 
     pub fn push_domain_definition(&mut self, domain_definition: domain::DomainDefinition) {

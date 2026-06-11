@@ -273,6 +273,7 @@ impl ExpressionTable {
                 let fields = self.copy_struct_literal_fields(source, struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
+                    case_name: struct_literal.case_name.clone(),
                     fields,
                 }))
             }
@@ -639,6 +640,7 @@ impl ExpressionTable {
                 let fields = self.copy_struct_literal_fields_from_self(struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name,
+                    case_name: struct_literal.case_name,
                     fields,
                 }))
             }
@@ -923,6 +925,9 @@ pub struct TableNamePath {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteral {
     pub type_name: DiagnosticName,
+    /// `Some` when the literal constructs a CASE of `type_name`
+    /// (`Command::Say { text: ... }`); `None` for a plain record literal.
+    pub case_name: Option<DiagnosticName>,
     pub fields: HandleSpan<TableStructLiteralField>,
 }
 
@@ -930,6 +935,7 @@ impl Default for TableStructLiteral {
     fn default() -> Self {
         Self {
             type_name: DiagnosticName::default(),
+            case_name: None,
             fields: HandleSpan::empty(),
         }
     }

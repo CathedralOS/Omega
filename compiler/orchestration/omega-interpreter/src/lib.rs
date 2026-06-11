@@ -50,15 +50,22 @@
 //! [`InterpretOutcome::error`] so a differential harness SKIPS (xfail) rather than reporting
 //! a false mismatch.
 //!
-//! Two formerly-deferred constructs turn out to be FRONTEND-REJECTED today (probed in
+//! CASE PAYLOADS are interpreter-supported AHEAD of the native backend: construction
+//! (`Command::Move { steps: 70 }`, the brace spelling shared with record literals),
+//! case-pattern binding in transition arms (`Command::Move { steps } -> done(steps)`,
+//! with the bound names rewritten to payload member reads), and TAG-ONLY `==` (payloads
+//! never participate in equality, matching the native constant tag compare). The native
+//! pipeline rejects payload-case CONSTRUCTION after checked trees ("case payload
+//! construction is not lowered natively yet"), so payload coverage lives in
+//! `tests/coverage.rs` rather than the differential RUN canaries for now.
+//!
+//! One formerly-deferred construct is FRONTEND-REJECTED today (probed in
 //! `tests/coverage.rs`), so there is nothing to interpret:
 //! - General/open range expressions outside the index position (`let r: i32 = 1..5;`,
 //!   `f(1..5)`) are parse errors; `ExpressionNode::Range` only ever appears under
 //!   `collection[...]`, which the subslice support already covers.
-//! - Case payload declarations (`data E { case A(value: i32); }`) are parse errors (the
-//!   typed `DataVariant` has no payload slot); `Value::Enum::payload` stays empty until
-//!   the language grows the syntax. A paren'd construction against a payload-less case
-//!   (`E::A(5)`) parses as a CALL but resolves to nothing; the interpreter declines it.
+//! - (A paren'd construction against a payload-less case (`E::A(5)`) still parses as a
+//!   CALL but resolves to nothing; the interpreter declines it.)
 
 mod evaluator;
 mod value;

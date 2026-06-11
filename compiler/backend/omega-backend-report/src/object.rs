@@ -36,15 +36,29 @@ pub(super) fn write_layout_object_sections(
 
         match &data_layout.shape {
             DataShape::Enum { variants } => {
-                let variants = backend_plan
-                    .layouts
-                    .variants
-                    .span_or_empty(*variants)
+                let variant_layouts = backend_plan.layouts.variants.span_or_empty(*variants);
+                let names = variant_layouts
                     .iter()
                     .map(|variant| variant.name.to_string())
                     .collect::<Vec<_>>()
                     .join(", ");
-                output.push_str(&format!("  variants: {}\n", variants));
+                output.push_str(&format!("  variants (tag at offset 0): {}\n", names));
+                for (tag, variant) in variant_layouts.iter().enumerate() {
+                    if variant.fields.count() == 0 {
+                        continue;
+                    }
+                    output.push_str(&format!("  case {} (tag {}) payload:\n", variant.name, tag));
+                    for field in backend_plan.layouts.fields.span_or_empty(variant.fields) {
+                        output.push_str(&format!(
+                            "    - {}: offset {}, size {}, align {} ({})\n",
+                            field.name,
+                            field.offset,
+                            field.layout.size,
+                            field.layout.alignment,
+                            field.type_name
+                        ));
+                    }
+                }
             }
             DataShape::Record { fields } => {
                 write_field_layouts(output, &backend_plan.layouts.fields, *fields);

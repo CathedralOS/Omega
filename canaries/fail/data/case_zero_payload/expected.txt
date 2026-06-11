@@ -1,0 +1,1 @@
+zero case `Number` must be payload-free

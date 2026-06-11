@@ -112,6 +112,9 @@ impl Default for DataField {
 pub struct DataVariant {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    /// Named payload fields (`case Say(text: String);`); empty for payload-less cases.
+    /// Stored in the `data_payload_fields` arena, separate from the parent's member span.
+    pub payload: HandleSpan<DataField>,
 }
 
 impl Default for DataVariant {
@@ -119,6 +122,7 @@ impl Default for DataVariant {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            payload: HandleSpan::empty(),
         }
     }
 }

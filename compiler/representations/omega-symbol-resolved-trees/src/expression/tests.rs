@@ -100,6 +100,7 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
     ]);
     let root = source.insert(ExpressionNode::StructLiteral(TableStructLiteral {
         type_name: DiagnosticName::generated("Room"),
+        case_name: None,
         fields,
     }));
 

@@ -429,6 +429,10 @@ pub struct DataField {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataVariant {
     pub name: Identifier,
+    /// Named payload fields (`case Say(text: String);`). Payload-less cases have an
+    /// empty span. Stored in their own arena so the parent's member span stays
+    /// contiguous while a case's payload is parsed.
+    pub payload: HandleSpan<DataField>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -560,6 +564,7 @@ struct DeclarationStorage {
     capability_members: Arena<CapabilityMember>,
     capability_contracts: Arena<CapabilityContract>,
     data_members: Arena<DataMember>,
+    data_payload_fields: Arena<DataField>,
     host_provider_mappings: Arena<HostProviderMapping>,
     wire_data_members: Arena<WireDataMember>,
     operators: Arena<OperatorDefinition>,
@@ -643,6 +648,12 @@ impl ItemTable {
 
     pub fn data_members(&self, span: HandleSpan<DataMember>) -> &[DataMember] {
         self.declaration_storage.data_members.span_or_empty(span)
+    }
+
+    pub fn data_payload_fields(&self, span: HandleSpan<DataField>) -> &[DataField] {
+        self.declaration_storage
+            .data_payload_fields
+            .span_or_empty(span)
     }
 
     pub fn host_provider_mappings(
@@ -812,6 +823,10 @@ impl ItemTable {
         self.declaration_storage.data_members.append(member)
     }
 
+    pub fn append_data_payload_field(&mut self, field: DataField) -> Handle<DataField> {
+        self.declaration_storage.data_payload_fields.append(field)
+    }
+
     pub fn append_host_provider_mapping(
         &mut self,
         mapping: HostProviderMapping,
@@ -934,6 +949,7 @@ impl DeclarationStorage {
             capability_members: Arena::new(),
             capability_contracts: Arena::new(),
             data_members: Arena::new(),
+            data_payload_fields: Arena::new(),
             host_provider_mappings: Arena::new(),
             wire_data_members: Arena::new(),
             operators: Arena::new(),

@@ -235,15 +235,17 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
 
         if context.allows_struct_literal()
             && input.at_punctuation(PunctuationKind::LeftBrace)
-            && path.count() == 1
+            && (path.count() == 1 || path.count() == 2)
         {
-            let type_name = syntax_trees
-                .expressions
-                .identifier_path_members(path)
+            let members = syntax_trees.expressions.identifier_path_members(path);
+            let type_name = members
                 .first()
                 .cloned()
-                .expect("single-member path should have one member");
-            return parse_struct_literal_handle(syntax_trees, type_name, input);
+                .expect("struct literal path should have a head member");
+            // A two-member path (`Command::Say { ... }`) constructs a CASE of the
+            // head type with named payload fields; one member is a record literal.
+            let case_name = members.get(1).cloned();
+            return parse_struct_literal_handle(syntax_trees, type_name, case_name, input);
         }
 
         return Ok((
@@ -258,6 +260,7 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
 fn parse_struct_literal_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     type_name: Identifier,
+    case_name: Option<Identifier>,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
@@ -283,6 +286,7 @@ fn parse_struct_literal_handle<'tokens, 'source>(
             .expressions
             .insert(ExpressionNode::StructLiteral(TableStructLiteral {
                 type_name,
+                case_name,
                 fields,
             })),
         input,

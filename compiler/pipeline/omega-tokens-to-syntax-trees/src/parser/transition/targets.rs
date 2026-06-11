@@ -3,6 +3,9 @@ use crate::parser::expression::{
     parse_argument_list_after_open_paren_handle, parse_expression_handle,
 };
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
+use crate::parser::transition::guards::{
+    DestructureBindings, rewrite_destructure_guard_expression,
+};
 use crate::parser::transition::targets::copy::{
     append_statement_identifier_path_member, copy_expression_handles_to_statement_table,
     copy_expression_identifier_path_to_statement_table,
@@ -17,30 +20,41 @@ use omega_tokens::{KeywordKind, PunctuationKind};
 
 mod copy;
 
-pub(super) fn parse_transition_target_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
-    let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
-    Ok((
-        classify_transition_target_handle(syntax_trees, expression)?,
-        rest,
-    ))
-}
-
 pub(in crate::parser) fn parse_transition_block_target_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
-    if input.at_keyword(KeywordKind::SelfValue) || input.at_name_like() {
-        let (expression, rest) = parse_transition_target_expression_handle(syntax_trees, input)?;
-        return Ok((
-            classify_transition_target_handle(syntax_trees, expression)?,
-            rest,
-        ));
-    }
+    parse_transition_block_target_with_bindings(syntax_trees, input, None)
+}
 
-    parse_transition_target_handle(syntax_trees, input)
+/// Parse a transition-block target, rewriting any destructure-pattern bindings
+/// into the target expression first: `Command::Say { text } -> done(text)`
+/// passes the subject's `text` payload field (`subject.text`) to `done`.
+pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    bindings: Option<&DestructureBindings>,
+) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
+    let (expression, rest) = if input.at_keyword(KeywordKind::SelfValue) || input.at_name_like() {
+        parse_transition_target_expression_handle(syntax_trees, input)?
+    } else {
+        parse_expression_handle(syntax_trees, input)?
+    };
+
+    let expression = match bindings {
+        Some(bindings) if !bindings.fields.is_empty() => rewrite_destructure_guard_expression(
+            syntax_trees,
+            expression,
+            bindings.subject,
+            &bindings.fields,
+        ),
+        _ => expression,
+    };
+
+    Ok((
+        classify_transition_target_handle(syntax_trees, expression)?,
+        rest,
+    ))
 }
 
 fn classify_transition_target_handle(

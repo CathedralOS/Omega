@@ -1496,12 +1496,17 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Construct a `data` value from a struct literal `Type { field: value, .. }`. Fields
-    /// not named take the type's default; named fields override.
+    /// not named take the type's default; named fields override. A case literal
+    /// (`Command::Say { text: ... }`) constructs an Enum value instead: the case name is
+    /// the tag and the named payload fields fill the case's declared payload.
     fn eval_struct_literal(
         &mut self,
         literal: &omega_typed_trees::expression::TableStructLiteral,
         frame: &Frame,
     ) -> EvalResult<Value> {
+        if let Some(case_name) = &literal.case_name {
+            return self.eval_case_literal(literal, case_name.as_str(), frame);
+        }
         let type_name = literal.type_name.as_str().to_owned();
         let data = self.find_data_by_name(&type_name);
         let (type_symbol, mut fields) = if let Some(data) = data {
@@ -1522,6 +1527,57 @@ impl<'program> Evaluator<'program> {
         })
     }
 
+    /// Construct a payload-carrying case value `Type::Case { field: value, .. }`. Payload
+    /// cells follow the case's DECLARED field order; unnamed payload fields default, named
+    /// literal fields override, and a literal field that is not part of the case's payload
+    /// traps.
+    fn eval_case_literal(
+        &mut self,
+        literal: &omega_typed_trees::expression::TableStructLiteral,
+        case_name: &str,
+        frame: &Frame,
+    ) -> EvalResult<Value> {
+        let type_name = literal.type_name.as_str();
+        let Some(data) = self.find_data_by_name(type_name) else {
+            return trap(format!("unknown data type `{type_name}` in case literal"));
+        };
+        let Some(variant) = self.program.data_members(data).iter().find_map(|member| {
+            match member {
+                DataMember::Variant(variant) if variant.name.as_str() == case_name => {
+                    Some(variant)
+                }
+                _ => None,
+            }
+        }) else {
+            return trap(format!("`{type_name}` has no case `{case_name}`"));
+        };
+
+        let mut payload = Vec::new();
+        for field in self.program.data_payload_fields(variant) {
+            let name = field.name.as_str().to_owned();
+            let value = self.default_value_for_type(field.type_reference)?;
+            payload.push((name, value.cell()));
+        }
+        for field in self.program.expression_table.struct_fields(literal.fields) {
+            let value = self.eval_expression(field.value, frame)?;
+            let Some(slot) = payload
+                .iter_mut()
+                .find(|(name, _)| name == field.name.as_str())
+            else {
+                return trap(format!(
+                    "case `{type_name}::{case_name}` has no payload field `{}`",
+                    field.name.as_str()
+                ));
+            };
+            slot.1 = value.cell();
+        }
+
+        Ok(Value::Enum {
+            variant_name: case_name.to_owned(),
+            payload,
+        })
+    }
+
     fn field_cell(&self, container: &Cell, field: &str) -> EvalResult<Cell> {
         let container = self.deref_cell(Rc::clone(container));
         let borrowed = container.borrow();
@@ -1530,6 +1586,20 @@ impl<'program> Evaluator<'program> {
                 .get(field)
                 .cloned()
                 .ok_or_else(|| Halt::Trap(format!("no field `{field}` on `{type_name}`"))),
+            // A case value's payload field (`subject.text` after a case-pattern binding
+            // rewrote `text`). The cell is SHARED, preserving aliasing.
+            Value::Enum {
+                variant_name,
+                payload,
+            } => payload
+                .iter()
+                .find(|(name, _)| name == field)
+                .map(|(_, cell)| Rc::clone(cell))
+                .ok_or_else(|| {
+                    Halt::Trap(format!(
+                        "case `{variant_name}` carries no payload field `{field}`"
+                    ))
+                }),
             // `slice.len` / `array.len` (member form, no parens) -> a fresh length cell.
             Value::Array(elements) if field == "len" => Ok(Value::Int(elements.len() as i64).cell()),
             other => trap(format!("cannot read field `{field}` of {other:?}")),
@@ -1724,23 +1794,18 @@ impl<'program> Evaluator<'program> {
 
     fn values_equal(&self, left: &Value, right: &Value) -> EvalResult<bool> {
         Ok(match (left, right) {
+            // Enum equality is a TAG compare only -- a case-pattern guard desugars to
+            // `subject == Type::Case` where the right side is a bare (payload-less)
+            // case reference, and the native backend compares the constant tag. The
+            // payload never participates in `==`.
             (
                 Value::Enum {
-                    variant_name: a,
-                    payload: pa,
+                    variant_name: a, ..
                 },
                 Value::Enum {
-                    variant_name: b,
-                    payload: pb,
+                    variant_name: b, ..
                 },
-            ) => {
-                a == b
-                    && pa.len() == pb.len()
-                    && pa.iter().zip(pb.iter()).all(|(x, y)| {
-                        self.values_equal(&x.borrow().clone(), &y.borrow().clone())
-                            .unwrap_or(false)
-                    })
-            }
+            ) => a == b,
             (Value::Str(a), Value::Str(b)) => *a.borrow() == *b.borrow(),
             (Value::Bool(a), Value::Bool(b)) => a == b,
             _ => {

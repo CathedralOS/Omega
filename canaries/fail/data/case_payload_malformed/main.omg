@@ -1,0 +1,14 @@
+// Payload fields are NAMED (`case Say(text: String);`); a bare type with no
+// field name is malformed and must be a parse error, not silently accepted.
+
+data Command {
+    case None;
+    case Say(String);
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}
