@@ -1,0 +1,31 @@
+// FROZEN DECISION 12 -- DISCARD ADMITS EFFECTS: `_ = call();` keeps the
+// callee's observable work while dropping the result. `pure_flag` has no
+// effects and no `&mut` out-parameters, so discarding its result leaves
+// nothing observable -- the statement is dead code and must reject.
+data Main {
+    value: i32;
+}
+
+machine Main::pure_flag(&self) -> bool {
+    transition {
+        _ -> true
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    transition {
+        _ -> discard_pure()
+    }
+
+    state discard_pure(&mut self) {
+        _ = self.pure_flag();
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
+    }
+}

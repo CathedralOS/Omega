@@ -39,9 +39,6 @@ Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
   payload-bearing sum should error until Equatable synthesis (today it slips
   through as a tag/width compare — ACCEPTED known hole, validation cannot
   type places yet); payload-less sums keep implicit `==`.
-- [ ] **Pure-discard error (decision 12).** `_ = call();` where the resolved
-  callee has an empty effect set AND no `&mut`/out parameters is dead code —
-  hard error. Both facts are on the already-resolved signature; cheap.
 - [ ] **Property bounds on type parameters (decision 13).**
   `data Box<T [copy]> [copy]` — parse bracket facts on type parameters,
   check them at instantiation, and let the structural copy/send verifier
@@ -222,8 +219,7 @@ Implementation slices below build against these. Minor/easily-reversible details
    form. See chapters 1, 7, 13, 19 + appendix.
 9. **Strict result use.** Discarding a non-unit return value is a compile
    error; intentional discards are spelled `_ = call();`. No per-type
-   must_use marker. (Implementation pending: discard-statement validation +
-   `_ =` parsing.)
+   must_use marker. (Landed 2026-06-10.)
 10. **Wire eras.** Generated wire encodings carry one era discriminator
     varint per top-level message/record (era 0 = the pre-versioning body);
     cross-era field-number recycling is legal; cross-era type changes are
@@ -256,7 +252,10 @@ Implementation slices below build against these. Minor/easily-reversible details
     effects", not "is a call". Discarding a provably pure call (resolved
     callee has an empty effect set AND no `&mut`/out parameters — both
     signature-level facts) is a hard error, not a warning. Discarding a
-    pure non-call expression stays a parse error.
+    pure non-call expression stays a parse error. (Landed 2026-06-11:
+    purity is judged against the callee's INFERRED transitive effect
+    surface, not the declared list alone, so an undeclared-effects machine
+    that transitively reaches `console.write` never counts as pure.)
 13. **Property bounds: brackets attach to what they follow, everywhere.**
     Type parameters take bracket facts inline: `data Box<T [copy]> [copy]`.
     The Rust-style colon bound (`<T: copy>`) and the attribute-prefix form
@@ -267,6 +266,17 @@ Implementation slices below build against these. Minor/easily-reversible details
     collision.
 
 ## Next Up (highest leverage)
+
+**Landed 2026-06-11 (decision 12 implementation).** Pure discards are now dead
+code: `_ = call();` rejects when the resolved callee's inferred TRANSITIVE
+effect set is empty AND its signature takes no `&mut` out-parameters
+(`validate_effect_plan` owns the check; the transitive surface — not the
+declared list — is the purity source, so a no-declaration machine that
+transitively reaches `console.write` stays discardable). New canaries:
+`fail/calls/pure_discard_dead_code` and
+`pass/calls/effectless_mut_out_param_discard_compile` (&mut out-param, no
+effects — must stay legal); `runtime_explicit_discard_executes_exit` is
+unaffected (its callee writes through `&mut Tally`).
 
 **Wave landed 2026-06-10 (decisions 8/9/10 implementation + backend gaps).**
 Six lanes merged, suite 179/179, differential oracle fully matched:
