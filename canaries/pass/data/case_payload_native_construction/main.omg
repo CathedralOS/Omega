@@ -1,10 +1,9 @@
-// PENDING: native lowering of case payload construction. This program parses,
-// type-checks, and INTERPRETS correctly (the interpreter coverage suite runs an
-// equivalent program to exit 70), but the native backend cannot lower the
-// tag-plus-payload write / payload member read yet, so the compiler rejects it
-// after checked trees instead of emitting a silently wrong binary (the probe
-// binary took the default arm). Promote to a RUN canary (expected exit 70)
-// once construction + binding lower natively.
+// Case payload CONSTRUCTION lowers natively: `Command::Move { steps: 70 }`
+// writes the i32 case tag at offset 0 and the payload field at its packed
+// offset, the transition arm compares ONLY the 4-byte tag (tag-only equality,
+// so payload bytes never affect the match), and the destructured `steps`
+// binding reads the payload member back out as the target state's argument.
+// Exits 70 when construction, tag dispatch, and the payload read all work.
 
 boundary trait Console {
     machine exit_process(return_code: i32);

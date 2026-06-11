@@ -9,6 +9,11 @@ mod sizing;
 
 pub use builder::build_layout_plan;
 
+/// Size (and alignment) of the i32 case tag that prefixes every enum-shaped
+/// data value. Comparing an enum value against a case constant compares ONLY
+/// this prefix (tag-only equality); payload bytes never participate.
+pub const ENUM_TAG_BYTES: usize = 4;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {
     pub size: usize,

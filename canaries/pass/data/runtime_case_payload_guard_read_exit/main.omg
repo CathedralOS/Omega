@@ -1,0 +1,41 @@
+// A MULTI-FIELD case payload read in a destructure `if` guard: the arm
+// `Attack::Strike { power, bonus } if bonus == 10` desugars to a tag compare
+// AND a payload member read (`self.attack.bonus`), so the guard must resolve
+// the second payload field's packed offset (after the tag, after `power`).
+// A DECOY arm with the same case but a wrong bonus sits first: a guard that
+// matches on tag alone (dropping the `if` clause) or reads the wrong payload
+// offset takes the decoy or the default and exits 71. The matched arm passes
+// the FIRST payload field (`power`) on to the target state. Exits 70 only
+// when both payload fields read correctly.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Attack {
+    case Idle;
+    case Strike(power: i32, bonus: i32);
+}
+
+data Main {
+    console: Console;
+    attack: Attack;
+}
+
+machine Main::main(&mut self) {
+    self.attack = Attack::Strike { power: 70, bonus: 10 };
+
+    transition self.attack {
+        Attack::Strike { power, bonus } if bonus == 99 -> bad()
+        Attack::Strike { power, bonus } if bonus == 10 -> done(power)
+        _ -> bad()
+    }
+
+    state done(&mut self, power: i32) {
+        self.console.exit_process(power);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
