@@ -89,6 +89,9 @@ pub(crate) fn lower_data_version_definitions(
             )),
             storage: DataDefinitionStorage {
                 type_parameters: HandleSpan::empty(),
+                // Historical shapes carry no declared properties; a property
+                // describes the CURRENT shape only.
+                properties: DataProperties::default(),
                 members,
             },
         });
