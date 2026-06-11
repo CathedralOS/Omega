@@ -101,17 +101,14 @@ implementation work. Each one gets more expensive to retrofit every month.
    image emission bet is aligned with this; the gap is the freestanding
    flavor of it.
 
-8. **Case members (sum/mixed data shapes)** — DESIGN DECIDED, implementation
-   pending. There is no separate `enum` type: alternatives are a member class
-   of `data` (`case` members, named payload fields, MIXED shapes = common
-   fields + a case part in one declaration), so case-bearing types get
-   domains, versions, and `wire data` for free, and case-subset domains
-   replace shadow enums. See chapter 1 + TASKS.md frozen decision 7. The
-   typed trees already model this (`DataMember::Field | Variant`,
-   `DataShapeKind::Mixed`); the work is parser (`case` syntax, payloads),
-   pattern binding, and layout/lowering. Cathedral's typed `Failure` causes
-   and every driver/protocol record want this; the longer samples avoid it,
-   the more code is written around it.
+8. **Case members (sum/mixed data shapes)** — SUM SHAPES IMPLEMENTED
+   (2026-06-10): `case` members with named payloads parse, validate,
+   interpret, and LOWER NATIVELY (tag-prefix construction writes, payload
+   member reads, tag dispatch with payload binding in transition arms; all
+   oracle-verified). Case-subset domains and MIXED shapes (common fields + a
+   case part) remain pending, as does payload-aware structural equality
+   (interim: `==` against a payload-bearing case is a compile error). See
+   chapter 1 + TASKS.md frozen decisions 7/8.
 
 ## Tier 2 — note now, design later (TBD register)
 
