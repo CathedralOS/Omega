@@ -55,14 +55,14 @@ pub fn build_runtime_branching_call_plan(
             context,
             &operations,
         ));
-        // Transition-guard subject calls already EVALUATED in this body. The parser
-        // lowers `transition self.f(x) { true -> a false -> b }` into one guard call
-        // PER ARM, all sharing the same subject CALL expression handle. The subject
-        // must evaluate ONCE: the first arm's call runs the callee (prelude); later
-        // arms reuse the callee's result slots, so only their value-selection leafs
-        // are appended (no second prelude = no second side effect).
-        let mut evaluated_guard_subjects: Vec<omega_checked_trees::expression::ExpressionHandle> =
-            Vec::new();
+        // Transition-guard subject calls already EVALUATED in this body, per source
+        // state: arms of one transition re-test the same subject, so only the first
+        // arm appends any execution machinery (see the repeated-subject branch
+        // below).
+        let mut evaluated_guard_subjects: Vec<(
+            StateKey,
+            omega_checked_trees::expression::ExpressionHandle,
+        )> = Vec::new();
 
         for operation in operations.iter() {
             let state_call = state_call_for_runtime_operation(context, operation);
@@ -103,25 +103,28 @@ pub fn build_runtime_branching_call_plan(
             // lowers `transition self.f(x) { true -> a false -> b }` into one guard
             // call PER ARM, each holding a COPY of the subject call (lowering breaks
             // handle sharing, so compare structurally). The first arm's prelude runs
-            // the callee; later arms keep their prelude expansion but with an EMPTY
-            // operation list (bindings + value selection only), re-reading the shared
-            // callee result slots without re-running its side effects.
+            // the callee and the runtime-storage plan parks the result in a guard
+            // result slot SHARED by every arm of the transition; later arms emit no
+            // prelude operations, no nested-callee expansions, and no value-selection
+            // leafs -- their guard comparisons re-read the shared slot.
             let mut repeated_guard_subject = false;
             if has_prelude
                 && state_call.role == omega_state_calls::StateCallRole::TransitionGuard
             {
-                let subject =
-                    transition_guard_subject_call(context, operation.source_key, operation.statement_index);
+                let subject = context
+                    .control_flow
+                    .transition_guard_subject_call(operation.source_key, operation.statement_index);
                 if subject.is_valid() {
-                    if evaluated_guard_subjects.iter().any(|seen| {
-                        context
-                            .control_flow
-                            .expressions
-                            .expressions_structurally_equal(*seen, subject)
+                    if evaluated_guard_subjects.iter().any(|(seen_key, seen)| {
+                        *seen_key == operation.source_key
+                            && context
+                                .control_flow
+                                .expressions
+                                .expressions_structurally_equal(*seen, subject)
                     }) {
                         repeated_guard_subject = true;
                     } else {
-                        evaluated_guard_subjects.push(subject);
+                        evaluated_guard_subjects.push((operation.source_key, subject));
                     }
                 }
             }
@@ -168,13 +171,19 @@ pub fn build_runtime_branching_call_plan(
                     statement_filter,
                 );
             }
-            if matches!(
-                classify_branch_call_expansion(branch_edges_slice),
-                RuntimeBranchCallExpansion::GuardedLeaf
-                    | RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
-                    | RuntimeBranchCallExpansion::NeedsStraightLineTarget
-                    | RuntimeBranchCallExpansion::NeedsNestedBranchTarget
-            ) {
+            // A repeated guard subject appends NO leaf or straight-line expansions:
+            // its first arm already wrote the shared guard result slot, and a leaf
+            // value selection here would re-run the callee's nested calls once per
+            // arm (the dungeon's 32-draws-for-1 RNG amplification).
+            if !repeated_guard_subject
+                && matches!(
+                    classify_branch_call_expansion(branch_edges_slice),
+                    RuntimeBranchCallExpansion::GuardedLeaf
+                        | RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
+                        | RuntimeBranchCallExpansion::NeedsStraightLineTarget
+                        | RuntimeBranchCallExpansion::NeedsNestedBranchTarget
+                )
+            {
                 append_leaf_branch_expansions(
                     context,
                     &mut plan.expressions,
@@ -193,11 +202,13 @@ pub fn build_runtime_branching_call_plan(
                     omega_state_guards::StateGuardKind::Always,
                 );
             }
-            if matches!(
-                classify_branch_call_expansion(branch_edges_slice),
-                RuntimeBranchCallExpansion::NeedsStraightLineTarget
-                    | RuntimeBranchCallExpansion::NeedsNestedBranchTarget
-            ) {
+            if !repeated_guard_subject
+                && matches!(
+                    classify_branch_call_expansion(branch_edges_slice),
+                    RuntimeBranchCallExpansion::NeedsStraightLineTarget
+                        | RuntimeBranchCallExpansion::NeedsNestedBranchTarget
+                )
+            {
                 append_straight_line_branch_expansions(
                     context,
                     &mut plan.expressions,
@@ -326,52 +337,3 @@ fn branch_target_has_prelude(context: &RuntimeBranchingContext, target_key: Stat
         .is_some_and(|operations| !operations.is_empty())
 }
 
-/// The CALL subexpression of the transition guard at `statement_index` in `source_key`'s
-/// state, if any. The per-arm guards of a subject-form transition (`transition self.f(x)
-/// { true -> a false -> b }`) all wrap the SAME subject call handle -- the parser inserts
-/// the subject expression once and references it per arm -- so handle equality identifies
-/// "this arm re-tests the same subject" precisely (two distinct source-level calls never
-/// share a handle).
-fn transition_guard_subject_call(
-    context: &RuntimeBranchingContext,
-    source_key: StateKey,
-    statement_index: usize,
-) -> omega_checked_trees::expression::ExpressionHandle {
-    let invalid = omega_checked_trees::expression::ExpressionHandle::invalid();
-    let Some(state) = context.control_flow.state_by_key(source_key) else {
-        return invalid;
-    };
-    let Some(transitions) = context.control_flow.transitions.span(state.transitions) else {
-        return invalid;
-    };
-    let Some(flow) = transitions
-        .iter()
-        .find(|flow| flow.statement_index == statement_index)
-    else {
-        return invalid;
-    };
-    first_call_subexpression(&context.control_flow.expressions, flow.expressions.guard)
-}
-
-fn first_call_subexpression(
-    table: &omega_checked_trees::expression::ExpressionTable,
-    handle: omega_checked_trees::expression::ExpressionHandle,
-) -> omega_checked_trees::expression::ExpressionHandle {
-    use omega_checked_trees::expression::ExpressionNode;
-    if !handle.is_valid() {
-        return handle;
-    }
-    match table.expression(handle) {
-        ExpressionNode::Call(_) => handle,
-        ExpressionNode::Binary(binary) => {
-            let left = first_call_subexpression(table, binary.left);
-            if left.is_valid() {
-                left
-            } else {
-                first_call_subexpression(table, binary.right)
-            }
-        }
-        ExpressionNode::Unary(unary) => first_call_subexpression(table, unary.operand),
-        _ => omega_checked_trees::expression::ExpressionHandle::invalid(),
-    }
-}

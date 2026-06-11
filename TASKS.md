@@ -85,18 +85,41 @@ remains tracked in its bullet below.
 
 **Backend residue (small, known):**
 
-- [ ] Distinct effectful arm guards: native eager evaluation diverges from the
-  interpreter's lazy order (open note in the eager-guard divergence). Concrete
-  measured instance (dungeon, fixed seed 7): native draws 32 RNG values for ONE
-  `transition self.should_carve(random, 2) { true/false }` decision where the
-  interpreter draws 1 — the effectful subject call is re-evaluated per arm and
-  the amplification compounds down the call chain (should_carve -> chance ->
-  range -> next_u32). Stream divergence means native rolls a different
-  side-room carve than the interpreter (R05 stays uncarved, its data-driven
-  description renders empty); that is the only dungeon output line the two
-  backends disagree on. The scripted-loop canaries deliberately assert the
-  hardcoded R05 event/paths lines instead of its description until this is
-  fixed.
+- [x] Eager-guard divergence (effectful transition SUBJECTS) FIXED: a guard
+  subject like `transition self.should_carve(random, 2) { true/false }` now
+  evaluates exactly ONCE natively, matching the interpreter, even with
+  diverging arm targets and a nested callee chain. Three compounding causes,
+  all repaired: (1) every arm's guard holds a parser COPY of the subject call
+  and each arm allocated its OWN `__call_result` slot — the runtime-storage
+  plan now shares ONE slot across arms with structurally equal subjects
+  (`shared_transition_guard_slot_offset`, omega-runtime-storage/body.rs);
+  (2) later arms appended their own nested-callee/leaf/straight-line
+  expansions, re-running the callee's side effects per arm — the
+  runtime-branching plan now suppresses ALL execution machinery for repeated
+  subjects (omega-runtime-branching/branching/mod.rs + expansions.rs);
+  (3) `let x = self.f(...)` inside an expansion emitted the call TWICE (once
+  for its StateCall operation, once via the LocalData operation's
+  initializer-call path) — one doubling per nesting level, the dungeon's
+  32-draws-for-1 amplification (instruction-selection straight_line.rs).
+  Regression net: canaries/pass/control_flow/
+  runtime_effectful_subject_single_evaluation_exit (diverging-arm,
+  3-deep chain; pre-fix native exits 77, post-fix 70 = interpreter) plus the
+  measured dungeon shape (1 draw per should_carve decision in BOTH backends).
+- [ ] Non-guard call chains still over-draw / read stale values natively (the
+  REMAINING root of the dungeon R05 line). Measured with the same seed-7
+  tracing: one `carve_room -> roll_event -> rng.range -> next_u32` STATEMENT
+  chain runs `next_u32` 3x natively (interpreter 1x) — the splice's flattened
+  mutation ops, the parent prelude's nested walk, and the directly-matched
+  straight-line expansion are ALL emitted as executors; and a depth-1
+  `let v = self.next(&mut state)` returns the PRE-mutation value (leaf value
+  write emits before the splice's mutation writes; interpreter returns the
+  post-mutation value). Generation total: interpreter 15 draws, native 34, so
+  the stream diverges before the R05 `should_carve` decision and R05 stays
+  uncarved natively (its data-driven description renders empty) — still the
+  only dungeon output line the backends disagree on. The scripted-loop
+  canaries keep asserting R05's event/paths lines instead of its description
+  until the executor-of-record story (splice vs prelude vs nested walk) is
+  fixed for non-guard roles.
 - [ ] 3 pre-existing `_compile` canaries hang at runtime (slice-subslice /
   mutable-local family); suite never runs them.
 - [x] aarch64 runtime convergence (dungeon hot-potato). ROOT CAUSE FOUND AND
@@ -188,7 +211,8 @@ stay visible, not because they're next):**
   backend-residue entry above for the full diagnosis). The scripted dungeon
   loop and the dungeon differential oracle are green on the arm64 host; the
   one remaining interpreter/native divergence (R05 description) is the
-  eager-guard RNG-stream issue, tracked separately.
+  non-guard call-chain RNG-stream issue in the backend-residue list (the
+  eager-guard half of it is fixed).
 - [ ] **Text/string proof domains.** `String::Utf8`/`NoNul` as
   boundary-established carried facts without a byte-level proof tax (frozen
   direction in decision 5; the domains themselves unbuilt).

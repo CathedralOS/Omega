@@ -1,0 +1,122 @@
+// A transition's effectful guard SUBJECT evaluates exactly ONCE even when the
+// arms dispatch to DISTINCT target states (each taking arguments) and the
+// callee reaches its side effect through a NESTED call chain. This is the
+// dungeon `should_carve` shape: `transition self.should_carve(random, d)
+// { true -> X(args) false -> Y(args) }` where should_carve -> chance -> range
+// -> next_u32 finally mutates the RNG state. The sibling canary
+// calls/runtime_transition_subject_call_single_evaluation_exit pins the flat
+// converging-arm shape (both arms -> same state, side effect directly in the
+// callee); this one pins the diverging-arm + nested-chain shape, which used to
+// amplify in the native backend (the eager-guard divergence): every arm
+// re-emitted the subject's nested calls, and each nesting level emitted the
+// `let x = self.f(...)` call twice (once for the StateCall operation, once for
+// the LocalData operation), so the dungeon drew 32 RNG values where the
+// interpreter drew 1 and side-room R05 was never carved.
+//
+// The deepest callee counts invocations through a `&mut Tally` and the chain
+// returns 3, so the THIRD arm is taken; the probe ladder maps each plausible
+// count to a distinct exit code (pre-fix native landed on 43+: one run per
+// attempted arm, doubled per nesting level).
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Tally {
+    calls: u64;
+    pad: u64;
+}
+
+data Main {
+    console: Console;
+    tally: Tally;
+}
+
+machine Main::deep(
+    &mut self,
+    tally: &mut Tally
+    ) -> u32 {
+    tally.calls = tally.calls + 1;
+
+    transition {
+        _ -> 3
+    }
+}
+
+machine Main::middle(
+    &mut self,
+    tally: &mut Tally
+    ) -> u32 {
+    let value: u32 = self.deep(tally);
+
+    transition {
+        _ -> value
+    }
+}
+
+machine Main::roll(
+    &mut self,
+    tally: &mut Tally
+    ) -> u32 {
+    let value: u32 = self.middle(tally);
+
+    transition {
+        _ -> value
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.tally.calls = 40;
+    self.tally.pad = 0;
+
+    transition {
+        _ -> decide()
+    }
+
+
+    state decide(&mut self) {
+        // Three diverging arms plus a default: the subject must run once, not
+        // once per arm the dispatcher tries. Each arm carries an argument like
+        // the dungeon's `build_side_room_1(level, random)` targets.
+        transition self.roll(&mut self.tally) {
+            1 -> took_one(&mut self.tally)
+            2 -> took_two(&mut self.tally)
+            3 -> took_three(&mut self.tally)
+            _ -> took_default(&mut self.tally)
+        }
+    }
+
+    state took_one(&mut self, tally: &mut Tally) {
+        transition { _ -> exit_wrong_arm() }
+    }
+
+    state took_two(&mut self, tally: &mut Tally) {
+        transition { _ -> exit_wrong_arm() }
+    }
+
+    state took_three(&mut self, tally: &mut Tally) {
+        // The probe ladder reads the machine-owned tally, not the `tally`
+        // parameter: scalar place-guard ladders through a `&mut` data parameter
+        // are a separate open native divergence and would mask this canary's
+        // verdict.
+        transition {
+            self.tally.calls == 40 -> exit_never_ran()
+            self.tally.calls == 41 -> exit_once()
+            self.tally.calls == 42 -> exit_twice()
+            self.tally.calls == 43 -> exit_thrice()
+            _ -> exit_other()
+        }
+    }
+
+    state took_default(&mut self, tally: &mut Tally) {
+        transition { _ -> exit_wrong_arm() }
+    }
+
+    state exit_wrong_arm(&mut self) { self.console.exit_process(9); }
+    state exit_never_ran(&mut self) { self.console.exit_process(10); }
+    state exit_once(&mut self) { self.console.exit_process(70); }
+    state exit_twice(&mut self) { self.console.exit_process(2); }
+    state exit_thrice(&mut self) { self.console.exit_process(3); }
+    state exit_other(&mut self) { self.console.exit_process(77); }
+}
