@@ -25,6 +25,69 @@ representation machinery behind a deliberate boundary.
 - Keep `pass`, `fail`, and `pending` canaries honest. Do not let compile-only
   success imply runtime or proof support.
 
+## Outstanding (pick up next)
+
+Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
+179/179, oracle fully matched). Ordered roughly by leverage.
+
+**Needs a design ruling first:**
+
+- [ ] **Tag-only case equality in guards.** A transition guard `==` against a
+  case constant clamps to the 4-byte tag, ignoring any payload (the
+  interpreter matches). Statement-position `==` against a payload-bearing
+  case is already a hard error (interim rule). Rule on: is tag-only guard
+  equality the permanent semantics, or do guards inherit the structural
+  `Equatable` story once synthesis lands?
+- [ ] **`_ =` accepts only calls.** Non-call expressions after `_ =` are parse
+  errors today (expression statements have no side effects to discard).
+  Fine until expression statements grow effects; revisit then.
+
+**Implementation, design already frozen:**
+
+- [ ] **Wire stage 2: encoders.** Era-discriminator varint emission (one per
+  top-level message, era 0 = pre-versioning body), encoder/decoder
+  generation, wire-schemas-as-program-types, runtime layout of wire values,
+  encoding families, version negotiation. Differential-oracle-friendly:
+  byte-exact expected outputs. (Decision 10 chain checks + migration
+  verdicts already landed.)
+- [ ] **Versioned data stage 2.** Construction of historical-shape VALUES
+  (struct literals currently parse single-identifier type names only — no
+  runtime migration canary exists because a `Counter::v1` value cannot be
+  built); version MATCH arms (`Counter::v1(old) ->` still rejects);
+  migration chains, `replaces`, quiescence obligations; era tag + the wire
+  integration decision 10 assumes.
+- [ ] **Equatable synthesis / conformance defaults.** Conformance items
+  validate written members only; trait `default machine` instantiation and
+  the synthesized core derivable set (structural `equals`) are unimplemented
+  — this is the compile-time-execution direction (ch13 sketch). Unblocks
+  retiring the interim `==` error.
+- [ ] **Case members: remaining halves.** Implicit case-domains
+  (`self in Type::Case`, unions, exhaustiveness counting), case-subset
+  domains, MIXED shapes (common fields + case part). Payload sums are done.
+- [ ] **Properties: bound spelling.** Generics cannot require properties yet
+  (`where T is [copy]` or similar) — structural copy/send checks
+  conservatively reject generic/type-parameter fields until bounds exist.
+
+**Backend residue (small, known):**
+
+- [ ] Distinct effectful arm guards: native eager evaluation diverges from the
+  interpreter's lazy order (open note in the eager-guard divergence).
+- [ ] 3 pre-existing `_compile` canaries hang at runtime (slice-subslice /
+  mutable-local family); suite never runs them.
+- [ ] aarch64 runtime convergence (dungeon hot-potato).
+- [ ] Borrow layer records free-machine value-call targets as `invalid` in
+  checked trees (cosmetic today).
+- [ ] Stale test fixtures: lib tests of omega-graph/types/names/proof/
+  syntax-trees/abstract-operations/target-operations don't compile (missing
+  `abi`/`type_parameters`/`kind`/`is_float` fields); omega-machine-emission +
+  omega-state-calls each have failing unit tests; architecture_boundaries
+  3/6 fail. All pre-date the wave.
+
+**Bigger arcs (Cathedral tier 1, untouched):** concurrency/atomics decisions,
+freestanding target + volatile/MMIO, separate-compilation awareness; proof
+engine next rungs (anchoring for machines WITH bodies, induction via
+recursive contracts, quantifiers).
+
 ## Resolved Design Decisions (frozen)
 
 Implementation slices below build against these. Minor/easily-reversible details
