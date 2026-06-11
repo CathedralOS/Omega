@@ -605,19 +605,19 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width(
 }
 
 pub fn runtime_text_line_read_import_width(_byte_capacity: usize) -> usize {
-    100
+    116
 }
 
 pub fn runtime_text_line_read_syscall_width(_byte_capacity: usize, syscall_number: u32) -> usize {
-    100 + unsigned_immediate_width(u64::from(syscall_number))
+    116 + unsigned_immediate_width(u64::from(syscall_number))
 }
 
 pub fn runtime_text_line_read_import_target_address_offset() -> usize {
-    84
+    100
 }
 
 pub fn runtime_text_line_read_syscall_target_address_offset(syscall_number: u32) -> usize {
-    84 + unsigned_immediate_width(u64::from(syscall_number))
+    100 + unsigned_immediate_width(u64::from(syscall_number))
 }
 
 pub fn runtime_text_line_read_import_call_offset() -> usize {
