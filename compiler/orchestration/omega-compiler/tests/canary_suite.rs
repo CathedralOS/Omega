@@ -6656,6 +6656,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "data/runtime_case_reassignment_exit",
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
+    "domains/call_requires_satisfied_by_caller_requires",
     "domains/call_requires_boolean_expression_from_domain_fact",
     "domains/call_requires_boolean_expression_preserved_across_disjoint_mutating_call",
     "domains/call_requires_dynamic_indexed_scalar_member_expression_from_domain_fact",

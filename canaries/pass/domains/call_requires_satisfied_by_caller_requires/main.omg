@@ -1,0 +1,49 @@
+// A caller's own `requires` facts must discharge the `requires` contracts of
+// nested machine calls. The caller-side requires fact for parameter `item`
+// was rooted at `self` with an unresolved field (label `self.unknown`), so it
+// never matched the call obligation's instantiated place `item` and the
+// nested call was rejected even though the caller's contract carries the
+// exact fact. Covers an attached (method) callee and a free machine callee.
+
+data Item {
+    value: i32;
+}
+
+domain Item::Ready {
+    self.value > 0;
+}
+
+machine free_inner(item: &Item) -> i32
+requires
+    item in Item::Ready
+{
+    transition {
+        _ -> 1
+    }
+}
+
+data Worker {
+    dummy: i32;
+}
+
+machine Worker::inner(&self, item: &Item)
+requires
+    item in Item::Ready
+{
+}
+
+machine Worker::outer(&self, item: &Item)
+requires
+    item in Item::Ready
+{
+    self.inner(item);
+    let n: i32 = free_inner(item);
+}
+
+data Main {
+    worker: Worker;
+    item: Item;
+}
+
+machine Main::main(&mut self) {
+}
