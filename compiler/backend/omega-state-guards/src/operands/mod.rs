@@ -11,7 +11,7 @@ use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
-use values::resolved_guard_operand_value;
+use values::{enum_variant_tag_value, resolved_guard_operand_value};
 
 pub(crate) struct GuardOperands {
     pub left: StateGuardOperand,
@@ -46,7 +46,7 @@ pub(crate) fn guard_operands(
         return None;
     };
 
-    Some(GuardOperands {
+    let mut operands = GuardOperands {
         left: guard_operand(
             source_expressions,
             guard_expressions,
@@ -71,7 +71,24 @@ pub(crate) fn guard_operands(
             statement_index,
             binary.right,
         ),
-    })
+    };
+
+    // TAG-ONLY case comparison: when one side names a CASE of an enum-shaped
+    // data (`self.cmd == Command::Move`), the storage side must read only the
+    // 4-byte tag prefix, never the full tag-plus-payload value (a payload-
+    // carrying enum is wider than its tag, and stale payload bytes must not
+    // affect the compare). Payload-less enums are exactly tag-sized already.
+    let left_is_case = enum_variant_tag_value(layouts, source_expressions, binary.left).is_some();
+    let right_is_case = enum_variant_tag_value(layouts, source_expressions, binary.right).is_some();
+    if left_is_case || right_is_case {
+        for operand in [&mut operands.left, &mut operands.right] {
+            if operand.byte_size > omega_layout::ENUM_TAG_BYTES {
+                operand.byte_size = omega_layout::ENUM_TAG_BYTES;
+            }
+        }
+    }
+
+    Some(operands)
 }
 
 fn guard_operand(

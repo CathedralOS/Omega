@@ -279,8 +279,8 @@ impl<'program> LayoutBuilder<'program> {
         members: &[DataMember],
     ) -> Result<DataLayout, Diagnostic> {
         const TAG_LAYOUT: TypeLayout = TypeLayout {
-            size: 4,
-            alignment: 4,
+            size: crate::ENUM_TAG_BYTES,
+            alignment: crate::ENUM_TAG_BYTES,
         };
 
         // Plan every case's payload fields first: the shared payload base offset

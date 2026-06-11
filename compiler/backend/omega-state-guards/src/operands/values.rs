@@ -16,6 +16,17 @@ pub(super) fn resolved_guard_operand_value(
         _ => {}
     }
 
+    enum_variant_tag_value(layouts, table, expression)
+}
+
+/// `Some(tag)` when `expression` names a CASE of an enum-shaped data
+/// (`Command::Move`). Used both as the guard's static comparison value and to
+/// detect tag-only comparisons (the storage operand then reads only the tag).
+pub(super) fn enum_variant_tag_value(
+    layouts: &LayoutPlan,
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<i64> {
     let ExpressionNode::Name(path) = table.expression(expression) else {
         return None;
     };
