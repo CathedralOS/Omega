@@ -1,0 +1,78 @@
+// A callee's body executes exactly ONCE per written call, in every call role.
+// roll() is an inline-branching callee (it has a transition) that counts its
+// invocations through `&mut Tally`. One statement-position call (dispatched)
+// plus one assignment-position call (inline-branching) = exactly 2 increments.
+//
+// Regression shape this pins: an inline-branching ASSIGNMENT-VALUE call had its
+// callee statements emitted BOTH by the runtime-bodies splice and by the branch
+// prelude expansion, so `let ok = self.roll(&mut tally)` incremented twice per
+// call (43/44 below). The splice is the executor for non-guard roles; non-guard
+// preludes carry no callee operations.
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Tally {
+    calls: u64;
+    pad: u64;
+}
+
+data Main {
+    console: Console;
+    tally: Tally;
+}
+
+machine Main::roll(
+    &mut self,
+    tally: &mut Tally
+    ) -> bool {
+    tally.calls = tally.calls + 1;
+
+    transition {
+        _ -> true
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.tally.calls = 40;
+    self.tally.pad = 0;
+
+    transition {
+        _ -> statement_call()
+    }
+
+
+    state statement_call(&mut self) {
+        self.roll(&mut self.tally);
+
+        transition {
+            _ -> assignment_call()
+        }
+    }
+
+    state assignment_call(&mut self) {
+        let ok: bool = self.roll(&mut self.tally);
+
+        transition {
+            _ -> report()
+        }
+    }
+
+    state report(&mut self) {
+        transition {
+            self.tally.calls == 42 -> exit_correct()
+            self.tally.calls == 43 -> exit_one_doubled()
+            self.tally.calls == 44 -> exit_both_doubled()
+            self.tally.calls == 40 -> exit_lost()
+            _ -> exit_other()
+        }
+    }
+
+    state exit_correct(&mut self) { self.console.exit_process(70); }
+    state exit_one_doubled(&mut self) { self.console.exit_process(2); }
+    state exit_both_doubled(&mut self) { self.console.exit_process(3); }
+    state exit_lost(&mut self) { self.console.exit_process(10); }
+    state exit_other(&mut self) { self.console.exit_process(77); }
+}

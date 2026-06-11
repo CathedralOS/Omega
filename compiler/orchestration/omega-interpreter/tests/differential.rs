@@ -61,6 +61,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_string_call_result_through_reference_field_exit", 186),
     ("calls/runtime_transition_subject_call_single_evaluation_exit", 70),
     ("calls/runtime_two_string_call_results_through_reference_fields_exit", 194),
+    ("calls/runtime_value_call_single_execution_exit", 70),
     ("calls/runtime_value_call_through_alias_in_dispatch_exit", 70),
     ("calls/runtime_value_position_branching_call_exit", 70),
     ("calls/runtime_value_transition_unsigned_guard_exit", 70),

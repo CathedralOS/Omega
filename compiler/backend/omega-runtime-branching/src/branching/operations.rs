@@ -11,12 +11,36 @@ use super::{
     RuntimeStraightLineBranchOperationKind,
 };
 
+/// Which of the callee's statements a branch prelude expansion carries.
+///
+/// The runtime-bodies SPLICE executes a non-guard callee's mutations, host calls,
+/// and nested calls (flattening the nested calls into the caller's body); the
+/// prelude must not re-emit those or the callee's side effects run twice per
+/// evaluation. The splice does NOT cover the callee's LOCAL initializers (e.g.
+/// `let cells = self.bag.cells.as_mut_slice();`), so every executing prelude
+/// keeps LocalData. Guard-role calls use the prelude as their ONLY executor
+/// (their splice is skipped so repeated transition subjects can dedupe), so
+/// their preludes carry everything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum PreludeStatementFilter {
+    /// Guard-role executor prelude: every callee statement.
+    All,
+    /// Non-guard prelude: local initializers only; the splice executes the rest.
+    LocalDataOnly,
+    /// Repeated guard subject: no statements (bindings + value selection only).
+    None,
+}
+
 pub(super) fn prelude_operations(
     context: &RuntimeBranchingContext,
     expressions: &mut ExpressionTable,
     output_operations: &mut Arena<RuntimeBranchPreludeOperation>,
     source_key: StateKey,
+    filter: PreludeStatementFilter,
 ) -> HandleSpan<RuntimeBranchPreludeOperation> {
+    if filter == PreludeStatementFilter::None {
+        return HandleSpan::empty();
+    }
     let Some(state) = context.control_flow.state_by_key(source_key) else {
         return HandleSpan::empty();
     };
@@ -24,8 +48,9 @@ pub(super) fn prelude_operations(
         return HandleSpan::empty();
     };
 
-    output_operations.insert_many(operations.iter().map(|operation| {
-        RuntimeBranchPreludeOperation {
+    let kept: Vec<RuntimeBranchPreludeOperation> = operations
+        .iter()
+        .map(|operation| RuntimeBranchPreludeOperation {
             source_key,
             statement_index: operation.statement_index,
             kind: prelude_operation_kind(
@@ -35,8 +60,17 @@ pub(super) fn prelude_operations(
                 operation.statement_index,
                 &operation.kind,
             ),
-        }
-    }))
+        })
+        .filter(|operation| {
+            filter == PreludeStatementFilter::All
+                || !matches!(
+                    operation.kind,
+                    RuntimeBranchPreludeOperationKind::Mutation { .. }
+                        | RuntimeBranchPreludeOperationKind::HostCall
+                )
+        })
+        .collect();
+    output_operations.insert_many(kept)
 }
 
 pub(super) fn leaf_operations(

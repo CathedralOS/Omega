@@ -129,6 +129,21 @@ pub fn build_runtime_branching_call_plan(
                 expansion = RuntimeBranchCallExpansion::NeedsBranchPrelude;
             }
             if has_prelude {
+                // Who executes the callee's statements depends on the role -- see
+                // PreludeStatementFilter. Guard calls: the prelude is the executor
+                // (their runtime-bodies splice is skipped so the repeated-subject
+                // dedupe above can suppress later arms). Every other role: the
+                // splice executes mutations/host calls and flattens nested calls,
+                // so the prelude keeps only the LOCAL INITIALIZERS the splice does
+                // not cover -- carrying mutations or host calls here as well ran
+                // the callee's side effects twice per evaluation.
+                let statement_filter = if repeated_guard_subject {
+                    operations::PreludeStatementFilter::None
+                } else if state_call.role == omega_state_calls::StateCallRole::TransitionGuard {
+                    operations::PreludeStatementFilter::All
+                } else {
+                    operations::PreludeStatementFilter::LocalDataOnly
+                };
                 append_branch_prelude_expansion(
                     context,
                     &mut plan.expressions,
@@ -150,7 +165,7 @@ pub fn build_runtime_branching_call_plan(
                     body.dispatch_index,
                     state_call,
                     &aliases,
-                    !repeated_guard_subject,
+                    statement_filter,
                 );
             }
             if matches!(

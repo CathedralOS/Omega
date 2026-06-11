@@ -494,15 +494,16 @@ fn append_state_call_body_operation(
     // `let cells = self.bag.cells.as_mut_slice();`, and mutations through its `&mut`
     // params) is spliced here so it executes before the branch expansion materialises
     // the transition/return -- without it, a machine returning `&mut cells[index]`
-    // reads an uninitialized slice descriptor (bad pointer -> segfault).
+    // reads an uninitialized slice descriptor (bad pointer -> segfault). The splice
+    // also FLATTENS the callee's nested calls (e.g. a devirtualized tail call) into
+    // the caller's body so each becomes its own branching call.
     //
-    // EXCEPT for an inline-branching TRANSITION-GUARD call: its callee body is emitted
-    // by the BRANCH PRELUDE expansion (omega-runtime-branching emits one whenever the
-    // callee has operations), and splicing it here as well ran the guard callee's side
-    // effects TWICE per evaluation (e.g. an RNG advancing through `&mut state`). Other
-    // roles keep the splice because not every inline-branching shape reliably reaches
-    // the prelude path (devirtualized dyn-receiver calls broke without it); their
-    // splice+prelude double-execution is a separate known gap.
+    // This splice is the EXECUTOR for every role except TRANSITION-GUARD calls, whose
+    // executor is the branch prelude expansion instead (so the repeated-subject dedupe
+    // in omega-runtime-branching can suppress later arms of one transition subject).
+    // The two must never both run a callee's statements: that is double execution of
+    // its side effects. omega-runtime-branching keeps non-guard preludes EMPTY of
+    // callee operations for the same reason.
     if state_call.lowering != StateCallLowering::InlineBranching
         || state_call.role != omega_state_calls::StateCallRole::TransitionGuard
     {

@@ -71,7 +71,7 @@ pub(super) fn append_branch_prelude_expansion(
     dispatch_index: u32,
     state_call: &StateCall,
     aliases: &RuntimeBranchAliasBuffer,
-    include_callee_operations: bool,
+    statement_filter: super::operations::PreludeStatementFilter,
 ) {
     let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
     let bindings = prelude_bindings.insert_many(branch_bindings.iter().map(|binding| {
@@ -81,20 +81,13 @@ pub(super) fn append_branch_prelude_expansion(
             expression: binding.expression,
         }
     }));
-    // A LATER ARM of one transition subject re-tests the result of the FIRST arm's
-    // evaluation: it keeps its prelude expansion (bindings + the nested value
-    // selection below) but with NO callee statements, so the callee's side effects
-    // run once per transition evaluation.
-    let operations = if include_callee_operations {
-        prelude_operations(
-            context,
-            expressions,
-            prelude_operations_arena,
-            state_call.target_key,
-        )
-    } else {
-        HandleSpan::empty()
-    };
+    let operations = prelude_operations(
+        context,
+        expressions,
+        prelude_operations_arena,
+        state_call.target_key,
+        statement_filter,
+    );
 
     prelude_expansions.insert(RuntimeBranchPreludeExpansion {
         dispatch_index,
