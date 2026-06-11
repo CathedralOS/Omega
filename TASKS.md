@@ -39,10 +39,10 @@ Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
   payload-bearing sum should error until Equatable synthesis (today it slips
   through as a tag/width compare — ACCEPTED known hole, validation cannot
   type places yet); payload-less sums keep implicit `==`.
-- [ ] **Property bounds on type parameters (decision 13).**
-  `data Box<T [copy]> [copy]` — parse bracket facts on type parameters,
-  check them at instantiation, and let the structural copy/send verifier
-  accept bounded parameters (it conservatively rejects them today).
+- [x] **Property bounds on type parameters (decision 13).** Landed
+  2026-06-11 — see the wave note under Next Up. Residue lives in the
+  generics-completion arc: machine-call monomorphization arguments are not
+  bound-checked yet (only type-reference instantiation surfaces are).
 
 - [ ] **Wire stage 2: encoders.** Era-discriminator varint emission (one per
   top-level message, era 0 = pre-versioning body), encoder/decoder
@@ -110,7 +110,8 @@ stay visible, not because they're next):**
 - [ ] **Generics completion.** Pending canaries exist (generic data
   instantiation, machine-call monomorphization, type params in states);
   const-parameter instantiation/substitution, layout for symbolic lengths.
-  Properties on generics (decision 13) adds bound checking at instantiation.
+  Decision-13 bounds are checked on type-reference instantiations; extend
+  the check to machine-call monomorphization arguments when those land.
 - [ ] **Allocator story.** `Vec` has no runtime; `alloc` is an effect name
   only. Decide explicit allocator/arena capabilities vs ambient heap BEFORE
   implementing Vec lowering.
@@ -296,6 +297,28 @@ pending canary promoted, ACTIVE_PENDING_CANARIES empty); (h) value-position
 calls to FREE stateful machines dispatch and deliver values (incl. looping/
 recursive shapes). Known interim semantics flagged for design review:
 tag-only case equality in guards; `_ =` accepts only calls.
+
+**Decision 13 landed 2026-06-11 (property bounds on type parameters).**
+`data Box<T [copy]> [copy] { value: T; }` parses everywhere
+`parse_type_parameters` runs (data, machine, trait, operator); the bracket
+fact list is the SAME parse as the data-declaration property list (closed
+set, duplicates/`sized`/unknown rejected). `zero_init` is accepted as a
+bound: its structural rule reads fields, so it is checkable at
+instantiation exactly like copy/send. The Rust-style colon bound
+(`<T: copy>`) and the attribute-prefix form (`<[copy] T>`) are rejected
+with the bracket spelling suggested. The structural copy/send/zero_init
+verifier now accepts a field whose type parameter declares the matching
+bound (and suggests `T [copy]` when it does not), and every VALIDATED
+type-reference surface (data fields, domain targets, machine owned data,
+state locals, state parameters/returns) checks instantiation arguments
+against the base data's parameter bounds — in-scope bounded parameters
+count as carrying their bound. An instantiated generic whose base declares
+a property now also satisfies the structural walk (`Box<i32>` is copy
+inside another `[copy]` data). NOT yet checked: machine-call
+monomorphization arguments (generics completion arc). Canaries:
+`pass/generics/property_bound_type_parameter`,
+`fail/generics/{property_bound_missing_on_field,
+property_bound_violated_at_instantiation, colon_bound_rejected}`.
 
 **Recent canary promotions.** Numeric literal suffixes (`3i32`, `3.0real`,
 `3nat`), newline-separated proof facts, field `+=` assignment, relax scope syntax

@@ -1,0 +1,1 @@
+type parameter `T [copy]` of `Box` was instantiated with `Heavy`, which does not declare `[copy]`

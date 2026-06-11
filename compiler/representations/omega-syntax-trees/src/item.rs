@@ -418,6 +418,10 @@ pub struct DataProperties {
 pub struct TypeParameter {
     pub name: Identifier,
     pub kind: TypeParameterKind,
+    /// Property bounds in brackets after the parameter name (frozen decision
+    /// 13): `data Box<T [copy]>`. Brackets attach to what they follow, so the
+    /// bound list reuses the declared-property shape of the data declaration.
+    pub bounds: DataProperties,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

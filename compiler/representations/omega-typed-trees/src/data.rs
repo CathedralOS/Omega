@@ -80,6 +80,10 @@ pub struct TypeParameter {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub kind: TypeParameterKind,
+    /// Property bounds (`data Box<T [copy]>`, frozen decision 13). A bounded
+    /// parameter satisfies the structural copy/send/zero_init walk inside its
+    /// owner, and every instantiation argument must carry the bound.
+    pub bounds: DataProperties,
 }
 
 impl Default for TypeParameter {
@@ -88,6 +92,7 @@ impl Default for TypeParameter {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             kind: TypeParameterKind::Type,
+            bounds: DataProperties::default(),
         }
     }
 }

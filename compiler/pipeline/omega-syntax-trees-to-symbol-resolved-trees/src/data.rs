@@ -121,6 +121,11 @@ pub(crate) fn lower_type_parameters(
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(&parameter.name),
             kind,
+            bounds: DataProperties {
+                copy: parameter.bounds.copy,
+                zero_init: parameter.bounds.zero_init,
+                send: parameter.bounds.send,
+            },
         });
     }
 

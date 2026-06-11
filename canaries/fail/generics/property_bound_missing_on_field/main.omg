@@ -1,0 +1,14 @@
+// `Box` declares `[copy]` but its field stores an UNBOUNDED type parameter:
+// nothing guarantees a `T` value copies, so the structural verifier rejects
+// the declaration and suggests the `T [copy]` bound (frozen decision 13).
+
+data Box<T> [copy] {
+    value: T;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}
