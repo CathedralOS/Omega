@@ -181,6 +181,59 @@ fn select_runtime_leaf_branch_expansion(
         && expansion.guard_kind != omega_state_guards::StateGuardKind::Always
         && !static_summary.has_true
     {
+        // An ASSIGNMENT-VALUE arm (`let n = self.m.f(..)`: the arm writes the
+        // call's result slot) whose guard could not be RESOLVED (not
+        // statically decided -- that returns above) must never be silently
+        // dropped when the call stays INLINE: its compare AND its result
+        // write both vanish, so the call returns a stale 0 (the slice-len
+        // value-call guard bug). Emit a loud zero-width poison marker
+        // instead; emission planning rejects any `UnresolvedInlineArmGuard`
+        // left in the plan, failing the compile with a "needs lowering"
+        // diagnostic.
+        //
+        // NOT poisoned (the skip is benign there -- another path emits the
+        // arm's effect, or the gap is a separately-tracked lowering family):
+        // - STATEMENT arms (guarded transitions to leaf states): arm
+        //   selection has a dispatch-edge fallback (string-equality false
+        //   arms, the dungeon).
+        // - CALL-ARGUMENT / other roles: nested value-call arguments are
+        //   covered by their own call expansions (MazeBuilder::connect).
+        // - DISPATCHED value calls (a dispatch edge with a call_result at
+        //   this statement): the dispatch return-write delivers the value
+        //   (the recursive `weaken` termination canary).
+        // - STRING-comparison guards (the guard compares against a string
+        //   literal): text-guard lowering through refs/params is a known
+        //   separate gap, and green compile canaries rely on the historical
+        //   skip (calls/runtime_transition_argument_call_value).
+        if expansion.target_value.is_valid()
+            && expansion.role == StateCallRole::AssignmentValue
+            && !statement_dispatches_call_result(
+                input,
+                expansion.dispatch_index,
+                expansion.source_key,
+                expansion.statement_index,
+            )
+            && !guard_contains_string_literal(
+                &input.runtime_branching_calls.expressions,
+                expansion.resolved_guard,
+            )
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::EvaluateDispatchGuard {
+                    guard_lowering:
+                        omega_abstract_operations::StateGuardLowering::UnresolvedInlineArmGuard,
+                    operator: omega_abstract_operations::StateGuardOperator::Equal,
+                    storage_region: RuntimeStorageRegion::Machine,
+                    byte_offset: 0,
+                    byte_size: 0,
+                    expected_value: 0,
+                    has_storage: false,
+                    is_float: false,
+                },
+                source_key: expansion.source_key,
+                source_statement: expansion.statement_index,
+            });
+        }
         return;
     }
     let guards_were_empty = guards.is_empty();
@@ -269,6 +322,55 @@ fn select_runtime_leaf_branch_expansion(
             source_statement: expansion.statement_index,
         });
     }
+}
+
+/// True when the guard expression compares against a STRING literal anywhere
+/// in its conjunction -- a text guard. Text-guard lowering through refs and
+/// params is a separately-tracked gap; such arms keep the historical silent
+/// skip instead of the unresolved-guard poison.
+fn guard_contains_string_literal(
+    expressions: &ExpressionTable,
+    guard: omega_checked_trees::expression::ExpressionHandle,
+) -> bool {
+    if !guard.is_valid() {
+        return false;
+    }
+    match expressions.expression(guard) {
+        omega_checked_trees::expression::ExpressionNode::String(_) => true,
+        omega_checked_trees::expression::ExpressionNode::Binary(binary) => {
+            guard_contains_string_literal(expressions, binary.left)
+                || guard_contains_string_literal(expressions, binary.right)
+        }
+        omega_checked_trees::expression::ExpressionNode::Mutable(inner) => {
+            guard_contains_string_literal(expressions, *inner)
+        }
+        _ => false,
+    }
+}
+
+/// True when the dispatch loop carries a CALL-RESULT edge for this statement
+/// in this dispatch context -- i.e. the statement's value call is DISPATCHED
+/// and its result is delivered by the dispatch return-write, so the inline
+/// leaf arms here are redundant and skipping them is benign.
+fn statement_dispatches_call_result(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    input.runtime_dispatch_loop.cases.iter().any(|(_, case)| {
+        case.dispatch_index == dispatch_index
+            && super::super::state_key_matches_statement_source(case.key, source_key)
+            && input
+                .runtime_dispatch_loop
+                .edges
+                .span(case.edges)
+                .unwrap_or(&[])
+                .iter()
+                .any(|edge| {
+                    edge.statement_index == statement_index && edge.call_result.is_some()
+                })
+    })
 }
 
 fn select_runtime_leaf_nested_call_argument_writes(
