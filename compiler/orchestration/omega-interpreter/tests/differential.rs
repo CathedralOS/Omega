@@ -215,6 +215,10 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
         "text/runtime_stdin_line_buffering_exit",
         "suite feeds stdin (b\"hello\\nworld\\n\", plus a CRLF variant test reusing this canary); differential harness runs with empty stdin, so the recorded exit code 0 does not apply",
     ),
+    (
+        "dungeon/runtime_threaded_mut_arg_interrupt_soak_exit",
+        "interrupt-timing soak: fifty million dispatched iterations target NATIVE kernel-preemption windows (the Darwin x18 scratch-register regression); interpreting that loop adds minutes of pure overhead with no oracle value",
+    ),
 ];
 
 /// Drift guard: re-parse `canary_suite.rs` at test time and assert every

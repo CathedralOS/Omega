@@ -42,11 +42,15 @@ use super::widths::{
     runtime_storage_value_compare_width, runtime_value_operand_width,
 };
 
-const RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS: &[u8] = &[18, 15, 14, 13, 12, 11, 10, 9];
+// x18 is NEVER used as a scratch register: it is the reserved platform register
+// on Darwin arm64 and the kernel zeroes it on every kernel->user return, so any
+// value held in x18 across an interrupt window is silently lost (this corrupted
+// dungeon-crawler frame-slot copies nondeterministically). x26 takes its place.
+const RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS: &[u8] = &[26, 15, 14, 13, 12, 11, 10, 9];
 const RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS: &[u8] = &[15, 14, 13, 12, 11, 10, 9];
 
 /// `target = source as T`: hold the target base in x16 (untouched by source
-/// evaluation, which uses x17/x18/x19), load the source bits into x17, convert
+/// evaluation, which uses x17/x26/x19), load the source bits into x17, convert
 /// them in place between integer/float representations, then store the result at
 /// `target_offset`. Mirrors the x86_64 convert path (`cvttsd2si`/`cvtsi2sd`/
 /// `cvtsd2ss`/`cvtss2sd` + sized int moves).
@@ -71,7 +75,7 @@ pub fn encode_runtime_storage_convert(
         target_is_float,
         source_signed,
     ));
-    // x16 = target base (held across operand evaluation, which uses x17/x18/x19).
+    // x16 = target base (held across operand evaluation, which uses x17/x26/x19).
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     append_runtime_value_operand(
@@ -205,33 +209,33 @@ pub fn encode_runtime_storage_compare_bytes(
         // signed conditional branch as the integer path; for ordered (non-NaN)
         // operands the signed conditions are exact (NaN handling is a documented
         // first-cut limitation, matching the x86 `ucomis*` path).
-        append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
+        append_load_data_from_x_offset(&mut bytes, 26, 16, left_offset, byte_size, 20)?;
         append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
-        bytes.extend(encode_float_move_from_gpr(byte_size, 0, 18)?);
+        bytes.extend(encode_float_move_from_gpr(byte_size, 0, 26)?);
         bytes.extend(encode_float_move_from_gpr(byte_size, 1, 19)?);
         bytes.extend(encode_float_compare(byte_size, 0, 1)?);
     } else {
         match byte_size {
             1 | 4 => {
-                append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
+                append_load_data_from_x_offset(&mut bytes, 26, 16, left_offset, byte_size, 20)?;
                 append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
-                bytes.extend(encode_compare_w_register(18, 19));
+                bytes.extend(encode_compare_w_register(26, 19));
             }
             2 => {
                 // Halfword loads zero-extend; sign-extend BOTH sides so the
                 // 32-bit compare orders correctly for signed operands (and, since
                 // sign extension is monotone over the unsigned u16 range too, for
                 // unsigned conditions as well).
-                append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
+                append_load_data_from_x_offset(&mut bytes, 26, 16, left_offset, byte_size, 20)?;
                 append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
-                bytes.extend(encode_sign_extend_halfword_to_w(18, 18));
+                bytes.extend(encode_sign_extend_halfword_to_w(26, 26));
                 bytes.extend(encode_sign_extend_halfword_to_w(19, 19));
-                bytes.extend(encode_compare_w_register(18, 19));
+                bytes.extend(encode_compare_w_register(26, 19));
             }
             8 => {
-                append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
+                append_load_data_from_x_offset(&mut bytes, 26, 16, left_offset, byte_size, 20)?;
                 append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
-                bytes.extend(encode_compare_x_register(18, 19));
+                bytes.extend(encode_compare_x_register(26, 19));
             }
             _ => {
                 return Err(Diagnostic::error(format!(
@@ -269,26 +273,26 @@ pub fn encode_runtime_storage_value_compare_bytes(
     // unsigned conditions because sign extension is monotone per source width.
     match byte_size {
         1 => {
-            append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 18)?;
+            append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 26)?;
             bytes.extend(encode_sign_extend_byte_to_w(17, 17));
-            append_unsigned_immediate_w_padded(&mut bytes, 18, expected_value as i8 as i32 as u32);
-            bytes.extend(encode_compare_w_register(17, 18));
+            append_unsigned_immediate_w_padded(&mut bytes, 26, expected_value as i8 as i32 as u32);
+            bytes.extend(encode_compare_w_register(17, 26));
         }
         2 => {
-            append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 18)?;
+            append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 26)?;
             bytes.extend(encode_sign_extend_halfword_to_w(17, 17));
-            append_unsigned_immediate_w_padded(&mut bytes, 18, expected_value as i16 as i32 as u32);
-            bytes.extend(encode_compare_w_register(17, 18));
+            append_unsigned_immediate_w_padded(&mut bytes, 26, expected_value as i16 as i32 as u32);
+            bytes.extend(encode_compare_w_register(17, 26));
         }
         4 => {
-            append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 18)?;
-            append_unsigned_immediate_w_padded(&mut bytes, 18, expected_value as u32);
-            bytes.extend(encode_compare_w_register(17, 18));
+            append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 26)?;
+            append_unsigned_immediate_w_padded(&mut bytes, 26, expected_value as u32);
+            bytes.extend(encode_compare_w_register(17, 26));
         }
         8 => {
-            append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 18)?;
-            append_unsigned_immediate_padded(&mut bytes, 18, expected_value as u64);
-            bytes.extend(encode_compare_x_register(17, 18));
+            append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 26)?;
+            append_unsigned_immediate_padded(&mut bytes, 26, expected_value as u64);
+            bytes.extend(encode_compare_x_register(17, 26));
         }
         _ => {
             return Err(Diagnostic::error(format!(
@@ -330,13 +334,13 @@ pub fn encode_runtime_value_compare(
     append_runtime_value_operand(
         runtime_value_operands,
         &mut bytes,
-        18,
+        26,
         RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
         right,
     )?;
     match byte_size {
-        1 | 2 | 4 => bytes.extend(encode_compare_w_register(17, 18)),
-        8 => bytes.extend(encode_compare_x_register(17, 18)),
+        1 | 2 | 4 => bytes.extend(encode_compare_w_register(17, 26)),
+        8 => bytes.extend(encode_compare_x_register(17, 26)),
         _ => {
             return Err(Diagnostic::error(format!(
                 "AArch64 MVP encoder cannot compare computed runtime values of width `{byte_size}` yet"
@@ -459,18 +463,18 @@ pub fn encode_runtime_storage_binary_write(
     append_runtime_value_operand(
         runtime_value_operands,
         &mut bytes,
-        18,
+        26,
         RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
         right,
     )?;
     if is_float {
-        append_runtime_float_binary_operation(&mut bytes, byte_size, 17, operator, 18)?;
+        append_runtime_float_binary_operation(&mut bytes, byte_size, 17, operator, 26)?;
     } else {
         append_runtime_binary_operation(
             &mut bytes,
             17,
             operator,
-            18,
+            26,
             runtime_binary_operation_byte_size(
                 runtime_value_operands,
                 operator,
@@ -544,7 +548,7 @@ pub fn encode_runtime_pointee_binary_write(
     append_runtime_value_operand(
         runtime_value_operands,
         &mut bytes,
-        18,
+        26,
         RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
         right,
     )?;
@@ -552,7 +556,7 @@ pub fn encode_runtime_pointee_binary_write(
         &mut bytes,
         17,
         operator,
-        18,
+        26,
         runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
     )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
@@ -814,8 +818,8 @@ pub fn encode_runtime_storage_copy(
     append_add_constant_to_x_register(&mut bytes, 17, target_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 18, 16, offset, chunk_size, 19)?;
-        append_store_data_to_x_offset(&mut bytes, 18, 17, offset, chunk_size, 20)?;
+        append_load_data_from_x_offset(&mut bytes, 26, 16, offset, chunk_size, 19)?;
+        append_store_data_to_x_offset(&mut bytes, 26, 17, offset, chunk_size, 20)?;
         Ok(())
     })?;
 
@@ -981,7 +985,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
     append_runtime_value_operand(
         runtime_value_operands,
         &mut bytes,
-        18,
+        26,
         RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
         right,
     )?;
@@ -989,7 +993,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
         &mut bytes,
         17,
         operator,
-        18,
+        26,
         runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
     )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
@@ -1035,7 +1039,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     append_runtime_value_operand(
         runtime_value_operands,
         &mut bytes,
-        18,
+        26,
         RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
         right,
     )?;
@@ -1043,7 +1047,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
         &mut bytes,
         17,
         operator,
-        18,
+        26,
         runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
     )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
@@ -1076,7 +1080,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     append_add_constant_to_x_register(&mut bytes, 20, source_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 20, offset, chunk_size, 18)?;
+        append_load_data_from_x_offset(&mut bytes, 17, 20, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 16, offset, chunk_size, 19)?;
         Ok(())
     })?;
@@ -1110,7 +1114,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 18)?;
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
         Ok(())
     })?;
@@ -1146,7 +1150,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage
     append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 18)?;
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
         Ok(())
     })?;
@@ -1184,7 +1188,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed(
     append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 18)?;
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
         Ok(())
     })?;
@@ -1224,7 +1228,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_s
     append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 18)?;
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
         Ok(())
     })?;
@@ -1264,7 +1268,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_p
     append_add_constant_to_x_register(&mut bytes, 20, target_field_byte_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 18)?;
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
         Ok(())
     })?;
@@ -1303,7 +1307,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee
     append_add_constant_to_x_register(&mut bytes, 20, target_field_byte_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 18)?;
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
         Ok(())
     })?;
@@ -1341,7 +1345,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 18)?;
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
         Ok(())
     })?;
@@ -1377,7 +1381,7 @@ pub fn encode_runtime_storage_copy_to_runtime_pointee(
     append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 20, offset, chunk_size, 18)?;
+        append_load_data_from_x_offset(&mut bytes, 17, 20, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 16, offset, chunk_size, 19)?;
         Ok(())
     })?;
@@ -1415,7 +1419,7 @@ pub fn encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame(
     append_add_constant_to_x_register(&mut bytes, 20, target_offset)?;
 
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
-        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 18)?;
+        append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
         Ok(())
     })?;
@@ -1475,8 +1479,8 @@ fn append_runtime_frame_index_target_address(
     // Index is a 32-bit value: load it zero-extended so high bytes of the
     // adjacent slot can't be spliced into the index (see helper doc comment).
     append_fixed_width_load_index_w_from_x_offset(bytes, 17, 20, index_offset, 21);
-    append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
-    bytes.extend(encode_add_x_register(16, 16, 18));
+    append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
+    bytes.extend(encode_add_x_register(16, 16, 26));
     append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
     Ok(())
 }
@@ -1529,8 +1533,8 @@ fn append_runtime_machine_index_target_address(
             bytes.extend(encode_load_w_from_x(17, 20, index_offset, 4)?);
         }
     }
-    append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
-    bytes.extend(encode_add_x_register(16, 16, 18));
+    append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
+    bytes.extend(encode_add_x_register(16, 16, 26));
     append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
     Ok(())
 }
@@ -1549,8 +1553,8 @@ fn append_runtime_frame_base_index_target_address(
     // Index is a 32-bit value: load it zero-extended so high bytes of the
     // adjacent slot can't be spliced into the index.
     append_load_data_from_x_offset(bytes, 17, 20, index_offset, 4, 19)?;
-    append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
-    bytes.extend(encode_add_x_register(16, 16, 18));
+    append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
+    bytes.extend(encode_add_x_register(16, 16, 26));
     append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
     Ok(())
 }
@@ -2239,7 +2243,7 @@ fn append_add_constant_to_x_register(
     register: u8,
     value: usize,
 ) -> Result<(), Diagnostic> {
-    let scratch_register = if register == 19 { 18 } else { 19 };
+    let scratch_register = if register == 19 { 26 } else { 19 };
     append_add_x_constant(bytes, register, register, value, scratch_register)
 }
 

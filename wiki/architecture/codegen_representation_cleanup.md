@@ -197,8 +197,15 @@ Beyond type-dedup; these are correctness/representation rewrites.
   runtime segfault) with a symbolic-emit + single layout/relocation pass.
 - [ ] **Frame model.** A real call stack (or provably-disjoint frame stacking) for
   dispatched self-looping callees, replacing the fixed-data-address overlapping
-  frames that corrupt threaded args (root cause of the dungeon `find_room` bug and
-  the post-dispatch continuation bugs).
+  frames that can corrupt threaded args (the post-dispatch continuation bugs).
+  Attribution correction (2026-06-11): the dungeon `find_room`/hot-potato segfault
+  on arm64 was NOT frame overlap — it was the aarch64 encoder using x18 (Darwin's
+  kernel-zeroed platform register) as the slot-copy scratch, so threaded `&mut`
+  args lost their pointer whenever a timer interrupt split a copy pair. With x18
+  replaced by x26 the dungeon's per-call-context frame slots (verified via
+  slots.txt: each call context gets disjoint ranges) run the full scripted loop
+  correctly, so the dungeon no longer evidences a frame-overlap bug; this redesign
+  remains motivated by self-looping callees and separate compilation.
 
 ## Done-when
 
