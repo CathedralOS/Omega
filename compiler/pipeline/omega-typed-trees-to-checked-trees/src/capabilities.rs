@@ -63,6 +63,7 @@ pub(crate) fn build_capability_facts(
                     state.state_symbol,
                     edge.statement_index,
                     edge.call_ordinal,
+                    SymbolHandle::invalid(),
                 );
             }
         }
@@ -91,6 +92,7 @@ pub(crate) fn build_capability_facts(
                     state_effects.symbol,
                     call.statement_index,
                     call.call_ordinal,
+                    SymbolHandle::invalid(),
                 );
 
                 let call_effects = call_effects(call.direct, signature, program);
@@ -122,6 +124,7 @@ pub(crate) fn build_capability_facts(
                         state_effects.symbol,
                         call.statement_index,
                         call.call_ordinal,
+                        SymbolHandle::invalid(),
                     );
                 }
 
@@ -140,6 +143,7 @@ pub(crate) fn build_capability_facts(
                         state_effects.symbol,
                         call.statement_index,
                         call.call_ordinal,
+                        SymbolHandle::invalid(),
                     );
                 }
 
@@ -157,6 +161,7 @@ pub(crate) fn build_capability_facts(
                         state_effects.symbol,
                         call.statement_index,
                         call.call_ordinal,
+                        SymbolHandle::invalid(),
                     );
                 }
 
@@ -175,15 +180,17 @@ pub(crate) fn build_capability_facts(
                         state_effects.symbol,
                         call.statement_index,
                         call.call_ordinal,
+                        SymbolHandle::invalid(),
                     );
                 }
             }
         }
     }
 
-    // Propagate `returns`/`derives` across nested, in-package calls. A boundary
-    // capability that a nested (non-boundary) call returns or derives flows the
-    // same verb up to its caller, following the call graph one or more levels.
+    // Propagate `returns`/`derives`/`acquires` across nested, in-package calls.
+    // A boundary capability that a nested (non-boundary) call returns, derives,
+    // or acquires-and-returns flows the same verb up to its caller, following
+    // the call graph one or more levels.
     propagate_nested_capability_flows(program, effects, &mut flows);
 
     CapabilityFlowPlan::with_roots(flows)
@@ -199,11 +206,12 @@ struct CallEdge {
     target_state_symbol: SymbolHandle,
 }
 
-/// Flows `returns`/`derives` capability verbs from nested in-package callees up
-/// to their callers. If a call's target state itself returns (resp. derives) a
-/// boundary capability, and the caller's enclosing state qualifies, the caller
-/// records the same verb for that capability. Iterated to a fixpoint so the verb
-/// can travel several call levels.
+/// Flows `returns`/`derives`/`acquires` capability verbs from nested in-package
+/// callees up to their callers. If a call's target state itself returns (resp.
+/// derives, acquires) a boundary capability and the authority value reaches the
+/// caller, the caller records the same verb for that capability with the helper
+/// state as provenance. Iterated to a fixpoint so the verb can travel several
+/// call levels.
 fn propagate_nested_capability_flows(
     program: &TypedTrees,
     effects: &EffectPlan,
@@ -215,7 +223,11 @@ fn propagate_nested_capability_flows(
         let mut added = false;
 
         for edge in &edges {
-            for kind in [CapabilityFlowKind::Returns, CapabilityFlowKind::Derives] {
+            for kind in [
+                CapabilityFlowKind::Returns,
+                CapabilityFlowKind::Derives,
+                CapabilityFlowKind::Acquires,
+            ] {
                 // Capabilities the callee state already carries with this verb.
                 let propagated: Vec<SymbolHandle> = flows
                     .iter()
@@ -229,7 +241,7 @@ fn propagate_nested_capability_flows(
                     continue;
                 }
 
-                if !caller_qualifies(program, edge, kind) {
+                if !nested_flow_reaches_caller(program, edge, kind) {
                     continue;
                 }
 
@@ -242,6 +254,7 @@ fn propagate_nested_capability_flows(
                         edge.caller_state_symbol,
                         edge.statement_index,
                         edge.call_ordinal,
+                        edge.target_state_symbol,
                     ) {
                         added = true;
                     }
@@ -276,11 +289,23 @@ fn collect_call_edges(effects: &EffectPlan) -> Vec<CallEdge> {
     edges
 }
 
-/// Whether a caller state qualifies to receive a propagated `kind` verb. Mirrors
-/// the direct-boundary gating: `returns` requires the caller's enclosing state to
-/// return a capability type; `derives` requires the caller to return a capability
-/// or to hold a capability parameter that feeds the nested derivation.
-fn caller_qualifies(program: &TypedTrees, edge: &CallEdge, kind: CapabilityFlowKind) -> bool {
+/// Whether a propagated `kind` verb actually reaches the caller across `edge`.
+/// Mirrors the direct-boundary gating: `returns` requires the caller's enclosing
+/// state to return a capability type; `derives` requires the caller to return a
+/// capability or to hold a capability parameter that feeds the nested
+/// derivation; `acquires` requires the callee to hand the minted authority back
+/// through its capability-typed return, which places it in the caller's hands.
+fn nested_flow_reaches_caller(
+    program: &TypedTrees,
+    edge: &CallEdge,
+    kind: CapabilityFlowKind,
+) -> bool {
+    if kind == CapabilityFlowKind::Acquires {
+        return state_for_symbol(program, edge.target_state_symbol)
+            .map(|callee| is_capability_type(program, callee.return_type))
+            .unwrap_or(false);
+    }
+
     let Some(machine) = machine_for_symbol(program, edge.caller_machine_symbol) else {
         return false;
     };
@@ -315,6 +340,7 @@ fn push_unique(
     state_symbol: SymbolHandle,
     statement_index: usize,
     call_ordinal: usize,
+    via_state_symbol: SymbolHandle,
 ) -> bool {
     let fact = CapabilityFlowFact {
         kind,
@@ -323,6 +349,7 @@ fn push_unique(
         state_symbol,
         statement_index,
         call_ordinal,
+        via_state_symbol,
     };
 
     let exists = flows.iter().any(|(_, existing)| *existing == fact);
@@ -452,6 +479,19 @@ fn enclosing_state<'program>(
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == state_symbol)
+}
+
+/// Finds a state by symbol across every machine in the program.
+fn state_for_symbol<'program>(
+    program: &'program TypedTrees,
+    state_symbol: SymbolHandle,
+) -> Option<&'program State> {
+    program.machines().iter().find_map(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == state_symbol)
+    })
 }
 
 /// Whether the assignment at `statement_index` stores its value into a field
@@ -615,6 +655,17 @@ mod tests {
             .any(|flow| flow.kind == kind && flow.state_symbol == state)
     }
 
+    fn has_flow_via(
+        plan: &CapabilityFlowPlan,
+        kind: CapabilityFlowKind,
+        state: SymbolHandle,
+        via: SymbolHandle,
+    ) -> bool {
+        plan.flows().any(|flow| {
+            flow.kind == kind && flow.state_symbol == state && flow.via_state_symbol == via
+        })
+    }
+
     #[test]
     fn returns_propagates_to_nested_caller() {
         // RootDir::open mints a Folder. Vault::open_folder calls it and returns
@@ -730,6 +781,116 @@ mod tests {
             has_flow(&plan, CapabilityFlowKind::Derives, delegate),
             "`derives` must propagate to the caller that only reaches the boundary \
              through the nested helper"
+        );
+    }
+
+    #[test]
+    fn acquires_propagates_through_helper_return() {
+        // RootDir::open mints fresh authority and returns the Folder, so
+        // Vault::open_folder records a direct `acquires`. Vault::expose obtains
+        // the same minted authority through open_folder's capability return, and
+        // Main::main through expose's — `acquires` must follow the call graph up
+        // with the helper recorded as provenance.
+        let (program, plan) = capability_plan(
+            r#"
+            boundary trait Folder {
+                machine write_line(text: String)
+                effects
+                    filesystem_io;
+            }
+
+            boundary trait RootDir {
+                machine open() -> Folder
+                effects
+                    filesystem_io;
+            }
+
+            data Vault {
+                root: RootDir;
+            }
+
+            machine Vault::open_folder(&self) -> Folder {
+                self.root.open();
+            }
+
+            machine Vault::expose(&self) -> Folder {
+                self.open_folder();
+            }
+
+            data Main {
+                vault: Vault;
+            }
+
+            machine Main::main(&mut self) {
+                self.vault.expose();
+            }
+            "#,
+        );
+
+        let open_folder = state_symbol(&program, "open_folder");
+        let expose = state_symbol(&program, "expose");
+        let main = state_symbol(&program, "main");
+
+        assert!(
+            has_flow_via(
+                &plan,
+                CapabilityFlowKind::Acquires,
+                open_folder,
+                SymbolHandle::invalid()
+            ),
+            "helper that mints authority at the boundary should record a direct `acquires`"
+        );
+        assert!(
+            has_flow_via(&plan, CapabilityFlowKind::Acquires, expose, open_folder),
+            "`acquires` must propagate to the caller receiving the minted capability, \
+             recording the helper as provenance"
+        );
+        assert!(
+            has_flow_via(&plan, CapabilityFlowKind::Acquires, main, expose),
+            "`acquires` must keep flowing up across several call levels"
+        );
+    }
+
+    #[test]
+    fn acquires_does_not_propagate_when_helper_keeps_authority() {
+        // Archiver::flush acquires through its machine-owned Disk but returns
+        // nothing, so the minted authority never reaches Main::main.
+        let (program, plan) = capability_plan(
+            r#"
+            boundary trait Disk {
+                machine write_line(text: String)
+                effects
+                    filesystem_io;
+            }
+
+            data Archiver {
+                disk: Disk;
+            }
+
+            machine Archiver::flush(&mut self) {
+                self.disk.write_line("flush log");
+            }
+
+            data Main {
+                archiver: Archiver;
+            }
+
+            machine Main::main(&mut self) {
+                self.archiver.flush();
+            }
+            "#,
+        );
+
+        let flush = state_symbol(&program, "flush");
+        let main = state_symbol(&program, "main");
+
+        assert!(
+            has_flow(&plan, CapabilityFlowKind::Acquires, flush),
+            "helper exercising machine-owned authority should record a direct `acquires`"
+        );
+        assert!(
+            !has_flow(&plan, CapabilityFlowKind::Acquires, main),
+            "`acquires` must not propagate when the helper keeps the authority to itself"
         );
     }
 

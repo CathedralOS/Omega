@@ -398,8 +398,15 @@ exit.
 
 ### Capabilities And Authority
 
-- [ ] Make capability facts flow through returns/derives across nested calls, not
-  just direct boundary calls.
+- [x] Capability facts flow through returns/derives/acquires across nested calls,
+  not just direct boundary calls: `build_capability_facts` runs a call-graph
+  fixpoint that folds a callee's verb into its caller when the authority value
+  reaches the caller (capability-typed return for `acquires`/`returns`,
+  capability return or parameter for `derives`). Propagated facts carry the
+  helper state as provenance (`CapabilityFlowFact.via_state_symbol`) and the
+  boundary blast radius renders it (`Backup::stage acquires via Vault::pick`).
+  Canaries: `capabilities/acquires_through_helper_return` (two-level acquire
+  chain), `capabilities/derives_through_helper`.
 
 ### Core Boundary Primitive Registry
 

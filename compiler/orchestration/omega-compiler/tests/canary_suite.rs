@@ -459,6 +459,67 @@ fn capability_manifest_reports_authority_flow_verbs() {
 }
 
 #[test]
+fn capability_flows_propagate_through_nested_helpers() {
+    // Capability facts must follow returns/derives/acquires across nested calls,
+    // not just direct boundary calls: a helper that mints or derives authority
+    // and returns it flows the same verb up to its caller, and the boundary
+    // report records the helper as provenance.
+    for (canary_name, propagated_lines) in [
+        (
+            "capabilities/acquires_through_helper_return",
+            // The second line shows the verb traveling a further call level: the
+            // entry machine acquires through the mid-level helper, which acquired
+            // through the boundary-touching helper.
+            &[
+                "Backup::stage acquires via Vault::pick",
+                "Main::main acquires via Backup::stage",
+            ][..],
+        ),
+        (
+            "capabilities/derives_through_helper",
+            &["Worker::open_main_log derives via Worker::open_log"][..],
+        ),
+    ] {
+        let canary = pass_canary(canary_name);
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-capability-nested-canary-{}-{}",
+            canary_name.rsplit('/').next().unwrap_or("canary"),
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: true,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "{canary_name} should compile, got:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+
+        let boundary = fs::read_to_string(build_dir.join("10_boundary.html"))
+            .expect("boundary report should be written");
+        for propagated_line in propagated_lines {
+            assert!(
+                boundary.contains(propagated_line),
+                "boundary report for {canary_name} should record the nested-helper provenance \
+                 line `{propagated_line}`\n{boundary}"
+            );
+        }
+
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
 fn unapproved_host_call_canary_is_rejected() {
     let canary = fail_canary("capabilities/unapproved_host_call");
     let diagnostics = match compile_canary_without_output(&canary) {
@@ -6730,6 +6791,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/typed_return_from_local_call_compile",
     "capabilities/boundary_trait_multiple_effects",
     "capabilities/derives_authority_via_boundary",
+    "capabilities/acquires_through_helper_return",
+    "capabilities/derives_through_helper",
     "capabilities/provider_categories_all",
     "capabilities/invariant_parameterized_slice",
     "capabilities/string_domain_boundary_requirement",

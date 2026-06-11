@@ -43,6 +43,18 @@ pub struct CapabilityFlowFact {
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
     pub call_ordinal: usize,
+    /// For a verb propagated up from a nested call, the helper state the
+    /// authority flowed through on its way to this state; invalid for a direct
+    /// boundary call.
+    pub via_state_symbol: SymbolHandle,
+}
+
+impl CapabilityFlowFact {
+    /// Whether this fact was propagated up through a nested helper call rather
+    /// than recorded at a direct boundary call.
+    pub fn is_propagated(&self) -> bool {
+        self.via_state_symbol.is_valid()
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -100,6 +112,7 @@ mod tests {
             state_symbol: SymbolHandle::from_arena_index(3),
             statement_index: 4,
             call_ordinal: 5,
+            via_state_symbol: SymbolHandle::invalid(),
         });
 
         let plan = CapabilityFlowPlan::with_roots(flows.clone());
