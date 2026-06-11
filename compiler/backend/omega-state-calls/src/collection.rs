@@ -1151,10 +1151,8 @@ mod tests {
             data Random {}
             data Main { rng: Random; }
 
-            machine Random::one -> i32 {
-                pub entry(&mut self) {
-                    -> 1;
-                }
+            machine Random::one(&mut self) -> i32 {
+                transition { _ -> 1 }
             }
 
             machine Main::main(&mut self, reward: &mut Reward) {
@@ -1219,10 +1217,8 @@ mod tests {
             data Random {}
             data Main { rng: Random; }
 
-            machine Random::one -> i32 {
-                pub entry(&mut self) {
-                    -> 1;
-                }
+            machine Random::one(&mut self) -> i32 {
+                transition { _ -> 1 }
             }
 
             machine Main::main(&mut self) {

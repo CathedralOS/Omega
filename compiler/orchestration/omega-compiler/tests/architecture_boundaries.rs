@@ -35,7 +35,7 @@ fn backend_crates_do_not_depend_on_lowering_crates() {
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
 
         assert!(
-            !contents.contains("../../lowering/"),
+            !has_dependency_under(&contents, "../../pipeline/"),
             "{} must not depend on pipeline crates; orchestration should pass lowered IR forward",
             cargo_toml.display()
         );
@@ -52,11 +52,26 @@ fn representation_crates_do_not_depend_on_frontend_crates() {
         "omega-source-files-to-tokens",
     ];
 
+    // omega-effects was deliberately relocated from semantics into
+    // representations (commit b7da094f) so checked IRs can embed its types
+    // without an upward edge; its provider registry reads boundary `operator`
+    // items straight from the parsed source shape, so its sideways edge onto
+    // the syntax-trees representation is the one tolerated pair.
+    let tolerated = [("omega-effects", "omega-syntax-trees")];
+
     for cargo_toml in cargo_tomls_under(&representations_root) {
         let contents = fs::read_to_string(&cargo_toml)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
+        let crate_directory = cargo_toml
+            .parent()
+            .and_then(|directory| directory.file_name())
+            .map(|file_name| file_name.to_string_lossy().into_owned())
+            .unwrap_or_default();
 
         for crate_name in forbidden {
+            if tolerated.contains(&(crate_directory.as_str(), crate_name)) {
+                continue;
+            }
             assert!(
                 !has_dependency(&contents, crate_name),
                 "{} must not depend on early-phase crate `{crate_name}`; put transform edges under compiler/pipeline instead",
@@ -84,19 +99,40 @@ fn representation_crates_do_not_depend_on_native_bridge() {
 }
 
 #[test]
-fn lowering_crates_do_not_depend_on_backend_crates() {
+fn lowering_crates_do_not_depend_on_final_machinery_crates() {
+    // Backend lowering deliberately begins inside pipeline crates, which reach
+    // sideways into backend helper crates (omega-layout, omega-platform-interface,
+    // omega-instruction-selection, the omega-state-*/omega-runtime-* families);
+    // the layering policy in omega-architecture-test records that tolerated
+    // edge. What stays forbidden is final target machinery: ISA encodings,
+    // object/image writers, and machine emission.
     let repo_root = repo_root();
     let lowering_root = repo_root.join("compiler/pipeline");
+    let forbidden_paths = [
+        "backend/instruction_set_architectures/",
+        "backend/object/",
+        "backend/images/",
+    ];
+    let forbidden_crates = ["omega-machine-emission", "omega-emission-planning"];
 
     for cargo_toml in cargo_tomls_under(&lowering_root) {
         let contents = fs::read_to_string(&cargo_toml)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
 
-        assert!(
-            !contents.contains("../../backend/"),
-            "{} must not depend on backend crates; pipeline crates should produce IR, not know final target machinery",
-            cargo_toml.display()
-        );
+        for path_fragment in forbidden_paths {
+            assert!(
+                !has_dependency_under(&contents, path_fragment),
+                "{} must not depend on crates under `{path_fragment}`; pipeline crates produce IR, final target machinery stays behind orchestration",
+                cargo_toml.display()
+            );
+        }
+        for crate_name in forbidden_crates {
+            assert!(
+                !has_dependency(&contents, crate_name),
+                "{} must not depend on `{crate_name}`; pipeline crates produce IR, final target machinery stays behind orchestration",
+                cargo_toml.display()
+            );
+        }
     }
 }
 
@@ -161,10 +197,34 @@ fn collect_cargo_tomls(path: &Path, cargo_tomls: &mut Vec<PathBuf>) {
     }
 }
 
+/// Lines of the production `[dependencies]` section only. Layering rules
+/// govern the shipped dependency structure; `[dev-dependencies]` used by unit
+/// tests (which commonly drive the front of the pipeline to build real
+/// programs in memory) do not create production edges.
+fn production_dependency_lines(contents: &str) -> Vec<&str> {
+    let mut in_dependencies = false;
+    let mut lines = Vec::new();
+    for line in contents.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_dependencies = line == "[dependencies]";
+            continue;
+        }
+        if in_dependencies {
+            lines.push(line);
+        }
+    }
+    lines
+}
+
 fn has_dependency(contents: &str, crate_name: &str) -> bool {
     let dependency_prefix = format!("{crate_name} =");
-    contents
-        .lines()
-        .map(str::trim_start)
+    production_dependency_lines(contents)
+        .iter()
         .any(|line| line.starts_with(&dependency_prefix))
+}
+
+fn has_dependency_under(contents: &str, path_fragment: &str) -> bool {
+    production_dependency_lines(contents)
+        .iter()
+        .any(|line| line.contains(path_fragment))
 }

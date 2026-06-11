@@ -1738,8 +1738,8 @@ mod tests {
     use omega_syntax_trees::expression::{ExpressionNode, TableCallExpression};
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{
-        DataDefinition, DataField, DataMember, DomainDefinition, Item, Machine, OperatorDefinition,
-        State, StateParameterNode, TypeParameter, UseItem,
+        DataDefinition, DataField, DataMember, DataProperties, DomainDefinition, Item, Machine,
+        OperatorDefinition, State, StateParameterNode, TypeParameter, TypeParameterKind, UseItem,
     };
     use omega_syntax_trees::statement::{
         StatementNode, TableAssignment, TableTransition, TransitionGuardNode, TransitionTargetNode,
@@ -1756,6 +1756,7 @@ mod tests {
         ]);
         let type_parameter = syntax_trees.items.append_type_parameter(TypeParameter {
             name: Identifier::generated("T"),
+            kind: TypeParameterKind::Type,
         });
         let generic_type = syntax_trees
             .type_references
@@ -1990,6 +1991,8 @@ mod tests {
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
             attached_data: None,
+            abi: None,
+            type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,
             decreases: HandleSpan::empty(),
@@ -2039,6 +2042,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Data(DataDefinition {
             name: Identifier::generated("main"),
             type_parameters: HandleSpan::empty(),
+            properties: DataProperties::default(),
             members: HandleSpan::from_parts(field, 1),
         }));
 
@@ -2097,6 +2101,8 @@ mod tests {
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
             attached_data: None,
+            abi: None,
+            type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,
             decreases: HandleSpan::empty(),
