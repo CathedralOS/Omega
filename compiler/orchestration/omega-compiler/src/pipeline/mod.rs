@@ -11,6 +11,7 @@ pub mod source;
 mod stage;
 mod stages;
 mod timing;
+mod wire_report;
 
 pub use checked_entry::compile_to_checked;
 pub use compile_options::CompileOptions;
