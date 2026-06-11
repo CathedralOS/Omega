@@ -5,6 +5,31 @@ ladder in `canaries/pass/proofs/` and `samples/math_proofs/` to the engine
 increments each rung needs, and records what the checker actually discharges
 today (2026-06).
 
+## UPDATE 2026-06-10: L0-L6 ARE DISCHARGED
+
+The entailment engine landed in
+`compiler/semantics/omega-validation/src/contract_entailment.rs` (superseding
+the refutation pass). For an EMPTY-BODY proof machine whose contract lies
+inside the engine's language, every ensures fact is now PROVEN or REJECTED --
+silent acceptance of a false theorem is over. All 10 `pass/proofs/` rungs
+prove; all 8 false twins were promoted from `pending/proofs/` to active
+`fail/proofs/` canaries.
+
+Engine shape (see the module doc): canonical polynomials over atoms (constant
+folding, congruence, commutativity, distributivity), directed substitutions
+from requires equations, a difference-bound matrix with transitive closure
+(order transitivity, antisymmetry, unsat detection for vacuity), and a
+correlated-power interval evaluator (range sums, squares, the euclidean mod
+lemma). Out-of-language contracts (domain membership, unknown calls,
+non-parameter places) STAND DOWN: the engine proves what it can but never
+rejects what it cannot fully read. `OMEGA_ENTAILMENT_TRACE=1` traces
+judgments.
+
+Open from here: the original anchoring gap below still stands for machines
+WITH bodies (their ensures flow through `build_contract_exit_facts`); the
+ladder's next rungs are induction via recursive contracts + `decreases`,
+quantified facts, and lowering proof views beyond opaque equality.
+
 ## The Empirical Finding
 
 The contract surface is theorem-shaped (Chapter 10: empty-body machines with

@@ -6354,48 +6354,11 @@ struct PendingCanary {
 // applied the constant array index (see fixed_array_element_guard_canary_runs and
 // runtime_fixed_array_field_guard_exit_canary_runs).
 //
-// The pending/proofs/ entries are FALSE theorems (false twins of the
-// pass/proofs/ ladder): empty-body proof machines whose ensures does NOT
-// follow from the requires. The checker accepts them today because
-// requires->ensures entailment is undischarged beyond the contract
-// refutation pass (constant arithmetic + strict-order asymmetry, which
-// already reject the L0/L1 twins in fail/proofs/). Each pending directory
-// carries an expected.txt with the diagnostic fragment the entailment engine
-// should eventually produce; when one starts rejecting, promote it to
-// fail/proofs/ per the suite panic message. The rungs map to engine
-// increments in wiki/proof_engine_roadmap.md.
+// The proofs false twins were promoted to fail/proofs/ when the contract
+// entailment engine (omega-validation/src/contract_entailment.rs) landed:
+// empty-body proof machines whose contracts lie inside the engine's language
+// are now PROVED or REJECTED, never silently accepted. The pass/proofs/
+// ladder pins the proving side; the rungs map to engine increments in
+// wiki/proof_engine_roadmap.md.
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    PendingCanary {
-        path: "proofs/order_transitivity_false_twin",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "proofs/linear_range_sum_false_twin",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "proofs/congruence_false_twin",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "proofs/addition_commutativity_false_twin",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "proofs/nonlinear_square_range_false_twin",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "proofs/order_antisymmetry_false_twin",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "proofs/remainder_range_false_twin",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "proofs/bag_view_false_twin",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
