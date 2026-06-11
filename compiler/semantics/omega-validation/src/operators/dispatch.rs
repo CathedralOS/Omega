@@ -4,8 +4,9 @@
 //! is only selectable when the enclosing domain's proof facts hold in the
 //! current context — that is what makes it a *semantic* operator rather than a
 //! purely syntactic overload. Resolution keys on the operator's spelling plus
-//! its operand types (return type never distinguishes), exactly like the
-//! expression-level spelling dispatch in `omega-typed-trees`.
+//! its operand types (return type never distinguishes), the same rule the
+//! expression-level `resolve_spelling` authority in `omega-typed-trees`
+//! applies through receiver-type narrowing.
 //!
 //! This module enforces the chapter-8 selection rule: competing domain meanings
 //! for one spelling are a compile error. Two domain operators that
