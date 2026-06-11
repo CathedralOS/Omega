@@ -1,0 +1,1 @@
+write `T [copy]`, not `T: copy`
