@@ -117,6 +117,13 @@ remains tracked in its bullet below.
   fails it 4/5 runs, post-fix deterministic exit 70).
 - [ ] Borrow layer records free-machine value-call targets as `invalid` in
   checked trees (cosmetic today).
+- [x] Borrow layer records free-machine value-call targets as `invalid` in
+  checked trees: fixed by the call-requires soundness wave (receiverless
+  free-machine targets now resolve to the entry state in symbol resolution,
+  and the checked-trees resolver accepts them).
+- [ ] Platform state-signature `requires` (calls through platform-typed
+  contained objects) are never collected as call obligations -- the same
+  vacuity the free-machine/boundary-trait wave fixed, third shape.
 - [x] Stale test fixtures repaired: lib-test fixtures of omega-graph/types/
   names/proof/syntax-trees/abstract-operations/target-operations/facts gained
   the missing `abi`/`type_parameters`/`kind`/`properties`/`is_float` fields;
@@ -315,6 +322,44 @@ Implementation slices below build against these. Minor/easily-reversible details
     collision.
 
 ## Next Up (highest leverage)
+
+**Landed 2026-06-11 (proof soundness: call-requires collection for free
+machines + boundary traits).** Two call shapes silently never produced
+call-site `requires` obligations, so callee contracts passed vacuously
+(negative-control probes compiled clean): (a) FREE top-level machine calls --
+the receiverless target stayed an invalid symbol through the frontend (the
+backend dispatched by name), so borrow/contract collection saw nothing; in
+STATEMENT position the call did not even resolve (`machine X has no local
+state` from validation). (b) BOUNDARY-TRAIT machine calls
+(`self.console.show(item)`) -- the trait machine signature was invisible to
+`resolve_state_call_target`, and signature-owned contract facts were
+explicitly excluded from call-fact matching. Fixes: symbol resolution now
+points receiverless free-machine calls at the machine's entry state
+(builtins still win); validation accepts the free-machine statement call
+(strict result use applies, named as spelled); the checked-trees call-target
+resolver accepts cross-machine state symbols and trait machine signature
+symbols; `contract_target_from_state_symbol` maps trait signatures to their
+owning trait; `append_contract_fact_refs` matches StateSignature owners; the
+instantiation path (`call_target_parameters`) reads parameters from machine
+states OR trait signatures, so callee-parameter -> caller-argument place
+mapping and caller-requires discharge work for both shapes, and mutation
+invalidation strikes the instantiated facts (probe verified: interleaved
+`item.value = 0` before the call rejects with the invalidation detail).
+Chapter 18 authority flow is now load-bearing: `Filesystem::write_bytes
+requires folder in Folder::Writable` is enforced at the caller. Corpus
+fallout: NONE (suite stayed at baseline; host `capability` blocks are
+dropped at lowering and never reach contract collection). New canaries: fail
+`domains/call_requires_free_machine_value_unproven`,
+`domains/call_requires_free_machine_statement_unproven`,
+`domains/call_requires_boundary_trait_unproven`; pass
+`domains/call_requires_free_machine_satisfied_by_caller_requires`,
+`domains/call_requires_boundary_trait_satisfied_by_caller_requires`.
+Residue: PLATFORM state-signature `requires` (calls through platform-typed
+contained objects) are still never collected -- same vacuity, third shape,
+needs the same treatment when platforms matter; `capability { entry ...
+requires }` blocks are dropped at symbol-resolution lowering, so host
+capability contracts (omega/host/contracts) remain unenforced until
+capabilities lower at all.
 
 **Landed 2026-06-11 (decision 12 implementation).** Pure discards are now dead
 code: `_ = call();` rejects when the resolved callee's inferred TRANSITIVE

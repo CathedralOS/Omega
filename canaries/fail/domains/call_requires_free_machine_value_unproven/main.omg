@@ -1,0 +1,30 @@
+// A FREE machine callee in VALUE position (`let x: i32 = compute(&self.item);`)
+// carries a requires contract the caller has not established. Call-site
+// obligations were silently never collected for free-machine targets (the
+// receiverless call target stayed unresolved through the frontend), so this
+// compiled clean; it must reject.
+
+data Item {
+    value: i32;
+}
+
+domain Item::Ready {
+    self.value > 0;
+}
+
+machine compute(item: &Item) -> i32
+requires
+    item in Item::Ready
+{
+    transition {
+        _ -> 1
+    }
+}
+
+data Main {
+    item: Item;
+}
+
+machine Main::main(&mut self) {
+    let x: i32 = compute(&self.item);
+}

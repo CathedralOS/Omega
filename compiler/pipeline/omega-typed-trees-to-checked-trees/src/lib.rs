@@ -26,7 +26,8 @@ mod semantic_places;
 pub(crate) use semantic::build_semantic_facts;
 pub use semantic::lower_typed_program;
 pub(crate) use semantic::{
-    CallSite, call_site_argument_expressions, find_call_site, find_state, find_state_in_machine,
+    CallSite, call_site_argument_expressions, call_target_parameters, find_call_site, find_state,
+    find_state_in_machine,
 };
 
 mod proof;
