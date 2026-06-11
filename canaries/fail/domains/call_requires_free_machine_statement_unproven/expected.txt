@@ -1,0 +1,1 @@
+cannot prove requires contract for call consume from Main::main: self.item in Item::Ready

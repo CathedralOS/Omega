@@ -111,5 +111,33 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return machine_state;
     }
 
-    top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str())
+    let builtin =
+        top_level_symbol_by_kinds(symbols, &[SymbolKind::BuiltinFunction], target.as_str());
+    if builtin.is_valid() {
+        return builtin;
+    }
+
+    // A receiverless call to a FREE top-level machine (`machine compute(item:
+    // &Item) -> i32 { ... }`, called as `compute(item)`): resolve to the free
+    // machine's entry state so downstream passes (contract call obligations,
+    // state-call planning) see a resolved target instead of an invalid symbol.
+    free_machine_entry_state_symbol(symbols, target.as_str())
+}
+
+/// The entry-state symbol of the free top-level machine named `target`, or
+/// invalid. A free machine's implicit entry state is named `entry` (the parser
+/// generates the name); explicit `entry foo` states are matched by the call
+/// target name first.
+fn free_machine_entry_state_symbol(symbols: &SymbolTable, target: &str) -> SymbolHandle {
+    let machine_symbol = top_level_symbol_by_kinds(symbols, &[SymbolKind::Machine], target);
+    if !machine_symbol.is_valid() {
+        return SymbolHandle::invalid();
+    }
+
+    let named = child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], target);
+    if named.is_valid() {
+        return named;
+    }
+
+    child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], "entry")
 }

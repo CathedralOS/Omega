@@ -68,12 +68,11 @@ fn instantiate_call_contract_name_path_place(
         call.statement_index,
         call.call_ordinal,
     )?;
-    let target_state = super::find_state(program, call.target_state_symbol)?;
+    let target_parameters = super::call_target_parameters(program, call.target_state_symbol)?;
     let first_member = members.first().map(|member| member.as_str());
 
     let mut place = if first_member == Some("self")
-        || program
-            .state_parameters(target_state)
+        || target_parameters
             .iter()
             .find(|parameter| parameter.is_self)
             .is_some_and(|parameter| {
@@ -83,7 +82,7 @@ fn instantiate_call_contract_name_path_place(
     } else {
         let mut argument_index = 0usize;
         let mut matched = None;
-        for parameter in program.state_parameters(target_state) {
+        for parameter in target_parameters {
             if parameter.is_self {
                 continue;
             }

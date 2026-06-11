@@ -3,7 +3,8 @@ mod points;
 
 use crate::context::*;
 pub(crate) use crate::semantic_calls::{
-    CallSite, call_site_argument_expressions, find_call_site, find_state, find_state_in_machine,
+    CallSite, call_site_argument_expressions, call_target_parameters, find_call_site, find_state,
+    find_state_in_machine,
 };
 pub(crate) use crate::semantic_places::instantiate_call_contract_place;
 use contracts::append_contract_semantic_facts;
