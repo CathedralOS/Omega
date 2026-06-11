@@ -1,0 +1,1 @@
+call to `sample` discards its non-unit `bool` result

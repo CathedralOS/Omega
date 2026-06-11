@@ -1,0 +1,1 @@
+discards its non-unit `bool` result; consume the value or discard it explicitly with `_ = roll(...);`

@@ -60,6 +60,8 @@ fn builds_shared_flow_facts_for_state_and_call_sites() {
         target: Identifier::generated("run"),
         target_symbol: callee_state_symbol,
         arguments: call_arguments,
+
+        discards_result: false,
     });
     let caller_statement = program.statement_table.insert(call_statement);
     let caller_state = State {
@@ -275,6 +277,8 @@ fn records_checked_boundary_edges_for_boundary_trait_calls() {
             target: Identifier::generated("write_line"),
             target_symbol: target_state_symbol,
             arguments: HandleSpan::empty(),
+
+            discards_result: false,
         }));
     let mut caller_machine = Machine {
         symbol: caller_machine_symbol,

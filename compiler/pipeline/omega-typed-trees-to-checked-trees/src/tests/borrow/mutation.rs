@@ -59,6 +59,8 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
             receiver: Default::default(),
             target: Identifier::generated("heal"),
             arguments,
+
+            discards_result: false,
         }),
     );
     program.push_machine_state(&mut machine, state);
@@ -170,6 +172,8 @@ fn call_mutated_places_include_mutable_local_arguments_from_unresolved_names() {
             receiver: Default::default(),
             target: Identifier::generated("heal"),
             arguments,
+
+            discards_result: false,
         }),
     );
     program.push_machine_state(&mut machine, state);
