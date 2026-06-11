@@ -1,0 +1,46 @@
+// A VALUE-position call to a NON-LOOPING machine (`let n = self.m.classify(s)`)
+// stays inline-branching (it is not dispatched). Its arm-selection guard reads the
+// SLICE PARAM's length (`s.len > 0`), where `s` is bound through the call to the
+// caller's `self.arr.as_slice()` -- a fixed-array alias with NO materialized frame
+// slot (the local is used only as a call argument, so storage elides it).
+//
+// The inline leaf guard resolver must fold that `.len` through the alias chain to
+// the fixed array's STATIC element count (5), so the guard holds and classify
+// returns 99 (exit 70). Before the fix the resolver returned no operand and the
+// leaf silently DROPPED the whole arm (no compare, no value write), so n stayed 0
+// and the program exited 71.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data M {}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    m: M;
+}
+
+machine Main::main(&mut self) {
+    let s: &[i32] = self.arr.as_slice();
+    let n: i32 = self.m.classify(s);
+    transition n == 99 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine M::classify(&mut self, s: &[i32]) -> i32 {
+    transition s.len > 0 {
+        true -> 99
+        false -> 88
+    }
+}

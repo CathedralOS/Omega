@@ -30,6 +30,7 @@ use nested_fields::{
 use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
 };
+use omega_checked_trees::name::Identifier;
 use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::symbols::{BuiltinType, SymbolHandle};
@@ -372,6 +373,245 @@ pub(super) fn resolve_runtime_storage_place_in_table(
         byte_offset,
         byte_count,
     })
+}
+
+/// Fold `<receiver>.len` to its STATIC element count when the receiver is (an
+/// alias of) a FIXED ARRAY. A fixed array stored inline has no runtime length
+/// field -- its length is a layout constant -- so a `.len` read on it (or on a
+/// full `as_slice()` view of it) cannot resolve to a storage place; it folds to
+/// an immediate instead.
+///
+/// The motivating shape is an inline-leaf VALUE-call arm guard `s.len > 0`
+/// where the callee param `s` was substituted (through the branch's argument
+/// bindings) to a caller local `let s = self.arr.as_slice()` that runtime
+/// storage ELIDED (the local is only used as a call argument, so it has no
+/// frame slot and therefore no slice descriptor to read a length from). The
+/// receiver is traced through such unmaterialized local aliases back to the
+/// fixed array they view.
+pub(super) fn static_fixed_array_len_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    let expression = peel_mutable_in_table(expressions, expression);
+    let ExpressionNode::Member(member) = expressions.expression(expression) else {
+        return None;
+    };
+    if member.member.as_str() != "len" {
+        return None;
+    }
+    let length = fixed_array_length_of_receiver_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        member.receiver,
+        0,
+    )?;
+    i64::try_from(length).ok()
+}
+
+fn peel_mutable_in_table(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => peel_mutable_in_table(expressions, *inner),
+        _ => expression,
+    }
+}
+
+/// How many unmaterialized local-alias hops (`let s = t;` / `let t = self.arr
+/// .as_slice();`) the fixed-array `.len` fold will trace before giving up.
+const FIXED_ARRAY_ALIAS_TRACE_DEPTH_LIMIT: usize = 4;
+
+/// The static length of the fixed array a receiver expression views, if any:
+/// a machine-owned field (`self.arr`, `self.arr.as_slice()` -- path
+/// normalization peels full slice views), a frame-slot field path, or an
+/// unmaterialized local alias traced through its initializer.
+fn fixed_array_length_of_receiver_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    receiver: ExpressionHandle,
+    depth: usize,
+) -> Option<usize> {
+    if depth > FIXED_ARRAY_ALIAS_TRACE_DEPTH_LIMIT {
+        return None;
+    }
+
+    if let Some(target) = resolve_machine_owned_collection_in_table(
+        &input.layouts,
+        input.entry_key.machine,
+        source_key.machine,
+        expressions,
+        receiver,
+    ) && let Some((_, length)) = target.type_descriptor.fixed_array()
+    {
+        return Some(length);
+    }
+
+    let path = normalized_storage_name_path_in_table(expressions, receiver)?;
+    if path.is_empty() {
+        return None;
+    }
+
+    if let Some(slot) =
+        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+            slot_matches_table_path(slot, &path)
+        })
+    {
+        let root_field = FieldLayout {
+            symbol: slot.symbol,
+            name: slot.name.clone(),
+            offset: slot.byte_offset,
+            type_symbol: slot.type_symbol,
+            type_name: slot.type_name.clone(),
+            type_descriptor: slot.type_descriptor.clone(),
+            layout: TypeLayout {
+                size: slot.byte_size,
+                alignment: slot.alignment,
+            },
+        };
+        let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
+        for (field_name, field_symbol, field_index) in path.suffix(1).iter() {
+            cursor = resolve_nested_field_layout_step(
+                &input.layouts,
+                cursor,
+                field_name,
+                field_symbol,
+                field_index,
+            )?;
+        }
+        return cursor
+            .type_descriptor()
+            .fixed_array()
+            .map(|(_, length)| length);
+    }
+
+    // An ELIDED local (no frame slot): trace its declared initializer. Only a
+    // bare single-name path can be a local.
+    if path.len() != 1 {
+        return None;
+    }
+    let initializer =
+        state_local_initializer(input, source_key, path.head_symbol(), path.member(0)?)?;
+    fixed_array_length_of_receiver_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &input.program.expression_table,
+        initializer,
+        depth + 1,
+    )
+}
+
+/// Fold an ELIDED local (a single-name path with no frame slot, folded into
+/// its initializer by storage planning) to its STATIC initializer value -- a
+/// boolean or integer literal, possibly through `mut` wrappers or a chain of
+/// such locals. The motivating shape is an inline-leaf VALUE-call arm guard
+/// substituted with a caller local used only as the call argument (`let flag:
+/// bool = true; self.out = self.pick(flag)` -- the arm guard reads `flag`,
+/// which has no storage to compare against). Elision implies the local folds
+/// into its initializer everywhere (a mutated or `&mut`-escaped local gets a
+/// frame slot), so the fold is sound.
+pub(super) fn static_elided_local_value_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    static_elided_local_value_traced(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+        0,
+    )
+}
+
+fn static_elided_local_value_traced(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<i64> {
+    if depth > FIXED_ARRAY_ALIAS_TRACE_DEPTH_LIMIT {
+        return None;
+    }
+    let expression = peel_mutable_in_table(expressions, expression);
+    match expressions.expression(expression) {
+        ExpressionNode::Boolean(value) => return Some(i64::from(*value)),
+        ExpressionNode::Integer(value) => return Some(*value),
+        ExpressionNode::Name(_) => {}
+        _ => return None,
+    }
+
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    if path.len() != 1 {
+        return None;
+    }
+    // A MATERIALIZED local has runtime storage and may be mutated after its
+    // initializer; never fold it here (the place resolvers read the slot).
+    if find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
+        slot_matches_table_path(slot, &path)
+    })
+    .is_some()
+    {
+        return None;
+    }
+    let initializer =
+        state_local_initializer(input, source_key, path.head_symbol(), path.member(0)?)?;
+    static_elided_local_value_traced(
+        input,
+        dispatch_index,
+        source_key,
+        &input.program.expression_table,
+        initializer,
+        depth + 1,
+    )
+}
+
+/// The declared initializer of the local named by `symbol`/`name` in
+/// `source_key`'s state body, read from the checked program statements.
+fn state_local_initializer(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    symbol: SymbolHandle,
+    name: &Identifier,
+) -> Option<ExpressionHandle> {
+    let machine = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    let state = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)?;
+    input
+        .program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| {
+            let omega_checked_trees::statement::StatementNode::LocalData(local_data) = statement
+            else {
+                return None;
+            };
+            let matches_symbol =
+                symbol.is_valid() && local_data.symbol.is_valid() && local_data.symbol == symbol;
+            (matches_symbol || local_data.name == *name).then_some(local_data.initial_value)
+        })
+        .filter(|initializer| initializer.is_valid())
 }
 
 /// Best-effort signedness of the integer place named by `expression`. Resolves
