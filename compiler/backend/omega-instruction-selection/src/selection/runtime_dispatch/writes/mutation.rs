@@ -354,6 +354,20 @@ fn resolve_static_inline_branching_call_expression_value(
     input: &InstructionSelectionInput<'_>,
     call: &omega_checked_trees::expression::CallExpression,
 ) -> Option<Expression> {
+    // Candidate leaf expansions are matched by the call's TARGET STATE NAME, which
+    // collides when two data types implement a same-named method (`Circle::code` /
+    // `Square::code`): both impls' leafs answer to `code`, and the lexically-first
+    // one would win for EVERY call site. Discriminate by the RECEIVER's static
+    // type: `s.code()` through `s: &mut Circle` (or an alias-resolved
+    // `(mut self.c).code()`) must only fold leafs of the machine attached to
+    // Circle. When the receiver's type is not derivable (no filter), keep the full
+    // candidate set (the pre-existing behavior).
+    let receiver_machine = crate::selection::lookups::static_receiver_machine_for_call(
+        input,
+        call.receiver.as_deref(),
+        call.target_symbol,
+        &call.target,
+    );
     let candidates = input
         .runtime_branching_calls
         .leaf_expansions
@@ -365,6 +379,8 @@ fn resolve_static_inline_branching_call_expression_value(
                 .state_names_by_key_cloned(expansion.branch_key);
             (expansion.branch_key.state == call.target_symbol
                 || branch_state.as_str() == &*call.target)
+                && receiver_machine
+                    .is_none_or(|machine| expansion.branch_key.machine == machine)
                 && expansion.target_value.is_valid()
                 && leaf_expansion_bindings_match_call_arguments(input, expansion, call)
         })
