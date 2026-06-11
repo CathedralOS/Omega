@@ -1,0 +1,35 @@
+// Free LOOPING machine in value position: `count` walks a slice through a
+// self-transition; the looped accumulator must be delivered back to `n`.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+}
+
+machine count(s: &[i32], acc: i32) -> i32 {
+    transition s.len > 0 {
+        true -> count(s[1..], acc + 1)
+        false -> acc
+    }
+}
+
+machine Main::main(&mut self) {
+    let s: &[i32] = self.arr.as_slice();
+    let n: i32 = count(s, 0);
+    transition n == 5 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
