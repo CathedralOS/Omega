@@ -1,0 +1,38 @@
+// Decision 11: `in` is domain membership, legal in VALUE position, and a
+// case name is an implicit case domain. `self.cmd in Command::Move` must
+// compare the TAG only: the constructed payload (`dx: 3`) makes the full
+// value wider than the tag, so a compare that reads payload bytes misses
+// the match and exits 71. Exits 70 only when the tag test hits.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    case None;
+    case Move(dx: i32);
+}
+
+data Main {
+    console: Console;
+    cmd: Command;
+}
+
+machine Main::main(&mut self) {
+    self.cmd = Command::Move { dx: 3 };
+
+    let hit: bool = self.cmd in Command::Move;
+
+    transition hit {
+        (true) -> matched()
+        _ -> missed()
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

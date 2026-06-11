@@ -140,3 +140,85 @@ pub(in crate::selection) fn enum_variant_value_in_table(
         })
         .and_then(|index| i64::try_from(index).ok())
 }
+
+/// TAG-ONLY case comparison in a runtime value tree: when one side of an
+/// equality names a CASE of an enum-shaped data (the lowered form of `in`,
+/// or a payload-less case `==`), the other side must read only the tag
+/// prefix, never the full tag-plus-payload value -- a payload-carrying enum
+/// is wider than its tag, and stale payload bytes must not affect the
+/// compare. Mirrors the guard-operand clamp in omega-state-guards.
+pub(in crate::selection) fn clamp_runtime_case_comparison_operands_in_table(
+    layouts: &LayoutPlan,
+    expressions: &ExpressionTable,
+    operator: omega_checked_trees::expression::BinaryOperator,
+    left_expression: ExpressionHandle,
+    right_expression: ExpressionHandle,
+    left: omega_abstract_operations::RuntimeValueOperandHandle,
+    right: omega_abstract_operations::RuntimeValueOperandHandle,
+    runtime_value_operands: &mut omega_core::arena::Arena<
+        omega_abstract_operations::RuntimeValueOperand,
+    >,
+) {
+    if !matches!(
+        operator,
+        omega_checked_trees::expression::BinaryOperator::Equal
+            | omega_checked_trees::expression::BinaryOperator::NotEqual
+    ) {
+        return;
+    }
+    if enum_variant_value_in_table(layouts, expressions, left_expression).is_some() {
+        clamp_runtime_case_comparison_operand(runtime_value_operands, right);
+    }
+    if enum_variant_value_in_table(layouts, expressions, right_expression).is_some() {
+        clamp_runtime_case_comparison_operand(runtime_value_operands, left);
+    }
+}
+
+/// Non-table twin of `clamp_runtime_case_comparison_operands_in_table` for
+/// resolvers that walk owned `Expression` trees.
+pub(in crate::selection) fn clamp_runtime_case_comparison_operands(
+    layouts: &LayoutPlan,
+    operator: omega_checked_trees::expression::BinaryOperator,
+    left_expression: &Expression,
+    right_expression: &Expression,
+    left: omega_abstract_operations::RuntimeValueOperandHandle,
+    right: omega_abstract_operations::RuntimeValueOperandHandle,
+    runtime_value_operands: &mut omega_core::arena::Arena<
+        omega_abstract_operations::RuntimeValueOperand,
+    >,
+) {
+    if !matches!(
+        operator,
+        omega_checked_trees::expression::BinaryOperator::Equal
+            | omega_checked_trees::expression::BinaryOperator::NotEqual
+    ) {
+        return;
+    }
+    if enum_variant_value(layouts, left_expression).is_some() {
+        clamp_runtime_case_comparison_operand(runtime_value_operands, right);
+    }
+    if enum_variant_value(layouts, right_expression).is_some() {
+        clamp_runtime_case_comparison_operand(runtime_value_operands, left);
+    }
+}
+
+fn clamp_runtime_case_comparison_operand(
+    runtime_value_operands: &mut omega_core::arena::Arena<
+        omega_abstract_operations::RuntimeValueOperand,
+    >,
+    operand: omega_abstract_operations::RuntimeValueOperandHandle,
+) {
+    use omega_abstract_operations::RuntimeValueOperand;
+
+    let byte_size = match runtime_value_operands.get_mut(operand) {
+        RuntimeValueOperand::Storage { byte_size, .. }
+        | RuntimeValueOperand::Pointee { byte_size, .. }
+        | RuntimeValueOperand::FrameIndexed { byte_size, .. }
+        | RuntimeValueOperand::FrameBaseIndexed { byte_size, .. }
+        | RuntimeValueOperand::FrameFixedIndexed { byte_size, .. } => byte_size,
+        _ => return,
+    };
+    if *byte_size > omega_layout::ENUM_TAG_BYTES {
+        *byte_size = omega_layout::ENUM_TAG_BYTES;
+    }
+}

@@ -1,4 +1,6 @@
-use crate::expression::domain_membership::lower_domain_membership_expression;
+use crate::expression::domain_membership::{
+    lower_case_membership_expression, lower_domain_membership_expression,
+};
 use crate::expression::name_paths::{
     lower_name_path_members_into_table, lower_table_name_path_node_into_table,
 };
@@ -226,17 +228,32 @@ impl<'program, 'target> ExpressionTableLowerer<'program, 'target> {
                 "cannot lower executable domain membership without a resolved program context",
             ));
         };
-        if !membership.domain_symbol.is_valid() {
-            let domain_name = resolved::expression::display_name_path(
-                self.source.name_path_members(membership.domain),
-                "::",
+        if membership.domain_symbol.is_valid() {
+            let value = self.lower(membership.value)?;
+            return lower_domain_membership_expression(
+                program,
+                self.target,
+                value,
+                membership.domain_symbol,
             );
-            return Err(Diagnostic::error(format!(
-                "unknown domain `{domain_name}` in executable membership expression"
-            )));
         }
+
+        // No DECLARED domain matches: a `Type::Case` path is an implicit
+        // case domain (decision 11), lowered to the tag-equality compare.
         let value = self.lower(membership.value)?;
-        lower_domain_membership_expression(program, self.target, value, membership.domain_symbol)
+        if let Some(lowered) =
+            lower_case_membership_expression(program, self.source, self.target, value, membership.domain)
+        {
+            return Ok(lowered);
+        }
+
+        let domain_name = resolved::expression::display_name_path(
+            self.source.name_path_members(membership.domain),
+            "::",
+        );
+        Err(Diagnostic::error(format!(
+            "unknown domain `{domain_name}` in executable membership expression"
+        )))
     }
 }
 

@@ -256,20 +256,19 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         return Err(pattern_rest.error_here("expected data destructure pattern"));
     }
 
-    // A two-member path names a case of the subject's type: the arm matches on
-    // the TAG, so the guard starts with `subject == Type::Case`.
+    // A two-member path names a case of the subject's type: the arm matches
+    // on the TAG, which is DOMAIN membership (decision 11), so the guard
+    // starts with `subject in Type::Case`. Desugaring to membership (not
+    // `==`) keeps the synthesized tag test distinct from user-written
+    // equality, which rejects bare payload-bearing case names.
     let mut combined = match syntax_trees.expressions.identifier_path_members(path).len() {
         1 => ExpressionHandle::invalid(),
-        2 => {
-            let case_reference = syntax_trees.expressions.insert(ExpressionNode::Name(path));
-            syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left: subject,
-                    operator: BinaryOperator::Equal,
-                    right: case_reference,
-                }))
-        }
+        2 => syntax_trees.expressions.insert(ExpressionNode::Membership(
+            TableMembershipExpression {
+                value: subject,
+                domain: path,
+            },
+        )),
         _ => {
             return Err(pattern_input
                 .error_here("destructure pattern path must be `Type { .. }` or `Type::Case { .. }`"));
