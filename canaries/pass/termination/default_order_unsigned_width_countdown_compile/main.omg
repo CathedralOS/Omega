@@ -1,0 +1,17 @@
+data Main {}
+
+machine Main::main(&mut self) {
+    let value: u32 = self.countdown(2);
+}
+
+machine Main::countdown(&mut self, remaining: u32)
+terminates {
+    decreases remaining;
+}
+-> u32
+{
+    transition remaining > 0 {
+        true -> self.countdown(remaining - 1)
+        false -> remaining
+    }
+}

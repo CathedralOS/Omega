@@ -1,1 +1,1 @@
-ambiguous decreases clause for terminating machine
+cannot infer a ranking for `decreases remaining` in terminating machine Main::countdown: signed values have no default well-founded order -- select one with `decreases remaining -> View`

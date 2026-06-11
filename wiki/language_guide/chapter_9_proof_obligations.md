@@ -152,6 +152,16 @@ selects the named measure; plain `decreases value` still uses the default
 descending-naturals order; built-in views such as `Slice::Length` remain
 available without a `measure` declaration.
 
+Plain `decreases value` infers a ranking only when the value's type makes the
+builtin reading unambiguous: unsigned/natural integer kinds (and `slice.len`)
+count down via descending naturals, slice-typed values decrease under
+`Slice::Length`, and `upper - lower` is the named bounded distance. A declared
+`measure` is never selected implicitly — even when it is the only measure
+declared for the value's type — because inferring it would make declaring a
+second measure a breaking change at a distance. Signed integers, floats, and
+structs therefore require the explicit `decreases value -> View` form; the
+diagnostic suggests any matching declared measures by name.
+
 For slices, `decreases items -> Slice::Length` naturally means each back-edge
 must operate on a strictly smaller remaining view, usually by carrying a
 narrower slice window such as `items[1..]`.
