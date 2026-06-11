@@ -27,13 +27,41 @@ pub(super) enum RankingOrder {
 pub(super) enum OrderResolution {
     /// A well-founded order was selected.
     Resolved(RankingOrder),
-    /// The clause omitted `-> Order` and the decreasing value has no single
-    /// obvious well-founded interpretation, so an explicit order is required.
-    /// The stored hint names the candidate orders the user could choose from.
-    AmbiguousDefault { candidates: Vec<&'static str> },
+    /// The clause omitted `-> View` and the decreasing value has no single
+    /// builtin well-founded interpretation, so an explicit ranking view is
+    /// required. Carries the details the caller renders into the diagnostic.
+    AmbiguousDefault(AmbiguousDefault),
     /// An explicit `-> Order` was supplied but does not name a supported or
     /// declared, well-formed measure.
     Unsupported,
+}
+
+/// Why a plain `decreases value` clause could not infer a default ranking, plus
+/// everything the diagnostic needs to suggest the explicit `-> View` form.
+pub(super) struct AmbiguousDefault {
+    /// The decreasing value rendered as source-like text, e.g. `self.health`.
+    pub(super) clause: String,
+    /// The specific reason inference failed.
+    pub(super) reason: AmbiguityReason,
+    /// Declared measures whose parameter (or lexicographic owner) matches the
+    /// decreasing value's type, rendered as `Type::Name` selection paths. These
+    /// are suggestions only: a declared measure is NEVER selected implicitly,
+    /// even when it is the only one, so that declaring a second measure later
+    /// cannot silently change or break distant `decreases` clauses.
+    pub(super) declared_measures: Vec<String>,
+}
+
+/// The reason a plain `decreases value` has no inferable default order.
+pub(super) enum AmbiguityReason {
+    /// The value is a signed integer: `value - 1` is not well-founded without a
+    /// positivity interpretation.
+    SignedInteger,
+    /// The value's type is known but offers no builtin well-founded order
+    /// (floats, structs, and other non-natural shapes).
+    NoBuiltinOrder { type_name: String },
+    /// The value's type could not be determined, or the expression shape is not
+    /// one the default inference understands.
+    UnknownShape,
 }
 
 impl RankingOrder {
@@ -125,7 +153,9 @@ impl RankingOrder {
 ///
 /// Anything else (an unrecognized expression, or a value whose type offers no
 /// obvious interpretation) is reported as ambiguous so the caller can require
-/// the explicit `-> Order` form.
+/// the explicit `-> View` form. A declared measure is never selected
+/// implicitly — only true builtins infer — but matching measures are carried
+/// along as suggestions for the diagnostic.
 fn infer_default_order(
     program: &omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,
@@ -151,15 +181,114 @@ fn infer_default_order(
                 Some(DecreasingValueKind::Slice) => {
                     OrderResolution::Resolved(RankingOrder::SliceLength)
                 }
-                None => OrderResolution::AmbiguousDefault {
-                    candidates: vec!["Nat::Descending", "Slice::Length"],
-                },
+                None => {
+                    OrderResolution::AmbiguousDefault(describe_ambiguity(program, state, decreases))
+                }
             }
         }
-        _ => OrderResolution::AmbiguousDefault {
-            candidates: vec!["Nat::Descending", "Slice::Length"],
-        },
+        _ => OrderResolution::AmbiguousDefault(describe_ambiguity(program, state, decreases)),
     }
+}
+
+/// Build the details the ambiguity diagnostic renders: the clause text, the
+/// reason the value's type has no default order, and any declared measures the
+/// user could select explicitly.
+fn describe_ambiguity(
+    program: &omega_typed_trees::TypedTrees,
+    state: &omega_typed_trees::state::State,
+    decreases: ExpressionHandle,
+) -> AmbiguousDefault {
+    let clause = decreasing_value_text(program, decreases);
+    let type_name = expression_type_name(program, state, decreases);
+    let reason = match type_name.as_deref() {
+        Some(name) if is_signed_integer_type(name) => AmbiguityReason::SignedInteger,
+        Some(name) => AmbiguityReason::NoBuiltinOrder {
+            type_name: name.to_string(),
+        },
+        None => AmbiguityReason::UnknownShape,
+    };
+    let declared_measures = type_name
+        .as_deref()
+        .map(|name| declared_measures_for_type(program, name))
+        .unwrap_or_default();
+    AmbiguousDefault {
+        clause,
+        reason,
+        declared_measures,
+    }
+}
+
+/// Render the decreasing value as source-like text for diagnostics. Falls back
+/// to the generic word `value` for shapes the renderer does not understand.
+fn decreasing_value_text(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> String {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_members(path.members)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("."),
+        ExpressionNode::Member(member) => format!(
+            "{}.{}",
+            decreasing_value_text(program, member.receiver),
+            member.member.as_str()
+        ),
+        ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Subtract) => {
+            format!(
+                "{} - {}",
+                decreasing_value_text(program, binary.left),
+                decreasing_value_text(program, binary.right)
+            )
+        }
+        _ => "value".to_string(),
+    }
+}
+
+/// A type whose `value - 1` step is not well-founded without a positivity
+/// interpretation: the signed integer primitives.
+fn is_signed_integer_type(name: &str) -> bool {
+    matches!(name, "i8" | "i16" | "i32" | "i64" | "isize")
+}
+
+/// Declared measures applicable to a value of the named type, rendered as
+/// `Type::Name` selection paths. A simple measure applies when its parameter
+/// has the value's type; a lexicographic measure applies when its owner (the
+/// first path segment) is the value's type. These are diagnostic suggestions
+/// only — plain `decreases value` never selects a declared measure implicitly.
+fn declared_measures_for_type(
+    program: &omega_typed_trees::TypedTrees,
+    type_name: &str,
+) -> Vec<String> {
+    program
+        .measures()
+        .iter()
+        .filter(|measure| {
+            let path = program.measure_path_members(measure.name);
+            match measure.parameter.as_ref() {
+                Some(parameter) => {
+                    program
+                        .type_reference_table
+                        .display_name(parameter.type_reference)
+                        == type_name
+                }
+                None => path
+                    .first()
+                    .is_some_and(|owner| owner.as_str() == type_name),
+            }
+        })
+        .map(|measure| {
+            program
+                .measure_path_members(measure.name)
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("::")
+        })
+        .collect()
 }
 
 /// The well-founded interpretation a plain decreasing value's type admits.

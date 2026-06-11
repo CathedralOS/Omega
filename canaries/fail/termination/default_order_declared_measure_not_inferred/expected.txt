@@ -1,0 +1,1 @@
+declared measures are never selected implicitly; select one with `decreases card -> Card::PowerOrder`

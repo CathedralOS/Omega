@@ -7,7 +7,7 @@ mod struct_view;
 use omega_typed_trees::expression::ExpressionHandle;
 
 use super::graph;
-use super::order::{OrderResolution, RankingOrder};
+use super::order::{AmbiguousDefault, OrderResolution, RankingOrder};
 
 /// The outcome of attempting to prove a terminating machine's `decreases`
 /// clause, distinguishing the cases the caller renders as different diagnostics.
@@ -17,9 +17,9 @@ pub(super) enum DecreaseOutcome {
     /// The order resolved, but the decrease could not be proven.
     Unproven,
     /// A plain `decreases value` clause whose decreasing value has no single
-    /// obvious well-founded order; the explicit `-> Order` form is required.
-    /// Carries the candidate orders to suggest.
-    AmbiguousOrder { candidates: Vec<&'static str> },
+    /// builtin well-founded order; the explicit `-> View` form is required.
+    /// Carries the details the diagnostic renders.
+    AmbiguousOrder(AmbiguousDefault),
 }
 
 pub(super) fn machine_decrease_outcome(
@@ -43,8 +43,8 @@ pub(super) fn machine_decrease_outcome(
     let decrease_order = program.machine_decrease_order(machine.decrease_order);
     let order = match RankingOrder::resolve(program, root_state, decreases, decrease_order) {
         OrderResolution::Resolved(order) => order,
-        OrderResolution::AmbiguousDefault { candidates } => {
-            return DecreaseOutcome::AmbiguousOrder { candidates };
+        OrderResolution::AmbiguousDefault(ambiguity) => {
+            return DecreaseOutcome::AmbiguousOrder(ambiguity);
         }
         OrderResolution::Unsupported => return DecreaseOutcome::Unproven,
     };

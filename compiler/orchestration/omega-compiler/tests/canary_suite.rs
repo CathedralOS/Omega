@@ -7166,6 +7166,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
     "termination/default_order_bounded_distance_compile",
+    "termination/default_order_unsigned_width_countdown_compile",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/runtime_local_string_field_copy_through_mut_exit",
     "text/runtime_machine_string_append_in_place_exit",
@@ -7417,6 +7418,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/trait_satisfies_unknown",
     "traits/trait_unknown_signature_type",
     "termination/default_order_ambiguous",
+    "termination/default_order_declared_measure_not_inferred",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/terminal_return_type_mismatch_rejected",
     "capabilities/duplicate_provider_declaration",
