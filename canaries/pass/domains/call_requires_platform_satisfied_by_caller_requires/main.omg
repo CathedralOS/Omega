@@ -1,0 +1,37 @@
+// Chapter 18 authority flow: a platform state signature's `requires` is the
+// caller's proof obligation, discharged here by the caller's own `requires`
+// carrying the same fact for the forwarded argument. Companion to
+// fail/domains/call_requires_platform_unproven.
+
+data Item {
+    value: i32;
+}
+
+domain Item::Ready {
+    self.value > 0;
+}
+
+platform Console {
+    entry show(item: &Item)
+    requires
+        item in Item::Ready;
+}
+
+data Worker {
+    console: Console;
+}
+
+machine Worker::run(&self, item: &Item)
+requires
+    item in Item::Ready
+{
+    self.console.show(item);
+}
+
+data Main {
+    worker: Worker;
+    item: Item;
+}
+
+machine Main::main(&mut self) {
+}

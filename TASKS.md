@@ -144,9 +144,21 @@ remains tracked in its bullet below.
   checked trees: fixed by the call-requires soundness wave (receiverless
   free-machine targets now resolve to the entry state in symbol resolution,
   and the checked-trees resolver accepts them).
-- [ ] Platform state-signature `requires` (calls through platform-typed
+- [x] Platform state-signature `requires` (calls through platform-typed
   contained objects) are never collected as call obligations -- the same
-  vacuity the free-machine/boundary-trait wave fixed, third shape.
+  vacuity the free-machine/boundary-trait wave fixed, third shape. FIXED:
+  platform entries now parse the shared bodyless-signature clause grammar
+  (`effects`/`requires`/`ensures`, previously a parse error), the
+  checked-trees call-target resolver accepts platform state-signature
+  symbols, `contract_target_from_state_symbol` maps them to the owning
+  platform, and `call_target_parameters` reads the signature's parameter
+  list -- so the existing instantiation path, caller-requires discharge,
+  and mutation invalidation work identically to the trait shape (probe
+  verified all three). Corpus fallout: none (suite stayed 187/187 before
+  the new canaries; all canary `platform/console.omg` shims are boundary
+  traits and were already enforced). New canaries: fail
+  domains/call_requires_platform_unproven, pass
+  domains/call_requires_platform_satisfied_by_caller_requires.
 - [x] Stale test fixtures repaired: lib-test fixtures of omega-graph/types/
   names/proof/syntax-trees/abstract-operations/target-operations/facts gained
   the missing `abi`/`type_parameters`/`kind`/`properties`/`is_float` fields;
