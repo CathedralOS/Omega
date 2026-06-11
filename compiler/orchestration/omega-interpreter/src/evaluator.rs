@@ -690,6 +690,11 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
+        // The synthesized wire encoder (chapter 20, wire stage 2a)?
+        if let Some(value) = self.try_wire_encode_call(call, frame)? {
+            return Ok(value);
+        }
+
         let target = call.target.as_str();
         let (machine, state_name, instance) = self.resolve_state_call(call.receiver, target, frame)?;
 
@@ -937,6 +942,136 @@ impl<'program> Evaluator<'program> {
                 Ok(value.cell())
             }
         }
+    }
+
+    /// `Schema::encode_wire(&value, &mut out, &mut written)` -- the
+    /// compact_binary v0 encoder the compiler synthesizes for a wire schema
+    /// (chapter 20, wire stage 2a). The interpreter implements the IDENTICAL
+    /// framing the native backends emit: the CURRENT era discriminator
+    /// varint, then per field in field-number order a field-number varint and
+    /// a value varint (unsigned LEB128; signed values zigzag
+    /// `(n << 1) ^ (n >> 63)`; bool = 0/1). The shared
+    /// `omega_typed_trees::wire` vocabulary (scalar encodings + varint bytes)
+    /// keeps both byte-for-byte in lockstep.
+    fn try_wire_encode_call(
+        &mut self,
+        call: &TableCall,
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        use omega_typed_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes};
+
+        let Some(schema) = self.program.wire_encode_call_schema(call) else {
+            return Ok(None);
+        };
+        let schema_name = schema.name.as_str().to_owned();
+        let era = self.program.wire_schema_current_era(schema);
+
+        // (field name, number, encoding) of the CURRENT era, in field-number
+        // order -- validation has already enforced the stage 2a scalar set.
+        let mut fields = Vec::new();
+        for member in self.program.wire_members(schema.members) {
+            let WireMember::Field(field) = member else {
+                continue;
+            };
+            let encoding = self
+                .program
+                .primitive_type_reference(field.type_reference)
+                .and_then(WireScalarEncoding::for_primitive)
+                .ok_or_else(|| {
+                    Halt::Unsupported(format!(
+                        "wire data `{schema_name}` field `{}` is not a stage 2a scalar",
+                        field.name
+                    ))
+                })?;
+            fields.push((field.name.as_str().to_owned(), field.number, encoding));
+        }
+        fields.sort_by_key(|(_, number, _)| *number);
+
+        let arguments = self.program.statement_table.expression_handles(call.arguments);
+        let [value_argument, out_argument, written_argument] = arguments else {
+            return Err(Halt::Trap(format!(
+                "`{schema_name}::encode_wire` expects 3 arguments, got {}",
+                arguments.len()
+            )));
+        };
+        let (value_argument, out_argument, written_argument) =
+            (*value_argument, *out_argument, *written_argument);
+
+        let value_cell = self.eval_argument(value_argument, frame)?;
+        let value_cell = self.deref_cell(value_cell);
+        let out_cell = self.eval_argument(out_argument, frame)?;
+        let out_cell = self.deref_cell(out_cell);
+        let written_cell = self.eval_argument(written_argument, frame)?;
+        let written_cell = self.deref_cell(written_cell);
+
+        let mut bytes = wire_varint_bytes(era);
+        for (field_name, number, encoding) in &fields {
+            bytes.extend(wire_varint_bytes(*number as u64));
+
+            let raw = match &*value_cell.borrow() {
+                Value::Struct { fields, .. } => fields
+                    .get(field_name)
+                    .map(|cell| self.deref_cell(Rc::clone(cell)))
+                    .ok_or_else(|| {
+                        Halt::Trap(format!(
+                            "`{schema_name}::encode_wire` value has no field `{field_name}`"
+                        ))
+                    })?,
+                _ => {
+                    return Err(Halt::Trap(format!(
+                        "`{schema_name}::encode_wire` value argument is not a data value"
+                    )));
+                }
+            };
+            let raw = raw
+                .borrow()
+                .as_int()
+                .ok_or_else(|| {
+                    Halt::Trap(format!(
+                        "`{schema_name}::encode_wire` field `{field_name}` is not a scalar value"
+                    ))
+                })?;
+
+            // The same widths/signedness the native encoders apply: load at
+            // the source width (zero- or sign-extending), zigzag signed
+            // sources at 64 bits.
+            let encoded = match (encoding.byte_size, encoding.zigzag) {
+                (1, _) => u64::from(raw != 0),
+                (4, false) => u64::from(raw as u32),
+                (8, false) => raw as u64,
+                (4, true) => zigzag64(i64::from(raw as i32)),
+                (8, true) => zigzag64(raw),
+                _ => {
+                    return Err(Halt::Unsupported(format!(
+                        "wire scalar of {} bytes", encoding.byte_size
+                    )));
+                }
+            };
+            bytes.extend(wire_varint_bytes(encoded));
+        }
+
+        match &*out_cell.borrow() {
+            Value::Array(elements) => {
+                if bytes.len() > elements.len() {
+                    return Err(Halt::Trap(format!(
+                        "`{schema_name}::encode_wire` produced {} bytes into a {}-byte buffer",
+                        bytes.len(),
+                        elements.len()
+                    )));
+                }
+                for (element, byte) in elements.iter().zip(&bytes) {
+                    *element.borrow_mut() = Value::Int(i64::from(*byte));
+                }
+            }
+            _ => {
+                return Err(Halt::Trap(format!(
+                    "`{schema_name}::encode_wire` out argument is not a fixed byte array"
+                )));
+            }
+        }
+        *written_cell.borrow_mut() = Value::Int(bytes.len() as i64);
+
+        Ok(Some(Value::Unit))
     }
 
     fn try_host_call(&mut self, call: &TableCall, frame: &Frame) -> EvalResult<Option<Value>> {
@@ -1957,6 +2092,12 @@ fn is_canonical_host_method(name: &str) -> bool {
 /// Reinterpret an i64 at an integer primitive's width, sign- or zero-extending back to i64
 /// so the value carries the same numeric meaning the target type would observe. `u8` 250
 /// stays 250; `i8` 250 wraps to -6; `u32` of a negative becomes its 32-bit unsigned value.
+/// zigzag(n) = (n << 1) ^ (n >> 63): the signed-scalar pre-step of the
+/// compact_binary v0 varint, identical to the native encoders' shift/xor.
+fn zigzag64(value: i64) -> u64 {
+    ((value << 1) ^ (value >> 63)) as u64
+}
+
 fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
     match ty {
         PrimitiveType::I8 => raw as i8 as i64,

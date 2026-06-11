@@ -489,11 +489,15 @@ impl ArtifactWriter {
                 "encoding: {}\n",
                 schema.encoding.as_deref().unwrap_or("(default)")
             ));
+            output.push_str(&format!("current era: {}\n", schema.current_era));
 
             push_wire_field_table(&mut output, &schema.fields, &schema.reserved);
 
             for version in &schema.versions {
-                output.push_str(&format!("\n### version {}\n", version.name));
+                output.push_str(&format!(
+                    "\n### version {} (era {})\n",
+                    version.name, version.era
+                ));
                 push_wire_field_table(&mut output, &version.fields, &version.reserved);
 
                 output.push_str(&format!(
@@ -985,6 +989,9 @@ pub struct WireProtocolReport {
 pub struct WireSchemaReportEntry {
     pub name: String,
     pub encoding: Option<String>,
+    /// The era discriminator the CURRENT body encodes (decision 10): the
+    /// number of declared version blocks (0 for an unversioned schema).
+    pub current_era: u64,
     pub fields: Vec<WireFieldReportEntry>,
     pub reserved: Vec<i64>,
     pub versions: Vec<WireVersionReportEntry>,
@@ -1000,6 +1007,9 @@ pub struct WireFieldReportEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireVersionReportEntry {
     pub name: String,
+    /// The era discriminator payloads of this declared version carry: its
+    /// zero-based position in the declaration-ordered version chain.
+    pub era: u64,
     /// The next era in the version chain this era's verdicts compare against:
     /// the following declared version, or `current` for the newest era.
     pub successor: String,

@@ -250,6 +250,17 @@ The encoding family determines low-level facts such as integer encoding,
 endianness, field ordering requirements, packed repeated fields, unknown-field
 preservation, and canonicalization.
 
+The first implemented family is `compact_binary` v0, the default the
+synthesized `Schema::encode_wire(&value, &mut out, &mut written)` encoder
+emits for primitive integer fields (i32, i64, u32, u64, bool): the message's
+ERA DISCRIMINATOR varint comes first, then each current-era field in
+field-number order as a field-number varint followed by a value varint, where
+varints are unsigned LEB128, signed values zigzag first
+(`(n << 1) ^ (n >> 63)`, so small negatives stay short), and bool encodes as
+one byte 0/1. The out buffer must be a `&mut [u8; N]` large enough for the
+worst-case encoding (checked at compile time, so the encoder needs no runtime
+bounds checks), and `written` receives the encoded byte count.
+
 ## Compatibility Reports
 
 The compiler should be able to report protocol compatibility changes.

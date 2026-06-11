@@ -14,6 +14,7 @@ pub(crate) fn validate_call_node(
     program: &TypedTrees,
     call: &TableCall,
     current_machine: &omega_typed_trees::machine::Machine,
+    state_name: &str,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
@@ -21,6 +22,18 @@ pub(crate) fn validate_call_node(
 ) {
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
+
+    // `Schema::encode_wire(...)`: the wire module owns the synthesized
+    // encoder call's diagnostics (chapter 20, wire stage 2a).
+    if crate::wire::validate_wire_encode_call(
+        program,
+        call,
+        current_machine,
+        machine_symbols.state(state_name),
+        diagnostics,
+    ) {
+        return;
+    }
 
     if receiver_members.is_empty()
         || matches!(receiver_members, [receiver] if receiver.as_str() == "self")

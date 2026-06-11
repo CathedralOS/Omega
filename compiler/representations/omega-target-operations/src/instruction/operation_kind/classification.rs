@@ -59,6 +59,8 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
             | Self::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
             | Self::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
+            | Self::AppendWireLiteralByte { .. }
+            | Self::AppendWireScalarVarint { .. }
             | Self::WriteReturnRegisterInteger { .. } => TargetOperationDomain::RuntimeWrite,
 
             Self::CopyRuntimeStorage { .. }

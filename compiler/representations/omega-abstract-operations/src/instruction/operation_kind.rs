@@ -147,6 +147,34 @@ pub enum AbstractOperationKind {
         field_byte_offset: usize,
         literal: Arc<str>,
     },
+    /// compact_binary v0 wire framing (chapter 20): store one COMPILE-TIME
+    /// byte (era and field-tag varint bytes are known when the schema is) into
+    /// the encode buffer at the stored cursor, then advance the cursor by one.
+    /// The cursor lives in the caller's `written` out-parameter slot, so a
+    /// finished encode sequence leaves the total byte count behind.
+    AppendWireLiteralByte {
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+        value: u8,
+    },
+    /// compact_binary v0 wire framing (chapter 20): LEB128-encode a RUNTIME
+    /// scalar into the encode buffer at the stored cursor, advancing the
+    /// cursor by the encoded byte count (1..=10).
+    AppendWireScalarVarint {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        /// Width of the runtime scalar load: 1 (bool), 4, or 8 bytes.
+        byte_size: usize,
+        /// Signed sources sign-extend to 64 bits and zigzag
+        /// (`(n << 1) ^ (n >> 63)`) so small negatives stay short on the wire.
+        zigzag: bool,
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+    },
     WriteRuntimeMachineInteger {
         byte_offset: usize,
         byte_size: usize,

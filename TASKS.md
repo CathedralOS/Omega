@@ -42,12 +42,19 @@ contracts — still slip through). Decision 13's residue (machine-call
 monomorphization arguments not bound-checked; generics-completion arc)
 remains tracked in its bullet below.
 
-- [ ] **Wire stage 2: encoders.** Era-discriminator varint emission (one per
-  top-level message, era 0 = pre-versioning body), encoder/decoder
-  generation, wire-schemas-as-program-types, runtime layout of wire values,
-  encoding families, version negotiation. Differential-oracle-friendly:
-  byte-exact expected outputs. (Decision 10 chain checks + migration
-  verdicts already landed.)
+- [ ] **Wire stage 2: encoders.** STAGE 2a LANDED (2026-06-11): era
+  assignment along the version chain (decision 10; queryable on the typed
+  `WireSchema`, surfaced in `04_wire_protocols.txt`), the synthesized
+  `Schema::encode_wire(&value, &mut out, &mut written)` encoder for
+  primitive integer fields (i32/i64/u32/u64/bool; other types reject), and
+  compact_binary v0 framing (era varint, then per field a tag varint +
+  value varint; LEB128, zigzag for signed, bool 0/1) -- lowered as two
+  dedicated wire-append operations on BOTH aarch64 and x86_64 (cursor lives
+  in the `written` slot; widths/relocations in pinned lockstep), with
+  byte-identical native interpreter support and byte-exact run canaries in
+  the differential oracle. Remaining: the decoder, strings/nested/repeated
+  fields, wire-schemas-as-program-types, runtime layout of wire values,
+  encoding families beyond compact_binary v0, version negotiation.
 - [ ] **Versioned data stage 3.** Era tag + the wire integration decision 10
   assumes; era-tagged containers that make version MATCH arms selectable
   (stage 2 ruled them unreachable — no value can hold a historical era yet);
@@ -521,10 +528,18 @@ ADJACENT eras; cross-era type changes are "requires migration" report
 verdicts (compile clean); retiring a documented number without reserving it
 is era-scoped to the successor and stays a hard error; cross-era
 field-number recycling is legal (per-scope `reserved`); pass canaries cover
-recycling + type-change migration verdicts. Still needed (stage 2):
-era-discriminator varint emission, wire-schemas-as-program-types,
-encoder/decoder generation, runtime layout of wire values, encoding-family
-semantics, and version negotiation.
+recycling + type-change migration verdicts. STAGE 2a LANDED (2026-06-11):
+era assignment (era 0 = the pre-versioning body; version blocks count up in
+declaration order; the current body is the highest era, reported per schema),
+the compiler-recognized `Schema::encode_wire(&value, &mut out, &mut written)`
+call (validated front-end: stage 2a scalar set, field coverage by name+type,
+worst-case out-buffer capacity so the emitted code needs no runtime bounds
+checks), and compact_binary v0 framing emitted through two new wire-append
+operations (literal framing byte + runtime scalar varint) implemented on both
+ISAs with widths/relocation-offset functions asserted against the encoders.
+Still needed (stage 2b+): the decoder, strings/nested/repeated fields,
+wire-schemas-as-program-types, runtime layout of wire values, encoding-family
+semantics beyond compact_binary v0, and version negotiation.
 
 **Host-provider semantics follow-up.** Current host-provider support is
 syntax-preserving metadata: it parses and snapshots syscall mapping rows, but

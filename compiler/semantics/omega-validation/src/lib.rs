@@ -140,6 +140,7 @@ fn validate_state_statement_node(
             program,
             call,
             machine,
+            state_name,
             machine_symbols,
             symbols,
             writable_roots,

@@ -319,6 +319,42 @@ fn selected_instruction_name(
                 "append runtime text literal `{buffer_symbol}`, descriptor runtime_frame[{descriptor_offset}; index @{index_offset}; elem {element_byte_size}] +{field_byte_offset} += {literal:?}"
             )
         }
+        SelectedInstructionKind::AppendWireLiteralByte {
+            out_region,
+            out_offset,
+            written_region,
+            written_offset,
+            value,
+        } => {
+            let out_symbol =
+                storage_region_symbol_name(*out_region, backend_plan.entry_machine_name());
+            let written_symbol =
+                storage_region_symbol_name(*written_region, backend_plan.entry_machine_name());
+            format!(
+                "wire append literal byte {value:#04x} -> {out_symbol}@{out_offset} + cursor {written_symbol}@{written_offset}"
+            )
+        }
+        SelectedInstructionKind::AppendWireScalarVarint {
+            source_region,
+            source_offset,
+            byte_size,
+            zigzag,
+            out_region,
+            out_offset,
+            written_region,
+            written_offset,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+            let out_symbol =
+                storage_region_symbol_name(*out_region, backend_plan.entry_machine_name());
+            let written_symbol =
+                storage_region_symbol_name(*written_region, backend_plan.entry_machine_name());
+            let encoding = if *zigzag { "zigzag varint" } else { "varint" };
+            format!(
+                "wire append {encoding} {source_symbol}@{source_offset} ({byte_size} bytes) -> {out_symbol}@{out_offset} + cursor {written_symbol}@{written_offset}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,

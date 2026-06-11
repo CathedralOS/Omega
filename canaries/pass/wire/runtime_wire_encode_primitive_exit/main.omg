@@ -1,0 +1,76 @@
+// Wire stage 2a: the compiler-synthesized compact_binary v0 encoder.
+// `CounterMessage::encode_wire(&msg, &mut self.buffer, &mut self.written)`
+// frames the CURRENT era of the schema from a runtime value whose fields
+// match the schema's field names: era varint first, then per field in
+// field-number order a field-number varint and a value varint (LEB128;
+// signed values zigzag-encoded ((n << 1) ^ (n >> 63)); bool = 0/1).
+//
+// Expected bytes for { counter: 300, delta: -2, flag: true }, hand-computed:
+//   era 0          -> 0x00        (no version blocks)
+//   tag 0          -> 0x00
+//   counter 300    -> 0xAC 0x02   (300 = 0b1_0010_1100: low7 0101100|0x80 = 0xAC, then 0b10 = 0x02)
+//   tag 1          -> 0x01
+//   delta -2       -> 0x03        (zigzag(-2) = 3)
+//   tag 2          -> 0x02
+//   flag true      -> 0x01
+// written = 8.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data CounterMessage {
+    0: counter: u32;
+    1: delta: i32;
+    2: flag: bool;
+}
+
+data CounterSample {
+    counter: u32;
+    delta: i32;
+    flag: bool;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    let msg: CounterSample = CounterSample {
+        counter: 300,
+        delta: 0 - 2,
+        flag: true
+    };
+
+    CounterMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    transition self.written == 8 {
+        true -> check_bytes()
+        false -> bad()
+    }
+
+    state check_bytes(&mut self) {
+        let ok: bool = self.buffer[0] == 0
+            && self.buffer[1] == 0
+            && self.buffer[2] == 172
+            && self.buffer[3] == 2
+            && self.buffer[4] == 1
+            && self.buffer[5] == 3
+            && self.buffer[6] == 2
+            && self.buffer[7] == 1;
+        transition ok {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

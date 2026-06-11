@@ -31,7 +31,9 @@ pub(super) fn collect_state_call_blockers(
 
         let source_name = state_name(input, state_call.source_key);
         if !state_call.target_key.is_valid() {
-            if unresolved_call_is_host_call(input, state_call) {
+            if unresolved_call_is_host_call(input, state_call)
+                || unresolved_call_is_wire_encode(input, state_call)
+            {
                 continue;
             }
             blockers.insert(blocker(
@@ -114,7 +116,9 @@ fn collect_unresolved_state_call_blockers(
         if !state_call.required || state_call.target_key.is_valid() {
             continue;
         }
-        if unresolved_call_is_host_call(input, state_call) {
+        if unresolved_call_is_host_call(input, state_call)
+            || unresolved_call_is_wire_encode(input, state_call)
+        {
             continue;
         }
 
@@ -129,6 +133,39 @@ fn collect_unresolved_state_call_blockers(
             ),
         ));
     }
+}
+
+/// A statement that lowered into the wire-append family is the synthesized
+/// `Schema::encode_wire` call, not an unresolved state call.
+fn unresolved_call_is_wire_encode(
+    input: &EmissionPlanningInput<'_>,
+    state_call: &StateCall,
+) -> bool {
+    statement_has_wire_encode_lowering(
+        input,
+        state_call.source_key,
+        state_call.statement_index,
+    )
+}
+
+pub(super) fn statement_has_wire_encode_lowering(
+    input: &EmissionPlanningInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    input
+        .instructions
+        .code
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            matches!(
+                instruction.kind,
+                omega_target_operations::TargetOperationKind::AppendWireLiteralByte { .. }
+                    | omega_target_operations::TargetOperationKind::AppendWireScalarVarint { .. }
+            ) && state_key_matches_statement_source(instruction.source_key, source_key)
+                && instruction.source_statement == statement_index
+        })
 }
 
 fn unresolved_call_is_host_call(input: &EmissionPlanningInput<'_>, state_call: &StateCall) -> bool {

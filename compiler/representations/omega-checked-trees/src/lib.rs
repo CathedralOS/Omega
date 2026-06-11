@@ -1,6 +1,6 @@
 pub use omega_typed_trees::{
     data, expression, identity, invariant, machine, name, platform, signature, state,
-    trait_definition, types,
+    trait_definition, types, wire,
 };
 
 mod admissibility;

@@ -979,6 +979,79 @@ fn runtime_version_migration_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_encode_primitive_exit_canary_runs() {
+    // Wire stage 2a: `CounterMessage::encode_wire(&msg, &mut self.buffer,
+    // &mut self.written)` frames the schema's CURRENT era in compact_binary
+    // v0 -- era varint, then per field in field-number order a tag varint and
+    // a value varint (LEB128; signed values zigzag; bool 0/1). The canary
+    // checks the eight expected bytes (hand-computed in its header comment)
+    // and the written count in-language; exits 70 when byte-exact.
+    let canary = pass_canary("wire/runtime_wire_encode_primitive_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-encode-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire encode canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wire encode canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the compact_binary v0 encoder to produce the hand-computed bytes (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
+    // Wire stage 2a + frozen decision 10: a schema with one declared version
+    // block snapshots it as era 0, so the CURRENT body encodes era 1 -- the
+    // first byte of every encoded message. The canary asserts the era byte,
+    // the recycled field's tag/value bytes, and the written count; exits 70
+    // when byte-exact.
+    let canary = pass_canary("wire/runtime_wire_encode_era_discriminator_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-era-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire era discriminator canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wire era discriminator canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the current body to encode era 1 after one version block (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_call_result_binary_operand_exit_canary_runs() {
     // A state-call result used as an operand of a larger value (`x = f() + 1`,
     // `x = max(y, f()+1)`) must apply the operator, not collapse to just the call's
@@ -7128,6 +7201,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/wire_field_references_program_types",
     "wire/wire_cross_era_type_change_migration",
     "wire/wire_cross_era_number_recycling",
+    "wire/runtime_wire_encode_primitive_exit",
+    "wire/runtime_wire_encode_era_discriminator_exit",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -7137,6 +7212,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/unknown_field_type",
     "wire/version_field_retired_without_reserved",
     "wire/version_chain_retired_without_reserved",
+    "wire/encode_unsupported_field_type",
     "capabilities/unapproved_host_call",
     "data/bare_payload_case_equality_guard",
     "data/bare_payload_case_equality_suggests_in",

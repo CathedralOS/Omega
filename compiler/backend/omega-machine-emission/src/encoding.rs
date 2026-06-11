@@ -279,6 +279,34 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_size,
             *value,
         ),
+        SelectedInstructionKind::AppendWireLiteralByte {
+            out_offset,
+            written_offset,
+            value,
+            ..
+        } => omega_instruction_selection::encode_append_wire_literal_byte(
+            input.target.architecture,
+            *out_offset,
+            *written_offset,
+            *value,
+        ),
+        SelectedInstructionKind::AppendWireScalarVarint {
+            source_region,
+            source_offset,
+            byte_size,
+            zigzag,
+            out_offset,
+            written_offset,
+            ..
+        } => omega_instruction_selection::encode_append_wire_scalar_varint(
+            input.target.architecture,
+            *source_region,
+            *source_offset,
+            *byte_size,
+            *zigzag,
+            *out_offset,
+            *written_offset,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
             index_region,

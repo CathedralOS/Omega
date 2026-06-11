@@ -1398,3 +1398,66 @@ pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
         }
     }
 }
+
+pub fn append_wire_literal_byte_width(
+    architecture: Architecture,
+    out_offset: usize,
+    written_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::append_wire_literal_byte_width(out_offset, written_offset),
+        Architecture::X86_64 => x86_64::append_wire_literal_byte_width(out_offset, written_offset),
+    }
+}
+
+pub fn append_wire_scalar_varint_width(
+    architecture: Architecture,
+    source_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+    out_offset: usize,
+    written_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::append_wire_scalar_varint_width(
+            source_offset,
+            byte_size,
+            zigzag,
+            out_offset,
+            written_offset,
+        ),
+        Architecture::X86_64 => x86_64::append_wire_scalar_varint_width(
+            source_offset,
+            byte_size,
+            zigzag,
+            out_offset,
+            written_offset,
+        ),
+    }
+}
+
+/// Byte offset of the WRITTEN page address materialization inside both wire
+/// appends (relocated to the written slot's region symbol).
+pub fn wire_append_written_page_offset(architecture: Architecture, out_offset: usize) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::wire_append_written_page_offset(out_offset),
+        Architecture::X86_64 => x86_64::wire_append_written_page_offset(out_offset),
+    }
+}
+
+/// Byte offset of the SOURCE page address materialization inside the varint
+/// append (relocated to the scalar's region symbol).
+pub fn wire_append_varint_source_page_offset(
+    architecture: Architecture,
+    out_offset: usize,
+    written_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::wire_append_varint_source_page_offset(out_offset, written_offset)
+        }
+        Architecture::X86_64 => {
+            x86_64::wire_append_varint_source_page_offset(out_offset, written_offset)
+        }
+    }
+}
