@@ -1757,6 +1757,7 @@ mod tests {
         let type_parameter = syntax_trees.items.append_type_parameter(TypeParameter {
             name: Identifier::generated("T"),
             kind: TypeParameterKind::Type,
+            bounds: Default::default(),
         });
         let generic_type = syntax_trees
             .type_references
