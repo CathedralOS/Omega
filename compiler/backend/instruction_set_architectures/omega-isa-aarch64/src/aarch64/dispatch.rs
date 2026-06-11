@@ -97,12 +97,12 @@ pub fn encode_dispatch_guard_compare_static_bytes(
         append_guard_load(&mut bytes, byte_offset, byte_size)?;
         let expected_bits = float_compare_expected_bits(expected_value, byte_size);
         if byte_size == 4 {
-            append_unsigned_immediate_w_padded(&mut bytes, 18, expected_bits as u32);
+            append_unsigned_immediate_w_padded(&mut bytes, 26, expected_bits as u32);
         } else {
-            append_unsigned_immediate_padded(&mut bytes, 18, expected_bits);
+            append_unsigned_immediate_padded(&mut bytes, 26, expected_bits);
         }
         bytes.extend(encode_float_move_from_gpr(byte_size, 0, 17)?);
-        bytes.extend(encode_float_move_from_gpr(byte_size, 1, 18)?);
+        bytes.extend(encode_float_move_from_gpr(byte_size, 1, 26)?);
         bytes.extend(encode_float_compare(byte_size, 0, 1)?);
     } else {
         // The expected value is materialized into a register (fixed-width, so
@@ -117,30 +117,30 @@ pub fn encode_dispatch_guard_compare_static_bytes(
                 bytes.extend(encode_sign_extend_byte_to_w(17, 17));
                 append_unsigned_immediate_w_padded(
                     &mut bytes,
-                    18,
+                    26,
                     expected_value as i8 as i32 as u32,
                 );
-                bytes.extend(encode_compare_w_register(17, 18));
+                bytes.extend(encode_compare_w_register(17, 26));
             }
             2 => {
                 append_guard_load(&mut bytes, byte_offset, byte_size)?;
                 bytes.extend(encode_sign_extend_halfword_to_w(17, 17));
                 append_unsigned_immediate_w_padded(
                     &mut bytes,
-                    18,
+                    26,
                     expected_value as i16 as i32 as u32,
                 );
-                bytes.extend(encode_compare_w_register(17, 18));
+                bytes.extend(encode_compare_w_register(17, 26));
             }
             4 => {
                 append_guard_load(&mut bytes, byte_offset, byte_size)?;
-                append_unsigned_immediate_w_padded(&mut bytes, 18, expected_value as u32);
-                bytes.extend(encode_compare_w_register(17, 18));
+                append_unsigned_immediate_w_padded(&mut bytes, 26, expected_value as u32);
+                bytes.extend(encode_compare_w_register(17, 26));
             }
             8 => {
                 append_guard_load(&mut bytes, byte_offset, byte_size)?;
-                append_unsigned_immediate_padded(&mut bytes, 18, expected_value as u64);
-                bytes.extend(encode_compare_x_register(17, 18));
+                append_unsigned_immediate_padded(&mut bytes, 26, expected_value as u64);
+                bytes.extend(encode_compare_x_register(17, 26));
             }
             _ => {
                 return Err(Diagnostic::error(format!(
@@ -199,9 +199,9 @@ fn append_guard_load(
     let base_register = if direct {
         16
     } else {
-        bytes.extend(encode_move_x_register(18, 16));
-        append_add_x_constant(bytes, 18, 18, byte_offset, 19)?;
-        18
+        bytes.extend(encode_move_x_register(26, 16));
+        append_add_x_constant(bytes, 26, 26, byte_offset, 19)?;
+        26
     };
 
     match byte_size {

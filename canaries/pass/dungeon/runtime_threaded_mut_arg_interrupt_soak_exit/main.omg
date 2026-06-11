@@ -1,0 +1,72 @@
+// Soak test for threaded `&mut` arguments under kernel preemption.
+//
+// The dispatch loop copies pointer-sized frame slots with load/store pairs
+// through a scratch register. On Darwin arm64 the kernel ZEROES x18 (the
+// reserved platform register) on every kernel->user return, so a value parked
+// in x18 across a timer interrupt is silently replaced with 0 -- the dungeon
+// crawler segfaulted this way when a threaded `&mut Level` slot copy lost its
+// pointer mid-generation (nondeterministic, landing wherever the first tick
+// fell). This canary threads a `&mut Tally` through a dispatched call fifty
+// million times so the run spans many timer ticks; if any emitted slot copy
+// parks data in an interrupt-clobbered register, the pointer (or the count)
+// corrupts and the run crashes or exits 71 instead of 70.
+use platform::console;
+
+data Tally {
+    value: u64;
+}
+
+data Stepper {
+}
+
+machine Stepper::bump(
+    &mut self,
+    tally: &mut Tally
+) {
+    tally.value = tally.value + 1;
+}
+
+data Main {
+    console: Console;
+    stepper: Stepper;
+    tally: Tally;
+}
+
+machine Main::main(&mut self) {
+    self.tally.value = 0;
+
+    transition {
+        _ -> spin(&mut self.tally, 0, 50000000)
+    }
+
+    state spin(
+        &mut self,
+        tally: &mut Tally,
+        index: usize,
+        count: usize
+    ) {
+        self.stepper.bump(tally);
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < count;
+
+        transition {
+            has_next -> spin(tally, next_index, count)
+            _ -> check()
+        }
+    }
+
+    state check(&mut self) {
+        transition self.tally.value == 50000000 {
+            true -> full_count()
+            false -> dropped_count()
+        }
+    }
+
+    state full_count(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state dropped_count(&mut self) {
+        self.console.exit_process(71);
+    }
+}

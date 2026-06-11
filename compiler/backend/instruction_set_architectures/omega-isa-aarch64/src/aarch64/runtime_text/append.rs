@@ -34,13 +34,13 @@ pub fn encode_runtime_text_stored_suffix_append(
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    append_load_x_from_x_offset(&mut bytes, 18, 17, source_offset, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 26, 17, source_offset, 15)?;
     append_load_x_from_x_offset(&mut bytes, 19, 17, source_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
     append_add_x_constant(&mut bytes, 22, 16, buffer_offset, 15)?;
 
     bytes.extend(encode_cbz_x(19, 20)?);
-    bytes.extend(encode_load_byte_w_post_increment(21, 18, 1)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 26, 1)?);
     bytes.extend(encode_store_byte_w_post_increment(21, 22, 1)?);
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
@@ -71,12 +71,12 @@ pub fn encode_runtime_text_stored_place_append(
     bytes.extend(encode_add_x_register(22, 16, 22));
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    append_load_x_from_x_offset(&mut bytes, 18, 20, source_offset, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 26, 20, source_offset, 15)?;
     append_load_x_from_x_offset(&mut bytes, 19, 20, source_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
 
     bytes.extend(encode_cbz_x(19, 20)?);
-    bytes.extend(encode_load_byte_w_post_increment(21, 18, 1)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 26, 1)?);
     bytes.extend(encode_store_byte_w_post_increment(21, 22, 1)?);
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
@@ -118,12 +118,12 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
     bytes.extend(encode_add_x_register(22, 17, 22));
     bytes.extend(encode_adrp_placeholder(25));
     bytes.extend(encode_add_page_offset_placeholder(25));
-    append_load_x_from_x_offset(&mut bytes, 18, 25, source_offset, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 26, 25, source_offset, 15)?;
     append_load_x_from_x_offset(&mut bytes, 19, 25, source_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
 
     bytes.extend(encode_cbz_x(19, 20)?);
-    bytes.extend(encode_load_byte_w_post_increment(21, 18, 1)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 26, 1)?);
     bytes.extend(encode_store_byte_w_post_increment(21, 22, 1)?);
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
@@ -159,12 +159,12 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     bytes.extend(encode_add_x_register(22, 16, 22));
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    append_load_x_from_x_offset(&mut bytes, 18, 20, source_offset, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 26, 20, source_offset, 15)?;
     append_load_x_from_x_offset(&mut bytes, 19, 20, source_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
 
     bytes.extend(encode_cbz_x(19, 20)?);
-    bytes.extend(encode_load_byte_w_post_increment(21, 18, 1)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 26, 1)?);
     bytes.extend(encode_store_byte_w_post_increment(21, 22, 1)?);
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
@@ -192,8 +192,8 @@ pub fn encode_runtime_text_literal_append(
 
     for (byte_index, byte) in literal.as_bytes().iter().enumerate() {
         let _ = byte_index;
-        bytes.extend(encode_movz_w(18, u16::from(*byte)));
-        bytes.extend(encode_store_byte_w_post_increment(18, 16, 1)?);
+        bytes.extend(encode_movz_w(26, u16::from(*byte)));
+        bytes.extend(encode_store_byte_w_post_increment(26, 16, 1)?);
     }
 
     append_store_x_to_x_offset(&mut bytes, 20, 17, target_offset, 15)?;
@@ -228,8 +228,8 @@ pub fn encode_runtime_text_literal_append_to_runtime_pointee(
 
     for (byte_index, byte) in literal.as_bytes().iter().enumerate() {
         let _ = byte_index;
-        bytes.extend(encode_movz_w(18, u16::from(*byte)));
-        bytes.extend(encode_store_byte_w_post_increment(18, 16, 1)?);
+        bytes.extend(encode_movz_w(26, u16::from(*byte)));
+        bytes.extend(encode_store_byte_w_post_increment(26, 16, 1)?);
     }
 
     append_store_x_to_x_offset(&mut bytes, 20, 17, 0, 15)?;
@@ -267,8 +267,8 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
 
     for (byte_index, byte) in literal.as_bytes().iter().enumerate() {
         let _ = byte_index;
-        bytes.extend(encode_movz_w(18, u16::from(*byte)));
-        bytes.extend(encode_store_byte_w_post_increment(18, 17, 1)?);
+        bytes.extend(encode_movz_w(26, u16::from(*byte)));
+        bytes.extend(encode_store_byte_w_post_increment(26, 17, 1)?);
     }
 
     bytes.extend(encode_store_x_to_x(20, 16, 0)?);
@@ -284,13 +284,13 @@ pub fn encode_runtime_text_buffer_materialize(target_offset: usize) -> Result<Ve
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
-    append_load_x_from_x_offset(&mut bytes, 18, 17, target_offset, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 26, 17, target_offset, 15)?;
     append_load_x_from_x_offset(&mut bytes, 19, 17, target_offset + 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
     bytes.extend(encode_move_x_register(22, 16));
 
     bytes.extend(encode_cbz_x(19, 20)?);
-    bytes.extend(encode_load_byte_w_post_increment(21, 18, 1)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 26, 1)?);
     bytes.extend(encode_store_byte_w_post_increment(21, 22, 1)?);
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
@@ -316,13 +316,13 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
     if field_byte_offset > 0 {
         append_add_x_constant(&mut bytes, 17, 17, field_byte_offset, 15)?;
     }
-    append_load_x_from_x_offset(&mut bytes, 18, 17, 0, 15)?;
+    append_load_x_from_x_offset(&mut bytes, 26, 17, 0, 15)?;
     append_load_x_from_x_offset(&mut bytes, 19, 17, 8, 15)?;
     bytes.extend(encode_move_x_register(23, 19));
     bytes.extend(encode_move_x_register(22, 16));
 
     bytes.extend(encode_cbz_x(19, 20)?);
-    bytes.extend(encode_load_byte_w_post_increment(21, 18, 1)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 26, 1)?);
     bytes.extend(encode_store_byte_w_post_increment(21, 22, 1)?);
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
@@ -351,7 +351,7 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
         element_byte_size,
         field_byte_offset,
     )?;
-    bytes.extend(encode_load_x_from_x(18, 16, 0)?);
+    bytes.extend(encode_load_x_from_x(26, 16, 0)?);
     bytes.extend(encode_load_x_from_x(19, 16, 8)?);
     bytes.extend(encode_move_x_register(23, 19));
     bytes.extend(encode_adrp_placeholder(17));
@@ -359,7 +359,7 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
     bytes.extend(encode_move_x_register(22, 17));
 
     bytes.extend(encode_cbz_x(19, 20)?);
-    bytes.extend(encode_load_byte_w_post_increment(21, 18, 1)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 26, 1)?);
     bytes.extend(encode_store_byte_w_post_increment(21, 22, 1)?);
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-12)?);
@@ -380,8 +380,8 @@ fn append_runtime_frame_index_target_address(
     bytes.extend(encode_add_page_offset_placeholder(20));
     append_fixed_width_load_x_from_x_offset(bytes, 16, 20, descriptor_offset, 15);
     append_fixed_width_load_x_from_x_offset(bytes, 17, 20, index_offset, 21);
-    append_scale_x_register_by_constant(bytes, 18, 17, element_byte_size)?;
-    bytes.extend(encode_add_x_register(16, 16, 18));
+    append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
+    bytes.extend(encode_add_x_register(16, 16, 26));
     append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
     Ok(())
 }
@@ -429,7 +429,7 @@ fn append_add_constant_to_x_register(
     register: u8,
     value: usize,
 ) -> Result<(), Diagnostic> {
-    let scratch_register = if register == 19 { 18 } else { 19 };
+    let scratch_register = if register == 19 { 26 } else { 19 };
     append_add_x_constant(bytes, register, register, value, scratch_register)
 }
 
