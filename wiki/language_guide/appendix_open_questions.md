@@ -107,11 +107,16 @@ This page tracks design pressure that is not fully nailed down yet.
   Interim, until that lands: `==` on payload-bearing case values is a compile
   error (never a tag-only comparison); payload-less sums keep `==` as the tag
   compare.
-- Synthesis is a closed compiler privilege (the Slice::index pattern:
+- Synthesis is a closed compiler privilege today (the Slice::index pattern:
   browsable core declaration, compiler-owned implementation). NO macro
-  system, ever. User-extensible structural synthesis, if ever needed, goes
-  through compile-time execution + member reflection (the reference
-  interpreter as the evaluation engine, effect ceilings gating build code).
+  system, ever, and no `#run` directive: compile-time execution is what two
+  language surfaces MEAN -- const evaluation (effect-free machines in
+  constant positions evaluate at compile time; the position is the trigger)
+  and trait generators (member reflection inside trait-declared
+  `default machine` bodies, expanded at conformance sites; build-time code
+  runs only where the trait declarer wrote it and must be effect-free). The
+  reference interpreter is the engine for both. Once generators land, the
+  privileged core set dissolves into ordinary core traits.
 - Attribute-system stances: no per-item conditional compilation (per-target
   code lives in target packages); lint policy lives at the package/build
   declaration, never per-item in source; deprecation is versioned-data
@@ -178,6 +183,7 @@ This page tracks design pressure that is not fully nailed down yet.
   orphan rule, partially-satisfied diagnostics.
 - An in-language test surface (a `test` item word the toolchain discovers) is
   undesigned; canaries are external today.
-- Compile-time execution (Jai-style run + member reflection) is direction
-  only: entry spelling, reflection surface, and the effect ceiling for build
-  code are all open.
+- Compile-time execution follow-ups: the member-reflection surface
+  (`Self::fields`, the field splice, reflection over cases/payloads), which
+  positions count as constant for const evaluation, and how the proof system
+  sees generator-expanded bodies.

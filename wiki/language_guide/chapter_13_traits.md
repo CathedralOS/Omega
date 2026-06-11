@@ -569,20 +569,52 @@ whose implementation is compiler-owned. Synthesis is a compiler privilege --
 user traits cannot iterate a type's fields. User traits get default machine
 bodies and composition over the synthesized core set.
 
-There is NO macro system, now or planned. If user-extensible structural
-synthesis is ever needed, the fork is compile-time execution with member
-reflection (the reference interpreter is the natural evaluation engine, and
-effect ceilings gate what compile-time code may do), not token
-macros.[^comptime-open]
+There is NO macro system, now or planned -- and no `#run`-style directive
+either. Compile-time execution, when it lands, is never a keyword you
+sprinkle; it is what two existing surfaces MEAN, both evaluated by the
+reference interpreter and both gated by the effect system:
+
+- CONST EVALUATION: an effect-free machine called in a constant position
+  (a field default, a fixed-array length, a lookup table initializer) simply
+  evaluates at compile time. The position makes it comptime; the effect
+  system makes it legal. No new syntax.
+- TRAIT GENERATORS: a `default machine` body that uses member reflection is
+  expanded per conforming type at the conformance site. Sketch:
+
+```omega
+trait Hashable {
+    machine hash(&self) -> u64;
+
+    default machine hash(&self) -> u64 {
+        let mut h: u64 = 14695981039346656037;
+        for field in Self::fields {          // comptime: unrolled per type
+            h = (h ^ field_hash(self.[field])) * 1099511628211;
+        }
+        h
+    }
+}
+
+Point satisfies Hashable;    // expands the body for Point's fields
+```
+
+  Build-time code runs ONLY where the trait declarer wrote it -- a
+  conformance item triggers expansion but never contains code -- and
+  generator bodies must carry zero effects. One auditable site per trait, no
+  IO at build time, ever.
+
+Once trait generators exist, the synthesized core set above stops being
+special: `Equatable` becomes an ordinary core trait written this way, and the
+compiler privilege dissolves into the same mechanism.[^comptime-open]
 
 Until trait-resolved equality lands, `==` on payload-bearing case values is a
 compile error rather than a tag-only comparison that ignores payloads;
 payload-less sums keep `==` as the tag compare (which IS their total
 equality).
 
-[^comptime-open]: The compile-time-execution shape is deliberately undesigned:
-entry spelling, member-reflection surface, and the effect ceiling for build
-code are all open.
+[^comptime-open]: Sketch-grade, not implemented: the member-reflection
+surface (`Self::fields`, the field splice `self.[field]`, what reflection
+over sums/cases/payloads looks like), constant-position rules for const
+evaluation, and how the proof system sees expanded bodies are all open.
 
 ## One-Off Requirements
 
