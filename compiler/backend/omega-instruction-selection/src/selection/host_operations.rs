@@ -125,7 +125,9 @@ pub(super) fn select_host_call(
             ])
         } else {
             operands.insert_many([
-                operand(InstructionOperandKind::ImmediateInteger(1)),
+                operand(InstructionOperandKind::ImmediateInteger(
+                    operands::write_file_descriptor(write_capability),
+                )),
                 operand(InstructionOperandKind::DataAddress {
                     data: data_object_handle(input, newline),
                 }),
