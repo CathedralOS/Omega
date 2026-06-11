@@ -84,14 +84,31 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         let Some(right) = right else {
             continue;
         };
-        let equality =
-            syntax_trees
+        // A bare two-member path arm (`Command::Move ->`, no binding braces) is
+        // a CLASSIFICATION like its braced sibling: the arm tests the tag,
+        // which is domain membership (decision 11). Desugaring to membership
+        // keeps the synthesized tag test distinct from user-written equality,
+        // which rejects bare payload-bearing case names.
+        let equality = match syntax_trees.expressions.expression(right) {
+            ExpressionNode::Name(path)
+                if syntax_trees.expressions.identifier_path_members(*path).len() == 2 =>
+            {
+                let domain = *path;
+                syntax_trees.expressions.insert(ExpressionNode::Membership(
+                    TableMembershipExpression {
+                        value: left,
+                        domain,
+                    },
+                ))
+            }
+            _ => syntax_trees
                 .expressions
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
                     left,
                     operator: BinaryOperator::Equal,
                     right,
-                }));
+                })),
+        };
         combined = if combined.is_valid() {
             syntax_trees
                 .expressions
