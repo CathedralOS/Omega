@@ -48,6 +48,10 @@ pub enum ItemSnapshot {
         name: IdentifierSnapshot,
         members: Vec<CapabilityMemberSnapshot>,
     },
+    Conformance {
+        type_name: IdentifierSnapshot,
+        trait_name: IdentifierSnapshot,
+    },
     Data {
         name: IdentifierSnapshot,
         type_parameters: Vec<TypeParameterSnapshot>,
@@ -529,6 +533,10 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .iter()
                 .map(|member| snapshot_capability_member(syntax_trees, member))
                 .collect(),
+        },
+        Item::Conformance(value) => ItemSnapshot::Conformance {
+            type_name: snapshot_identifier(&value.type_name),
+            trait_name: snapshot_identifier(&value.trait_name),
         },
         Item::Data(value) => ItemSnapshot::Data {
             name: snapshot_identifier(&value.name),

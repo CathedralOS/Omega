@@ -37,6 +37,7 @@ pub struct TypedTreeTables {
     pub platforms: Arena<platform::Platform>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
     pub traits: Arena<trait_definition::TraitDefinition>,
+    pub data_conformances: Arena<trait_definition::DataConformance>,
     pub trait_requirements: Arena<trait_definition::TraitRequirement>,
     pub trait_machine_signatures: Arena<signature::StateSignature>,
     pub signature_effects: Arena<crate::name::Identifier>,
@@ -58,6 +59,7 @@ pub struct TypedTreeRoots {
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub platforms: HandleSpan<platform::Platform>,
     pub traits: HandleSpan<trait_definition::TraitDefinition>,
+    pub data_conformances: HandleSpan<trait_definition::DataConformance>,
     pub wire_schemas: HandleSpan<wire::WireSchema>,
 }
 
@@ -80,6 +82,7 @@ impl TypedTreeRoots {
             operators,
             platforms,
             traits,
+            data_conformances: HandleSpan::default(),
             wire_schemas: HandleSpan::default(),
         }
     }
@@ -349,6 +352,18 @@ impl TypedTrees {
 
     pub fn traits(&self) -> &[trait_definition::TraitDefinition] {
         self.tables.traits.span_or_empty(self.roots.traits)
+    }
+
+    pub fn push_data_conformance(&mut self, conformance: trait_definition::DataConformance) {
+        self.tables
+            .data_conformances
+            .append_to_span(&mut self.roots.data_conformances, conformance);
+    }
+
+    pub fn data_conformances(&self) -> &[trait_definition::DataConformance] {
+        self.tables
+            .data_conformances
+            .span_or_empty(self.roots.data_conformances)
     }
 
     pub fn push_trait_type_parameter(

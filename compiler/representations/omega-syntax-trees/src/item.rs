@@ -13,6 +13,7 @@ pub type TraitHandle = Handle<TraitNode>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
     Capability(CapabilityDefinition),
+    Conformance(ConformanceItem),
     Data(DataDefinition),
     Domain(DomainDefinition),
     Invariant(InvariantDefinition),
@@ -382,7 +383,35 @@ impl Default for BoundaryMode {
 pub struct DataDefinition {
     pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
+    pub properties: DataProperties,
     pub members: HandleSpan<DataMember>,
+}
+
+/// A standalone conformance item (frozen decision 8): `Point satisfies
+/// Equatable;` claims a whole trait for a data type. Validation checks the
+/// type's written attached machines against the trait's requirements;
+/// nothing trait-shaped appears on the data declaration itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ConformanceItem {
+    pub type_name: Identifier,
+    pub trait_name: Identifier,
+}
+
+/// Declared type properties: lowercase facts in brackets on the data
+/// declaration (`data Point [copy, zero_init]`). The known set is closed;
+/// unknown names are parse errors, so downstream representations carry the
+/// resolved flags rather than spellings. `sized` is computed from the shape
+/// and may not be declared.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DataProperties {
+    /// Values copy bit-for-bit; verified: every field is itself copyable.
+    pub copy: bool,
+    /// Zero means empty: the zeroed value is the type's empty value; owns the
+    /// zero-case-payload-free rule and rejects non-zero field defaults.
+    pub zero_init: bool,
+    /// Values may cross thread boundaries; verified structurally like `copy`
+    /// until the concurrency model lands.
+    pub send: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

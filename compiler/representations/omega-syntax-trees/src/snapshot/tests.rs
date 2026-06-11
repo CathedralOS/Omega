@@ -28,6 +28,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
     let data = Item::Data(DataDefinition {
         name: Identifier::generated("Example"),
         type_parameters: omega_core::arena::HandleSpan::empty(),
+        properties: crate::item::DataProperties::default(),
         members: omega_core::arena::HandleSpan::from_parts(
             syntax_trees
                 .items

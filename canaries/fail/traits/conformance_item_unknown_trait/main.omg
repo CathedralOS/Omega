@@ -1,0 +1,14 @@
+// A conformance item must name a known trait.
+
+data Point {
+    x: i32;
+}
+
+Point satisfies Equatable;
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

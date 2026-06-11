@@ -1,0 +1,18 @@
+// Interim equality rule (frozen decision 8): `==` against a PAYLOAD-BEARING
+// case is a compile error until structural `equals` synthesis lands (a tag
+// compare would silently ignore the payload). Payload-less cases keep the
+// free tag compare.
+
+data Command {
+    case None;
+    case Move(steps: i32);
+}
+
+data Main {
+    cmd: Command;
+    hit: bool = false;
+}
+
+machine Main::main(&mut self) {
+    self.hit = self.cmd == Command::Move { steps: 1 };
+}

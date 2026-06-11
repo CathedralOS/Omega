@@ -3,6 +3,7 @@ mod contract_entailment;
 mod data;
 mod domains;
 mod effects;
+mod equality;
 mod entry_point;
 mod expression_types;
 mod invariants;
@@ -11,6 +12,7 @@ mod machine_data;
 mod operators;
 mod places;
 mod proof_facts;
+mod properties;
 mod state_signatures;
 mod symbols;
 #[cfg(test)]
@@ -35,7 +37,9 @@ use crate::state_signatures::{
     validate_machine_effects,
 };
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
-use crate::traits::{validate_machine_trait_conformances, validate_trait_requirements};
+use crate::traits::{
+    validate_data_conformances, validate_machine_trait_conformances, validate_trait_requirements,
+};
 use crate::transitions::validate_transition_target_node;
 use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 pub use effects::validate_effect_plan;
@@ -52,7 +56,10 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_invariant_definitions(program, &fact_plan, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_trait_requirements(program, &mut diagnostics);
+    validate_data_conformances(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
+    properties::validate_data_properties(program, &symbols, &mut diagnostics);
+    equality::validate_equality_operands(program, &mut diagnostics);
     wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
     operators::validate_operator_declarations(program, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);

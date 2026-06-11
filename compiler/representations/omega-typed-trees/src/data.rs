@@ -8,6 +8,7 @@ pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
+    pub properties: DataProperties,
     pub members: HandleSpan<DataMember>,
 }
 
@@ -17,9 +18,20 @@ impl Default for DataDefinition {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
             type_parameters: HandleSpan::empty(),
+            properties: DataProperties::default(),
             members: HandleSpan::empty(),
         }
     }
+}
+
+/// Declared type properties (`data Point [copy, zero_init]`). The spelling
+/// set is closed at parse time; validation verifies the declared facts
+/// (`copy`/`send` structurally, `zero_init` via the zero-means-empty rules).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DataProperties {
+    pub copy: bool,
+    pub zero_init: bool,
+    pub send: bool,
 }
 
 impl DataDefinition {

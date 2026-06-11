@@ -1,0 +1,48 @@
+// A standalone conformance item (frozen decision 8): `Circle satisfies
+// Shape;` claims the whole trait for the data type. Validation checks the
+// WRITTEN attached machine (`Circle::code`) against the trait signature;
+// nothing trait-shaped appears on the data declaration, and the call path is
+// unchanged at runtime.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+trait Shape {
+    machine code(&mut self) -> i32;
+}
+
+data Circle {}
+
+machine Circle::code(&mut self) -> i32 {
+    transition {
+        _ -> 9
+    }
+}
+
+Circle satisfies Shape;
+
+data Main {
+    console: Console;
+    c: Circle;
+}
+
+machine Main::main(&mut self) {
+    let a: i32 = self.dispatch(&mut self.c);
+    transition a == 9 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::dispatch(&mut self, s: &mut Circle) -> i32 {
+    s.code()
+}

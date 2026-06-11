@@ -1,0 +1,1 @@
+declares `[zero_init]` but field `start` has a non-zero default

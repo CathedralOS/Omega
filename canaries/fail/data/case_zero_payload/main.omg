@@ -1,7 +1,8 @@
-// The FIRST case is the zero case (tag 0): a zero-initialized value must be a
-// complete, valid value, so the zero case may not require payload fields.
+// Zero-means-empty is the opt-in `[zero_init]` property (frozen decision 8):
+// under it the FIRST case is the zero-initialized empty value, so it may not
+// require payload fields. Without the property this declaration is legal.
 
-data Token {
+data Token [zero_init] {
     case Number(value: i32);
     case End;
 }

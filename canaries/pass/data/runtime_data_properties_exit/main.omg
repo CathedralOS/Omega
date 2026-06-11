@@ -1,0 +1,43 @@
+// Declared type properties (frozen decision 8): `data Point [copy, zero_init]`
+// parses, verifies (all-primitive fields satisfy `copy` structurally; zero
+// defaults satisfy zero-means-empty), and has NO runtime cost -- the program
+// behaves identically to the property-free declaration. Nested propagation:
+// `Holder` declares `[copy, zero_init]` and stores a `Point`, which qualifies
+// only because `Point` declares the properties itself.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Point [copy, zero_init] {
+    x: i32;
+    y: i32;
+}
+
+data Holder [copy, zero_init] {
+    p: Point;
+    tag: i32;
+}
+
+data Main {
+    console: Console;
+    h: Holder;
+}
+
+machine Main::main(&mut self) {
+    self.h.p.x = 60;
+    self.h.p.y = 9;
+    self.h.tag = 1;
+
+    transition self.h.p.x + self.h.p.y + self.h.tag == 70 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

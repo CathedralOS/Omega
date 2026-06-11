@@ -16,7 +16,6 @@ pub(crate) fn validate_data_field_types(
         let type_parameters = program.data_type_parameters(data_definition);
         validate_data_member_names(data_definition, data_members, diagnostics);
         validate_data_shape(data_definition, data_members, diagnostics);
-        validate_zero_case_is_payload_free(data_definition, data_members, diagnostics);
 
         for member in data_members {
             let payload_fields = match member {
@@ -45,27 +44,10 @@ pub(crate) fn validate_data_field_types(
     }
 }
 
-/// The FIRST case is the zero case (tag 0): a zeroed value must be a complete,
-/// valid value, so the zero case carries no payload (frozen decision 7 / the
-/// tag-prefixed overlay layout keeps the zero case payload-free).
-fn validate_zero_case_is_payload_free(
-    data_definition: &omega_typed_trees::data::DataDefinition,
-    data_members: &[DataMember],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let first_case = data_members.iter().find_map(|member| match member {
-        DataMember::Variant(variant) => Some(variant),
-        DataMember::Field(_) => None,
-    });
-    if let Some(variant) = first_case
-        && variant.payload.count() > 0
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "data `{}` zero case `{}` must be payload-free: the first case is the zero-initialized value, so it cannot require payload fields",
-            data_definition.name, variant.name
-        )));
-    }
-}
+// The zero-case-payload-free rule moved into `[zero_init]` verification
+// (crate::properties): zero-VALIDITY is unconditional (a zeroed payload is
+// itself zeroed, so the value stays valid), while zero-MEANS-EMPTY is the
+// opt-in property that demands a payload-free zero case (frozen decision 8).
 
 fn validate_payload_field_names(
     data_definition: &omega_typed_trees::data::DataDefinition,

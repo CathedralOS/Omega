@@ -268,8 +268,10 @@ machine Main::main(&mut self) {
     assert_eq!(outcome.exit_code, 70);
 }
 
-/// The ZERO case (first case) declaring a payload is rejected by validation: the
-/// zero-initialized value must be complete, so tag 0 carries no payload.
+/// Under `[zero_init]` (zero means empty, frozen decision 8) the ZERO case
+/// (first case) declaring a payload is rejected by validation: the
+/// zero-initialized value must be the empty value, so tag 0 carries no
+/// payload. Without the property the same shape is legal.
 #[test]
 fn zero_case_payload_is_rejected() {
     frontend_rejects(
@@ -279,7 +281,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-data Token {
+data Token [zero_init] {
     case Number(value: i32);
     case End;
 }

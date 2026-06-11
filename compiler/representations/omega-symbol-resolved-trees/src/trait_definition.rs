@@ -20,6 +20,15 @@ pub struct TraitStorage {
     pub machines: HandleSpan<StateSignature>,
 }
 
+/// A standalone conformance item (`Point satisfies Equatable;`, frozen
+/// decision 8): a data type claims a whole trait; validation checks the
+/// type's written attached machines against the trait's requirements.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DataConformance {
+    pub type_name: DiagnosticName,
+    pub trait_name: DiagnosticName,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TraitRequirement {
     pub symbol: SymbolHandle,

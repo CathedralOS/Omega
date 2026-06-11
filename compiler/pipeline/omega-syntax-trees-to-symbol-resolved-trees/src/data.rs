@@ -5,8 +5,8 @@ use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::data::{
-    DataDefinition, DataDefinitionStorage, DataField, DataMember, DataVariant, TypeParameter,
-    TypeParameterKind,
+    DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties, DataVariant,
+    TypeParameter, TypeParameterKind,
 };
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -24,6 +24,11 @@ pub(crate) fn lower_data_definition(
         name: crate::name::lower_name(&data_definition.name),
         storage: DataDefinitionStorage {
             type_parameters,
+            properties: DataProperties {
+                copy: data_definition.properties.copy,
+                zero_init: data_definition.properties.zero_init,
+                send: data_definition.properties.send,
+            },
             members,
         },
     })

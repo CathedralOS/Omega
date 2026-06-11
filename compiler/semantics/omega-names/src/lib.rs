@@ -387,6 +387,7 @@ fn build_resolve_report_with_optional_sources(
             | Item::HostProvider(_)
             | Item::WireData(_)
             | Item::Export(_)
+            | Item::Conformance(_)
             | Item::Module(_)
             | Item::Package(_) => {}
         }
@@ -1184,6 +1185,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             | Item::Invariant(_)
             | Item::Measure(_)
             | Item::Target(_)
+            | Item::Conformance(_)
             | Item::Module(_)
             | Item::Package(_)
             | Item::Use(_) => {}
@@ -1539,6 +1541,7 @@ impl<'syntax> SourceSymbolTableBuilder<'syntax> {
             | Item::Invariant(_)
             | Item::Measure(_)
             | Item::Target(_)
+            | Item::Conformance(_)
             | Item::Module(_)
             | Item::Package(_)
             | Item::Use(_) => {}
@@ -1590,7 +1593,8 @@ fn root_item_symbol_seed<'syntax>(
         | Item::WireData(_)
         | Item::Export(_)
         | Item::Measure(_)
-        | Item::Module(_)
+        | Item::Conformance(_)
+            | Item::Module(_)
         | Item::Package(_)
         | Item::Use(_) => None,
     }
@@ -1613,7 +1617,8 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
         | Item::Export(_)
         | Item::Measure(_)
         | Item::Operator(_)
-        | Item::Module(_)
+        | Item::Conformance(_)
+            | Item::Module(_)
         | Item::Package(_)
         | Item::Use(_) => None,
     }

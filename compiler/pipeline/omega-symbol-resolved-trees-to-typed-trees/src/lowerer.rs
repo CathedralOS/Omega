@@ -61,6 +61,14 @@ pub fn lower_symbol_resolved_trees(
         lowerer.typed_trees.push_trait_definition(trait_definition);
     }
 
+    for conformance in &symbol_resolved_trees.conformances {
+        let conformance = omega_typed_trees::trait_definition::DataConformance {
+            type_name: crate::name::lower_name(&conformance.type_name),
+            trait_name: crate::name::lower_name(&conformance.trait_name),
+        };
+        lowerer.typed_trees.push_data_conformance(conformance);
+    }
+
     for wire_schema in &symbol_resolved_trees.wire_schemas {
         let wire_schema = crate::wire::lower_wire_schema(&mut lowerer, wire_schema)?;
         lowerer.typed_trees.push_wire_schema(wire_schema);
