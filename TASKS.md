@@ -126,12 +126,26 @@ remains tracked in its bullet below.
   sibling in the suite; `calls/runtime_mutable_local_parameter_write_compile`
   "hangs" by its own unconditional `true -> main()` self-loop (source
   structure, not a backend bug; its `_exit` sibling verifies the behavior).
-- [ ] Straight-line `main` terminal LOCALS/EXPRESSIONS don't deliver as the
-  exit code (probed 2026-06-11): a bare literal terminal (`70`) exits 70,
-  but `let exit_code: i32 = 70; exit_code` — and field read-backs and
-  arithmetic terminals — exit 1 in a no-transition body. Every runtime
-  canary terminates through states, so the shape was never exercised. Check
-  interpreter parity first, then fix the native terminal-value path.
+- [x] Straight-line `main` terminal LOCALS/EXPRESSIONS don't deliver as the
+  exit code — FIXED (2026-06-11). Interpreter parity confirmed first (it
+  already returned 70 for all three probe shapes; pinned in
+  omega-interpreter/tests/coverage.rs). Root cause: the dispatch terminal's
+  return-value selection (`select_runtime_dispatch_return_value`,
+  runtime_dispatch/edges.rs) only handled a CONSTANT terminal
+  (`static_terminal_target_value`) and silently fell through otherwise. Now:
+  (1) constants write the immediate as before; (2) runtime places (field
+  read-backs, locals with frame slots — reassigned locals always have
+  storage) load via the new `CopyRuntimeStorageToReturnRegister` instruction
+  (both ISAs, widths in lockstep, region-symbol relocation at instruction
+  start); (3) storage-less locals/constant arithmetic constant-fold through
+  `simplify_state_expression` to a small fixpoint. Residue: a runtime
+  ARITHMETIC terminal (`self.n + 1`) still has no return-value write — fold
+  it into a local or field first. Canaries:
+  control_flow/runtime_straight_line_terminal_local_exit,
+  control_flow/runtime_straight_line_terminal_field_readback_exit, and the
+  promoted slices/runtime_mutable_slice_element_write_straight_line_exit
+  (formerly _compile; now writes through the slice view and exits on the
+  read-back), all RUN at 70 + registered in the differential oracle.
 - [x] aarch64 runtime convergence (dungeon hot-potato). ROOT CAUSE FOUND AND
   FIXED: the aarch64 encoder used x18 as a general scratch for frame-slot
   copies (`ldr x18, [src]; str x18, [dst]`), but x18 is the reserved platform

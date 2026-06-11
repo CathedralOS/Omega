@@ -335,6 +335,7 @@ fn is_guarded_effect(instruction: &LaidOutMachineInstruction) -> bool {
             | MachineInstructionKind::RuntimeTextLineRead
             | MachineInstructionKind::HostCallSequence
             | MachineInstructionKind::ReturnRegisterIntegerWrite
+            | MachineInstructionKind::RuntimeStorageCopyToReturnRegister
             | MachineInstructionKind::DispatchStateWrite
             | MachineInstructionKind::DispatchTerminate
     )

@@ -1,12 +1,13 @@
 data Entry {
-    value: u32;
+    value: i32;
 }
 
 data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) -> i32 {
     let entry_slice: &mut [Entry] = self.entries.as_mut_slice();
-    entry_slice[0].value = 1;
+    entry_slice[0].value = 70;
+    self.entries[0].value
 }
