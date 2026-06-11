@@ -1,4 +1,4 @@
-use crate::packing::{PlannedField, pack_fields};
+use crate::packing::{PlannedField, pack_fields, pack_fields_at};
 use crate::sizing::{fat_descriptor_layout, primitive_type_layout};
 use crate::{
     DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout,
@@ -233,25 +233,7 @@ impl<'program> LayoutBuilder<'program> {
     ) -> Result<DataLayout, Diagnostic> {
         let members = self.program.data_members(definition);
         if DataDefinition::shape_kind_from_members(members) == DataShapeKind::Enum {
-            let variants =
-                self.variants
-                    .insert_many(members.iter().filter_map(|member| match member {
-                        DataMember::Variant(variant) => Some(VariantLayout {
-                            symbol: variant.symbol,
-                            name: variant.name.clone(),
-                        }),
-                        DataMember::Field(_) => None,
-                    }));
-
-            return Ok(DataLayout {
-                symbol: definition.symbol,
-                name: definition.name.clone(),
-                shape: DataShape::Enum { variants },
-                layout: TypeLayout {
-                    size: 4,
-                    alignment: 4,
-                },
-            });
+            return self.compute_enum_layout(definition, members);
         }
 
         let fields = members
@@ -282,6 +264,85 @@ impl<'program> LayoutBuilder<'program> {
             name: definition.name.clone(),
             shape: DataShape::Record { fields },
             layout,
+        })
+    }
+
+    /// Lay out a sum shape as a TAG-PREFIXED OVERLAY: the i32 tag sits at offset 0,
+    /// and every case's payload fields pack from a SHARED base offset (the tag size
+    /// aligned up to the strictest payload field alignment), overlaying each other.
+    /// The value's size covers the LARGEST case payload; payload-less enums keep
+    /// the historical 4-byte tag-only layout. No niche packing ever: the zero bit
+    /// pattern is the (payload-free) zero case and stays valid.
+    fn compute_enum_layout(
+        &mut self,
+        definition: &DataDefinition,
+        members: &[DataMember],
+    ) -> Result<DataLayout, Diagnostic> {
+        const TAG_LAYOUT: TypeLayout = TypeLayout {
+            size: 4,
+            alignment: 4,
+        };
+
+        // Plan every case's payload fields first: the shared payload base offset
+        // depends on the strictest alignment across ALL cases.
+        let mut planned_variants = Vec::new();
+        let mut payload_alignment = 1usize;
+        for member in members {
+            let DataMember::Variant(variant) = member else {
+                continue;
+            };
+            let planned = self
+                .program
+                .data_payload_fields(variant)
+                .iter()
+                .map(|field| {
+                    let layout = self.layout_type_reference_handle(field.type_reference)?;
+                    Ok(PlannedField {
+                        symbol: field.symbol,
+                        name: field.name.clone(),
+                        type_symbol: self.program.type_reference_symbol(field.type_reference),
+                        type_name: self
+                            .program
+                            .display_type_reference_with_constraints(field.type_reference)
+                            .into(),
+                        type_descriptor: self.type_descriptor(field.type_reference),
+                        layout,
+                    })
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            for field in &planned {
+                payload_alignment = payload_alignment.max(field.layout.alignment);
+            }
+            planned_variants.push((variant.symbol, variant.name.clone(), planned));
+        }
+
+        let alignment = TAG_LAYOUT.alignment.max(payload_alignment);
+        let payload_base = TAG_LAYOUT.size.div_ceil(payload_alignment) * payload_alignment;
+
+        let mut end_offset = TAG_LAYOUT.size;
+        let variant_layouts = planned_variants
+            .into_iter()
+            .map(|(symbol, name, planned)| {
+                let (fields, payload_layout) =
+                    pack_fields_at(&mut self.fields, planned, payload_base);
+                end_offset = end_offset.max(payload_layout.size);
+                VariantLayout {
+                    symbol,
+                    name,
+                    fields,
+                }
+            })
+            .collect::<Vec<_>>();
+        let variants = self.variants.insert_many(variant_layouts);
+
+        Ok(DataLayout {
+            symbol: definition.symbol,
+            name: definition.name.clone(),
+            shape: DataShape::Enum { variants },
+            layout: TypeLayout {
+                size: end_offset.div_ceil(alignment) * alignment,
+                alignment,
+            },
         })
     }
 

@@ -1,0 +1,14 @@
+// The FIRST case is the zero case (tag 0): a zero-initialized value must be a
+// complete, valid value, so the zero case may not require payload fields.
+
+data Token {
+    case Number(value: i32);
+    case End;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

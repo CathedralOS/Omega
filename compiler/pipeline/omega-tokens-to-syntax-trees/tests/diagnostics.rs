@@ -29,11 +29,19 @@ fn enum_keyword_reports_retirement() {
 }
 
 #[test]
-fn case_payload_reports_unimplemented() {
-    let message = parse_error_message("data Command { case None; case Say(text: String); }");
+fn case_payload_field_requires_name_and_type() {
+    // Payload fields are NAMED: a bare type with no `name:` is a parse error.
+    let message = parse_error_message("data Command { case None; case Say(String); }");
+    assert_eq!(message, "expected `:`, found punctuation `)`");
+}
+
+#[test]
+fn bare_variant_member_spelling_is_retired() {
+    // The pre-`case` bare `Name;` variant member is no longer accepted.
+    let message = parse_error_message("data Direction { North; South; }");
     assert_eq!(
         message,
-        "case payloads are not implemented yet; declare `case Say;` and carry the payload elsewhere for now"
+        "expected `:` after data field `North` (alternatives are spelled `case North;`)"
     );
 }
 

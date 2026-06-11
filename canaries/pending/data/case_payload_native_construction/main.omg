@@ -1,0 +1,39 @@
+// PENDING: native lowering of case payload construction. This program parses,
+// type-checks, and INTERPRETS correctly (the interpreter coverage suite runs an
+// equivalent program to exit 70), but the native backend cannot lower the
+// tag-plus-payload write / payload member read yet, so the compiler rejects it
+// after checked trees instead of emitting a silently wrong binary (the probe
+// binary took the default arm). Promote to a RUN canary (expected exit 70)
+// once construction + binding lower natively.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    case None;
+    case Quit;
+    case Move(steps: i32);
+}
+
+data Main {
+    console: Console;
+    cmd: Command;
+}
+
+machine Main::main(&mut self) {
+    self.cmd = Command::Move { steps: 70 };
+
+    transition self.cmd {
+        Command::Move { steps } -> done(steps)
+        _ -> bad()
+    }
+
+    state done(&mut self, steps: i32) {
+        self.console.exit_process(steps);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

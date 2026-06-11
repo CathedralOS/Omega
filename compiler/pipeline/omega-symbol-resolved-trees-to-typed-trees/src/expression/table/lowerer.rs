@@ -145,6 +145,7 @@ impl<'program, 'target> ExpressionTableLowerer<'program, 'target> {
                     .insert(typed::expression::ExpressionNode::StructLiteral(
                         typed::expression::TableStructLiteral {
                             type_name: lower_name(&struct_literal.type_name),
+                            case_name: struct_literal.case_name.as_ref().map(lower_name),
                             fields,
                         },
                     )))

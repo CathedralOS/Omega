@@ -62,6 +62,7 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
     let field_symbol = SymbolHandle::from_arena_index(4);
     let expression = Expression::StructLiteral(StructLiteral {
         type_name: Identifier::generated("Room"),
+        case_name: None,
         fields: Arc::from(
             vec![
                 StructLiteralField {

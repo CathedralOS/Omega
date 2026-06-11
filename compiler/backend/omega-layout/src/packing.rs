@@ -18,7 +18,19 @@ pub(super) fn pack_fields(
     field_storage: &mut Arena<FieldLayout>,
     fields: impl IntoIterator<Item = PlannedField>,
 ) -> (HandleSpan<FieldLayout>, TypeLayout) {
-    let mut offset = 0;
+    pack_fields_at(field_storage, fields, 0)
+}
+
+/// Pack `fields` sequentially starting at `base_offset` (used for case payload
+/// regions, which start after the tag). The returned `TypeLayout::size` is the
+/// ABSOLUTE aligned end offset (prefix included), so a caller overlaying
+/// several cases takes the maximum across them.
+pub(super) fn pack_fields_at(
+    field_storage: &mut Arena<FieldLayout>,
+    fields: impl IntoIterator<Item = PlannedField>,
+    base_offset: usize,
+) -> (HandleSpan<FieldLayout>, TypeLayout) {
+    let mut offset = base_offset;
     let mut max_alignment = 1;
 
     let packed_fields = field_storage.insert_many(fields.into_iter().map(|field| {

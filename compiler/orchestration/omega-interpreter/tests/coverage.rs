@@ -8,10 +8,12 @@
 //!   `f(1..5)`) are FRONTEND-REJECTED (parse errors) -- the parser only produces
 //!   `ExpressionNode::Range` inside `collection[...]`. The interpreter's subslice support
 //!   therefore covers every Range the frontend can emit.
-//! - Case PAYLOAD declarations (`data E { case A(value: i32); }`) are FRONTEND-REJECTED.
-//!   A parenthesized construction `E::A(5)` against a payload-less case still parses (as
-//!   a call expression), but resolves to nothing; the interpreter declines it rather than
-//!   guessing a value.
+//! - Case PAYLOADS (declaration, brace construction, transition-arm binding, tag-only
+//!   equality) interpret end-to-end; the native backend gates construction after checked
+//!   trees, so this coverage is interpreter-only until payload codegen lands. A
+//!   parenthesized construction `E::A(5)` is NOT the construction spelling (braces are);
+//!   it still parses as a call expression that resolves to nothing, and the interpreter
+//!   declines it rather than guessing a value.
 //! - Multi-impl `dyn Trait` dispatch DOES reach checked trees. The interpreter dispatches
 //!   by the receiver's runtime type and is AHEAD of the native backend here (the backend
 //!   only devirtualizes single-impl traits; as of this writing it emits a crashing binary
@@ -99,14 +101,179 @@ machine Main::take(&mut self, r: i32) -> i32 {
 
 // ---- case payloads -----------------------------------------------------------
 
-/// A payload-carrying case declaration does not parse ("case payloads are not
-/// implemented yet"); the typed-tree `DataVariant` has no payload slot at all. (If this
-/// ever starts compiling, `Value::Enum`'s `payload` cells need real construction
-/// support.)
+/// Construct a payload-carrying case (`Command::Move { steps: 70 }`), dispatch on it
+/// with a case-pattern arm, and BIND the payload into the target state's argument.
+/// The whole chain -- construction, tag-compare guard, `steps` rewritten to the
+/// subject's payload read -- must deliver 70 to `exit_process`.
 #[test]
-fn case_payload_declaration_is_frontend_rejected() {
+fn case_payload_construction_and_binding_deliver_payload() {
+    let main_path = write_program(
+        "case-payload-bind",
+        r#"
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    case None;
+    case Quit;
+    case Move(steps: i32);
+}
+
+data Main {
+    console: Console;
+    cmd: Command;
+}
+
+machine Main::main(&mut self) {
+    self.cmd = Command::Move { steps: 70 };
+
+    transition self.cmd {
+        Command::Move { steps } -> done(steps)
+        _ -> bad()
+    }
+
+    state done(&mut self, steps: i32) {
+        self.console.exit_process(steps);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("payload program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "interpreter should support payload construction + binding, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70, "bound payload should reach the target state");
+}
+
+/// A case-pattern arm whose tag does NOT match must fall through; equality between case
+/// values compares the TAG ONLY (payloads never participate in `==`, mirroring the
+/// native backend's constant tag compare). Two differently-constructed `Move` values
+/// compare equal; `Quit` selects the second arm.
+#[test]
+fn case_equality_is_tag_only_and_mismatched_tag_falls_through() {
+    let main_path = write_program(
+        "case-payload-tag-equality",
+        r#"
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    case None;
+    case Quit;
+    case Move(steps: i32);
+}
+
+data Main {
+    console: Console;
+    cmd: Command;
+    other: Command;
+}
+
+machine Main::main(&mut self) {
+    self.cmd = Command::Quit;
+    self.other = Command::Move { steps: 9 };
+
+    transition self.cmd {
+        Command::Move { steps } -> bad()
+        Command::Quit -> check()
+        _ -> bad()
+    }
+
+    state check(&mut self) {
+        // Tag-only equality: a constructed payload value equals the bare case name.
+        transition self.other {
+            Command::Move -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("tag-equality program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "interpreter should support tag-only case dispatch, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+/// A case pattern can bind MULTIPLE payload fields and use them in an `if` guard as
+/// well as the target arguments: `Command::Walk { dx, dy } if dx > dy -> move(dx, dy)`.
+#[test]
+fn case_payload_multi_field_binding_with_guard() {
+    let main_path = write_program(
+        "case-payload-multi-bind",
+        r#"
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    case None;
+    case Walk(dx: i32, dy: i32);
+}
+
+data Main {
+    console: Console;
+    cmd: Command;
+}
+
+machine Main::main(&mut self) {
+    self.cmd = Command::Walk { dx: 60, dy: 10 };
+
+    transition self.cmd {
+        Command::Walk { dx, dy } if dx > dy -> done(dx, dy)
+        _ -> bad()
+    }
+
+    state done(&mut self, dx: i32, dy: i32) {
+        self.console.exit_process(dx + dy);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("multi-field payload program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "interpreter should support multi-field payload binding, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+/// The ZERO case (first case) declaring a payload is rejected by validation: the
+/// zero-initialized value must be complete, so tag 0 carries no payload.
+#[test]
+fn zero_case_payload_is_rejected() {
     frontend_rejects(
-        "case-payload-decl",
+        "case-zero-payload",
         r#"
 boundary trait Console {
     machine exit_process(return_code: i32);
