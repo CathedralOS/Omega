@@ -21,6 +21,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     plan.bindings.insert_many([
         linux_syscall("Stdin", "read", syscall_numbers.read),
         linux_syscall("Stdout", "write", syscall_numbers.write),
+        linux_syscall("Stderr", "write", syscall_numbers.write),
         linux_syscall("Process", "exit_group", syscall_numbers.exit_group),
     ]);
 
@@ -38,6 +39,24 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "*",
         "write",
         [host_operation("Stdout", "write")],
+        PlatformCallData::FirstTextArgument {
+            append_newline: false,
+        },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "write_error_line",
+        [host_operation("Stderr", "write")],
+        PlatformCallData::FirstTextArgument {
+            append_newline: true,
+        },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "write_error",
+        [host_operation("Stderr", "write")],
         PlatformCallData::FirstTextArgument {
             append_newline: false,
         },
