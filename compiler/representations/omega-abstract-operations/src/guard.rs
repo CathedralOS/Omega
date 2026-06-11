@@ -48,4 +48,15 @@ pub enum StateGuardLowering {
     /// A zero-byte marker placed after all arms of a multi-arm guarded transition;
     /// the target of every `ForwardBranchSkip` for that transition.
     BranchArmsEnd,
+    /// POISON: an inline-leaf VALUE arm whose guard selection could NOT
+    /// resolve. The arm's compare and its result write would both have been
+    /// silently dropped (the call would return a stale 0), so selection emits
+    /// this marker instead and emission planning rejects it with a hard
+    /// "needs lowering" diagnostic. It must never encode (zero bytes) and
+    /// never reach a runnable image.
+    ///
+    /// Distinct from `NeedsRuntimeExpression`, which dispatch edges use as an
+    /// intentional zero-width "unconditionally enter" fallthrough (e.g. the
+    /// false arm of a string-equality transition).
+    UnresolvedInlineArmGuard,
 }
