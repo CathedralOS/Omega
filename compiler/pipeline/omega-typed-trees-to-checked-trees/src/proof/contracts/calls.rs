@@ -187,11 +187,22 @@ pub(crate) fn contract_target_from_state_symbol(
     // A call through a trait-typed receiver targets a trait machine signature
     // rather than a machine state; the owning trait stands in for the machine
     // so the signature's requires/ensures contracts attach to the call.
-    let target_trait = program.traits().iter().find(|trait_definition| {
+    if let Some(target_trait) = program.traits().iter().find(|trait_definition| {
         program
             .trait_machine_signatures(trait_definition)
             .iter()
             .any(|signature| signature.symbol == target_state_symbol)
+    }) {
+        return Some((target_trait.symbol, target_state_symbol));
+    }
+
+    // Same shape for a platform-typed receiver: the owning platform stands in
+    // for the machine so its state signature's contracts attach to the call.
+    let target_platform = program.platforms().iter().find(|platform| {
+        program
+            .platform_state_signatures(platform)
+            .iter()
+            .any(|signature| signature.symbol == target_state_symbol)
     })?;
-    Some((target_trait.symbol, target_state_symbol))
+    Some((target_platform.symbol, target_state_symbol))
 }
