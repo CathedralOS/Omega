@@ -275,11 +275,15 @@ fn split_machine_path(syntax_trees: &SyntaxTrees, path: HandleSpan<Identifier>) 
     }
 
     if members.len() >= 3 && is_version_selector(members.last().expect("path has members")) {
+        // A version-scoped machine (`machine Counter::increment::v1`) attaches
+        // to the HISTORICAL shape `Counter::v1`, so `self` type-checks against
+        // the fields declared in that `version v1 { ... }` block.
+        let mut attached_data = join_path(&members[..members.len() - 2]);
+        attached_data.push_str("::");
+        attached_data.push_str(members.last().expect("path has members").as_str());
         return MachinePath {
             name: Identifier::generated(join_path(members)),
-            attached_data: Some(Identifier::generated(join_path(
-                &members[..members.len() - 2],
-            ))),
+            attached_data: Some(Identifier::generated(attached_data)),
             entry_name: members.get(members.len() - 2).cloned(),
         };
     }
@@ -309,10 +313,7 @@ fn join_path(members: &[Identifier]) -> String {
 }
 
 fn is_version_selector(member: &Identifier) -> bool {
-    let Some(rest) = member.as_str().strip_prefix('v') else {
-        return false;
-    };
-    !rest.is_empty() && rest.chars().all(|ch| ch.is_ascii_digit())
+    omega_syntax_trees::item::is_version_selector(member.as_str())
 }
 
 fn skip_machine_invariant<'tokens, 'source>(

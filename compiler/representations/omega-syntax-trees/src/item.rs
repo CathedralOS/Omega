@@ -448,6 +448,26 @@ pub struct DataVersion {
     pub members: HandleSpan<DataMember>,
 }
 
+impl DataVersion {
+    /// The root-level type name a version block introduces: `Counter::v1` for
+    /// `version v1 { ... }` inside `data Counter`.
+    pub fn shape_name(&self, data_name: &str) -> String {
+        format!("{data_name}::{}", self.name)
+    }
+}
+
+/// A historical-version selector segment: `v` followed by one or more ASCII
+/// digits (`v1`, `v2`, ...). This is the canonical spelling shared by data
+/// `version vN { ... }` blocks, version-scoped machine paths
+/// (`machine Counter::increment::v1`), and version-shape type references
+/// (`Counter::v1`).
+pub fn is_version_selector(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix('v') else {
+        return false;
+    };
+    !rest.is_empty() && rest.chars().all(|ch| ch.is_ascii_digit())
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataField {
     pub name: Identifier,

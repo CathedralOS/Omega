@@ -1,0 +1,18 @@
+// Chapter 21 (Versioned Data): a version-scoped machine targets a historical
+// shape, so `machine Counter::increment::v1` requires `data Counter` to declare
+// a `version v1 { ... }` block. Targeting an undeclared version is a
+// declared-history contradiction.
+
+data Counter {
+    count: i32;
+}
+
+data Main {
+}
+
+machine Counter::increment::v1(&mut self) {
+    self.count = self.count + 1;
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,22 @@
+// Chapter 21 (Versioned Data): the compiler rejects accidental cross-version
+// field access. Inside `Counter::touch::v1`, `self` has the `Counter::v1`
+// shape, so the current-only field `timestamp` is not available.
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+    timestamp: i32;
+}
+
+data Main {
+}
+
+machine Counter::touch::v1(&mut self) {
+    self.timestamp = 1;
+}
+
+machine Main::main(&mut self) {
+}
