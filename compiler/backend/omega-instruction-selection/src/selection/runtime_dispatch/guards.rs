@@ -494,7 +494,7 @@ fn runtime_boolean_condition_guard(
         runtime_value_operands,
     )?;
     let byte_size = runtime_value_operand_byte_size(runtime_value_operands, operand);
-    if !matches!(byte_size, 1 | 4 | 8) {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return None;
     }
     let expected =
@@ -539,7 +539,7 @@ fn runtime_boolean_condition_guard_in_table(
         runtime_value_operands,
     )?;
     let byte_size = runtime_value_operand_byte_size(runtime_value_operands, operand);
-    if !matches!(byte_size, 1 | 4 | 8) {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return None;
     }
     let expected =
@@ -1008,7 +1008,7 @@ fn runtime_value_guard(
         runtime_value_operands,
     )?;
     let byte_size = runtime_value_compare_byte_size(runtime_value_operands, left, right);
-    if !matches!(byte_size, 1 | 4 | 8) {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return None;
     }
     Some(SelectedInstructionKind::CompareRuntimeValues {
@@ -1067,7 +1067,7 @@ fn runtime_value_guard_in_table(
         runtime_value_operands,
     )?;
     let byte_size = runtime_value_compare_byte_size(runtime_value_operands, left, right);
-    if !matches!(byte_size, 1 | 4 | 8) {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return None;
     }
     Some(SelectedInstructionKind::CompareRuntimeValues {

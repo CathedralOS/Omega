@@ -1,0 +1,41 @@
+// u16 fields: 2-byte store, UNSIGNED wrap-around arithmetic, and an unsigned
+// ordered field-vs-field comparison. 40000 + 30000 = 70000 wraps to 4464 in a
+// 2-byte field (70000 mod 65536). The second transition compares two stored
+// u16 fields: 40000 (0x9C40, high bit set) > 30000 must use an UNSIGNED 16-bit
+// compare -- a signed 16-bit compare would read 40000 as -25536 and take the
+// bad arm. Exit 70 on success.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: u16;
+    b: u16;
+    c: u16;
+}
+
+machine Main::main(&mut self) {
+    self.a = 40000;
+    self.b = 30000;
+    self.c = self.a + self.b;
+    transition self.c == 4464 {
+        true -> check_order()
+        _ -> bad()
+    }
+
+    state check_order(&mut self) {
+        transition self.a > self.b {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

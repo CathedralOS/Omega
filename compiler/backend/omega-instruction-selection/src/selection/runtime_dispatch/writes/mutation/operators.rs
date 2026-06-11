@@ -4,11 +4,11 @@ use omega_checked_trees::expression::{BinaryOperator, TableCallExpression};
 use omega_core::symbols::BuiltinFunction;
 
 pub(super) fn supports_scalar_integer_write(byte_size: usize) -> bool {
-    matches!(byte_size, 1 | 4 | 8)
+    matches!(byte_size, 1 | 2 | 4 | 8)
 }
 
 pub(super) fn supports_runtime_value_operand(byte_size: usize) -> bool {
-    matches!(byte_size, 1 | 4 | 8)
+    matches!(byte_size, 1 | 2 | 4 | 8)
 }
 
 pub(super) fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {

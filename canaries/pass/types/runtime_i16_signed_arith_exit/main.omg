@@ -1,0 +1,37 @@
+// i16 fields: SIGNED 2-byte store, arithmetic, and ordered comparison.
+// -1000 + 400 == -600 needs the full 16-bit width (does not fit in 1 byte)
+// and sign (-600 as unsigned 16-bit is 64936). The second transition checks
+// a signed ordered guard (`< 0`) at 2-byte width: a wrong unsigned treatment
+// would see 64936 > 0 and take the bad arm. Exit 70 on success.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: i16;
+}
+
+machine Main::main(&mut self) {
+    self.v = -1000;
+    self.v = self.v + 400;
+    transition self.v == -600 {
+        true -> check_negative()
+        _ -> bad()
+    }
+
+    state check_negative(&mut self) {
+        transition self.v < 0 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

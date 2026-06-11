@@ -376,10 +376,12 @@ pub fn encode_dispatch_case_leave_bytes(loop_byte_distance: isize) -> Result<Vec
 }
 
 pub fn dispatch_guard_compare_static_width(is_float: bool, byte_size: usize) -> usize {
-    // mov r15, imm64 (10) + load r10, [r15+disp32] (7) + mov r11, imm64 (10)
-    // + compare + jcc rel32 (6). Integer compare is `cmp r10,r11` (3); float is
+    // mov r15, imm64 (10) + load r10, [r15+disp32] (7; 8 for the 0x66-prefixed
+    // 2-byte form) + mov r11, imm64 (10) + compare + jcc rel32 (6). Integer
+    // compare is `cmp r10,r11` (3; 4 with the 0x66 prefix); float is
     // movq/movd + movq/movd + ucomisd/ucomiss.
-    10 + 7 + 10 + runtime_float_or_integer_compare_width(is_float, byte_size) + 6
+    let load_width = if !is_float && byte_size == 2 { 8 } else { 7 };
+    10 + load_width + 10 + runtime_float_or_integer_compare_width(is_float, byte_size) + 6
 }
 
 fn runtime_float_or_integer_compare_width(is_float: bool, byte_size: usize) -> usize {
@@ -387,6 +389,9 @@ fn runtime_float_or_integer_compare_width(is_float: bool, byte_size: usize) -> u
         // f64: movq(5)+movq(5)+ucomisd(4). f32: movd(5)+movd(5)+ucomiss(3) — the
         // single-precision SSE compare drops the 0x66 prefix, so it is 1 byte shorter.
         if byte_size == 4 { 13 } else { 14 }
+    } else if byte_size == 2 {
+        // 16-bit `cmp r10w,r11w` carries the 0x66 operand-size prefix.
+        4
     } else {
         3
     }
@@ -430,7 +435,7 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     operator: StateGuardOperator,
     is_float: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if !matches!(byte_size, 1 | 4 | 8) {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return Err(Diagnostic::error(format!(
             "X86_64 MVP encoder cannot compare {byte_size}-byte dispatch guards yet"
         )));
@@ -1467,12 +1472,16 @@ pub fn encode_runtime_machine_indexed_string_write(
 
 pub fn runtime_value_compare_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,
 ) -> usize {
+    // cmp (3; 4 with the 0x66 prefix at 2-byte width) + jcc rel32 (6).
+    let compare_width = if byte_size == 2 { 4 } else { 3 };
     runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
-        + 9
+        + compare_width
+        + 6
 }
 
 pub fn encode_runtime_value_compare(
@@ -1485,6 +1494,7 @@ pub fn encode_runtime_value_compare(
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_value_compare_width(
         runtime_value_operands,
+        byte_size,
         left,
         right,
     ));
@@ -1492,6 +1502,10 @@ pub fn encode_runtime_value_compare(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R11, right)?;
     append_cmp_r10_r11(&mut bytes, byte_size)?;
     append_failure_branch(&mut bytes, operator, failure_branch_distance - 4)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_value_compare_width(runtime_value_operands, byte_size, left, right)
+    );
     Ok(bytes)
 }
 
@@ -1502,9 +1516,15 @@ pub fn runtime_storage_compare_width(
     is_float: bool,
 ) -> usize {
     // mov r15,imm64(left base) + load r10,[r15+left] + mov r15,imm64(right base)
-    // + load r11,[r15+right] + compare + jcc rel32. Integer compare = cmp (3);
+    // + load r11,[r15+right] + compare + jcc rel32. Integer compare = cmp (3;
+    // 4 with the 0x66 prefix for 2-byte operands, whose loads are also 8 not 7);
     // float = movq/movd+movq/movd+ucomisd/ucomiss.
-    10 + 7 + 10 + 7 + runtime_float_or_integer_compare_width(is_float, byte_size) + 6
+    let load_width = if !is_float && byte_size == 2 { 8 } else { 7 };
+    10 + load_width
+        + 10
+        + load_width
+        + runtime_float_or_integer_compare_width(is_float, byte_size)
+        + 6
 }
 
 pub fn encode_runtime_storage_compare_bytes(
@@ -1538,10 +1558,15 @@ pub fn encode_runtime_storage_compare_bytes(
     Ok(bytes)
 }
 
-pub fn runtime_storage_value_compare_width(_byte_offset: usize, _byte_size: usize) -> usize {
+pub fn runtime_storage_value_compare_width(_byte_offset: usize, byte_size: usize) -> usize {
     // mov r15,imm64(storage base) + load r10,[r15+offset] + mov r11,imm64
-    // + cmp r10,r11 + jcc rel32.
-    10 + 7 + 10 + 3 + 6
+    // + cmp r10,r11 + jcc rel32. 2-byte operands add the 0x66 prefix to the
+    // load (8) and the compare (4).
+    if byte_size == 2 {
+        10 + 8 + 10 + 4 + 6
+    } else {
+        10 + 7 + 10 + 3 + 6
+    }
 }
 
 pub fn encode_runtime_storage_value_compare_bytes(
@@ -1564,8 +1589,10 @@ pub fn encode_runtime_storage_value_compare_bytes(
     Ok(bytes)
 }
 
-pub fn runtime_machine_integer_write_width(_byte_offset: usize, _byte_size: usize) -> usize {
-    27
+pub fn runtime_machine_integer_write_width(_byte_offset: usize, byte_size: usize) -> usize {
+    // mov r15,imm64 (10) + mov rax,imm64 (10) + store [r15+disp32] (7; 8 with
+    // the 0x66 prefix for a 2-byte store).
+    if byte_size == 2 { 28 } else { 27 }
 }
 
 pub fn encode_runtime_machine_integer_write(
@@ -3332,7 +3359,7 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
         StateGuardOperator::ShiftLeft
         | StateGuardOperator::ShiftRight
         | StateGuardOperator::ShiftRightLogical => 6,
-        // cmp (3) + setcc (3) + movzx (4); cmp is 3 bytes at any width.
+        // cmp (3; 4 with the 0x66 prefix at 2-byte width) + setcc (3) + movzx (4).
         StateGuardOperator::Equal
         | StateGuardOperator::NotEqual
         | StateGuardOperator::Greater
@@ -3342,7 +3369,9 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
         | StateGuardOperator::GreaterUnsigned
         | StateGuardOperator::GreaterOrEqualUnsigned
         | StateGuardOperator::LessUnsigned
-        | StateGuardOperator::LessOrEqualUnsigned => 10,
+        | StateGuardOperator::LessOrEqualUnsigned => {
+            if byte_size == 2 { 11 } else { 10 }
+        }
         _ => 0,
     }
 }
@@ -3817,9 +3846,11 @@ fn append_load_reg_from_r15(
     let displacement = disp32(byte_offset)?;
     match (destination, byte_size) {
         (Reg64::R10, 1) => bytes.extend([0x45, 0x8a, 0x97]),
+        (Reg64::R10, 2) => bytes.extend([0x66, 0x45, 0x8b, 0x97]),
         (Reg64::R10, 4) => bytes.extend([0x45, 0x8b, 0x97]),
         (Reg64::R10, 8) => bytes.extend([0x4d, 0x8b, 0x97]),
         (Reg64::R11, 1) => bytes.extend([0x45, 0x8a, 0x9f]),
+        (Reg64::R11, 2) => bytes.extend([0x66, 0x45, 0x8b, 0x9f]),
         (Reg64::R11, 4) => bytes.extend([0x45, 0x8b, 0x9f]),
         (Reg64::R11, 8) => bytes.extend([0x4d, 0x8b, 0x9f]),
         _ => {
@@ -3840,6 +3871,7 @@ fn append_store_rax_to_r15(
     let displacement = disp32(byte_offset)?;
     match byte_size {
         1 => bytes.extend([0x41, 0x88, 0x87]),
+        2 => bytes.extend([0x66, 0x41, 0x89, 0x87]),
         4 => bytes.extend([0x41, 0x89, 0x87]),
         8 => bytes.extend([0x49, 0x89, 0x87]),
         _ => {
@@ -3860,6 +3892,7 @@ fn append_store_r10_to_r15(
     let displacement = disp32(byte_offset)?;
     match byte_size {
         1 => bytes.extend([0x45, 0x88, 0x97]),
+        2 => bytes.extend([0x66, 0x45, 0x89, 0x97]),
         4 => bytes.extend([0x45, 0x89, 0x97]),
         8 => bytes.extend([0x4d, 0x89, 0x97]),
         _ => {
@@ -3886,8 +3919,9 @@ fn append_store_r10_to_r14(
 ) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     match byte_size {
-        // mov [r14+disp32], r10{b,d,} -- ModRM reg=r10, r/m=r14
+        // mov [r14+disp32], r10{b,w,d,} -- ModRM reg=r10, r/m=r14
         1 => bytes.extend([0x45, 0x88, 0x96]),
+        2 => bytes.extend([0x66, 0x45, 0x89, 0x96]),
         4 => bytes.extend([0x45, 0x89, 0x96]),
         8 => bytes.extend([0x4d, 0x89, 0x96]),
         _ => {
@@ -3903,6 +3937,7 @@ fn append_store_r10_to_r14(
 fn append_cmp_r10_r11(bytes: &mut Vec<u8>, byte_size: usize) -> Result<(), Diagnostic> {
     match byte_size {
         1 => bytes.extend([0x45, 0x38, 0xda]),
+        2 => bytes.extend([0x66, 0x45, 0x39, 0xda]),
         4 => bytes.extend([0x45, 0x39, 0xda]),
         8 => bytes.extend([0x4d, 0x39, 0xda]),
         _ => {
@@ -3986,6 +4021,8 @@ fn for_each_runtime_copy_chunk(
 fn load_width(byte_size: usize) -> usize {
     match byte_size {
         1 | 4 | 8 => 7,
+        // The 2-byte form is the 4-byte form plus the 0x66 operand-size prefix.
+        2 => 8,
         _ => 0,
     }
 }
@@ -3993,6 +4030,8 @@ fn load_width(byte_size: usize) -> usize {
 fn store_width(byte_size: usize) -> usize {
     match byte_size {
         1 | 4 | 8 => 7,
+        // The 2-byte form is the 4-byte form plus the 0x66 operand-size prefix.
+        2 => 8,
         _ => 0,
     }
 }

@@ -365,7 +365,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         }
 
         if let Some(value) = static_runtime_argument_value(expressions.expression(argument)) {
-            if !matches!(slot.byte_size, 1 | 4 | 8) {
+            if !matches!(slot.byte_size, 1 | 2 | 4 | 8) {
                 continue;
             }
 

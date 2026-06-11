@@ -33,11 +33,11 @@ use super::super::writes::{
 use crate::selection::instruction_sink::SelectedInstructionSink;
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
-    matches!(byte_size, 1 | 4 | 8)
+    matches!(byte_size, 1 | 2 | 4 | 8)
 }
 
 fn supports_runtime_value_operand(byte_size: usize) -> bool {
-    matches!(byte_size, 1 | 4 | 8)
+    matches!(byte_size, 1 | 2 | 4 | 8)
 }
 
 fn builtin_runtime_call_operator_in_table(
