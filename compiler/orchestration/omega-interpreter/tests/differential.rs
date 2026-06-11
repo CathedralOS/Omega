@@ -41,6 +41,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_called_machine_loop_search_exit", 70),
     ("calls/runtime_dispatch_binary_call_argument_exit", 70),
     ("calls/runtime_exit_code_exit", 70),
+    ("calls/runtime_explicit_discard_executes_exit", 70),
     ("calls/runtime_local_string_field_copy_through_mut_exit", 70),
     ("calls/runtime_multi_arm_value_transition_exit", 70),
     ("calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit", 175),

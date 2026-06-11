@@ -59,6 +59,8 @@ fn collects_mutable_attached_data_argument_access_roots() {
             receiver: Default::default(),
             target: Identifier::generated("heal"),
             arguments,
+
+            discards_result: false,
         }),
     );
     program.push_machine_state(&mut machine, state);
@@ -170,6 +172,8 @@ fn collects_disjoint_member_access_segments() {
             receiver: Default::default(),
             target: Identifier::generated("heal"),
             arguments,
+
+            discards_result: false,
         }),
     );
     program.push_machine_state(&mut machine, state);
@@ -334,6 +338,8 @@ fn collects_unresolved_local_argument_access_roots() {
             receiver: Default::default(),
             target: Identifier::generated("heal"),
             arguments,
+
+            discards_result: false,
         }),
     );
     program.push_machine_state(&mut machine, state);

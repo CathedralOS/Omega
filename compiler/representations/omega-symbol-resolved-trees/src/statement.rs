@@ -76,6 +76,8 @@ pub struct CallStorage {
     pub receiver: HandleSpan<DiagnosticName>,
     pub receiver_starts_at_self: bool,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    /// `_ = call();` -- the caller explicitly discards a non-unit result.
+    pub discards_result: bool,
 }
 
 impl Deref for Call {
@@ -279,6 +281,7 @@ impl StatementTable {
                     receiver_starts_at_self: call.receiver_starts_at_self,
                     target: call.target.clone(),
                     arguments,
+                    discards_result: call.discards_result,
                 }))
             }
             Statement::Expression(expression) => {
@@ -487,6 +490,8 @@ pub struct TableCall {
     pub receiver_starts_at_self: bool,
     pub target: DiagnosticName,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
+    /// `_ = call();` -- the caller explicitly discards a non-unit result.
+    pub discards_result: bool,
 }
 
 impl Default for TableCall {
@@ -498,6 +503,7 @@ impl Default for TableCall {
             receiver_starts_at_self: false,
             target: DiagnosticName::default(),
             arguments: HandleSpan::empty(),
+            discards_result: false,
         }
     }
 }

@@ -17,5 +17,6 @@ pub(super) fn lower_call_statement(
         receiver: lower_statement_path_members(lowerer, call.receiver),
         target: crate::name::lower_name(&call.target),
         arguments,
+        discards_result: call.discards_result,
     })
 }

@@ -769,6 +769,7 @@ impl SyntaxTrees {
                 receiver_starts_at_self: call.receiver_starts_at_self,
                 target: call.target.clone(),
                 arguments: self.copy_statement_expression_span(other, call.arguments),
+                discards_result: call.discards_result,
             }),
             StatementNode::Expression(value) => {
                 StatementNode::Expression(self.copy_expression_handle(other, *value))

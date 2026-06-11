@@ -1,0 +1,30 @@
+// FROZEN DECISION 9 -- STRICT RESULT USE, trait-receiver path: a bare
+// statement-position call to a boundary trait machine whose signature declares a
+// non-unit return must reject just like a local/attached machine call.
+boundary trait Probe {
+    machine sample(code: i32) -> bool
+    effects
+        process_exit;
+}
+
+data Main {
+    probe: Probe;
+}
+
+machine Main::main(&mut self) -> i32 {
+    transition {
+        _ -> drop_result()
+    }
+
+    state drop_result(&mut self) {
+        self.probe.sample(7);
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
+    }
+}

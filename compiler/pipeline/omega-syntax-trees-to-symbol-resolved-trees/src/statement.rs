@@ -43,6 +43,7 @@ fn lower_statement_node(
                 receiver: lower_statement_path_members(lowerer, syntax_trees, call.receiver),
                 receiver_starts_at_self: call.receiver_starts_at_self,
                 arguments: lower_statement_expressions(lowerer, syntax_trees, call.arguments)?,
+                discards_result: call.discards_result,
             },
         })),
         syntax::statement::StatementNode::Expression(expression) => Ok(Statement::Expression(

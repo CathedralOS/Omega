@@ -3529,6 +3529,41 @@ fn runtime_value_call_single_execution_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_explicit_discard_executes_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_explicit_discard_executes_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-explicit-discard-executes-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("explicit-discard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("explicit-discard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `_ = self.roll(&mut self.tally);` to EXECUTE the callee exactly once          (tally 40 -> 41 -> exit 70; exit 10 means the discard dropped the call, exit 3          means it ran twice), got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_transition_subject_call_single_evaluation_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_transition_subject_call_single_evaluation_exit");
     let main_path = canary.join("main.omg");
@@ -6164,6 +6199,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/local_alias_domain_transfer",
     "calls/mutable_output_host_call",
     "calls/nested_machine_continuation",
+    "calls/runtime_explicit_discard_executes_exit",
     "storage/runtime_alias_integer_write",
     "storage/runtime_alias_field_integer",
     "storage/runtime_alias_field_binary",
@@ -6465,6 +6501,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/exit_ensures_unproven",
     "ownership/assign_immutable_parameter",
     "borrows/borrow_duplicate_mut",
+    "calls/discarded_call_result",
+    "calls/discarded_trait_call_result",
     "borrows/borrow_helper_alias_active",
     "borrows/borrow_local_alias_active",
     "borrows/borrow_local_alias_reborrow_active",
