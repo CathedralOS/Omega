@@ -58,7 +58,8 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
             | Self::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. }
             | Self::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
-            | Self::WriteReturnRegisterInteger { .. } => AbstractOperationDomain::RuntimeWrite,
+            | Self::WriteReturnRegisterInteger { .. }
+            | Self::CopyRuntimeStorageToReturnRegister { .. } => AbstractOperationDomain::RuntimeWrite,
 
             Self::CopyRuntimeStorage { .. }
             | Self::CopyRuntimeStorageToRuntimeFrameIndexed { .. }

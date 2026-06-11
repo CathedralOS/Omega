@@ -135,6 +135,7 @@ fn instruction_is_dispatch_transition(kind: &SelectedInstructionKind) -> bool {
         SelectedInstructionKind::SetDispatchState { .. }
             | SelectedInstructionKind::TerminateDispatch
             | SelectedInstructionKind::WriteReturnRegisterInteger { .. }
+            | SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { .. }
     )
 }
 

@@ -647,6 +647,7 @@ pub(super) fn encode_machine_instruction_bytes(
         | SelectedInstructionKind::CompareRuntimeStorageValue { .. }
         | SelectedInstructionKind::SetDispatchState { .. }
         | SelectedInstructionKind::WriteReturnRegisterInteger { .. }
+        | SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { .. }
         | SelectedInstructionKind::TerminateDispatch
         | SelectedInstructionKind::LeaveDispatchCase
         | SelectedInstructionKind::LeaveDispatchLoop

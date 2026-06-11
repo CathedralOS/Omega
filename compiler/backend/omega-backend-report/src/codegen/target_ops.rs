@@ -763,6 +763,17 @@ fn selected_instruction_name(
         SelectedInstructionKind::WriteReturnRegisterInteger { byte_size, value } => {
             format!("write return register integer bytes {byte_size} value {value}")
         }
+        SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+            region,
+            byte_offset,
+            byte_size,
+        } => {
+            let region_symbol =
+                storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+            format!(
+                "copy runtime storage {region_symbol}@{byte_offset} bytes {byte_size} to return register"
+            )
+        }
         SelectedInstructionKind::LeaveFunction => "leave function".to_owned(),
     }
 }
