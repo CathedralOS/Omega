@@ -3733,6 +3733,72 @@ fn runtime_i8_signed_arith_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_i16_signed_arith_exit_canary_runs() {
+    let canary = pass_canary("types/runtime_i16_signed_arith_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-i16-signed-arith-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("i16 signed arithmetic canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("i16 signed arithmetic canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i16 fields to be SIGNED 2-byte values (-1000+400==-600, then -600<0 \
+         via a signed 16-bit guard compare; an unsigned or 1-byte treatment exits 71), \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_u16_field_arith_exit_canary_runs() {
+    let canary = pass_canary("types/runtime_u16_field_arith_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-u16-field-arith-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("u16 field arithmetic canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("u16 field arithmetic canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected u16 fields to store/add/compare as 2-byte UNSIGNED values \
+         (40000+30000 wraps to 4464; 40000>30000 needs an unsigned 16-bit compare), \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_isize_signed_arith_exit_canary_runs() {
     let canary = pass_canary("types/runtime_isize_signed_arith_exit");
     let main_path = canary.join("main.omg");
