@@ -32,6 +32,7 @@ mod state_call_blockers;
 mod state_codegen_blockers;
 mod state_guard_blockers;
 mod storage_blockers;
+mod unlowered_guard_blockers;
 
 pub use builder::build_emission_plan;
 
