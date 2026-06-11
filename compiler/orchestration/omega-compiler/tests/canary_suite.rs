@@ -4179,6 +4179,42 @@ fn runtime_transition_subject_call_single_evaluation_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_effectful_subject_single_evaluation_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_effectful_subject_single_evaluation_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-effectful-subject-single-evaluation-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("effectful-subject single-evaluation canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("effectful-subject single-evaluation canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the diverging-arm transition's effectful subject (nested call \
+         chain) to run exactly ONCE (one increment -> exit 70; exit 2/3/77 means \
+         the subject re-ran per arm or per nesting level -- the dungeon's \
+         32-RNG-draws eager-guard divergence), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_called_machine_loop_search_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_called_machine_loop_search_exit");
     let main_path = canary.join("main.omg");

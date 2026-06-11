@@ -852,10 +852,29 @@ fn append_state_call_result_slot(
         return;
     }
 
-    let byte_offset = align_to(*next_frame_offset, layout.alignment);
-    *next_frame_offset = byte_offset
-        .checked_add(layout.size)
-        .expect("runtime state-call result slot size overflow");
+    // A transition's guard SUBJECT evaluates exactly once per transition
+    // evaluation, but the parser copies the subject call into every arm's guard,
+    // so each arm statement asks for its own result slot. Arms re-testing a
+    // structurally equal subject SHARE the first arm's slot: the first arm's
+    // prelude writes it once and every arm's comparison reads the same bytes
+    // (the runtime-branching plan suppresses the later arms' execution
+    // machinery to match).
+    let byte_offset = if role == StateCallRole::TransitionGuard
+        && let Some(shared_offset) = shared_transition_guard_slot_offset(
+            context,
+            plan,
+            dispatch_index,
+            source_key,
+            statement_index,
+        ) {
+        shared_offset
+    } else {
+        let byte_offset = align_to(*next_frame_offset, layout.alignment);
+        *next_frame_offset = byte_offset
+            .checked_add(layout.size)
+            .expect("runtime state-call result slot size overflow");
+        byte_offset
+    };
 
     let (symbol, name) =
         call_result_slot_symbol_and_name(context, source_key, statement_index, role)
@@ -885,6 +904,50 @@ fn append_state_call_result_slot(
         byte_size: layout.size,
         alignment: layout.alignment,
     });
+}
+
+/// The byte offset of an already-allocated transition-guard result slot in the
+/// same state whose guard subject call is structurally equal to this
+/// statement's -- i.e. another arm of the same subject-form transition. Copies
+/// of one subject must land in ONE slot so later arms read the value the first
+/// arm's single evaluation produced.
+fn shared_transition_guard_slot_offset(
+    context: &RuntimeStorageContext,
+    plan: &RuntimeStoragePlan,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+) -> Option<usize> {
+    let subject = context
+        .control_flow
+        .transition_guard_subject_call(source_key, statement_index);
+    if !subject.is_valid() {
+        return None;
+    }
+    plan.frame_slots.iter().find_map(|(_, slot)| {
+        if slot.dispatch_index != dispatch_index
+            || slot.source_key != source_key
+            || slot.statement_index == statement_index
+            || !matches!(
+                slot.kind,
+                RuntimeFrameSlotKind::StateCallResult {
+                    role: StateCallRole::TransitionGuard,
+                    ..
+                }
+            )
+        {
+            return None;
+        }
+        let seen_subject = context
+            .control_flow
+            .transition_guard_subject_call(source_key, slot.statement_index);
+        (seen_subject.is_valid()
+            && context
+                .control_flow
+                .expressions
+                .expressions_structurally_equal(seen_subject, subject))
+        .then_some(slot.byte_offset)
+    })
 }
 
 fn call_result_slot_symbol_and_name(

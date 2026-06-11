@@ -99,6 +99,14 @@ pub(super) fn append_branch_prelude_expansion(
         operations,
     });
 
+    // A repeated guard subject (filter None) keeps only the empty prelude record
+    // above: walking the callee's nested calls here would append another copy of
+    // every nested expansion PER ARM, and the prelude emitter re-runs each copy --
+    // the per-arm side-effect re-evaluation this filter exists to suppress.
+    if statement_filter == super::operations::PreludeStatementFilter::None {
+        return;
+    }
+
     let operations = straight_line_operations(
         context,
         expressions,
