@@ -1,7 +1,69 @@
 use super::lower_expression_handle_from_table_with_self_substitution;
+use super::name_paths::lower_name_path_members_into_table;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
+
+/// `value in Type::Case` is the tag test (frozen decision 11): it lowers to
+/// a tag-equality compare against the case name. The lowered form is the
+/// SAME binary-equality shape a payload-less `==` produces, on purpose --
+/// the guard tag clamp, value-position enum-constant folding, and the
+/// interpreter's tag-only enum equality all consume it unchanged. The
+/// user-facing bare-case `==` error cannot re-flag it because that check
+/// runs on the RESOLVED trees, before this lowering (see `crate::equality`).
+///
+/// Returns `None` when the membership domain does not name a case of a data
+/// definition, so the caller falls back to declared-domain lowering.
+pub(super) fn lower_case_membership_expression(
+    program: &resolved::SymbolResolvedTrees,
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::expression::ExpressionTable,
+    value: typed::expression::ExpressionHandle,
+    domain: omega_core::arena::HandleSpan<resolved::name::DiagnosticName>,
+) -> Option<typed::expression::ExpressionHandle> {
+    let [type_name, case_name] = source.name_path_members(domain) else {
+        return None;
+    };
+
+    let data_definition = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == type_name.as_str())?;
+    let variant_symbol = program
+        .data_members(data_definition.members)
+        .iter()
+        .find_map(|member| match member {
+            resolved::data::DataMember::Variant(variant)
+                if variant.name.as_str() == case_name.as_str() =>
+            {
+                Some(variant.symbol)
+            }
+            _ => None,
+        })?;
+
+    // The case reference must carry its symbols: the backend's guard tag
+    // clamp keys the tag-only compare off a symbol-stamped `Type::Case` path.
+    let members = lower_name_path_members_into_table(source, target, domain);
+    let mut member_symbols = omega_core::arena::HandleSpan::empty();
+    target.push_name_path_member_symbol(&mut member_symbols, data_definition.symbol);
+    target.push_name_path_member_symbol(&mut member_symbols, variant_symbol);
+    let case_reference = target.insert(typed::expression::ExpressionNode::Name(
+        typed::expression::TableNamePath {
+            members,
+            member_symbols,
+            head_symbol: data_definition.symbol,
+            symbol: variant_symbol,
+        },
+    ));
+
+    Some(target.insert(typed::expression::ExpressionNode::Binary(
+        typed::expression::TableBinaryExpression {
+            left: value,
+            operator: typed::expression::BinaryOperator::Equal,
+            right: case_reference,
+        },
+    )))
+}
 
 pub(super) fn lower_domain_membership_expression(
     program: &resolved::SymbolResolvedTrees,

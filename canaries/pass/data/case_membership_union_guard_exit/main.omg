@@ -1,0 +1,38 @@
+// Decision 11: a UNION of implicit case domains as a transition guard
+// subject. `self.cmd in Command::Quit | Command::Move` is true when the tag
+// is either case; the payload-bearing `Move` arm of the union must still be
+// a tag-only test (the constructed `dx: 2` payload must not leak into the
+// compare). The held value matches the SECOND union arm, so a lowering that
+// drops or reorders union arms exits 71.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    case None;
+    case Quit;
+    case Move(dx: i32);
+}
+
+data Main {
+    console: Console;
+    cmd: Command;
+}
+
+machine Main::main(&mut self) {
+    self.cmd = Command::Move { dx: 2 };
+
+    transition (self.cmd in Command::Quit | Command::Move) {
+        (true) -> matched()
+        _ -> missed()
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

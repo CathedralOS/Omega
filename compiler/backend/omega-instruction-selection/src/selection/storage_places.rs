@@ -15,6 +15,7 @@ pub(super) use model::{
 };
 use omega_abstract_operations::RuntimeStorageRegion;
 pub(super) use static_values::{
+    clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
     enum_variant_value, enum_variant_value_in_table, static_integer_value,
     static_integer_value_in_table,
 };

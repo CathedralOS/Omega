@@ -10,6 +10,7 @@ use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBra
 use omega_state_guards::{StateGuardKind, StateGuardOperator};
 
 use super::super::storage_places::{
+    clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
     enum_variant_value, enum_variant_value_in_table, resolve_runtime_frame_base_indexed_target,
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
@@ -1008,6 +1009,17 @@ fn runtime_value_guard(
         &binary.right,
         runtime_value_operands,
     )?;
+    // A case-name equality (the lowered form of `in`) compares the TAG only;
+    // the place operand must not read payload bytes.
+    clamp_runtime_case_comparison_operands(
+        &input.layouts,
+        binary.operator,
+        &binary.left,
+        &binary.right,
+        left,
+        right,
+        runtime_value_operands,
+    );
     let byte_size = runtime_value_compare_byte_size(runtime_value_operands, left, right);
     if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return None;
@@ -1067,6 +1079,18 @@ fn runtime_value_guard_in_table(
         binary.right,
         runtime_value_operands,
     )?;
+    // A case-name equality (the lowered form of `in`) compares the TAG only;
+    // the place operand must not read payload bytes.
+    clamp_runtime_case_comparison_operands_in_table(
+        &input.layouts,
+        expressions,
+        binary.operator,
+        binary.left,
+        binary.right,
+        left,
+        right,
+        runtime_value_operands,
+    );
     let byte_size = runtime_value_compare_byte_size(runtime_value_operands, left, right);
     if !matches!(byte_size, 1 | 2 | 4 | 8) {
         return None;
