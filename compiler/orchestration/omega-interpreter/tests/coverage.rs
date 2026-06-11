@@ -8,9 +8,9 @@
 //!   `f(1..5)`) are FRONTEND-REJECTED (parse errors) -- the parser only produces
 //!   `ExpressionNode::Range` inside `collection[...]`. The interpreter's subslice support
 //!   therefore covers every Range the frontend can emit.
-//! - Enum VARIANT PAYLOAD declarations (`enum E { A(i32) }`) are FRONTEND-REJECTED. A
-//!   parenthesized construction `E::A(5)` against a payload-less enum still parses (as a
-//!   call expression), but resolves to nothing; the interpreter declines it rather than
+//! - Case PAYLOAD declarations (`data E { case A(value: i32); }`) are FRONTEND-REJECTED.
+//!   A parenthesized construction `E::A(5)` against a payload-less case still parses (as
+//!   a call expression), but resolves to nothing; the interpreter declines it rather than
 //!   guessing a value.
 //! - Multi-impl `dyn Trait` dispatch DOES reach checked trees. The interpreter dispatches
 //!   by the receiver's runtime type and is AHEAD of the native backend here (the backend
@@ -97,23 +97,24 @@ machine Main::take(&mut self, r: i32) -> i32 {
     );
 }
 
-// ---- enum payloads -----------------------------------------------------------
+// ---- case payloads -----------------------------------------------------------
 
-/// A payload-carrying variant declaration does not parse (`expected identifier, found
-/// '('`); the typed-tree `DataVariant` has no payload slot at all. (If this ever starts
-/// compiling, `Value::Enum`'s `payload` cells need real construction support.)
+/// A payload-carrying case declaration does not parse ("case payloads are not
+/// implemented yet"); the typed-tree `DataVariant` has no payload slot at all. (If this
+/// ever starts compiling, `Value::Enum`'s `payload` cells need real construction
+/// support.)
 #[test]
-fn enum_payload_declaration_is_frontend_rejected() {
+fn case_payload_declaration_is_frontend_rejected() {
     frontend_rejects(
-        "enum-payload-decl",
+        "case-payload-decl",
         r#"
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-enum Token {
-    Number(i32)
-    End
+data Token {
+    case Number(value: i32);
+    case End;
 }
 
 data Main {
@@ -127,21 +128,21 @@ machine Main::main(&mut self) {
     );
 }
 
-/// `Token::Number(5)` against a payload-LESS enum parses as a call expression and reaches
+/// `Token::Number(5)` against a payload-LESS case parses as a call expression and reaches
 /// checked trees, but resolves to no machine/state. The interpreter must DECLINE (skip)
 /// rather than invent a value -- skip-don't-lie.
 #[test]
 fn paren_variant_construction_is_declined_not_guessed() {
     let main_path = write_program(
-        "enum-paren-construct",
+        "case-paren-construct",
         r#"
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-enum Token {
-    Number
-    End
+data Token {
+    case Number;
+    case End;
 }
 
 data Main {

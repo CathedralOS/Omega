@@ -6,10 +6,10 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-enum Command {
-    Quit,
-    Look,
-    Invalid,
+data Command {
+    case Quit;
+    case Look;
+    case Invalid;
 }
 
 data Main {

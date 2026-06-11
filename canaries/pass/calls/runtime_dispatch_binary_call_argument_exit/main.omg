@@ -1,7 +1,7 @@
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
-enum CellId { Empty, R00, R01, R02, R03 }
+data CellId { case Empty; case R00; case R01; case R02; case R03; }
 data Room { cell: CellId; tag: i32; }
 data Level { rooms: [Room; 4]; room_count: usize; }
 data Builder { }

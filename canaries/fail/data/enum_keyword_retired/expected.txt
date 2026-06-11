@@ -1,0 +1,1 @@
+`enum` is retired; spell alternatives as `case` members of a `data` declaration

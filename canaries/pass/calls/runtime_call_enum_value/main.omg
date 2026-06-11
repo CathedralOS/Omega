@@ -1,6 +1,6 @@
-enum ItemKind {
-    RustedDagger
-    DeepKey
+data ItemKind {
+    case RustedDagger;
+    case DeepKey;
 }
 
 data Main {

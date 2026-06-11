@@ -1,6 +1,6 @@
-enum RewardItem {
-    None
-    Gold
+data RewardItem {
+    case None;
+    case Gold;
 }
 
 data Main {

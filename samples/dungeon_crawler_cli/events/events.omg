@@ -1,19 +1,19 @@
 use enemies::enemies;
 use rewards::rewards;
 
-enum RoomEventKind {
-    Nothing,
-    FountainOfLife,
-    Treasure,
-    GoldCache,
-    Enemy,
+data RoomEventKind {
+    case Nothing;
+    case FountainOfLife;
+    case Treasure;
+    case GoldCache;
+    case Enemy;
 }
 
-enum RoomEventAction {
-    Quiet,
-    Fountain,
-    Reward,
-    Enemy,
+data RoomEventAction {
+    case Quiet;
+    case Fountain;
+    case Reward;
+    case Enemy;
 }
 
 data RoomEvent {
