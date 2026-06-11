@@ -1,6 +1,6 @@
 use crate::{
     data, domain, expression, invariant, machine, measure, platform, signature, snapshot,
-    trait_definition, types,
+    trait_definition, types, wire,
 };
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::PhaseSnapshot;
@@ -43,6 +43,8 @@ pub struct TypedTreeTables {
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
+    pub wire_schemas: Arena<wire::WireSchema>,
+    pub wire_members: Arena<wire::WireMember>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -55,6 +57,7 @@ pub struct TypedTreeRoots {
     pub operators: HandleSpan<crate::operator::OperatorDefinition>,
     pub platforms: HandleSpan<platform::Platform>,
     pub traits: HandleSpan<trait_definition::TraitDefinition>,
+    pub wire_schemas: HandleSpan<wire::WireSchema>,
 }
 
 impl TypedTreeRoots {
@@ -76,6 +79,7 @@ impl TypedTreeRoots {
             operators,
             platforms,
             traits,
+            wire_schemas: HandleSpan::default(),
         }
     }
 }
@@ -298,6 +302,29 @@ impl TypedTrees {
 
     pub fn platforms(&self) -> &[platform::Platform] {
         self.tables.platforms.span_or_empty(self.roots.platforms)
+    }
+
+    pub fn push_wire_schema(&mut self, wire_schema: wire::WireSchema) {
+        self.tables
+            .wire_schemas
+            .append_to_span(&mut self.roots.wire_schemas, wire_schema);
+    }
+
+    pub fn wire_schemas(&self) -> &[wire::WireSchema] {
+        self.tables
+            .wire_schemas
+            .span_or_empty(self.roots.wire_schemas)
+    }
+
+    pub fn append_wire_members(
+        &mut self,
+        members: Vec<wire::WireMember>,
+    ) -> HandleSpan<wire::WireMember> {
+        self.tables.wire_members.insert_many(members)
+    }
+
+    pub fn wire_members(&self, span: HandleSpan<wire::WireMember>) -> &[wire::WireMember] {
+        self.tables.wire_members.span_or_empty(span)
     }
 
     pub fn push_trait_definition(&mut self, trait_definition: trait_definition::TraitDefinition) {

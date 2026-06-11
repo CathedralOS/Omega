@@ -14,5 +14,6 @@ mod statement;
 mod symbols;
 mod trait_definition;
 mod type_reference;
+mod wire;
 
 pub use lowerer::{lower_syntax_trees, lower_syntax_trees_with_sources};

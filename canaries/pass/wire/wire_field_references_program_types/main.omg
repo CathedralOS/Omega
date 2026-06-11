@@ -1,0 +1,22 @@
+// Chapter 20 (Wire Protocols): wire fields carry typed Omega values, so a
+// schema can reference declared data types and embed sibling wire schemas
+// (message-in-message), alongside primitives.
+
+data RoomLabel {
+    index: i32;
+}
+
+wire data RoomHeader {
+    0: label: RoomLabel;
+}
+
+wire data RoomMessage {
+    0: header: RoomHeader;
+    1: depth: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

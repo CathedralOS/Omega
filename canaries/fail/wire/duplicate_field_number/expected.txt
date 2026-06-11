@@ -1,0 +1,1 @@
+wire data `CounterMessage` declares duplicate field number 0

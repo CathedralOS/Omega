@@ -234,11 +234,21 @@ fn parse_wire_data_members<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, omega_core::arena::HandleSpan<WireDataMember>> {
-    let mut member_start = omega_core::arena::Handle::invalid();
-    let mut member_count = 0u32;
+    // Parse the whole member list before appending any of it: a nested
+    // `version` block appends its own members mid-list, so appending parent
+    // members as they parse would interleave the two lists and break the
+    // parent span's contiguity.
+    let mut parsed_members = Vec::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (member, rest) = parse_wire_data_member(syntax_trees, input)?;
+        parsed_members.push(member);
+        input = rest;
+    }
+
+    let mut member_start = omega_core::arena::Handle::invalid();
+    let mut member_count = 0u32;
+    for member in parsed_members {
         let handle = syntax_trees.items.append_wire_data_member(member);
         if member_count == 0 {
             member_start = handle;
@@ -246,7 +256,6 @@ fn parse_wire_data_members<'tokens, 'source>(
         member_count = member_count
             .checked_add(1)
             .expect("wire data member span count overflow");
-        input = rest;
     }
 
     let members = if member_count == 0 {

@@ -143,11 +143,16 @@ member shapes. Need validation, historical-shape symbols, migration matching,
 true version-scoped machine binding, and layout/serialization rules before data
 versions are operational.
 
-**Wire data semantics follow-up.** Current `wire data` support is syntax
-metadata only: schemas are parsed/snapshotted and preserved in syntax trees, but
-semantic lowering ignores them. Need schema validation, duplicate/reserved tag
-diagnostics, version compatibility rules, and encoder/decoder generation before
-wire schemas are operational.
+**Wire data semantics follow-up.** Stage 1 (validation + compatibility) is
+done: wire schemas now lower through symbol-resolved and typed trees as their
+own root family (`WireSchema` with arena-stored members and a `WireSchema`
+symbol kind), `omega-validation` rejects duplicate/reserved tag misuse,
+duplicate versions, unresolved field types, and version-vs-current type
+changes or unreserved retirements (fail canaries under `canaries/fail/wire/`),
+and every compile emits a `04_wire_protocols.txt` compatibility report with
+per-version verdicts. Still needed: encoder/decoder generation, runtime layout
+of wire values, encoding-family semantics, and version negotiation before wire
+schemas are operational.
 
 **Host-provider semantics follow-up.** Current host-provider support is
 syntax-preserving metadata: it parses and snapshots syscall mapping rows, but

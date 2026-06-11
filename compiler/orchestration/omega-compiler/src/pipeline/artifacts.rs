@@ -400,6 +400,7 @@ pub(super) fn remove_stale_phase_diagrams(options: &CompileOptions) -> Result<()
             "02_syntax_trees.mmd",
             "03_symbol_resolved_trees.mmd",
             "04_typed_trees.mmd",
+            "04_wire_protocols.txt",
             "00_timings.txt",
             "00_timings.html",
             "01_sources.txt",

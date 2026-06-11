@@ -61,6 +61,11 @@ pub fn lower_symbol_resolved_trees(
         lowerer.typed_trees.push_trait_definition(trait_definition);
     }
 
+    for wire_schema in &symbol_resolved_trees.wire_schemas {
+        let wire_schema = crate::wire::lower_wire_schema(&mut lowerer, wire_schema)?;
+        lowerer.typed_trees.push_wire_schema(wire_schema);
+    }
+
     lowerer.finish()
 }
 
