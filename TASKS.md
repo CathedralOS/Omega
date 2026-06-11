@@ -105,6 +105,18 @@ Implementation slices below build against these. Minor/easily-reversible details
    structural synthesis, if needed, goes through compile-time execution +
    member reflection (direction only). Case construction stays the brace
    form. See chapters 1, 7, 13, 19 + appendix.
+9. **Strict result use.** Discarding a non-unit return value is a compile
+   error; intentional discards are spelled `_ = call();`. No per-type
+   must_use marker. (Implementation pending: discard-statement validation +
+   `_ =` parsing.)
+10. **Wire eras.** Generated wire encodings carry one era discriminator
+    varint per top-level message/record (era 0 = the pre-versioning body);
+    cross-era field-number recycling is legal; cross-era type changes are
+    "requires migration" report verdicts, not errors (within-era violations
+    and declared-history contradictions stay hard errors); unknown-case-tag
+    handling is a wire decode policy (reject / preserve / decode as zero
+    case). In-language exhaustiveness is never weakened; `[open]` is
+    permanently dropped. See chapter 20 + appendix.
 
 ## Next Up (highest leverage)
 
