@@ -34,7 +34,7 @@ pub(crate) fn run(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
             .expect("spawn interpreter worker thread")
             .join()
             .unwrap_or_else(|_| {
-                InterpretOutcome::error("interpreter thread panicked", Vec::new())
+                InterpretOutcome::error("interpreter thread panicked", Vec::new(), Vec::new())
             })
     })
 }
@@ -44,11 +44,11 @@ fn run_on_current_thread(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutco
     match evaluator.run_entry() {
         Ok(()) => {
             // Reached a terminal transition without an explicit exit_process.
-            InterpretOutcome::exited(0, evaluator.stdout)
+            InterpretOutcome::exited(0, evaluator.stdout, evaluator.stderr)
         }
-        Err(Halt::Exit(code)) => InterpretOutcome::exited(code, evaluator.stdout),
+        Err(Halt::Exit(code)) => InterpretOutcome::exited(code, evaluator.stdout, evaluator.stderr),
         Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => {
-            InterpretOutcome::error(message, evaluator.stdout)
+            InterpretOutcome::error(message, evaluator.stdout, evaluator.stderr)
         }
     }
 }
@@ -96,6 +96,7 @@ struct Frame {
 struct Evaluator<'program> {
     program: &'program CheckedTrees,
     stdout: Vec<u8>,
+    stderr: Vec<u8>,
     stdin: &'program [u8],
     stdin_cursor: usize,
     steps: u64,
@@ -111,6 +112,7 @@ impl<'program> Evaluator<'program> {
         Self {
             program,
             stdout: Vec::new(),
+            stderr: Vec::new(),
             stdin,
             stdin_cursor: 0,
             steps: 0,
@@ -860,20 +862,28 @@ impl<'program> Evaluator<'program> {
                 };
                 Err(Halt::Exit(code as i32))
             }
-            "write" | "write_line" => {
-                if let Some(first) = arguments.first() {
+            "write" | "write_line" | "write_error" | "write_error_line" => {
+                let bytes = if let Some(first) = arguments.first() {
                     let value = self.eval_expression(*first, frame)?;
                     match value {
-                        Value::Str(text) => self.stdout.extend_from_slice(text.borrow().as_bytes()),
+                        Value::Str(text) => text.borrow().as_bytes().to_vec(),
                         other => {
                             return unsupported(format!(
                                 "host write of non-string value {other:?}"
                             ));
                         }
                     }
-                }
-                if target == "write_line" {
-                    self.stdout.push(b'\n');
+                } else {
+                    Vec::new()
+                };
+                let stream = if target.starts_with("write_error") {
+                    &mut self.stderr
+                } else {
+                    &mut self.stdout
+                };
+                stream.extend_from_slice(&bytes);
+                if target.ends_with("_line") {
+                    stream.push(b'\n');
                 }
                 Ok(Some(Value::Unit))
             }
@@ -1637,7 +1647,10 @@ impl<'program> Evaluator<'program> {
 
 /// The canonical Console host-boundary method names the interpreter drives directly.
 fn is_canonical_host_method(name: &str) -> bool {
-    matches!(name, "write" | "write_line" | "read_line" | "exit_process")
+    matches!(
+        name,
+        "write" | "write_line" | "write_error" | "write_error_line" | "read_line" | "exit_process"
+    )
 }
 
 /// Reinterpret an i64 at an integer primitive's width, sign- or zero-extending back to i64

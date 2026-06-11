@@ -1,4 +1,6 @@
-use super::{PrimitiveType, TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
+use super::{
+    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceNode, TypeReferenceTable,
+};
 use crate::expression::{ExpressionNode, ExpressionTable};
 use crate::name::Identifier;
 use omega_core::symbols::SymbolHandle;
@@ -16,7 +18,7 @@ fn type_reference_table_stores_nested_typed_references_as_handles() {
     });
     let fixed_array_reference = types.insert(TypeReferenceNode::FixedArray {
         element_type: u8_reference,
-        length: 16,
+        length: FixedArrayLength::Literal(16),
     });
     let arguments = types.insert_type_reference_handles([usize_reference, fixed_array_reference]);
     let root = types.insert(TypeReferenceNode::Generic {
@@ -82,7 +84,7 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
     });
     let fixed_array_reference = source_types.insert(TypeReferenceNode::FixedArray {
         element_type: u8_reference,
-        length: 8,
+        length: FixedArrayLength::Literal(8),
     });
     let constraints =
         source_types.insert_constraints([TypeConstraintNode::Range { minimum, maximum }]);

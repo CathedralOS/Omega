@@ -340,8 +340,8 @@ fn boundary_trait_canary_reports_capability_use() {
 
 #[test]
 fn capability_pass_canaries_compile_in_isolation() {
-    // Verified independently of `pass_canaries_compile`, which aborts on the
-    // pre-existing `calls/mutable_output_host_call` failure.
+    // A focused guard for the capability canaries, independent of the batched
+    // `pass_canaries_compile` sweep (which also covers them).
     for canary_name in [
         "capabilities/uses_caller_folder",
         "capabilities/acquires_filesystem_authority",
@@ -5705,15 +5705,8 @@ fn native_dungeon_direct_movement_dispatch_runs() {
 fn pass_canaries_compile() {
     for canary_name in ACTIVE_PASS_CANARIES {
         let canary = pass_canary(canary_name);
-        let main_path = canary.join("main.omg");
-        let options = CompileOptions {
-            root_path: main_path.clone(),
-            build_dir: None,
-            target_name: None,
-            write_output: false,
-        };
 
-        if let Err(diagnostics) = compile(options) {
+        if let Err(diagnostics) = compile_canary_without_output(&canary) {
             panic!(
                 "expected pass canary {} to compile, but got diagnostics:\n{}",
                 canary.display(),
@@ -5731,20 +5724,13 @@ fn pass_canaries_compile() {
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);
-        let main_path = canary.join("main.omg");
         let expected_path = canary.join("expected.txt");
         let expected_fragment = fs::read_to_string(&expected_path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", expected_path.display()))
             .trim()
             .to_owned();
-        let options = CompileOptions {
-            root_path: main_path.clone(),
-            build_dir: None,
-            target_name: None,
-            write_output: false,
-        };
 
-        let diagnostics = match compile(options) {
+        let diagnostics = match compile_canary_without_output(&canary) {
             Ok(report) => {
                 panic!(
                     "expected fail canary {} to reject, but it compiled successfully: {}",
@@ -5820,12 +5806,35 @@ fn pending_canaries_reproduce_known_gaps() {
 }
 
 fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile(CompileOptions {
+    // `compile` writes pipeline phase artifacts into `build_dir()` even when
+    // `write_output` is false, and a `None` build dir defaults to `<canary>/build`
+    // -- a path SHARED by every test that compiles the same canary. Under parallel
+    // test threads two such compiles race on the artifact files (delete-while-write
+    // / file-in-use on Windows), which is exactly the intermittent
+    // `pass_canaries_compile` vs `capability_pass_canaries_compile_in_isolation`
+    // full-suite flake. Give every no-output compile its own temp dir instead.
+    let build_dir = unique_no_output_build_dir();
+    let result = compile(CompileOptions {
         root_path: canary_dir.join("main.omg"),
-        build_dir: None,
+        build_dir: Some(build_dir.clone()),
         target_name: None,
         write_output: false,
-    })
+    });
+    let _ = fs::remove_dir_all(&build_dir);
+    result
+}
+
+/// A build dir no other concurrent compile can collide with: process id plus a
+/// process-wide counter (parallel test threads share the process, so the id alone
+/// is not unique).
+fn unique_no_output_build_dir() -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT_BUILD_DIR: AtomicU64 = AtomicU64::new(0);
+    let unique = NEXT_BUILD_DIR.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "omega-canary-no-output-{}-{unique}",
+        std::process::id()
+    ))
 }
 
 fn repo_root() -> PathBuf {
