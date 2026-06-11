@@ -1,0 +1,38 @@
+// FROZEN DECISION 12 -- DISCARD ADMITS EFFECTS: a discarded call whose callee
+// has NO effects but takes a `&mut` out-parameter is NOT dead code (the
+// out-parameter write is observable after the call) and must stay legal.
+data Tally {
+    calls: u64;
+}
+
+data Main {
+    tally: Tally;
+}
+
+machine Main::bump(&mut self, tally: &mut Tally) -> bool {
+    tally.calls = tally.calls + 1;
+
+    transition {
+        _ -> true
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.tally.calls = 0;
+
+    transition {
+        _ -> discard_call()
+    }
+
+    state discard_call(&mut self) {
+        _ = self.bump(&mut self.tally);
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
+    }
+}

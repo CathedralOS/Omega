@@ -2,12 +2,15 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::machine::Machine;
+use omega_typed_trees::statement::StatementNode;
 
 pub fn validate_effect_plan(
     program: &TypedTrees,
     effect_plan: &omega_effects::EffectPlan,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+
+    validate_pure_discards(program, effect_plan, &mut diagnostics);
 
     for machine_effects in effect_plan.machines() {
         let Some(machine) = program
@@ -46,6 +49,132 @@ pub fn validate_effect_plan(
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+/// FROZEN DECISION 12 -- DISCARD ADMITS EFFECTS: `_ = call();` exists to drop a
+/// result the caller does not need while keeping the callee's observable work.
+/// When the resolved callee provably has no observable channel at all -- an
+/// empty effect set AND no `&mut`/out parameters -- the whole statement is dead
+/// code and rejects. The effect surface is read from the inferred plan's
+/// TRANSITIVE machine set, not the declared signature surface: a machine that
+/// declares nothing but transitively calls `console.write` is effectful, and
+/// the declared-vs-reached ceiling above only fires when something IS declared,
+/// so the declared set alone would produce false "pure" verdicts.
+fn validate_pure_discards(
+    program: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::Call(call) = statement else {
+                    continue;
+                };
+                if !call.discards_result {
+                    continue;
+                }
+
+                // An unresolved callee cannot be PROVABLY pure; resolution
+                // errors are owned by other passes.
+                let Some(callee) = resolve_discard_callee(program, effect_plan, call.target_symbol)
+                else {
+                    continue;
+                };
+
+                if callee.effects.is_empty() && !callee.has_mutable_parameter {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "`_ = {target}(...);` discards a provably pure call: `{target}` has no effects and no mutable out-parameters, so the discard is dead code; remove the statement or use the result",
+                        target = call.target.as_str()
+                    )));
+                }
+            }
+        }
+    }
+}
+
+struct DiscardCallee {
+    effects: omega_effects::EffectSet,
+    has_mutable_parameter: bool,
+}
+
+fn resolve_discard_callee(
+    program: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
+    target_symbol: SymbolHandle,
+) -> Option<DiscardCallee> {
+    if !target_symbol.is_valid() {
+        return None;
+    }
+
+    for machine in program.machines() {
+        let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == target_symbol)
+        else {
+            continue;
+        };
+
+        // The callee machine's transitive set is the conservative surface: a
+        // called state may transition through sibling states, so anything the
+        // machine can reach counts against purity.
+        let effects = effect_plan
+            .machines()
+            .iter()
+            .find(|entry| entry.symbol == machine.symbol)
+            .map(|entry| entry.transitive)?;
+
+        return Some(DiscardCallee {
+            effects,
+            has_mutable_parameter: program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.is_mutable),
+        });
+    }
+
+    for platform in program.platforms() {
+        if let Some(signature) = program
+            .platform_state_signatures(platform)
+            .iter()
+            .find(|signature| signature.symbol == target_symbol)
+        {
+            return Some(signature_discard_callee(program, signature));
+        }
+    }
+
+    for trait_definition in program.traits() {
+        if let Some(signature) = program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|signature| signature.symbol == target_symbol)
+        {
+            return Some(signature_discard_callee(program, signature));
+        }
+    }
+
+    None
+}
+
+/// Platform and boundary-trait signatures have no body to traverse; their
+/// declared effect list IS their full effect surface.
+fn signature_discard_callee(
+    program: &TypedTrees,
+    signature: &omega_typed_trees::signature::StateSignature,
+) -> DiscardCallee {
+    let mut effects = omega_effects::EffectSet::empty();
+    for effect in program.state_signature_effects(signature) {
+        effects.insert_name(effect.as_str());
+    }
+
+    DiscardCallee {
+        effects,
+        has_mutable_parameter: program
+            .state_signature_parameters(signature)
+            .iter()
+            .any(|parameter| parameter.is_mutable),
     }
 }
 
