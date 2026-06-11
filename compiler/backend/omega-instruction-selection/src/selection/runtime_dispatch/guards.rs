@@ -16,7 +16,8 @@ use super::super::storage_places::{
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
-    resolve_runtime_transition_guard_call_result_place,
+    resolve_runtime_transition_guard_call_result_place, static_elided_local_value_in_table,
+    static_fixed_array_len_in_table,
 };
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
@@ -1096,6 +1097,24 @@ fn static_guard_value_in_table(
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
         ExpressionNode::Integer(value) => Some(*value),
         ExpressionNode::Mutable(inner) => static_guard_value_in_table(expressions, *inner),
+        // A field read on a STRUCT LITERAL receiver projects to the literal
+        // field value: a call argument `Card { power: 3 }` substituted into
+        // an inline arm guard `card.power > 0` folds to `3 > 0`.
+        ExpressionNode::Member(member) => {
+            let mut receiver = member.receiver;
+            while let ExpressionNode::Mutable(inner) = expressions.expression(receiver) {
+                receiver = *inner;
+            }
+            let ExpressionNode::StructLiteral(struct_literal) = expressions.expression(receiver)
+            else {
+                return None;
+            };
+            expressions
+                .struct_fields(struct_literal.fields)
+                .iter()
+                .find(|field| field.name == member.member)
+                .and_then(|field| static_guard_value_in_table(expressions, field.value))
+        }
         _ => None,
     }
 }
@@ -1344,18 +1363,48 @@ fn resolve_runtime_value_operand_in_table(
         );
     }
 
-    let place = resolve_runtime_storage_place_in_table(
+    if let Some(place) = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
         source_key,
         expressions,
         expression,
-    )?;
-    Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
-        region: place.region,
-        byte_offset: place.byte_offset,
-        byte_size: place.byte_count,
-    }))
+    ) {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
+        }));
+    }
+
+    // `.len` of (an alias of) a FIXED ARRAY has no storage place -- the length
+    // is a layout constant -- so it folds to an immediate. This covers an
+    // inline-leaf arm guard `s.len > 0` whose `s` substitutes to a caller
+    // local `let s = self.arr.as_slice()` that storage elided (no frame slot,
+    // hence no slice descriptor with a runtime len to read).
+    if let Some(length) = static_fixed_array_len_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(length)));
+    }
+
+    // An ELIDED constant local (`let flag: bool = true` used only as a call
+    // argument) likewise has no storage place; fold it to its initializer.
+    if let Some(value) = static_elided_local_value_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(value)));
+    }
+
+    None
 }
 
 fn runtime_value_operand_byte_size(
