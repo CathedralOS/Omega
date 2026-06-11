@@ -765,6 +765,15 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_size: *byte_size,
                 value: *value,
             },
+            omega_abstract_operations::AbstractOperationKind::CopyRuntimeStorageToReturnRegister {
+                region,
+                byte_offset,
+                byte_size,
+            } => Self::CopyRuntimeStorageToReturnRegister {
+                region: *region,
+                byte_offset: *byte_offset,
+                byte_size: *byte_size,
+            },
             omega_abstract_operations::AbstractOperationKind::TerminateDispatch => Self::TerminateDispatch,
             omega_abstract_operations::AbstractOperationKind::LeaveDispatchCase => Self::LeaveDispatchCase,
             omega_abstract_operations::AbstractOperationKind::LeaveDispatchLoop => Self::LeaveDispatchLoop,

@@ -1,5 +1,6 @@
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_state_signature;
+use crate::parser::trait_definition::parse_signature_clauses;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::Platform;
@@ -28,7 +29,22 @@ pub(super) fn parse_platform<'tokens, 'source>(
             return Err(input.expected_one_of_here(&["`pub entry`", "`entry`"]));
         }
 
-        let (signature, rest) = parse_state_signature(syntax_trees, input)?;
+        let (mut signature, mut rest) = parse_state_signature(syntax_trees, input)?;
+        // Platform entries share the bodyless-signature clause grammar with
+        // trait machine signatures: `effects`/`requires`/`ensures` may follow
+        // the parameter list. Only enter the clause parser when a clause is
+        // actually present so entries without a trailing semicolon keep
+        // parsing as before.
+        if rest.at_contextual("effects")
+            || rest.at_contextual("requires")
+            || rest.at_contextual("ensures")
+        {
+            let ((effects, contracts), after_clauses) =
+                parse_signature_clauses(syntax_trees, rest)?;
+            signature.effects = effects;
+            signature.contracts = contracts;
+            rest = after_clauses;
+        }
         let handle = syntax_trees.items.insert_state_signature(&signature);
         let handle = syntax_trees.items.append_state_signature_handle(handle);
         if state_count == 0 {

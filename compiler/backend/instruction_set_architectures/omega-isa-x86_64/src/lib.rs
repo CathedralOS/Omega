@@ -31,6 +31,14 @@ pub fn return_register_integer_write_width() -> usize {
     5
 }
 
+pub fn runtime_storage_copy_to_return_register_width(byte_offset: usize, byte_size: usize) -> usize {
+    // mov r15,imm64(region base, relocated) (10) + load into eax/rax (7; the
+    // sign-extending movsx forms for 1/2-byte operands carry an 0F prefix, 8).
+    let _ = byte_offset;
+    let load_width = if matches!(byte_size, 1 | 2) { 8 } else { 7 };
+    10 + load_width
+}
+
 pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width() -> usize {
     // mov r14,imm64(frame) (10) + mov r11,[r14+idx] (7) + imul r11,r11,elem (7)
     // + add r14,r11 (3) + add r14,base+field (7) + mov r15,imm64(frame) (10)
@@ -324,6 +332,42 @@ pub fn encode_return_register_integer_write_bytes(
     let mut bytes = Vec::with_capacity(return_register_integer_write_width());
     bytes.push(0xb8); // mov eax, imm32
     bytes.extend(value.to_le_bytes());
+    Ok(bytes)
+}
+
+/// Load a runtime-storage scalar into the return register (eax/rax) so a
+/// NON-CONSTANT terminal value (a local read, a field read-back) becomes the
+/// process exit code. The `mov r15, imm64=0` (imm at instruction start + 2) is
+/// relocated to the storage region's data symbol by the relocation planner,
+/// exactly like a dispatch guard's storage load. Narrow operands use the
+/// sign-extending movsx forms so a negative i8/i16 terminal survives the
+/// widening read.
+pub fn encode_runtime_storage_copy_to_return_register_bytes(
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_storage_copy_to_return_register_width(
+        byte_offset,
+        byte_size,
+    ));
+    append_mov_r15_imm64(&mut bytes, 0);
+    let displacement = disp32(byte_offset)?;
+    match byte_size {
+        1 => bytes.extend([0x41, 0x0f, 0xbe, 0x87]), // movsx eax, byte [r15 + disp32]
+        2 => bytes.extend([0x41, 0x0f, 0xbf, 0x87]), // movsx eax, word [r15 + disp32]
+        4 => bytes.extend([0x41, 0x8b, 0x87]),       // mov eax, [r15 + disp32]
+        8 => bytes.extend([0x49, 0x8b, 0x87]),       // mov rax, [r15 + disp32]
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 MVP encoder cannot copy {byte_size}-byte terminal values to the return register yet"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
+    );
     Ok(bytes)
 }
 

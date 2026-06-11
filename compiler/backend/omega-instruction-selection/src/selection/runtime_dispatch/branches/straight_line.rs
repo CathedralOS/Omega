@@ -346,9 +346,22 @@ fn select_runtime_straight_line_branch_writes(
     scratch.expressions.clear();
     scratch.resolved_segment_expressions.clear();
 
+    // Statements whose assignment-value InlineBranching call this loop already
+    // emitted. `straight_line_operations` lists a StateCall operation AND a
+    // LocalData operation for `let x = self.f(...)`; the StateCall arm runs the
+    // callee and copies its result into the local, so the LocalData arm must not
+    // emit the call AGAIN (the callee's side effects ran twice per evaluation --
+    // one doubling per nesting level of the dungeon's RNG chain).
+    let mut emitted_assignment_calls: Vec<(StateKey, usize)> = Vec::new();
+
     for operation in operations {
         match &operation.kind {
             RuntimeStraightLineBranchOperationKind::LocalData => {
+                if emitted_assignment_calls
+                    .contains(&(operation.source_key, operation.statement_index))
+                {
+                    continue;
+                }
                 select_runtime_straight_line_local_initializer_write(
                     input,
                     expansion,
@@ -536,6 +549,10 @@ fn select_runtime_straight_line_branch_writes(
                     *call_ordinal,
                     selected_instructions,
                 );
+                if *role == StateCallRole::AssignmentValue {
+                    emitted_assignment_calls
+                        .push((operation.source_key, operation.statement_index));
+                }
             }
             _ => {}
         }

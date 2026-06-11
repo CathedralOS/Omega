@@ -69,6 +69,7 @@ pub enum MachineInstructionKind {
     RuntimeStorageCopyFromRuntimePointeeToRuntimeFrame,
     DispatchStateWrite,
     ReturnRegisterIntegerWrite,
+    RuntimeStorageCopyToReturnRegister,
     DispatchTerminate,
     DispatchCaseLeave,
     HostCallSequence,

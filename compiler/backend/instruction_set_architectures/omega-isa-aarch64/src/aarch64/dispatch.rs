@@ -222,6 +222,65 @@ fn append_guard_load(
     Ok(())
 }
 
+/// Load a runtime-storage scalar into the return register (w0/x0) so a
+/// NON-CONSTANT terminal value (a local read, a field read-back) becomes the
+/// process exit code. The leading adrp+add pair is relocated to the storage
+/// region's data symbol by the relocation planner, exactly like a dispatch
+/// guard's storage load. Narrow operands are sign-extended so a negative
+/// i8/i16 terminal survives the widening read.
+pub fn encode_runtime_storage_copy_to_return_register_bytes(
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 2 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot copy {byte_size}-byte terminal values to the return register yet"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_to_return_register_width(byte_offset, byte_size),
+    );
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+
+    // Mirrors `append_guard_load`'s direct/indirect offset handling so the
+    // width helper's `load_data_offset_width` stays exact.
+    let direct = match byte_size {
+        1 => byte_offset <= 4095,
+        2 => byte_offset.is_multiple_of(2) && byte_offset / 2 <= 4095,
+        4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
+        8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
+        _ => false,
+    };
+    let base_register = if direct {
+        16
+    } else {
+        bytes.extend(encode_move_x_register(26, 16));
+        append_add_x_constant(&mut bytes, 26, 26, byte_offset, 19)?;
+        26
+    };
+    let load_offset = if direct { byte_offset } else { 0 };
+    match byte_size {
+        8 => bytes.extend(encode_load_x_from_x(0, base_register, load_offset)?),
+        _ => bytes.extend(encode_load_w_from_x(
+            0,
+            base_register,
+            load_offset,
+            byte_size,
+        )?),
+    }
+    match byte_size {
+        1 => bytes.extend(encode_sign_extend_byte_to_w(0, 0)),
+        2 => bytes.extend(encode_sign_extend_halfword_to_w(0, 0)),
+        _ => {}
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
+    );
+    Ok(bytes)
+}
+
 fn two_instructions(first: [u8; 4], second: [u8; 4]) -> [u8; 8] {
     let mut bytes = [0; 8];
     bytes[..4].copy_from_slice(&first);

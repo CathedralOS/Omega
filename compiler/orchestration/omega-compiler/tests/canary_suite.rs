@@ -2489,6 +2489,80 @@ fn runtime_local_boolean_or_value_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Straight-line `main` with NO transitions whose terminal expression is a
+// LOCAL read. Pre-fix, only a bare literal terminal delivered as the exit
+// code; a local terminal silently fell through to the default exit path
+// (exit 1). Guards the terminal-value constant fold through local
+// initializers.
+#[test]
+fn runtime_straight_line_terminal_local_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_straight_line_terminal_local_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-straight-line-terminal-local-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("straight-line terminal local canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("straight-line terminal local canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the terminal local read to deliver as the exit code 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The runtime half of the straight-line terminal shape: a field WRITE followed
+// by a terminal field READ-BACK. Unlike the local variant this cannot constant
+// fold — it exercises the CopyRuntimeStorageToReturnRegister load.
+#[test]
+fn runtime_straight_line_terminal_field_readback_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_straight_line_terminal_field_readback_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-straight-line-terminal-field-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("straight-line terminal field read-back canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("straight-line terminal field read-back canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the terminal field read-back to deliver as the exit code 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_negated_boolean_place_guard_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_negated_boolean_place_guard_exit");
@@ -3260,6 +3334,43 @@ fn runtime_mutable_slice_element_write_exit_canary_runs() {
         output.status.code(),
         Some(21),
         "expected runtime mutable slice write canary to preserve alias mutation and exit 21, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The promoted straight-line sibling: same mutable-slice-view write, but the
+// machine body has NO transitions and delivers a field READ-BACK as its
+// terminal value. Guards the straight-line terminal-value path (the
+// CopyRuntimeStorageToReturnRegister load) end to end through a slice write.
+#[test]
+fn runtime_mutable_slice_element_write_straight_line_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_mutable_slice_element_write_straight_line_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-slice-write-straight-line-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime mutable slice write straight-line canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime mutable slice write straight-line canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the slice-view write to land and the terminal field read-back to exit 70, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -4244,6 +4355,42 @@ fn runtime_transition_subject_call_single_evaluation_exit_canary_runs() {
         "expected the transition guard subject call to run its callee exactly ONCE \
          (one increment -> exit 70; exit 2 means the callee ran per arm or its body \
          was emitted twice), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_effectful_subject_single_evaluation_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_effectful_subject_single_evaluation_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-effectful-subject-single-evaluation-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("effectful-subject single-evaluation canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("effectful-subject single-evaluation canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the diverging-arm transition's effectful subject (nested call \
+         chain) to run exactly ONCE (one increment -> exit 70; exit 2/3/77 means \
+         the subject re-ran per arm or per nesting level -- the dungeon's \
+         32-RNG-draws eager-guard divergence), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -6593,9 +6740,10 @@ fn native_dungeon_crawler_runs_stable_scripted_loop() {
     // The east side chamber (R05) is identified by its gold-cache event line and
     // its unique exit list. Its data-driven DESCRIPTION is deliberately not
     // asserted: whether R05 gets carved depends on one RNG draw, and native's
-    // eager per-arm guard evaluation drains the RNG stream faster than the
-    // interpreter's lazy order (the documented eager-guard divergence), so the
-    // two backends currently disagree on that single line.
+    // NON-guard call chains still over-draw the RNG stream relative to the
+    // interpreter (generation: 34 draws vs 15 -- the guard-subject half of the
+    // divergence is fixed; see TASKS.md backend residue), so the two backends
+    // currently disagree on that single line.
     assert!(stdout.contains("Loose gold glitters in the dust."));
     assert!(stdout.contains("[Paths] west"));
     assert!(stdout.contains("Inv: 30 gold. Purse heavy, charm secured."));
@@ -6864,6 +7012,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/call_requires_satisfied_by_caller_requires",
     "domains/call_requires_free_machine_satisfied_by_caller_requires",
     "domains/call_requires_boundary_trait_satisfied_by_caller_requires",
+    "domains/call_requires_platform_satisfied_by_caller_requires",
     "domains/call_requires_boolean_expression_from_domain_fact",
     "domains/call_requires_boolean_expression_preserved_across_disjoint_mutating_call",
     "domains/call_requires_dynamic_indexed_scalar_member_expression_from_domain_fact",
@@ -6880,6 +7029,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/composite_range_guard_dispatch",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
+    "control_flow/runtime_straight_line_terminal_local_exit",
+    "control_flow/runtime_straight_line_terminal_field_readback_exit",
     "control_flow/termination_countdown_compile",
     "control_flow/termination_index_distance_compile",
     "termination/custom_ranking_field_countdown_compile",
@@ -6997,7 +7148,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_negated_boolean_place_guard_exit",
     "control_flow/runtime_negated_comparison_guard_exit",
     "dungeon/runtime_multi_room_reentry_exit",
-    "slices/runtime_mutable_slice_element_write_compile",
+    "slices/runtime_mutable_slice_element_write_straight_line_exit",
     "slices/runtime_mutable_slice_element_write_exit",
     "slices/guarded_slice_parameter_empty_false_index_compile",
     "slices/guarded_slice_parameter_empty_false_tail_compile",
@@ -7243,6 +7394,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/call_requires_free_machine_value_unproven",
     "domains/call_requires_free_machine_statement_unproven",
     "domains/call_requires_boundary_trait_unproven",
+    "domains/call_requires_platform_unproven",
     "domains/call_requires_domain_membership_invalidated_by_same_literal_element_call",
     "domains/exit_ensures_domain_union_unproven",
     "domains/exit_ensures_unproven",

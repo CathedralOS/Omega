@@ -1,0 +1,6 @@
+data Main { }
+
+machine Main::main(&mut self) -> i32 {
+    let exit_code: i32 = 70;
+    exit_code
+}

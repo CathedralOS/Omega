@@ -74,6 +74,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::AppendWireScalarVarint { .. } => {
             MachineInstructionKind::WireScalarVarintAppend
         }
+        SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { .. } => {
+            MachineInstructionKind::RuntimeStorageCopyToReturnRegister
+        }
         SelectedInstructionKind::TerminateDispatch => dispatch::dispatch_terminate_kind(),
         SelectedInstructionKind::LeaveDispatchCase => dispatch::dispatch_case_leave_kind(),
         SelectedInstructionKind::LeaveFunction => dispatch::return_kind(),
