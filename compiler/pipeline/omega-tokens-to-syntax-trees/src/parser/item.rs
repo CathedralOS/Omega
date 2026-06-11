@@ -1,5 +1,5 @@
 use crate::parser::capability::parse_capability_definition;
-use crate::parser::data::{parse_data_definition, parse_enum_definition};
+use crate::parser::data::parse_data_definition;
 use crate::parser::domain::parse_domain_definition;
 use crate::parser::export_item::parse_export_item;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
@@ -87,9 +87,9 @@ pub(super) fn parse_item<'tokens, 'source>(
     }
 
     if input.at_keyword(KeywordKind::Enum) {
-        let input = input.take_keyword(KeywordKind::Enum, "enum")?;
-        let (item, rest) = parse_enum_definition(syntax_trees, input)?;
-        return Ok((Item::Data(item), rest));
+        return Err(input.error_here(
+            "`enum` is retired; spell alternatives as `case` members of a `data` declaration",
+        ));
     }
 
     if input.at_contextual("abi") {
@@ -182,7 +182,6 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`export`",
         "`data`",
         "`domain`",
-        "`enum`",
         "`abi`",
         "`machine`",
         "`target`",

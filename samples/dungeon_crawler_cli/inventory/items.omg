@@ -1,9 +1,9 @@
-enum ItemKind {
-    RustedDagger,
-    CrackedBuckler,
-    HealingCharm,
-    EmberBlade,
-    DeepKey,
+data ItemKind {
+    case RustedDagger;
+    case CrackedBuckler;
+    case HealingCharm;
+    case EmberBlade;
+    case DeepKey;
 }
 
 data InventoryItem {

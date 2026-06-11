@@ -1,6 +1,6 @@
-enum IOError {
-    Interrupted,
-    PermissionDenied,
-    BrokenPipe,
-    Unknown,
+data IOError {
+    case Interrupted;
+    case PermissionDenied;
+    case BrokenPipe;
+    case Unknown;
 }

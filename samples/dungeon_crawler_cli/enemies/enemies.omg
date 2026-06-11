@@ -1,19 +1,19 @@
-enum EnemyKind {
-    Bat,
-    Spider,
-    Skeleton,
-    Cultist,
-    Hellhound,
-    PitFiend,
+data EnemyKind {
+    case Bat;
+    case Spider;
+    case Skeleton;
+    case Cultist;
+    case Hellhound;
+    case PitFiend;
 }
 
-enum EnemyTier {
-    Bat,
-    Spider,
-    Skeleton,
-    Cultist,
-    Hellhound,
-    PitFiend,
+data EnemyTier {
+    case Bat;
+    case Spider;
+    case Skeleton;
+    case Cultist;
+    case Hellhound;
+    case PitFiend;
 }
 
 data Enemy {

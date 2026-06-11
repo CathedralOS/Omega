@@ -1,0 +1,37 @@
+// Payload-less case members (the spelling that replaces `enum`) dispatch in a
+// transition exactly like the retired keyword did: the subject's tag selects
+// the matching arm, and the first case is the zero case.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Direction {
+    case None;
+    case North;
+    case South;
+    case East;
+}
+
+data Main {
+    console: Console;
+    facing: Direction;
+}
+
+machine Main::main(&mut self) {
+    self.facing = Direction::South;
+
+    transition self.facing {
+        Direction::North -> bad()
+        Direction::South -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

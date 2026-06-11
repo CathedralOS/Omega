@@ -2,10 +2,10 @@ boundary trait Console {
     machine write_line(text: String);
 }
 
-enum Command {
-    Look,
-    Quit,
-    Invalid,
+data Command {
+    case Look;
+    case Quit;
+    case Invalid;
 }
 
 data Main {

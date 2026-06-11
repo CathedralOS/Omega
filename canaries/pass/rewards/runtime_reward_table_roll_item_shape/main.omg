@@ -17,16 +17,16 @@ machine Random::range(&mut self, state: &mut RandomState, exclusive_max: u32) ->
     raw % exclusive_max
 }
 
-enum ItemKind {
-    RustedDagger,
-    EarlyBuckler,
-    HealingCharm,
-    EmberBlade,
-    DeepKey,
+data ItemKind {
+    case RustedDagger;
+    case EarlyBuckler;
+    case HealingCharm;
+    case EmberBlade;
+    case DeepKey;
 }
 
-enum RewardKind {
-    GoldAndItem,
+data RewardKind {
+    case GoldAndItem;
 }
 
 data Reward {

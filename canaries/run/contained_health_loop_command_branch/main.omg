@@ -4,10 +4,10 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-enum Command {
-    Look,
-    Quit,
-    Invalid,
+data Command {
+    case Look;
+    case Quit;
+    case Invalid;
 }
 
 data Navigation {
