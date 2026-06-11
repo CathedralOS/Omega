@@ -87,6 +87,8 @@ pub struct TypeParameter {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub kind: TypeParameterKind,
+    /// Property bounds (`data Box<T [copy]>`, frozen decision 13).
+    pub bounds: DataProperties,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

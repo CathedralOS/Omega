@@ -275,6 +275,15 @@ fn validate_type_reference_handle_with_context(
                 )));
             }
 
+            validate_generic_argument_bounds(
+                program,
+                symbols,
+                base_name.as_str(),
+                *arguments,
+                type_parameter_scope,
+                diagnostics,
+            );
+
             for argument in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
@@ -312,6 +321,51 @@ fn validate_type_reference_handle_with_context(
             }
         }
         TypeReferenceNode::Unit => {}
+    }
+}
+
+/// Instantiation-time property-bound check (frozen decision 13): every type
+/// argument must carry each bound the matching parameter declares, e.g.
+/// `Box<String>` is rejected when `Box` declares `data Box<T [copy]>`. Bounds
+/// on in-scope type parameters count, so `data Outer<U [copy]>` may store a
+/// `Box<U>`.
+fn validate_generic_argument_bounds(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    base_name: &str,
+    arguments: omega_core::arena::HandleSpan<TypeReferenceHandle>,
+    type_parameter_scope: TypeParameterScope<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == base_name)
+    else {
+        return;
+    };
+
+    let parameters = program.data_type_parameters(definition);
+    let argument_handles = program.type_reference_table.type_reference_handles(arguments);
+    for (parameter, argument) in parameters.iter().zip(argument_handles) {
+        let bound_names = crate::properties::declared_property_names(&parameter.bounds);
+        for property in &bound_names {
+            if crate::properties::type_satisfies_declared_property(
+                program,
+                symbols,
+                type_parameter_scope.type_parameters,
+                *argument,
+                property,
+            ) {
+                continue;
+            }
+            diagnostics.push(Diagnostic::error(format!(
+                "type parameter `{} [{}]` of `{base_name}` was instantiated with `{}`, which does not declare `[{property}]`",
+                parameter.name,
+                bound_names.join(", "),
+                type_reference_label(program, *argument)
+            )));
+        }
     }
 }
 

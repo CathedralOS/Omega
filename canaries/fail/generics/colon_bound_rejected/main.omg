@@ -1,0 +1,14 @@
+// The Rust-style colon bound is rejected: property bounds are brackets
+// attached to the name they follow (`T [copy]`), everywhere (frozen
+// decision 13).
+
+data Box<T: copy> [copy] {
+    value: T;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

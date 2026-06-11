@@ -1,0 +1,18 @@
+// `Box<T [copy]>` demands a `[copy]` argument at every instantiation.
+// `Heavy` declares no properties, so `Box<Heavy>` violates the bound
+// (frozen decision 13).
+
+data Heavy {
+    weight: i64;
+}
+
+data Box<T [copy]> [copy] {
+    value: T;
+}
+
+data Main {
+    boxed: Box<Heavy>;
+}
+
+machine Main::main(&mut self) {
+}
