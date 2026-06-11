@@ -466,3 +466,70 @@ machine Main::dispatch(&mut self, s: &mut dyn Shape) -> i32 {
         "dyn dispatch must pick Square (4) then Circle (9): 4*10+9 == 49"
     );
 }
+
+// ---- straight-line `main` terminal expressions --------------------------------
+
+/// A no-transition `main -> i32` whose terminal expression is a LOCAL read must deliver
+/// that local's value as the exit code, exactly like a bare literal terminal does.
+/// (Native-backend probe 2026-06-11: literal `70` exits 70, `let exit_code: i32 = 70;
+/// exit_code` exits 1 -- this test is the interpreter half of the parity check.)
+#[test]
+fn straight_line_terminal_local_delivers_exit_code() {
+    let main_path = write_program(
+        "straight-line-terminal-local",
+        r#"
+data Main { }
+
+machine Main::main(&mut self) -> i32 {
+    let exit_code: i32 = 70;
+    exit_code
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("terminal-local program compiles");
+    let outcome = interpret(&checked, b"");
+    assert_eq!(outcome.error, None, "interpreter declined the program");
+    assert_eq!(outcome.exit_code, 70, "terminal local read must become the exit code");
+}
+
+/// Same shape, terminal FIELD read-back after a straight-line field write.
+#[test]
+fn straight_line_terminal_field_readback_delivers_exit_code() {
+    let main_path = write_program(
+        "straight-line-terminal-field",
+        r#"
+data Main {
+    count: i32;
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.count = 70;
+    self.count
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("terminal-field program compiles");
+    let outcome = interpret(&checked, b"");
+    assert_eq!(outcome.error, None, "interpreter declined the program");
+    assert_eq!(outcome.exit_code, 70, "terminal field read-back must become the exit code");
+}
+
+/// Same shape, terminal ARITHMETIC over a local.
+#[test]
+fn straight_line_terminal_arithmetic_delivers_exit_code() {
+    let main_path = write_program(
+        "straight-line-terminal-arithmetic",
+        r#"
+data Main { }
+
+machine Main::main(&mut self) -> i32 {
+    let x: i32 = 1 + 69;
+    x
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None).expect("terminal-arithmetic program compiles");
+    let outcome = interpret(&checked, b"");
+    assert_eq!(outcome.error, None, "interpreter declined the program");
+    assert_eq!(outcome.exit_code, 70, "terminal arithmetic must become the exit code");
+}

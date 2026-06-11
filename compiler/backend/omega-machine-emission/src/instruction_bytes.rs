@@ -334,6 +334,22 @@ fn insert_fixed_machine_instruction_bytes(
             }
             Ok(true)
         }
+        SelectedInstructionKind::CopyRuntimeStorageToReturnRegister {
+            byte_offset,
+            byte_size,
+            ..
+        } => {
+            let bytes =
+                omega_instruction_selection::encode_runtime_storage_copy_to_return_register_bytes(
+                    emission_context.target.architecture,
+                    *byte_offset,
+                    *byte_size,
+                )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
         SelectedInstructionKind::TerminateDispatch => {
             let bytes = omega_instruction_selection::encode_dispatch_state_write_bytes(
                 emission_context.target.architecture,

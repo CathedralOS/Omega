@@ -57,6 +57,21 @@ pub fn return_register_integer_write_width(architecture: Architecture) -> usize 
     }
 }
 
+pub fn runtime_storage_copy_to_return_register_width(
+    architecture: Architecture,
+    byte_offset: usize,
+    byte_size: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
+        }
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
+        }
+    }
+}
+
 pub fn dispatch_loop_enter_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::dispatch_loop_enter_width(),

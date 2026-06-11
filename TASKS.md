@@ -92,20 +92,67 @@ remains tracked in its bullet below.
 
 **Backend residue (small, known):**
 
-- [ ] Distinct effectful arm guards: native eager evaluation diverges from the
-  interpreter's lazy order (open note in the eager-guard divergence). Concrete
-  measured instance (dungeon, fixed seed 7): native draws 32 RNG values for ONE
-  `transition self.should_carve(random, 2) { true/false }` decision where the
-  interpreter draws 1 — the effectful subject call is re-evaluated per arm and
-  the amplification compounds down the call chain (should_carve -> chance ->
-  range -> next_u32). Stream divergence means native rolls a different
-  side-room carve than the interpreter (R05 stays uncarved, its data-driven
-  description renders empty); that is the only dungeon output line the two
-  backends disagree on. The scripted-loop canaries deliberately assert the
-  hardcoded R05 event/paths lines instead of its description until this is
-  fixed.
-- [ ] 3 pre-existing `_compile` canaries hang at runtime (slice-subslice /
-  mutable-local family); suite never runs them.
+- [x] Eager-guard divergence (effectful transition SUBJECTS) FIXED: a guard
+  subject like `transition self.should_carve(random, 2) { true/false }` now
+  evaluates exactly ONCE natively, matching the interpreter, even with
+  diverging arm targets and a nested callee chain. Three compounding causes,
+  all repaired: (1) every arm's guard holds a parser COPY of the subject call
+  and each arm allocated its OWN `__call_result` slot — the runtime-storage
+  plan now shares ONE slot across arms with structurally equal subjects
+  (`shared_transition_guard_slot_offset`, omega-runtime-storage/body.rs);
+  (2) later arms appended their own nested-callee/leaf/straight-line
+  expansions, re-running the callee's side effects per arm — the
+  runtime-branching plan now suppresses ALL execution machinery for repeated
+  subjects (omega-runtime-branching/branching/mod.rs + expansions.rs);
+  (3) `let x = self.f(...)` inside an expansion emitted the call TWICE (once
+  for its StateCall operation, once via the LocalData operation's
+  initializer-call path) — one doubling per nesting level, the dungeon's
+  32-draws-for-1 amplification (instruction-selection straight_line.rs).
+  Regression net: canaries/pass/control_flow/
+  runtime_effectful_subject_single_evaluation_exit (diverging-arm,
+  3-deep chain; pre-fix native exits 77, post-fix 70 = interpreter) plus the
+  measured dungeon shape (1 draw per should_carve decision in BOTH backends).
+- [ ] Non-guard call chains still over-draw / read stale values natively (the
+  REMAINING root of the dungeon R05 line). Measured with the same seed-7
+  tracing: one `carve_room -> roll_event -> rng.range -> next_u32` STATEMENT
+  chain runs `next_u32` 3x natively (interpreter 1x) — the splice's flattened
+  mutation ops, the parent prelude's nested walk, and the directly-matched
+  straight-line expansion are ALL emitted as executors; and a depth-1
+  `let v = self.next(&mut state)` returns the PRE-mutation value (leaf value
+  write emits before the splice's mutation writes; interpreter returns the
+  post-mutation value). Generation total: interpreter 15 draws, native 34, so
+  the stream diverges before the R05 `should_carve` decision and R05 stays
+  uncarved natively (its data-driven description renders empty) — still the
+  only dungeon output line the backends disagree on. The scripted-loop
+  canaries keep asserting R05's event/paths lines instead of its description
+  until the executor-of-record story (splice vs prelude vs nested walk) is
+  fixed for non-guard roles.
+- [x] 3 pre-existing `_compile` canaries hang at runtime — STALE (probed
+  2026-06-11): the slice-write `_compile` canaries run now (the hang was the
+  x18 zeroing below) and their dispatch shape already has a runtime `_exit`
+  sibling in the suite; `calls/runtime_mutable_local_parameter_write_compile`
+  "hangs" by its own unconditional `true -> main()` self-loop (source
+  structure, not a backend bug; its `_exit` sibling verifies the behavior).
+- [x] Straight-line `main` terminal LOCALS/EXPRESSIONS don't deliver as the
+  exit code — FIXED (2026-06-11). Interpreter parity confirmed first (it
+  already returned 70 for all three probe shapes; pinned in
+  omega-interpreter/tests/coverage.rs). Root cause: the dispatch terminal's
+  return-value selection (`select_runtime_dispatch_return_value`,
+  runtime_dispatch/edges.rs) only handled a CONSTANT terminal
+  (`static_terminal_target_value`) and silently fell through otherwise. Now:
+  (1) constants write the immediate as before; (2) runtime places (field
+  read-backs, locals with frame slots — reassigned locals always have
+  storage) load via the new `CopyRuntimeStorageToReturnRegister` instruction
+  (both ISAs, widths in lockstep, region-symbol relocation at instruction
+  start); (3) storage-less locals/constant arithmetic constant-fold through
+  `simplify_state_expression` to a small fixpoint. Residue: a runtime
+  ARITHMETIC terminal (`self.n + 1`) still has no return-value write — fold
+  it into a local or field first. Canaries:
+  control_flow/runtime_straight_line_terminal_local_exit,
+  control_flow/runtime_straight_line_terminal_field_readback_exit, and the
+  promoted slices/runtime_mutable_slice_element_write_straight_line_exit
+  (formerly _compile; now writes through the slice view and exits on the
+  read-back), all RUN at 70 + registered in the differential oracle.
 - [x] aarch64 runtime convergence (dungeon hot-potato). ROOT CAUSE FOUND AND
   FIXED: the aarch64 encoder used x18 as a general scratch for frame-slot
   copies (`ldr x18, [src]; str x18, [dst]`), but x18 is the reserved platform
@@ -128,9 +175,21 @@ remains tracked in its bullet below.
   checked trees: fixed by the call-requires soundness wave (receiverless
   free-machine targets now resolve to the entry state in symbol resolution,
   and the checked-trees resolver accepts them).
-- [ ] Platform state-signature `requires` (calls through platform-typed
+- [x] Platform state-signature `requires` (calls through platform-typed
   contained objects) are never collected as call obligations -- the same
-  vacuity the free-machine/boundary-trait wave fixed, third shape.
+  vacuity the free-machine/boundary-trait wave fixed, third shape. FIXED:
+  platform entries now parse the shared bodyless-signature clause grammar
+  (`effects`/`requires`/`ensures`, previously a parse error), the
+  checked-trees call-target resolver accepts platform state-signature
+  symbols, `contract_target_from_state_symbol` maps them to the owning
+  platform, and `call_target_parameters` reads the signature's parameter
+  list -- so the existing instantiation path, caller-requires discharge,
+  and mutation invalidation work identically to the trait shape (probe
+  verified all three). Corpus fallout: none (suite stayed 187/187 before
+  the new canaries; all canary `platform/console.omg` shims are boundary
+  traits and were already enforced). New canaries: fail
+  domains/call_requires_platform_unproven, pass
+  domains/call_requires_platform_satisfied_by_caller_requires.
 - [x] Stale test fixtures repaired: lib-test fixtures of omega-graph/types/
   names/proof/syntax-trees/abstract-operations/target-operations/facts gained
   the missing `abi`/`type_parameters`/`kind`/`properties`/`is_float` fields;
@@ -195,7 +254,8 @@ stay visible, not because they're next):**
   backend-residue entry above for the full diagnosis). The scripted dungeon
   loop and the dungeon differential oracle are green on the arm64 host; the
   one remaining interpreter/native divergence (R05 description) is the
-  eager-guard RNG-stream issue, tracked separately.
+  non-guard call-chain RNG-stream issue in the backend-residue list (the
+  eager-guard half of it is fixed).
 - [ ] **Text/string proof domains.** `String::Utf8`/`NoNul` as
   boundary-established carried facts without a byte-level proof tax (frozen
   direction in decision 5; the domains themselves unbuilt).

@@ -28,6 +28,14 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             );
             true
         }
+        SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { region, .. } => {
+            // The terminal-value load's leading region-base materialization
+            // (adrp+add on aarch64, `mov r15, imm64` on x86_64) anchors at the
+            // instruction start, like every other storage read.
+            let symbol = context.storage_region_symbol_handle(*region);
+            context.insert_data_address_at_instruction_start(symbol);
+            true
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
         | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
         | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame { .. }

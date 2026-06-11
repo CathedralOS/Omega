@@ -1,4 +1,5 @@
 use omega_core::symbols::SymbolHandle;
+use omega_typed_trees::expression::ExpressionHandle;
 use omega_typed_trees::name::Identifier;
 
 use crate::{
@@ -151,5 +152,57 @@ impl ControlFlowPlan {
         self.state_names_by_key(key)
             .map(|(_, state)| state.clone())
             .unwrap_or_default()
+    }
+
+    /// The CALL subexpression of the transition guard at `statement_index` in
+    /// `source_key`'s state, if any. The parser lowers a subject-form transition
+    /// (`transition self.f(x) { a -> s1 b -> s2 }`) into one guard PER ARM, each
+    /// holding a COPY of the subject call, so two guard statements in the same
+    /// state with structurally equal subject calls re-test ONE source-level
+    /// subject that must evaluate exactly once per transition evaluation. Both
+    /// the runtime-branching plan (prelude dedupe) and the runtime-storage plan
+    /// (shared guard result slot) key off this lookup.
+    pub fn transition_guard_subject_call(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> ExpressionHandle {
+        let invalid = ExpressionHandle::invalid();
+        let Some(state) = self.state_by_key(source_key) else {
+            return invalid;
+        };
+        let Some(transitions) = self.transitions.span(state.transitions) else {
+            return invalid;
+        };
+        let Some(flow) = transitions
+            .iter()
+            .find(|flow| flow.statement_index == statement_index)
+        else {
+            return invalid;
+        };
+        first_call_subexpression(&self.expressions, flow.expressions.guard)
+    }
+}
+
+fn first_call_subexpression(
+    table: &omega_typed_trees::expression::ExpressionTable,
+    handle: ExpressionHandle,
+) -> ExpressionHandle {
+    use omega_typed_trees::expression::ExpressionNode;
+    if !handle.is_valid() {
+        return handle;
+    }
+    match table.expression(handle) {
+        ExpressionNode::Call(_) => handle,
+        ExpressionNode::Binary(binary) => {
+            let left = first_call_subexpression(table, binary.left);
+            if left.is_valid() {
+                left
+            } else {
+                first_call_subexpression(table, binary.right)
+            }
+        }
+        ExpressionNode::Unary(unary) => first_call_subexpression(table, unary.operand),
+        _ => ExpressionHandle::invalid(),
     }
 }

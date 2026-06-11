@@ -1,0 +1,8 @@
+data Main {
+    count: i32;
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.count = 70;
+    self.count
+}
