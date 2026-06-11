@@ -171,9 +171,14 @@ symbol kind), `omega-validation` rejects duplicate/reserved tag misuse,
 duplicate versions, unresolved field types, and version-vs-current type
 changes or unreserved retirements (fail canaries under `canaries/fail/wire/`),
 and every compile emits a `04_wire_protocols.txt` compatibility report with
-per-version verdicts. Still needed: encoder/decoder generation, runtime layout
-of wire values, encoding-family semantics, and version negotiation before wire
-schemas are operational.
+per-version verdicts. RULINGS (recorded in ch20 + appendix): declared version
+blocks are checked history, violations are errors; compatibility checks must
+move from versions-vs-current to ADJACENT-ERA chain checking (small checker
+re-point); wire schemas are ORDINARY data usable in any signature (the
+chapter's examples already assume this -- stage 2 makes it true) with
+generated encode/decode at boundaries. Still needed: the chain re-point,
+wire-schemas-as-program-types, encoder/decoder generation, runtime layout of
+wire values, encoding-family semantics, and version negotiation.
 
 **Host-provider semantics follow-up.** Current host-provider support is
 syntax-preserving metadata: it parses and snapshots syscall mapping rows, but
