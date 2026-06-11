@@ -1,7 +1,8 @@
 use super::{
-    ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayTypeReference,
-    FixedArrayTypeReferenceStorage, GenericTypeReference, GenericTypeReferenceStorage,
-    TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceNode, TypeReferenceTable,
+    ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayLength,
+    FixedArrayTypeReference, FixedArrayTypeReferenceStorage, GenericTypeReference,
+    GenericTypeReferenceStorage, TypeConstraint, TypeConstraintNode, TypeReference,
+    TypeReferenceNode, TypeReferenceTable,
 };
 use crate::expression::ExpressionTable;
 use crate::name::DiagnosticName;
@@ -23,7 +24,7 @@ fn type_reference_table_stores_nested_typed_references_as_handles() {
         TypeReference::FixedArray(FixedArrayTypeReference {
             storage: FixedArrayTypeReferenceStorage {
                 element_type: fixed_array_element,
-                length: 16,
+                length: FixedArrayLength::Literal(16),
             },
         }),
     ]);
