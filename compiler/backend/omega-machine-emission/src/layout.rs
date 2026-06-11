@@ -392,6 +392,30 @@ fn machine_instruction_width(
             *field_byte_offset,
             *byte_size,
         ),
+        SelectedInstructionKind::AppendWireLiteralByte {
+            out_offset,
+            written_offset,
+            ..
+        } => omega_instruction_selection::append_wire_literal_byte_width(
+            input.target.architecture,
+            *out_offset,
+            *written_offset,
+        ),
+        SelectedInstructionKind::AppendWireScalarVarint {
+            source_offset,
+            byte_size,
+            zigzag,
+            out_offset,
+            written_offset,
+            ..
+        } => omega_instruction_selection::append_wire_scalar_varint_width(
+            input.target.architecture,
+            *source_offset,
+            *byte_size,
+            *zigzag,
+            *out_offset,
+            *written_offset,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
             index_region,

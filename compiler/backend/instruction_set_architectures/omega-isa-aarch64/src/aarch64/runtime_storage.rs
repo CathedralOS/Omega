@@ -2267,7 +2267,7 @@ fn append_store_x_to_x_offset(
     Ok(())
 }
 
-fn append_load_data_from_x_offset(
+pub(in crate::aarch64) fn append_load_data_from_x_offset(
     bytes: &mut Vec<u8>,
     destination_register: u8,
     base_register: u8,
@@ -2312,7 +2312,7 @@ fn append_load_data_from_x_offset(
     Ok(())
 }
 
-fn append_store_data_to_x_offset(
+pub(in crate::aarch64) fn append_store_data_to_x_offset(
     bytes: &mut Vec<u8>,
     source_register: u8,
     base_register: u8,

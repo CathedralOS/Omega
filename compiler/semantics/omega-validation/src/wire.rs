@@ -314,3 +314,305 @@ fn validate_adjacent_eras(
         }
     }
 }
+
+/// Validate the synthesized wire encoder call
+/// `Schema::encode_wire(&value, &mut out, &mut written)` (chapter 20, wire
+/// stage 2a). Returns `true` when the receiver names a wire schema (the call
+/// belongs to this module whether or not it validates).
+///
+/// The checks that make a bad program fail HERE, with a source-shaped
+/// diagnostic, instead of in the backend:
+/// - the only generated machine is `encode_wire`, with exactly three
+///   arguments;
+/// - every current-era schema field is a stage 2a scalar (i32/i64/u32/u64/
+///   bool) -- strings, nested messages, and repeated fields reject;
+/// - the value argument's data type declares every schema field with the
+///   SAME primitive type;
+/// - the out buffer is `&mut [u8; N]` with room for the WORST-CASE encoding
+///   (era varint + per field tag varint + max value varint), so the emitted
+///   appends never need a runtime bounds check;
+/// - the written argument is `&mut usize`.
+///
+/// Places this scope cannot type (alias-fed or computed arguments) skip the
+/// value/out/written checks; instruction selection re-resolves every place
+/// and an unresolved one surfaces as an emission-planning blocker.
+pub(crate) fn validate_wire_encode_call(
+    program: &TypedTrees,
+    call: &omega_typed_trees::statement::TableCall,
+    current_machine: &omega_typed_trees::machine::Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let receiver_members = program.statement_table.name_path_members(call.receiver);
+    let [schema_name] = receiver_members else {
+        return false;
+    };
+    let Some(schema) = program
+        .wire_schemas()
+        .iter()
+        .find(|schema| schema.name.as_str() == schema_name.as_str())
+    else {
+        return false;
+    };
+
+    if call.target.as_str() != omega_typed_trees::wire::WIRE_ENCODE_MACHINE_NAME {
+        diagnostics.push(Diagnostic::error(format!(
+            "wire data `{}` has no machine `{}`; the compiler only synthesizes `encode_wire(&value, &mut out, &mut written)` (wire stage 2a)",
+            schema.name, call.target
+        )));
+        return true;
+    }
+
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    if arguments.len() != 3 {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{}::encode_wire` expects 3 arguments (&value, &mut out, &mut written), got {}",
+            schema.name,
+            arguments.len()
+        )));
+        return true;
+    }
+
+    // Schema side: the stage 2a scalar set, and the worst-case byte budget
+    // the out buffer must cover (era varint + per-field tag varint + max
+    // value varint).
+    let era = program.wire_schema_current_era(schema);
+    let mut worst_case_bytes = omega_typed_trees::wire::wire_varint_bytes(era).len();
+    let mut current_fields = Vec::new();
+    let mut schema_rejects = false;
+    for member in program.wire_members(schema.members) {
+        let WireMember::Field(field) = member else {
+            continue;
+        };
+        let primitive = program.primitive_type_reference(field.type_reference);
+        let Some(encoding) =
+            primitive.and_then(omega_typed_trees::wire::WireScalarEncoding::for_primitive)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "wire data `{}` field `{}`: `{}` is not encodable by the compact_binary v0 encoder yet; wire stage 2a supports i32, i64, u32, u64, and bool",
+                schema.name,
+                field.name,
+                program.display_type_reference(field.type_reference)
+            )));
+            schema_rejects = true;
+            continue;
+        };
+        if field.number < 0 {
+            diagnostics.push(Diagnostic::error(format!(
+                "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                schema.name, field.name, field.number
+            )));
+            schema_rejects = true;
+            continue;
+        }
+        worst_case_bytes +=
+            omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len()
+                + encoding.max_varint_length();
+        current_fields.push((field, primitive.expect("encoding implies primitive")));
+    }
+    if schema_rejects {
+        return true;
+    }
+
+    // Value argument: its data type must declare every schema field with the
+    // same primitive type.
+    if let Some(value_type) =
+        declared_place_type(program, current_machine, current_state, arguments[0])
+        && let Some(value_data) = named_data_definition(program, value_type)
+    {
+        for (field, schema_primitive) in &current_fields {
+            let Some(value_field) = program
+                .data_members(value_data)
+                .iter()
+                .find_map(|member| match member {
+                    omega_typed_trees::data::DataMember::Field(data_field)
+                        if data_field.name == field.name =>
+                    {
+                        Some(data_field)
+                    }
+                    _ => None,
+                })
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::encode_wire` value type `{}` has no field `{}` to encode (schema field {})",
+                    schema.name, value_data.name, field.name, field.number
+                )));
+                continue;
+            };
+            if program.primitive_type_reference(value_field.type_reference)
+                != Some(*schema_primitive)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::encode_wire` value field `{}.{}` is `{}`, but the schema declares field {} as `{}`",
+                    schema.name,
+                    value_data.name,
+                    field.name,
+                    program.display_type_reference(value_field.type_reference),
+                    field.number,
+                    program.display_type_reference(field.type_reference)
+                )));
+            }
+        }
+    }
+
+    // Out argument: `&mut [u8; N]` with N covering the worst case.
+    if let Some(out_type) =
+        declared_place_type(program, current_machine, current_state, arguments[1])
+    {
+        match program.type_reference_table.type_reference(out_type) {
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: omega_typed_trees::types::FixedArrayLength::Literal(length),
+            } if program.primitive_type_reference(*element_type)
+                == Some(omega_typed_trees::types::PrimitiveType::U8) =>
+            {
+                if *length < worst_case_bytes {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "`{}::encode_wire` out buffer `[u8; {length}]` is too small: the worst-case encoding needs {worst_case_bytes} bytes (era varint + per-field tag and value varints)",
+                        schema.name
+                    )));
+                }
+            }
+            _ => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::encode_wire` out argument must be `&mut [u8; N]`, got `{}`",
+                    schema.name,
+                    program.display_type_reference(out_type)
+                )));
+            }
+        }
+    }
+
+    // Written argument: `&mut usize`.
+    if let Some(written_type) =
+        declared_place_type(program, current_machine, current_state, arguments[2])
+        && program.primitive_type_reference(written_type)
+            != Some(omega_typed_trees::types::PrimitiveType::Usize)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{}::encode_wire` written argument must be `&mut usize`, got `{}`",
+            schema.name,
+            program.display_type_reference(written_type)
+        )));
+    }
+
+    true
+}
+
+/// The DECLARED type of a simple place argument: a bare local/parameter name
+/// (`msg`) or an attached-data field (`self.buffer`), through the `&mut`
+/// marker. `None` for shapes this scope cannot type (those re-resolve during
+/// instruction selection).
+fn declared_place_type(
+    program: &TypedTrees,
+    current_machine: &omega_typed_trees::machine::Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    argument: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    use omega_typed_trees::expression::ExpressionNode;
+
+    let mut handle = argument;
+    if let ExpressionNode::Mutable(inner) = program.expression_table.expression(handle) {
+        handle = *inner;
+    }
+
+    let members: Vec<String> = match program.expression_table.expression(handle) {
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_members(path.members)
+            .iter()
+            .map(|member| member.as_str().to_owned())
+            .collect(),
+        ExpressionNode::Member(member) => {
+            let ExpressionNode::Name(receiver) =
+                program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            let mut names: Vec<String> = program
+                .expression_table
+                .name_path_members(receiver.members)
+                .iter()
+                .map(|name| name.as_str().to_owned())
+                .collect();
+            names.push(member.member.as_str().to_owned());
+            names
+        }
+        _ => return None,
+    };
+
+    match members.as_slice() {
+        [name] => {
+            if let Some(state) = current_state {
+                for statement in program.statement_table.statements(state.statement_nodes) {
+                    if let omega_typed_trees::statement::StatementNode::LocalData(local) =
+                        statement
+                        && local.name.as_str() == name
+                    {
+                        return unwrapped_type_reference(program, local.type_reference);
+                    }
+                }
+                for parameter in program.state_parameters(state) {
+                    if parameter.name.as_str() == name {
+                        return unwrapped_type_reference(program, parameter.type_reference);
+                    }
+                }
+            }
+            None
+        }
+        [root, field_name] if root == "self" => {
+            let attached = current_machine.attached_data.as_ref()?;
+            let data = program
+                .data_definitions()
+                .iter()
+                .find(|data| data.name == *attached)?;
+            let field = program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    omega_typed_trees::data::DataMember::Field(field)
+                        if field.name.as_str() == field_name =>
+                    {
+                        Some(field)
+                    }
+                    _ => None,
+                })?;
+            unwrapped_type_reference(program, field.type_reference)
+        }
+        _ => None,
+    }
+}
+
+/// Unwrap reference and constraint shells so the structural type underneath
+/// (`[u8; N]`, `usize`, a data name) is inspectable.
+fn unwrapped_type_reference(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    if !type_reference.is_valid() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => unwrapped_type_reference(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            unwrapped_type_reference(program, *base_type)
+        }
+        _ => Some(type_reference),
+    }
+}
+
+/// The data definition a `Named` type reference points at, if any.
+fn named_data_definition<'program>(
+    program: &'program TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&'program omega_typed_trees::data::DataDefinition> {
+    let TypeReferenceNode::Named { name, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name == *name)
+}

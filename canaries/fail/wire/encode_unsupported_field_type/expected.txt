@@ -1,0 +1,1 @@
+wire data `LabelMessage` field `label`: `String` is not encodable by the compact_binary v0 encoder yet; wire stage 2a supports i32, i64, u32, u64, and bool

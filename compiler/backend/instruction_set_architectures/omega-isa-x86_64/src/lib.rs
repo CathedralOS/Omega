@@ -2100,6 +2100,198 @@ pub fn encode_runtime_text_line_read(
     Ok(build_runtime_text_line_read(target_offset, capacity)?.0)
 }
 
+// ---- compact_binary v0 wire-encode appends (chapter 20, decision 10) ----
+//
+// Both operations share one cursor convention: the caller's `written` slot
+// holds the running byte count, so every append loads it, stores through a
+// moving pointer (`out base + out offset + cursor`), and writes the advanced
+// cursor back. Register use: r15 = moving out pointer, r14 = written page,
+// r10 = cursor, rax = runtime scalar, r11 = byte/zigzag scratch.
+//
+// THE WIDTHS INVARIANT: every emitted byte must move the `_width` functions
+// and the `wire_append_*_offset` relocation offsets below in exact lockstep,
+// or relocations drift and the binary segfaults.
+
+/// Shared prologue: `mov r15, imm64(out)` (10, relocated at the instruction
+/// start) + `add r15, imm32(out_offset)` (7) + `mov r14, imm64(written)` (10,
+/// relocated at +17) + `mov r10, [r14+written_offset]` (7) + `add r15, r10`
+/// (3).
+fn wire_append_prologue_width() -> usize {
+    37
+}
+
+fn append_wire_append_prologue(
+    bytes: &mut Vec<u8>,
+    out_offset: usize,
+    written_offset: usize,
+) -> Result<(), Diagnostic> {
+    append_mov_r15_imm64(bytes, 0);
+    append_add_r15_imm32(bytes, out_offset)?;
+    append_mov_r14_imm64(bytes, 0);
+    append_load_r10_from_r14(bytes, written_offset)?;
+    bytes.extend([0x4d, 0x01, 0xd7]); // add r15, r10
+    Ok(())
+}
+
+pub fn append_wire_literal_byte_width(_out_offset: usize, _written_offset: usize) -> usize {
+    // Prologue + `mov byte [r15], imm8` (4) + `inc r10` (3) + cursor store (7).
+    wire_append_prologue_width() + 4 + 3 + 7
+}
+
+/// One compile-time framing byte (era/tag varint bytes): store it at the
+/// cursor and advance by one.
+pub fn encode_append_wire_literal_byte(
+    out_offset: usize,
+    written_offset: usize,
+    value: u8,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(append_wire_literal_byte_width(out_offset, written_offset));
+    append_wire_append_prologue(&mut bytes, out_offset, written_offset)?;
+    bytes.extend([0x41, 0xc6, 0x07, value]); // mov byte [r15], imm8
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+    append_store_r10_to_r14(&mut bytes, written_offset, 8)?;
+    debug_assert_eq!(
+        bytes.len(),
+        append_wire_literal_byte_width(out_offset, written_offset)
+    );
+    Ok(bytes)
+}
+
+/// The sized scalar load from `[r11 + source_offset]` into rax: 64-bit and
+/// 32-bit moves are 7 bytes, the zero-extending byte load (movzx) is 8, and a
+/// 4-byte SIGNED source loads sign-extending (movsxd, 7).
+fn wire_varint_source_load_width(byte_size: usize) -> usize {
+    if byte_size == 1 { 8 } else { 7 }
+}
+
+/// `mov r11, rax` + `sar r11, 63` + `shl rax, 1` + `xor rax, r11`.
+fn wire_zigzag_width() -> usize {
+    14
+}
+
+/// The fixed LEB128 emit loop + final-byte tail (see the encoder body).
+fn wire_varint_emit_loop_width() -> usize {
+    40
+}
+
+pub fn append_wire_scalar_varint_width(
+    _source_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+    _out_offset: usize,
+    _written_offset: usize,
+) -> usize {
+    wire_append_prologue_width()
+        + 10
+        + wire_varint_source_load_width(byte_size)
+        + if zigzag { wire_zigzag_width() } else { 0 }
+        + wire_varint_emit_loop_width()
+        + 7
+}
+
+/// LEB128-encode a runtime scalar at the cursor. The value loads zero-extended
+/// at its source width; signed sources (`zigzag`) sign-extend to 64 bits and
+/// zigzag (`(n << 1) ^ (n >> 63)`) before the emit loop.
+pub fn encode_append_wire_scalar_varint(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+    out_offset: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 wire encoder cannot varint-encode {byte_size}-byte scalars yet"
+        )));
+    }
+    // The region only picks the relocation symbol; the encoded shape is
+    // identical for machine and frame sources.
+    let _ = source_region;
+
+    let mut bytes = Vec::with_capacity(append_wire_scalar_varint_width(
+        source_offset,
+        byte_size,
+        zigzag,
+        out_offset,
+        written_offset,
+    ));
+    append_wire_append_prologue(&mut bytes, out_offset, written_offset)?;
+
+    // r11 = source base (imm64 relocated at +37), rax = the scalar.
+    append_mov_reg_imm64(&mut bytes, Reg64::R11, 0);
+    let displacement = disp32(source_offset)?;
+    match (byte_size, zigzag) {
+        (8, _) => bytes.extend([0x49, 0x8b, 0x83]), // mov rax, [r11+disp32]
+        (4, false) => bytes.extend([0x41, 0x8b, 0x83]), // mov eax, [r11+disp32]
+        (4, true) => bytes.extend([0x49, 0x63, 0x83]), // movsxd rax, dword [r11+disp32]
+        (1, _) => bytes.extend([0x41, 0x0f, 0xb6, 0x83]), // movzx eax, byte [r11+disp32]
+        _ => unreachable!("byte_size validated above"),
+    }
+    bytes.extend(displacement.to_le_bytes());
+
+    if zigzag {
+        // zigzag(n) = (n << 1) ^ (n >> 63); r11 holds the sign mask.
+        bytes.extend([0x49, 0x89, 0xc3]); // mov r11, rax
+        bytes.extend([0x49, 0xc1, 0xfb, 0x3f]); // sar r11, 63
+        bytes.extend([0x48, 0xc1, 0xe0, 0x01]); // shl rax, 1
+        bytes.extend([0x4c, 0x31, 0xd8]); // xor rax, r11
+    }
+
+    // LEB128 emit loop (fixed 40 bytes, `wire_varint_emit_loop_width`):
+    //   loop: mov  r11, rax
+    //         and  r11, 0x7f
+    //         shr  rax, 7
+    //         test rax, rax
+    //         je   last            (+18: skip or/store/inc/inc/jmp)
+    //         or   r11, 0x80
+    //         mov  [r15], r11b
+    //         inc  r15
+    //         inc  r10
+    //         jmp  loop            (-34)
+    //   last: mov  [r15], r11b
+    //         inc  r10
+    bytes.extend([0x49, 0x89, 0xc3]); // mov r11, rax
+    bytes.extend([0x49, 0x83, 0xe3, 0x7f]); // and r11, 0x7f
+    bytes.extend([0x48, 0xc1, 0xe8, 0x07]); // shr rax, 7
+    bytes.extend([0x48, 0x85, 0xc0]); // test rax, rax
+    bytes.extend([0x74, 0x12]); // je +18 -> last
+    bytes.extend([0x49, 0x81, 0xcb, 0x80, 0x00, 0x00, 0x00]); // or r11, 0x80
+    bytes.extend([0x45, 0x88, 0x1f]); // mov [r15], r11b
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+    bytes.extend([0xeb, 0xde]); // jmp -34 -> loop
+    bytes.extend([0x45, 0x88, 0x1f]); // mov [r15], r11b
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+
+    append_store_r10_to_r14(&mut bytes, written_offset, 8)?;
+    debug_assert_eq!(
+        bytes.len(),
+        append_wire_scalar_varint_width(
+            source_offset,
+            byte_size,
+            zigzag,
+            out_offset,
+            written_offset
+        )
+    );
+    Ok(bytes)
+}
+
+/// Byte offset of the WRITTEN page mov inside both wire appends (the
+/// relocation planner adds the +2 imm64 offset itself).
+pub fn wire_append_written_page_offset(_out_offset: usize) -> usize {
+    17
+}
+
+/// Byte offset of the SOURCE page mov inside the varint append.
+pub fn wire_append_varint_source_page_offset(
+    _out_offset: usize,
+    _written_offset: usize,
+) -> usize {
+    37
+}
+
 pub fn runtime_machine_string_write_width(_byte_length: usize) -> usize {
     44
 }
@@ -3645,6 +3837,13 @@ fn append_add_r15_imm32(bytes: &mut Vec<u8>, value: usize) -> Result<(), Diagnos
 fn append_store_r15_to_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x4d, 0x89, 0xbe]); // mov [r14 + disp32], r15
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+fn append_load_r10_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x4d, 0x8b, 0x96]); // mov r10, [r14 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }

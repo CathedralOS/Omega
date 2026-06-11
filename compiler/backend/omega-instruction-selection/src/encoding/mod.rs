@@ -2,6 +2,9 @@ mod dispatch;
 mod host;
 mod runtime_storage;
 mod runtime_text;
+mod wire_encode;
+
+pub use wire_encode::{encode_append_wire_literal_byte, encode_append_wire_scalar_varint};
 
 pub use dispatch::{
     encode_dispatch_case_enter_bytes, encode_dispatch_case_leave_bytes,

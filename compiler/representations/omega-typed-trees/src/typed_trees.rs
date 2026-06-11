@@ -344,6 +344,54 @@ impl TypedTrees {
         self.tables.wire_members.span_or_empty(span)
     }
 
+    /// Recognize the compiler-synthesized wire encoder call shape
+    /// `Schema::encode_wire(&value, &mut out, &mut written)` (chapter 20,
+    /// wire stage 2a): a statement call whose receiver path is exactly one
+    /// member naming a wire schema and whose target is `encode_wire`.
+    pub fn wire_encode_call_schema(
+        &self,
+        call: &crate::statement::TableCall,
+    ) -> Option<&wire::WireSchema> {
+        if call.target.as_str() != wire::WIRE_ENCODE_MACHINE_NAME {
+            return None;
+        }
+        let [schema_name] = self.statement_table.name_path_members(call.receiver) else {
+            return None;
+        };
+        self.wire_schemas()
+            .iter()
+            .find(|schema| schema.name.as_str() == schema_name.as_str())
+    }
+
+    /// The era discriminator a schema's CURRENT body encodes (frozen decision
+    /// 10): era 0 is the pre-versioning body, so a schema with no version
+    /// blocks encodes era 0; declared version blocks snapshot earlier bodies
+    /// in declaration order (the first block is era 0, the next era 1, ...),
+    /// which leaves the current body at the era one past the newest block.
+    pub fn wire_schema_current_era(&self, schema: &wire::WireSchema) -> u64 {
+        self.wire_members(schema.members)
+            .iter()
+            .filter(|member| matches!(member, wire::WireMember::Version(_)))
+            .count() as u64
+    }
+
+    /// The era discriminator a declared version block's payloads carry: its
+    /// zero-based position in the declaration-ordered version chain.
+    pub fn wire_schema_version_era(
+        &self,
+        schema: &wire::WireSchema,
+        version_name: &str,
+    ) -> Option<u64> {
+        self.wire_members(schema.members)
+            .iter()
+            .filter_map(|member| match member {
+                wire::WireMember::Version(version) => Some(version),
+                _ => None,
+            })
+            .position(|version| version.name.as_str() == version_name)
+            .map(|position| position as u64)
+    }
+
     pub fn push_trait_definition(&mut self, trait_definition: trait_definition::TraitDefinition) {
         self.tables
             .traits

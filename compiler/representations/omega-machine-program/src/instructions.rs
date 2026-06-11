@@ -43,6 +43,8 @@ pub enum MachineInstructionKind {
     RuntimeFrameIndexedIntegerWrite,
     RuntimeFrameBaseIndexedIntegerWrite,
     RuntimeMachineIndexedIntegerWrite,
+    WireLiteralByteAppend,
+    WireScalarVarintAppend,
     RuntimeFrameIndexedBinaryWrite,
     RuntimeFrameBaseIndexedBinaryWrite,
     RuntimeMachineStringWrite,

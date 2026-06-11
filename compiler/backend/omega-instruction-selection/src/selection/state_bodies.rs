@@ -150,6 +150,18 @@ pub(super) fn select_state_body_instructions(
         }
 
         if matches!(operation.kind, OperationKind::Call { .. })
+            && super::wire_encode::select_wire_encode_call(
+                input,
+                storage_dispatch_index_for_state(input, state.key, dispatch_index),
+                state.key,
+                operation.statement_index,
+                selected_instructions,
+            )
+        {
+            continue;
+        }
+
+        if matches!(operation.kind, OperationKind::Call { .. })
             && let Some(host_call) =
                 host_call_for_statement(input, state.key, operation.statement_index)
         {

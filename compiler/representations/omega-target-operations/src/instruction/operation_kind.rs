@@ -140,6 +140,29 @@ pub enum TargetOperationKind {
         field_byte_offset: usize,
         literal: std::sync::Arc<str>,
     },
+    /// compact_binary v0 wire framing: store one compile-time byte into the
+    /// encode buffer at the stored cursor (the caller's `written` slot), then
+    /// advance the cursor by one.
+    AppendWireLiteralByte {
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+        value: u8,
+    },
+    /// compact_binary v0 wire framing: LEB128-encode a runtime scalar
+    /// (zigzagged first when `zigzag` is set) into the encode buffer at the
+    /// stored cursor, advancing the cursor by the encoded byte count.
+    AppendWireScalarVarint {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        byte_size: usize,
+        zigzag: bool,
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+    },
     WriteRuntimeMachineInteger {
         byte_offset: usize,
         byte_size: usize,

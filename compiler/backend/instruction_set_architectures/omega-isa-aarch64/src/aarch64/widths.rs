@@ -1048,3 +1048,54 @@ fn store_x_offset_width(byte_offset: usize) -> usize {
 fn halfword(value: u64, halfword_shift: u8) -> u16 {
     ((value >> (u64::from(halfword_shift) * 16)) & 0xffff) as u16
 }
+
+/// Shared wire-append prologue (`wire_encode.rs`): out page pair + out-offset
+/// add + written page pair + cursor load + pointer add.
+fn wire_append_prologue_width(out_offset: usize, written_offset: usize) -> usize {
+    8 + add_constant_width(out_offset) + 8 + load_data_offset_width(written_offset, 8) + 4
+}
+
+/// The fixed nine-instruction LEB128 emit loop in
+/// `encode_append_wire_scalar_varint`.
+pub fn wire_varint_emit_loop_width() -> usize {
+    36
+}
+
+/// Sign-mask + shift + xor (12), plus the `sxtw` a 4-byte signed source needs
+/// before zigzagging at 64 bits.
+fn wire_zigzag_width(byte_size: usize) -> usize {
+    if byte_size == 4 { 16 } else { 12 }
+}
+
+pub fn append_wire_literal_byte_width(out_offset: usize, written_offset: usize) -> usize {
+    // Prologue + movz + post-increment strb + cursor add + cursor store.
+    wire_append_prologue_width(out_offset, written_offset)
+        + 12
+        + store_data_offset_width(written_offset, 8)
+}
+
+pub fn append_wire_scalar_varint_width(
+    source_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+    out_offset: usize,
+    written_offset: usize,
+) -> usize {
+    wire_append_prologue_width(out_offset, written_offset)
+        + 8
+        + load_data_offset_width(source_offset, byte_size)
+        + if zigzag { wire_zigzag_width(byte_size) } else { 0 }
+        + wire_varint_emit_loop_width()
+        + store_data_offset_width(written_offset, 8)
+}
+
+/// Byte offset of the WRITTEN page adrp pair inside both wire appends (the
+/// relocation planner points it at the written slot's region symbol).
+pub fn wire_append_written_page_offset(out_offset: usize) -> usize {
+    8 + add_constant_width(out_offset)
+}
+
+/// Byte offset of the SOURCE page adrp pair inside the varint append.
+pub fn wire_append_varint_source_page_offset(out_offset: usize, written_offset: usize) -> usize {
+    wire_append_prologue_width(out_offset, written_offset)
+}

@@ -329,3 +329,70 @@ pub(in crate::aarch64) fn encode_subs_x_immediate(
             | u32::from(destination_register),
     ))
 }
+
+/// `EOR Xd, Xn, Xm` — bitwise exclusive or (shifted register, shift 0).
+pub(in crate::aarch64) fn encode_eor_x_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0xCA000000
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `AND Xd, Xn, #0x7f` — keep the low seven bits (one LEB128 payload group).
+/// Logical immediate with element size 64: N=1, immr=0, imms=6.
+pub(in crate::aarch64) fn encode_and_x_immediate_low_seven(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9240_1800 | (u32::from(source_register) << 5) | u32::from(destination_register),
+    )
+}
+
+/// `ORR Xd, Xn, #0x80` — set the LEB128 continuation bit. Logical immediate
+/// with element size 64: N=1, immr=57 (a single one rotated up to bit 7),
+/// imms=0.
+pub(in crate::aarch64) fn encode_orr_x_immediate_bit_seven(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0xB279_0000 | (u32::from(source_register) << 5) | u32::from(destination_register),
+    )
+}
+
+/// `LSR Xd, Xn, #shift` — logical shift right by a constant (`UBFM Xd, Xn,
+/// #shift, #63`).
+pub(in crate::aarch64) fn encode_lsr_x_immediate(
+    destination_register: u8,
+    source_register: u8,
+    shift: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0xD340_FC00
+            | (u32::from(shift & 0x3f) << 16)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `ASR Xd, Xn, #shift` — arithmetic shift right by a constant (`SBFM Xd, Xn,
+/// #shift, #63`).
+pub(in crate::aarch64) fn encode_asr_x_immediate(
+    destination_register: u8,
+    source_register: u8,
+    shift: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9340_FC00
+            | (u32::from(shift & 0x3f) << 16)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
+    )
+}

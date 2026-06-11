@@ -85,6 +85,9 @@ fn schema_report_entry(typed: &TypedTrees, schema: &WireSchema) -> WireSchemaRep
 
         versions.push(WireVersionReportEntry {
             name: eras[index].0.clone(),
+            // Decision 10 era assignment: declared version blocks count up
+            // from era 0 in declaration order.
+            era: index as u64,
             successor: successor_name,
             fields: std::mem::take(&mut eras[index].1.fields),
             reserved: std::mem::take(&mut eras[index].1.reserved),
@@ -98,6 +101,7 @@ fn schema_report_entry(typed: &TypedTrees, schema: &WireSchema) -> WireSchemaRep
             .encoding
             .as_ref()
             .map(|encoding| encoding.to_string()),
+        current_era: typed.wire_schema_current_era(schema),
         fields: current.fields,
         reserved: current.reserved,
         versions,

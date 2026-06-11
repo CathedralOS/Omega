@@ -46,6 +46,10 @@ pub(super) fn collect_state_codegen_blockers(
                         input,
                         state_flow.key,
                         operation.statement_index,
+                    ) || crate::state_call_blockers::statement_has_wire_encode_lowering(
+                        input,
+                        state_flow.key,
+                        operation.statement_index,
                     ) => {}
                 OperationKind::Call { .. } => {
                     blockers.insert(blocker(
