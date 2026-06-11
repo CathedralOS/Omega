@@ -120,6 +120,25 @@ Implementation slices below build against these. Minor/easily-reversible details
 
 ## Next Up (highest leverage)
 
+**Wave landed 2026-06-10 (decisions 8/9/10 implementation + backend gaps).**
+Six lanes merged, suite 179/179, differential oracle fully matched:
+(a) type properties `data Point [copy, zero_init, send]` parse + verify
+(copy/send structural, zero_init owns zero-means-empty incl. the DEMOTED
+zero-case rule); (b) standalone conformance items `Point satisfies
+Equatable;` validate against written attached machines (default
+instantiation/core synthesis still pending -- the comptime direction);
+(c) interim `==` error on payload-bearing cases in statement position;
+(d) strict result use: discarding a non-unit call result errors, `_ =
+call();` is the explicit discard (only ONE corpus file needed the sweep);
+(e) wire era chain checks + migration verdicts + legal recycling;
+(f) versioned data stage 1 (historical-shape symbols, `Counter::v1` types,
+migration-machine spelling compiles natively); (g) case PAYLOADS lower
+natively (tag-prefix writes, payload member reads, tag-only guard compares;
+pending canary promoted, ACTIVE_PENDING_CANARIES empty); (h) value-position
+calls to FREE stateful machines dispatch and deliver values (incl. looping/
+recursive shapes). Known interim semantics flagged for design review:
+tag-only case equality in guards; `_ =` accepts only calls.
+
 **Recent canary promotions.** Numeric literal suffixes (`3i32`, `3.0real`,
 `3nat`), newline-separated proof facts, field `+=` assignment, relax scope syntax
 (`relax target { ... }`), relaxed borrow parameter spelling (`&mut relaxed T`),
@@ -167,14 +186,21 @@ duplicate/value-kind validation, layout diagnostics for unresolved symbolic
 lengths in non-generic contexts, and operator/range proof integration for
 const-length facts.
 
-**Data version semantics follow-up.** Current `data version` support is syntax
-metadata only: historical member blocks are parsed/snapshotted and preserved in
-syntax trees, while symbol-resolved lowering skips them. Version-scoped machine
-paths are recognized structurally (`Counter::increment::v1` attaches `self` to
-`Counter` and keeps `increment` as the entry), but do not yet bind to historical
-member shapes. Need validation, historical-shape symbols, migration matching,
-true version-scoped machine binding, and layout/serialization rules before data
-versions are operational.
+**Data version semantics follow-up.** STAGE 1 DONE (2026-06-10): each
+`version vN { ... }` block now lowers to a real historical-shape data
+definition `Data::vN` with root symbols and member resolution, so
+`Counter::v1` is a nameable type usable in machine signatures and generic
+arguments; the chapter-21 migration spelling
+`machine Counter::from_v1(old: Counter::v1, out: &mut Counter)` compiles
+end-to-end including native lowering, and version-scoped machine paths
+(`Counter::increment::v1`) type-check `self` against the v1 field set.
+Declared-history contradictions (duplicate/non-canonical/nested version
+names, version-scoped machines targeting undeclared versions) are compile
+errors. STAGE 2 frontier: no construction of historical-shape VALUES (struct
+literals only parse single-identifier type names, so no runtime migration
+canary yet), version MATCH arms (`Counter::v1(old) ->`) still reject,
+migration chains / `replaces` / quiescence obligations not started, and no
+era tag or wire-era integration (decision 10's migration ride).
 
 **Wire data semantics follow-up.** Stage 1 (validation + compatibility) is
 done: wire schemas now lower through symbol-resolved and typed trees as their
@@ -183,14 +209,16 @@ symbol kind), `omega-validation` rejects duplicate/reserved tag misuse,
 duplicate versions, unresolved field types, and version-vs-current type
 changes or unreserved retirements (fail canaries under `canaries/fail/wire/`),
 and every compile emits a `04_wire_protocols.txt` compatibility report with
-per-version verdicts. RULINGS (recorded in ch20 + appendix): declared version
-blocks are checked history, violations are errors; compatibility checks must
-move from versions-vs-current to ADJACENT-ERA chain checking (small checker
-re-point); wire schemas are ORDINARY data usable in any signature (the
-chapter's examples already assume this -- stage 2 makes it true) with
-generated encode/decode at boundaries. Still needed: the chain re-point,
-wire-schemas-as-program-types, encoder/decoder generation, runtime layout of
-wire values, encoding-family semantics, and version negotiation.
+per-version verdicts. DECISION 10 LANDED (2026-06-10): the checker and the
+report now walk the version chain `[v1, v2, ..., current]` comparing only
+ADJACENT eras; cross-era type changes are "requires migration" report
+verdicts (compile clean); retiring a documented number without reserving it
+is era-scoped to the successor and stays a hard error; cross-era
+field-number recycling is legal (per-scope `reserved`); pass canaries cover
+recycling + type-change migration verdicts. Still needed (stage 2):
+era-discriminator varint emission, wire-schemas-as-program-types,
+encoder/decoder generation, runtime layout of wire values, encoding-family
+semantics, and version negotiation.
 
 **Host-provider semantics follow-up.** Current host-provider support is
 syntax-preserving metadata: it parses and snapshots syscall mapping rows, but
