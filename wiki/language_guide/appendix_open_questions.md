@@ -89,6 +89,34 @@ This page tracks design pressure that is not fully nailed down yet.
   boundary declares facts about hardware (MMU, MSRs, MMIO regions, interrupt
   control), and the asm instruction-contract subset is the implementation
   vehicle for many such providers. See Capabilities, Effects, And Boundaries.
+- Type PROPERTIES and traits are distinct classes with distinct spellings:
+  properties are lowercase facts in brackets on the data declaration
+  (`data Point [copy, zero_init]`, reusing invariant-parameter syntax;
+  computed / declared+verified / boundary-asserted, no inference, no negative
+  form); traits are behavior, implemented by ordinary machines and claimed by
+  a standalone conformance item `Point satisfies Equatable;` (checks written
+  members, instantiates trait default-machine bodies, synthesizes core
+  derivable traits). Nothing trait-shaped appears on data declarations.
+- Zero-is-initialization splits: "zero is a valid value" is the unconditional
+  compiler guarantee (no niche layout, tag 0 = first case); "zero is the
+  semantically empty value" is the opt-in `zero_init` property whose
+  verification owns the zero-case-payload-free rule. Cathedral requires the
+  property on its surface types; the language does not impose it.
+- Equality is trait-resolved: core `Equatable` with compiler-synthesized
+  structural `equals` (field-by-field; tag + matching payload for sums).
+  Interim, until that lands: `==` on payload-bearing case values is a compile
+  error (never a tag-only comparison); payload-less sums keep `==` as the tag
+  compare.
+- Synthesis is a closed compiler privilege (the Slice::index pattern:
+  browsable core declaration, compiler-owned implementation). NO macro
+  system, ever. User-extensible structural synthesis, if ever needed, goes
+  through compile-time execution + member reflection (the reference
+  interpreter as the evaluation engine, effect ceilings gating build code).
+- Attribute-system stances: no per-item conditional compilation (per-target
+  code lives in target packages); lint policy lives at the package/build
+  declaration, never per-item in source; deprecation is versioned-data
+  metadata, not a marker; field-level codegen metadata is wire data, not
+  attributes; optimization hints deliberately deferred.
 
 ## Still Open
 
@@ -142,3 +170,14 @@ This page tracks design pressure that is not fully nailed down yet.
 - What is the component artifact + cross-component ABI for separately
   compiled, hot-swappable machines? (Inventory of current whole-program
   assumptions: wiki/architecture/whole_program_assumptions.md.)
+- Type-property follow-ups: the bare generic-bound spelling (likely
+  `where T is [copy]`), the initial core property set (copy/zero_init/send/
+  sized), and whether `[open]` (non-exhaustive evolution contract) and
+  `[must_use]` join the bracket surface.
+- Conformance-item follow-ups: identifier-led item parsing, the both-foreign
+  orphan rule, partially-satisfied diagnostics.
+- An in-language test surface (a `test` item word the toolchain discovers) is
+  undesigned; canaries are external today.
+- Compile-time execution (Jai-style run + member reflection) is direction
+  only: entry spelling, reflection surface, and the effect ceiling for build
+  code are all open.

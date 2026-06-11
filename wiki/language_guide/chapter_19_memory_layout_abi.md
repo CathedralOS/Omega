@@ -25,7 +25,9 @@ What makes this hold layer by layer:
   the canonical empty carrier. Reads see emptiness; nothing dereferences a
   zero pointer with a zero length.
 - Case-bearing data (sum and mixed shapes): tag `0` is the first declared
-  case, so declare the empty/none-like case first (see
+  case, so a zeroed value IS the first case (with zeroed payload if it has
+  one). Making that case the payload-free empty case is the `zero_init`
+  property's rule, not a global one (see
   [Case Members](chapter_1_data_values_literals.md)).
 - Aggregates: zero recursively zeroes every field, so the guarantee composes.
 - The compiler never performs niche-style layout optimization that gives the
@@ -42,20 +44,29 @@ from pretending the bit pattern cannot exist.
 
 Field defaults (`gold: u32 = 5`) describe CONSTRUCTED values; a zeroed object
 does not apply them. The two initialization shapes are distinct on purpose:
-construction runs defaults, zeroing produces the canonical empty
-value.[^zii-lint]
+construction runs defaults, zeroing produces the zero value.
 
-This guarantee exists because systems built on Omega (see
-`wiki/cathedral_alignment.md`) adopt zero-is-initialization as a system-wide
-convention: zero-allocate and the object is usable, `memset` to reset, no
-"forgot to initialize" crash class.
+That is the WHOLE unconditional guarantee: zero is always a valid value. It
+constrains the compiler, never the programmer.
 
-[^zii-lint]: Open details: a lint that flags declarations whose invariants
-exclude zero everywhere (so a zeroed value of that type could never be
-established into ANY useful domain -- usually a design smell); whether a
-declaration can opt into "constructed-only" semantics for genuinely
-zero-hostile types; and the exact wording of the facts-vs-storage rule in the
-proof chapters.
+Whether the zero value is also the SEMANTICALLY EMPTY value -- the none-like
+case, the inert object, the thing `memset` legitimately resets to -- is a
+per-type choice, opted into with the `zero_init` property
+([Types, Constraints, And Invariants](chapter_7_types_constraints_invariants.md)):
+
+```omega
+data Command [zero_init] {
+    case None;                 // verified: zero case is payload-free, none-like
+    case Say(text: String);
+}
+```
+
+A type that does not declare `[zero_init]` may freely put a payload-carrying
+case first or use non-zero defaults; its zeroed value is valid but not
+meaningfully "empty". Systems that adopt zero-is-initialization as a
+convention (the Cathedral OS does, system-wide -- see
+`wiki/cathedral_alignment.md`) require the property on their surface types;
+nothing imposes it on programs that do not care.
 
 ## Default Layout
 

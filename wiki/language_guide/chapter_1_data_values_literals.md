@@ -140,10 +140,11 @@ match entity {
 
 Working rules:
 
-- The FIRST case is the zero case: its tag is `0`, and it should be the
-  empty/none-like case. This is what makes a zeroed value valid (see
-  [Memory Layout And ABI](chapter_19_memory_layout_abi.md) on zero
-  initialization).
+- The FIRST case is the zero case: its tag is `0`, so a zeroed value is the
+  first case. Zero validity is unconditional; declaring the empty/none-like
+  case first (and payload-free) is the rule of the opt-in `zero_init`
+  property, recommended style otherwise (see
+  [Memory Layout And ABI](chapter_19_memory_layout_abi.md)).
 - The subject's shape decides what an arm can be: a scalar subject takes
   value patterns, a record subject takes domain arms, a case-bearing subject
   takes case arms and domain arms together.

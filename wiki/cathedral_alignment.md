@@ -29,6 +29,12 @@ implementation work. Each one gets more expensive to retrofit every month.
 > data (chapter 21) were already design-complete in the guide; their gap is
 > implementation only.
 
+> ZII update (frozen decision 8): the language guarantee is LAYER 1 only —
+> zero is always a valid value (compiler-side, free). "Zero means empty" is
+> the opt-in `[zero_init]` type property; Cathedral requires it on OS-surface
+> types as policy. The item below predates that split; its "collision" worry
+> is resolved by facts-describe-established-values + the property opt-in.
+
 1. **ZII as a language guarantee — and its collision with bounded invariants.**
    Cathedral adopts "the all-zero bit pattern is a valid, coherent value for
    every construct" as a system-wide convention. Omega never promises this.
