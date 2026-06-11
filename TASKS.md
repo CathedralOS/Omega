@@ -583,9 +583,13 @@ exit.
   (focused on intended diagnostics), `pending` = desired behavior known but
   implementation behind. Promote pending quickly when fixed; don't let
   compile-only pass canaries imply runtime support.
-- Current local suite status: `cargo test -p omega-compiler --test canary_suite`
-  passes all active canaries, with no registered pending canaries (the proofs
-  false twins were promoted to `fail/proofs/` by the entailment engine; see
+- Current local suite status (2026-06-11, macOS ARM64 host): `cargo test -p
+  omega-compiler --test canary_suite` is 181/183 — the 2 failures are the
+  dungeon hot-potato (frame-overlap pointer corruption; lldb-diagnosed, see
+  the backend-residue bullet). The aarch64 encoder convergence wave closed
+  the previous 30-failure arm64 gap, so this host is now a trustworthy
+  runtime verifier. No registered pending canaries (the proofs false twins
+  were promoted to `fail/proofs/` by the entailment engine; see
   `wiki/proof_engine_roadmap.md`). Keep this line current when backend/runtime
   work moves canaries between `pass`, `fail`, and `pending`.
 
