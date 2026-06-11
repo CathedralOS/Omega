@@ -1,1 +1,0 @@
-wire data `CounterMessage` field number 0 changes type from `i32` in version `v1` to `i64` without an explicit compatibility rule

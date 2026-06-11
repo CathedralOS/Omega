@@ -496,8 +496,16 @@ impl ArtifactWriter {
                 output.push_str(&format!("\n### version {}\n", version.name));
                 push_wire_field_table(&mut output, &version.fields, &version.reserved);
 
-                output.push_str(&format!("\n### compatibility {} -> current\n", version.name));
+                output.push_str(&format!(
+                    "\n### compatibility {} -> {}\n",
+                    version.name, version.successor
+                ));
                 push_wire_verdicts(&mut output, "compatible", &version.verdicts.compatible);
+                push_wire_verdicts(
+                    &mut output,
+                    "requires migration",
+                    &version.verdicts.requires_migration,
+                );
                 push_wire_verdicts(&mut output, "reserved", &version.verdicts.reserved);
                 push_wire_verdicts(&mut output, "incompatible", &version.verdicts.incompatible);
             }
@@ -928,9 +936,10 @@ fn push_wire_verdicts(output: &mut String, label: &str, verdicts: &[String]) {
 }
 
 /// Compatibility report for `wire data` protocol schemas (chapter 20): field
-/// tables, retired numbers, declared version eras, and per-version verdicts
-/// against the current schema body. Built from typed trees by the compiler
-/// pipeline; this crate only owns the artifact shape and rendering.
+/// tables, retired numbers, declared version eras, and per-era verdicts along
+/// the VERSION CHAIN (each era against its successor; the newest era against
+/// the current schema body). Built from typed trees by the compiler pipeline;
+/// this crate only owns the artifact shape and rendering.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireProtocolReport {
     pub schemas: Vec<WireSchemaReportEntry>,
@@ -955,6 +964,9 @@ pub struct WireFieldReportEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireVersionReportEntry {
     pub name: String,
+    /// The next era in the version chain this era's verdicts compare against:
+    /// the following declared version, or `current` for the newest era.
+    pub successor: String,
     pub fields: Vec<WireFieldReportEntry>,
     pub reserved: Vec<i64>,
     pub verdicts: WireCompatibilityVerdicts,
@@ -963,6 +975,10 @@ pub struct WireVersionReportEntry {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireCompatibilityVerdicts {
     pub compatible: Vec<String>,
+    /// Cross-era type changes on a stable field number: legal evolution (the
+    /// era discriminator selects the old decode table), surfaced as a report
+    /// verdict instead of a compile error.
+    pub requires_migration: Vec<String>,
     pub reserved: Vec<String>,
     pub incompatible: Vec<String>,
 }
