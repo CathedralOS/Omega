@@ -79,11 +79,15 @@ Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
 - [ ] aarch64 runtime convergence (dungeon hot-potato).
 - [ ] Borrow layer records free-machine value-call targets as `invalid` in
   checked trees (cosmetic today).
-- [ ] Stale test fixtures: lib tests of omega-graph/types/names/proof/
-  syntax-trees/abstract-operations/target-operations don't compile (missing
-  `abi`/`type_parameters`/`kind`/`is_float` fields); omega-machine-emission +
-  omega-state-calls each have failing unit tests; architecture_boundaries
-  3/6 fail. All pre-date the wave.
+- [x] Stale test fixtures repaired: lib-test fixtures of omega-graph/types/
+  names/proof/syntax-trees/abstract-operations/target-operations/facts gained
+  the missing `abi`/`type_parameters`/`kind`/`properties`/`is_float` fields;
+  omega-state-calls fixtures moved off the retired bare-`->` explicit-state
+  syntax (omega-machine-emission already passed); architecture_boundaries
+  brought in line with the omega-architecture-test layering policy + the
+  facts/effects relocation (dev-deps exempt, pipeline->backend-helper edges
+  tolerated, final machinery still forbidden, stale `lowering/` path fixed).
+  `cargo test --workspace` is green apart from aarch64 MVP encoder gaps.
 
 **Long view (deliberately deferred — big designs or revamps; listed so they
 stay visible, not because they're next):**

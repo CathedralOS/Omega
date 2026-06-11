@@ -45,8 +45,6 @@ Omega/
 |   |   |-- [CRATE] omega-names/                        # Definitions, scopes, imports, symbol resolution.
 |   |   |-- [CRATE] omega-types/                        # Type checking, inference, coercions, layout preconditions.
 |   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and graph-facing semantic facts.
-|   |   |-- [CRATE] omega-facts/                        # Checked semantic facts, invariants, and refinement data.
-|   |   |-- [CRATE] omega-effects/                      # Effect surface and authority-flow checking.
 |   |   |-- [CRATE] omega-validation/                   # Cross-semantic program validation and diagnostics.
 |   |   `-- [CRATE] omega-proof/                        # Proof obligations, invariants, liveness hooks.
 |   |
@@ -55,6 +53,8 @@ Omega/
 |   |   |-- [CRATE] omega-syntax-trees/                 # Parsed source structure before names and symbols are resolved.
 |   |   |-- [CRATE] omega-symbol-resolved-trees/        # SymbolResolvedTrees: syntax shape with declaration/reference symbols resolved.
 |   |   |-- [CRATE] omega-typed-trees/                  # Symbol-resolved trees with type/effect information attached.
+|   |   |-- [CRATE] omega-facts/                        # Checked semantic facts, invariants, and refinement data embedded in later IRs.
+|   |   |-- [CRATE] omega-effects/                      # Effect-set, capability, and provider data shapes embedded in later IRs.
 |   |   |-- [CRATE] omega-checked-trees/                # Typed trees plus checked semantic facts after validation/proof-facing checks.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
@@ -201,6 +201,10 @@ Omega/
   crates today. Borrow, invariant, contract, and const-evaluation reasoning live
   inside the existing semantic crates (chiefly `omega-types`, `omega-facts`,
   `omega-validation`, and `omega-proof`).
+- `omega-facts` and `omega-effects` are data-shape crates and live under
+  `representations/` so checked IRs can embed their types without a
+  representations-to-semantics edge; semantics crates still own how those
+  facts and effects are established.
 - `omega-facts` carries checked facts, invariants, and refinement data: what
   remains true.
 - `omega-validation` answers cross-semantic obligations, including who may read
