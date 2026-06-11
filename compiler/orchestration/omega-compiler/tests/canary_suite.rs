@@ -338,6 +338,52 @@ fn boundary_trait_canary_reports_capability_use() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Frozen decision 10 (wire eras): cross-era type changes are legal evolution
+// surfaced as "requires migration" verdicts in the wire protocol compatibility
+// report, and the report compares ADJACENT eras along the version chain
+// (v1 -> v2, newest era -> current), never every era against current.
+#[test]
+fn wire_cross_era_type_change_reports_requires_migration_verdict() {
+    let canary = pass_canary("wire/wire_cross_era_type_change_migration");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-migration-verdict-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cross-era type change canary should compile with a migration verdict, not an error");
+
+    let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
+        .expect("wire protocol compatibility report should be written");
+    assert!(
+        report.contains("### compatibility v1 -> v2")
+            && report.contains("### compatibility v2 -> current"),
+        "wire report should compare adjacent eras along the version chain\n{}",
+        report
+    );
+    assert!(
+        report.contains(
+            "field 0 changes type i32 -> i64; decode via the old era's table and migrate up the chain"
+        ),
+        "wire report should record the cross-era type change as a requires-migration verdict\n{}",
+        report
+    );
+    assert!(
+        !report.contains("### compatibility v1 -> current"),
+        "wire report should not compare a non-newest era against the current body\n{}",
+        report
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn capability_pass_canaries_compile_in_isolation() {
     // A focused guard for the capability canaries, independent of the batched
@@ -6497,6 +6543,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/wire_data_encoding_family",
     "wire/wire_multi_version_evolution",
     "wire/wire_field_references_program_types",
+    "wire/wire_cross_era_type_change_migration",
+    "wire/wire_cross_era_number_recycling",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -6504,8 +6552,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/field_reuses_reserved_number",
     "wire/duplicate_version_declaration",
     "wire/unknown_field_type",
-    "wire/version_field_type_change",
     "wire/version_field_retired_without_reserved",
+    "wire/version_chain_retired_without_reserved",
     "capabilities/unapproved_host_call",
     "data/case_payload_malformed",
     "data/case_zero_payload",
