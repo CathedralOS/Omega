@@ -33,8 +33,15 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
 > {
     let (pattern_input, rest) =
         input.split_at_top_level_punctuation(PunctuationKind::Arrow, "expected `->`")?;
+    // Stage-2 ruling on chapter 21's version matching: values carry NO era tag
+    // yet, so a `Type::vN(binding)` arm can never be selected at runtime --
+    // every value in the program has the current shape. Rejecting the arm as
+    // unreachable is the honest semantics until era-tagged containers (the
+    // versioned-data stage 3 frontier) make multi-era subjects expressible.
     if looks_like_version_match_arm(pattern_input) {
-        return Err(pattern_input.error_here("version match arms are not implemented yet"));
+        return Err(pattern_input.error_here(
+            "version match arms are unreachable: values carry no era tag yet, so a `Type::vN(binding)` arm can never match -- era-tagged containers are not implemented",
+        ));
     }
 
     if subject.len() == 1

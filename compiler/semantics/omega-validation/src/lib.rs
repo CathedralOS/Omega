@@ -13,6 +13,7 @@ mod places;
 mod proof_facts;
 mod properties;
 mod state_signatures;
+mod struct_literals;
 mod symbols;
 #[cfg(test)]
 mod tests;
@@ -63,6 +64,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
     // before membership lowering synthesizes its internal tag compares; see
     // omega-symbol-resolved-trees-to-typed-trees/src/equality.rs.
+    struct_literals::validate_struct_literal_fields(program, &mut diagnostics);
     wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
     operators::validate_operator_declarations(program, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
