@@ -1,0 +1,17 @@
+// Ladder rung L3 (congruence): equality is preserved by applying the same
+// operation to both sides. Lean analog: `congrArg (· + 1)`. Needs the checker
+// to rewrite under an equation, not just match stored facts.
+
+machine add_one_congruence(a: usize, b: usize)
+requires
+    a == b
+ensures
+    a + 1 == b + 1
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

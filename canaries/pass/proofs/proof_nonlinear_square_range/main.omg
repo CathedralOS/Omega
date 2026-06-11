@@ -1,0 +1,17 @@
+// Ladder rung L5 (nonlinear ranges): interval multiplication of a variable by
+// itself. If a lies in 0..=10 then a * a lies in 0..=100. Lean analog:
+// `Nat.mul_le_mul`. Needs interval products, the first nonlinear step.
+
+machine square_bounded(a: usize)
+requires
+    a in 0..=10
+ensures
+    a * a in 0..=100
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

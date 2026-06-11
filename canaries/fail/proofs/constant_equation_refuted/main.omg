@@ -1,0 +1,16 @@
+// False twin of proofs/proof_constant_arithmetic_identity (ladder rung L0).
+// A closed Nat equation that folds to a falsehood can never be entailed, so
+// the empty-body proof machine must be rejected. The contract refutation pass
+// folds both sides and compares.
+
+machine false_constant_equation()
+ensures
+    1nat + 1nat == 3nat
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

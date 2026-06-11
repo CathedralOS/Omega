@@ -6141,6 +6141,16 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "constraints/contract_range_membership_unimplemented",
     "constraints/scalar_ensures_field_contract_surface",
     "constraints/scalar_requires_satisfied_by_literal",
+    "proofs/proof_constant_arithmetic_identity",
+    "proofs/proof_order_transitivity",
+    "proofs/proof_linear_range_sum",
+    "proofs/proof_congruence_add_constant",
+    "proofs/proof_addition_commutativity",
+    "proofs/proof_nonlinear_square_range",
+    "proofs/proof_order_antisymmetry",
+    "proofs/proof_multiplication_distributivity",
+    "proofs/proof_remainder_range",
+    "proofs/proof_bag_view_reflexivity",
     "control_flow/runtime_integer_literal_dispatch_exit",
     "control_flow/runtime_string_literal_dispatch_exit",
     "core/local_value_intro_compile",
@@ -6306,6 +6316,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "capabilities/unknown_effect_name",
     "capabilities/unknown_provider_category",
     "constraints/scalar_requires_unproven_literal",
+    "proofs/constant_equation_refuted",
+    "proofs/order_asymmetry_refuted",
     "drops/drop_nonblocking_effect_unknown",
     "modules/ambiguous_imported_data",
     "modules/use_unresolved_path",
@@ -6328,6 +6340,50 @@ struct PendingCanary {
 
 // fixed_array_element_guard was promoted to pass/ once the guard-operand layout
 // applied the constant array index (see fixed_array_element_guard_canary_runs and
-// runtime_fixed_array_field_guard_exit_canary_runs). No active pending gaps remain.
+// runtime_fixed_array_field_guard_exit_canary_runs).
+//
+// The pending/proofs/ entries are FALSE theorems (false twins of the
+// pass/proofs/ ladder): empty-body proof machines whose ensures does NOT
+// follow from the requires. The checker accepts them today because
+// requires->ensures entailment is undischarged beyond the contract
+// refutation pass (constant arithmetic + strict-order asymmetry, which
+// already reject the L0/L1 twins in fail/proofs/). Each pending directory
+// carries an expected.txt with the diagnostic fragment the entailment engine
+// should eventually produce; when one starts rejecting, promote it to
+// fail/proofs/ per the suite panic message. The rungs map to engine
+// increments in wiki/proof_engine_roadmap.md.
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    PendingCanary {
+        path: "proofs/order_transitivity_false_twin",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "proofs/linear_range_sum_false_twin",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "proofs/congruence_false_twin",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "proofs/addition_commutativity_false_twin",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "proofs/nonlinear_square_range_false_twin",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "proofs/order_antisymmetry_false_twin",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "proofs/remainder_range_false_twin",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "proofs/bag_view_false_twin",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+];

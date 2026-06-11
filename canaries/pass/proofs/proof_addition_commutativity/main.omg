@@ -1,0 +1,15 @@
+// Ladder rung L4 (commutativity): a + b == b + a with no hypotheses.
+// Lean analog: `Nat.add_comm`. Needs term normalization (sorting commutative
+// operands into a canonical form), not value computation.
+
+machine add_commutative(a: usize, b: usize)
+ensures
+    a + b == b + a
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
