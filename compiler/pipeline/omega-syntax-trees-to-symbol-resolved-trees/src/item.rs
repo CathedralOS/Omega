@@ -7,6 +7,7 @@ use crate::measure::lower_measure_definition;
 use crate::operator::lower_operator_definition;
 use crate::platform::lower_platform;
 use crate::trait_definition::lower_trait_definition;
+use crate::wire::lower_wire_schema;
 use omega_core::diagnostics::Diagnostic;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -58,6 +59,10 @@ pub(crate) fn lower_item(
             let operator = lower_operator_definition(lowerer, syntax_trees, operator)?;
             lowerer.symbol_resolved_trees.operators.push(operator);
         }
+        syntax::item::Item::WireData(wire_data) => {
+            let wire_schema = lower_wire_schema(lowerer, syntax_trees, wire_data)?;
+            lowerer.symbol_resolved_trees.wire_schemas.push(wire_schema);
+        }
         syntax::item::Item::Capability(_)
         | syntax::item::Item::Module(_)
         | syntax::item::Item::Package(_)
@@ -66,7 +71,6 @@ pub(crate) fn lower_item(
         | syntax::item::Item::Export(_)
         | syntax::item::Item::Library(_)
         | syntax::item::Item::Target(_)
-        | syntax::item::Item::WireData(_)
         | syntax::item::Item::Use(_) => {}
     }
 

@@ -1,6 +1,6 @@
 use crate::{
     data, domain, expression, measure, operator, signature, snapshot, state, statement, tables,
-    types,
+    types, wire,
 };
 use omega_core::arena::{Arena, Handle, HandleSpan, OrderedRootArena};
 use omega_core::diagnostics::PhaseSnapshot;
@@ -24,6 +24,7 @@ pub struct SymbolResolvedRoots {
     pub operators: OrderedRootArena<operator::OperatorDefinition>,
     pub platforms: OrderedRootArena<crate::platform::Platform>,
     pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
+    pub wire_schemas: OrderedRootArena<wire::WireSchema>,
 }
 
 impl SymbolResolvedRoots {
@@ -45,6 +46,7 @@ impl SymbolResolvedRoots {
             operators,
             platforms,
             traits,
+            wire_schemas: OrderedRootArena::default(),
         }
     }
 }
@@ -78,6 +80,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub statement_path_members: Arena<crate::name::DiagnosticName>,
     pub state_statements: Arena<statement::Statement>,
     pub child_type_references: Arena<types::TypeReference>,
+    pub wire_members: Arena<wire::WireMember>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -337,6 +340,10 @@ impl SymbolResolvedTrees {
         handle: Handle<types::TypeReference>,
     ) -> &types::TypeReference {
         self.tables.declarations.child_type_references.get(handle)
+    }
+
+    pub fn wire_members(&self, span: HandleSpan<wire::WireMember>) -> &[wire::WireMember] {
+        self.tables.declarations.wire_members.span_or_empty(span)
     }
 
     pub fn rebuild_tables(&mut self) {

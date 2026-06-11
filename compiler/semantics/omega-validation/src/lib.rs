@@ -17,6 +17,7 @@ mod tests;
 mod traits;
 mod transitions;
 mod type_references;
+mod wire;
 
 use crate::calls::validate_call_node;
 use crate::data::validate_data_field_types;
@@ -50,6 +51,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_trait_requirements(program, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
+    wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
     operators::validate_operator_declarations(program, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
 

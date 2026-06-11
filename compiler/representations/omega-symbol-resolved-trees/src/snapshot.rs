@@ -11,6 +11,8 @@ use crate::state::State;
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 use crate::trait_definition::TraitDefinition;
 use crate::types::{TypeConstraint, TypeReference};
+use crate::wire::{WireMember, WireSchema};
+use omega_core::arena::HandleSpan;
 use serde::Serialize;
 
 #[cfg(test)]
@@ -70,6 +72,11 @@ impl SymbolResolvedTreesSnapshot {
                         trait_definition_snapshot(symbol_resolved_trees, trait_definition)
                     })
                     .collect(),
+                wire_schemas: symbol_resolved_trees
+                    .wire_schemas
+                    .iter()
+                    .map(|wire_schema| wire_schema_snapshot(symbol_resolved_trees, wire_schema))
+                    .collect(),
             },
             tables: ResolvedTableSnapshot {
                 type_constraint_count: symbol_resolved_trees.tables.types.constraints.len(),
@@ -111,6 +118,32 @@ pub struct SymbolResolvedRootsSnapshot {
     pub operators: Vec<OperatorDefinitionSnapshot>,
     pub platforms: Vec<PlatformSnapshot>,
     pub traits: Vec<TraitSnapshot>,
+    pub wire_schemas: Vec<WireSchemaSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct WireSchemaSnapshot {
+    pub has_symbol: bool,
+    pub name: String,
+    pub encoding: Option<String>,
+    pub members: Vec<WireMemberSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WireMemberSnapshot {
+    Field {
+        number: i64,
+        name: String,
+        type_reference: TypeReferenceSnapshot,
+    },
+    Reserved {
+        number: i64,
+    },
+    Version {
+        name: String,
+        members: Vec<WireMemberSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -966,6 +999,42 @@ fn type_reference_snapshot(
     type_reference: &TypeReference,
 ) -> TypeReferenceSnapshot {
     type_reference_snapshot_from_program(program, type_reference)
+}
+
+fn wire_schema_snapshot(program: &SymbolResolvedTrees, wire_schema: &WireSchema) -> WireSchemaSnapshot {
+    WireSchemaSnapshot {
+        has_symbol: wire_schema.symbol.is_valid(),
+        name: wire_schema.name.to_string(),
+        encoding: wire_schema
+            .encoding
+            .as_ref()
+            .map(|encoding| encoding.to_string()),
+        members: wire_member_snapshots(program, wire_schema.members),
+    }
+}
+
+fn wire_member_snapshots(
+    program: &SymbolResolvedTrees,
+    members: HandleSpan<WireMember>,
+) -> Vec<WireMemberSnapshot> {
+    program
+        .wire_members(members)
+        .iter()
+        .map(|member| match member {
+            WireMember::Field(field) => WireMemberSnapshot::Field {
+                number: field.number,
+                name: field.name.to_string(),
+                type_reference: type_reference_snapshot(program, &field.type_reference),
+            },
+            WireMember::Reserved(reserved) => WireMemberSnapshot::Reserved {
+                number: reserved.number,
+            },
+            WireMember::Version(version) => WireMemberSnapshot::Version {
+                name: version.name.to_string(),
+                members: wire_member_snapshots(program, version.members),
+            },
+        })
+        .collect()
 }
 
 fn type_reference_snapshot_from_program(

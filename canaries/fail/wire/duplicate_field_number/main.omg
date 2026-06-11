@@ -1,0 +1,13 @@
+// Chapter 20 (Wire Protocols): wire field numbers are stable protocol
+// identities, so a schema scope cannot declare the same number twice.
+
+wire data CounterMessage {
+    0: counter: i32;
+    0: timestamp_millis: i64;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

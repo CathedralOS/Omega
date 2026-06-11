@@ -72,6 +72,7 @@ impl Compiler {
 
         let typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
         write_typed_snapshot(&self.options, &typed)?;
+        crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 
         let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
         write_checked_snapshot(&self.options, &checked.program)?;

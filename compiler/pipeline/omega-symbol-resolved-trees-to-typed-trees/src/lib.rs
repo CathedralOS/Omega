@@ -12,5 +12,6 @@ mod state;
 mod statement;
 mod trait_definition;
 mod type_reference;
+mod wire;
 
 pub use lowerer::{lower_symbol_resolved_trees, lower_symbol_resolved_trees_owned};
