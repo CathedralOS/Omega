@@ -53,13 +53,17 @@ pub(super) fn collect_runtime_storage_compare_relocations(
         SelectedInstructionKind::CompareRuntimeStorage {
             left_region,
             right_region,
+            byte_size,
             ..
         } => {
             let left_symbol = context.storage_region_symbol_handle(*left_region);
             let right_symbol = context.storage_region_symbol_handle(*right_region);
             context.insert_data_address_at_instruction_start(left_symbol);
             context.insert_data_address_at_relative_offset(
-                runtime_storage_compare_right_address_offset(context.input.target.architecture),
+                runtime_storage_compare_right_address_offset(
+                    context.input.target.architecture,
+                    *byte_size,
+                ),
                 right_symbol,
             );
             true

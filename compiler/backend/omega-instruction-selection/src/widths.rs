@@ -583,7 +583,7 @@ pub fn runtime_pointee_operand_start_width(
 pub fn runtime_value_compare_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
-    _byte_size: usize,
+    byte_size: usize,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,
 ) -> usize {
@@ -592,7 +592,7 @@ pub fn runtime_value_compare_width(
             aarch64::runtime_value_compare_width(runtime_value_operands, left, right)
         }
         Architecture::X86_64 => {
-            x86_64::runtime_value_compare_width(runtime_value_operands, left, right)
+            x86_64::runtime_value_compare_width(runtime_value_operands, byte_size, left, right)
         }
     }
 }

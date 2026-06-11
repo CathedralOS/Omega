@@ -170,8 +170,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("traits/runtime_dyn_single_impl_dispatch_exit", 70),
     ("traits/runtime_ref_param_method_dispatch_exit", 70),
     ("types/runtime_i8_signed_arith_exit", 70),
+    ("types/runtime_i16_signed_arith_exit", 70),
     ("types/runtime_isize_signed_arith_exit", 70),
     ("types/runtime_u8_field_arith_exit", 70),
+    ("types/runtime_u16_field_arith_exit", 70),
 ];
 
 /// Run canaries the suite executes that are DELIBERATELY not in `RUN_CANARIES`,
