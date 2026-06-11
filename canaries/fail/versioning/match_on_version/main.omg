@@ -1,7 +1,10 @@
 // Chapter 21 (Versioned Data): code receiving unknown-version state should branch
 // by version, e.g. `match counter { Counter::v1(old) -> migrate old to Counter
-// ...}`. Unimplemented: version match arms and the `migrate ... to ...`
-// expression are not recognized transition patterns.
+// ...}`. Stage-2 ruling: values carry NO era tag, so every value has the
+// current shape and a `Type::vN(binding)` arm can never be selected -- the
+// arm is rejected as unreachable rather than lowered with fake runtime
+// semantics. Version matching becomes expressible when era-tagged containers
+// (stage 3) give a subject that can actually hold multiple eras.
 
 data Counter {
     counter: i32;

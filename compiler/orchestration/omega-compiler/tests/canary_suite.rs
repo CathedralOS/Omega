@@ -874,6 +874,46 @@ fn runtime_field_default_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_version_migration_exit_canary_runs() {
+    // Chapter 21 (Versioned Data), first runtime migration: a historical-shape
+    // value is CONSTRUCTED (`Counter::v1 { counter: 3 }` -- the brace literal
+    // resolves to the data's `version v1` shape, not a case), the migration
+    // machine `Counter::from_v1(old, &mut current)` is called through the data
+    // type name, and the migrated current-shape fields drive the exit (the
+    // guard `count * 10 + timestamp == 77` holds only when both migrated
+    // writes landed; exits 70 when correct).
+    let canary = pass_canary("versioning/runtime_version_migration_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-version-migration-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("version migration canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("version migration canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Counter::v1 construction + Counter::from_v1 migration to land both current-shape writes (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_call_result_binary_operand_exit_canary_runs() {
     // A state-call result used as an operand of a larger value (`x = f() + 1`,
     // `x = max(y, f()+1)`) must apply the operator, not collapse to just the call's
@@ -6798,6 +6838,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "versioning/version_scoped_machine",
     "versioning/data_version_block",
     "versioning/migration_machine_from_v1",
+    "versioning/runtime_version_migration_exit",
     "wire/wire_generic_trait",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",

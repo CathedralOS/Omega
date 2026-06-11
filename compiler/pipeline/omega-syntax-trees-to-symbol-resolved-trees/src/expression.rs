@@ -241,15 +241,87 @@ fn lower_expression_node_into_table(
                     },
                 );
             }
+            let (type_name, case_name) =
+                lower_struct_literal_shape_names(syntax_trees, struct_literal)?;
             Ok(
                 expressions.insert(ExpressionNode::StructLiteral(TableStructLiteral {
-                    type_name: lower_name(&struct_literal.type_name),
-                    case_name: struct_literal.case_name.as_ref().map(lower_name),
+                    type_name,
+                    case_name,
                     fields,
                 })),
             )
         }
     }
+}
+
+/// The lowered `(type_name, case_name)` pair of a brace literal. A two-member
+/// literal `Type::M { ... }` constructs a CASE of `Type` unless `M` is a
+/// version selector (`v1`, `v2`, ...): then it constructs the HISTORICAL
+/// SHAPE the data's `version vN { ... }` block declares, and lowers as a
+/// plain record literal of the root-level shape definition `Type::vN` (no
+/// case tag is involved). Constructing an undeclared version is a compile
+/// error -- there is no historical shape to build.
+fn lower_struct_literal_shape_names(
+    syntax_trees: &SyntaxTrees,
+    struct_literal: &syntax::expression::TableStructLiteral,
+) -> Result<
+    (
+        omega_symbol_resolved_trees::name::DiagnosticName,
+        Option<omega_symbol_resolved_trees::name::DiagnosticName>,
+    ),
+    Diagnostic,
+> {
+    let Some(member) = &struct_literal.case_name else {
+        return Ok((lower_name(&struct_literal.type_name), None));
+    };
+    if !syntax::item::is_version_selector(member.as_str()) {
+        return Ok((
+            lower_name(&struct_literal.type_name),
+            Some(lower_name(member)),
+        ));
+    }
+
+    let data_name = struct_literal.type_name.as_str();
+    let Some(data_definition) = syntax_trees.root_items().find_map(|item| match item {
+        syntax::item::Item::Data(data_definition) if data_definition.name.as_str() == data_name => {
+            Some(data_definition)
+        }
+        _ => None,
+    }) else {
+        // The head type is not a data declaration in this compilation unit;
+        // leave the literal as written and let downstream resolution judge it.
+        return Ok((
+            lower_name(&struct_literal.type_name),
+            Some(lower_name(member)),
+        ));
+    };
+
+    let version = syntax_trees
+        .items
+        .data_members(data_definition.members)
+        .iter()
+        .find_map(|data_member| match data_member {
+            syntax::item::DataMember::Version(version)
+                if version.name.as_str() == member.as_str() =>
+            {
+                Some(version)
+            }
+            _ => None,
+        });
+    if let Some(version) = version {
+        return Ok((
+            omega_symbol_resolved_trees::name::DiagnosticName::from(
+                version.shape_name(data_name).as_str(),
+            ),
+            None,
+        ));
+    }
+
+    Err(Diagnostic::error(format!(
+        "cannot construct `{data_name}::{}`: data `{data_name}` does not declare a `version {}` block",
+        member.as_str(),
+        member.as_str()
+    )))
 }
 
 fn lower_unary_operator(operator: syntax::expression::UnaryOperator) -> UnaryOperator {
