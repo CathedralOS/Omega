@@ -1,0 +1,22 @@
+// A recursive type cannot satisfy Equatable yet: the synthesized inline
+// field-by-field expansion would not terminate, so the conformance item is
+// rejected cleanly (recorded as future work alongside the callable
+// synthesized `equals` machine).
+
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+data Node {
+    value: i32;
+    next: Node;
+}
+
+Node satisfies Equatable;
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

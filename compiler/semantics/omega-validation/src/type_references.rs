@@ -42,6 +42,22 @@ pub(crate) enum TypeReferenceOwner<'program> {
 }
 
 impl TypeReferenceOwner<'_> {
+    /// `Self` is a legal type name inside TRAIT machine signatures
+    /// (`machine equals(&self, other: &Self) -> bool;`): it denotes the
+    /// conforming type, substituted per conformance.
+    fn allows_self_type(&self) -> bool {
+        matches!(
+            self,
+            Self::StateParameter {
+                owner: StateSignatureOwner::Trait(_),
+                ..
+            } | Self::StateReturn {
+                owner: StateSignatureOwner::Trait(_),
+                ..
+            }
+        )
+    }
+
     fn generic_argument(self) -> Self {
         match self {
             Self::DomainTarget {
@@ -311,6 +327,10 @@ fn validate_type_reference_handle_with_context(
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} uses unsized text view type `string` by value; use `&string`"
                 )));
+                return;
+            }
+
+            if name.as_str() == "Self" && owner.allows_self_type() {
                 return;
             }
 

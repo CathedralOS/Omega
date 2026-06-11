@@ -14,13 +14,18 @@ pub(crate) fn lower_expression_handle(
     lowerer: &mut Lowerer,
     expression: resolved::expression::ExpressionHandle,
 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-    let source = &lowerer.source_trees.tables.bodies.expressions;
-    lower_expression_handle_from_table_with_self_substitution(
-        Some(lowerer.source_trees),
+    let Lowerer {
+        typed_trees,
+        source_trees,
+        equality_scope,
+    } = lowerer;
+    let source = &source_trees.tables.bodies.expressions;
+    table::lower_expression_handle_from_table_in_scope(
+        source_trees,
         source,
-        &mut lowerer.typed_trees.expression_table,
+        &mut typed_trees.expression_table,
         expression,
-        None,
+        equality_scope.as_ref(),
     )
 }
 

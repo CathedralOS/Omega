@@ -1,6 +1,7 @@
 mod data;
 mod domain;
 mod equality;
+mod equatable;
 mod expression;
 mod invariant;
 mod lowerer;

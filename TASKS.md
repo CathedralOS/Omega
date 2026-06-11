@@ -33,11 +33,14 @@ Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
 **Implementation, design already frozen:**
 
 All three frozen decisions (11, 12, 13) landed 2026-06-11 — see the wave
-notes under Next Up. Decision 11's accepted hole (place==place on a
-payload-bearing sum slips through as a tag/width compare until Equatable
-synthesis) and decision 13's residue (machine-call monomorphization
-arguments not bound-checked; generics-completion arc) remain tracked in
-their respective bullets below.
+notes under Next Up. Decision 11's formerly-accepted hole (place==place on
+a payload-bearing sum slipping through as a tag/width compare) is now
+CLOSED for typable operands by Equatable synthesis: conforming types expand
+structurally, non-conforming structural types error with the conformance
+suggestion (operands the state typing scope cannot type — e.g. inside
+contracts — still slip through). Decision 13's residue (machine-call
+monomorphization arguments not bound-checked; generics-completion arc)
+remains tracked in its bullet below.
 
 - [ ] **Wire stage 2: encoders.** Era-discriminator varint emission (one per
   top-level message, era 0 = pre-versioning body), encoder/decoder
@@ -51,13 +54,30 @@ their respective bullets below.
   migration chains, `replaces`, quiescence obligations. (Stage 2 landed
   2026-06-11: historical-shape construction, the type-name migration call,
   the first runtime migration canary, struct-literal field validation.)
-- [ ] **Equatable synthesis / conformance defaults.** Conformance items
-  validate written members only; trait `default machine` instantiation and
-  the synthesized core derivable set (structural `equals`) are unimplemented
-  — this is the compile-time-execution direction (ch13 sketch). Unblocks
-  retiring the interim `==` error. Per decision 11: implicit for primitives
-  + payload-less sums, `Type satisfies Equatable;` required for structural
-  types.
+- [ ] **Equatable synthesis / conformance defaults.** EQUATABLE SYNTHESIS
+  LANDED (2026-06-11): `Type satisfies Equatable;` on a record or
+  payload-bearing sum makes `==`/`!=` legal -- expanded INLINE at
+  resolved->typed lowering into field compares (sums: OR over cases, tag
+  compares first, then payload fields), riding existing backend/interpreter
+  comparison machinery; the interim `==` error is retired for conforming
+  types and extended with a declare-the-conformance suggestion for
+  non-conforming ones; a written `Type::equals` wins (`==` lowers to a
+  call); prerequisites error at the conformance item (every field scalar /
+  payload-less sum / conforming; `String` fields rejected -- no native
+  value-position text compare; recursive types rejected). The interpreter
+  short-circuits `&&`/`||` and ZII-defaults enum fields to the zero case;
+  the native value-operand resolver reads oversize enum places as their tag
+  prefix in tag compares (was a silent statement drop for two-field
+  payloads). Canaries: pass+RUN `traits/equatable_record_equality_exit` +
+  `traits/equatable_sum_payload_equality_exit`, fail
+  `traits/equatable_missing_conformance_suggested` /
+  `equatable_field_not_equatable` / `equatable_recursive_type` /
+  `equatable_string_field_unsupported`. STILL OPEN: a CALLABLE synthesized
+  `Type::equals` machine (comptime/trait-generator arc), trait `default
+  machine` instantiation for other traits, `String`/recursive Equatable
+  support, equality in contracts/domain facts (no typing scope there), and
+  written-equals signature matching against `&Self` (validation accepts
+  `Self` in trait signatures; substitution per conformance is unchecked).
 - [ ] **Case members: remaining halves.** Exhaustiveness counting over
   implicit case-domains, case-subset domains, MIXED shapes (common fields +
   case part). Payload sums are done; `self in Type::Case` and unions at use

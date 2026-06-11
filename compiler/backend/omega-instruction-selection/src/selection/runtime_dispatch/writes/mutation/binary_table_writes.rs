@@ -21,7 +21,8 @@ use super::super::static_values::{
 };
 use super::operators::{builtin_runtime_call_operator_in_table, runtime_binary_operator};
 use super::value_operands::{
-    binary_value_operands_are_float, resolve_runtime_value_operand_in_table,
+    binary_value_operands_are_float, resolve_runtime_comparison_operand_in_table,
+    resolve_runtime_value_operand_in_table,
 };
 
 pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_binary_mutation_write_in_table(
@@ -106,23 +107,27 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         operator,
     );
 
-    let left = resolve_runtime_value_operand_in_table(
+    let left = resolve_runtime_comparison_operand_in_table(
         input,
         dispatch_index,
         value_source_key,
         statement_index,
         expressions,
         left_expression,
+        comparison_operator,
+        right_expression,
         static_values,
         runtime_value_operands,
     )?;
-    let right = resolve_runtime_value_operand_in_table(
+    let right = resolve_runtime_comparison_operand_in_table(
         input,
         dispatch_index,
         value_source_key,
         statement_index,
         expressions,
         right_expression,
+        comparison_operator,
+        left_expression,
         static_values,
         runtime_value_operands,
     )?;
@@ -352,23 +357,27 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
             _ => return None,
         };
 
-    let left = resolve_runtime_value_operand_in_table(
+    let left = resolve_runtime_comparison_operand_in_table(
         input,
         dispatch_index,
         source_key,
         statement_index,
         expressions,
         left_expression,
+        comparison_operator,
+        right_expression,
         static_values,
         runtime_value_operands,
     )?;
-    let right = resolve_runtime_value_operand_in_table(
+    let right = resolve_runtime_comparison_operand_in_table(
         input,
         dispatch_index,
         source_key,
         statement_index,
         expressions,
         right_expression,
+        comparison_operator,
+        left_expression,
         static_values,
         runtime_value_operands,
     )?;

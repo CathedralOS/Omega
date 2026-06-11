@@ -1,0 +1,1 @@
+type `Node` is recursive through field `next` of `Node`

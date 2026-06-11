@@ -1,0 +1,59 @@
+// Equatable synthesis (frozen decisions 8 + 11): `Point satisfies
+// Equatable;` synthesizes structural equality for the record, so `==`/`!=`
+// on Point values is legal and compares field by field. Equal points must
+// match; a single differing middle field must miss (a compare that only
+// reads a prefix of the fields, or compares storage width, takes the wrong
+// arm). Exits 70 only when both the equal and unequal compares are right.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+data Point {
+    x: i32;
+    y: i32;
+    z: i32;
+}
+
+Point satisfies Equatable;
+
+data Main {
+    console: Console;
+    a: Point;
+    b: Point;
+    c: Point;
+}
+
+machine Main::main(&mut self) {
+    self.a = Point { x: 3, y: 7, z: 11 };
+    self.b = Point { x: 3, y: 7, z: 11 };
+    self.c = Point { x: 3, y: 9, z: 11 };
+
+    let same: bool = self.a == self.b;
+
+    transition same {
+        true -> check_unequal()
+        _ -> missed()
+    }
+
+    state check_unequal(&mut self) {
+        let different: bool = self.a != self.c;
+
+        transition different {
+            true -> matched()
+            _ -> missed()
+        }
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

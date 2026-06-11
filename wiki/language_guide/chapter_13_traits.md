@@ -618,10 +618,20 @@ the conformance line is written. `in` (domain membership) never requires
 Equatable -- the tag test is domain algebra, not equality
 ([chapter 1](chapter_1_data_values_literals.md)).
 
-Until trait-resolved equality lands, `==` on payload-bearing case values is a
-compile error rather than a tag-only comparison that ignores payloads;
-payload-less sums keep `==` as the tag compare (which IS their total
-equality).
+Status: Equatable synthesis is LIVE for records and payload-bearing sums. A
+declared `Type satisfies Equatable;` makes `==`/`!=` legal; the compiler
+expands the compare INLINE at lowering into field-by-field compares (for
+sums: a disjunction over cases, each arm tag compares first, then that
+case's payload fields), riding the existing comparison machinery -- no
+callable `Type::equals` machine is emitted yet (that arrives with trait
+generators). A hand-written `Type::equals` wins: `==` lowers to a call to
+it. Prerequisites are enforced at the conformance item: every field must be
+a scalar primitive, a payload-less sum, or itself Equatable-conforming;
+`String` fields are rejected (no native value-position text comparison
+yet); recursive types are rejected (inline expansion would not terminate).
+Without a conformance, `==` on a structural type stays a compile error
+suggesting the one-line conformance; payload-less sums keep `==` as the
+tag compare (which IS their total equality).
 
 [^comptime-open]: Sketch-grade, not implemented: the member-reflection
 surface (`Self::fields`, the field splice `self.[field]`, what reflection

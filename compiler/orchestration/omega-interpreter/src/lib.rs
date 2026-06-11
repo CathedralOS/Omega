@@ -53,11 +53,21 @@
 //! CASE PAYLOADS are supported in BOTH engines: construction (`Command::Move
 //! { steps: 70 }`, the brace spelling shared with record literals), case-pattern
 //! binding in transition arms (`Command::Move { steps } -> done(steps)`, with the
-//! bound names rewritten to payload member reads), and TAG-ONLY `==` (payloads
-//! never participate in equality, matching the native 4-byte tag compare). The
-//! native backend lowers construction as a tag-prefix write plus payload field
-//! writes, so payload coverage now runs differentially via the `data/case_*`
-//! RUN canaries (plus the deeper probes in `tests/coverage.rs`).
+//! bound names rewritten to payload member reads), and tag compares against case
+//! references (the lowering of `in` and of payload-less case `==`, matching the
+//! native 4-byte tag clamp). Structural `==` on CONFORMING types (`Type
+//! satisfies Equatable;`) is expanded by the FRONTEND into ordinary field
+//! compares and tag-guarded payload compares before either engine runs, so the
+//! interpreter's `Value::Enum` equality stays a tag compare -- by the time a
+//! payload matters, the expansion already reads it field by field. Expression
+//! `&&`/`||` SHORT-CIRCUIT (the expansion relies on it to keep cross-case
+//! payload reads unevaluated; the native backend evaluates eagerly but masks
+//! the garbage compare behind the false tag guard). Never-assigned sum fields
+//! default to the ZII zero case (first case, zeroed payload), matching native
+//! zero-initialized storage. The native backend lowers construction as a
+//! tag-prefix write plus payload field writes, so payload coverage runs
+//! differentially via the `data/case_*` and `traits/equatable_*` RUN canaries
+//! (plus the deeper probes in `tests/coverage.rs`).
 //!
 //! One formerly-deferred construct is FRONTEND-REJECTED today (probed in
 //! `tests/coverage.rs`), so there is nothing to interpret:

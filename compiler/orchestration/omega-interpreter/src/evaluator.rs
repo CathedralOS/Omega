@@ -260,8 +260,57 @@ impl<'program> Evaluator<'program> {
                     fields: nested_fields,
                 });
             }
+
+            // An enum-shaped field defaults to the ZERO CASE (ZII: tag 0 is
+            // the first case) with the case's payload fields zeroed --
+            // matching native zero-initialized storage, so tag compares and
+            // synthesized structural equality agree on never-assigned sum
+            // fields instead of seeing a Unit placeholder.
+            if let Some((variant_name, payload_fields)) = self.enum_zero_case(type_reference) {
+                let mut payload = Vec::with_capacity(payload_fields.len());
+                for field in payload_fields {
+                    let value = self.default_value_for_type(field.type_reference)?;
+                    payload.push((field.name.as_str().to_owned(), value.cell()));
+                }
+                return Ok(Value::Enum {
+                    variant_name,
+                    payload,
+                });
+            }
         }
         Ok(self.default_for_type(type_reference))
+    }
+
+    /// The first case of an enum-shaped declared type (the ZII zero case),
+    /// with its payload field declarations.
+    fn enum_zero_case(
+        &self,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> Option<(String, Vec<omega_typed_trees::data::DataField>)> {
+        if self.program.primitive_type_reference(type_reference).is_some() {
+            return None;
+        }
+        let symbol = self.program.type_reference_symbol(type_reference);
+        if !symbol.is_valid() {
+            return None;
+        }
+        let data = self
+            .program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == symbol)?;
+        let first_variant = self
+            .program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                DataMember::Variant(variant) => Some(variant),
+                _ => None,
+            })?;
+        Some((
+            first_variant.name.as_str().to_owned(),
+            self.program.data_payload_fields(first_variant).to_vec(),
+        ))
     }
 
     /// If a field's declared type is a (non-primitive) `data` record, return it.
@@ -1080,6 +1129,26 @@ impl<'program> Evaluator<'program> {
             }
             ExpressionNode::Binary(binary) => {
                 let left = self.eval_expression(binary.left, frame)?;
+                // `&&`/`||` SHORT-CIRCUIT: synthesized structural equality
+                // (Equatable) guards each sum arm's payload reads behind tag
+                // compares, so the right operand must not evaluate when the
+                // left already decides -- a cross-case payload read would
+                // trap here while the native backend's eager read of
+                // in-allocation payload bytes is masked by the false tag.
+                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+                    let decided = left
+                        .as_bool()
+                        .ok_or_else(|| Halt::Trap("logical operand not boolean".to_owned()))?;
+                    if (binary.operator == BinaryOperator::And) != decided {
+                        // false && _  /  true || _
+                        return Ok(Value::Bool(decided));
+                    }
+                    let right = self.eval_expression(binary.right, frame)?;
+                    return right
+                        .as_bool()
+                        .map(Value::Bool)
+                        .ok_or_else(|| Halt::Trap("logical operand not boolean".to_owned()));
+                }
                 let right = self.eval_expression(binary.right, frame)?;
                 self.eval_binary(binary.operator, left, right)
             }
@@ -1829,8 +1898,10 @@ impl<'program> Evaluator<'program> {
         Ok(match (left, right) {
             // Enum equality is a TAG compare only -- a case-pattern guard desugars to
             // `subject == Type::Case` where the right side is a bare (payload-less)
-            // case reference, and the native backend compares the constant tag. The
-            // payload never participates in `==`.
+            // case reference, and the native backend compares the constant tag.
+            // Payloads participate in `==` only through Equatable synthesis, and the
+            // FRONTEND expands that into explicit tag-guarded payload field compares
+            // before the interpreter runs, so this compare stays tag-only.
             (
                 Value::Enum {
                     variant_name: a, ..
