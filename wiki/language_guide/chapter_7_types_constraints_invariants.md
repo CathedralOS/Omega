@@ -172,12 +172,29 @@ are the audited exception).
 
 Casing carries the class split: lowercase bracket facts are properties;
 capitalized names in `satisfies` positions are traits (behavior). See
-[Traits](chapter_13_traits.md) for the behavior side.[^property-open]
+[Traits](chapter_13_traits.md) for the behavior side.
 
-[^property-open]: Open: the bare generic-bound spelling (likely
-`where T is [copy, zero_init]`); the initial core property set; whether
-evolution-contract facts (`[open]` for non-exhaustive sums, `[must_use]`)
-join the same surface.
+Generic bounds reuse the same spelling (frozen decision 13): brackets attach
+to whatever they follow, at every position --
+
+```omega
+data Box<T [copy]> [copy] {
+    value: T;
+}
+```
+
+The Rust-style colon bound (`<T: copy>`) and the attribute-prefix form
+(`[copy]` on its own line above the declaration) are both rejected: the colon
+would split the spelling system in half, and a floating prefix line is
+positional metadata -- the attribute magic this surface deliberately avoids.
+The spelling leaves room for trait bounds without collision
+(`T [copy] satisfies Equatable`).[^property-open]
+
+[^property-open]: Open: the initial core property set beyond
+copy/zero_init/send; whether evolution-contract facts join the same surface
+(`[open]` was ruled OUT for sums -- unknown-case handling is a wire decode
+policy, frozen decision 10; `must_use` was ruled out by strict result use,
+frozen decision 9).
 
 This chapter is intentionally narrow:
 

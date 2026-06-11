@@ -145,7 +145,24 @@ This page tracks design pressure that is not fully nailed down yet.
   `[open]` property is permanently dropped, subsumed by wire.
 - Discarding a non-unit return value is a compile error; intentional
   discards are spelled `_ = call();`. No per-type must_use marker exists --
-  the default is the strict behavior.
+  the default is the strict behavior. Refinement (frozen decision 12): the
+  gate is "evaluation has effects", not "is a call" -- effectful boundary
+  operators (volatile/MMIO reads) become discardable when they exist, and
+  discarding a provably PURE call (empty effect set, no `&mut`/out
+  parameters -- both signature-level facts) is a hard error, since it is
+  dead code.
+- Equality vs membership (frozen decision 11): `==` is value equality
+  through core `Equatable`; `in` is domain membership (tag test, legal in
+  value position, lowers to the tag compare). A bare payload-bearing case
+  name is not a value: `x == Command::Move` errors suggesting `in`; the
+  brace form compares structurally. Equatable is implicit for primitives +
+  payload-less sums, declared (`Type satisfies Equatable;`) for structural
+  types; adding a payload case flips implicit -> declared, re-erroring `==`
+  sites deliberately.
+- Generic property bounds (frozen decision 13): brackets attach to what
+  they follow at every position -- `data Box<T [copy]> [copy]`. Colon
+  bounds and attribute-prefix lines are rejected; trait bounds compose as
+  `T [copy] satisfies Equatable`.
 
 ## Still Open
 

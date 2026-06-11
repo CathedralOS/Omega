@@ -30,19 +30,22 @@ representation machinery behind a deliberate boundary.
 Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
 179/179, oracle fully matched). Ordered roughly by leverage.
 
-**Needs a design ruling first:**
-
-- [ ] **Tag-only case equality in guards.** A transition guard `==` against a
-  case constant clamps to the 4-byte tag, ignoring any payload (the
-  interpreter matches). Statement-position `==` against a payload-bearing
-  case is already a hard error (interim rule). Rule on: is tag-only guard
-  equality the permanent semantics, or do guards inherit the structural
-  `Equatable` story once synthesis lands?
-- [ ] **`_ =` accepts only calls.** Non-call expressions after `_ =` are parse
-  errors today (expression statements have no side effects to discard).
-  Fine until expression statements grow effects; revisit then.
-
 **Implementation, design already frozen:**
+
+- [ ] **Equality/membership split (decision 11).** `x == Command::Move` (bare
+  payload-bearing case name) becomes an error suggesting `in`; `x in
+  Type::Case` works in value position (`let b: bool = ...`); the guard
+  tag-clamp becomes the internal lowering of `in` only; place==place on a
+  payload-bearing sum should error until Equatable synthesis (today it slips
+  through as a tag/width compare — ACCEPTED known hole, validation cannot
+  type places yet); payload-less sums keep implicit `==`.
+- [ ] **Pure-discard error (decision 12).** `_ = call();` where the resolved
+  callee has an empty effect set AND no `&mut`/out parameters is dead code —
+  hard error. Both facts are on the already-resolved signature; cheap.
+- [ ] **Property bounds on type parameters (decision 13).**
+  `data Box<T [copy]> [copy]` — parse bracket facts on type parameters,
+  check them at instantiation, and let the structural copy/send verifier
+  accept bounded parameters (it conservatively rejects them today).
 
 - [ ] **Wire stage 2: encoders.** Era-discriminator varint emission (one per
   top-level message, era 0 = pre-versioning body), encoder/decoder
@@ -60,13 +63,12 @@ Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
   validate written members only; trait `default machine` instantiation and
   the synthesized core derivable set (structural `equals`) are unimplemented
   — this is the compile-time-execution direction (ch13 sketch). Unblocks
-  retiring the interim `==` error.
+  retiring the interim `==` error. Per decision 11: implicit for primitives
+  + payload-less sums, `Type satisfies Equatable;` required for structural
+  types.
 - [ ] **Case members: remaining halves.** Implicit case-domains
   (`self in Type::Case`, unions, exhaustiveness counting), case-subset
   domains, MIXED shapes (common fields + case part). Payload sums are done.
-- [ ] **Properties: bound spelling.** Generics cannot require properties yet
-  (`where T is [copy]` or similar) — structural copy/send checks
-  conservatively reject generic/type-parameter fields until bounds exist.
 
 **Backend residue (small, known):**
 
@@ -180,6 +182,39 @@ Implementation slices below build against these. Minor/easily-reversible details
     handling is a wire decode policy (reject / preserve / decode as zero
     case). In-language exhaustiveness is never weakened; `[open]` is
     permanently dropped. See chapter 20 + appendix.
+11. **Equality vs membership.** `==` is always value equality, resolved
+    through core `Equatable`; `in` is always domain membership (the tag
+    test for case domains, value-position legal: `let b: bool = cmd in
+    Command::Quit | Command::None;`). A bare PAYLOAD-BEARING case name
+    denotes no value — only its domain — so `x == Command::Move` is an
+    error suggesting `in`; the brace form `x == Command::Move { dx: 1,
+    dy: 2 }` is a constructed value and compares structurally. Equatable is
+    IMPLICIT for primitives and payload-less sums (tag identity is
+    unambiguous; match desugaring depends on it) and DECLARED
+    (`Type satisfies Equatable;`, synthesizing structural `equals` from
+    members) for records and payload-bearing sums — deliberately looser
+    than Rust's universal derive, since whole-program compilation removes
+    the accidental-API pressure. Boundary consequence: adding a payload
+    case to a payload-less sum flips it implicit -> declared, erroring
+    every `==` site until the one-line conformance is written —
+    re-affirming equality after its meaning changed. Tag-clamped guard
+    equality is retired as user-visible semantics (it survives only as the
+    internal lowering of `in`).
+12. **Discard admits effects; pure discards are dead code.** `_ =` accepts
+    any CALL today and, by rule, any effectful evaluation later (effectful
+    boundary operators, volatile/MMIO reads) — the gate is "evaluation has
+    effects", not "is a call". Discarding a provably pure call (resolved
+    callee has an empty effect set AND no `&mut`/out parameters — both
+    signature-level facts) is a hard error, not a warning. Discarding a
+    pure non-call expression stays a parse error.
+13. **Property bounds: brackets attach to what they follow, everywhere.**
+    Type parameters take bracket facts inline: `data Box<T [copy]> [copy]`.
+    The Rust-style colon bound (`<T: copy>`) and the attribute-prefix form
+    (`[copy]` on its own line) are rejected — colon would split the
+    spelling system, and a floating prefix line is positional metadata (the
+    attribute magic properties deliberately avoid). Leaves
+    `T [copy] satisfies Equatable` room for trait bounds without
+    collision.
 
 ## Next Up (highest leverage)
 

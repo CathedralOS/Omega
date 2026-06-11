@@ -606,6 +606,18 @@ Once trait generators exist, the synthesized core set above stops being
 special: `Equatable` becomes an ordinary core trait written this way, and the
 compiler privilege dissolves into the same mechanism.[^comptime-open]
 
+Equatable acquisition (frozen decision 11): IMPLICIT for primitives and
+payload-less sums -- tag identity is the only thing equality could mean
+there, and match desugaring depends on it -- and DECLARED
+(`Type satisfies Equatable;`) for records and payload-bearing sums. This is
+deliberately looser than Rust's universal derive: whole-program compilation
+removes the accidental-public-API pressure that motivates Rust's opt-in.
+The boundary is load-bearing: adding a payload case to a payload-less sum
+flips the type implicit -> declared, erroring every existing `==` site until
+the conformance line is written. `in` (domain membership) never requires
+Equatable -- the tag test is domain algebra, not equality
+([chapter 1](chapter_1_data_values_literals.md)).
+
 Until trait-resolved equality lands, `==` on payload-bearing case values is a
 compile error rather than a tag-only comparison that ignores payloads;
 payload-less sums keep `==` as the tag compare (which IS their total
