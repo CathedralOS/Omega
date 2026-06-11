@@ -190,10 +190,13 @@ is what `in` lowers to.
 
 Transitional note: case members with named payloads now parse, validate, and
 lower natively (construction, payload reads, tag dispatch with payload
-binding in transition arms). Still pending: the implicit case-domains at use
-sites (`in` lowering), `match`-statement arms, mixed shapes, and Equatable
-synthesis (until it lands, `==` against a payload-bearing case value is a
-compile error).[^case-members]
+binding in transition arms), and the implicit case-domains at use sites now
+lower for `in` (`cmd in Command::Move`, unions included, value position and
+guard subjects; transition case arms desugar to membership, and the bare
+payload-bearing case name in `==` errors everywhere with a suggestion to use
+`in`). Still pending: `match`-statement arms, mixed shapes, exhaustiveness
+counting over case domains, and Equatable synthesis (until it lands, `==`
+against a CONSTRUCTED payload-bearing case value is a compile error).[^case-members]
 
 [^case-members]: Open details: payload-binding spelling in `transition` arms
 vs `match` arms (expected to reuse the data-destructure guard machinery);

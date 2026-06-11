@@ -2,7 +2,9 @@ use crate::InstructionSelectionInput;
 use crate::selection::bindings::{RuntimeAliasBinding, resolve_runtime_alias_binding};
 use omega_checked_trees::types::PrimitiveType;
 use crate::selection::storage_places::{
-    RuntimeStoragePlace, resolve_runtime_assignment_value_call_result_place_by_ordinal,
+    RuntimeStoragePlace, clamp_runtime_case_comparison_operands,
+    clamp_runtime_case_comparison_operands_in_table,
+    resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
@@ -113,6 +115,18 @@ pub(super) fn resolve_runtime_value_operand_in_table(
             expressions,
             left_expr,
             right_expr,
+        );
+        // A case-name equality (the lowered form of `in`) compares the TAG
+        // only; the place operand must not read payload bytes.
+        clamp_runtime_case_comparison_operands_in_table(
+            &input.layouts,
+            expressions,
+            binary.operator,
+            left_expr,
+            right_expr,
+            left,
+            right,
+            runtime_value_operands,
         );
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
@@ -353,6 +367,17 @@ pub(super) fn resolve_runtime_value_operand(
             static_values,
             runtime_value_operands,
         )?;
+        // A case-name equality (the lowered form of `in`) compares the TAG
+        // only; the place operand must not read payload bytes.
+        clamp_runtime_case_comparison_operands(
+            &input.layouts,
+            binary.operator,
+            &binary.left,
+            &binary.right,
+            left,
+            right,
+            runtime_value_operands,
+        );
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,

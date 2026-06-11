@@ -1,0 +1,18 @@
+// Decision 11: a bare PAYLOAD-BEARING case name denotes no value -- only
+// its domain -- so `==` against it is a category error that suggests `in`.
+// (The brace form `Command::Move { dx: 1 }` is a constructed value and gets
+// the separate structural-equality interim error instead.)
+
+data Command {
+    case None;
+    case Move(dx: i32);
+}
+
+data Main {
+    cmd: Command;
+    hit: bool = false;
+}
+
+machine Main::main(&mut self) {
+    self.hit = self.cmd == Command::Move;
+}

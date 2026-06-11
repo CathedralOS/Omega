@@ -32,13 +32,6 @@ Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
 
 **Implementation, design already frozen:**
 
-- [ ] **Equality/membership split (decision 11).** `x == Command::Move` (bare
-  payload-bearing case name) becomes an error suggesting `in`; `x in
-  Type::Case` works in value position (`let b: bool = ...`); the guard
-  tag-clamp becomes the internal lowering of `in` only; place==place on a
-  payload-bearing sum should error until Equatable synthesis (today it slips
-  through as a tag/width compare — ACCEPTED known hole, validation cannot
-  type places yet); payload-less sums keep implicit `==`.
 - [ ] **Pure-discard error (decision 12).** `_ = call();` where the resolved
   callee has an empty effect set AND no `&mut`/out parameters is dead code —
   hard error. Both facts are on the already-resolved signature; cheap.
@@ -66,9 +59,10 @@ Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
   retiring the interim `==` error. Per decision 11: implicit for primitives
   + payload-less sums, `Type satisfies Equatable;` required for structural
   types.
-- [ ] **Case members: remaining halves.** Implicit case-domains
-  (`self in Type::Case`, unions, exhaustiveness counting), case-subset
-  domains, MIXED shapes (common fields + case part). Payload sums are done.
+- [ ] **Case members: remaining halves.** Exhaustiveness counting over
+  implicit case-domains, case-subset domains, MIXED shapes (common fields +
+  case part). Payload sums are done; `self in Type::Case` and unions at use
+  sites landed with decision 11.
 
 **Backend residue (small, known):**
 
@@ -285,7 +279,27 @@ natively (tag-prefix writes, payload member reads, tag-only guard compares;
 pending canary promoted, ACTIVE_PENDING_CANARIES empty); (h) value-position
 calls to FREE stateful machines dispatch and deliver values (incl. looping/
 recursive shapes). Known interim semantics flagged for design review:
-tag-only case equality in guards; `_ =` accepts only calls.
+`_ =` accepts only calls. (Tag-only case equality in guards was RESOLVED by
+the decision-11 landing below: the tag clamp is no longer user-visible
+equality semantics, only the internal lowering of `in`.)
+
+**Decision 11 landed 2026-06-11 (equality vs membership).** `in` now accepts
+implicit case domains at use sites: `cmd in Command::Move` (payload-bearing
+included) and unions `cmd in Command::Quit | Command::Move` work in value
+position and as transition guard subjects, lowering to tag-equality compares
+in the resolved->typed stage. Transition case arms desugar to MEMBERSHIP at
+parse time (not `==`), so the bare-payload-case `==` check runs on the
+RESOLVED trees and covers every position -- statements, guard
+subjects/conditions, transition target arguments, domain `when` classifiers
+and proof facts, machine contracts -- with a message suggesting `in`; the
+brace form keeps the structural-equality interim error, payload-less `==`
+stays legal everywhere. The guard tag clamp survives only as the internal
+lowering of `in` (and payload-less `==`); the runtime-value expression paths
+gained the same tag clamp for case compares inside boolean trees. New
+canaries: pass+RUN `data/case_membership_value_exit`,
+`data/case_membership_union_guard_exit` (both in the differential oracle);
+fail `data/bare_payload_case_equality_suggests_in`,
+`data/bare_payload_case_equality_guard`.
 
 **Recent canary promotions.** Numeric literal suffixes (`3i32`, `3.0real`,
 `3nat`), newline-separated proof facts, field `+=` assignment, relax scope syntax

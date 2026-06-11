@@ -1,0 +1,27 @@
+// Decision 11 retires tag-clamped guard equality as user-visible semantics:
+// a transition guard SUBJECT comparing `==` against a bare payload-bearing
+// case name now errors like every other position (the tag clamp survives
+// only as the internal lowering of `in`). Case match arms
+// (`Command::Move { dx } -> ...`) stay the blessed dispatch form.
+
+data Command {
+    case None;
+    case Move(dx: i32);
+}
+
+data Main {
+    cmd: Command;
+}
+
+machine Main::main(&mut self) {
+    transition (self.cmd == Command::Move) {
+        (true) -> matched()
+        _ -> missed()
+    }
+
+    state matched(&mut self) {
+    }
+
+    state missed(&mut self) {
+    }
+}

@@ -14,6 +14,7 @@ use omega_core::symbols::{BuiltinFunction, SymbolHandle};
 
 use super::super::super::storage_places::resolve_runtime_frame_base_indexed_target_in_table;
 use super::super::super::storage_places::{
+    clamp_runtime_case_comparison_operands_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
@@ -1112,6 +1113,18 @@ fn resolve_runtime_value_operand_in_table(
                 binary.right,
                 runtime_value_operands,
             )?;
+            // A case-name equality (the lowered form of `in`) compares the
+            // TAG only; the place operand must not read payload bytes.
+            clamp_runtime_case_comparison_operands_in_table(
+                &input.layouts,
+                expressions,
+                binary.operator,
+                binary.left,
+                binary.right,
+                left,
+                right,
+                runtime_value_operands,
+            );
             return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
                 left,
                 operator,
