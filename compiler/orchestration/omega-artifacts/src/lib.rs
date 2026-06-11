@@ -601,6 +601,9 @@ impl ArtifactWriter {
                     radius.stores,
                     radius.derives,
                 ));
+                for propagated in &radius.propagated_flows {
+                    output.push_str(&format!("  - {propagated}\n"));
+                }
             }
         }
 
@@ -1005,6 +1008,10 @@ pub struct CapabilityBlastRadius {
     pub acquires: usize,
     pub stores: usize,
     pub derives: usize,
+    /// Authority-flow verbs that reached a state through a nested helper call
+    /// rather than a direct boundary call, rendered as provenance lines such as
+    /// `Main::main acquires via Vault::expose`.
+    pub propagated_flows: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
