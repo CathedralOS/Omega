@@ -66,10 +66,35 @@ their respective bullets below.
 **Backend residue (small, known):**
 
 - [ ] Distinct effectful arm guards: native eager evaluation diverges from the
-  interpreter's lazy order (open note in the eager-guard divergence).
+  interpreter's lazy order (open note in the eager-guard divergence). Concrete
+  measured instance (dungeon, fixed seed 7): native draws 32 RNG values for ONE
+  `transition self.should_carve(random, 2) { true/false }` decision where the
+  interpreter draws 1 — the effectful subject call is re-evaluated per arm and
+  the amplification compounds down the call chain (should_carve -> chance ->
+  range -> next_u32). Stream divergence means native rolls a different
+  side-room carve than the interpreter (R05 stays uncarved, its data-driven
+  description renders empty); that is the only dungeon output line the two
+  backends disagree on. The scripted-loop canaries deliberately assert the
+  hardcoded R05 event/paths lines instead of its description until this is
+  fixed.
 - [ ] 3 pre-existing `_compile` canaries hang at runtime (slice-subslice /
   mutable-local family); suite never runs them.
-- [ ] aarch64 runtime convergence (dungeon hot-potato).
+- [x] aarch64 runtime convergence (dungeon hot-potato). ROOT CAUSE FOUND AND
+  FIXED: the aarch64 encoder used x18 as a general scratch for frame-slot
+  copies (`ldr x18, [src]; str x18, [dst]`), but x18 is the reserved platform
+  register on Darwin arm64 and XNU ZEROES it on every kernel->user return — any
+  timer interrupt landing between the load and the store silently replaced the
+  copied value with 0. In the dungeon this zeroed a threaded `&mut Level` arg
+  (build_segment's level param), so `room_mut` computed `0 + element_offset`
+  (the segfault on `str w17, [x16]` with x16 = 0x1d0 = rooms[2]'s byte offset:
+  an offset-LIKE value because the BASE was the zeroed pointer). Looked
+  nondeterministic/hot-potato because the first timer tick lands at a roughly
+  fixed point in the deterministic instruction stream, and any debugger
+  perturbation moved it. Fix: x26 (verified unused) replaces x18 everywhere in
+  omega-isa-aarch64; register-only substitution, instruction widths unchanged.
+  Regression net: canaries/pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit
+  (50M pointer-threaded increments across many timer ticks; pre-fix encoder
+  fails it 4/5 runs, post-fix deterministic exit 70).
 - [ ] Borrow layer records free-machine value-call targets as `invalid` in
   checked trees (cosmetic today).
 - [x] Stale test fixtures repaired: lib-test fixtures of omega-graph/types/
@@ -131,9 +156,12 @@ stay visible, not because they're next):**
 - [ ] **Serialized capabilities.** Attenuation + revocability across
   IPC/reboot/network (Cathedral's #1 flagged gap). Depends on wire + the
   capability runtime story.
-- [ ] **aarch64 runtime convergence.** Compiles all targets; dungeon runtime
-  on arm64 still hot-potato. Needs a dedicated backend push or an arm test
-  host.
+- [x] **aarch64 runtime convergence.** Resolved: the dungeon hot-potato was
+  the encoder using interrupt-clobbered x18 as a scratch register (see the
+  backend-residue entry above for the full diagnosis). The scripted dungeon
+  loop and the dungeon differential oracle are green on the arm64 host; the
+  one remaining interpreter/native divergence (R05 description) is the
+  eager-guard RNG-stream issue, tracked separately.
 - [ ] **Text/string proof domains.** `String::Utf8`/`NoNul` as
   boundary-established carried facts without a byte-level proof tax (frozen
   direction in decision 5; the domains themselves unbuilt).
