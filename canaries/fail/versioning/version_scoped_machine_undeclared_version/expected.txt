@@ -1,0 +1,1 @@
+machine `Counter::increment::v1` targets version `v1` of data `Counter`, but `Counter` does not declare a `version v1` block

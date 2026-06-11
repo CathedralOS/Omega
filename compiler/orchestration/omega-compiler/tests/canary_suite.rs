@@ -6649,6 +6649,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/trait_oneoff_machine_requirement",
     "versioning/migration_generic_trait",
     "versioning/version_scoped_machine",
+    "versioning/data_version_block",
+    "versioning/migration_machine_from_v1",
     "wire/wire_generic_trait",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",
@@ -6791,6 +6793,12 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "modules/use_unresolved_path",
     "traits/trait_satisfies_arity_mismatch",
     "versioning/match_on_version",
+    "versioning/duplicate_version_declaration",
+    "versioning/version_field_unknown_type",
+    "versioning/version_scoped_machine_undeclared_version",
+    "versioning/nested_version_block",
+    "versioning/non_canonical_version_name",
+    "versioning/cross_version_field_access",
 ];
 
 #[derive(Clone, Copy)]

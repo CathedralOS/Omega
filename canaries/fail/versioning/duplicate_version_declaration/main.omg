@@ -1,0 +1,19 @@
+// Chapter 21 (Versioned Data): declared history must be coherent -- a data
+// declaration cannot name the same historical version twice.
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+    version v1 {
+        other: i32;
+    }
+
+    count: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

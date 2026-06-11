@@ -1,0 +1,17 @@
+// Chapter 21 (Versioned Data): historical shapes are still type-checked -- a
+// version block field referencing a type that does not exist is a compile
+// error, exactly like a current-shape field would be.
+
+data Counter {
+    version v1 {
+        counter: MissingType;
+    }
+
+    count: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
