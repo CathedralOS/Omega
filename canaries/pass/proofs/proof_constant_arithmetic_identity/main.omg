@@ -1,0 +1,16 @@
+// Ladder rung L0 (constant arithmetic): a closed Nat equation discharged by
+// folding both sides to the same constant. Lean analog: `decide` on
+// `3 * 3 + 4 * 4 = 5 * 5`. The empty body is the proof artifact shape from
+// the compile-time proofs chapter.
+
+machine pythagorean_three_four_five()
+ensures
+    3nat * 3nat + 4nat * 4nat == 5nat * 5nat
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

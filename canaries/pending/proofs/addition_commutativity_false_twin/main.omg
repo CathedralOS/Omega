@@ -1,0 +1,15 @@
+// False twin of proofs/proof_addition_commutativity (ladder rung L4).
+// a + b == b + a + 1 normalizes to 0 == 1. Accepted today; term
+// normalization (canonical polynomial form) must reject it.
+
+machine false_add_commutative(a: usize, b: usize)
+ensures
+    a + b == b + a + 1
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

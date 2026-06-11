@@ -146,6 +146,154 @@ fn rejects_unknown_domain_membership_in_domain_body() {
     );
 }
 
+fn validate_contract_source(source: &str) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
+    validate_program(&typed)
+}
+
+#[test]
+fn refutes_constant_false_ensures_on_empty_proof_machine() {
+    let diagnostics = validate_contract_source(
+        r#"
+    machine false_constant()
+    ensures
+        1nat + 1nat == 3nat
+    {
+    }
+
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+    }
+    "#,
+    )
+    .expect_err("constant-false ensures should be refuted");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("ensures contract proof fact `1 + 1 == 3` is disproved by constant arithmetic")),
+        "expected constant refutation diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn refutes_strict_order_asymmetry_between_requires_and_ensures() {
+    let diagnostics = validate_contract_source(
+        r#"
+    machine false_asymmetry(i: usize, j: usize)
+    requires
+        i < j
+    ensures
+        j < i
+    {
+    }
+
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+    }
+    "#,
+    )
+    .expect_err("asymmetric strict-order ensures should be refuted");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "ensures contract proof fact `j < i` contradicts requires proof fact `i < j`"
+        )),
+        "expected asymmetry refutation diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn accepts_vacuous_ensures_under_contradictory_requires() {
+    // Contradictory hypotheses entail anything (the `absurd` case), so the
+    // refutation pass must stand down rather than reject a vacuous truth.
+    validate_contract_source(
+        r#"
+    machine vacuous_truth(i: usize, j: usize)
+    requires
+        i < j
+        j < i
+    ensures
+        j < i
+    {
+    }
+
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+    }
+    "#,
+    )
+    .expect("vacuously true contract should not be refuted");
+}
+
+#[test]
+fn refutation_skips_machines_with_body_statements() {
+    // A body could establish facts beyond the requires set; the refutation
+    // pass only reasons about empty-body proof artifacts. The constant-false
+    // ensures here is still wrong, but rejecting it is the entailment
+    // engine's job, not this pass's.
+    validate_contract_source(
+        r#"
+    data Counter {
+        value: i32;
+    }
+
+    machine Counter::touch(&mut self)
+    ensures
+        1nat + 1nat == 3nat
+    {
+        self.value = 1;
+    }
+
+    data Main {
+        counter: Counter;
+    }
+
+    machine Main::main(&mut self) {
+    }
+    "#,
+    )
+    .expect("non-empty bodies are outside the refutation pass");
+}
+
+#[test]
+fn accepts_true_theorems_on_empty_proof_machines() {
+    validate_contract_source(
+        r#"
+    machine pythagorean_three_four_five()
+    ensures
+        3nat * 3nat + 4nat * 4nat == 5nat * 5nat
+    {
+    }
+
+    machine less_than_transitive(a: usize, b: usize, c: usize)
+    requires
+        a < b
+        b < c
+    ensures
+        a < c
+    {
+    }
+
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+    }
+    "#,
+    )
+    .expect("true theorems should pass the refutation pass");
+}
+
 #[test]
 fn rejects_unknown_domain_membership_in_contract() {
     let source = r#"

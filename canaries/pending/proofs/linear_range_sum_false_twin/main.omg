@@ -1,0 +1,19 @@
+// False twin of proofs/proof_linear_range_sum (ladder rung L2). With a and b
+// each in 1..=10, a + b reaches 20, so `ensures a + b in 2..=19` is wrong at
+// the upper corner. Accepted today; interval arithmetic over `+` must reject
+// it.
+
+machine false_sum_of_bounded(a: usize, b: usize)
+requires
+    a in 1..=10
+    b in 1..=10
+ensures
+    a + b in 2..=19
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

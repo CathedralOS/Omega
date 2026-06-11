@@ -1,0 +1,20 @@
+// False twin of proofs/proof_order_transitivity (ladder rung L1). a < b and
+// b < c entail a < c, so `ensures c < a` is unsatisfiable -- but only via the
+// transitive closure: no single requires fact directly contradicts it, so the
+// direct-asymmetry refutation cannot see it. Accepted today; a fact-chaining
+// entailment engine must reject it.
+
+machine false_transitive_order(a: usize, b: usize, c: usize)
+requires
+    a < b
+    b < c
+ensures
+    c < a
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

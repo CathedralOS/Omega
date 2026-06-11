@@ -1,0 +1,18 @@
+// Ladder rung L2 (linear range arithmetic): interval addition. If a and b
+// each lie in 1..=10 then a + b lies in 2..=20. Lean analog: `add_le_add`
+// plus its lower-bound dual. Needs interval propagation through `+`.
+
+machine sum_of_bounded(a: usize, b: usize)
+requires
+    a in 1..=10
+    b in 1..=10
+ensures
+    a + b in 2..=20
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

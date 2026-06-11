@@ -1,0 +1,18 @@
+// False twin of proofs/proof_order_antisymmetry (ladder rung L6). a <= b and
+// b <= a force a == b, so `ensures a != b` is unsatisfiable. Accepted today;
+// combining non-strict order facts into an equation must reject it.
+
+machine false_antisymmetric_distinct(a: usize, b: usize)
+requires
+    a <= b
+    b <= a
+ensures
+    a != b
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
