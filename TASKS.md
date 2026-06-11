@@ -523,21 +523,22 @@ exit.
 
 ### Operators And Domains
 
-- [ ] Consolidate the two operator-resolution surfaces that landed in parallel on
-  two machines. A remote branch added a checked-trees fact layer
-  (`omega-checked-trees/src/operators.rs` +
-  `omega-typed-trees-to-checked-trees/src/operators.rs` + `checks/operators.rs`:
-  operator use facts, spelling candidates, receiver-type narrowing, use origins,
-  ambiguity diagnostics, candidate contract spans, contract-bearing uses) while
-  the local O2 lane added a typed-trees dispatch API
-  (`omega-typed-trees/src/operator.rs::resolve_spelling`), validation ambiguity
-  (`omega-validation/src/operators/dispatch.rs`), and the bounds-from-`requires`
-  seam. They compile + test together but overlap conceptually — pick one
-  authority and route the other through it. Recent progress: checked candidates
-  now preserve the exact typed contract span, so proof lowering can inspect the
-  selected operator's contracts rather than relying on a count; resolved
-  operator contracts now materialize under `ProofFacts.contract_operator_uses`
-  with explicit operator contract semantic origins and an acceptance-view surface.
+- Consolidated 2026-06-11: the two parallel operator-resolution surfaces are
+  now one authority. `omega_typed_trees::operator::resolve_spelling` (spelling
+  -> root + domain-owned candidates, receiver-type narrowing) is the single
+  use-site resolution implementation — resolution is a typing-stage decision
+  per the pipeline Ownership Rule — and the checked stage
+  (`omega-typed-trees-to-checked-trees/src/operators.rs`) only records its
+  outcome as durable evidence (`CheckedOperatorFacts`, candidate contract
+  spans, `ProofFacts.contract_operator_uses`) instead of re-resolving. The old
+  operand-key `resolve_spelling`/`SpellingDispatch` had no callers and was
+  deleted, and `omega-validation` dropped its private copy of the operand
+  signature normalizer in favor of the typed-trees one. Declaration-conflict
+  diagnostics (duplicate spellings, competing domain meanings in
+  `omega-validation`) and use-site resolution evidence (checked facts) answer
+  different questions and intentionally remain separate consumers of the one
+  authority; the bounds-from-`requires` seam keeps consuming the typed-trees
+  helpers unchanged.
 - [ ] Prove that only facts in the CURRENT context can select a domain-operator
   meaning. (Spelling dispatch, bounds-from-`requires`, and competing-meaning
   rejection now exist; the positive proof-context selection is the remaining gap.)
