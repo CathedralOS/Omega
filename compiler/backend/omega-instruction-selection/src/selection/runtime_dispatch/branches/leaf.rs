@@ -38,7 +38,7 @@ use omega_abstract_operations::{
 use omega_runtime_dispatch_loop::RuntimeDispatchLoopAction;
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
-    matches!(byte_size, 1 | 4 | 8)
+    matches!(byte_size, 1 | 2 | 4 | 8)
 }
 
 #[derive(Default)]
