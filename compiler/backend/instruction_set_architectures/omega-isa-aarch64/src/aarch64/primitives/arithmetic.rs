@@ -139,6 +139,50 @@ pub(in crate::aarch64) fn encode_udiv_x_register(
     )
 }
 
+/// `UDIV Wd, Wn, Wm` — 32-bit unsigned divide, for operands narrower than 8 bytes.
+pub(in crate::aarch64) fn encode_udiv_w_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x1AC00800
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `SDIV Xd, Xn, Xm` — 64-bit signed divide (data-processing 2-source, opcode
+/// `0b000011`).
+pub(in crate::aarch64) fn encode_sdiv_x_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9AC00C00
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `SDIV Wd, Wn, Wm` — 32-bit signed divide, so an i32 sign bit is honored when
+/// the operands were loaded zero-extended into 64-bit registers.
+pub(in crate::aarch64) fn encode_sdiv_w_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x1AC00C00
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
 /// `LSLV Xd, Xn, Xm` — logical shift left of `left_register` by the low bits of
 /// `right_register`. Data-processing (2 source), opcode `0b001000` (`0x08 << 10`).
 pub(in crate::aarch64) fn encode_lslv_x_register(
@@ -184,6 +228,21 @@ pub(in crate::aarch64) fn encode_asrv_x_register(
     )
 }
 
+/// `ASRV Wd, Wn, Wm` — 32-bit arithmetic shift right, so an i32 sign bit is
+/// sign-filled correctly when the operand was loaded zero-extended.
+pub(in crate::aarch64) fn encode_asrv_w_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x1AC02800
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
 pub(in crate::aarch64) fn encode_msub_x_register(
     destination_register: u8,
     left_register: u8,
@@ -196,6 +255,45 @@ pub(in crate::aarch64) fn encode_msub_x_register(
             | (u32::from(minuend_register) << 10)
             | (u32::from(left_register) << 5)
             | u32::from(destination_register),
+    )
+}
+
+/// `MSUB Wd, Wn, Wm, Wa` — 32-bit multiply-subtract (`Wd = Wa - Wn*Wm`), used to
+/// derive a 32-bit remainder from a 32-bit quotient.
+pub(in crate::aarch64) fn encode_msub_w_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+    minuend_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x1B008000
+            | (u32::from(right_register) << 16)
+            | (u32::from(minuend_register) << 10)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `SXTB Wd, Wn` — sign-extend the low byte into the 32-bit register (`SBFM`
+/// alias). Used to compare narrow signed operands at the 32-bit width.
+pub(in crate::aarch64) fn encode_sign_extend_byte_to_w(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x1300_1C00 | (u32::from(source_register) << 5) | u32::from(destination_register),
+    )
+}
+
+/// `SXTH Wd, Wn` — sign-extend the low halfword into the 32-bit register (`SBFM`
+/// alias). Used to compare narrow signed operands at the 32-bit width.
+pub(in crate::aarch64) fn encode_sign_extend_halfword_to_w(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x1300_3C00 | (u32::from(source_register) << 5) | u32::from(destination_register),
     )
 }
 

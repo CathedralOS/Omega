@@ -60,8 +60,25 @@ pub fn dispatch_case_leave_width() -> usize {
     4
 }
 
-pub fn dispatch_guard_compare_static_width(byte_offset: usize, byte_size: usize) -> usize {
-    16 + load_data_offset_width(byte_offset, byte_size)
+pub fn dispatch_guard_compare_static_width(
+    byte_offset: usize,
+    byte_size: usize,
+    is_float: bool,
+) -> usize {
+    // adrp+add (8) + guard load + [SXTB/SXTH for narrow operands (4)] + expected
+    // materialization (padded W = 8, padded X = 16) + [2 FMOVs for floats (8)]
+    // + compare (CMP or FCMP, 4) + conditional branch (4).
+    let extend_width = if !is_float && matches!(byte_size, 1 | 2) {
+        4
+    } else {
+        0
+    };
+    let materialize_width = if byte_size == 8 { 16 } else { 8 };
+    let float_move_width = if is_float { 8 } else { 0 };
+    16 + extend_width
+        + materialize_width
+        + float_move_width
+        + load_data_offset_width(byte_offset, byte_size)
 }
 
 pub fn runtime_text_literal_compare_width(literal: &str) -> usize {
@@ -79,14 +96,21 @@ pub fn runtime_storage_compare_width(
     is_float: bool,
 ) -> usize {
     // Float adds two `FMOV` (GPR -> FP) instructions (8 bytes) before the FCMP.
+    // 2-byte integer operands add two `SXTH` instructions before the compare.
     let float_move_width = if is_float { 8 } else { 0 };
+    let extend_width = if !is_float && byte_size == 2 { 8 } else { 0 };
     24 + float_move_width
+        + extend_width
         + load_data_offset_width(left_offset, byte_size)
         + load_data_offset_width(right_offset, byte_size)
 }
 
 pub fn runtime_storage_value_compare_width(byte_offset: usize, byte_size: usize) -> usize {
-    16 + load_data_offset_width(byte_offset, byte_size)
+    // adrp+add (8) + load + [SXTB/SXTH for narrow operands (4)] + expected
+    // materialization (padded W = 8, padded X = 16) + compare (4) + branch (4).
+    let extend_width = if matches!(byte_size, 1 | 2) { 4 } else { 0 };
+    let materialize_width = if byte_size == 8 { 16 } else { 8 };
+    16 + extend_width + materialize_width + load_data_offset_width(byte_offset, byte_size)
 }
 
 pub fn runtime_value_compare_width(
@@ -213,8 +237,10 @@ pub fn runtime_pointee_integer_write_width(
     field_byte_offset: usize,
     byte_size: usize,
 ) -> usize {
+    // adrp+add (8) + pointer load (4) + value materialization (padded W = 8,
+    // padded X = 16) + sized store (4).
     let width = match byte_size {
-        1 | 4 => 20,
+        1 | 2 | 4 => 24,
         8 => 32,
         _ => 0,
     };
@@ -751,10 +777,9 @@ pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
 }
 
 fn immediate_width(value: i64) -> usize {
-    match u64::try_from(value) {
-        Ok(value) => unsigned_immediate_width(value),
-        Err(_) => 4,
-    }
+    // Negative values materialize as their full 64-bit two's-complement bit
+    // pattern (see `append_unsigned_immediate`), so size that pattern.
+    unsigned_immediate_width(value as u64)
 }
 
 fn unsigned_immediate_width(value: u64) -> usize {
@@ -818,6 +843,7 @@ fn store_data_offset_width(byte_offset: usize, byte_size: usize) -> usize {
 fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
     match byte_size {
         1 => byte_offset <= 4095,
+        2 => byte_offset.is_multiple_of(2) && byte_offset / 2 <= 4095,
         4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
         8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
         _ => false,
@@ -882,15 +908,39 @@ pub fn runtime_value_operand_width(
             field_byte_offset,
         ) + runtime_load_data_width(byte_size)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
+        let operation_width = if runtime_value_operands.binary_is_float(operand) {
+            runtime_float_binary_operation_width()
+        } else {
+            runtime_binary_operation_width(operator)
+        };
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
-            + runtime_binary_operation_width(operator)
+            + operation_width
+    } else if let Some((
+        source,
+        source_byte_size,
+        target_byte_size,
+        source_is_float,
+        target_is_float,
+        source_signed,
+    )) = runtime_value_operands.convert(operand)
+    {
+        runtime_value_operand_width(runtime_value_operands, source)
+            + runtime_convert_operation_width(
+                source_byte_size,
+                target_byte_size,
+                source_is_float,
+                target_is_float,
+                source_signed,
+            )
     } else {
         0
     }
 }
 
 fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
+    // Every operation emits the same instruction count for the 32-bit and
+    // 64-bit register forms, so this width is operand-width independent.
     match operator {
         StateGuardOperator::Add
         | StateGuardOperator::And
@@ -898,10 +948,11 @@ fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
         | StateGuardOperator::Subtract
         | StateGuardOperator::Multiply
         | StateGuardOperator::Divide
+        | StateGuardOperator::DivideUnsigned
         | StateGuardOperator::ShiftLeft
         | StateGuardOperator::ShiftRight
         | StateGuardOperator::ShiftRightLogical => 4,
-        StateGuardOperator::Modulo => 8,
+        StateGuardOperator::Modulo | StateGuardOperator::ModuloUnsigned => 8,
         StateGuardOperator::Max
         | StateGuardOperator::Min
         | StateGuardOperator::MaxUnsigned
@@ -911,14 +962,21 @@ fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
         | StateGuardOperator::Greater
         | StateGuardOperator::GreaterOrEqual
         | StateGuardOperator::Less
-        | StateGuardOperator::LessOrEqual => 16,
+        | StateGuardOperator::LessOrEqual
+        | StateGuardOperator::GreaterUnsigned
+        | StateGuardOperator::GreaterOrEqualUnsigned
+        | StateGuardOperator::LessUnsigned
+        | StateGuardOperator::LessOrEqualUnsigned => 16,
         _ => 0,
     }
 }
 
 fn runtime_store_data_width(byte_size: usize) -> usize {
+    // Narrow stores materialize the value as a fixed-width MOVZ+MOVK pair (8)
+    // + the sized store (4); 8-byte stores use the padded 4-instruction
+    // materialization (16) + STR (4).
     match byte_size {
-        1 | 4 => 8,
+        1 | 2 | 4 => 12,
         8 => 20,
         _ => 0,
     }
@@ -926,14 +984,14 @@ fn runtime_store_data_width(byte_size: usize) -> usize {
 
 fn runtime_load_data_width(byte_size: usize) -> usize {
     match byte_size {
-        1 | 4 | 8 => 4,
+        1 | 2 | 4 | 8 => 4,
         _ => 0,
     }
 }
 
 fn runtime_result_write_width(byte_offset: usize, byte_size: usize) -> usize {
     match byte_size {
-        1 | 4 | 8 => store_data_offset_width(byte_offset, byte_size),
+        1 | 2 | 4 | 8 => store_data_offset_width(byte_offset, byte_size),
         _ => 0,
     }
 }

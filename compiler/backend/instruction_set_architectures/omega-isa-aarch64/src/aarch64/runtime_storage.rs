@@ -5,22 +5,24 @@ use omega_target_operations::{
 
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
-    encode_add_page_offset_placeholder, encode_add_x_register, encode_adrp_placeholder,
-    encode_and_x_register, encode_float_add, encode_float_compare,
+    append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder, encode_add_x_register,
+    encode_adrp_placeholder, encode_and_x_register, encode_float_add, encode_float_compare,
     encode_float_convert_double_to_single, encode_float_convert_single_to_double,
     encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
     encode_float_multiply, encode_float_to_signed_int, encode_signed_int_to_float,
-    encode_sign_extend_word_to_x,
-    encode_float_subtract, encode_compare_w_register, encode_compare_w17_immediate,
-    encode_compare_x_register, encode_compare_x17_immediate, encode_conditional_branch_equal,
-    encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
+    encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w, encode_sign_extend_word_to_x,
+    encode_float_subtract, encode_compare_w_register, encode_compare_x_register,
+    encode_conditional_branch_equal, encode_conditional_branch_greater,
+    encode_conditional_branch_greater_or_equal, encode_conditional_branch_higher,
     encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
-    encode_conditional_branch_higher_or_same, encode_conditional_branch_lower_or_same,
-    encode_conditional_branch_not_equal, encode_load_w_from_x, encode_load_x_from_x,
-    encode_asrv_x_register, encode_lslv_x_register, encode_lsrv_x_register, encode_move_x_register,
-    encode_movz_w, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
-    encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
-    encode_sub_x_register, encode_udiv_x_register,
+    encode_conditional_branch_higher_or_same, encode_conditional_branch_lower,
+    encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
+    encode_load_w_from_x, encode_load_x_from_x, encode_asrv_w_register, encode_asrv_x_register,
+    encode_lslv_x_register, encode_lsrv_x_register, encode_move_x_register, encode_movz_w,
+    encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
+    encode_sdiv_w_register, encode_sdiv_x_register, encode_store_w_to_x, encode_store_w17_to_x16,
+    encode_store_x_to_x, encode_store_x17_to_x16, encode_sub_x_register, encode_udiv_w_register,
+    encode_udiv_x_register,
 };
 use super::widths::{
     runtime_frame_base_indexed_address_to_runtime_frame_write_width,
@@ -81,6 +83,7 @@ pub fn encode_runtime_storage_convert(
     )?;
     append_runtime_convert_operation(
         &mut bytes,
+        17,
         source_byte_size,
         target_byte_size,
         source_is_float,
@@ -105,12 +108,14 @@ pub fn encode_runtime_storage_convert(
     Ok(bytes)
 }
 
-/// Convert the value whose raw bits are in `x17` between integer/float
-/// representations, leaving the converted result back in `x17`. Uses FP register
-/// 0 (`S0`/`D0`) as the scratch FP bank. See `runtime_convert_operation_width`
-/// in `widths.rs` — the emitted length MUST match it.
+/// Convert the value whose raw bits are in `register` between integer/float
+/// representations, leaving the converted result back in `register`. Uses FP
+/// register 0 (`S0`/`D0`) as the scratch FP bank. See
+/// `runtime_convert_operation_width` in `widths.rs` — the emitted length MUST
+/// match it.
 fn append_runtime_convert_operation(
     bytes: &mut Vec<u8>,
+    register: u8,
     source_byte_size: usize,
     target_byte_size: usize,
     source_is_float: bool,
@@ -119,37 +124,37 @@ fn append_runtime_convert_operation(
 ) -> Result<(), Diagnostic> {
     match (source_is_float, target_is_float) {
         (false, true) => {
-            // int -> float: SCVTF d0/s0, x17/w17 (signed int in GPR -> FP), then
-            // FMOV the float bits back into x17.
+            // int -> float: SCVTF d0/s0, Xn/Wn (signed int in GPR -> FP), then
+            // FMOV the float bits back into the GPR.
             bytes.extend(encode_signed_int_to_float(
                 source_byte_size,
                 target_byte_size,
                 0,
-                17,
+                register,
             )?);
-            bytes.extend(encode_float_move_to_gpr(target_byte_size, 17, 0)?);
+            bytes.extend(encode_float_move_to_gpr(target_byte_size, register, 0)?);
         }
         (true, false) => {
-            // float -> int: FMOV the source bits into d0/s0, then FCVTZS x17/w17,
+            // float -> int: FMOV the source bits into d0/s0, then FCVTZS Xn/Wn,
             // d0/s0 (round toward zero). The result write truncates to the target
             // width for i8/i16.
             let int_gpr_byte_size = if target_byte_size > 4 { 8 } else { 4 };
-            bytes.extend(encode_float_move_from_gpr(source_byte_size, 0, 17)?);
+            bytes.extend(encode_float_move_from_gpr(source_byte_size, 0, register)?);
             bytes.extend(encode_float_to_signed_int(
                 source_byte_size,
                 int_gpr_byte_size,
-                17,
+                register,
                 0,
             )?);
         }
         (true, true) => {
             if source_byte_size == target_byte_size {
-                // same precision: bits already in x17, nothing to do.
+                // same precision: bits already in the GPR, nothing to do.
             } else {
                 // f32 <-> f64: FMOV into the FP bank, FCVT precision change, FMOV
                 // back. FCVT reads/writes the source/target precision registers,
                 // so the surrounding FMOVs use the matching widths.
-                bytes.extend(encode_float_move_from_gpr(source_byte_size, 0, 17)?);
+                bytes.extend(encode_float_move_from_gpr(source_byte_size, 0, register)?);
                 if source_byte_size > target_byte_size {
                     // double -> single
                     bytes.extend(encode_float_convert_double_to_single(0, 0));
@@ -157,14 +162,14 @@ fn append_runtime_convert_operation(
                     // single -> double
                     bytes.extend(encode_float_convert_single_to_double(0, 0));
                 }
-                bytes.extend(encode_float_move_to_gpr(target_byte_size, 17, 0)?);
+                bytes.extend(encode_float_move_to_gpr(target_byte_size, register, 0)?);
             }
         }
         (false, false) => {
             // Sign-extend a narrow signed source when widening; otherwise the load
             // already zero-extended and the store truncates.
             if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
-                bytes.extend(encode_sign_extend_word_to_x(17, 17));
+                bytes.extend(encode_sign_extend_word_to_x(register, register));
             }
         }
     }
@@ -212,6 +217,17 @@ pub fn encode_runtime_storage_compare_bytes(
                 append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
                 bytes.extend(encode_compare_w_register(18, 19));
             }
+            2 => {
+                // Halfword loads zero-extend; sign-extend BOTH sides so the
+                // 32-bit compare orders correctly for signed operands (and, since
+                // sign extension is monotone over the unsigned u16 range too, for
+                // unsigned conditions as well).
+                append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
+                append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
+                bytes.extend(encode_sign_extend_halfword_to_w(18, 18));
+                bytes.extend(encode_sign_extend_halfword_to_w(19, 19));
+                bytes.extend(encode_compare_w_register(18, 19));
+            }
             8 => {
                 append_load_data_from_x_offset(&mut bytes, 18, 16, left_offset, byte_size, 20)?;
                 append_load_data_from_x_offset(&mut bytes, 19, 17, right_offset, byte_size, 21)?;
@@ -245,24 +261,34 @@ pub fn encode_runtime_storage_value_compare_bytes(
     let mut bytes = Vec::with_capacity(runtime_storage_value_compare_width(byte_offset, byte_size));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
+    // The expected value is materialized into a register (fixed-width, so the
+    // width function stays magnitude-independent) and compared register-to-
+    // register, which handles negative values and full-width bit patterns that
+    // do not fit the 12-bit compare immediate. Narrow operands are sign-extended
+    // on BOTH sides: exact for signed conditions, and order-preserving for
+    // unsigned conditions because sign extension is monotone per source width.
     match byte_size {
-        1 | 4 => {
-            let expected_value = u32::try_from(expected_value).map_err(|_| {
-                Diagnostic::error(format!(
-                    "AArch64 MVP encoder cannot compare negative runtime guard value `{expected_value}` yet"
-                ))
-            })?;
+        1 => {
             append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 18)?;
-            bytes.extend(encode_compare_w17_immediate(expected_value)?);
+            bytes.extend(encode_sign_extend_byte_to_w(17, 17));
+            append_unsigned_immediate_w_padded(&mut bytes, 18, expected_value as i8 as i32 as u32);
+            bytes.extend(encode_compare_w_register(17, 18));
+        }
+        2 => {
+            append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 18)?;
+            bytes.extend(encode_sign_extend_halfword_to_w(17, 17));
+            append_unsigned_immediate_w_padded(&mut bytes, 18, expected_value as i16 as i32 as u32);
+            bytes.extend(encode_compare_w_register(17, 18));
+        }
+        4 => {
+            append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 18)?;
+            append_unsigned_immediate_w_padded(&mut bytes, 18, expected_value as u32);
+            bytes.extend(encode_compare_w_register(17, 18));
         }
         8 => {
-            let expected_value = u64::try_from(expected_value).map_err(|_| {
-                Diagnostic::error(format!(
-                    "AArch64 MVP encoder cannot compare negative runtime guard value `{expected_value}` yet"
-                ))
-            })?;
             append_load_data_from_x_offset(&mut bytes, 17, 16, byte_offset, byte_size, 18)?;
-            bytes.extend(encode_compare_x17_immediate(expected_value)?);
+            append_unsigned_immediate_padded(&mut bytes, 18, expected_value as u64);
+            bytes.extend(encode_compare_x_register(17, 18));
         }
         _ => {
             return Err(Diagnostic::error(format!(
@@ -309,7 +335,7 @@ pub fn encode_runtime_value_compare(
         right,
     )?;
     match byte_size {
-        1 | 4 => bytes.extend(encode_compare_w_register(17, 18)),
+        1 | 2 | 4 => bytes.extend(encode_compare_w_register(17, 18)),
         8 => bytes.extend(encode_compare_x_register(17, 18)),
         _ => {
             return Err(Diagnostic::error(format!(
@@ -329,23 +355,19 @@ pub fn encode_runtime_machine_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let value = u64::try_from(value).map_err(|_| {
-        Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot store runtime integer value `{value}` yet"
-        ))
-    })?;
-
     let mut bytes = Vec::with_capacity(runtime_machine_integer_write_width(byte_offset, byte_size));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     append_add_constant_to_x_register(&mut bytes, 16, byte_offset)?;
     match byte_size {
-        1 | 4 => {
-            bytes.extend(encode_movz_w(17, value as u16));
+        // Negative values store their two's-complement bit pattern; the sized
+        // store truncates to the target width.
+        1 | 2 | 4 => {
+            append_unsigned_immediate_w_padded(&mut bytes, 17, value as u32);
             bytes.extend(encode_store_w17_to_x16(0, byte_size)?);
         }
         8 => {
-            append_unsigned_immediate_padded(&mut bytes, 17, value);
+            append_unsigned_immediate_padded(&mut bytes, 17, value as u64);
             bytes.extend(encode_store_x17_to_x16(0)?);
         }
         _ => {
@@ -354,6 +376,10 @@ pub fn encode_runtime_machine_integer_write(
             )));
         }
     }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_integer_write_width(byte_offset, byte_size)
+    );
     Ok(bytes)
 }
 
@@ -363,12 +389,6 @@ pub fn encode_runtime_pointee_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let value = u64::try_from(value).map_err(|_| {
-        Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot store runtime integer value `{value}` yet"
-        ))
-    })?;
-
     let mut bytes = Vec::with_capacity(runtime_pointee_integer_write_width(
         pointer_byte_offset,
         field_byte_offset,
@@ -388,12 +408,12 @@ pub fn encode_runtime_pointee_integer_write(
         append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
     }
     match byte_size {
-        1 | 4 => {
-            bytes.extend(encode_movz_w(17, value as u16));
+        1 | 2 | 4 => {
+            append_unsigned_immediate_w_padded(&mut bytes, 17, value as u32);
             bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?);
         }
         8 => {
-            append_unsigned_immediate_padded(&mut bytes, 17, value);
+            append_unsigned_immediate_padded(&mut bytes, 17, value as u64);
             bytes.extend(encode_store_x_to_x(17, 16, 0)?);
         }
         _ => {
@@ -402,6 +422,10 @@ pub fn encode_runtime_pointee_integer_write(
             )));
         }
     }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_pointee_integer_write_width(pointer_byte_offset, field_byte_offset, byte_size)
+    );
     Ok(bytes)
 }
 
@@ -442,7 +466,19 @@ pub fn encode_runtime_storage_binary_write(
     if is_float {
         append_runtime_float_binary_operation(&mut bytes, byte_size, 17, operator, 18)?;
     } else {
-        append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
+        append_runtime_binary_operation(
+            &mut bytes,
+            17,
+            operator,
+            18,
+            runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        )?;
     }
     if runtime_value_operands.frame_indexed(left).is_some()
         || runtime_value_operands.frame_indexed(right).is_some()
@@ -452,6 +488,18 @@ pub fn encode_runtime_storage_binary_write(
         bytes.extend(encode_move_x_register(16, 20));
     }
     append_runtime_storage_result_write(&mut bytes, target_offset, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_binary_write_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+            is_float,
+        )
+    );
     Ok(bytes)
 }
 
@@ -500,7 +548,13 @@ pub fn encode_runtime_pointee_binary_write(
         RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
         right,
     )?;
-    append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
+    append_runtime_binary_operation(
+        &mut bytes,
+        17,
+        operator,
+        18,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
 }
@@ -776,12 +830,6 @@ pub fn encode_runtime_frame_indexed_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let value = u64::try_from(value).map_err(|_| {
-        Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot store runtime integer value `{value}` yet"
-        ))
-    })?;
-
     let mut bytes = Vec::with_capacity(runtime_frame_indexed_integer_write_width(
         element_byte_size,
         field_byte_offset,
@@ -795,12 +843,12 @@ pub fn encode_runtime_frame_indexed_integer_write(
         field_byte_offset,
     )?;
     match byte_size {
-        1 | 4 => {
-            bytes.extend(encode_movz_w(17, value as u16));
+        1 | 2 | 4 => {
+            append_unsigned_immediate_w_padded(&mut bytes, 17, value as u32);
             bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?);
         }
         8 => {
-            append_unsigned_immediate_padded(&mut bytes, 17, value);
+            append_unsigned_immediate_padded(&mut bytes, 17, value as u64);
             bytes.extend(encode_store_x_to_x(17, 16, 0)?);
         }
         _ => {
@@ -821,12 +869,6 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let value = u64::try_from(value).map_err(|_| {
-        Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot store runtime indexed integer value `{value}` yet"
-        ))
-    })?;
-
     let mut bytes = Vec::with_capacity(runtime_frame_base_indexed_integer_write_width(
         base_byte_offset,
         index_offset,
@@ -842,12 +884,12 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
         field_byte_offset,
     )?;
     match byte_size {
-        1 | 4 => {
-            bytes.extend(encode_movz_w(17, value as u16));
+        1 | 2 | 4 => {
+            append_unsigned_immediate_w_padded(&mut bytes, 17, value as u32);
             bytes.extend(encode_store_w17_to_x16(0, byte_size)?);
         }
         8 => {
-            append_unsigned_immediate_padded(&mut bytes, 17, value);
+            append_unsigned_immediate_padded(&mut bytes, 17, value as u64);
             bytes.extend(encode_store_x17_to_x16(0)?);
         }
         _ => {
@@ -868,12 +910,6 @@ pub fn encode_runtime_machine_indexed_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let value = u64::try_from(value).map_err(|_| {
-        Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot store runtime integer value `{value}` yet"
-        ))
-    })?;
-
     let mut bytes = Vec::with_capacity(runtime_machine_indexed_integer_write_width(
         base_byte_offset,
         index_region,
@@ -890,12 +926,12 @@ pub fn encode_runtime_machine_indexed_integer_write(
         field_byte_offset,
     )?;
     match byte_size {
-        1 | 4 => {
-            bytes.extend(encode_movz_w(17, value as u16));
+        1 | 2 | 4 => {
+            append_unsigned_immediate_w_padded(&mut bytes, 17, value as u32);
             bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?);
         }
         8 => {
-            append_unsigned_immediate_padded(&mut bytes, 17, value);
+            append_unsigned_immediate_padded(&mut bytes, 17, value as u64);
             bytes.extend(encode_store_x_to_x(17, 16, 0)?);
         }
         _ => {
@@ -949,7 +985,13 @@ pub fn encode_runtime_frame_indexed_binary_write(
         RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
         right,
     )?;
-    append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
+    append_runtime_binary_operation(
+        &mut bytes,
+        17,
+        operator,
+        18,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
 }
@@ -997,7 +1039,13 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
         RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
         right,
     )?;
-    append_runtime_binary_operation(&mut bytes, 17, operator, 18)?;
+    append_runtime_binary_operation(
+        &mut bytes,
+        17,
+        operator,
+        18,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
     append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
 }
@@ -1515,12 +1563,9 @@ fn append_runtime_value_operand(
     operand: RuntimeValueOperandHandle,
 ) -> Result<(), Diagnostic> {
     if let Some(value) = runtime_value_operands.immediate_integer(operand) {
-        let value = u64::try_from(value).map_err(|_| {
-            Diagnostic::error(format!(
-                "AArch64 MVP encoder cannot materialize runtime immediate `{value}` yet"
-            ))
-        })?;
-        append_unsigned_immediate(bytes, destination_register, value);
+        // Negative immediates materialize as their full 64-bit two's-complement
+        // bit pattern, mirroring the x86_64 backend's `mov reg, imm64`.
+        append_unsigned_immediate(bytes, destination_register, value as u64);
         Ok(())
     } else if let Some((_, byte_offset, byte_size)) = runtime_value_operands.storage(operand) {
         bytes.extend(encode_adrp_placeholder(19));
@@ -1568,7 +1613,7 @@ fn append_runtime_value_operand(
             field_byte_offset,
         )?;
         match byte_size {
-            1 | 4 => bytes.extend(encode_load_w_from_x(
+            1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
                 destination_register,
                 16,
                 0,
@@ -1598,7 +1643,7 @@ fn append_runtime_value_operand(
             field_byte_offset,
         )?;
         match byte_size {
-            1 | 4 => bytes.extend(encode_load_w_from_x(
+            1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
                 destination_register,
                 16,
                 0,
@@ -1628,7 +1673,7 @@ fn append_runtime_value_operand(
             field_byte_offset,
         )?;
         match byte_size {
-            1 | 4 => bytes.extend(encode_load_w_from_x(
+            1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
                 destination_register,
                 16,
                 0,
@@ -1663,7 +1708,61 @@ fn append_runtime_value_operand(
             remaining_scratch,
             right,
         )?;
-        append_runtime_binary_operation(bytes, destination_register, operator, rhs_register)?;
+        if runtime_value_operands.binary_is_float(operand) {
+            // Float operands carry their IEEE bits in the GPRs; run the scalar
+            // FP op on the bits (FADD/...) rather than an integer add over
+            // them. Precision follows the operands' width (f64 by default).
+            // MUST stay the fixed runtime_float_binary_operation_width().
+            let byte_size = runtime_value_operand_value_byte_size(runtime_value_operands, left)
+                .or_else(|| runtime_value_operand_value_byte_size(runtime_value_operands, right))
+                .unwrap_or(8);
+            append_runtime_float_binary_operation(
+                bytes,
+                byte_size,
+                destination_register,
+                operator,
+                rhs_register,
+            )?;
+        } else {
+            // Comparisons use the operand width; other nested binaries do not
+            // carry their result width, so assume 64-bit (matches the x86_64
+            // backend).
+            append_runtime_binary_operation(
+                bytes,
+                destination_register,
+                operator,
+                rhs_register,
+                runtime_binary_operation_byte_size(
+                    runtime_value_operands,
+                    operator,
+                    left,
+                    right,
+                    8,
+                ),
+            )?;
+        }
+        Ok(())
+    } else if let Some((source, source_byte_size, target_byte_size, source_is_float, target_is_float, source_signed)) =
+        runtime_value_operands.convert(operand)
+    {
+        // Load the cast's source into the destination register, then convert it
+        // in place (SCVTF / FCVTZS / FCVT / SXTW), mirroring the x86_64 backend.
+        append_runtime_value_operand(
+            runtime_value_operands,
+            bytes,
+            destination_register,
+            scratch_registers,
+            source,
+        )?;
+        append_runtime_convert_operation(
+            bytes,
+            destination_register,
+            source_byte_size,
+            target_byte_size,
+            source_is_float,
+            target_is_float,
+            source_signed,
+        )?;
         Ok(())
     } else {
         Err(Diagnostic::error(
@@ -1685,7 +1784,7 @@ fn append_runtime_storage_load(
     }
 
     match byte_size {
-        1 | 4 => bytes.extend(encode_load_w_from_x(
+        1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
             destination_register,
             base_register,
             0,
@@ -1706,12 +1805,24 @@ fn append_runtime_storage_load(
     Ok(())
 }
 
+/// Run `destination OP right` on the values already materialized in the GPRs,
+/// leaving the result in `destination_register`.
+///
+/// `byte_size` is the OPERAND width (see `runtime_binary_operation_byte_size`):
+/// signedness-sensitive operations (division, arithmetic right shift, min/max,
+/// ordered comparisons) run in the 32-bit `W` forms when the operands are 4
+/// bytes or narrower, so an i32 sign bit loaded zero-extended is honored —
+/// mirroring how the x86_64 backend sizes `idiv`/`sar`/`cmp` to the operands.
+/// Every arm emits the same byte count for either width, so
+/// `runtime_binary_operation_width` stays width-independent.
 fn append_runtime_binary_operation(
     bytes: &mut Vec<u8>,
     destination_register: u8,
     operator: StateGuardOperator,
     right_register: u8,
+    byte_size: usize,
 ) -> Result<(), Diagnostic> {
+    let narrow = byte_size <= 4;
     match operator {
         StateGuardOperator::Add => {
             bytes.extend(encode_add_x_register(
@@ -1755,13 +1866,22 @@ fn append_runtime_binary_operation(
                 right_register,
             ));
         }
-        // Arithmetic (sign-filling) right shift for a signed `>>`.
+        // Arithmetic (sign-filling) right shift for a signed `>>`, sized to the
+        // operands so a narrow operand's sign bit fills correctly.
         StateGuardOperator::ShiftRight => {
-            bytes.extend(encode_asrv_x_register(
-                destination_register,
-                destination_register,
-                right_register,
-            ));
+            bytes.extend(if narrow {
+                encode_asrv_w_register(
+                    destination_register,
+                    destination_register,
+                    right_register,
+                )
+            } else {
+                encode_asrv_x_register(
+                    destination_register,
+                    destination_register,
+                    right_register,
+                )
+            });
         }
         // Logical (zero-filling) right shift for an unsigned `>>`.
         StateGuardOperator::ShiftRightLogical => {
@@ -1771,34 +1891,52 @@ fn append_runtime_binary_operation(
                 right_register,
             ));
         }
-        StateGuardOperator::Divide => {
-            bytes.extend(encode_udiv_x_register(
+        StateGuardOperator::Divide | StateGuardOperator::DivideUnsigned => {
+            let signed = matches!(operator, StateGuardOperator::Divide);
+            bytes.extend(encode_division(
+                signed,
+                narrow,
                 destination_register,
                 destination_register,
                 right_register,
             ));
         }
-        StateGuardOperator::Modulo => {
-            bytes.extend(encode_udiv_x_register(
+        StateGuardOperator::Modulo | StateGuardOperator::ModuloUnsigned => {
+            let signed = matches!(operator, StateGuardOperator::Modulo);
+            bytes.extend(encode_division(
+                signed,
+                narrow,
                 19,
                 destination_register,
                 right_register,
             ));
-            bytes.extend(encode_msub_x_register(
-                destination_register,
-                19,
-                right_register,
-                destination_register,
-            ));
+            bytes.extend(if narrow {
+                encode_msub_w_register(
+                    destination_register,
+                    19,
+                    right_register,
+                    destination_register,
+                )
+            } else {
+                encode_msub_x_register(
+                    destination_register,
+                    19,
+                    right_register,
+                    destination_register,
+                )
+            });
         }
         StateGuardOperator::Max
         | StateGuardOperator::Min
         | StateGuardOperator::MaxUnsigned
         | StateGuardOperator::MinUnsigned => {
-            bytes.extend(encode_compare_x_register(
-                destination_register,
-                right_register,
-            ));
+            // Compare at the operand width so an i32 sign/high bit is read
+            // correctly, then conditionally take the right operand.
+            bytes.extend(if narrow {
+                encode_compare_w_register(destination_register, right_register)
+            } else {
+                encode_compare_x_register(destination_register, right_register)
+            });
             // Keep `dst` (skip the move) when it is already the winner; the unsigned
             // variants use the unsigned condition (HS/LS) instead of signed (GE/LE).
             bytes.extend(match operator {
@@ -1817,11 +1955,21 @@ fn append_runtime_binary_operation(
         | StateGuardOperator::Greater
         | StateGuardOperator::GreaterOrEqual
         | StateGuardOperator::Less
-        | StateGuardOperator::LessOrEqual => {
-            bytes.extend(encode_compare_w_register(
-                destination_register,
-                right_register,
-            ));
+        | StateGuardOperator::LessOrEqual
+        | StateGuardOperator::GreaterUnsigned
+        | StateGuardOperator::GreaterOrEqualUnsigned
+        | StateGuardOperator::LessUnsigned
+        | StateGuardOperator::LessOrEqualUnsigned => {
+            // Compare at the operand width (`byte_size` here is the operand
+            // width, not the bool result), then materialize 0/1 by branching
+            // over the `1` move on the negated condition. Ordering uses signed
+            // (GT/GE/LT/LE) or unsigned (HI/HS/LO/LS) conditions per the
+            // operand type.
+            bytes.extend(if narrow {
+                encode_compare_w_register(destination_register, right_register)
+            } else {
+                encode_compare_x_register(destination_register, right_register)
+            });
             bytes.extend(encode_movz_w(destination_register, 0));
             bytes.extend(match operator {
                 StateGuardOperator::Equal => encode_conditional_branch_not_equal(8)?,
@@ -1830,6 +1978,18 @@ fn append_runtime_binary_operation(
                 StateGuardOperator::GreaterOrEqual => encode_conditional_branch_less(8)?,
                 StateGuardOperator::Less => encode_conditional_branch_greater_or_equal(8)?,
                 StateGuardOperator::LessOrEqual => encode_conditional_branch_greater(8)?,
+                StateGuardOperator::GreaterUnsigned => {
+                    encode_conditional_branch_lower_or_same(8)?
+                }
+                StateGuardOperator::GreaterOrEqualUnsigned => {
+                    encode_conditional_branch_lower(8)?
+                }
+                StateGuardOperator::LessUnsigned => {
+                    encode_conditional_branch_higher_or_same(8)?
+                }
+                StateGuardOperator::LessOrEqualUnsigned => {
+                    encode_conditional_branch_higher(8)?
+                }
                 _ => unreachable!(),
             });
             bytes.extend(encode_movz_w(destination_register, 1));
@@ -1842,6 +2002,108 @@ fn append_runtime_binary_operation(
     }
 
     Ok(())
+}
+
+/// `SDIV`/`UDIV` sized to the operands: the `W` form for operands of 4 bytes or
+/// narrower (whose loads zero-extend), the `X` form for 8-byte operands.
+fn encode_division(
+    signed: bool,
+    narrow: bool,
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    match (signed, narrow) {
+        (true, true) => encode_sdiv_w_register(destination_register, left_register, right_register),
+        (true, false) => {
+            encode_sdiv_x_register(destination_register, left_register, right_register)
+        }
+        (false, true) => {
+            encode_udiv_w_register(destination_register, left_register, right_register)
+        }
+        (false, false) => {
+            encode_udiv_x_register(destination_register, left_register, right_register)
+        }
+    }
+}
+
+/// Whether the operator produces a bool from comparing its operands (so its
+/// compare width comes from the operands, not the bool-sized target).
+fn is_comparison_operator(operator: StateGuardOperator) -> bool {
+    matches!(
+        operator,
+        StateGuardOperator::Equal
+            | StateGuardOperator::NotEqual
+            | StateGuardOperator::Greater
+            | StateGuardOperator::GreaterOrEqual
+            | StateGuardOperator::Less
+            | StateGuardOperator::LessOrEqual
+            | StateGuardOperator::GreaterUnsigned
+            | StateGuardOperator::GreaterOrEqualUnsigned
+            | StateGuardOperator::LessUnsigned
+            | StateGuardOperator::LessOrEqualUnsigned
+    )
+}
+
+/// Value width of a runtime operand, looking through nested binary operands.
+/// `None` for immediates (which carry no width).
+fn runtime_value_operand_value_byte_size(
+    operands: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+) -> Option<usize> {
+    if let Some((_, _, byte_size)) = operands.storage(operand) {
+        return Some(byte_size);
+    }
+    if let Some((_, _, byte_size)) = operands.pointee(operand) {
+        return Some(byte_size);
+    }
+    if let Some((_, _, _, _, byte_size)) = operands.frame_indexed(operand) {
+        return Some(byte_size);
+    }
+    if let Some((_, _, _, _, byte_size)) = operands.frame_base_indexed(operand) {
+        return Some(byte_size);
+    }
+    if let Some((_, _, _, _, byte_size)) = operands.frame_fixed_indexed(operand) {
+        return Some(byte_size);
+    }
+    if let Some((left, _, right)) = operands.binary(operand) {
+        return runtime_value_operand_value_byte_size(operands, left)
+            .or_else(|| runtime_value_operand_value_byte_size(operands, right));
+    }
+    if let Some((_, _, target_byte_size, _, _, _)) = operands.convert(operand) {
+        return Some(target_byte_size);
+    }
+    None
+}
+
+/// Width to compare two operands at: the first operand with a known width, else
+/// the i32 default. (`a OP b` requires `a` and `b` to share a type, so either
+/// operand's width is the comparison width.)
+fn runtime_binary_compare_byte_size(
+    operands: &impl RuntimeValueOperandSource,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_value_operand_value_byte_size(operands, left)
+        .or_else(|| runtime_value_operand_value_byte_size(operands, right))
+        .unwrap_or(4)
+}
+
+/// Width to pass to `append_runtime_binary_operation`. Comparisons produce a
+/// `bool`, so the target width is not the compared-operands' width — derive it
+/// from the operands instead. All other operations share the target's width.
+fn runtime_binary_operation_byte_size(
+    operands: &impl RuntimeValueOperandSource,
+    operator: StateGuardOperator,
+    left: RuntimeValueOperandHandle,
+    right: RuntimeValueOperandHandle,
+    target_byte_size: usize,
+) -> usize {
+    if is_comparison_operator(operator) {
+        runtime_binary_compare_byte_size(operands, left, right)
+    } else {
+        target_byte_size
+    }
 }
 
 /// Run an IEEE-754 binary operation on the raw float bits already materialized in
@@ -1882,7 +2144,7 @@ fn append_runtime_storage_result_write(
     byte_size: usize,
 ) -> Result<(), Diagnostic> {
     match byte_size {
-        1 | 4 | 8 => append_store_data_to_x_offset(bytes, 17, 16, byte_offset, byte_size, 19)?,
+        1 | 2 | 4 | 8 => append_store_data_to_x_offset(bytes, 17, 16, byte_offset, byte_size, 19)?,
         _ => {
             return Err(Diagnostic::error(format!(
                 "AArch64 MVP encoder cannot write {byte_size}-byte runtime storage results yet"
@@ -1911,6 +2173,22 @@ fn encode_conditional_branch_for_operator_bytes(
         }
         StateGuardOperator::LessOrEqual => {
             encode_conditional_branch_greater(failure_branch_distance)?
+        }
+        // Unsigned orderings branch to the failure target on the negated
+        // UNSIGNED condition (cf. the x86 jae/ja/jbe/jb failure jumps). After
+        // an FCMP these conditions are also exact for ordered float operands,
+        // matching the x86 `ucomis*` + unsigned-jcc pairing.
+        StateGuardOperator::LessUnsigned => {
+            encode_conditional_branch_higher_or_same(failure_branch_distance)?
+        }
+        StateGuardOperator::LessOrEqualUnsigned => {
+            encode_conditional_branch_higher(failure_branch_distance)?
+        }
+        StateGuardOperator::GreaterUnsigned => {
+            encode_conditional_branch_lower_or_same(failure_branch_distance)?
+        }
+        StateGuardOperator::GreaterOrEqualUnsigned => {
+            encode_conditional_branch_lower(failure_branch_distance)?
         }
         _ => Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot lower runtime compare operator `{operator:?}` yet"
@@ -1995,7 +2273,7 @@ fn append_load_data_from_x_offset(
 ) -> Result<(), Diagnostic> {
     if data_offset_encodable(byte_offset, byte_size) {
         match byte_size {
-            1 | 4 => bytes.extend(encode_load_w_from_x(
+            1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
                 destination_register,
                 base_register,
                 byte_offset,
@@ -2006,13 +2284,13 @@ fn append_load_data_from_x_offset(
                 base_register,
                 byte_offset,
             )?),
-            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+            _ => unreachable!("runtime data loads are 1, 2, 4, or 8 bytes"),
         }
     } else {
         bytes.extend(encode_move_x_register(scratch_register, base_register));
         append_add_constant_to_x_register(bytes, scratch_register, byte_offset)?;
         match byte_size {
-            1 | 4 => bytes.extend(encode_load_w_from_x(
+            1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
                 destination_register,
                 scratch_register,
                 0,
@@ -2023,7 +2301,7 @@ fn append_load_data_from_x_offset(
                 scratch_register,
                 0,
             )?),
-            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+            _ => unreachable!("runtime data loads are 1, 2, 4, or 8 bytes"),
         }
     }
 
@@ -2040,7 +2318,7 @@ fn append_store_data_to_x_offset(
 ) -> Result<(), Diagnostic> {
     if data_offset_encodable(byte_offset, byte_size) {
         match byte_size {
-            1 | 4 => bytes.extend(encode_store_w_to_x(
+            1 | 2 | 4 => bytes.extend(encode_store_w_to_x(
                 source_register,
                 base_register,
                 byte_offset,
@@ -2051,20 +2329,20 @@ fn append_store_data_to_x_offset(
                 base_register,
                 byte_offset,
             )?),
-            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+            _ => unreachable!("runtime data stores are 1, 2, 4, or 8 bytes"),
         }
     } else {
         bytes.extend(encode_move_x_register(scratch_register, base_register));
         append_add_constant_to_x_register(bytes, scratch_register, byte_offset)?;
         match byte_size {
-            1 | 4 => bytes.extend(encode_store_w_to_x(
+            1 | 2 | 4 => bytes.extend(encode_store_w_to_x(
                 source_register,
                 scratch_register,
                 0,
                 byte_size,
             )?),
             8 => bytes.extend(encode_store_x_to_x(source_register, scratch_register, 0)?),
-            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+            _ => unreachable!("runtime data stores are 1, 2, 4, or 8 bytes"),
         }
     }
 
@@ -2122,6 +2400,7 @@ fn append_fixed_width_load_index_w_from_x_offset(
 fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
     match byte_size {
         1 => byte_offset <= 4095,
+        2 => byte_offset.is_multiple_of(2) && byte_offset / 2 <= 4095,
         4 => byte_offset.is_multiple_of(4) && byte_offset / 4 <= 4095,
         8 => byte_offset.is_multiple_of(8) && byte_offset / 8 <= 4095,
         _ => false,
@@ -2208,6 +2487,71 @@ mod tests {
                 "element_size={element_size}, source_field={source_field}, pointer_offset={pointer_offset}, target_field={target_field}, byte_count={byte_count}"
             );
         }
+    }
+
+    /// The value compare materializes the expected value into a register and
+    /// compares register-to-register; its emitted length must equal the width
+    /// for every operand size, regardless of the expected value's sign or
+    /// magnitude.
+    #[test]
+    fn storage_value_compare_width_matches_emission() {
+        for &byte_size in &[1usize, 2, 4, 8] {
+            for &expected in &[0i64, 7, -3, -1000, 4_294_967_297, i64::MIN] {
+                let bytes = encode_runtime_storage_value_compare_bytes(
+                    0x20,
+                    byte_size,
+                    expected,
+                    8,
+                    StateGuardOperator::Equal,
+                )
+                .unwrap();
+                assert_eq!(
+                    bytes.len(),
+                    widths::runtime_storage_value_compare_width(0x20, byte_size),
+                    "byte_size={byte_size}, expected={expected}"
+                );
+            }
+        }
+    }
+
+    /// Negative integer writes store the two's-complement bit pattern truncated
+    /// to the target width, and the emitted length must equal the width.
+    #[test]
+    fn negative_integer_write_width_matches_emission() {
+        for &(byte_size, value) in &[
+            (1usize, -42i64),
+            (2, -1000),
+            (4, -70000),
+            (8, -42),
+            (4, 0x1_0000), // > 16 bits: must not silently truncate
+        ] {
+            let bytes = encode_runtime_machine_integer_write(0x10, byte_size, value).unwrap();
+            assert_eq!(
+                bytes.len(),
+                widths::runtime_machine_integer_write_width(0x10, byte_size),
+                "byte_size={byte_size}, value={value}"
+            );
+        }
+    }
+
+    /// A 4-byte write of a value above 16 bits must materialize BOTH halfwords
+    /// (MOVZ + MOVK), not silently truncate to the low 16 bits.
+    #[test]
+    fn integer_write_materializes_full_32_bits() {
+        let bytes = encode_runtime_machine_integer_write(0x10, 4, 0x0004_0003).unwrap();
+        // The two instructions before the trailing store materialize w17.
+        let word_at = |from_end: usize| {
+            let start = bytes.len() - from_end;
+            u32::from_le_bytes(bytes[start..start + 4].try_into().unwrap())
+        };
+        // MOVZ w17, #3: 0x52800000 | (3 << 5) | 17.
+        assert_eq!(word_at(12), 0x5280_0000 | (3 << 5) | 17, "MOVZ w17, #3");
+        // MOVK w17, #4, LSL #16: 0x72800000 | (1 << 21) | (4 << 5) | 17.
+        assert_eq!(
+            word_at(8),
+            0x7280_0000 | (1 << 21) | (4 << 5) | 17,
+            "MOVK w17, #4, LSL #16"
+        );
     }
 
     /// The frame-base-indexed setup loads the index as 4 bytes; the integer
