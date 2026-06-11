@@ -1,0 +1,55 @@
+// A value-position call to a FREE stateful machine (top-level `machine pick`,
+// no attached data, body a 2-arm guarded value transition) must deliver the
+// selected arm's value. The backend state-call collector resolved only local
+// states / attached (method) machines, so `pick(self.v)` was invisible to
+// state-call planning: a `let n = pick(self.v)` silently left `n` at 0 (exit
+// 71) and a field target `self.low = pick(self.v)` failed loudly ("needs
+// runtime storage write lowering"). Both targets and both arms (condition +
+// default) are exercised at runtime; exits 70 only when all are correct.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: i32;
+    low: i32;
+}
+
+machine pick(x: i32) -> i32 {
+    transition {
+        x > 0 -> 100
+        _ -> 200
+    }
+}
+
+machine Main::main(&mut self) {
+    self.v = 5;
+    self.v = self.v + 1; // 6 -> condition arm -> 100
+    let n: i32 = pick(self.v);
+
+    self.v = 0;
+    self.v = self.v - 3; // -3 -> default arm -> 200
+    self.low = pick(self.v);
+
+    transition n == 100 {
+        true -> check_low()
+        false -> bad()
+    }
+
+    state check_low(&mut self) {
+        transition self.low == 200 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

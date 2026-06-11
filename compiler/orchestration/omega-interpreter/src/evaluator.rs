@@ -561,14 +561,21 @@ impl<'program> Evaluator<'program> {
                     .map(|name| name.as_str().to_owned())
                     .ok_or_else(|| Halt::Unsupported("empty named transition".to_owned()))?;
 
-                // Same-machine sibling state on the current `self`.
-                let machine = self
-                    .machine_of_state_named(&state_name, frame)
-                    .ok_or_else(|| {
-                        Halt::Unsupported(format!(
-                            "transition target `{state_name}` not found in current machine"
-                        ))
-                    })?;
+                // Same-machine sibling state on the current `self`, or a FREE
+                // machine's self-recursion (`-> count(...)` inside top-level
+                // `machine count` names the MACHINE, whose body state is the
+                // generated `entry`).
+                let (machine, state_name) =
+                    match self.machine_of_state_named(&state_name, frame) {
+                        Some(machine) => (machine, state_name),
+                        None => self
+                            .free_machine_self_recursion_target(&state_name, frame)
+                            .ok_or_else(|| {
+                                Halt::Unsupported(format!(
+                                    "transition target `{state_name}` not found in current machine"
+                                ))
+                            })?,
+                    };
 
                 let mut args = Vec::new();
                 for argument in self.program.statement_table.expression_handles(*arguments) {
@@ -583,6 +590,24 @@ impl<'program> Evaluator<'program> {
                 })
             }
         }
+    }
+
+    /// A FREE machine's self-recursive transition target: the named target is the
+    /// CURRENT machine's own (leaf) name and the machine has no attached data, so
+    /// the recursion re-enters the machine's entry state (the generated `entry`)
+    /// with the transition's arguments.
+    fn free_machine_self_recursion_target(
+        &self,
+        state_name: &str,
+        frame: &Frame,
+    ) -> Option<(Machine, String)> {
+        let machine = self.current_machine(frame)?;
+        let leaf = machine.name.as_str().rsplit("::").next().unwrap_or("");
+        if machine.attached_data.is_some() || leaf != state_name {
+            return None;
+        }
+        let entry = self.machine_entry_state_name(machine)?;
+        Some((machine.clone(), entry))
     }
 
     /// Find the machine that owns a sibling state of `self` by state name. The entry and
@@ -783,6 +808,14 @@ impl<'program> Evaluator<'program> {
         let qualified = format!("{group}::{target}");
         if let Some(machine) = self.find_machine_by_name(&qualified) {
             return Some(machine.clone());
+        }
+        // A FREE top-level machine named exactly `target` (`machine pick(x: i32)
+        // -> i32`): its body state is the generated `entry`, so the state-name
+        // scan below would miss it.
+        if let Some(machine) = self.find_machine_by_name(target) {
+            if machine.attached_data.is_none() {
+                return Some(machine.clone());
+            }
         }
         // Otherwise a machine that simply has a state named `target` -- but only when that
         // is UNAMBIGUOUS. With several candidates (e.g. two impls of the same trait
