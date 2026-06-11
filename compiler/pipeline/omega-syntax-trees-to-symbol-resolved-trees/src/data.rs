@@ -29,6 +29,69 @@ pub(crate) fn lower_data_definition(
     })
 }
 
+/// Lower each `version vN { ... }` block of a data declaration into its own
+/// historical-shape data definition named `Data::vN`. The synthesized
+/// definitions must be pushed immediately after their parent (in member
+/// order): the positional symbol-assignment pass pairs them with the root
+/// symbols omega-names seeds at the same relative positions.
+///
+/// Declared-history contradictions caught here:
+/// - a version name that is not a `v<number>` selector,
+/// - duplicate version names on one data declaration,
+/// - a version block nested inside another version block.
+pub(crate) fn lower_data_version_definitions(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    data_definition: &syntax::item::DataDefinition,
+) -> Result<Vec<DataDefinition>, Diagnostic> {
+    let mut versions = Vec::new();
+    let mut seen_names: Vec<&str> = Vec::new();
+
+    for member in syntax_trees.items.data_members(data_definition.members) {
+        let syntax::item::DataMember::Version(version) = member else {
+            continue;
+        };
+
+        let version_name = version.name.as_str();
+        if !syntax::item::is_version_selector(version_name) {
+            return Err(Diagnostic::error(format!(
+                "data `{}` declares version `{version_name}`, but version names must be `v` followed by digits (`v1`, `v2`, ...)",
+                data_definition.name
+            )));
+        }
+        if seen_names.contains(&version_name) {
+            return Err(Diagnostic::error(format!(
+                "data `{}` declares duplicate version `{version_name}`",
+                data_definition.name
+            )));
+        }
+        seen_names.push(version_name);
+
+        for nested in syntax_trees.items.data_members(version.members) {
+            if matches!(nested, syntax::item::DataMember::Version(_)) {
+                return Err(Diagnostic::error(format!(
+                    "data `{}` version `{version_name}` cannot declare a nested version block",
+                    data_definition.name
+                )));
+            }
+        }
+
+        let members = lower_data_members(lowerer, syntax_trees, version.members)?;
+        versions.push(DataDefinition {
+            symbol: SymbolHandle::invalid(),
+            name: crate::name::lower_name(&omega_syntax_trees::identifier::Identifier::generated(
+                version.shape_name(data_definition.name.as_str()),
+            )),
+            storage: DataDefinitionStorage {
+                type_parameters: HandleSpan::empty(),
+                members,
+            },
+        });
+    }
+
+    Ok(versions)
+}
+
 pub(crate) fn lower_type_parameters(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,

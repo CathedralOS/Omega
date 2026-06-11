@@ -1,0 +1,1 @@
+data `Counter` version `v2` cannot declare a nested version block

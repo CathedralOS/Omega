@@ -1,4 +1,4 @@
-use crate::data::lower_data_definition;
+use crate::data::{lower_data_definition, lower_data_version_definitions};
 use crate::domain::lower_domain_definition;
 use crate::invariant::lower_invariant_definition;
 use crate::lowerer::Lowerer;
@@ -18,11 +18,19 @@ pub(crate) fn lower_item(
 ) -> Result<(), Diagnostic> {
     match item {
         syntax::item::Item::Data(data_definition) => {
-            let data_definition = lower_data_definition(lowerer, syntax_trees, data_definition)?;
-            lowerer
-                .symbol_resolved_trees
-                .data_definitions
-                .push(data_definition);
+            let lowered = lower_data_definition(lowerer, syntax_trees, data_definition)?;
+            let version_shapes =
+                lower_data_version_definitions(lowerer, syntax_trees, data_definition)?;
+            lowerer.symbol_resolved_trees.data_definitions.push(lowered);
+            // Historical version shapes follow their parent immediately so the
+            // positional Data-kind symbol assignment stays aligned with the
+            // root symbols seeded by omega-names.
+            for version_shape in version_shapes {
+                lowerer
+                    .symbol_resolved_trees
+                    .data_definitions
+                    .push(version_shape);
+            }
         }
         syntax::item::Item::Invariant(invariant_definition) => {
             let invariant_definition =

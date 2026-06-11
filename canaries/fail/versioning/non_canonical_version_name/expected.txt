@@ -1,0 +1,1 @@
+data `Counter` declares version `legacy`, but version names must be `v` followed by digits (`v1`, `v2`, ...)

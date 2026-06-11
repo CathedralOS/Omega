@@ -1,0 +1,25 @@
+// Chapter 21 (Versioned Data): migration is ordinary typed machine code from the
+// historical shape into the current one -- `machine Counter::from_v1(old:
+// Counter::v1, out: &mut Counter)`. `Counter::v1` is a nameable parameter type
+// whose fields are the version block's members, and the body copies an old-era
+// field into a current-era field.
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+    timestamp: i32;
+}
+
+data Main {
+}
+
+machine Counter::from_v1(old: Counter::v1, out: &mut Counter) {
+    out.count = old.counter;
+    out.timestamp = 7;
+}
+
+machine Main::main(&mut self) {
+}

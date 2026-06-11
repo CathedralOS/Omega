@@ -1,0 +1,17 @@
+// Chapter 21 (Versioned Data): version names are canonical `v<number>`
+// selectors (`v1`, `v2`, ...) so they line up with version-scoped machine paths
+// (`Counter::increment::v1`) and version-shape type references (`Counter::v1`).
+
+data Counter {
+    version legacy {
+        counter: i32;
+    }
+
+    count: i32;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
