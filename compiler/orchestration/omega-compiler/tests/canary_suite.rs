@@ -6556,9 +6556,10 @@ fn native_dungeon_crawler_runs_stable_scripted_loop() {
     // The east side chamber (R05) is identified by its gold-cache event line and
     // its unique exit list. Its data-driven DESCRIPTION is deliberately not
     // asserted: whether R05 gets carved depends on one RNG draw, and native's
-    // eager per-arm guard evaluation drains the RNG stream faster than the
-    // interpreter's lazy order (the documented eager-guard divergence), so the
-    // two backends currently disagree on that single line.
+    // NON-guard call chains still over-draw the RNG stream relative to the
+    // interpreter (generation: 34 draws vs 15 -- the guard-subject half of the
+    // divergence is fixed; see TASKS.md backend residue), so the two backends
+    // currently disagree on that single line.
     assert!(stdout.contains("Loose gold glitters in the dust."));
     assert!(stdout.contains("[Paths] west"));
     assert!(stdout.contains("Inv: 30 gold. Purse heavy, charm secured."));
