@@ -1,0 +1,19 @@
+// `==` on a structural type WITHOUT a declared Equatable conformance is an
+// error that suggests the one-line fix (frozen decision 11): records and
+// payload-bearing sums only get structural equality through
+// `Type satisfies Equatable;`.
+
+data Point {
+    x: i32;
+    y: i32;
+}
+
+data Main {
+    a: Point;
+    b: Point;
+    hit: bool = false;
+}
+
+machine Main::main(&mut self) {
+    self.hit = self.a == self.b;
+}

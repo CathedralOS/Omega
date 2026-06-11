@@ -1,0 +1,26 @@
+// Equatable prerequisites are checked at the CONFORMANCE ITEM: a field
+// whose type is itself a structural record/sum must also conform, otherwise
+// the synthesized field-by-field expansion has no equality to recurse into.
+
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+data Pos {
+    x: i32;
+    y: i32;
+}
+
+data Player {
+    pos: Pos;
+    health: i32;
+}
+
+Player satisfies Equatable;
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

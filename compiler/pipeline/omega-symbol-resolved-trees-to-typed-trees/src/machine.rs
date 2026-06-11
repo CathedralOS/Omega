@@ -130,7 +130,15 @@ pub(crate) fn lower_machine(
 
     for state in lowerer.source_trees.machine_state_handles(machine.states) {
         let state = lowerer.source_trees.machine_state(*state);
+        // The state body's value-typing scope lets `==` lowering find an
+        // operand's data type for structural-equality expansion.
+        lowerer.equality_scope = Some(crate::equatable::EqualityScope::for_state(
+            lowerer.source_trees,
+            machine,
+            state,
+        ));
         let state = lower_state(lowerer, state)?;
+        lowerer.equality_scope = None;
         lowerer
             .typed_trees
             .push_machine_state(&mut typed_machine, state);

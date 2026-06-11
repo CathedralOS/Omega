@@ -1,0 +1,607 @@
+//! Inline structural-equality expansion (frozen decisions 8 + 11): `==` on a
+//! record or payload-bearing sum whose `Type satisfies Equatable;` conformance
+//! is declared lowers to an AND/OR tree of field compares -- the typed-tree
+//! shape the author would have written by hand -- so every existing backend
+//! and interpreter comparison path is reused with zero new runtime surface.
+//!
+//! Records expand to a conjunction of per-field compares. Sums expand to a
+//! disjunction over cases, each arm a conjunction whose TAG compares come
+//! FIRST: under the interpreter's short-circuit AND a mismatched tag skips
+//! the payload reads (which would otherwise read another case's payload),
+//! while the native backend's eager evaluation reads in-allocation payload
+//! bytes whose garbage compare is masked by the false tag compare.
+//!
+//! A hand-written `Type::equals` wins (check-then-synthesize): `==` lowers to
+//! a value call targeting it instead of expanding.
+
+use super::lowerer::ExpressionTableLowerer;
+use crate::equatable::{
+    DataEqualityShape, FieldEquality, data_definition_by_name, data_equality_shape,
+    equatable_conformance_declared, field_equality, value_type_base_name,
+    written_equals_state_symbol,
+};
+use crate::name::lower_name;
+use omega_core::arena::HandleSpan;
+use omega_core::diagnostics::Diagnostic;
+use omega_symbol_resolved_trees as resolved;
+use omega_typed_trees as typed;
+use resolved::data::{DataDefinition, DataField, DataMember, DataVariant};
+
+/// One `==` operand, classified for expansion. A PLACE is lowered once and
+/// its handle shared by every synthesized member read; a LITERAL is never
+/// materialized -- its field values are compared directly.
+enum Operand {
+    Place(typed::expression::ExpressionHandle),
+    Literal {
+        case_name: Option<String>,
+        fields: HandleSpan<resolved::expression::TableStructLiteralField>,
+    },
+}
+
+impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
+    /// Expand `==`/`!=` when an operand types to a structural (record /
+    /// payload-bearing sum) data definition. Returns `Ok(None)` when the
+    /// compare is not structural (primitives, payload-less sums, untypable
+    /// operands), leaving the ordinary binary lowering in charge.
+    pub(super) fn try_lower_structural_equality(
+        &mut self,
+        binary: &resolved::expression::TableBinaryExpression,
+    ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic> {
+        let Some(program) = self.program else {
+            return Ok(None);
+        };
+
+        // A multi-member name path operand is a CLASSIFIER reference (a case
+        // or domain, e.g. the guard-layer desugar of match arms comparing the
+        // subject against `Player::Alive`), not a value: the existing tag /
+        // domain machinery owns that compare. User-written bare
+        // payload-bearing case names were already rejected by the resolved
+        // pre-pass (`crate::equality`).
+        if self.classifier_reference_operand(binary.left)
+            || self.classifier_reference_operand(binary.right)
+        {
+            return Ok(None);
+        }
+
+        let type_name = match self.operand_data_type_name(binary.left) {
+            Some(name) => name,
+            None => match self.operand_data_type_name(binary.right) {
+                Some(name) => name,
+                None => return Ok(None),
+            },
+        };
+        let Some(data) = data_definition_by_name(program, &type_name) else {
+            return Ok(None);
+        };
+        if data_equality_shape(program, data) != DataEqualityShape::Structural {
+            return Ok(None);
+        }
+
+        if !equatable_conformance_declared(program, &type_name) {
+            return Err(Diagnostic::error(format!(
+                "cannot compare `{type_name}` values with `==`: structural equality is not synthesized for non-conforming types -- declare `{type_name} satisfies Equatable;` to synthesize structural equality"
+            )));
+        }
+
+        if let Some(equals_state) = written_equals_state_symbol(program, &type_name) {
+            let receiver = self.lower(binary.left)?;
+            let argument = self.lower(binary.right)?;
+            let arguments = self.target.insert_expression_handles(vec![argument]);
+            let call = self.target.insert(typed::expression::ExpressionNode::Call(
+                typed::expression::TableCallExpression {
+                    receiver,
+                    target_symbol: equals_state,
+                    target: typed::name::Identifier::generated_static("equals"),
+                    arguments,
+                },
+            ));
+            return Ok(Some(self.with_equality_polarity(call, binary.operator)));
+        }
+
+        let mut visiting = vec![type_name.clone()];
+        let left = self.classify_operand(binary.left, &type_name)?;
+        let right = self.classify_operand(binary.right, &type_name)?;
+        let equality = self.structural_equality(data, &left, &right, &mut visiting)?;
+        Ok(Some(self.with_equality_polarity(equality, binary.operator)))
+    }
+
+    /// `!=` is the negated expansion. Unary logical-not has no runtime
+    /// lowering path yet, so negation is spelled `equality == false`, which
+    /// stays inside the supported boolean-compare vocabulary.
+    fn with_equality_polarity(
+        &mut self,
+        equality: typed::expression::ExpressionHandle,
+        operator: resolved::expression::BinaryOperator,
+    ) -> typed::expression::ExpressionHandle {
+        match operator {
+            resolved::expression::BinaryOperator::NotEqual => {
+                let negated = self
+                    .target
+                    .insert(typed::expression::ExpressionNode::Boolean(false));
+                self.target
+                    .insert(typed::expression::ExpressionNode::Binary(
+                        typed::expression::TableBinaryExpression {
+                            left: equality,
+                            operator: typed::expression::BinaryOperator::Equal,
+                            right: negated,
+                        },
+                    ))
+            }
+            _ => equality,
+        }
+    }
+
+    fn classifier_reference_operand(
+        &self,
+        operand: resolved::expression::ExpressionHandle,
+    ) -> bool {
+        if !operand.is_valid() {
+            return false;
+        }
+        match self.source.expression(operand) {
+            resolved::expression::ExpressionNode::Name(path) => {
+                !path.is_self_value && self.source.name_path_members(path.members).len() >= 2
+            }
+            resolved::expression::ExpressionNode::Mutable(inner) => {
+                self.classifier_reference_operand(*inner)
+            }
+            _ => false,
+        }
+    }
+
+    /// The base data-type name of an `==` operand, resolved through the
+    /// state's typing scope. `None` for operands the scope cannot type;
+    /// those compares lower unchanged.
+    fn operand_data_type_name(
+        &self,
+        operand: resolved::expression::ExpressionHandle,
+    ) -> Option<String> {
+        if !operand.is_valid() {
+            return None;
+        }
+        let program = self.program?;
+        match self.source.expression(operand) {
+            resolved::expression::ExpressionNode::StructLiteral(literal) => {
+                Some(literal.type_name.as_str().to_owned())
+            }
+            resolved::expression::ExpressionNode::Mutable(inner) => {
+                self.operand_data_type_name(*inner)
+            }
+            resolved::expression::ExpressionNode::Name(path) => {
+                let members = self.source.name_path_members(path.members);
+                let scope = self.equality_scope?;
+                if path.is_self_value && members.len() == 1 {
+                    return scope.attached_data.clone();
+                }
+                let [name] = members else {
+                    return None;
+                };
+                scope.value_type(name.as_str()).map(str::to_owned)
+            }
+            resolved::expression::ExpressionNode::Member(member) => {
+                let receiver_type = self.operand_data_type_name(member.receiver)?;
+                let data = data_definition_by_name(program, &receiver_type)?;
+                let field = program
+                    .data_members(data.members)
+                    .iter()
+                    .find_map(|data_member| match data_member {
+                        DataMember::Field(field)
+                            if field.name.as_str() == member.member.as_str() =>
+                        {
+                            Some(field)
+                        }
+                        _ => None,
+                    })?;
+                value_type_base_name(program, &field.type_reference)
+            }
+            _ => None,
+        }
+    }
+
+    fn classify_operand(
+        &mut self,
+        operand: resolved::expression::ExpressionHandle,
+        type_name: &str,
+    ) -> Result<Operand, Diagnostic> {
+        match self.source.expression(operand) {
+            resolved::expression::ExpressionNode::StructLiteral(literal) => Ok(Operand::Literal {
+                case_name: literal
+                    .case_name
+                    .as_ref()
+                    .map(|name| name.as_str().to_owned()),
+                fields: literal.fields,
+            }),
+            resolved::expression::ExpressionNode::Mutable(inner) => {
+                self.classify_operand(*inner, type_name)
+            }
+            resolved::expression::ExpressionNode::Name(_)
+            | resolved::expression::ExpressionNode::Member(_)
+            | resolved::expression::ExpressionNode::Indexed(_) => {
+                Ok(Operand::Place(self.lower(operand)?))
+            }
+            _ => Err(Diagnostic::error(format!(
+                "cannot synthesize structural `==` for this `{type_name}` operand: bind the value to a local first"
+            ))),
+        }
+    }
+
+    fn structural_equality(
+        &mut self,
+        data: &'program DataDefinition,
+        left: &Operand,
+        right: &Operand,
+        visiting: &mut Vec<String>,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let program = self
+            .program
+            .expect("structural equality requires program context");
+        let members = program.data_members(data.members);
+
+        let variants: Vec<&DataVariant> = members
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Variant(variant) => Some(variant),
+                _ => None,
+            })
+            .collect();
+
+        if variants.is_empty() {
+            let fields: Vec<&DataField> = members
+                .iter()
+                .filter_map(|member| match member {
+                    DataMember::Field(field) => Some(field),
+                    _ => None,
+                })
+                .collect();
+            let compares = self.field_compares(data, &fields, left, right, visiting)?;
+            return Ok(self.conjunction(compares));
+        }
+
+        self.sum_equality(data, &variants, left, right, visiting)
+    }
+
+    /// The per-field compares of a record or one case's payload.
+    fn field_compares(
+        &mut self,
+        data: &'program DataDefinition,
+        fields: &[&DataField],
+        left: &Operand,
+        right: &Operand,
+        visiting: &mut Vec<String>,
+    ) -> Result<Vec<typed::expression::ExpressionHandle>, Diagnostic> {
+        let mut compares = Vec::new();
+        for field in fields {
+            compares.push(self.field_compare(data, field, left, right, visiting)?);
+        }
+        Ok(compares)
+    }
+
+    /// Sum equality. Two places: a disjunction over the cases, each arm
+    /// `left == Type::Case && right == Type::Case && payload compares`. A
+    /// constructed case literal pins the arm statically.
+    fn sum_equality(
+        &mut self,
+        data: &'program DataDefinition,
+        variants: &[&DataVariant],
+        left: &Operand,
+        right: &Operand,
+        visiting: &mut Vec<String>,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let program = self
+            .program
+            .expect("structural equality requires program context");
+
+        match (left, right) {
+            (
+                Operand::Literal {
+                    case_name: Some(left_case),
+                    ..
+                },
+                Operand::Literal {
+                    case_name: Some(right_case),
+                    ..
+                },
+            ) => {
+                if left_case != right_case {
+                    return Ok(self
+                        .target
+                        .insert(typed::expression::ExpressionNode::Boolean(false)));
+                }
+                let variant = self.sum_variant(data, variants, left_case)?;
+                let payload: Vec<&DataField> = program
+                    .data_payload_fields(variant.payload)
+                    .iter()
+                    .collect();
+                let compares = self.field_compares(data, &payload, left, right, visiting)?;
+                Ok(self.conjunction(compares))
+            }
+            (
+                Operand::Literal {
+                    case_name: None, ..
+                },
+                Operand::Literal { .. },
+            )
+            | (
+                Operand::Literal { .. },
+                Operand::Literal {
+                    case_name: None, ..
+                },
+            ) => Err(Diagnostic::error(format!(
+                "cannot compare `{}` values against a record literal: the type is a sum of cases",
+                data.name
+            ))),
+            (Operand::Place(_), Operand::Literal { case_name, fields })
+            | (Operand::Literal { case_name, fields }, Operand::Place(_)) => {
+                let Some(case_name) = case_name else {
+                    return Err(Diagnostic::error(format!(
+                        "cannot compare `{}` values against a record literal: the type is a sum of cases",
+                        data.name
+                    )));
+                };
+                let place = match (left, right) {
+                    (Operand::Place(place), _) | (_, Operand::Place(place)) => *place,
+                    _ => unreachable!("one side is a place in this arm"),
+                };
+                let literal = Operand::Literal {
+                    case_name: Some(case_name.clone()),
+                    fields: *fields,
+                };
+                let variant = self.sum_variant(data, variants, case_name)?;
+                let tag_compare = self.tag_compare(data, variant, place);
+                let payload: Vec<&DataField> = program
+                    .data_payload_fields(variant.payload)
+                    .iter()
+                    .collect();
+                let place_operand = Operand::Place(place);
+                let mut compares = vec![tag_compare];
+                compares.extend(self.field_compares(
+                    data,
+                    &payload,
+                    &place_operand,
+                    &literal,
+                    visiting,
+                )?);
+                Ok(self.conjunction(compares))
+            }
+            (Operand::Place(left_place), Operand::Place(right_place)) => {
+                let (left_place, right_place) = (*left_place, *right_place);
+                let mut arms = Vec::new();
+                for variant in variants {
+                    // Tag compares come FIRST so short-circuit evaluation
+                    // never reads another case's payload fields.
+                    let left_tag = self.tag_compare(data, variant, left_place);
+                    let right_tag = self.tag_compare(data, variant, right_place);
+                    let payload: Vec<&DataField> = program
+                        .data_payload_fields(variant.payload)
+                        .iter()
+                        .collect();
+                    let mut compares = vec![left_tag, right_tag];
+                    compares.extend(self.field_compares(
+                        data,
+                        &payload,
+                        &Operand::Place(left_place),
+                        &Operand::Place(right_place),
+                        visiting,
+                    )?);
+                    arms.push(self.conjunction(compares));
+                }
+                Ok(self.disjunction(arms))
+            }
+        }
+    }
+
+    fn sum_variant(
+        &self,
+        data: &'program DataDefinition,
+        variants: &[&'program DataVariant],
+        case_name: &str,
+    ) -> Result<&'program DataVariant, Diagnostic> {
+        variants
+            .iter()
+            .copied()
+            .find(|variant| variant.name.as_str() == case_name)
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "`{}` has no case `{case_name}` to compare against",
+                    data.name
+                ))
+            })
+    }
+
+    fn field_compare(
+        &mut self,
+        data: &'program DataDefinition,
+        field: &DataField,
+        left: &Operand,
+        right: &Operand,
+        visiting: &mut Vec<String>,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let program = self
+            .program
+            .expect("structural equality requires program context");
+        match field_equality(program, &visiting[0], data.name.as_str(), field)? {
+            FieldEquality::Direct => {
+                let left_value = self.operand_field_value(field, left)?;
+                let right_value = self.operand_field_value(field, right)?;
+                Ok(self
+                    .target
+                    .insert(typed::expression::ExpressionNode::Binary(
+                        typed::expression::TableBinaryExpression {
+                            left: left_value,
+                            operator: typed::expression::BinaryOperator::Equal,
+                            right: right_value,
+                        },
+                    )))
+            }
+            FieldEquality::Structural(nested) => {
+                let nested_name = nested.name.as_str();
+                if visiting.iter().any(|name| name == nested_name) {
+                    return Err(Diagnostic::error(format!(
+                        "conformance `{} satisfies Equatable`: type `{nested_name}` is recursive through field `{}` of `{}`: synthesized structural equality would not terminate, so recursive Equatable conformance is not supported yet",
+                        visiting[0], field.name, data.name
+                    )));
+                }
+                let left_nested = self.operand_field_operand(field, left, nested_name)?;
+                let right_nested = self.operand_field_operand(field, right, nested_name)?;
+                visiting.push(nested_name.to_owned());
+                let equality =
+                    self.structural_equality(nested, &left_nested, &right_nested, visiting)?;
+                visiting.pop();
+                Ok(equality)
+            }
+        }
+    }
+
+    /// A field of an operand as a typed VALUE: a synthesized member read on
+    /// a place, or the literal's field value (falling back to the declared
+    /// field default when the literal omits it).
+    fn operand_field_value(
+        &mut self,
+        field: &DataField,
+        operand: &Operand,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        match operand {
+            Operand::Place(place) => Ok(self.member_read(*place, field)),
+            Operand::Literal { .. } => {
+                let value = self.literal_field_expression(field, operand)?;
+                self.lower(value)
+            }
+        }
+    }
+
+    /// A field of an operand as a nested OPERAND for recursive expansion: a
+    /// member read stays a place; a literal field value is re-classified
+    /// (it may itself be a nested literal or a place name).
+    fn operand_field_operand(
+        &mut self,
+        field: &DataField,
+        operand: &Operand,
+        field_type_name: &str,
+    ) -> Result<Operand, Diagnostic> {
+        match operand {
+            Operand::Place(place) => Ok(Operand::Place(self.member_read(*place, field))),
+            Operand::Literal { .. } => {
+                let value = self.literal_field_expression(field, operand)?;
+                self.classify_operand(value, field_type_name)
+            }
+        }
+    }
+
+    fn literal_field_expression(
+        &self,
+        field: &DataField,
+        operand: &Operand,
+    ) -> Result<resolved::expression::ExpressionHandle, Diagnostic> {
+        let Operand::Literal { fields, .. } = operand else {
+            unreachable!("literal field access on a place operand")
+        };
+        if let Some(literal_field) = self
+            .source
+            .struct_fields(*fields)
+            .iter()
+            .find(|literal_field| literal_field.name.as_str() == field.name.as_str())
+        {
+            return Ok(literal_field.value);
+        }
+        if field.initial_value.is_valid() {
+            return Ok(field.initial_value);
+        }
+        Err(Diagnostic::error(format!(
+            "cannot synthesize structural `==`: the literal omits field `{}` and the field declares no default",
+            field.name
+        )))
+    }
+
+    fn member_read(
+        &mut self,
+        place: typed::expression::ExpressionHandle,
+        field: &DataField,
+    ) -> typed::expression::ExpressionHandle {
+        self.target
+            .insert(typed::expression::ExpressionNode::Member(
+                typed::expression::TableMemberExpression {
+                    receiver: place,
+                    member_symbol: field.symbol,
+                    member: lower_name(&field.name),
+                },
+            ))
+    }
+
+    /// `value == Type::Case`: the symbol-stamped tag compare shape shared
+    /// with case-membership lowering (the backend's tag clamp keys off it).
+    fn tag_compare(
+        &mut self,
+        data: &DataDefinition,
+        variant: &DataVariant,
+        place: typed::expression::ExpressionHandle,
+    ) -> typed::expression::ExpressionHandle {
+        let mut members = HandleSpan::empty();
+        self.target
+            .push_name_path_member(&mut members, lower_name(&data.name));
+        self.target
+            .push_name_path_member(&mut members, lower_name(&variant.name));
+        let mut member_symbols = HandleSpan::empty();
+        self.target
+            .push_name_path_member_symbol(&mut member_symbols, data.symbol);
+        self.target
+            .push_name_path_member_symbol(&mut member_symbols, variant.symbol);
+        let case_reference = self.target.insert(typed::expression::ExpressionNode::Name(
+            typed::expression::TableNamePath {
+                members,
+                member_symbols,
+                head_symbol: data.symbol,
+                symbol: variant.symbol,
+            },
+        ));
+        self.target
+            .insert(typed::expression::ExpressionNode::Binary(
+                typed::expression::TableBinaryExpression {
+                    left: place,
+                    operator: typed::expression::BinaryOperator::Equal,
+                    right: case_reference,
+                },
+            ))
+    }
+
+    /// Left-fold an AND chain; empty input is the vacuous `true`.
+    fn conjunction(
+        &mut self,
+        compares: Vec<typed::expression::ExpressionHandle>,
+    ) -> typed::expression::ExpressionHandle {
+        self.fold_binary(compares, typed::expression::BinaryOperator::And, true)
+    }
+
+    /// Left-fold an OR chain; empty input is `false` (no case can match).
+    fn disjunction(
+        &mut self,
+        arms: Vec<typed::expression::ExpressionHandle>,
+    ) -> typed::expression::ExpressionHandle {
+        self.fold_binary(arms, typed::expression::BinaryOperator::Or, false)
+    }
+
+    fn fold_binary(
+        &mut self,
+        parts: Vec<typed::expression::ExpressionHandle>,
+        operator: typed::expression::BinaryOperator,
+        empty_value: bool,
+    ) -> typed::expression::ExpressionHandle {
+        let mut parts = parts.into_iter();
+        let Some(mut combined) = parts.next() else {
+            return self
+                .target
+                .insert(typed::expression::ExpressionNode::Boolean(empty_value));
+        };
+        for part in parts {
+            combined = self
+                .target
+                .insert(typed::expression::ExpressionNode::Binary(
+                    typed::expression::TableBinaryExpression {
+                        left: combined,
+                        operator,
+                        right: part,
+                    },
+                ));
+        }
+        combined
+    }
+}
