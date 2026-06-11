@@ -1,0 +1,18 @@
+// Without `[zero_init]` a payload-bearing FIRST case is legal (frozen
+// decision 8): zero-VALIDITY is unconditional (a zeroed payload is itself a
+// zeroed -- valid -- value), while zero-MEANS-EMPTY is the opt-in property
+// that demands a payload-free zero case. This was a hard error before
+// properties landed; declaration-only here so native lowering of payload
+// construction stays a separate frontier.
+
+data Token {
+    case Number(value: i32);
+    case End;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

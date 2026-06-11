@@ -1,0 +1,18 @@
+// `copy` is declared AND verified (frozen decision 8): every stored field
+// must be a primitive or a data type that itself declares `[copy]`. `Inner`
+// does not declare it, so `Point [copy]` is rejected.
+
+data Inner {
+    value: i32;
+}
+
+data Point [copy] {
+    inner: Inner;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

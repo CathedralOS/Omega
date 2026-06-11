@@ -104,6 +104,7 @@ impl SyntaxTrees {
             Item::Platform(platform) => self.insert_platform(platform),
             Item::Trait(trait_definition) => self.insert_trait_definition(trait_definition),
             Item::Capability(_)
+            | Item::Conformance(_)
             | Item::Data(_)
             | Item::Domain(_)
             | Item::Export(_)
@@ -145,6 +146,7 @@ impl SyntaxTrees {
             Item::Capability(capability) => {
                 Item::Capability(self.copy_capability_definition(other, capability))
             }
+            Item::Conformance(conformance) => Item::Conformance(conformance.clone()),
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),
@@ -214,6 +216,7 @@ impl SyntaxTrees {
         DataDefinition {
             name: data.name.clone(),
             type_parameters: self.copy_type_parameter_span(other, data.type_parameters),
+            properties: data.properties,
             members: self.copy_data_member_span(other, data.members),
         }
     }

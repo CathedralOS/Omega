@@ -51,6 +51,14 @@ pub(crate) fn lower_item(
             let trait_definition = lower_trait_definition(lowerer, syntax_trees, trait_definition)?;
             lowerer.symbol_resolved_trees.traits.push(trait_definition);
         }
+        syntax::item::Item::Conformance(conformance) => {
+            lowerer.symbol_resolved_trees.conformances.push(
+                omega_symbol_resolved_trees::trait_definition::DataConformance {
+                    type_name: crate::name::lower_name(&conformance.type_name),
+                    trait_name: crate::name::lower_name(&conformance.trait_name),
+                },
+            );
+        }
         syntax::item::Item::Measure(measure) => {
             let measure = lower_measure_definition(lowerer, syntax_trees, measure)?;
             lowerer.symbol_resolved_trees.measures.push(measure);

@@ -1,0 +1,1 @@
+type property `sized` is computed from the data shape and cannot be declared

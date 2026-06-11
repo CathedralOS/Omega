@@ -121,7 +121,7 @@ fn trait_conformance_candidate_machines<'program>(
     candidates
 }
 
-fn validate_machine_state_satisfies_trait_signature(
+pub(super) fn validate_machine_state_satisfies_trait_signature(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,

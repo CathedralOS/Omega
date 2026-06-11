@@ -1,0 +1,13 @@
+// The declared-property set is closed (frozen decision 8): unknown property
+// names are parse errors naming the known set.
+
+data Point [frobnicate] {
+    x: i32;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

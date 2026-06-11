@@ -1,0 +1,1 @@
+cannot compare against payload-bearing case `Command::Move` with `==`

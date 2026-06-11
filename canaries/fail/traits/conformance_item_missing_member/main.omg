@@ -1,0 +1,21 @@
+// A conformance item is checked against WRITTEN members: `Point satisfies
+// Shape;` with no written `Point::code` is an error (trait default
+// instantiation / core synthesis is the compile-time-execution direction and
+// is not implemented yet).
+
+trait Shape {
+    machine code(&mut self) -> i32;
+}
+
+data Point {
+    x: i32;
+}
+
+Point satisfies Shape;
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

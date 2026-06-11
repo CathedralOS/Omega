@@ -13,6 +13,11 @@ pub(crate) fn lower_data_definition(
         symbol: data_definition.symbol,
         name: crate::name::lower_name(&data_definition.name),
         type_parameters: omega_core::arena::HandleSpan::empty(),
+        properties: typed::data::DataProperties {
+            copy: data_definition.properties.copy,
+            zero_init: data_definition.properties.zero_init,
+            send: data_definition.properties.send,
+        },
         members: omega_core::arena::HandleSpan::empty(),
     };
 

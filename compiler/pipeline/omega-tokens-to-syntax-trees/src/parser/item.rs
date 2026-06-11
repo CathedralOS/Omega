@@ -177,6 +177,24 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Trait(item), rest));
     }
 
+    // A standalone conformance item (frozen decision 8): `Point satisfies
+    // Equatable;`. No leading keyword, so it is recognized by the
+    // `satisfies` contextual after a type name.
+    if let Ok((type_name, rest)) = input.take_identifier()
+        && rest.at_contextual("satisfies")
+    {
+        let rest = rest.take_contextual("satisfies")?;
+        let (trait_name, rest) = rest.take_identifier()?;
+        let rest = take_optional_semicolon(rest)?;
+        return Ok((
+            Item::Conformance(omega_syntax_trees::item::ConformanceItem {
+                type_name,
+                trait_name,
+            }),
+            rest,
+        ));
+    }
+
     Err(input.expected_one_of_here(&[
         "`use`",
         "`export`",

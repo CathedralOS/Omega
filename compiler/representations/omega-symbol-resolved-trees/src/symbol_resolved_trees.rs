@@ -24,6 +24,7 @@ pub struct SymbolResolvedRoots {
     pub operators: OrderedRootArena<operator::OperatorDefinition>,
     pub platforms: OrderedRootArena<crate::platform::Platform>,
     pub traits: OrderedRootArena<crate::trait_definition::TraitDefinition>,
+    pub conformances: OrderedRootArena<crate::trait_definition::DataConformance>,
     pub wire_schemas: OrderedRootArena<wire::WireSchema>,
 }
 
@@ -46,6 +47,7 @@ impl SymbolResolvedRoots {
             operators,
             platforms,
             traits,
+            conformances: OrderedRootArena::default(),
             wire_schemas: OrderedRootArena::default(),
         }
     }

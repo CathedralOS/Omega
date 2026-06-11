@@ -1176,6 +1176,68 @@ fn runtime_match_value_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_conformance_item_exit_canary_runs() {
+    let canary = pass_canary("traits/runtime_conformance_item_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-conformance-item-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("conformance item canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("conformance item canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `Circle satisfies Shape;` to validate against the written member and run unchanged (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_data_properties_exit_canary_runs() {
+    let canary = pass_canary("data/runtime_data_properties_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-data-properties-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("data properties canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("data properties canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `[copy, zero_init]` declarations to verify and run identically to property-free data (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn compound_assignment_exit_canary_runs() {
     let canary = pass_canary("operators/compound_assignment_exit");
     let main_path = canary.join("main.omg");

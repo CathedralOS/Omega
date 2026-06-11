@@ -52,6 +52,10 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 }
             }
         }
+        Item::Conformance(conformance) => {
+            count_identifier(&conformance.type_name, counts);
+            count_identifier(&conformance.trait_name, counts);
+        }
         Item::Data(data_definition) => {
             count_identifier(&data_definition.name, counts);
             for member in syntax_trees.items.data_members(data_definition.members) {

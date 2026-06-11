@@ -1,0 +1,13 @@
+// `sized` is a COMPUTED property (acquisition mode: computed from the data
+// shape) and may not be declared in the bracket list (frozen decision 8).
+
+data Point [sized] {
+    x: i32;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

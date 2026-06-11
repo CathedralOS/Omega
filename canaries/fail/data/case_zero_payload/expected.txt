@@ -1,1 +1,1 @@
-zero case `Number` must be payload-free
+zero case `Number` carries a payload

@@ -1,0 +1,14 @@
+// `zero_init` means zero IS the empty value (frozen decision 8): a non-zero
+// field default contradicts that (the constructed default would differ from
+// the zeroed value), so it is rejected.
+
+data Counter [zero_init] {
+    start: i32 = 5;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

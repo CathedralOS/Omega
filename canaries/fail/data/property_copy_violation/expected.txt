@@ -1,0 +1,1 @@
+declares `[copy]` but field `inner` is not `copy`

@@ -14,7 +14,17 @@ pub struct DataDefinition {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataDefinitionStorage {
     pub type_parameters: HandleSpan<TypeParameter>,
+    pub properties: DataProperties,
     pub members: HandleSpan<DataMember>,
+}
+
+/// Declared type properties (`data Point [copy, zero_init]`). The spelling
+/// set is closed at parse time, so only the resolved flags travel here.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DataProperties {
+    pub copy: bool,
+    pub zero_init: bool,
+    pub send: bool,
 }
 
 impl Deref for DataDefinition {

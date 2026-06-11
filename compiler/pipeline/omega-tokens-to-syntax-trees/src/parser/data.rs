@@ -4,7 +4,8 @@ use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
-    DataDefinition, DataField, DataMember, DataVariant, TypeParameter, TypeParameterKind,
+    DataDefinition, DataField, DataMember, DataProperties, DataVariant, TypeParameter,
+    TypeParameterKind,
 };
 use omega_tokens::PunctuationKind;
 
@@ -15,6 +16,8 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     let (name, mut input) = input.take_identifier()?;
     let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
     input = next;
+    let (properties, next) = parse_data_properties(input)?;
+    input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let (members, input) = parse_data_members(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
@@ -23,10 +26,61 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         DataDefinition {
             name,
             type_parameters,
+            properties,
             members,
         },
         input,
     ))
+}
+
+/// Parse the optional declared-property bracket list between the data name
+/// and its body: `data Point [copy, zero_init] { ... }`. The property set is
+/// closed (frozen decision 8), so unknown names, duplicates, and the
+/// computed-only `sized` are rejected here rather than in validation.
+fn parse_data_properties<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, DataProperties> {
+    let mut properties = DataProperties::default();
+    if !input.at_punctuation(PunctuationKind::LeftBracket) {
+        return Ok((properties, input));
+    }
+
+    let mut input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
+    loop {
+        let (name, next) = input.take_identifier()?;
+        let flag = match name.as_str() {
+            "copy" => &mut properties.copy,
+            "zero_init" => &mut properties.zero_init,
+            "send" => &mut properties.send,
+            "sized" => {
+                return Err(next.error_here(
+                    "type property `sized` is computed from the data shape and cannot be declared",
+                ));
+            }
+            other => {
+                return Err(next.error_here(format!(
+                    "unknown type property `{other}`; declared properties are `copy`, `zero_init`, `send`"
+                )));
+            }
+        };
+        if *flag {
+            return Err(next.error_here(format!(
+                "duplicate type property `{}`",
+                name.as_str()
+            )));
+        }
+        *flag = true;
+        input = next;
+
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+        break;
+    }
+
+    let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
+    Ok((properties, input))
 }
 
 fn parse_data_members<'tokens, 'source>(

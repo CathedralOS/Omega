@@ -158,6 +158,7 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
             | Item::HostProvider(_)
             | Item::WireData(_)
             | Item::Export(_)
+            | Item::Conformance(_)
             | Item::Module(_)
             | Item::Package(_)
             | Item::Use(_) => {}
