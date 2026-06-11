@@ -39,3 +39,23 @@ pub(crate) fn find_state<'program>(
             .find(|state| state.symbol == state_symbol)
     })
 }
+
+/// The parameter list of a call target: a machine state's parameters, or --
+/// for a call through a trait-typed receiver (boundary trait machines) -- the
+/// trait machine signature's parameters.
+pub(crate) fn call_target_parameters<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    target_state_symbol: SymbolHandle,
+) -> Option<&'program [omega_typed_trees::signature::StateParameter]> {
+    if let Some(state) = find_state(program, target_state_symbol) {
+        return Some(program.state_parameters(state));
+    }
+
+    program.traits().iter().find_map(|trait_definition| {
+        program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|signature| signature.symbol == target_state_symbol)
+            .map(|signature| program.state_signature_parameters(signature))
+    })
+}
