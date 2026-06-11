@@ -1,0 +1,1 @@
+wire data `CounterMessage` version `v2` retires field number 0 (`counter` in version `v1`) without reserving it

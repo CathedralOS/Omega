@@ -59,19 +59,35 @@ fn collect_scope_table(typed: &TypedTrees, members: HandleSpan<WireMember>) -> S
 
 fn schema_report_entry(typed: &TypedTrees, schema: &WireSchema) -> WireSchemaReportEntry {
     let current = collect_scope_table(typed, schema.members);
-    let mut versions = Vec::new();
 
+    // The version chain, oldest declared era first; the current schema body is
+    // the newest era. Each era's verdicts compare it against its SUCCESSOR in
+    // the chain (v1 -> v2, ..., newest declared era -> current), matching how
+    // decode migrations compose hop by hop.
+    let mut eras: Vec<(String, ScopeTable)> = Vec::new();
     for member in typed.wire_members(schema.members) {
         let WireMember::Version(version) = member else {
             continue;
         };
-        let version_table = collect_scope_table(typed, version.members);
-        let verdicts = compatibility_verdicts(&version_table, &current);
+        eras.push((
+            version.name.to_string(),
+            collect_scope_table(typed, version.members),
+        ));
+    }
+
+    let mut versions = Vec::new();
+    for index in 0..eras.len() {
+        let (successor_name, successor_table) = match eras.get(index + 1) {
+            Some((name, table)) => (name.clone(), table),
+            None => ("current".to_owned(), &current),
+        };
+        let verdicts = compatibility_verdicts(&eras[index].1, successor_table);
 
         versions.push(WireVersionReportEntry {
-            name: version.name.to_string(),
-            fields: version_table.fields,
-            reserved: version_table.reserved,
+            name: eras[index].0.clone(),
+            successor: successor_name,
+            fields: std::mem::take(&mut eras[index].1.fields),
+            reserved: std::mem::take(&mut eras[index].1.reserved),
             verdicts,
         });
     }
@@ -88,34 +104,37 @@ fn schema_report_entry(typed: &TypedTrees, schema: &WireSchema) -> WireSchemaRep
     }
 }
 
-/// Mirrors the chapter 20 compatibility rules enforced in `omega-validation`:
-/// stable or renamed fields and additive fields are compatible, retired
-/// numbers must be reserved, and type changes without a decode rule are
-/// incompatible. Incompatible verdicts only appear here when validation also
-/// rejects the program; on a passing build this section documents the safe
-/// evolution steps.
+/// Mirrors the chapter 20 compatibility rules enforced in `omega-validation`,
+/// applied between an era and its SUCCESSOR in the version chain: stable or
+/// renamed fields and additive fields are compatible; a stable field number
+/// changing type across eras is legal evolution surfaced as "requires
+/// migration" (the era discriminator selects the old era's decode table);
+/// retired numbers must be reserved in the successor era. Incompatible
+/// verdicts only appear here when validation also rejects the program; on a
+/// passing build this section documents the evolution steps, including any
+/// cross-era migrations a decoder must perform.
 fn compatibility_verdicts(
-    version: &ScopeTable,
-    current: &ScopeTable,
+    predecessor: &ScopeTable,
+    successor: &ScopeTable,
 ) -> WireCompatibilityVerdicts {
     let mut verdicts = WireCompatibilityVerdicts::default();
 
-    for field in &version.fields {
-        match current
+    for field in &predecessor.fields {
+        match successor
             .fields
             .iter()
             .find(|candidate| candidate.number == field.number)
         {
-            Some(current_field) => {
-                if current_field.type_display != field.type_display {
-                    verdicts.incompatible.push(format!(
-                        "field {} changed {} -> {} without decode rule",
-                        field.number, field.type_display, current_field.type_display
+            Some(successor_field) => {
+                if successor_field.type_display != field.type_display {
+                    verdicts.requires_migration.push(format!(
+                        "field {} changes type {} -> {}; decode via the old era's table and migrate up the chain",
+                        field.number, field.type_display, successor_field.type_display
                     ));
-                } else if current_field.name != field.name {
+                } else if successor_field.name != field.name {
                     verdicts.compatible.push(format!(
                         "field {} renamed {} -> {} (number and type stable)",
-                        field.number, field.name, current_field.name
+                        field.number, field.name, successor_field.name
                     ));
                 } else {
                     verdicts.compatible.push(format!(
@@ -125,7 +144,7 @@ fn compatibility_verdicts(
                 }
             }
             None => {
-                if current.reserved.contains(&field.number) {
+                if successor.reserved.contains(&field.number) {
                     verdicts.reserved.push(format!(
                         "field {} {} retired; number reserved",
                         field.number, field.name
@@ -140,17 +159,24 @@ fn compatibility_verdicts(
         }
     }
 
-    for field in &current.fields {
-        let existed = version
+    for field in &successor.fields {
+        let existed = predecessor
             .fields
             .iter()
             .any(|candidate| candidate.number == field.number);
 
         if !existed {
-            verdicts.compatible.push(format!(
-                "added field {} {} {}",
-                field.number, field.name, field.type_display
-            ));
+            if predecessor.reserved.contains(&field.number) {
+                verdicts.compatible.push(format!(
+                    "added field {} {} {} (recycles a number the prior era retired; the era discriminator disambiguates)",
+                    field.number, field.name, field.type_display
+                ));
+            } else {
+                verdicts.compatible.push(format!(
+                    "added field {} {} {}",
+                    field.number, field.name, field.type_display
+                ));
+            }
         }
     }
 
