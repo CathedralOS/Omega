@@ -84,8 +84,9 @@ pub(super) fn select_host_operation_operands(
                         byte_offset: place.place.byte_offset,
                     }
                 };
-                return stdout_operands(
+                return console_write_operands(
                     operands,
+                    operation.operation_key.capability,
                     operation.operation_key.operation,
                     pointer,
                     length,
@@ -95,8 +96,9 @@ pub(super) fn select_host_operation_operands(
             let direct_data_object = find_data_object(input, host_call);
             if direct_data_object.is_valid() {
                 let byte_count = data_object_byte_count(input, direct_data_object);
-                return stdout_operands(
+                return console_write_operands(
                     operands,
+                    operation.operation_key.capability,
                     operation.operation_key.operation,
                     InstructionOperandKind::DataAddress {
                         data: direct_data_object,
@@ -108,8 +110,9 @@ pub(super) fn select_host_operation_operands(
             if let Some(data_object) = find_runtime_text_input_buffer_data_object(input, host_call)
                 && let Some(literal) = runtime_text_literal_for_host_call(input, host_call)
             {
-                return stdout_operands(
+                return console_write_operands(
                     operands,
+                    operation.operation_key.capability,
                     operation.operation_key.operation,
                     InstructionOperandKind::DataAddress {
                         data: data_object_handle(input, data_object),
@@ -138,15 +141,28 @@ pub(super) fn operand(kind: InstructionOperandKind) -> InstructionOperand {
     InstructionOperand { kind }
 }
 
-fn stdout_operands(
+/// File descriptor marshalled as the first `write` argument on the
+/// syscall-style platforms (Linux syscall, darwin libSystem `_write`).
+pub(super) fn write_file_descriptor(capability: HostCapability) -> i64 {
+    if capability == HostCapability::Stderr {
+        2
+    } else {
+        1
+    }
+}
+
+fn console_write_operands(
     operands: &mut Arena<InstructionOperand>,
+    capability: HostCapability,
     operation: HostOperation,
     first: InstructionOperandKind,
     second: InstructionOperandKind,
 ) -> HandleSpan<InstructionOperand> {
     if operation == HostOperation::Write {
         return operands.insert_many([
-            operand(InstructionOperandKind::ImmediateInteger(1)),
+            operand(InstructionOperandKind::ImmediateInteger(
+                write_file_descriptor(capability),
+            )),
             operand(first),
             operand(second),
         ]);
