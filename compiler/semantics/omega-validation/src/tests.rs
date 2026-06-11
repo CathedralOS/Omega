@@ -204,10 +204,117 @@ fn refutes_strict_order_asymmetry_between_requires_and_ensures() {
     .expect_err("asymmetric strict-order ensures should be refuted");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
-            "ensures contract proof fact `j < i` contradicts requires proof fact `i < j`"
+            "ensures contract proof fact `j < i` is disproved: the requires contract entails its negation"
         )),
         "expected asymmetry refutation diagnostic, got {diagnostics:#?}"
     );
+}
+
+#[test]
+fn proves_entailment_ladder_on_empty_proof_machines() {
+    validate_contract_source(
+        r#"
+    machine sum_in_range(a: i32, b: i32)
+    requires
+        a in 1..=10
+        b in 1..=10
+    ensures
+        a + b in 2..=20
+    {
+    }
+
+    machine congruence_add(a: usize, b: usize)
+    requires
+        a == b
+    ensures
+        a + 1 == b + 1
+    {
+    }
+
+    machine square_in_range(a: i32)
+    requires
+        a in 0..=10
+    ensures
+        a * a in 0..=100
+    {
+    }
+
+    machine antisymmetry(a: usize, b: usize)
+    requires
+        a <= b
+        b <= a
+    ensures
+        a == b
+    {
+    }
+
+    machine remainder_bound(a: usize)
+    ensures
+        a % 2 in 0..=1
+    {
+    }
+
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+    }
+    "#,
+    )
+    .expect("the entailment ladder's true theorems must prove");
+}
+
+#[test]
+fn rejects_unprovable_in_language_ensures() {
+    let diagnostics = validate_contract_source(
+        r#"
+    machine sum_corner_too_tight(a: i32, b: i32)
+    requires
+        a in 1..=10
+        b in 1..=10
+    ensures
+        a + b in 2..=19
+    {
+    }
+
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+    }
+    "#,
+    )
+    .expect_err("an unprovable in-language ensures must be rejected");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove ensures contract proof fact")),
+        "expected cannot-prove diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn stands_down_on_out_of_language_contracts() {
+    // `min(a, b)` is an unknown call shape: the engine cannot read it, so an
+    // unprovable ensures must be ACCEPTED unchecked rather than rejected.
+    validate_contract_source(
+        r#"
+    machine uses_unknown_call(a: usize, b: usize)
+    requires
+        min(a, b) >= 1
+    ensures
+        a >= 1
+    {
+    }
+
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+    }
+    "#,
+    )
+    .expect("contracts outside the engine's language stand down");
 }
 
 #[test]
