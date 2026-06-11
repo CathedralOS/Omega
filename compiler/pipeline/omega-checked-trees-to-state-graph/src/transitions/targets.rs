@@ -33,7 +33,8 @@ pub(super) fn plan_transition_target(
                 .is_valid()
                 .then(|| find_initial_segment_by_symbol(segments, symbol))
                 .flatten()
-                .or_else(|| find_initial_segment_by_name(segments, &name));
+                .or_else(|| find_initial_segment_by_name(segments, &name))
+                .or_else(|| free_machine_self_entry_segment(source_key, segments, &name, program));
             let Some(target) = target else {
                 if members.len() == 2 {
                     return Ok(PlannedTransitionTarget::Nested {
@@ -167,6 +168,32 @@ fn display_transition_path(path: &[omega_checked_trees::name::Identifier]) -> St
     }
 
     display
+}
+
+/// A FREE machine's self-recursive transition (`-> count(s[1..], acc + 1)`
+/// inside top-level `machine count`) names the MACHINE, but the machine's
+/// implicit body state is the generated `entry` (attached machines name it
+/// after the method), so the by-symbol/by-name segment lookups miss. When the
+/// single-member target names the source machine itself (no attached data),
+/// resolve to its `entry` segment -- a real self-loop back-edge.
+fn free_machine_self_entry_segment<'segments>(
+    source_key: StateKey,
+    segments: &'segments [StateSegment],
+    name: &omega_checked_trees::name::Identifier,
+    program: &CheckedTrees,
+) -> Option<(usize, &'segments StateSegment)> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)?;
+    if machine.attached_data.is_some() || machine.name.as_str() != name.as_str() {
+        return None;
+    }
+
+    segments
+        .iter()
+        .enumerate()
+        .find(|(_, segment)| segment.key.segment_index == 0 && segment.name.as_str() == "entry")
 }
 
 fn find_initial_segment_by_symbol(
