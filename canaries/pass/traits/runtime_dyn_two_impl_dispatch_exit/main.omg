@@ -1,0 +1,59 @@
+// MULTI-IMPL `dyn Trait` dispatch via CALL-SITE MONOMORPHIZATION. TWO data types
+// satisfy Shape, so a `&mut dyn Shape` param cannot devirtualize to a unique
+// impl. Instead the call `s.code()` resolves to one candidate per impl (the
+// trait's closed world), and each call site's receiver type picks the impl:
+// dispatch(&mut self.c) runs Circle::code() == 9, dispatch(&mut self.q) runs
+// Square::code() == 4, so n == 9 * 10 + 4 == 94 -> exit 70. (Pre-fix the dyn
+// call resolved to nothing and both calls returned 0.) Mirrors the interpreter
+// coverage test dyn_two_impl_dispatch_selects_impl_by_runtime_type.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+trait Shape {
+    machine code(&mut self) -> i32;
+}
+
+data Circle {}
+
+machine Circle::code(&mut self) -> i32 {
+    transition {
+        _ -> 9
+    }
+}
+
+data Square {}
+
+machine Square::code(&mut self) -> i32 {
+    transition {
+        _ -> 4
+    }
+}
+
+data Main {
+    console: Console;
+    c: Circle;
+    q: Square;
+}
+
+machine Main::main(&mut self) {
+    let a: i32 = self.dispatch(&mut self.c);
+    let b: i32 = self.dispatch(&mut self.q);
+    let n: i32 = a * 10 + b;
+    transition n == 94 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::dispatch(&mut self, s: &mut dyn Shape) -> i32 {
+    s.code()
+}

@@ -65,6 +65,55 @@ pub(crate) fn collect_machine_state_calls(
                     target,
                 );
 
+                // Monomorphize a statement-position call through a MULTI-IMPL
+                // `dyn Trait` param: one candidate record per impl (see
+                // `resolve_dyn_parameter_call_candidates`).
+                let dyn_candidates = if resolved_target.is_none() {
+                    resolve_dyn_parameter_call_candidates(
+                        &context.control_flow,
+                        state.key,
+                        *receiver_symbol,
+                        *target_symbol,
+                        target,
+                    )
+                } else {
+                    Vec::new()
+                };
+                if !dyn_candidates.is_empty() {
+                    for candidate in dyn_candidates {
+                        calls.push(CollectedStateCall {
+                            source_key: state.key,
+                            statement_index: operation.statement_index,
+                            call_ordinal,
+                            role: StateCallRole::Statement,
+                            receiver_symbol: *receiver_symbol,
+                            target_key: candidate.key,
+                            raw_arguments: match operation.expressions {
+                                OperationExpressionRefs::Call { arguments } => arguments,
+                                _ => HandleSpan::empty(),
+                            },
+                            reachable: context.runtime_state_is_reachable_by_key(state.key),
+                            required: false,
+                            resolution: candidate.resolution,
+                        });
+                        call_ordinal += 1;
+                    }
+                    if !context
+                        .state_statement_has_host_call_by_key(state.key, operation.statement_index)
+                    {
+                        collect_expression_state_calls_for_operation(
+                            context,
+                            machine,
+                            state.key,
+                            operation.statement_index,
+                            &mut call_ordinal,
+                            operation.expressions,
+                            &mut calls,
+                        );
+                    }
+                    continue;
+                }
+
                 calls.push(CollectedStateCall {
                     source_key: state.key,
                     statement_index: operation.statement_index,
@@ -399,6 +448,54 @@ fn collect_expression_state_calls_in_table(
                 receiver.is_present,
                 &call.target,
             );
+            // A method call through a MULTI-IMPL `dyn Trait` reference param has
+            // no single target: monomorphize it over the trait's closed world,
+            // ONE candidate record per impl (distinct call_ordinals). The
+            // receiver's static type at each call site selects among the
+            // candidates' inline expansions during selection.
+            if resolved_target.is_none() {
+                let candidates = resolve_dyn_parameter_call_candidates(
+                    &context.control_flow,
+                    source_key,
+                    receiver.symbol,
+                    call.target_symbol,
+                    &call.target,
+                );
+                if !candidates.is_empty() {
+                    for candidate in candidates {
+                        calls.push(CollectedStateCall {
+                            source_key,
+                            statement_index,
+                            call_ordinal: *call_ordinal,
+                            role,
+                            receiver_symbol: receiver.symbol,
+                            target_key: candidate.key,
+                            raw_arguments: call.arguments,
+                            reachable: context.runtime_state_is_reachable_by_key(source_key),
+                            required: false,
+                            resolution: candidate.resolution,
+                        });
+                        *call_ordinal += 1;
+                    }
+                    for argument in context
+                        .control_flow
+                        .expressions
+                        .expression_handles(call.arguments)
+                    {
+                        collect_expression_state_calls_in_table(
+                            context,
+                            machine,
+                            source_key,
+                            statement_index,
+                            call_ordinal,
+                            role,
+                            *argument,
+                            calls,
+                        );
+                    }
+                    return;
+                }
+            }
             let is_machine_call = resolved_target.is_some()
                 || receiver_can_dispatch_to_machine(
                     &context.control_flow,
@@ -776,6 +873,54 @@ fn resolve_state_call_target(
     }
     let _ = target_state;
     None
+}
+
+/// The monomorphization candidates of a method call through a MULTI-IMPL
+/// `dyn Trait` reference parameter: one resolved target per data type that
+/// satisfies the trait (the parameter carries the closed world as
+/// `dyn_impl_type_names`), each resolved to the machine attached to that data
+/// type by the target method's symbol or name. Empty when the receiver is not
+/// such a parameter (or no impl provides the method).
+fn resolve_dyn_parameter_call_candidates(
+    control_flow: &ControlFlowPlan,
+    source_key: StateKey,
+    receiver_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    target_state: &Identifier,
+) -> Vec<ResolvedStateCall> {
+    if !receiver_symbol.is_valid() {
+        return Vec::new();
+    }
+    let Some(state) = control_flow
+        .states
+        .iter()
+        .find_map(|(_, state)| (state.key == source_key).then_some(state))
+    else {
+        return Vec::new();
+    };
+    let Some(parameter) = control_flow
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == receiver_symbol)
+    else {
+        return Vec::new();
+    };
+    parameter
+        .dyn_impl_type_names
+        .iter()
+        .filter_map(|type_name| {
+            resolve_attached_data_state_key_by_name(
+                control_flow,
+                type_name,
+                target_symbol,
+                target_state,
+            )
+            .map(|key| ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::ContainedMachine,
+            })
+        })
+        .collect()
 }
 
 fn resolve_attached_machine_state_key(

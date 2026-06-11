@@ -508,36 +508,49 @@ impl TypedTrees {
         &self,
         trait_symbol: omega_core::symbols::SymbolHandle,
     ) -> Option<omega_core::symbols::SymbolHandle> {
+        let mut implementations = self.trait_impl_data_symbols(trait_symbol).into_iter();
+        let single = implementations.next()?;
+        implementations.next().is_none().then_some(single)
+    }
+
+    /// ALL data types that structurally satisfy the (non-boundary) trait
+    /// `trait_symbol`, in data-definition order. The CLOSED WORLD of a
+    /// `dyn Trait`: whole-program compilation knows every satisfying type, so a
+    /// dyn receiver call site can be monomorphized over this list. Empty when
+    /// the symbol is not such a trait or nothing satisfies it.
+    pub fn trait_impl_data_symbols(
+        &self,
+        trait_symbol: omega_core::symbols::SymbolHandle,
+    ) -> Vec<omega_core::symbols::SymbolHandle> {
         if !trait_symbol.is_valid() {
-            return None;
+            return Vec::new();
         }
-        let trait_definition = self.traits().iter().find(|t| t.symbol == trait_symbol)?;
+        let Some(trait_definition) = self.traits().iter().find(|t| t.symbol == trait_symbol)
+        else {
+            return Vec::new();
+        };
         if trait_definition.is_boundary {
-            return None;
+            return Vec::new();
         }
         let signatures = self.trait_machine_signatures(trait_definition);
         if signatures.is_empty() {
-            return None;
+            return Vec::new();
         }
-        let mut found: Option<omega_core::symbols::SymbolHandle> = None;
-        for data in self.data_definitions() {
-            let satisfies = signatures.iter().all(|signature| {
-                self.machines().iter().any(|machine| {
-                    machine.attached_data.as_ref() == Some(&data.name)
-                        && self
-                            .machine_states(machine)
-                            .iter()
-                            .any(|state| state.name == signature.name)
+        self.data_definitions()
+            .iter()
+            .filter(|data| {
+                signatures.iter().all(|signature| {
+                    self.machines().iter().any(|machine| {
+                        machine.attached_data.as_ref() == Some(&data.name)
+                            && self
+                                .machine_states(machine)
+                                .iter()
+                                .any(|state| state.name == signature.name)
+                    })
                 })
-            });
-            if satisfies {
-                if found.is_some() {
-                    return None;
-                }
-                found = Some(data.symbol);
-            }
-        }
-        found
+            })
+            .map(|data| data.symbol)
+            .collect()
     }
 
     pub fn push_machine_effect(

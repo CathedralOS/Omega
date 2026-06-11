@@ -168,6 +168,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("text/runtime_string_concat_two_fields_exit", 70),
     ("text/runtime_string_field_concat_exit", 73),
     ("traits/runtime_dyn_single_impl_dispatch_exit", 70),
+    ("traits/runtime_dyn_two_impl_dispatch_exit", 70),
+    ("traits/runtime_dyn_two_impl_dispatch_swapped_exit", 70),
     ("traits/runtime_ref_param_method_dispatch_exit", 70),
     ("traits/runtime_typed_two_method_receivers_exit", 70),
     ("types/runtime_i8_signed_arith_exit", 70),

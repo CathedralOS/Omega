@@ -95,6 +95,24 @@ pub(super) fn state_call_for_runtime_operation<'plan>(
                     role,
                 )
             }),
+        // A TransitionArgument call must ALSO resolve by ordinal: a multi-impl
+        // `dyn` receiver call is monomorphized into one record PER IMPL under the
+        // same (source, statement, role), distinguished only by call_ordinal --
+        // a role-only lookup would expand the first impl for every candidate op.
+        (StateCallRole::TransitionArgument, Some(call_ordinal)) => context
+            .state_calls
+            .transition_argument_call_by_ordinal(
+                operation.source_key,
+                operation.statement_index,
+                call_ordinal,
+            )
+            .or_else(|| {
+                context.state_calls.call_for_role(
+                    operation.source_key,
+                    operation.statement_index,
+                    role,
+                )
+            }),
         _ => {
             context
                 .state_calls
