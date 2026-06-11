@@ -2494,6 +2494,118 @@ fn runtime_case_member_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn case_payload_native_construction_canary_runs() {
+    // Case payload construction (`Command::Move { steps: 70 }`) lowers natively:
+    // the i32 case tag writes at offset 0, the payload field at its packed
+    // offset, the transition arm compares only the 4-byte tag, and the
+    // destructured `steps` binding reads the payload member into the target
+    // state's argument. Promoted from pending/ when payload codegen landed.
+    let canary = pass_canary("data/case_payload_native_construction");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-case-payload-construction-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("case payload construction canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("case payload construction canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected case payload construction + tag dispatch + payload read (exit 70), got {:?} (71 = wrong arm)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_case_payload_guard_read_exit_canary_runs() {
+    // A multi-field case payload read in a destructure `if` guard: the guard
+    // must read the SECOND payload field (`bonus`, packed after `power`) from
+    // the enum value, not match on tag alone -- a decoy same-case arm with a
+    // wrong bonus sits first and catches a dropped `if` clause.
+    let canary = pass_canary("data/runtime_case_payload_guard_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-case-payload-guard-read-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("case payload guard read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("case payload guard read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the `if bonus == 10` payload guard to select the second Strike arm (exit 70), got {:?} (71 = decoy/default arm)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_case_reassignment_exit_canary_runs() {
+    // Overwriting one payload-carrying case with another (`Walk { pace: 9 }`
+    // then `Run { speed: 70 }`) must rewrite both the tag and the overlaying
+    // payload bytes: a stale tag selects the first (Walk) arm and exits 9, a
+    // stale payload exits with the wrong code.
+    let canary = pass_canary("data/runtime_case_reassignment_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-case-reassignment-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("case reassignment canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("case reassignment canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the second case construction to fully replace the first (exit 70), got {:?} (9 = stale tag took the Walk arm, 72 = no arm matched)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_tuple_transition_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_tuple_transition_exit");
     let main_path = canary.join("main.omg");
@@ -6217,6 +6329,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
     "data/case_payload_declaration",
+    "data/case_payload_native_construction",
+    "data/runtime_case_payload_guard_read_exit",
+    "data/runtime_case_reassignment_exit",
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
     "domains/call_requires_boolean_expression_from_domain_fact",
@@ -6701,18 +6816,10 @@ struct PendingCanary {
 // are now PROVED or REJECTED, never silently accepted. The pass/proofs/
 // ladder pins the proving side; the rungs map to engine increments in
 // wiki/proof_engine_roadmap.md.
+//
+// case_payload_native_construction was promoted to pass/data/ when native case
+// payload codegen landed (tag-prefix write + payload field writes + tag-only
+// guard compares + payload member reads); the compiler-side lowering gate was
+// removed with it.
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    // Case payload CONSTRUCTION (`Command::Move { steps: 70 }`) parses,
-    // type-checks, and interprets (omega-interpreter/tests/coverage.rs runs the
-    // same program to exit 70), but the native backend cannot lower the
-    // tag-plus-payload write / payload member read yet -- emitting would take
-    // the wrong arm, so the compiler rejects after checked trees. Promote to a
-    // RUN canary (expected exit 70) when payload codegen lands.
-    PendingCanary {
-        path: "data/case_payload_native_construction",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "case payload construction is not lowered natively yet",
-        },
-    },
-];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];

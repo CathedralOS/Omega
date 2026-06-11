@@ -297,8 +297,7 @@ fn resolve_nested_slot_layout(
 
     for (segment, field_symbol, field_index) in suffix.iter() {
         let field_segment = parse_field_segment(segment, field_index)?;
-        let fields = record_fields(layouts, type_symbol);
-        let field = field_layout_by_symbol_or_name(layouts, fields, field_symbol, segment)?;
+        let field = data_member_field_layout(layouts, type_symbol, field_symbol, segment)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
         layout = field.layout;
@@ -637,8 +636,7 @@ fn resolve_nested_field_layout_by_symbol(
 
     for (segment, field_symbol, field_index) in suffix.iter() {
         let field_segment = parse_field_segment(segment, field_index)?;
-        let fields = record_fields(layouts, type_symbol);
-        let field = field_layout_by_symbol_or_name(layouts, fields, field_symbol, segment)?;
+        let field = data_member_field_layout(layouts, type_symbol, field_symbol, segment)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
         layout = field.layout;
@@ -692,6 +690,36 @@ fn record_fields(layouts: &LayoutPlan, type_symbol: SymbolHandle) -> HandleSpan<
                 .then_some(machine_layout.fields)
         })
         .unwrap_or_else(HandleSpan::empty)
+}
+
+/// Resolve a member of `type_symbol` covering BOTH data shapes: record fields,
+/// and CASE PAYLOAD fields of an enum-shaped data (searched across every
+/// variant's payload span; payload offsets are absolute within the enum value,
+/// so the caller's offset arithmetic is shape-independent).
+fn data_member_field_layout<'plan>(
+    layouts: &'plan LayoutPlan,
+    type_symbol: SymbolHandle,
+    field_symbol: SymbolHandle,
+    field_name: &Identifier,
+) -> Option<&'plan FieldLayout> {
+    if let Some(data_layout) = data_layout(layouts, type_symbol)
+        && let DataShape::Enum { variants } = &data_layout.shape
+    {
+        return layouts
+            .variants
+            .span_or_empty(*variants)
+            .iter()
+            .find_map(|variant| {
+                field_layout_by_symbol_or_name(layouts, variant.fields, field_symbol, field_name)
+            });
+    }
+
+    field_layout_by_symbol_or_name(
+        layouts,
+        record_fields(layouts, type_symbol),
+        field_symbol,
+        field_name,
+    )
 }
 
 struct FieldSegment {

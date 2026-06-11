@@ -13,7 +13,11 @@ use super::super::lookups::state_mutation_for_statement;
 use super::text_writes::runtime_text_builder_write_in_table_emit;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_abstract_operations::{RuntimeValueOperand, SelectedInstruction};
+use crate::selection::storage_places::resolve_runtime_storage_place_in_table;
+use omega_abstract_operations::{
+    RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
+};
+use omega_layout::{DataShape, ENUM_TAG_BYTES};
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression,
 };
@@ -294,6 +298,25 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
 ) -> bool {
     if let ExpressionNode::StructLiteral(struct_literal) = expressions.expression(value).clone() {
         let mut emitted = false;
+        // Constructing a CASE (`Command::Move { steps: 70 }`) writes the i32
+        // tag prefix before the payload fields. The payload fields then write
+        // through the same member path as record fields (their offsets are
+        // absolute within the enum value).
+        if let Some(case_name) = &struct_literal.case_name {
+            emitted |= select_runtime_case_tag_write_in_table(
+                input,
+                dispatch_index,
+                operation_source_key,
+                target_source_key,
+                statement_index,
+                expressions,
+                target,
+                &struct_literal.type_name,
+                case_name,
+                static_values,
+                selected_instructions,
+            );
+        }
         for offset in 0..struct_literal.fields.count() {
             let field = expressions
                 .struct_field_at_offset(struct_literal.fields, offset)
@@ -642,4 +665,73 @@ fn state_names(
     key: omega_control_flow::StateKey,
 ) -> (Identifier, Identifier) {
     input.control_flow.state_names_by_key_cloned(key)
+}
+
+/// Write the i32 CASE TAG of a case construction (`target = Type::Case { .. }`)
+/// into the tag prefix (offset 0) of the enum-shaped target place. The payload
+/// field writes are emitted separately by the struct-literal decomposition; a
+/// payload-less brace construction still gets its tag from here.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection::runtime_dispatch) fn select_runtime_case_tag_write_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_source_key: StateKey,
+    target_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    type_name: &Identifier,
+    case_name: &Identifier,
+    static_values: &mut RuntimeStaticValues,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let Some(tag) = case_tag_value(&input.layouts, type_name, case_name) else {
+        return false;
+    };
+    let Some(place) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) else {
+        return false;
+    };
+
+    // A fresh case construction replaces the whole value: any constant the
+    // target previously folded to (e.g. a prior bare-case assignment) is stale.
+    invalidate_runtime_static_value_in_table(static_values, expressions, target);
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: ENUM_TAG_BYTES,
+            value: tag,
+        },
+        source_key: operation_source_key,
+        source_statement: statement_index,
+    });
+    true
+}
+
+/// The tag (variant ordinal) of `Type::Case` in the layout plan, by name.
+fn case_tag_value(
+    layouts: &omega_layout::LayoutPlan,
+    type_name: &Identifier,
+    case_name: &Identifier,
+) -> Option<i64> {
+    let data_layout = layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| data_layout.name == *type_name)
+        .map(|(_, data_layout)| data_layout)?;
+    let DataShape::Enum { variants } = &data_layout.shape else {
+        return None;
+    };
+    layouts
+        .variants
+        .span_or_empty(*variants)
+        .iter()
+        .position(|variant| variant.name == *case_name)
+        .and_then(|index| i64::try_from(index).ok())
 }

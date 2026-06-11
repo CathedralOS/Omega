@@ -1,0 +1,40 @@
+// Case RE-ASSIGNMENT: overwriting one payload-carrying case with another
+// must rewrite the tag AND the (overlaying) payload bytes. `Walk { pace: 9 }`
+// then `Run { speed: 70 }` share the payload base offset, so a stale tag or
+// stale payload selects the wrong arm or exits 9/71. The Walk arm sits FIRST
+// so a tag that never changed (or compared too wide) would take it. Exits 70
+// only when the second construction fully replaces the first.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Mode {
+    case Stand;
+    case Walk(pace: i32);
+    case Run(speed: i32);
+}
+
+data Main {
+    console: Console;
+    mode: Mode;
+}
+
+machine Main::main(&mut self) {
+    self.mode = Mode::Walk { pace: 9 };
+    self.mode = Mode::Run { speed: 70 };
+
+    transition self.mode {
+        Mode::Walk { pace } -> bad(pace)
+        Mode::Run { speed } -> done(speed)
+        _ -> bad(72)
+    }
+
+    state done(&mut self, speed: i32) {
+        self.console.exit_process(speed);
+    }
+
+    state bad(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}
