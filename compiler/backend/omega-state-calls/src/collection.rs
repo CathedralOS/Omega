@@ -772,6 +772,39 @@ fn resolve_state_call_target(
             );
         }
 
+        // A receiverless call whose target is a FREE top-level machine
+        // (`machine pick(x: i32) -> i32 { ... }`, called as `pick(self.v)`):
+        // resolve to that machine's entry state so the call is collected (and
+        // inline-branched/dispatched) like a method call. Without this the call
+        // was invisible to state-call planning and a value-position `let n =
+        // pick(..)` silently left `n` at 0.
+        if !has_receiver
+            && let Some(target_machine) = resolve_free_machine(control_flow, target_symbol, target_state)
+            && target_machine.symbol != machine.symbol
+        {
+            // A free machine's single body state is its entry (named `entry`,
+            // not after the machine), so fall back to the machine's first
+            // root-segment state when the symbol/name lookup misses.
+            return resolve_state_key_in_machine(
+                control_flow,
+                target_machine.symbol,
+                target_symbol,
+                target_state,
+            )
+            .or_else(|| {
+                control_flow
+                    .states
+                    .span(target_machine.states)?
+                    .iter()
+                    .find(|state| state.key.segment_index == 0)
+                    .map(|state| state.key)
+            })
+            .map(|key| ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::NamedMachine,
+            });
+        }
+
         return None;
     }
 
@@ -921,6 +954,30 @@ fn resolve_dyn_parameter_call_candidates(
             })
         })
         .collect()
+}
+
+/// A FREE top-level machine (`machine pick(x: i32) -> i32`, no attached data)
+/// matched by the call's target symbol, or -- because the frontend leaves a
+/// receiverless free-machine call's `target_symbol` unresolved -- by NAME among
+/// machines with no attached data (a receiverless call can only target a local
+/// state, already tried by the caller, or a free machine; attached methods
+/// always carry a receiver, so same-named methods cannot collide here).
+fn resolve_free_machine<'plan>(
+    control_flow: &'plan ControlFlowPlan,
+    target_symbol: SymbolHandle,
+    target_state: &Identifier,
+) -> Option<&'plan MachineFlow> {
+    if target_symbol.is_valid()
+        && let Some(machine) = control_flow.machine_by_symbol(target_symbol)
+    {
+        return Some(machine);
+    }
+
+    control_flow
+        .machines
+        .iter()
+        .map(|(_, machine)| machine)
+        .find(|machine| machine.attached_data.is_none() && machine.name == *target_state)
 }
 
 fn resolve_attached_machine_state_key(

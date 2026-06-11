@@ -1,0 +1,47 @@
+// Free-machine value call alongside a `&mut` tally argument: the callee both
+// returns a selected arm value AND increments the caller's tally through the
+// reference (a counting probe pinning call-count semantics: exactly one call).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: i32;
+    tally: i32;
+}
+
+machine bump_pick(x: i32, tally: &mut i32) -> i32 {
+    tally = tally + 1;
+    transition {
+        x > 0 -> 100
+        _ -> 200
+    }
+}
+
+machine Main::main(&mut self) {
+    self.v = 5;
+    self.v = self.v + 1; // 6 -> 100
+    let n: i32 = bump_pick(self.v, &mut self.tally);
+
+    transition n == 100 {
+        true -> check_tally()
+        false -> bad()
+    }
+
+    state check_tally(&mut self) {
+        transition self.tally == 1 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

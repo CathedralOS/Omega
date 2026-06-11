@@ -558,6 +558,117 @@ fn runtime_value_position_branching_call_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_free_machine_value_call_exit_canary_runs() {
+    // A value-position call to a FREE stateful machine (top-level `machine pick`,
+    // no attached data, 2-arm guarded value transition) must deliver the selected
+    // arm's value. The backend state-call collector resolved only local states and
+    // attached (method) machines, so `pick(self.v)` was never collected: `let n =
+    // pick(self.v)` silently left n at 0 and a field target failed loudly. Covers
+    // both a `let` local and a field target, both arms; exits 70 only when correct.
+    let canary = pass_canary("calls/runtime_free_machine_value_call_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-free-machine-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("free-machine value call canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("free-machine value call canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `let n = pick(self.v)` / `self.low = pick(self.v)` on a free machine to bind the selected arm value (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_free_machine_value_call_mut_arg_exit_canary_runs() {
+    // A free-machine value call carrying a `&mut` tally argument alongside the
+    // returned value: the callee increments the caller's field through the
+    // reference AND returns the selected arm value. The tally is a counting probe
+    // pinning call-count semantics (exactly one call). Exits 70 only when both
+    // the returned value and the tally are correct.
+    let canary = pass_canary("calls/runtime_free_machine_value_call_mut_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-free-machine-mut-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("free-machine mut-arg value call canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("free-machine mut-arg value call canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a free-machine value call with a &mut tally arg to return 100 and bump the tally once (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_free_machine_looping_value_call_exit_canary_runs() {
+    // A value-position call to a LOOPING free machine (`count` walks a slice via
+    // the self-recursive transition `count(s[1..], acc + 1)`). The recursive
+    // target names the MACHINE, whose implicit body state is the generated
+    // `entry` (attached machines name it after the method), so the transition
+    // planner rejected it ("unknown state transition target"); it now resolves to
+    // the entry segment as a real back-edge, and the looped accumulator is
+    // delivered to the caller's `let n` slot. Exits 70 only when n == 5.
+    let canary = pass_canary("calls/runtime_free_machine_looping_value_call_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-free-machine-looping-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("looping free-machine value call canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("looping free-machine value call canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a looping free-machine value call to deliver the looped accumulator (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_numeric_cast_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_numeric_cast_exit");
     let main_path = canary.join("main.omg");
