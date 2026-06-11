@@ -118,6 +118,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
         receiver_starts_at_self: true,
         target: Identifier::generated("take_non_negative"),
         arguments: HandleSpan::from_parts(argument, 1),
+        discards_result: false,
     }));
     let call = file.items.append_statement_handle(call);
     let state = file.items.insert_state(&State {

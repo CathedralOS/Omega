@@ -280,6 +280,8 @@ fn indexes_call_contract_facts_by_target_machine() {
             receiver,
             target: Identifier::generated("run"),
             arguments: Default::default(),
+
+            discards_result: false,
         }),
     );
     program.push_machine_state(&mut caller_machine, caller_state);
@@ -425,6 +427,8 @@ fn indexes_inherited_trait_contracts_by_concrete_call_target() {
             receiver,
             target: Identifier::generated("draw"),
             arguments: Default::default(),
+
+            discards_result: false,
         }),
     );
     program.push_machine_state(&mut caller_machine, caller_state);

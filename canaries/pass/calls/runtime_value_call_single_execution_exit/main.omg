@@ -45,7 +45,7 @@ machine Main::main(&mut self) -> i32 {
 
 
     state statement_call(&mut self) {
-        self.roll(&mut self.tally);
+        _ = self.roll(&mut self.tally);
 
         transition {
             _ -> assignment_call()

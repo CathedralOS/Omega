@@ -1,0 +1,62 @@
+// FROZEN DECISION 9 -- STRICT RESULT USE: `_ = call();` both compiles AND still
+// EXECUTES the callee. roll() increments its &mut tally and returns bool; the
+// explicitly-discarded statement call must bump the counter exactly once.
+// calls == 41 -> exit 70 (executed once); 40 -> exit 10 (discard dropped the
+// call entirely); 42 -> exit 3 (executed twice).
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Tally {
+    calls: u64;
+    pad: u64;
+}
+
+data Main {
+    console: Console;
+    tally: Tally;
+}
+
+machine Main::roll(
+    &mut self,
+    tally: &mut Tally
+    ) -> bool {
+    tally.calls = tally.calls + 1;
+
+    transition {
+        _ -> true
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.tally.calls = 40;
+    self.tally.pad = 0;
+
+    transition {
+        _ -> discard_call()
+    }
+
+    state discard_call(&mut self) {
+        _ = self.roll(&mut self.tally);
+
+        transition {
+            _ -> report()
+        }
+    }
+
+    state report(&mut self) {
+        transition {
+            self.tally.calls == 41 -> exit_correct()
+            self.tally.calls == 40 -> exit_lost()
+            self.tally.calls == 42 -> exit_doubled()
+            _ -> exit_other()
+        }
+    }
+
+    state exit_correct(&mut self) { self.console.exit_process(70); }
+    state exit_lost(&mut self) { self.console.exit_process(10); }
+    state exit_doubled(&mut self) { self.console.exit_process(3); }
+    state exit_other(&mut self) { self.console.exit_process(77); }
+}

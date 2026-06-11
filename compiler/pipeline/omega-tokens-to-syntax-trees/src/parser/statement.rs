@@ -39,6 +39,13 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
         return Err(input.error_here("spawn statements are not implemented yet"));
     }
 
+    if input.at_contextual("_") {
+        let after_underscore = input.take_contextual("_")?;
+        if after_underscore.at_punctuation(PunctuationKind::Equal) {
+            return parse_discard_statement_handle(syntax_trees, after_underscore);
+        }
+    }
+
     if input.at_contextual("trap") {
         let input = input.take_contextual("trap")?;
         let input = if input.at_punctuation(PunctuationKind::Semicolon) {
@@ -81,7 +88,11 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
     for (punctuation, label, operator) in [
         (PunctuationKind::PlusEqual, "+=", BinaryOperator::Add),
         (PunctuationKind::MinusEqual, "-=", BinaryOperator::Subtract),
-        (PunctuationKind::AsteriskEqual, "*=", BinaryOperator::Multiply),
+        (
+            PunctuationKind::AsteriskEqual,
+            "*=",
+            BinaryOperator::Multiply,
+        ),
         (PunctuationKind::SlashEqual, "/=", BinaryOperator::Divide),
         (PunctuationKind::PercentEqual, "%=", BinaryOperator::Modulo),
     ] {
@@ -135,6 +146,29 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
             input,
         ))
     }
+}
+
+/// `_ = call();` -- an explicit-discard statement. The call executes and its
+/// non-unit result is intentionally dropped (frozen decision 9: discarding a
+/// non-unit result silently is a compile error; `_ =` is the spelling for an
+/// intentional discard).
+fn parse_discard_statement_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, StatementHandle> {
+    let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
+    let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
+    let rest = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+
+    let Some(mut call) = expression_handle_to_statement_call(syntax_trees, expression) else {
+        return Err(input.error_here("`_ =` discards a call result; only a call can follow `_ =`"));
+    };
+    call.discards_result = true;
+
+    Ok((
+        syntax_trees.statements.insert(StatementNode::Call(call)),
+        rest,
+    ))
 }
 
 fn parse_asm_statement_handle<'tokens, 'source>(
@@ -332,6 +366,7 @@ fn expression_handle_to_statement_call(
         receiver_starts_at_self: receiver.starts_at_self,
         target,
         arguments: copy_expression_handles_to_statement_table(syntax_trees, call.arguments),
+        discards_result: false,
     })
 }
 
