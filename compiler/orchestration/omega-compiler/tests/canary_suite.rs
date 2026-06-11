@@ -453,6 +453,10 @@ fn capability_manifest_reports_authority_flow_verbs() {
             boundary.contains("Capability Blast Radius") && boundary.contains("approved provider"),
             "boundary report for {canary_name} should surface the capability blast radius\n{boundary}"
         );
+        assert!(
+            boundary.contains("Boundary Providers"),
+            "boundary report for {canary_name} should surface the provider registry\n{boundary}"
+        );
 
         let _ = fs::remove_dir_all(&build_dir);
     }
