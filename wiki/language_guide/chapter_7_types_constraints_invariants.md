@@ -139,9 +139,50 @@ The likely durable homes are:
 - helper machines that establish a fact
 - reusable proof or contract aliases once that surface is designed explicitly
 
+## Type Properties
+
+Some facts are about the TYPE itself, not any particular value: "copies are
+sound", "the zero value is the canonical empty value", "values may cross a
+spawn boundary". These are PROPERTIES -- declared as a lowercase fact list in
+brackets on the data declaration, the same bracket syntax invariant parameters
+use in type positions (`&[u8, [non_empty]]`):
+
+```omega
+data Point [copy, zero_init] {
+    x: i32;
+    y: i32;
+}
+```
+
+Properties are facts, not behavior: declaring one generates nothing callable.
+They are acquired exactly three ways:
+
+- COMPUTED: the compiler always knows (`sized`); never written.
+- DECLARED + VERIFIED: the bracket list requests the property and the compiler
+  checks its structural rule at the declaration (`copy`: every field copies;
+  `zero_init`: the zero case is payload-free and no field invariant excludes
+  zero). Failure is a loud error at the declaration.
+- BOUNDARY-ASSERTED: a boundary provider asserts a property for an opaque host
+  type, audited like every other boundary guarantee.
+
+There is no silent inference and no negative form: a type that does not
+declare a property simply does not carry the fact. Properties cannot be
+declared on foreign types (their rules read the fields; boundary providers
+are the audited exception).
+
+Casing carries the class split: lowercase bracket facts are properties;
+capitalized names in `satisfies` positions are traits (behavior). See
+[Traits](chapter_13_traits.md) for the behavior side.[^property-open]
+
+[^property-open]: Open: the bare generic-bound spelling (likely
+`where T is [copy, zero_init]`); the initial core property set; whether
+evolution-contract facts (`[open]` for non-exhaustive sums, `[must_use]`)
+join the same surface.
+
 This chapter is intentionally narrow:
 
 - Chapter 5 covers expression-level semantics such as indexing, slices, and
   numeric evaluation.
 - Chapter 8 covers named semantic classifications through domains.
 - Chapter 9 covers the broader compiler obligation model that uses these facts.
+- Chapter 13 covers traits; properties here are their fact-side counterpart.

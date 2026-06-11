@@ -86,6 +86,25 @@ Implementation slices below build against these. Minor/easily-reversible details
    `enum` keyword is retired once `case` parsing lands (today it remains the
    transitional spelling for payload-less sums). See chapters 1 + 8 +
    appendix.
+8. **Properties, traits, conformance, and ZII opt-in.** Type PROPERTIES are
+   lowercase facts in brackets on the data declaration
+   (`data Point [copy, zero_init]`, reusing invariant-parameter syntax);
+   acquisition is computed (`sized`) / declared+verified / boundary-asserted —
+   no inference, no negative form, not declarable on foreign types. TRAITS
+   stay behavior: implemented by ordinary machines (structural satisfaction),
+   claimed whole by a standalone conformance item `Point satisfies Equatable;`
+   (checks written members, instantiates trait `default machine` bodies,
+   synthesizes the CLOSED core derivable set — Slice::index pattern; nothing
+   trait-shaped on data declarations). Equality is trait-resolved core
+   `Equatable` with synthesized structural `equals`; interim: `==` on
+   payload-bearing case values is a compile error (payload-less sums keep the
+   tag compare). ZII splits: zero-validity is the unconditional compiler
+   guarantee; zero-means-empty is the opt-in `[zero_init]` property which
+   owns the zero-case-payload-free rule (the current hard error demotes into
+   its verification when properties land). NO macro system ever; user
+   structural synthesis, if needed, goes through compile-time execution +
+   member reflection (direction only). Case construction stays the brace
+   form. See chapters 1, 7, 13, 19 + appendix.
 
 ## Next Up (highest leverage)
 
