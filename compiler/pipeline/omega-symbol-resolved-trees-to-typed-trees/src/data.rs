@@ -25,11 +25,7 @@ pub(crate) fn lower_data_definition(
         .source_trees
         .data_type_parameters(data_definition.type_parameters)
     {
-        let type_parameter = typed::data::TypeParameter {
-            symbol: parameter.symbol,
-            name: crate::name::lower_name(&parameter.name),
-            kind: lower_type_parameter_kind(lowerer, &parameter.kind)?,
-        };
+        let type_parameter = lower_type_parameter(lowerer, parameter)?;
         lowerer
             .typed_trees
             .push_data_type_parameter(&mut typed_data_definition, type_parameter);
@@ -43,6 +39,22 @@ pub(crate) fn lower_data_definition(
     }
 
     Ok(typed_data_definition)
+}
+
+pub(crate) fn lower_type_parameter(
+    lowerer: &mut Lowerer,
+    parameter: &resolved::data::TypeParameter,
+) -> Result<typed::data::TypeParameter, Diagnostic> {
+    Ok(typed::data::TypeParameter {
+        symbol: parameter.symbol,
+        name: crate::name::lower_name(&parameter.name),
+        kind: lower_type_parameter_kind(lowerer, &parameter.kind)?,
+        bounds: typed::data::DataProperties {
+            copy: parameter.bounds.copy,
+            zero_init: parameter.bounds.zero_init,
+            send: parameter.bounds.send,
+        },
+    })
 }
 
 pub(crate) fn lower_type_parameter_kind(

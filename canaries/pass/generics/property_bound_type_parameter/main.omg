@@ -1,0 +1,21 @@
+// Frozen decision 13: property bounds on type parameters. `T [copy]` makes
+// the structural copy verifier accept the generic field `value: T`, and each
+// instantiation must supply a `[copy]` argument — a `[copy]` data type and a
+// primitive both qualify.
+
+data Point [copy] {
+    x: i32;
+    y: i32;
+}
+
+data Box<T [copy]> [copy] {
+    value: T;
+}
+
+data Main {
+    point_box: Box<Point>;
+    number_box: Box<i32>;
+}
+
+machine Main::main(&mut self) {
+}

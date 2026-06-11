@@ -16,7 +16,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     let (name, mut input) = input.take_identifier()?;
     let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
     input = next;
-    let (properties, next) = parse_data_properties(input)?;
+    let (properties, next) = parse_property_brackets(input)?;
     input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let (members, input) = parse_data_members(syntax_trees, input)?;
@@ -33,11 +33,13 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     ))
 }
 
-/// Parse the optional declared-property bracket list between the data name
-/// and its body: `data Point [copy, zero_init] { ... }`. The property set is
-/// closed (frozen decision 8), so unknown names, duplicates, and the
-/// computed-only `sized` are rejected here rather than in validation.
-fn parse_data_properties<'tokens, 'source>(
+/// Parse an optional declared-property bracket list. The same list attaches
+/// to a data declaration (`data Point [copy, zero_init] { ... }`, frozen
+/// decision 8) and to a type parameter (`data Box<T [copy]>`, frozen decision
+/// 13) — brackets attach to what they follow, everywhere. The property set is
+/// closed, so unknown names, duplicates, and the computed-only `sized` are
+/// rejected here rather than in validation.
+fn parse_property_brackets<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataProperties> {
     let mut properties = DataProperties::default();
@@ -263,6 +265,14 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
     let mut type_parameter_count = 0u32;
 
     loop {
+        // A leading bracket is the attribute-prefix spelling, which decision
+        // 13 rejects: brackets attach to what they FOLLOW.
+        if input.at_punctuation(PunctuationKind::LeftBracket) {
+            return Err(input.error_here(
+                "property brackets attach to the name they follow: write the bounds after the type parameter, like `T [copy]`",
+            ));
+        }
+
         let (name, kind, next) = if input.at_contextual("const") {
             let input = input.take_contextual("const")?;
             let (name, input) = input.take_identifier()?;
@@ -274,9 +284,36 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
             (name, TypeParameterKind::Type, input)
         };
         input = next;
+
+        // Rust-style `<T: copy>` is rejected with the bracket spelling
+        // suggested: a colon bound would split the property spelling system.
+        if matches!(kind, TypeParameterKind::Type)
+            && input.at_punctuation(PunctuationKind::Colon)
+        {
+            let after_colon = input.take_punctuation(PunctuationKind::Colon, ":")?;
+            let parameter = name.as_str();
+            let bound = after_colon
+                .take_identifier()
+                .map(|(bound, _)| bound.as_str().to_owned())
+                .unwrap_or_else(|_| "copy".to_owned());
+            return Err(input.error_here(format!(
+                "type parameter `{parameter}` takes property bounds in brackets after its name: write `{parameter} [{bound}]`, not `{parameter}: {bound}`"
+            )));
+        }
+
+        // Brackets after a const parameter never reach here: they attach to
+        // the const's TYPE as a constraint list (`const N: usize [range ...]`).
+        let bounds = if input.at_punctuation(PunctuationKind::LeftBracket) {
+            let (bounds, next) = parse_property_brackets(input)?;
+            input = next;
+            bounds
+        } else {
+            DataProperties::default()
+        };
+
         let handle = syntax_trees
             .items
-            .append_type_parameter(TypeParameter { name, kind });
+            .append_type_parameter(TypeParameter { name, kind, bounds });
         if type_parameter_count == 0 {
             type_parameter_start = handle;
         }
