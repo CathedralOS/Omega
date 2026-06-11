@@ -682,8 +682,25 @@ exit.
 
 ### Measures, Orderings, And Rankings
 
-- [ ] Support builtin/default inference for plain `decreases value` only when
-  unambiguous.
+- [x] Support builtin/default inference for plain `decreases value` only when
+  unambiguous. DONE (2026-06-11; core inference had landed earlier as
+  "Infer default decreases order"). The rule: plain `decreases value` infers a
+  builtin ranking only when the value's type makes it unambiguous — unsigned
+  integer kinds (`usize`, `u8`-`u64`, `nat`, and `slice.len` members) get
+  descending naturals; slice-typed values get `Slice::Length`; `upper - lower`
+  is the named bounded distance. Everything else (signed integers, floats,
+  structs) errors with a type-aware diagnostic naming the value and the reason
+  (e.g. "cannot infer a ranking for `decreases remaining` ...: signed values
+  have no default well-founded order -- select one with
+  `decreases remaining -> View`"). RULING: a declared `measure` is NEVER
+  selected implicitly, even when it is the only one declared for the value's
+  type — only true builtins infer, so declaring a second measure later cannot
+  silently change or break distant `decreases` clauses at a distance. Matching
+  declared measures are suggested by name in the diagnostic instead
+  (fail canary `termination/default_order_declared_measure_not_inferred`
+  locks the ruling; pass canary
+  `termination/default_order_unsigned_width_countdown_compile` covers
+  non-`usize` unsigned widths).
 - [ ] Replace arithmetic-facing proof UX such as `limit - index` with named
   bounded-distance rankings.
 - [ ] Add a runtime exit canary for shrinking-slice recursion once runtime

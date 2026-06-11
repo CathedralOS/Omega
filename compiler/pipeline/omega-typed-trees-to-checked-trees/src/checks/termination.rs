@@ -35,13 +35,10 @@ pub(crate) fn check_machine_termination(
                     machine_name(program, machine.symbol)
                 )));
             }
-            ranking::DecreaseOutcome::AmbiguousOrder { candidates } => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "ambiguous decreases clause for terminating machine {}: the decreasing \
-                     value has no single well-founded order; specify it explicitly with \
-                     `decreases value -> Order` (candidates: {})",
-                    machine_name(program, machine.symbol),
-                    candidates.join(", ")
+            ranking::DecreaseOutcome::AmbiguousOrder(ambiguity) => {
+                diagnostics.push(Diagnostic::error(ambiguous_order_message(
+                    &machine_name(program, machine.symbol),
+                    &ambiguity,
                 )));
             }
         }
@@ -52,4 +49,44 @@ pub(crate) fn check_machine_termination(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Render the diagnostic for a plain `decreases value` clause whose value has
+/// no inferable builtin ranking: name the value, say why inference failed, and
+/// suggest the explicit `-> View` form. Declared measures matching the value's
+/// type are suggested by name but are never selected implicitly — even a single
+/// declared measure requires the explicit form, so declaring a second measure
+/// later cannot silently change distant `decreases` clauses.
+fn ambiguous_order_message(machine: &str, ambiguity: &order::AmbiguousDefault) -> String {
+    let clause = ambiguity.clause.as_str();
+    let reason = match &ambiguity.reason {
+        order::AmbiguityReason::SignedInteger => {
+            "signed values have no default well-founded order".to_string()
+        }
+        order::AmbiguityReason::NoBuiltinOrder { type_name } => {
+            format!("`{type_name}` has no builtin well-founded order")
+        }
+        order::AmbiguityReason::UnknownShape => {
+            "the decreasing value has no single builtin well-founded order".to_string()
+        }
+    };
+    let suggestion = match ambiguity.declared_measures.as_slice() {
+        [] => format!(
+            "select one with `decreases {clause} -> View` \
+             (builtin views: Nat::Descending, Slice::Length)"
+        ),
+        [only] => format!(
+            "declared measures are never selected implicitly; \
+             select one with `decreases {clause} -> {only}`"
+        ),
+        many => format!(
+            "declared measures are never selected implicitly; \
+             select one with `decreases {clause} -> View` (declared measures: {})",
+            many.join(", ")
+        ),
+    };
+    format!(
+        "cannot infer a ranking for `decreases {clause}` in terminating machine {machine}: \
+         {reason} -- {suggestion}"
+    )
 }

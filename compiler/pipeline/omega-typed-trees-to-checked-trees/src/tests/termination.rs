@@ -543,10 +543,106 @@ fn rejects_ambiguous_default_order_requiring_explicit_form() {
     let diagnostics = lower_typed_trees(typed).expect_err("ambiguous default order should fail");
 
     assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot infer a ranking for `decreases remaining`")
+                && diagnostic
+                    .message
+                    .contains("signed values have no default well-founded order")
+                && diagnostic.message.contains("`decreases remaining -> View`")
+        }),
+        "expected a signed-value ambiguity diagnostic, got: {:?}",
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("ambiguous decreases clause")),
-        "expected an ambiguity diagnostic, got: {:?}",
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn infers_default_nat_descending_for_plain_u32_decreases() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: u32 = self.countdown(2);
+    }
+
+    machine Main::countdown(&mut self, remaining: u32)
+    terminates {
+        decreases remaining;
+    }
+    -> u32
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> remaining
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    lower_typed_trees(typed).expect("default nat-descending inference should cover u32");
+}
+
+#[test]
+fn plain_decreases_never_selects_a_declared_measure_even_when_unique() {
+    let source = r#"
+    data Card {
+        power: usize;
+    }
+
+    measure Card::PowerOrder(card: Card) -> usize { card.power }
+
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+        let value: usize = self.weaken(Card { power: 3 });
+    }
+
+    machine Main::weaken(&mut self, card: Card)
+    terminates {
+        decreases card;
+    }
+    -> usize
+    {
+        transition card.power > 0 {
+            true -> self.weaken(Card { power: card.power - 1 })
+            false -> card.power
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("a unique declared measure must not be inferred");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot infer a ranking for `decreases card`")
+                && diagnostic
+                    .message
+                    .contains("declared measures are never selected implicitly")
+                && diagnostic
+                    .message
+                    .contains("`decreases card -> Card::PowerOrder`")
+        }),
+        "expected the declared-measure suggestion diagnostic, got: {:?}",
         diagnostics
             .iter()
             .map(|diagnostic| diagnostic.message.clone())
