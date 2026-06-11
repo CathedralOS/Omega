@@ -178,6 +178,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("text/runtime_string_concat_membership_exit", 71),
     ("text/runtime_string_concat_two_fields_exit", 70),
     ("text/runtime_string_field_concat_exit", 73),
+    ("traits/equatable_record_equality_exit", 70),
+    ("traits/equatable_sum_payload_equality_exit", 70),
     ("traits/runtime_conformance_item_exit", 70),
     ("traits/runtime_dyn_single_impl_dispatch_exit", 70),
     ("traits/runtime_dyn_two_impl_dispatch_exit", 70),

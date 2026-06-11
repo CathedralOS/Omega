@@ -1469,6 +1469,79 @@ fn runtime_conformance_item_exit_canary_runs() {
 }
 
 #[test]
+fn equatable_record_equality_exit_canary_runs() {
+    // Equatable synthesis (decisions 8 + 11): `Point satisfies Equatable;`
+    // makes `==`/`!=` on the record structural -- equal values match, one
+    // differing middle field misses.
+    let canary = pass_canary("traits/equatable_record_equality_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-equatable-record-equality-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("equatable record equality canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("equatable record equality canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected synthesized structural `==`/`!=` on `Point` to compare field by field (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn equatable_sum_payload_equality_exit_canary_runs() {
+    // Equatable synthesis on a payload-bearing sum: tag equality AND the
+    // matching case's payload fields. Same-case-equal matches; same-case-
+    // different-payload and different-case miss; the constructed-literal
+    // compare pins the single-arm form.
+    let canary = pass_canary("traits/equatable_sum_payload_equality_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-equatable-sum-payload-equality-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("equatable sum payload equality canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("equatable sum payload equality canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected synthesized structural `==` on `Command` to compare tag AND payload (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_data_properties_exit_canary_runs() {
     let canary = pass_canary("data/runtime_data_properties_exit");
     let main_path = canary.join("main.omg");
@@ -6935,6 +7008,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/trait_composition_satisfies",
     "traits/trait_declaration_bundle",
     "traits/trait_satisfies_machine_signature",
+    "traits/equatable_record_equality_exit",
+    "traits/equatable_sum_payload_equality_exit",
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
     "termination/default_order_bounded_distance_compile",
@@ -7173,6 +7248,10 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "operators/app_package_provider_rejected",
     "operators/unregistered_provider_binding",
     "calls/runtime_helper_ordering_return",
+    "traits/equatable_missing_conformance_suggested",
+    "traits/equatable_field_not_equatable",
+    "traits/equatable_recursive_type",
+    "traits/equatable_string_field_unsupported",
     "traits/trait_composition_missing_requirement",
     "traits/trait_requirement_cycle",
     "traits/trait_requires_unknown",

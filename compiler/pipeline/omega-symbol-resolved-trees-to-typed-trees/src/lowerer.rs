@@ -17,9 +17,14 @@ pub fn lower_symbol_resolved_trees(
     // tag-equality compares, which are deliberately the same typed shape.
     crate::equality::validate_equality_operands(symbol_resolved_trees)?;
 
+    // Equatable conformance prerequisites error at the conformance item,
+    // before any `==` site tries to expand against a malformed type.
+    crate::equatable::validate_equatable_conformances(symbol_resolved_trees)?;
+
     let mut lowerer = Lowerer {
         typed_trees: TypedTrees::default(),
         source_trees: symbol_resolved_trees,
+        equality_scope: None,
     };
 
     for invariant_definition in &symbol_resolved_trees.invariant_definitions {
@@ -93,6 +98,9 @@ pub fn lower_symbol_resolved_trees_owned(
 pub(crate) struct Lowerer<'source> {
     pub(crate) typed_trees: TypedTrees,
     pub(crate) source_trees: &'source SymbolResolvedTrees,
+    /// The value-typing scope of the state body currently being lowered;
+    /// `==` expansion uses it to find an operand's data type.
+    pub(crate) equality_scope: Option<crate::equatable::EqualityScope>,
 }
 
 impl Lowerer<'_> {

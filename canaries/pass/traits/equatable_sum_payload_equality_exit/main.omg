@@ -1,0 +1,79 @@
+// Equatable synthesis on a PAYLOAD-BEARING sum (frozen decisions 8 + 11):
+// `Command satisfies Equatable;` makes `==` structural -- tag equality AND
+// the matching case's payload fields. Same case + equal payload must match;
+// same case + different payload must miss (a tag-only compare takes the
+// wrong arm); different cases must miss. The constructed-literal compare
+// (`self.a == Command::Move { dx: 3, dy: 5 }`) pins the single-arm form.
+// Exits 70 only when all four compares are right.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+data Command {
+    case None;
+    case Move(dx: i32, dy: i32);
+}
+
+Command satisfies Equatable;
+
+data Main {
+    console: Console;
+    a: Command;
+    b: Command;
+    c: Command;
+    d: Command;
+}
+
+machine Main::main(&mut self) {
+    self.a = Command::Move { dx: 3, dy: 5 };
+    self.b = Command::Move { dx: 3, dy: 5 };
+    self.c = Command::Move { dx: 3, dy: 9 };
+    // d stays the zero case (None).
+
+    let same_case_equal_payload: bool = self.a == self.b;
+
+    transition same_case_equal_payload {
+        true -> check_payload_difference()
+        _ -> missed()
+    }
+
+    state check_payload_difference(&mut self) {
+        let same_case_different_payload: bool = self.a == self.c;
+
+        transition same_case_different_payload {
+            true -> missed()
+            _ -> check_case_difference()
+        }
+    }
+
+    state check_case_difference(&mut self) {
+        let different_case: bool = self.a == self.d;
+
+        transition different_case {
+            true -> missed()
+            _ -> check_literal_compare()
+        }
+    }
+
+    state check_literal_compare(&mut self) {
+        let literal_equal: bool = self.a == Command::Move { dx: 3, dy: 5 };
+
+        transition literal_equal {
+            true -> matched()
+            _ -> missed()
+        }
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}
