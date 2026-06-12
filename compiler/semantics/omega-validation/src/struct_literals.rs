@@ -148,6 +148,19 @@ fn validate_literal_field_names(
 
     match &literal.case_name {
         None => {
+            // A case-bearing type (sum or mixed) has no record-form literal:
+            // construction always names the case, which pins the tag. The
+            // zero case with named common fields is `Type::ZeroCase { ... }`.
+            if program
+                .data_members(data_definition)
+                .iter()
+                .any(|member| matches!(member, DataMember::Variant(_)))
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "data `{type_name}` is case-bearing; construct a case (`{type_name}::Case {{ ... }}`) instead of a record literal"
+                )));
+                return;
+            }
             for field in program.expression_table.struct_fields(literal.fields) {
                 if !data_declares_field(program, data_definition, field.name.as_str()) {
                     diagnostics.push(Diagnostic::error(format!(
@@ -170,11 +183,15 @@ fn validate_literal_field_names(
             else {
                 return;
             };
+            // A case literal names the case's PAYLOAD fields, and -- for mixed
+            // shapes -- may name COMMON fields alongside them (unnamed common
+            // fields zero-initialize; frozen decision 7's construction rule).
             for field in program.expression_table.struct_fields(literal.fields) {
                 let declared = program
                     .data_payload_fields(variant)
                     .iter()
-                    .any(|payload_field| payload_field.name.as_str() == field.name.as_str());
+                    .any(|payload_field| payload_field.name.as_str() == field.name.as_str())
+                    || data_declares_field(program, data_definition, field.name.as_str());
                 if !declared {
                     diagnostics.push(Diagnostic::error(format!(
                         "case `{type_name}::{}` has no payload field `{}`",

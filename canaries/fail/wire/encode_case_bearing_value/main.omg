@@ -1,0 +1,32 @@
+// Wire stage 2a encodes scalar FIELD members only: a case-bearing value type
+// (sum or mixed) has no schema spelling for its tag and payload, so encoding
+// one would silently drop the case part. Rejected loudly until case-aware
+// wire encoding lands.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data EventMessage {
+    0: bonus: i32;
+}
+
+data RoomEvent {
+    bonus: i32;
+    case Nothing;
+    case Treasure(gold: i32);
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    let event: RoomEvent = RoomEvent::Treasure { gold: 3 };
+
+    EventMessage::encode_wire(&event, &mut self.buffer, &mut self.written);
+
+    self.console.exit_process(70);
+}

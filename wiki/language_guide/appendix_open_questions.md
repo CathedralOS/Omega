@@ -57,7 +57,8 @@ This page tracks design pressure that is not fully nailed down yet.
 - There is no separate `enum` type: alternatives are a MEMBER CLASS of `data`
   (`case` members with named payload fields). Member shape determines the kind
   -- fields only is a record, cases only is a sum, both is MIXED (sum-only
-  ships first; mixed is a severable later step). Case-bearing data gets the
+  shipped first; mixed is live -- see chapter 1 for the layout,
+  zero-unless-named construction, and access rules). Case-bearing data gets the
   full `data` machinery: versions and `wire data` cover the case part, zero
   rules apply uniformly (first case is the zero case). Today's `enum`
   spelling is transitional and retired by this decision.

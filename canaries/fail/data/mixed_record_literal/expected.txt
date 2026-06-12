@@ -1,0 +1,1 @@
+data `RoomEvent` is case-bearing; construct a case

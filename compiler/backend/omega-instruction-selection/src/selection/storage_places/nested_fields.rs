@@ -88,16 +88,29 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
         DataShape::Record { fields } => {
             field_layout_by_symbol_or_name(layouts, *fields, field_symbol, field_name)?
         }
-        // A CASE PAYLOAD member (`cmd.steps` where `cmd` is enum-shaped data):
-        // search every variant's payload span. Payload offsets are ABSOLUTE
-        // within the enum value (tag at 0, payloads packed from the shared
-        // base), so the offset arithmetic below is identical to a record field.
-        DataShape::Enum { variants } => layouts
-            .variants
-            .span_or_empty(*variants)
-            .iter()
-            .find_map(|variant| {
-                field_layout_by_symbol_or_name(layouts, variant.fields, field_symbol, field_name)
+        // A member of case-bearing data: a COMMON field (mixed shapes --
+        // `event.consumed`, readable without case knowledge) or a CASE PAYLOAD
+        // field (`cmd.steps`), searched across every variant's payload span.
+        // All offsets are ABSOLUTE within the value (tag at 0, common fields
+        // after the tag, payloads packed from the shared base), so the offset
+        // arithmetic below is identical to a record field.
+        DataShape::Enum {
+            common_fields,
+            variants,
+        } => field_layout_by_symbol_or_name(layouts, *common_fields, field_symbol, field_name)
+            .or_else(|| {
+                layouts
+                    .variants
+                    .span_or_empty(*variants)
+                    .iter()
+                    .find_map(|variant| {
+                        field_layout_by_symbol_or_name(
+                            layouts,
+                            variant.fields,
+                            field_symbol,
+                            field_name,
+                        )
+                    })
             })?,
     };
     let mut next = NestedFieldLayoutCursor {

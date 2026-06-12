@@ -1,0 +1,16 @@
+// Mixed data shape construction is always the case-literal form, whose rule
+// is zero-unless-named (frozen decision 7). A declared default on a COMMON
+// field would silently never apply, so it is rejected instead of ignored.
+
+data RoomEvent {
+    bonus: i32 = 5;
+    case Nothing;
+    case Treasure(gold: i32);
+}
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+}
