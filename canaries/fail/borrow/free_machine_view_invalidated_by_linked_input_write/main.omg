@@ -1,0 +1,38 @@
+// FAIL canary (lifetimes stage 1, elision-only output-borrow linkage): a free
+// machine returning a view with EXACTLY ONE candidate ref input links the
+// returned view's loan to THAT input. Mutating the linked source while the
+// view is still live must be rejected -- before stage 1 the checker tracked
+// no loan at all for a free-machine call result, silently accepting this
+// aliasing violation.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    value: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Console;
+    bag: Bag;
+}
+
+machine pick(bag: &mut Bag) -> &mut Cell {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    transition {
+        _ -> &mut cells[2]
+    }
+}
+
+machine Main::main(&mut self) {
+    let cell: &mut Cell = pick(&mut self.bag);
+    // `cell` aliases `self.bag.cells[2]`; this write may invalidate it.
+    self.bag.cells[0] = Cell { value: 1 };
+    cell.value = 7;
+    self.console.exit_process(70);
+}
