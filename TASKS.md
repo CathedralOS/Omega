@@ -62,8 +62,21 @@ allocator_story). Each question one line + the scout's recommendation;
 sign-off freezes them.
 
 CONCURRENCY (briefs/concurrency_atomics.md):
-- C1 Suspension spelling: explicit `yields` modifier on states (dispatcher
-  parks/resumes) — not async coloring, not implicit suspension. REC: yes.
+- C1 DECIDED 2026-06-12 (supersedes the scout's `yields` proposal): NO
+  suspension keyword and NO await. Waiting originates ONLY at boundary
+  wait primitives (a `Scheduler` boundary trait: host targets bind
+  futex/WaitOnAddress syscalls; Cathedral userland binds the scheduler
+  capability; the Cathedral kernel implements it over hlt/interrupts).
+  `suspend` is an INFERRED transitive effect (decision-12 machinery),
+  declarable on signatures and checked like any effect; awaiting = calling
+  (the task parks inside the callee; frames are planned storage, so a
+  parked task is just data — no Future reification needed). Enforcement,
+  not vigilance: borrows may not live across a suspend-effect call site;
+  effect ceilings forbid `suspend` where parking is illegal (ISR
+  contexts); atomicity is DERIVED (a state calling no suspending machine
+  runs uninterrupted). Artifacts surface all suspension points.
+  `select` (first-ready-wins over multiple waitables, likely a transition
+  form) is deferred as its own design.
 - C2 Unit of concurrency: spawned machine = one task, per-task frame
   discipline now (separate-compilation-ready). REC: yes.
 - C3 Cancellation: structured Join SCOPES (scope drop cancels children,
@@ -93,8 +106,12 @@ COMPTIME (briefs/comptime.md):
   (empty effects + no &mut/out = const-evaluable). REC: yes.
 - M2 Reflection access spelling: bracket form `self.[field]`;
   `Self::fields` exposes names + types only in stage 1. REC: yes.
-- M3 Termination stage 1: reject direct self-recursion + fuel fallback;
-  decreases-required once proof L8 lands. REC: yes.
+- M3 Termination: NO new rule — const-evaluable machines inherit the
+  language's existing termination discipline (general recursion does not
+  exist; self-calls are tail self-loops; loops carry decreases/measures).
+  Fuel at most as a defense-in-depth backstop against checker gaps.
+  (Maintainer-corrected 2026-06-12; the scout's self-recursion framing was
+  Rust-shaped.) REC: yes.
 - M4 First const position: fixed-array lengths; TARGET-width emulation in
   the const evaluator is mandatory from day one. REC: yes.
 - M5 Generator bodies must expand to effect-free machines (build-time code
