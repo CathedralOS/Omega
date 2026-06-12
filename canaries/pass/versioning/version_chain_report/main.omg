@@ -1,0 +1,39 @@
+// Chapter 21 (Versioned Data), stage 3b: migration-chain completeness along
+// the declared version chain is a REPORT VERDICT in 04_wire_protocols.txt,
+// never a compile error (frozen decision 14) -- a `Versioned<T>` consumer may
+// handle an old era manually in a version match arm. `Counter` declares v1
+// and v2; only `Counter::from_v1` exists, so the report must show v1's
+// migration as present and v2's as a MISSING verdict while the program still
+// compiles. (Asserted by `version_chain_report_renders_missing_migration` in
+// the canary suite.)
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    version v2 {
+        counter: i32;
+        stamp: i32;
+    }
+
+    count: i32;
+    timestamp: i32;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Counter::from_v1(old: Counter::v1, out: &mut Counter) {
+    out.count = old.counter;
+    out.timestamp = 0;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

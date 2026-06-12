@@ -242,6 +242,24 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 "cannot lower executable domain membership without a resolved program context",
             ));
         };
+        // Version match arms (frozen decision 14) arrive as parser-synthesized
+        // MARKER memberships and lower to an era tag compare against the
+        // builtin `Versioned<T>` container -- claimed before the declared
+        // domain and case interpretations.
+        if crate::expression::version_membership::is_version_arm_domain(
+            self.source,
+            membership.domain,
+        ) {
+            let value = self.lower(membership.value)?;
+            return crate::expression::version_membership::lower_version_membership_expression(
+                program,
+                self.source,
+                self.target,
+                membership.value,
+                value,
+                membership.domain,
+            );
+        }
         if membership.domain_symbol.is_valid() {
             let value = self.lower(membership.value)?;
             return lower_domain_membership_expression(

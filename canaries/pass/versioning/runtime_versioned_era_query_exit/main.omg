@@ -1,0 +1,39 @@
+// Chapter 21 (Versioned Data), stage 3: `Versioned<T>` is the builtin
+// era-tagged container ({ era: u32, payload: union-of-eras }, frozen decision
+// 14). `era` is read-only source-queryable. The container has NO source
+// constructor (boundaries mint it), so the only reachable value today is the
+// zero-initialized data field: era 0 = the OLDEST declared era (decision-10
+// numbering: declared version blocks count up from 0; current = block count).
+// The guard `e == 0` must select exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+    timestamp: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    let e: u32 = self.raw.era;
+    transition e == 0 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

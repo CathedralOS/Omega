@@ -7,6 +7,7 @@ pub mod parallel;
 pub mod source;
 pub mod span;
 pub mod symbols;
+pub mod versioning;
 
 pub use diagnostics::{Diagnostic, format_diagnostics};
 pub use span::Span;

@@ -15,6 +15,15 @@ pub(crate) fn lower_data_definition(
     syntax_trees: &SyntaxTrees,
     data_definition: &syntax::item::DataDefinition,
 ) -> Result<DataDefinition, Diagnostic> {
+    // `Versioned` is the permanent builtin era-tagged container (frozen
+    // decision 14): every `Versioned<T>` reference folds to the synthesized
+    // container of a versioned data type, so a user definition of the same
+    // name could never be referenced -- reject it instead of shadowing.
+    if data_definition.name.as_str() == "Versioned" {
+        return Err(Diagnostic::error(
+            "`Versioned` is the builtin era-tagged container type (chapter 21) and cannot be redeclared",
+        ));
+    }
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let members = lower_data_members(lowerer, syntax_trees, data_definition.members)?;
@@ -98,6 +107,99 @@ pub(crate) fn lower_data_version_definitions(
     }
 
     Ok(versions)
+}
+
+/// Synthesize the builtin `Versioned<Counter>` container definition for a data
+/// declaration with `version vN { ... }` blocks (frozen decision 14): an
+/// ordinary data definition `{ era: u32, __payload_vN: Counter::vN ...,
+/// __payload_current: Counter }`. Era numbering follows decision 10 (declared
+/// blocks count up from 0 in declaration order; the current shape's era is the
+/// block count) -- see `omega_core::versioning`.
+///
+/// The container has NO source constructor (chapter 21: it is minted only by
+/// boundary machinery), so the payload fields are unreachable except through
+/// version match arm bindings, and `era` is kept read-only by validation.
+///
+/// INTERIM: the payload fields are laid out as a plain struct rather than the
+/// frozen union-of-eras (static max size). Nothing can construct a container
+/// yet, so the overlap is unobservable; the union layout lands with the first
+/// boundary decoder.
+pub(crate) fn lower_versioned_container_definition(
+    lowerer: &mut Lowerer,
+    data_definition: &syntax::item::DataDefinition,
+    version_names: &[String],
+) -> DataDefinition {
+    use omega_core::versioning;
+    use omega_symbol_resolved_trees::types::TypeReference;
+    use omega_syntax_trees::identifier::Identifier;
+
+    let data_name = data_definition.name.as_str();
+    let mut members = Vec::new();
+
+    members.push(DataMember::Field(DataField {
+        symbol: SymbolHandle::invalid(),
+        name: crate::name::lower_name(&Identifier::generated(
+            versioning::VERSIONED_ERA_FIELD.to_owned(),
+        )),
+        type_reference: TypeReference::Named {
+            symbol: SymbolHandle::invalid(),
+            name: crate::name::lower_name(&Identifier::generated("u32".to_owned())),
+        },
+        initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
+    }));
+
+    for version_name in version_names {
+        members.push(DataMember::Field(DataField {
+            symbol: SymbolHandle::invalid(),
+            name: crate::name::lower_name(&Identifier::generated(
+                versioning::versioned_payload_field_name(version_name),
+            )),
+            type_reference: TypeReference::Named {
+                symbol: SymbolHandle::invalid(),
+                name: crate::name::lower_name(&Identifier::generated(format!(
+                    "{data_name}::{version_name}"
+                ))),
+            },
+            initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
+        }));
+    }
+
+    members.push(DataMember::Field(DataField {
+        symbol: SymbolHandle::invalid(),
+        name: crate::name::lower_name(&Identifier::generated(
+            versioning::VERSIONED_CURRENT_PAYLOAD_FIELD.to_owned(),
+        )),
+        type_reference: TypeReference::Named {
+            symbol: SymbolHandle::invalid(),
+            name: crate::name::lower_name(&Identifier::generated(data_name.to_owned())),
+        },
+        initial_value: omega_symbol_resolved_trees::expression::ExpressionHandle::invalid(),
+    }));
+
+    let mut span = HandleSpan::empty();
+    for member in members {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .data_members
+            .append_to_span(&mut span, member);
+    }
+
+    DataDefinition {
+        symbol: SymbolHandle::invalid(),
+        name: crate::name::lower_name(&Identifier::generated(
+            versioning::versioned_container_name(data_name),
+        )),
+        storage: DataDefinitionStorage {
+            type_parameters: HandleSpan::empty(),
+            // The container itself is plain runtime state: zero-initialized
+            // like any other field-bearing data (a zeroed container reads as
+            // the oldest declared era with a zeroed payload).
+            properties: DataProperties::default(),
+            members: span,
+        },
+    }
 }
 
 pub(crate) fn lower_type_parameters(

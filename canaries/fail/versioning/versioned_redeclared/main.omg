@@ -1,0 +1,14 @@
+// Chapter 21 (Versioned Data), stage 3: `Versioned` is the permanent builtin
+// era-tagged container (frozen decision 14). A user data definition of the
+// same name could never be referenced (every `Versioned<T>` reference folds
+// to the builtin container), so redeclaring it is rejected outright.
+
+data Versioned<T> {
+    value: T;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

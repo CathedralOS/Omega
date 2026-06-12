@@ -25,11 +25,30 @@ pub(crate) fn lower_item(
             // Historical version shapes follow their parent immediately so the
             // positional Data-kind symbol assignment stays aligned with the
             // root symbols seeded by omega-names.
+            let version_names = version_shapes
+                .iter()
+                .filter_map(|shape| {
+                    omega_core::versioning::split_version_shape_name(shape.name.as_str())
+                        .map(|(_, version)| version.to_owned())
+                })
+                .collect::<Vec<_>>();
             for version_shape in version_shapes {
                 lowerer
                     .symbol_resolved_trees
                     .data_definitions
                     .push(version_shape);
+            }
+            // A versioned data type also gets its builtin era-tagged container
+            // `Versioned<Counter>` (frozen decision 14), synthesized as an
+            // ordinary data definition so every downstream layer (symbols,
+            // typing, layout, interpreter, codegen) rides existing machinery.
+            if !version_names.is_empty() {
+                let container = crate::data::lower_versioned_container_definition(
+                    lowerer,
+                    data_definition,
+                    &version_names,
+                );
+                lowerer.symbol_resolved_trees.data_definitions.push(container);
             }
         }
         syntax::item::Item::Invariant(invariant_definition) => {
