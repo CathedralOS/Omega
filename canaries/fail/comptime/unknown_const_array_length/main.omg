@@ -1,0 +1,16 @@
+// COMPTIME STAGE 1 -- EVALUATION FAILURE UX: a const call that cannot be
+// evaluated is a compile error AT the array-length position naming the
+// machine and the failure. `missing_size` does not exist anywhere in the
+// program.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    slots: [i64; missing_size()];
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

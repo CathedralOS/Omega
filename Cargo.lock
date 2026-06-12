@@ -308,6 +308,7 @@ dependencies = [
  "omega-emission-planning",
  "omega-image",
  "omega-image-emission",
+ "omega-interpreter",
  "omega-layout",
  "omega-object-file",
  "omega-platform-interface",

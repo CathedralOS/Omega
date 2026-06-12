@@ -1,0 +1,50 @@
+// COMPTIME STAGE 1 -- CONST EVALUATION OF FIXED-ARRAY LENGTHS: `[i64;
+// table_size()]` calls an EFFECT-FREE machine in a constant position; the
+// compiler evaluates it via the reference interpreter at compile time and the
+// array lays out exactly as `[i64; 16]` would (chapter 13: the position makes
+// it comptime, the effect system makes it legal -- no keyword). The callee
+// returns arithmetic (12 + 4), not a bare literal, so the canary pins actual
+// EVALUATION, not literal forwarding. At runtime both ends of the array are
+// written and read back through a guard ladder: index 15 only type-checks if
+// the substituted length really reached the range checker as 16, and the
+// values only survive if layout sized the field as 16 elements. Exits 70 only
+// when both elements hold their length-dependent values.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    slots: [i64; table_size()];
+}
+
+machine table_size() -> usize {
+    transition {
+        _ -> (12 + 4)
+    }
+}
+
+machine Main::main(&mut self) {
+    self.slots[0] = 7;
+    self.slots[15] = 63;
+
+    transition self.slots[0] == 7 {
+        true -> check_last()
+        false -> bad()
+    }
+
+    state check_last(&mut self) {
+        transition self.slots[15] == 63 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -29,7 +29,21 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
                 .is_some_and(crate::parser::input::is_identifier_token_for_parser)
             {
                 let (name, input) = input.take_identifier()?;
-                (FixedArrayLength::ConstParameter(name), input)
+                // `[T; table_size()]`: a zero-argument machine call in length
+                // position is CONST-EVALUATED at compile time (comptime stage 1).
+                if input.at_punctuation(PunctuationKind::LeftParen) {
+                    let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                    if !input.at_punctuation(PunctuationKind::RightParen) {
+                        return Err(input.error_here(
+                            "const arguments in array-length calls are not supported yet; \
+                             the const-evaluated machine must take zero parameters",
+                        ));
+                    }
+                    let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+                    (FixedArrayLength::ConstCall(name), input)
+                } else {
+                    (FixedArrayLength::ConstParameter(name), input)
+                }
             } else {
                 let (length, input) = input.take_integer()?;
                 let length = usize::try_from(length)

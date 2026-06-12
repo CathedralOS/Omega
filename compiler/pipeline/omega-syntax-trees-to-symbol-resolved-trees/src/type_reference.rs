@@ -87,6 +87,9 @@ pub(crate) fn lower_fixed_array_length(
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(name),
         },
+        syntax::types::FixedArrayLength::ConstCall(name) => FixedArrayLength::ConstCall {
+            name: crate::name::lower_name(name),
+        },
     }
 }
 

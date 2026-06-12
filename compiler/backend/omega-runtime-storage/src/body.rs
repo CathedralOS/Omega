@@ -1049,7 +1049,12 @@ fn type_descriptor(
                 element_type: Box::new(type_descriptor(table, *element_type)),
                 length: *length,
             },
-            FixedArrayLength::ConstParameter { .. } => omega_layout::TypeLayoutDescriptor::Unit,
+            // ConstCall lengths are substituted to literals by the
+            // orchestration const-eval pass long before runtime storage;
+            // a survivor degrades like an unresolved const parameter.
+            FixedArrayLength::ConstParameter { .. } | FixedArrayLength::ConstCall { .. } => {
+                omega_layout::TypeLayoutDescriptor::Unit
+            }
         },
         TypeReferenceNode::Slice { element_type } => omega_layout::TypeLayoutDescriptor::Slice {
             element_type: Box::new(type_descriptor(table, *element_type)),

@@ -774,7 +774,13 @@ impl<'program> LayoutBuilder<'program> {
                     element_type: Box::new(self.type_descriptor(*element_type)),
                     length: *length,
                 },
-                FixedArrayLength::ConstParameter { .. } => TypeLayoutDescriptor::Unit,
+                // ConstCall lengths are substituted to literals by the
+                // orchestration const-eval pass before layout; an unresolved
+                // one degrades to Unit exactly like an unresolved const
+                // parameter (layout cannot size it).
+                FixedArrayLength::ConstParameter { .. } | FixedArrayLength::ConstCall { .. } => {
+                    TypeLayoutDescriptor::Unit
+                }
             },
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
                 element_type: Box::new(self.type_descriptor(*element_type)),

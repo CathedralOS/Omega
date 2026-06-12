@@ -1549,6 +1549,46 @@ fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_const_array_length_exit_canary_runs() {
+    // COMPTIME STAGE 1: `slots: [i64; table_size()]` sizes a data field by an
+    // effect-free machine call, const-evaluated by the reference interpreter
+    // before checking/layout (the callee computes 12 + 4, pinning evaluation,
+    // not literal forwarding). Indexing slots[15] only type-checks if the
+    // substituted Literal(16) reached the range checker, and the values only
+    // read back if layout sized the field as 16 elements -- identically to a
+    // written `[i64; 16]`. Exits 70 only when both ends hold their values.
+    let canary = pass_canary("comptime/runtime_const_array_length_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-const-array-length-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("const array length canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("const array length canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `[i64; table_size()]` to const-evaluate to 16 and behave exactly like a literal length (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_fixed_array_field_guard_exit_canary_runs() {
     // Reading `self.cells[i].value` (fixed-array element field, constant index) in a
     // GUARD must apply the index: the guard-operand layout consumed the root field
@@ -8359,6 +8399,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/uses_caller_folder",
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
+    "comptime/runtime_const_array_length_exit",
     "data/case_payload_declaration",
     "data/case_payload_native_construction",
     "data/match_default_satisfies_exhaustiveness",
@@ -8766,6 +8807,10 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/nested_schema_cycle",
     "wire/encode_nested_in_nested",
     "capabilities/unapproved_host_call",
+    "comptime/effectful_const_array_length",
+    "comptime/negative_const_array_length",
+    "comptime/parameterized_const_array_length",
+    "comptime/unknown_const_array_length",
     "data/bare_payload_case_equality_guard",
     "data/bare_payload_case_equality_suggests_in",
     "data/case_payload_equality_interim",
