@@ -295,6 +295,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     });
     backend_plan.data = record_backend_phase(&mut phase_timings, "target data", || {
         build_target_data_plan(
+            program.as_ref(),
             &backend_plan.host_calls,
             &backend_plan.state_storage,
             &backend_plan.state_values,

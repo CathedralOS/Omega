@@ -3438,6 +3438,47 @@ fn runtime_mixed_shape_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_struct_literal_string_field_exit_canary_runs() {
+    // Struct-LITERAL String field initialization (`let msg: T = T { label:
+    // "hi" }`) must emit the native descriptor write, same as the assignment
+    // form. Data planning previously collected string literals only from
+    // assignments / state values / branch targets -- never from `let` local
+    // initializers -- so the descriptor-write selection found no data object
+    // and silently skipped the write (descriptor stayed zeroed natively).
+    // Observed through the wire encoder's bytes plus a case-literal String
+    // payload (`Command::Say { text: "ok" }`) destructured and compared.
+    let canary = pass_canary("data/runtime_struct_literal_string_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-struct-literal-string-field-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct literal string field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct literal string field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected literal-form String field init to write the descriptor natively (exit 70), got {:?} (71 = empty/incorrect descriptor observed)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_tuple_transition_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_tuple_transition_exit");
     let main_path = canary.join("main.omg");
@@ -7346,6 +7387,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "data/runtime_case_payload_guard_read_exit",
     "data/runtime_case_reassignment_exit",
     "data/runtime_mixed_shape_exit",
+    "data/runtime_struct_literal_string_field_exit",
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
     "domains/call_requires_satisfied_by_caller_requires",

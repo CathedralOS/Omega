@@ -3,9 +3,11 @@ use crate::host_calls::{
 };
 use crate::static_strings::{
     collect_static_string_assignment_data, collect_static_string_branch_target_data,
-    collect_static_string_value_data,
+    collect_static_string_local_initializer_data, collect_static_string_value_data,
+    local_initializer_expression,
 };
 use omega_calling_conventions::PlatformCallData;
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_platform_interface::{HostCallArgumentKind, HostCallPlan};
 use omega_runtime_branching::RuntimeBranchingCallPlan;
@@ -15,6 +17,7 @@ use omega_state_values::StateValuePlan;
 use omega_target_operations::TargetDataPlan;
 
 pub fn build_target_data_plan(
+    program: &CheckedTrees,
     host_calls: &HostCallPlan,
     state_storage: &StateStoragePlan,
     state_values: &StateValuePlan,
@@ -22,6 +25,7 @@ pub fn build_target_data_plan(
     runtime_text: &RuntimeTextPlan,
 ) -> TargetDataPlan {
     let capacity = estimate_target_data_capacity(
+        program,
         host_calls,
         state_storage,
         state_values,
@@ -36,6 +40,7 @@ pub fn build_target_data_plan(
     collect_runtime_text_buffer_data(runtime_text, &mut data_plan);
     collect_newline_data(host_calls, &mut data_plan);
     collect_static_string_assignment_data(state_storage, &mut data_plan);
+    collect_static_string_local_initializer_data(program, state_storage, &mut data_plan);
     collect_static_string_value_data(state_values, &mut data_plan);
     collect_static_string_branch_target_data(runtime_branching, &mut data_plan);
 
@@ -49,6 +54,7 @@ struct TargetDataCapacity {
 }
 
 fn estimate_target_data_capacity(
+    program: &CheckedTrees,
     host_calls: &HostCallPlan,
     state_storage: &StateStoragePlan,
     state_values: &StateValuePlan,
@@ -60,6 +66,7 @@ fn estimate_target_data_capacity(
     estimate_host_call_data_capacity(host_calls, &mut capacity);
     estimate_runtime_text_buffer_capacity(runtime_text, &mut capacity);
     estimate_static_string_capacity_for_state_storage(state_storage, &mut capacity);
+    estimate_static_string_capacity_for_local_initializers(program, state_storage, &mut capacity);
     estimate_static_string_capacity_for_state_values(state_values, &mut capacity);
     estimate_static_string_capacity_for_runtime_branching(runtime_branching, &mut capacity);
 
@@ -117,6 +124,25 @@ fn estimate_static_string_capacity_for_state_storage(
             estimate_static_string_expression_capacity(
                 &state_storage.expressions,
                 mutation.value,
+                capacity,
+            );
+        }
+    }
+}
+
+fn estimate_static_string_capacity_for_local_initializers(
+    program: &CheckedTrees,
+    state_storage: &StateStoragePlan,
+    capacity: &mut TargetDataCapacity,
+) {
+    for (_, local) in state_storage.locals.iter() {
+        if !local.required {
+            continue;
+        }
+        if let Some(initializer) = local_initializer_expression(program, local) {
+            estimate_static_string_expression_capacity(
+                &program.expression_table,
+                initializer,
                 capacity,
             );
         }
