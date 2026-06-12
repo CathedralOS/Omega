@@ -5,6 +5,13 @@
 // and the subslice) and threads the head element's value, folded into machine
 // state on entry. 10+20+15+25 = 70 in self.total drives exit 70 only when
 // every shrinking window executed its descriptor update and element read.
+//
+// Regression shape: a self-recursive machine shares ONE call context, so the
+// transition retargets the very frame slots it reads. `items[0].value` must
+// lower as an indexed read THROUGH the slice descriptor's data pointer and be
+// staged alongside the subslice before either parameter slot commits. The bug
+// this canary pins resolved it as a plain place over the descriptor slot,
+// handing `take` the data pointer's low bytes (exit saw 152 = (4*ptr+24) & 0xff).
 
 boundary trait Console {
     machine exit_process(return_code: i32);
