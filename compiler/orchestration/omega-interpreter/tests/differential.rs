@@ -210,6 +210,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ),
     ("dungeon/runtime_guarded_inline_leaf_arm_skip_exit", 70),
     ("dungeon/runtime_multi_room_reentry_exit", 63),
+    (
+        "dungeon/runtime_nested_value_call_caller_local_guard_exit",
+        70,
+    ),
     ("dungeon/runtime_ordered_room_dispatch_after_call_exit", 83),
     ("dungeon/runtime_ordered_room_dispatch_exit", 73),
     ("dungeon/runtime_ordered_room_dispatch_game_shape_exit", 93),
