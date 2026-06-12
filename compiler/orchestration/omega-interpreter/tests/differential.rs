@@ -35,6 +35,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_signed_division_exit", 70),
     ("arithmetic/runtime_unsigned_division_exit", 70),
     ("arithmetic/runtime_unsigned_modulo_call_argument_exit", 70),
+    ("arithmetic/runtime_unsigned_modulo_cast_operand_exit", 70),
     ("calls/runtime_alias_indexed_read_through_transition_exit", 70),
     ("calls/runtime_alias_write_through_guarded_transition_exit", 70),
     ("calls/runtime_assignment_call_post_mutation_value_exit", 70),

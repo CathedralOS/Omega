@@ -31,6 +31,7 @@ use super::super::writes::{
     runtime_storage_fixed_indexed_source_copy_in_table,
     runtime_storage_indexed_source_copy_in_table, runtime_storage_indirect_copy_in_table,
     select_runtime_case_tag_write_in_table, signedness_adjusted_operator,
+    signedness_adjusted_operator_for_operands,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 
@@ -1114,6 +1115,17 @@ fn resolve_runtime_value_operand_in_table(
     match expressions.expression(expression) {
         ExpressionNode::Binary(binary) => {
             let operator = runtime_binary_operator(binary.operator)?;
+            // Same signedness policy as the write paths: nested unsigned
+            // operands pick the unsigned encoding.
+            let operator = signedness_adjusted_operator_for_operands(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.left,
+                binary.right,
+                operator,
+            );
             let left = resolve_runtime_value_operand_in_table(
                 input,
                 dispatch_index,
@@ -1152,6 +1164,16 @@ fn resolve_runtime_value_operand_in_table(
         }
         ExpressionNode::Call(call) => {
             let operator = builtin_runtime_call_operator_in_table(input, call)?;
+            // min/max builtins compare their operands -- same signedness policy.
+            let operator = signedness_adjusted_operator_for_operands(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                expressions.expression_handle_at_offset(call.arguments, 0),
+                expressions.expression_handle_at_offset(call.arguments, 1),
+                operator,
+            );
             let left = resolve_runtime_value_operand_in_table(
                 input,
                 dispatch_index,

@@ -104,6 +104,18 @@ pub(super) fn resolve_runtime_value_operand_in_table(
         let operator = runtime_binary_operator(binary.operator)?;
         let left_expr = binary.left;
         let right_expr = binary.right;
+        // Nested operands carry signedness too: `hi % 199` as a SUB-expression of
+        // a larger value (a convert chain, an outer binary) must pick the unsigned
+        // encoding exactly like a top-level binary write.
+        let operator = super::binary_table_writes::signedness_adjusted_operator_for_operands(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            left_expr,
+            right_expr,
+            operator,
+        );
         let left = resolve_runtime_comparison_operand_in_table(
             input,
             dispatch_index,
@@ -198,6 +210,17 @@ pub(super) fn resolve_runtime_value_operand_in_table(
         if let Some(operator) = builtin_runtime_call_operator_in_table(input, call) {
             let left_expr = expressions.expression_handle_at_offset(call.arguments, 0);
             let right_expr = expressions.expression_handle_at_offset(call.arguments, 1);
+            // min/max builtins compare their operands, so they carry the same
+            // signedness sensitivity as a binary comparison.
+            let operator = super::binary_table_writes::signedness_adjusted_operator_for_operands(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                left_expr,
+                right_expr,
+                operator,
+            );
             let left = resolve_runtime_value_operand_in_table(
                 input,
                 dispatch_index,
@@ -479,6 +502,15 @@ pub(super) fn resolve_runtime_value_operand(
 
     if let Expression::Binary(binary) = expression {
         let operator = runtime_binary_operator(binary.operator)?;
+        // Same signedness policy as the `_in_table` nested-binary path above.
+        let operator = super::binary_table_writes::signedness_adjusted_operator_for_tree_operands(
+            input,
+            dispatch_index,
+            source_key,
+            &binary.left,
+            &binary.right,
+            operator,
+        );
         let left = resolve_runtime_value_operand(
             input,
             dispatch_index,
@@ -532,6 +564,16 @@ pub(super) fn resolve_runtime_value_operand(
         let [left, right] = &*call.arguments else {
             return None;
         };
+        // min/max builtins compare their operands -- same signedness policy as
+        // the `_in_table` builtin-call path.
+        let operator = super::binary_table_writes::signedness_adjusted_operator_for_tree_operands(
+            input,
+            dispatch_index,
+            source_key,
+            left,
+            right,
+            operator,
+        );
         let left = resolve_runtime_value_operand(
             input,
             dispatch_index,

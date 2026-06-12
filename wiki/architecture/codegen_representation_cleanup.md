@@ -195,6 +195,15 @@ real table-path gap to port first.
   `aliases`+`alias_expressions` and does alias resolution its `_in_table` form does
   not; collapsing would drop that. Separate port (alias resolution into the table
   form, or callers pre-substitute) before it can funnel.
+  UPDATE (2026-06-12, signedness sweep): the non-table Binary/builtin-call sites
+  (here and `select_runtime_binary_mutation_write` in writes/mutation.rs) now run
+  the SAME signedness decision as the table paths via
+  `signedness_adjusted_operator_for_tree_operands` (insert_tree + delegate), so
+  the deferred collapse no longer risks signed/unsigned drift. Reachability
+  re-probed for the binary-write entry: 0 hits across the full suite (206), the
+  dungeon scripted loop, and a purpose-built alias-fed guarded-transition binary
+  mutation (which lowered through the `_in_table` path) — the binary arm of this
+  fallback appears dead from surface syntax, matching the branch-family result.
 - [x] suite green per family; commit each (place family committed aaa24483).
 
 ### Phase 5 — Deeper representation redesigns (separate axis; schedule after 1–4)

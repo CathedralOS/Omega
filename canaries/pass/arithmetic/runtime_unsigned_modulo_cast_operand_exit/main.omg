@@ -1,0 +1,72 @@
+// The TASKS "signed/unsigned residue" sibling shape (1): a modulo whose left
+// operand is a numeric CAST -- `((random.seed >> 32) as u32) % 199` -- must
+// lower with the UNSIGNED modulo. Pre-fix the operand signedness resolver
+// (`resolve_runtime_storage_is_signed_in_table`) could not see through Cast
+// nodes (returned None -> signed fallback), so once the cast value crosses
+// 2^31 the signed remainder is negative; stored into the u32 slot it reads as
+// a huge value and misses every expected guard arm. The cast's TARGET type
+// (u32 here) decides the signedness, regardless of the source expression.
+//
+// The seed is threaded through a callee mutation and read back in a verify
+// state so the value stays runtime-computed (no constant folding) without
+// touching the assignment-call value-selection paths. seed=2 is chosen so ONE
+// LCG step crosses 2^31: hi32 = 3299435481.
+//
+// Exit 70: roll == 158 = 3299435481 % 199 unsigned, matching the interpreter.
+// Exit 71: roll == 4294967209 = the signed-remainder misfire: (3299435481 as
+// i32) = -995531815, and -995531815 % 199 = -87, which the u32 slot stores as
+// 4294967209. Exit 1: any other value.
+
+data RandomState {
+    seed: u64;
+}
+
+data Random {
+}
+
+machine Random::step(
+    &mut self,
+    state: &mut RandomState
+) {
+    state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
+}
+
+data Main {
+    rng: Random;
+}
+
+machine Main::main(&mut self) -> i32 {
+    let random: RandomState;
+    random.seed = 2;
+
+    self.rng.step(&mut random);
+
+    transition {
+        _ -> verify(&mut random)
+    }
+
+    state verify(
+        &mut self,
+        random: &mut RandomState
+    ) {
+        let roll: u32 = ((random.seed >> 32) as u32) % 199;
+
+        transition {
+            roll == 158 -> unsigned_modulo()
+            roll == 4294967209 -> signed_misfire()
+            _ -> unexpected_value()
+        }
+    }
+
+    state unsigned_modulo(&mut self) {
+        70
+    }
+
+    state signed_misfire(&mut self) {
+        71
+    }
+
+    state unexpected_value(&mut self) {
+        1
+    }
+}

@@ -576,6 +576,17 @@ pub(super) fn resolve_runtime_storage_is_signed_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<bool> {
+    // A numeric `as` cast operand has the signedness of the cast's TARGET type
+    // (`(x as u32) % k` must pick the unsigned modulo regardless of `x`'s own
+    // type) -- without this, the place resolution below fails on the Cast node
+    // and the caller falls back to the signed encoding.
+    if let ExpressionNode::Cast(cast) = expressions.expression(expression) {
+        let target = expressions
+            .name_path_members(cast.target_type)
+            .last()
+            .and_then(|name| PrimitiveType::from_name(name.as_str()))?;
+        return Some(target.is_signed_integer());
+    }
     let descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
         input,
         dispatch_index,
