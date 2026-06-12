@@ -3,10 +3,13 @@
 //! straight-line sequence of wire-append operations -- zero the cursor, emit
 //! the CURRENT era discriminator varint, then per field in field-number order
 //! a field-number varint (compile-time bytes) and a value varint (runtime
-//! scalar). Front-end validation (`omega-validation::wire`) has already
-//! guaranteed the call shape, the field coverage, the stage 2a scalar set,
-//! and the out-buffer capacity, so an unresolvable place here is a planning
-//! blocker rather than a silent skip.
+//! scalar). A `String` field (validation guarantees at most one, encoding
+//! LAST) lowers to a text-bytes append instead: its length varint plus a
+//! byte-copy bounded by the out buffer's compile-time capacity. Front-end
+//! validation (`omega-validation::wire`) has already guaranteed the call
+//! shape, the field coverage, the stage 2a field set, and the out-buffer
+//! capacity for everything but the runtime-sized String content, so an
+//! unresolvable place here is a planning blocker rather than a silent skip.
 
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -15,15 +18,15 @@ use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, Expressi
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_checked_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes};
+use omega_checked_trees::wire::{WireFieldEncoding, WireMember, wire_varint_bytes};
 
 use super::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place_in_table};
 
 /// One field of the CURRENT era, ready to append: its tag bytes and the
-/// resolved runtime scalar place.
+/// resolved runtime place (a scalar slot, or a text descriptor for `String`).
 struct WireFieldAppend {
     number: i64,
-    encoding: WireScalarEncoding,
+    encoding: WireFieldEncoding,
     place: RuntimeStoragePlace,
 }
 
@@ -98,6 +101,9 @@ pub(super) fn select_wire_encode_call(
         return false;
     }
 
+    // A `String` member resolves to its `{ptr, len}` text descriptor slot.
+    let text_descriptor_size = input.runtime_abi.text_descriptor().total_size();
+
     // Collect the CURRENT era's fields in field-number order, resolving each
     // schema field name against the runtime value's matching member.
     let mut fields = Vec::new();
@@ -108,7 +114,7 @@ pub(super) fn select_wire_encode_call(
         let Some(primitive) = input.program.primitive_type_reference(field.type_reference) else {
             return false;
         };
-        let Some(encoding) = WireScalarEncoding::for_primitive(primitive) else {
+        let Some(encoding) = WireFieldEncoding::for_primitive(primitive) else {
             return false;
         };
         if field.number < 0 {
@@ -131,7 +137,11 @@ pub(super) fn select_wire_encode_call(
         ) else {
             return false;
         };
-        if place.byte_count != encoding.byte_size {
+        let expected_byte_count = match encoding {
+            WireFieldEncoding::Scalar(scalar) => scalar.byte_size,
+            WireFieldEncoding::Text => text_descriptor_size,
+        };
+        if place.byte_count != expected_byte_count {
             return false;
         }
 
@@ -182,16 +192,34 @@ pub(super) fn select_wire_encode_call(
                 value: byte,
             });
         }
-        push(SelectedInstructionKind::AppendWireScalarVarint {
-            source_region: field.place.region,
-            source_offset: field.place.byte_offset,
-            byte_size: field.encoding.byte_size,
-            zigzag: field.encoding.zigzag,
-            out_region: out_place.region,
-            out_offset: out_place.byte_offset,
-            written_region: written_place.region,
-            written_offset: written_place.byte_offset,
-        });
+        match field.encoding {
+            WireFieldEncoding::Scalar(scalar) => {
+                push(SelectedInstructionKind::AppendWireScalarVarint {
+                    source_region: field.place.region,
+                    source_offset: field.place.byte_offset,
+                    byte_size: scalar.byte_size,
+                    zigzag: scalar.zigzag,
+                    out_region: out_place.region,
+                    out_offset: out_place.byte_offset,
+                    written_region: written_place.region,
+                    written_offset: written_place.byte_offset,
+                });
+            }
+            WireFieldEncoding::Text => {
+                // Length varint + raw bytes from the descriptor; the
+                // byte-copy bounds every store against the out buffer's
+                // compile-time byte length (the one runtime-sized append).
+                push(SelectedInstructionKind::AppendWireTextBytes {
+                    source_region: field.place.region,
+                    source_offset: field.place.byte_offset,
+                    out_region: out_place.region,
+                    out_offset: out_place.byte_offset,
+                    out_length: out_place.byte_count,
+                    written_region: written_place.region,
+                    written_offset: written_place.byte_offset,
+                });
+            }
+        }
     }
 
     true

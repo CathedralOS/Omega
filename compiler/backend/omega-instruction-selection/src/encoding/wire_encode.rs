@@ -51,6 +51,32 @@ pub fn encode_append_wire_scalar_varint(
     }
 }
 
+pub fn encode_append_wire_text_bytes(
+    architecture: Architecture,
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_append_wire_text_bytes(
+            source_region,
+            source_offset,
+            out_offset,
+            out_length,
+            written_offset,
+        ),
+        Architecture::X86_64 => x86_64::encode_append_wire_text_bytes(
+            source_region,
+            source_offset,
+            out_offset,
+            out_length,
+            written_offset,
+        ),
+    }
+}
+
 // THE WIDTHS INVARIANT, pinned: every wire-append encoder's emitted byte
 // count must equal its width function for every parameter shape, on both
 // architectures, or relocations drift and binaries segfault.
@@ -125,6 +151,41 @@ mod tests {
         }
     }
 
+    #[test]
+    fn wire_text_bytes_widths_match_encoded_bytes() {
+        const LENGTHS: &[usize] = &[1, 16, 64, 4096, 65536];
+        for architecture in [Architecture::Aarch64, Architecture::X86_64] {
+            for &source_offset in OFFSETS {
+                for &out_length in LENGTHS {
+                    for &out_offset in OFFSETS {
+                        for &written_offset in OFFSETS {
+                            let bytes = encode_append_wire_text_bytes(
+                                architecture,
+                                RuntimeStorageRegion::RuntimeFrame,
+                                source_offset,
+                                out_offset,
+                                out_length,
+                                written_offset,
+                            )
+                            .expect("text bytes append should encode");
+                            assert_eq!(
+                                bytes.len(),
+                                widths::append_wire_text_bytes_width(
+                                    architecture,
+                                    source_offset,
+                                    out_offset,
+                                    out_length,
+                                    written_offset
+                                ),
+                                "{architecture:?} text bytes width drifted at source {source_offset} length {out_length} out {out_offset} written {written_offset}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// The relocation offsets must land exactly on the page/imm64
     /// materialization instructions inside the emitted bytes.
     #[test]
@@ -154,6 +215,18 @@ mod tests {
                                 8,
                                 false,
                                 out_offset,
+                                written_offset
+                            )
+                    );
+                    // The text append shares the varint append's source page
+                    // position (right after the shared prologue).
+                    assert!(
+                        source_page
+                            < widths::append_wire_text_bytes_width(
+                                architecture,
+                                0,
+                                out_offset,
+                                64,
                                 written_offset
                             )
                     );

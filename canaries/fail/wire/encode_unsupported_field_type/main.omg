@@ -1,20 +1,20 @@
 // Wire stage 2a: the compact_binary v0 encoder covers primitive integer
-// scalars only (i32/i64/u32/u64/bool). A schema field outside that set --
-// here a String -- rejects the encode call with a clear diagnostic instead
-// of silently mis-encoding.
+// scalars (i32/i64/u32/u64/bool) plus String. A schema field outside that
+// set -- here an f64 -- rejects the encode call with a clear diagnostic
+// instead of silently mis-encoding.
 
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data LabelMessage {
+wire data SampleMessage {
     0: count: u32;
-    1: label: String;
+    1: ratio: f64;
 }
 
-data LabelSample {
+data SampleValue {
     count: u32;
-    label: String;
+    ratio: f64;
 }
 
 data Main {
@@ -24,9 +24,9 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let msg: LabelSample = LabelSample { count: 1, label: "x" };
+    let msg: SampleValue = SampleValue { count: 1, ratio: 0.5 };
 
-    LabelMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    SampleMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
 
     self.console.exit_process(70);
 }

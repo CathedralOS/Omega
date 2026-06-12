@@ -175,6 +175,26 @@ pub enum AbstractOperationKind {
         written_region: RuntimeStorageRegion,
         written_offset: usize,
     },
+    /// compact_binary v0 wire framing (chapter 20): append a RUNTIME `String`
+    /// field -- the value is a `{ptr @ +0, len @ +8}` text descriptor at the
+    /// source place -- as the len LEB128 varint followed by len raw bytes
+    /// copied from ptr. The length varint is capacity-covered by validation's
+    /// worst-case budget (String fields encode LAST); the byte-copy is the one
+    /// append whose size is runtime-unbounded, so it alone bounds every store
+    /// against `out_length` (the buffer's compile-time byte length) and DROPS
+    /// content past capacity -- the cursor stops at `out_length`, never past.
+    AppendWireTextBytes {
+        source_region: RuntimeStorageRegion,
+        /// Byte offset of the text descriptor (ptr at +0, len at +8).
+        source_offset: usize,
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        /// Compile-time byte length of the encode buffer (`[u8; N]`); every
+        /// byte-copy store is bounds-checked against it.
+        out_length: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+    },
     /// compact_binary v0 wire decoding (chapter 20, wire stage 2b): expect one
     /// COMPILE-TIME framing byte (era and field-tag varint bytes are known
     /// when the schema is) at the stored cursor. The cursor lives in the

@@ -120,6 +120,35 @@ impl WireScalarEncoding {
     }
 }
 
+/// How one schema field rides compact_binary v0: integer scalars LEB128 as
+/// before (wire stage 2a), and `String` fields ride as a LENGTH varint (byte
+/// count) followed by the raw UTF-8 bytes -- no NUL terminator, no padding.
+/// The vocabulary is shared by validation, instruction selection, and the
+/// reference interpreter so all three agree byte-for-byte.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WireFieldEncoding {
+    Scalar(WireScalarEncoding),
+    /// A `String` field: the runtime value is a `{ptr, len}` text descriptor,
+    /// encoded as the len varint then len raw bytes read through ptr.
+    /// ENCODE-only today -- decoding would need a storage decision for the
+    /// produced descriptor (see chapter 20).
+    Text,
+}
+
+impl WireFieldEncoding {
+    /// The encode-side field set: the stage 2a scalars plus `String`.
+    pub fn for_primitive(primitive: crate::types::PrimitiveType) -> Option<Self> {
+        if primitive == crate::types::PrimitiveType::String {
+            return Some(Self::Text);
+        }
+        WireScalarEncoding::for_primitive(primitive).map(Self::Scalar)
+    }
+}
+
+/// The most LEB128 bytes a text field's LENGTH varint can need: the length
+/// half of a text descriptor is one 64-bit pointer wide, so ten groups.
+pub const WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH: usize = 10;
+
 /// The unsigned LEB128 byte sequence for a compile-time value (era
 /// discriminators and field-number tags are known at compile time).
 pub fn wire_varint_bytes(mut value: u64) -> Vec<u8> {

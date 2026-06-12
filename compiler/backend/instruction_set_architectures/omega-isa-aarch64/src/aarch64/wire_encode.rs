@@ -8,7 +8,8 @@
 //!
 //! Register use (the standard scratch family; x18 stays untouched):
 //!   x16 = moving out pointer, x17 = cursor, x19 = byte/zigzag scratch,
-//!   x20 = written page, x26 = runtime scalar value.
+//!   x20 = written page, x26 = runtime scalar value; the text append also
+//!   uses x22 = remaining copy count, x24 = out capacity, x25 = source ptr.
 //!
 //! THE WIDTHS INVARIANT: every byte appended here must move
 //! `append_wire_literal_byte_width` / `append_wire_scalar_varint_width` (and
@@ -20,14 +21,17 @@ use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::RuntimeStorageRegion;
 
 use super::primitives::{
-    append_add_x_constant, encode_add_page_offset_placeholder, encode_add_x_immediate,
-    encode_add_x_register, encode_adrp_placeholder, encode_and_x_immediate_low_seven,
-    encode_asr_x_immediate, encode_cbz_x, encode_eor_x_register, encode_lsr_x_immediate,
+    append_add_x_constant, append_unsigned_immediate, encode_add_page_offset_placeholder,
+    encode_add_x_immediate, encode_add_x_register, encode_adrp_placeholder,
+    encode_and_x_immediate_low_seven, encode_asr_x_immediate, encode_cbz_x,
+    encode_compare_x_register, encode_conditional_branch_higher_or_same, encode_eor_x_register,
+    encode_load_byte_w_post_increment, encode_lsr_x_immediate, encode_move_x_register,
     encode_movz_w, encode_orr_x_immediate_bit_seven, encode_sign_extend_word_to_x,
-    encode_store_byte_w_post_increment, encode_unconditional_branch,
+    encode_store_byte_w_post_increment, encode_subs_x_immediate, encode_unconditional_branch,
 };
 use super::widths::{
-    append_wire_literal_byte_width, append_wire_scalar_varint_width, wire_varint_emit_loop_width,
+    append_wire_literal_byte_width, append_wire_scalar_varint_width, append_wire_text_bytes_width,
+    wire_text_copy_loop_width, wire_varint_emit_loop_width,
 };
 
 /// Shared prologue: x16 = out base + out offset + cursor, x17 = cursor,
@@ -177,6 +181,104 @@ pub fn encode_append_wire_scalar_varint(
             out_offset,
             written_offset
         )
+    );
+    Ok(bytes)
+}
+
+/// Append a runtime `String` field: the source place holds a `{ptr @ +0,
+/// len @ +8}` text descriptor; emit len as an unsigned LEB128 varint, then
+/// copy len raw bytes from ptr. The length varint reuses the scalar emit loop
+/// (validation's worst-case budget covers its ten bytes -- String fields
+/// encode LAST). The byte-copy is the one append whose size is
+/// runtime-unbounded, so every copy store is bounds-checked against
+/// `out_length` and content past capacity is DROPPED: the cursor stops at
+/// `out_length`, never past it.
+pub fn encode_append_wire_text_bytes(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    // The region only picks the relocation symbol; the encoded shape is
+    // identical for machine and frame sources.
+    let _ = source_region;
+
+    let mut bytes = Vec::with_capacity(append_wire_text_bytes_width(
+        source_offset,
+        out_offset,
+        out_length,
+        written_offset,
+    ));
+    append_wire_append_prologue(&mut bytes, out_offset, written_offset)?;
+
+    // x26 = the descriptor page, then x25 = ptr (+0) and x26 = len (+8); the
+    // page register is consumed by the len load LAST.
+    bytes.extend(encode_adrp_placeholder(26));
+    bytes.extend(encode_add_page_offset_placeholder(26));
+    super::runtime_storage::append_load_data_from_x_offset(
+        &mut bytes,
+        25,
+        26,
+        source_offset,
+        8,
+        19,
+    )?;
+    super::runtime_storage::append_load_data_from_x_offset(
+        &mut bytes,
+        26,
+        26,
+        source_offset + 8,
+        8,
+        19,
+    )?;
+    // x22 keeps the byte count for the copy loop; the emit loop consumes x26.
+    bytes.extend(encode_move_x_register(22, 26));
+
+    // The same fixed nine-instruction LEB128 emit loop as the scalar varint
+    // (see `encode_append_wire_scalar_varint`), here emitting the LENGTH.
+    bytes.extend(encode_and_x_immediate_low_seven(19, 26));
+    bytes.extend(encode_lsr_x_immediate(26, 26, 7));
+    bytes.extend(encode_cbz_x(26, 20)?);
+    bytes.extend(encode_orr_x_immediate_bit_seven(19, 19));
+    bytes.extend(encode_store_byte_w_post_increment(19, 16, 1)?);
+    bytes.extend(encode_add_x_immediate(17, 17, 1)?);
+    bytes.extend(encode_unconditional_branch(-24)?);
+    bytes.extend(encode_store_byte_w_post_increment(19, 16, 1)?);
+    bytes.extend(encode_add_x_immediate(17, 17, 1)?);
+    debug_assert_eq!(wire_varint_emit_loop_width(), 36);
+
+    // x24 = the out buffer's compile-time capacity, bounding every copy store.
+    append_unsigned_immediate(&mut bytes, 24, out_length as u64);
+
+    // Bounded byte-copy loop (fixed 32 bytes, `wire_text_copy_loop_width`):
+    //   copy: cbz  x22, done       (+32: all bytes copied)
+    //         cmp  x17, x24
+    //         b.hs done            (+24: capacity full -- drop the rest)
+    //         ldrb w19, [x25], #1
+    //         strb w19, [x16], #1
+    //         add  x17, x17, #1
+    //         subs x22, x22, #1
+    //         b    copy            (-28)
+    //   done:
+    bytes.extend(encode_cbz_x(22, 32)?);
+    bytes.extend(encode_compare_x_register(17, 24));
+    bytes.extend(encode_conditional_branch_higher_or_same(24)?);
+    bytes.extend(encode_load_byte_w_post_increment(19, 25, 1)?);
+    bytes.extend(encode_store_byte_w_post_increment(19, 16, 1)?);
+    bytes.extend(encode_add_x_immediate(17, 17, 1)?);
+    bytes.extend(encode_subs_x_immediate(22, 22, 1)?);
+    bytes.extend(encode_unconditional_branch(-28)?);
+    debug_assert_eq!(
+        wire_text_copy_loop_width(),
+        32,
+        "the copy loop above is eight fixed instructions"
+    );
+
+    append_wire_append_epilogue(&mut bytes, written_offset)?;
+    debug_assert_eq!(
+        bytes.len(),
+        append_wire_text_bytes_width(source_offset, out_offset, out_length, written_offset)
     );
     Ok(bytes)
 }

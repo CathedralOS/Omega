@@ -2150,7 +2150,9 @@ pub fn encode_runtime_text_line_read(
 // holds the running byte count, so every append loads it, stores through a
 // moving pointer (`out base + out offset + cursor`), and writes the advanced
 // cursor back. Register use: r15 = moving out pointer, r14 = written page,
-// r10 = cursor, rax = runtime scalar, r11 = byte/zigzag scratch.
+// r10 = cursor, rax = runtime scalar, r11 = byte/zigzag scratch; the text
+// append also uses r9 = source ptr and rcx = remaining copy count (r12 is the
+// dispatch-state register and stays untouched).
 //
 // THE WIDTHS INVARIANT: every emitted byte must move the `_width` functions
 // and the `wire_append_*_offset` relocation offsets below in exact lockstep,
@@ -2322,13 +2324,137 @@ pub fn encode_append_wire_scalar_varint(
     Ok(bytes)
 }
 
+/// The fixed bounds-checked byte-copy loop in `encode_append_wire_text_bytes`.
+fn wire_text_copy_loop_width() -> usize {
+    35
+}
+
+/// The compile-time out-buffer capacity as a `cmp r10, imm32` operand.
+fn wire_encode_capacity_imm32(out_length: usize) -> Result<i32, Diagnostic> {
+    i32::try_from(out_length).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 wire encoder cannot bounds-check a {out_length}-byte buffer yet"
+        ))
+    })
+}
+
+pub fn append_wire_text_bytes_width(
+    _source_offset: usize,
+    _out_offset: usize,
+    _out_length: usize,
+    _written_offset: usize,
+) -> usize {
+    // Prologue + source imm64 (10) + ptr load (7) + len load (7) + count copy
+    // (3) + length-varint emit loop + dest-pointer re-sync inc (3) + bounded
+    // copy loop + cursor store (7).
+    wire_append_prologue_width()
+        + 10
+        + 7
+        + 7
+        + 3
+        + wire_varint_emit_loop_width()
+        + 3
+        + wire_text_copy_loop_width()
+        + 7
+}
+
+/// Append a runtime `String` field: the source place holds a `{ptr @ +0,
+/// len @ +8}` text descriptor; emit len as an unsigned LEB128 varint, then
+/// copy len raw bytes from ptr. The length varint reuses the scalar emit loop
+/// (validation's worst-case budget covers its ten bytes -- String fields
+/// encode LAST). The byte-copy is the one append whose size is
+/// runtime-unbounded, so every copy store is bounds-checked against
+/// `out_length` and content past capacity is DROPPED: the cursor stops at
+/// `out_length`, never past it.
+pub fn encode_append_wire_text_bytes(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    // The region only picks the relocation symbol; the encoded shape is
+    // identical for machine and frame sources.
+    let _ = source_region;
+
+    let mut bytes = Vec::with_capacity(append_wire_text_bytes_width(
+        source_offset,
+        out_offset,
+        out_length,
+        written_offset,
+    ));
+    append_wire_append_prologue(&mut bytes, out_offset, written_offset)?;
+
+    // r11 = source base (imm64 relocated at +37), r9 = ptr, rax = len.
+    append_mov_reg_imm64(&mut bytes, Reg64::R11, 0);
+    bytes.extend([0x4d, 0x8b, 0x8b]); // mov r9, [r11+disp32]
+    bytes.extend(disp32(source_offset)?.to_le_bytes());
+    bytes.extend([0x49, 0x8b, 0x83]); // mov rax, [r11+disp32]
+    bytes.extend(disp32(source_offset + 8)?.to_le_bytes());
+    // rcx keeps the byte count for the copy loop; the emit loop consumes rax.
+    bytes.extend([0x48, 0x89, 0xc1]); // mov rcx, rax
+
+    // The same fixed 40-byte LEB128 emit loop as the scalar varint (see
+    // `encode_append_wire_scalar_varint`), here emitting the LENGTH.
+    bytes.extend([0x49, 0x89, 0xc3]); // mov r11, rax
+    bytes.extend([0x49, 0x83, 0xe3, 0x7f]); // and r11, 0x7f
+    bytes.extend([0x48, 0xc1, 0xe8, 0x07]); // shr rax, 7
+    bytes.extend([0x48, 0x85, 0xc0]); // test rax, rax
+    bytes.extend([0x74, 0x12]); // je +18 -> last
+    bytes.extend([0x49, 0x81, 0xcb, 0x80, 0x00, 0x00, 0x00]); // or r11, 0x80
+    bytes.extend([0x45, 0x88, 0x1f]); // mov [r15], r11b
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+    bytes.extend([0xeb, 0xde]); // jmp -34 -> loop
+    bytes.extend([0x45, 0x88, 0x1f]); // mov [r15], r11b
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+    // The emit loop's final store does not advance the dest pointer (the
+    // scalar append ends there); re-sync r15 with the cursor for the copy.
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
+
+    // Bounded byte-copy loop (fixed 35 bytes, `wire_text_copy_loop_width`):
+    //   copy: test rcx, rcx
+    //         je   done            (+30: all bytes copied)
+    //         cmp  r10, imm32(N)
+    //         jae  done            (+21: capacity full -- drop the rest)
+    //         movzx r11d, byte [r9]
+    //         inc  r9
+    //         mov  [r15], r11b
+    //         inc  r15
+    //         inc  r10
+    //         dec  rcx
+    //         jmp  copy            (-35)
+    //   done:
+    bytes.extend([0x48, 0x85, 0xc9]); // test rcx, rcx
+    bytes.extend([0x74, 0x1e]); // je +30 -> done
+    bytes.extend([0x49, 0x81, 0xfa]); // cmp r10, imm32
+    bytes.extend(wire_encode_capacity_imm32(out_length)?.to_le_bytes());
+    bytes.extend([0x73, 0x15]); // jae +21 -> done
+    bytes.extend([0x45, 0x0f, 0xb6, 0x19]); // movzx r11d, byte [r9]
+    bytes.extend([0x49, 0xff, 0xc1]); // inc r9
+    bytes.extend([0x45, 0x88, 0x1f]); // mov [r15], r11b
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+    bytes.extend([0x48, 0xff, 0xc9]); // dec rcx
+    bytes.extend([0xeb, 0xdd]); // jmp -35 -> copy
+
+    append_store_r10_to_r14(&mut bytes, written_offset, 8)?;
+    debug_assert_eq!(
+        bytes.len(),
+        append_wire_text_bytes_width(source_offset, out_offset, out_length, written_offset)
+    );
+    Ok(bytes)
+}
+
 /// Byte offset of the WRITTEN page mov inside both wire appends (the
 /// relocation planner adds the +2 imm64 offset itself).
 pub fn wire_append_written_page_offset(_out_offset: usize) -> usize {
     17
 }
 
-/// Byte offset of the SOURCE page mov inside the varint append.
+/// Byte offset of the SOURCE page mov inside the varint append AND the
+/// text-bytes append (both materialize the source page right after the shared
+/// prologue).
 pub fn wire_append_varint_source_page_offset(
     _out_offset: usize,
     _written_offset: usize,
