@@ -7277,6 +7277,49 @@ fn runtime_threaded_mut_arg_interrupt_soak_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_nested_value_call_caller_local_guard_exit_canary_runs() {
+    // A guarded transition on a value call whose NESTED inline value call
+    // returns a comparison against the CALLER's fold-only local (`chance`'s
+    // `roll < numerator` with `numerator` bound to should_carve's slot-less
+    // local `chance`). The leaf context could not resolve the name as a place,
+    // so the call-result write was silently dropped: the guard byte stayed 0
+    // and the TRUE arm never dispatched -- the dungeon's side rooms R05/R06
+    // were never carved, rendering empty description lines.
+    let canary = pass_canary("dungeon/runtime_nested_value_call_caller_local_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-value-call-caller-local-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested value-call caller-local guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested value-call caller-local guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the nested chance comparison to reach its call-result slot so \
+         the TRUE transition arm dispatches (exit 70, interpreter semantics; \
+         exit 71 = the result write was dropped and the guard byte read 0), \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[cfg(not(windows))]
 #[test]
 fn native_dungeon_crawler_runs_stable_scripted_loop() {
@@ -7304,7 +7347,9 @@ fn native_dungeon_crawler_runs_stable_scripted_loop() {
         .as_mut()
         .expect("stdin should be piped")
         .write_all(
-            b"look\nnorth\nnorth\nuse\nlook\nnorth\nfight\nlook\nnorth\nuse\nlook\nsouth\nsouth\nsouth\neast\nuse\nlook\ninv\nwest\nsouth\nhelp\nexit\n",
+            // The detour at R02 (`west` into R06, `east` back) visits the second
+            // side room so its data-driven description line is exercised too.
+            b"look\nnorth\nnorth\nuse\nlook\nnorth\nfight\nlook\nnorth\nuse\nlook\nsouth\nsouth\nwest\neast\nsouth\neast\nuse\nlook\ninv\nwest\nsouth\nhelp\nexit\n",
         )
         .expect("scripted dungeon input should be written");
     let output = child
@@ -7333,18 +7378,25 @@ fn native_dungeon_crawler_runs_stable_scripted_loop() {
     assert!(stdout.contains("The enemy collapses. You find a little gold."));
     assert!(stdout.contains("The fountain heals your wounds."));
     assert!(stdout.contains("You collect the loose gold."));
-    // The east side chamber (R05) is identified by its gold-cache event line and
-    // its unique exit list. The seed-7 RNG streams now MATCH (the one-draw
-    // residual was the signed-modulo call argument, fixed and pinned by
-    // arithmetic/runtime_unsigned_modulo_call_argument_exit): every room's
-    // EVENT line agrees with the interpreter on a full eight-room tour. R05's
-    // data-driven DESCRIPTION is still not asserted, but for a different,
-    // RNG-independent reason: `room.description = self.room_description(...)`
-    // is lost natively for the SIDE rooms carved in should_carve-guarded branch
-    // targets (R05/R06 render an EMPTY description line; depth-derived text, so
-    // RNG plays no part) -- see the TASKS.md backend-residue bullet.
+    // The side rooms' data-driven DESCRIPTIONS are asserted with their adjacent
+    // unique lines so the match pins the right room view. These were the last
+    // native/interpreter divergence: the side rooms were never CARVED natively
+    // because `should_carve`'s nested `chance` value (`roll < numerator`, with
+    // `numerator` bound to the caller's slot-less local `chance`) lost its
+    // call-result write, so the carve transition's TRUE arm never fired --
+    // fixed by resolving caller-local initializer names in leaf terminal value
+    // writes, pinned by dungeon/runtime_nested_value_call_caller_local_guard_exit.
+    // With this the scripted tour is byte-for-byte the interpreter's output.
+    assert!(stdout.contains(
+        "A shallow limestone room with fresh claw marks.\nLoose gold glitters in the dust."
+    ));
     assert!(stdout.contains("Loose gold glitters in the dust."));
     assert!(stdout.contains("[Paths] west"));
+    // R06 (the west side chamber off R02): depth-3 description, quiet event,
+    // and its unique single east exit.
+    assert!(stdout.contains(
+        "A winding branch room where the walls sweat mineral dust.\nThe room is quiet.\n[Paths] east"
+    ));
     assert!(stdout.contains("Inv: 30 gold. Purse heavy, charm secured."));
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -7392,10 +7444,16 @@ fn native_dungeon_direct_movement_dispatch_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    // R05 (the east side chamber) is identified by its gold-cache event line and
-    // its unique "[Paths] west" exit list -- both rendered identically by the
-    // interpreter oracle on this script. (The old hardcoded per-cell description
-    // was removed when the room view became data-driven.)
+    // R05 (the east side chamber) is identified by its data-driven description
+    // followed by its gold-cache event line and its unique "[Paths] west" exit
+    // list -- all rendered identically by the interpreter oracle on this script.
+    assert!(
+        stdout.contains(
+            "A shallow limestone room with fresh claw marks.\nLoose gold glitters in the dust."
+        ),
+        "expected the side chamber's depth-derived description right before its gold-cache event line; stdout was:\n{}",
+        stdout
+    );
     assert!(
         stdout.contains("Loose gold glitters in the dust."),
         "expected direct movement dispatch sample to reach the side chamber after 'north' then 'east'; stdout was:\n{}",
@@ -7739,6 +7797,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dungeon/runtime_ordered_room_dispatch_loop_exit",
     "dungeon/runtime_ordered_room_dispatch_real_show_states_exit",
     "dungeon/runtime_guarded_inline_leaf_arm_skip_exit",
+    "dungeon/runtime_nested_value_call_caller_local_guard_exit",
     "dungeon/runtime_threaded_mut_arg_interrupt_soak_exit",
     "calls/runtime_contained_call_value",
     "rewards/runtime_contained_reward_table_roll_item",
