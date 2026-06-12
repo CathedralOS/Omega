@@ -44,16 +44,23 @@ mod tests {
         let assigned_target_operations = AssignedTargetOperationPlan::default();
         let host_abi = build_host_abi_plan(target);
         let data = omega_target_operations::TargetDataPlan::default();
-        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 1);
-        let instructions =
-            machine_instructions
-                .code
-                .instructions
-                .insert_many([MachineInstruction {
-                    selected_instruction_index: 7,
-                    source_kind: SelectedInstructionKind::EnterFunction,
-                    kind: MachineInstructionKind::NoOp,
-                }]);
+        let mut machine_instructions = MachineInstructionPlan::with_capacity(target, 1, 2);
+        // EnterFunction is deliberately zero-width on x86_64 (the backend
+        // manages frames without a prologue), so the function also needs a
+        // LeaveFunction -- which encodes a real `ret` on every architecture --
+        // for the encoded byte count to be observable on any host.
+        let instructions = machine_instructions.code.instructions.insert_many([
+            MachineInstruction {
+                selected_instruction_index: 7,
+                source_kind: SelectedInstructionKind::EnterFunction,
+                kind: MachineInstructionKind::NoOp,
+            },
+            MachineInstruction {
+                selected_instruction_index: 8,
+                source_kind: SelectedInstructionKind::LeaveFunction,
+                kind: MachineInstructionKind::NoOp,
+            },
+        ]);
         machine_instructions
             .code
             .functions
@@ -137,7 +144,7 @@ mod tests {
             encoded.semantics.ownership.moves.len(),
             machine_instructions.semantics.ownership.moves.len()
         );
-        assert_eq!(encoded.code.instructions.len(), 1);
+        assert_eq!(encoded.code.instructions.len(), 2);
         assert!(encoded.code.byte_count > 0);
         assert_ne!(instructions, HandleSpan::empty());
     }
