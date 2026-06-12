@@ -1,5 +1,5 @@
-use crate::value::{Cell, Value};
 use crate::InterpretOutcome;
+use crate::value::{Cell, Value};
 use omega_checked_trees::CheckedTrees;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::data::{DataDefinition, DataMember};
@@ -281,13 +281,19 @@ impl<'program> Evaluator<'program> {
         Ok(self.default_for_type(type_reference))
     }
 
-    /// The first case of an enum-shaped declared type (the ZII zero case),
-    /// with its payload field declarations.
+    /// The first case of a case-bearing declared type (the ZII zero case),
+    /// with the field declarations a zeroed value carries: the COMMON fields
+    /// (mixed shapes -- present in every case) followed by the zero case's
+    /// payload fields.
     fn enum_zero_case(
         &self,
         type_reference: omega_typed_trees::types::TypeReferenceHandle,
     ) -> Option<(String, Vec<omega_typed_trees::data::DataField>)> {
-        if self.program.primitive_type_reference(type_reference).is_some() {
+        if self
+            .program
+            .primitive_type_reference(type_reference)
+            .is_some()
+        {
             return None;
         }
         let symbol = self.program.type_reference_symbol(type_reference);
@@ -299,18 +305,20 @@ impl<'program> Evaluator<'program> {
             .data_definitions()
             .iter()
             .find(|data| data.symbol == symbol)?;
-        let first_variant = self
-            .program
-            .data_members(data)
+        let members = self.program.data_members(data);
+        let first_variant = members.iter().find_map(|member| match member {
+            DataMember::Variant(variant) => Some(variant),
+            _ => None,
+        })?;
+        let mut fields: Vec<omega_typed_trees::data::DataField> = members
             .iter()
-            .find_map(|member| match member {
-                DataMember::Variant(variant) => Some(variant),
+            .filter_map(|member| match member {
+                DataMember::Field(field) => Some(field.clone()),
                 _ => None,
-            })?;
-        Some((
-            first_variant.name.as_str().to_owned(),
-            self.program.data_payload_fields(first_variant).to_vec(),
-        ))
+            })
+            .collect();
+        fields.extend(self.program.data_payload_fields(first_variant).to_vec());
+        Some((first_variant.name.as_str().to_owned(), fields))
     }
 
     /// If a field's declared type is a (non-primitive) `data` record, return it.
@@ -321,7 +329,11 @@ impl<'program> Evaluator<'program> {
         if !type_reference.is_valid() {
             return None;
         }
-        if self.program.primitive_type_reference(type_reference).is_some() {
+        if self
+            .program
+            .primitive_type_reference(type_reference)
+            .is_some()
+        {
             return None;
         }
         let symbol = self.program.type_reference_symbol(type_reference);
@@ -333,12 +345,15 @@ impl<'program> Evaluator<'program> {
             .iter()
             .find(|data| data.symbol == symbol)
             .filter(|data| {
-                // Records instantiate as nested structs; enums don't. EMPTY records (e.g.
-                // `data Circle {}`) must still instantiate as a typed struct -- the type
-                // identity is what a `dyn Trait` receiver dispatches on at runtime.
+                // Records instantiate as nested structs; case-bearing data (sums
+                // AND mixed shapes) doesn't -- it zero-initializes to the first
+                // case via `enum_zero_case`. EMPTY records (e.g. `data Circle {}`)
+                // must still instantiate as a typed struct -- the type identity
+                // is what a `dyn Trait` receiver dispatches on at runtime.
                 !matches!(
                     DataDefinition::shape_kind_from_members(self.program.data_members(data)),
                     omega_typed_trees::data::DataShapeKind::Enum
+                        | omega_typed_trees::data::DataShapeKind::Mixed
                 )
             })
     }
@@ -413,7 +428,11 @@ impl<'program> Evaluator<'program> {
             // value as its result (the backend's value-state form).
             let mut next: Option<TransitionDecision> = None;
             let mut tail_value: Option<Value> = None;
-            for statement in self.program.statement_table.statements(state.statement_nodes) {
+            for statement in self
+                .program
+                .statement_table
+                .statements(state.statement_nodes)
+            {
                 let statement = statement.clone();
                 match &statement {
                     StatementNode::Transition(transition) => {
@@ -535,8 +554,13 @@ impl<'program> Evaluator<'program> {
                 };
                 // Wrap an integer initializer to the local's declared width (the native
                 // frame-slot store truncates the same way).
-                let value = match (&value, self.program.primitive_type_reference(local.type_reference)) {
-                    (Value::Int(raw), Some(primitive)) => Value::Int(wrap_to_width(*raw, primitive)),
+                let value = match (
+                    &value,
+                    self.program.primitive_type_reference(local.type_reference),
+                ) {
+                    (Value::Int(raw), Some(primitive)) => {
+                        Value::Int(wrap_to_width(*raw, primitive))
+                    }
                     _ => value,
                 };
                 // A `let` introduces a fresh local cell, bound through the frame's
@@ -614,17 +638,16 @@ impl<'program> Evaluator<'program> {
                 // machine's self-recursion (`-> count(...)` inside top-level
                 // `machine count` names the MACHINE, whose body state is the
                 // generated `entry`).
-                let (machine, state_name) =
-                    match self.machine_of_state_named(&state_name, frame) {
-                        Some(machine) => (machine, state_name),
-                        None => self
-                            .free_machine_self_recursion_target(&state_name, frame)
-                            .ok_or_else(|| {
-                                Halt::Unsupported(format!(
-                                    "transition target `{state_name}` not found in current machine"
-                                ))
-                            })?,
-                    };
+                let (machine, state_name) = match self.machine_of_state_named(&state_name, frame) {
+                    Some(machine) => (machine, state_name),
+                    None => self
+                        .free_machine_self_recursion_target(&state_name, frame)
+                        .ok_or_else(|| {
+                            Halt::Unsupported(format!(
+                                "transition target `{state_name}` not found in current machine"
+                            ))
+                        })?,
+                };
 
                 let mut args = Vec::new();
                 for argument in self.program.statement_table.expression_handles(*arguments) {
@@ -696,10 +719,15 @@ impl<'program> Evaluator<'program> {
         }
 
         let target = call.target.as_str();
-        let (machine, state_name, instance) = self.resolve_state_call(call.receiver, target, frame)?;
+        let (machine, state_name, instance) =
+            self.resolve_state_call(call.receiver, target, frame)?;
 
         let mut args = Vec::new();
-        for argument in self.program.statement_table.expression_handles(call.arguments) {
+        for argument in self
+            .program
+            .statement_table
+            .expression_handles(call.arguments)
+        {
             args.push(self.eval_argument(*argument, frame)?);
         }
 
@@ -729,7 +757,11 @@ impl<'program> Evaluator<'program> {
         // (2) Sibling state of the current machine.
         if let Some(machine) = self.current_machine(frame) {
             if self.find_state(machine, target).is_some() {
-                return Ok((machine.clone(), target.to_owned(), Rc::clone(&frame.self_cell)));
+                return Ok((
+                    machine.clone(),
+                    target.to_owned(),
+                    Rc::clone(&frame.self_cell),
+                ));
             }
         }
 
@@ -807,7 +839,11 @@ impl<'program> Evaluator<'program> {
             _ => return None,
         };
         // The group is the leading segment of the type name (e.g. `Circle` from `Circle`).
-        let group = type_name.split("::").next().unwrap_or(&type_name).to_owned();
+        let group = type_name
+            .split("::")
+            .next()
+            .unwrap_or(&type_name)
+            .to_owned();
         for machine in self.program.machines() {
             if self.find_state(machine, target).is_none() {
                 continue;
@@ -987,7 +1023,10 @@ impl<'program> Evaluator<'program> {
         }
         fields.sort_by_key(|(_, number, _)| *number);
 
-        let arguments = self.program.statement_table.expression_handles(call.arguments);
+        let arguments = self
+            .program
+            .statement_table
+            .expression_handles(call.arguments);
         let [value_argument, out_argument, written_argument] = arguments else {
             return Err(Halt::Trap(format!(
                 "`{schema_name}::encode_wire` expects 3 arguments, got {}",
@@ -1023,14 +1062,11 @@ impl<'program> Evaluator<'program> {
                     )));
                 }
             };
-            let raw = raw
-                .borrow()
-                .as_int()
-                .ok_or_else(|| {
-                    Halt::Trap(format!(
-                        "`{schema_name}::encode_wire` field `{field_name}` is not a scalar value"
-                    ))
-                })?;
+            let raw = raw.borrow().as_int().ok_or_else(|| {
+                Halt::Trap(format!(
+                    "`{schema_name}::encode_wire` field `{field_name}` is not a scalar value"
+                ))
+            })?;
 
             // The same widths/signedness the native encoders apply: load at
             // the source width (zero- or sign-extending), zigzag signed
@@ -1043,7 +1079,8 @@ impl<'program> Evaluator<'program> {
                 (8, true) => zigzag64(raw),
                 _ => {
                     return Err(Halt::Unsupported(format!(
-                        "wire scalar of {} bytes", encoding.byte_size
+                        "wire scalar of {} bytes",
+                        encoding.byte_size
                     )));
                 }
             };
@@ -1229,13 +1266,9 @@ impl<'program> Evaluator<'program> {
 
     fn is_boundary_trait_symbol(&self, symbol: SymbolHandle) -> bool {
         symbol.is_valid()
-            && self
-                .program
-                .traits()
-                .iter()
-                .any(|trait_definition| {
-                    trait_definition.is_boundary && trait_definition.symbol == symbol
-                })
+            && self.program.traits().iter().any(|trait_definition| {
+                trait_definition.is_boundary && trait_definition.symbol == symbol
+            })
     }
 
     // ---- expressions --------------------------------------------------------
@@ -1296,8 +1329,11 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Indexed(indexed) => {
                 // A range index `arr[start..end]` produces a SUBSLICE view sharing the
                 // collection's element cells; a scalar index reads one element.
-                if let ExpressionNode::Range(range) =
-                    self.program.expression_table.expression(indexed.index).clone()
+                if let ExpressionNode::Range(range) = self
+                    .program
+                    .expression_table
+                    .expression(indexed.index)
+                    .clone()
                 {
                     return self.eval_subslice(indexed.collection, &range, frame);
                 }
@@ -1386,7 +1422,11 @@ impl<'program> Evaluator<'program> {
         let (machine, entry_state, instance) =
             self.resolve_value_call_target(call, target, frame)?;
         let mut args = Vec::new();
-        for argument in self.program.expression_table.expression_handles(call.arguments) {
+        for argument in self
+            .program
+            .expression_table
+            .expression_handles(call.arguments)
+        {
             args.push(self.eval_call_expression_argument(*argument, frame)?);
         }
         // Suspend the guard flag while the callee RUNS: distinct same-shaped calls
@@ -1431,7 +1471,11 @@ impl<'program> Evaluator<'program> {
         // (2) Sibling state of the current machine.
         if let Some(machine) = self.current_machine(frame) {
             if self.find_state(machine, target).is_some() {
-                return Ok((machine.clone(), target.to_owned(), Rc::clone(&frame.self_cell)));
+                return Ok((
+                    machine.clone(),
+                    target.to_owned(),
+                    Rc::clone(&frame.self_cell),
+                ));
             }
         }
 
@@ -1458,7 +1502,10 @@ impl<'program> Evaluator<'program> {
     fn eval_name(&mut self, path: &TableNamePath, frame: &Frame) -> EvalResult<Value> {
         // The boolean keywords `true`/`false` can arrive as single-member name paths in
         // value/transition position (the parser does not always fold them to a literal).
-        let members = self.program.expression_table.name_path_members(path.members);
+        let members = self
+            .program
+            .expression_table
+            .name_path_members(path.members);
         if members.len() == 1 {
             match members[0].as_str() {
                 "true" => return Ok(Value::Bool(true)),
@@ -1493,9 +1540,26 @@ impl<'program> Evaluator<'program> {
         let is_variant = self.program.data_members(data).iter().any(|member| {
             matches!(member, DataMember::Variant(variant) if variant.name.as_str() == variant_name)
         });
-        is_variant.then(|| Value::Enum {
-            variant_name: variant_name.to_owned(),
-            payload: Vec::new(),
+        is_variant.then(|| {
+            // MIXED shapes: a bare payload-less case still carries the COMMON
+            // fields, zero-initialized (scalar-only by validation, so the
+            // primitive default is the zero value). Pure sums add nothing.
+            let common: Vec<(String, Cell)> = self
+                .program
+                .data_members(data)
+                .iter()
+                .filter_map(|member| match member {
+                    DataMember::Field(field) => Some((
+                        field.name.as_str().to_owned(),
+                        self.default_for_type(field.type_reference).cell(),
+                    )),
+                    _ => None,
+                })
+                .collect();
+            Value::Enum {
+                variant_name: variant_name.to_owned(),
+                payload: common,
+            }
         })
     }
 
@@ -1778,18 +1842,33 @@ impl<'program> Evaluator<'program> {
         let Some(data) = self.find_data_by_name(type_name) else {
             return trap(format!("unknown data type `{type_name}` in case literal"));
         };
-        let Some(variant) = self.program.data_members(data).iter().find_map(|member| {
-            match member {
-                DataMember::Variant(variant) if variant.name.as_str() == case_name => {
-                    Some(variant)
-                }
-                _ => None,
-            }
-        }) else {
+        let Some(variant) =
+            self.program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Variant(variant) if variant.name.as_str() == case_name => {
+                        Some(variant)
+                    }
+                    _ => None,
+                })
+        else {
             return trap(format!("`{type_name}` has no case `{case_name}`"));
         };
 
         let mut payload = Vec::new();
+        // MIXED shapes: the COMMON fields exist in every case and come first.
+        // Case construction ZERO-initializes them (frozen decision 7's rule;
+        // never the declared default -- validation rejects defaults on mixed
+        // common fields), unless the literal names them below.
+        for member in self.program.data_members(data) {
+            let DataMember::Field(common_field) = member else {
+                continue;
+            };
+            let name = common_field.name.as_str().to_owned();
+            let value = self.default_value_for_type(common_field.type_reference)?;
+            payload.push((name, value.cell()));
+        }
         for field in self.program.data_payload_fields(variant) {
             let name = field.name.as_str().to_owned();
             let value = self.default_value_for_type(field.type_reference)?;
@@ -1819,7 +1898,9 @@ impl<'program> Evaluator<'program> {
         let container = self.deref_cell(Rc::clone(container));
         let borrowed = container.borrow();
         match &*borrowed {
-            Value::Struct { fields, type_name, .. } => fields
+            Value::Struct {
+                fields, type_name, ..
+            } => fields
                 .get(field)
                 .cloned()
                 .ok_or_else(|| Halt::Trap(format!("no field `{field}` on `{type_name}`"))),
@@ -1838,7 +1919,9 @@ impl<'program> Evaluator<'program> {
                     ))
                 }),
             // `slice.len` / `array.len` (member form, no parens) -> a fresh length cell.
-            Value::Array(elements) if field == "len" => Ok(Value::Int(elements.len() as i64).cell()),
+            Value::Array(elements) if field == "len" => {
+                Ok(Value::Int(elements.len() as i64).cell())
+            }
             other => trap(format!("cannot read field `{field}` of {other:?}")),
         }
     }
@@ -1962,12 +2045,7 @@ impl<'program> Evaluator<'program> {
         self.eval_int_binary(operator, l, r)
     }
 
-    fn eval_int_binary(
-        &self,
-        operator: BinaryOperator,
-        l: i64,
-        r: i64,
-    ) -> EvalResult<Value> {
+    fn eval_int_binary(&self, operator: BinaryOperator, l: i64, r: i64) -> EvalResult<Value> {
         use BinaryOperator::*;
         Ok(match operator {
             Add => Value::Int(l.wrapping_add(r)),
@@ -1995,12 +2073,7 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    fn eval_float_binary(
-        &self,
-        operator: BinaryOperator,
-        l: f64,
-        r: f64,
-    ) -> EvalResult<Value> {
+    fn eval_float_binary(&self, operator: BinaryOperator, l: f64, r: f64) -> EvalResult<Value> {
         use BinaryOperator::*;
         Ok(match operator {
             Add => Value::Float(l + r),
@@ -2012,7 +2085,7 @@ impl<'program> Evaluator<'program> {
             Greater => Value::Bool(l > r),
             GreaterOrEqual => Value::Bool(l >= r),
             Modulo | ShiftLeft | ShiftRight => {
-                return unsupported("float modulo/shift not supported")
+                return unsupported("float modulo/shift not supported");
             }
             Equal | NotEqual | And | Or => unreachable!("handled earlier"),
         })
@@ -2020,12 +2093,24 @@ impl<'program> Evaluator<'program> {
 
     fn eval_min_max(&self, name: &str, left: Value, right: Value) -> EvalResult<Value> {
         if matches!(left, Value::Float(_)) || matches!(right, Value::Float(_)) {
-            let l = left.as_float().ok_or_else(|| Halt::Trap("min/max float".to_owned()))?;
-            let r = right.as_float().ok_or_else(|| Halt::Trap("min/max float".to_owned()))?;
-            return Ok(Value::Float(if name == "max" { l.max(r) } else { l.min(r) }));
+            let l = left
+                .as_float()
+                .ok_or_else(|| Halt::Trap("min/max float".to_owned()))?;
+            let r = right
+                .as_float()
+                .ok_or_else(|| Halt::Trap("min/max float".to_owned()))?;
+            return Ok(Value::Float(if name == "max" {
+                l.max(r)
+            } else {
+                l.min(r)
+            }));
         }
-        let l = left.as_int().ok_or_else(|| Halt::Trap("min/max int".to_owned()))?;
-        let r = right.as_int().ok_or_else(|| Halt::Trap("min/max int".to_owned()))?;
+        let l = left
+            .as_int()
+            .ok_or_else(|| Halt::Trap("min/max int".to_owned()))?;
+        let r = right
+            .as_int()
+            .ok_or_else(|| Halt::Trap("min/max int".to_owned()))?;
         Ok(Value::Int(if name == "max" { l.max(r) } else { l.min(r) }))
     }
 
@@ -2108,15 +2193,13 @@ fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
         PrimitiveType::U32 => raw as u32 as i64,
         // 64-bit and pointer-width types keep the full value (unsigned reinterpretation of a
         // u64 is still represented by the same bit pattern in i64).
-        PrimitiveType::I64
-        | PrimitiveType::U64
-        | PrimitiveType::Isize
-        | PrimitiveType::Usize => raw,
+        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Isize | PrimitiveType::Usize => {
+            raw
+        }
         // Non-integer primitives do not reach this path.
-        PrimitiveType::Bool
-        | PrimitiveType::F32
-        | PrimitiveType::F64
-        | PrimitiveType::String => raw,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
+            raw
+        }
     }
 }
 

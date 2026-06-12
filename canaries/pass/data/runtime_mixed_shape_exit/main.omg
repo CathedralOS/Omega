@@ -1,0 +1,74 @@
+// MIXED data shape end to end (frozen decision 7): one declaration carries
+// COMMON fields (present in every case) plus a case part. Layout: tag at
+// offset 0, common fields after the tag, payload overlay after the common
+// fields. Exercised here:
+//   1. case construction with a common field named alongside payload fields
+//      (`consumed: true` next to `gold`),
+//   2. a common-field READ without case knowledge (`self.event.consumed`),
+//   3. a case CHANGE that zero-initializes the unnamed common field
+//      (construction replaces the whole value; ZII makes zero valid),
+//   4. a common-field WRITE without case knowledge,
+//   5. tag dispatch with payload binding on the case part.
+// Exits 70 only when every step observes the right value.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data RoomEvent {
+    consumed: bool;
+    bonus: i32;
+    case Nothing;
+    case Treasure(gold: i32);
+    case Enemy(strength: i32);
+}
+
+data Main {
+    console: Console;
+    event: RoomEvent;
+}
+
+machine Main::main(&mut self) {
+    // Construct with a named common field next to the payload field.
+    self.event = RoomEvent::Treasure { consumed: true, gold: 50 };
+    transition self.event.consumed {
+        false -> bad()
+        true -> after_first()
+    }
+
+    state after_first(&mut self) {
+        // Case change WITHOUT naming `consumed`: construction zeroes it.
+        self.event = RoomEvent::Enemy { strength: 15 };
+        transition self.event.consumed {
+            true -> bad()
+            false -> write_common()
+        }
+    }
+
+    state write_common(&mut self) {
+        // Common-field WRITE without case knowledge; the case part survives.
+        self.event.bonus = 70;
+        transition self.event {
+            RoomEvent::Nothing -> bad()
+            RoomEvent::Treasure { gold } -> bad()
+            RoomEvent::Enemy { strength } -> finish(strength)
+        }
+    }
+
+    state finish(&mut self, strength: i32) {
+        // The payload binding must read back the constructed strength; the
+        // exit code is the common field written without case knowledge.
+        transition strength {
+            15 -> read_back()
+            _ -> bad()
+        }
+    }
+
+    state read_back(&mut self) {
+        self.console.exit_process(self.event.bonus);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

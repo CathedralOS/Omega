@@ -17,7 +17,6 @@ use crate::selection::storage_places::resolve_runtime_storage_place_in_table;
 use omega_abstract_operations::{
     RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
 };
-use omega_layout::{DataShape, ENUM_TAG_BYTES};
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression,
 };
@@ -25,6 +24,7 @@ use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
+use omega_layout::{DataShape, ENUM_TAG_BYTES};
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 pub(crate) use static_values::RuntimeStaticValues;
 use static_values::invalidate_runtime_static_value_in_table;
@@ -316,6 +316,41 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 static_values,
                 selected_instructions,
             );
+            // MIXED shapes: case construction replaces the WHOLE value, so
+            // every common field the literal does not name resets to ZERO
+            // (frozen decision 7's construction rule; ZII keeps that valid).
+            // The zeroes ride the ordinary member-write path below so static
+            // folds of the member stay coherent. Named common fields are
+            // written by the literal-field loop like any other member.
+            for (field_name, zero_value) in unnamed_common_field_zero_writes(
+                input,
+                expressions,
+                &struct_literal.type_name,
+                struct_literal.fields,
+            ) {
+                let field_target =
+                    expressions.insert(ExpressionNode::Member(TableMemberExpression {
+                        receiver: target,
+                        member_symbol: SymbolHandle::invalid(),
+                        member: field_name,
+                    }));
+                emitted |= select_runtime_storage_resolved_mutation_write_in_mutable_table(
+                    input,
+                    dispatch_index,
+                    operation_source_key,
+                    target_source_key,
+                    value_source_key,
+                    statement_index,
+                    expressions,
+                    field_target,
+                    zero_value,
+                    aliases,
+                    resolved_segment_expressions,
+                    static_values,
+                    runtime_value_operands,
+                    selected_instructions,
+                );
+            }
         }
         for offset in 0..struct_literal.fields.count() {
             let field = expressions
@@ -725,7 +760,7 @@ fn case_tag_value(
         .iter()
         .find(|(_, data_layout)| data_layout.name == *type_name)
         .map(|(_, data_layout)| data_layout)?;
-    let DataShape::Enum { variants } = &data_layout.shape else {
+    let DataShape::Enum { variants, .. } = &data_layout.shape else {
         return None;
     };
     layouts
@@ -734,4 +769,57 @@ fn case_tag_value(
         .iter()
         .position(|variant| variant.name == *case_name)
         .and_then(|index| i64::try_from(index).ok())
+}
+
+/// MIXED shapes: the common fields a case literal does NOT name, paired with a
+/// type-shaped ZERO expression (construction zero-initializes them; validation
+/// restricts mixed common fields to scalar primitives, so one literal each).
+/// Pure sums and record types yield nothing.
+fn unnamed_common_field_zero_writes(
+    input: &InstructionSelectionInput<'_>,
+    expressions: &mut ExpressionTable,
+    type_name: &Identifier,
+    literal_fields: omega_core::arena::HandleSpan<
+        omega_checked_trees::expression::TableStructLiteralField,
+    >,
+) -> Vec<(Identifier, ExpressionHandle)> {
+    let Some(data_layout) = input
+        .layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| data_layout.name == *type_name)
+        .map(|(_, data_layout)| data_layout)
+    else {
+        return Vec::new();
+    };
+    let DataShape::Enum { common_fields, .. } = &data_layout.shape else {
+        return Vec::new();
+    };
+
+    let named: Vec<Identifier> = (0..literal_fields.count())
+        .map(|offset| {
+            expressions
+                .struct_field_at_offset(literal_fields, offset)
+                .name
+                .clone()
+        })
+        .collect();
+
+    let mut zero_writes = Vec::new();
+    for field in input.layouts.fields.span_or_empty(*common_fields) {
+        if named.iter().any(|name| *name == field.name) {
+            continue;
+        }
+        // Float zeroes must ride the float write path (same zero bits, but
+        // the operand classification differs); everything else is integer-
+        // shaped (bool included).
+        let zero_value = match field.type_name.as_ref() {
+            "f32" | "f64" => expressions.insert(ExpressionNode::Float(
+                omega_checked_trees::expression::FloatLiteral::new(0.0),
+            )),
+            _ => expressions.insert(ExpressionNode::Integer(0)),
+        };
+        zero_writes.push((field.name.clone(), zero_value));
+    }
+    zero_writes
 }

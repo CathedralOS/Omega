@@ -42,7 +42,7 @@ pub(in crate::selection) fn enum_variant_value(
                 || data_layout.name.as_str() == type_name
         })
         .map(|(_, data_layout)| data_layout)?;
-    let DataShape::Enum { variants } = &data_layout.shape else {
+    let DataShape::Enum { variants, .. } = &data_layout.shape else {
         return None;
     };
     layouts
@@ -79,7 +79,9 @@ pub(in crate::selection) fn static_integer_value_in_table(
     match expressions.expression(expression) {
         ExpressionNode::Integer(value) => Some(*value),
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
-        ExpressionNode::Mutable(inner) => static_integer_value_in_table(layouts, expressions, *inner),
+        ExpressionNode::Mutable(inner) => {
+            static_integer_value_in_table(layouts, expressions, *inner)
+        }
         _ => enum_variant_value_in_table(layouts, expressions, expression),
     }
 }
@@ -127,7 +129,7 @@ pub(in crate::selection) fn enum_variant_value_in_table(
                 || data_layout.name.as_str() == type_name
         })
         .map(|(_, data_layout)| data_layout)?;
-    let DataShape::Enum { variants } = &data_layout.shape else {
+    let DataShape::Enum { variants, .. } = &data_layout.shape else {
         return None;
     };
     layouts
