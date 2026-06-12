@@ -9,6 +9,18 @@ impl ContractExpressionEvaluator<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
+        // Re-entering an expression whose resolution is still in progress
+        // means call-site/local following looped; stand down with unknown
+        // rather than overflow the stack.
+        Self::guarding_cycles(&self.active_resolutions, expression, || {
+            self.resolved_expression_followed(expression)
+        })
+    }
+
+    fn resolved_expression_followed(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ExpressionHandle> {
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Mutable(inner) => self.resolved_expression(*inner).or(Some(*inner)),
             ExpressionNode::Name(path) => {

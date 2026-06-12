@@ -4,6 +4,15 @@ use super::ContractExpressionEvaluator;
 
 impl ContractExpressionEvaluator<'_, '_> {
     pub(super) fn integer_value(&self, expression: ExpressionHandle) -> Option<i64> {
+        // Re-entering an expression whose evaluation is still in progress
+        // means call-site following looped (recursive machine); stand down
+        // with unknown rather than overflow the stack.
+        Self::guarding_cycles(&self.active_evaluations, expression, || {
+            self.integer_value_of_resolved(expression)
+        })
+    }
+
+    fn integer_value_of_resolved(&self, expression: ExpressionHandle) -> Option<i64> {
         let expression = self.resolved_expression(expression).unwrap_or(expression);
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Binary(binary) => {
