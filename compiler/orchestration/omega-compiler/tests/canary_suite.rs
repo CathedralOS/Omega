@@ -386,6 +386,54 @@ fn wire_cross_era_type_change_reports_requires_migration_verdict() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The lowered ownership summary must stay visible per event in the backend
+// report's Artifact Semantic Spine: each move/drop names its place, its
+// machine/state, and its source point after surviving the full spine (checked
+// trees -> state graph -> control flow -> abstract -> target -> assigned ->
+// machine instructions -> encoded machine). The canary moves `self.seed` into
+// an owned local and moves the local out through a transition `Value` target,
+// so the spine must show both moves plus the local's exit-edge drop
+// obligation. Drops here are obligations, not emitted cleanup code: no type
+// carries a cleanup machine yet.
+#[test]
+fn backend_report_renders_ownership_summary_events() {
+    let canary = pass_canary("ownership/transition_value_owned_move");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-ownership-spine-canary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("transition value owned move canary should compile");
+
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("- move `self.seed` in machine `Main::main` state `main` at statement 0"),
+        "spine should record the `self.seed` initializer move\n{}",
+        report
+    );
+    assert!(
+        report.contains("- move `produced` in machine `Main::main` state `main` at statement 1"),
+        "spine should record the transition value target move of the owned local\n{}",
+        report
+    );
+    assert!(
+        report.contains("- drop `produced` in machine `Main::main` state `main` at state exit"),
+        "spine should record the owned local's exit-edge drop obligation\n{}",
+        report
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn capability_pass_canaries_compile_in_isolation() {
     // A focused guard for the capability canaries, independent of the batched
@@ -1147,8 +1195,7 @@ fn runtime_wire_roundtrip_nested_exit_canary_runs() {
     // full match.
     let canary = pass_canary("wire/runtime_wire_roundtrip_nested_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-wire-nested-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-wire-nested-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1254,8 +1301,7 @@ fn runtime_wire_encode_string_exit_canary_runs() {
     // written count in-language; exits 70 when byte-exact.
     let canary = pass_canary("wire/runtime_wire_encode_string_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-wire-string-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-wire-string-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4235,8 +4281,10 @@ fn runtime_slice_len_transition_exit_canary_runs() {
 #[test]
 fn runtime_subslice_param_bounded_range_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_param_bounded_range_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-subslice-param-bounded-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-subslice-param-bounded-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4265,8 +4313,10 @@ fn runtime_subslice_param_bounded_range_exit_canary_runs() {
 #[test]
 fn runtime_subslice_param_end_only_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_param_end_only_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-subslice-param-end-only-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-subslice-param-end-only-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4295,8 +4345,10 @@ fn runtime_subslice_param_end_only_exit_canary_runs() {
 #[test]
 fn runtime_subslice_param_local_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_param_local_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-subslice-param-local-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-subslice-param-local-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4325,8 +4377,10 @@ fn runtime_subslice_param_local_exit_canary_runs() {
 #[test]
 fn runtime_subslice_runtime_start_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_runtime_start_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-subslice-runtime-start-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-subslice-runtime-start-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4355,8 +4409,10 @@ fn runtime_subslice_runtime_start_exit_canary_runs() {
 #[test]
 fn runtime_subslice_runtime_end_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_runtime_end_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-subslice-runtime-end-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-subslice-runtime-end-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4385,8 +4441,10 @@ fn runtime_subslice_runtime_end_exit_canary_runs() {
 #[test]
 fn runtime_subslice_nested_of_param_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_nested_of_param_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-subslice-nested-param-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-subslice-nested-param-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4415,8 +4473,10 @@ fn runtime_subslice_nested_of_param_exit_canary_runs() {
 #[test]
 fn runtime_subslice_runtime_start_over_local_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_runtime_start_over_local_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-subslice-start-over-local-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-subslice-start-over-local-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4445,8 +4505,10 @@ fn runtime_subslice_runtime_start_over_local_exit_canary_runs() {
 #[test]
 fn runtime_subslice_param_inclusive_end_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_param_inclusive_end_exit");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-subslice-inclusive-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-subslice-inclusive-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
