@@ -83,6 +83,12 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::ReadWireScalarVarint { .. } => {
             MachineInstructionKind::WireScalarVarintRead
         }
+        SelectedInstructionKind::ReadWireNestedOpen { .. } => {
+            MachineInstructionKind::WireNestedOpenRead
+        }
+        SelectedInstructionKind::ReadWireNestedClose { .. } => {
+            MachineInstructionKind::WireNestedCloseRead
+        }
         SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { .. } => {
             MachineInstructionKind::RuntimeStorageCopyToReturnRegister
         }

@@ -1332,3 +1332,43 @@ pub fn wire_decode_varint_target_page_offset(
         + wire_varint_read_loop_width()
         + if zigzag { wire_unzigzag_width() } else { 0 }
 }
+
+pub fn read_wire_nested_open_width(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+) -> usize {
+    // Prologue + end page pair + length load + buffer-length materialization
+    // + the fixed eight-instruction length/end check block + end store +
+    // epilogue.
+    wire_decode_prologue_width(buffer_offset, read_offset)
+        + 8
+        + load_data_offset_width(end_offset, 8)
+        + unsigned_immediate_width(buffer_length as u64)
+        + 32
+        + store_data_offset_width(end_offset, 8)
+        + wire_decode_tail_width(read_offset, ok_offset)
+}
+
+pub fn read_wire_nested_close_width(
+    buffer_offset: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+) -> usize {
+    // Prologue + end page pair + end load + the success movz/cmp/branch/fail
+    // movz quad + epilogue.
+    wire_decode_prologue_width(buffer_offset, read_offset)
+        + 8
+        + load_data_offset_width(end_offset, 8)
+        + 16
+        + wire_decode_tail_width(read_offset, ok_offset)
+}
+
+/// Byte offset of the END-slot page adrp pair inside both nested decodes
+/// (materialized right after the shared prologue).
+pub fn wire_decode_nested_end_page_offset(buffer_offset: usize, read_offset: usize) -> usize {
+    wire_decode_prologue_width(buffer_offset, read_offset)
+}

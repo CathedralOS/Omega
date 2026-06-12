@@ -359,10 +359,12 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("types/runtime_u8_field_arith_exit", 70),
     ("types/runtime_u16_field_arith_exit", 70),
     ("versioning/runtime_version_migration_exit", 70),
+    ("wire/runtime_wire_decode_rejects_bad_nested_length_exit", 70),
     ("wire/runtime_wire_decode_rejects_wrong_era_exit", 70),
     ("wire/runtime_wire_encode_era_discriminator_exit", 70),
     ("wire/runtime_wire_encode_primitive_exit", 70),
     ("wire/runtime_wire_encode_string_exit", 70),
+    ("wire/runtime_wire_roundtrip_nested_exit", 70),
     ("wire/runtime_wire_roundtrip_primitive_exit", 70),
 ];
 

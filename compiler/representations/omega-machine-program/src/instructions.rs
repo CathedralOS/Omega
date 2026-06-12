@@ -48,6 +48,8 @@ pub enum MachineInstructionKind {
     WireTextBytesAppend,
     WireExpectedByteRead,
     WireScalarVarintRead,
+    WireNestedOpenRead,
+    WireNestedCloseRead,
     RuntimeFrameIndexedBinaryWrite,
     RuntimeFrameBaseIndexedBinaryWrite,
     RuntimeMachineStringWrite,

@@ -27,7 +27,54 @@ pub(crate) fn validate_wire_schemas(
         }
 
         validate_schema(program, symbols, schema, diagnostics);
+        validate_nested_schema_cycles(program, schema, diagnostics);
     }
+}
+
+/// A schema that reaches ITSELF through nested message fields (directly or
+/// through siblings) can never have a finite worst-case encoding, so the
+/// cycle is a hard error at the declaration -- not a call-site rejection.
+/// Only CURRENT-era fields participate: version blocks snapshot history and
+/// are never encoded by the current encoder.
+fn validate_nested_schema_cycles(
+    program: &TypedTrees,
+    schema: &WireSchema,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut visited: Vec<&str> = Vec::new();
+    if nested_references_reach(program, schema, schema.name.as_str(), &mut visited) {
+        diagnostics.push(Diagnostic::error(format!(
+            "wire data `{}` contains itself through its nested message fields; a schema cycle has no finite worst-case encoding",
+            schema.name
+        )));
+    }
+}
+
+fn nested_references_reach<'program>(
+    program: &'program TypedTrees,
+    from: &WireSchema,
+    target: &str,
+    visited: &mut Vec<&'program str>,
+) -> bool {
+    for member in program.wire_members(from.members) {
+        let WireMember::Field(field) = member else {
+            continue;
+        };
+        let Some(child) = program.wire_field_nested_schema(field) else {
+            continue;
+        };
+        if child.name.as_str() == target {
+            return true;
+        }
+        if visited.contains(&child.name.as_str()) {
+            continue;
+        }
+        visited.push(child.name.as_str());
+        if nested_references_reach(program, child, target, visited) {
+            return true;
+        }
+    }
+    false
 }
 
 /// One numbering scope: the current schema body or a single version block.
@@ -390,16 +437,23 @@ pub(crate) fn validate_wire_schema_call(
 /// diagnostic, instead of in the backend:
 /// - exactly three arguments;
 /// - every current-era schema field is a stage 2a scalar (i32/i64/u32/u64/
-///   bool) or `String` -- nested messages and repeated fields reject;
+///   bool), `String`, or a NESTED MESSAGE (a sibling wire schema whose body
+///   is scalar-only -- String-in-child and nested-in-nested reject, one
+///   honest level today); repeated fields reject;
 /// - at most one `String` field, and it carries the highest field number so
-///   it encodes LAST (its content is runtime-sized; see the worst-case rule);
+///   it encodes LAST (its content is runtime-sized; see the worst-case
+///   rule). The rule is PER MESSAGE SCOPE: nested fields are statically
+///   bounded, so they may sit anywhere, and a child body has no String;
 /// - the value argument's data type declares every schema field with the
-///   SAME primitive type;
+///   SAME primitive type (a nested field's value member must be a data type
+///   matching the CHILD schema's fields, one level down);
 /// - the out buffer is `&mut [u8; N]` with room for the WORST-CASE encoding
 ///   (era varint + per field tag varint + max value varint; a String field
-///   budgets tag + max length varint), so every append EXCEPT the trailing
-///   String byte-copy needs no runtime bounds check -- the byte-copy alone
-///   bounds against N at runtime and truncates content past capacity;
+///   budgets tag + max length varint; a nested field budgets tag + length
+///   varint + the child's static worst case), so every append EXCEPT the
+///   trailing String byte-copy needs no runtime bounds check -- the
+///   byte-copy alone bounds against N at runtime and truncates content past
+///   capacity;
 /// - the written argument is `&mut usize`.
 ///
 /// Places this scope cannot type (alias-fed or computed arguments) skip the
@@ -423,14 +477,17 @@ fn validate_wire_encode_call(
         return;
     }
 
-    // Schema side: the stage 2a scalar set plus String, and the worst-case
-    // byte budget the out buffer must cover (era varint + per-field tag
-    // varint + max value varint; a String field budgets its tag + max length
-    // varint -- its CONTENT is runtime-sized, so the emitted byte-copy is the
-    // one append that bounds-checks against the buffer at runtime instead).
+    // Schema side: the stage 2a scalar set plus String plus nested message
+    // fields, and the worst-case byte budget the out buffer must cover (era
+    // varint + per-field tag varint + max value varint; a String field
+    // budgets its tag + max length varint -- its CONTENT is runtime-sized, so
+    // the emitted byte-copy is the one append that bounds-checks against the
+    // buffer at runtime instead; a nested message field budgets its tag + the
+    // sub-message's length varint + the sub-message's static worst case).
     let era = program.wire_schema_current_era(schema);
     let mut worst_case_bytes = omega_typed_trees::wire::wire_varint_bytes(era).len();
     let mut current_fields = Vec::new();
+    let mut nested_fields: Vec<(&WireField, &WireSchema)> = Vec::new();
     let mut text_fields: Vec<&WireField> = Vec::new();
     let mut max_field_number = i64::MIN;
     let mut schema_rejects = false;
@@ -439,18 +496,19 @@ fn validate_wire_encode_call(
             continue;
         };
         let primitive = program.primitive_type_reference(field.type_reference);
-        let Some(encoding) =
-            primitive.and_then(omega_typed_trees::wire::WireFieldEncoding::for_primitive)
-        else {
+        let encoding =
+            primitive.and_then(omega_typed_trees::wire::WireFieldEncoding::for_primitive);
+        let nested = program.wire_field_nested_schema(field);
+        if encoding.is_none() && nested.is_none() {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` field `{}`: `{}` is not encodable by the compact_binary v0 encoder yet; wire stage 2a supports i32, i64, u32, u64, bool, and String",
+                "wire data `{}` field `{}`: `{}` is not encodable by the compact_binary v0 encoder yet; wire stage 2 supports i32, i64, u32, u64, bool, String, and a sibling wire schema (one nesting level)",
                 schema.name,
                 field.name,
                 program.display_type_reference(field.type_reference)
             )));
             schema_rejects = true;
             continue;
-        };
+        }
         if field.number < 0 {
             diagnostics.push(Diagnostic::error(format!(
                 "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
@@ -461,6 +519,27 @@ fn validate_wire_encode_call(
         }
         max_field_number = max_field_number.max(field.number);
         let tag_bytes = omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len();
+        if let Some(child) = nested {
+            // A nested message field encodes as tag + LENGTH varint + the
+            // sub-message's fields WITHOUT an era discriminator (decision 10:
+            // the era rides only the top-level envelope). The whole framing
+            // is statically bounded, so it joins the worst-case budget like a
+            // scalar -- but only a scalar-only child body is bounded: String
+            // content is runtime-sized and a doubly-nested body would need a
+            // second staging region, so both reject (one honest level first).
+            let Some(nested_worst) = program.wire_nested_field_worst_case(child) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "wire data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); String and doubly-nested message fields inside a nested message are not supported yet",
+                    schema.name, field.name, child.name
+                )));
+                schema_rejects = true;
+                continue;
+            };
+            worst_case_bytes += tag_bytes + nested_worst;
+            nested_fields.push((field, child));
+            continue;
+        }
+        let encoding = encoding.expect("nested handled above, so encoding is Some");
         worst_case_bytes += tag_bytes
             + match encoding {
                 omega_typed_trees::wire::WireFieldEncoding::Scalar(scalar) => {
@@ -553,6 +632,17 @@ fn validate_wire_encode_call(
                 )));
             }
         }
+        for (field, child) in &nested_fields {
+            validate_nested_value_field(
+                program,
+                schema,
+                "encode_wire",
+                value_data,
+                field,
+                child,
+                diagnostics,
+            );
+        }
     }
 
     // Out argument: `&mut [u8; N]` with N covering the worst case.
@@ -604,9 +694,11 @@ fn validate_wire_encode_call(
 /// The checks, mirroring the encoder's:
 /// - exactly four arguments;
 /// - every current-era schema field is a stage 2 scalar (i32/i64/u32/u64/
-///   bool) -- strings, nested messages, and repeated fields reject;
+///   bool) or a NESTED MESSAGE with a scalar-only body -- strings (encode-
+///   only) and repeated fields reject;
 /// - the value argument's data type declares every schema field with the
-///   SAME primitive type;
+///   SAME primitive type (a nested field's value member must be a data type
+///   matching the CHILD schema's fields, one level down);
 /// - the buffer is a fixed `[u8; N]` byte array (its compile-time length
 ///   bounds every runtime read -- the decoder never reads past it);
 /// - `read` is `&mut usize` (receives the byte count consumed) and `ok` is
@@ -633,20 +725,22 @@ fn validate_wire_decode_call(
         return;
     }
 
-    // Schema side: the stage 2 scalar set, same gate as the encoder.
+    // Schema side: the stage 2 scalar set plus nested message fields, same
+    // gate as the encoder (String stays encode-only).
     let mut current_fields = Vec::new();
+    let mut nested_fields: Vec<(&WireField, &WireSchema)> = Vec::new();
     let mut schema_rejects = false;
     for member in program.wire_members(schema.members) {
         let WireMember::Field(field) = member else {
             continue;
         };
         let primitive = program.primitive_type_reference(field.type_reference);
-        if primitive
-            .and_then(omega_typed_trees::wire::WireScalarEncoding::for_primitive)
-            .is_none()
-        {
+        let scalar =
+            primitive.and_then(omega_typed_trees::wire::WireScalarEncoding::for_primitive);
+        let nested = program.wire_field_nested_schema(field);
+        if scalar.is_none() && nested.is_none() {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, and bool (String fields are encode-only until the decoded descriptor's buffer-aliasing story lands)",
+                "wire data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, bool, and a sibling wire schema (one nesting level; String fields are encode-only until the decoded descriptor's buffer-aliasing story lands)",
                 schema.name,
                 field.name,
                 program.display_type_reference(field.type_reference)
@@ -660,6 +754,22 @@ fn validate_wire_decode_call(
                 schema.name, field.name, field.number
             )));
             schema_rejects = true;
+            continue;
+        }
+        if let Some(child) = nested {
+            // Mirrors the encoder's nested gate: a scalar-only child body is
+            // the one honest level today (String content has no decode story
+            // at all, and a doubly-nested body would need a second end-bound
+            // slot).
+            if program.wire_schema_scalar_body_worst_case(child).is_none() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "wire data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); String and doubly-nested message fields inside a nested message are not supported yet",
+                    schema.name, field.name, child.name
+                )));
+                schema_rejects = true;
+                continue;
+            }
+            nested_fields.push((field, child));
             continue;
         }
         current_fields.push((field, primitive.expect("encoding implies primitive")));
@@ -721,6 +831,17 @@ fn validate_wire_decode_call(
                 )));
             }
         }
+        for (field, child) in &nested_fields {
+            validate_nested_value_field(
+                program,
+                schema,
+                "decode_wire",
+                value_data,
+                field,
+                child,
+                diagnostics,
+            );
+        }
     }
 
     // Buffer argument: a fixed `[u8; N]` byte array (any length -- the
@@ -767,6 +888,104 @@ fn validate_wire_decode_call(
             schema.name,
             program.display_type_reference(ok_type)
         )));
+    }
+}
+
+/// A nested message field's value member must be a (non-case-bearing) data
+/// type that declares every CHILD schema field with the same primitive type
+/// -- the matching rule the top-level value obeys, applied one level down.
+#[allow(clippy::too_many_arguments)]
+fn validate_nested_value_field(
+    program: &TypedTrees,
+    schema: &WireSchema,
+    machine_name: &str,
+    value_data: &omega_typed_trees::data::DataDefinition,
+    field: &WireField,
+    child: &WireSchema,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(value_field) = program
+        .data_members(value_data)
+        .iter()
+        .find_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(data_field)
+                if data_field.name == field.name =>
+            {
+                Some(data_field)
+            }
+            _ => None,
+        })
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{}::{machine_name}` value type `{}` has no field `{}` (schema field {} nests wire schema `{}`)",
+            schema.name, value_data.name, field.name, field.number, child.name
+        )));
+        return;
+    };
+
+    let Some(child_value_data) = unwrapped_type_reference(program, value_field.type_reference)
+        .and_then(|unwrapped| named_data_definition(program, unwrapped))
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{}::{machine_name}` value field `{}.{}` is `{}`, but schema field {} nests wire schema `{}` and needs a data value with its fields",
+            schema.name,
+            value_data.name,
+            field.name,
+            program.display_type_reference(value_field.type_reference),
+            field.number,
+            child.name
+        )));
+        return;
+    };
+
+    if program
+        .data_members(child_value_data)
+        .iter()
+        .any(|member| matches!(member, omega_typed_trees::data::DataMember::Variant(_)))
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{}::{machine_name}` value field `{}.{}` has case-bearing type `{}`; wire encoding over sums and mixed data shapes is not implemented yet",
+            schema.name, value_data.name, field.name, child_value_data.name
+        )));
+        return;
+    }
+
+    for member in program.wire_members(child.members) {
+        let WireMember::Field(child_field) = member else {
+            continue;
+        };
+        let Some(child_value_field) = program
+            .data_members(child_value_data)
+            .iter()
+            .find_map(|member| match member {
+                omega_typed_trees::data::DataMember::Field(data_field)
+                    if data_field.name == child_field.name =>
+                {
+                    Some(data_field)
+                }
+                _ => None,
+            })
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::{machine_name}` nested value type `{}` has no field `{}` (wire schema `{}` field {})",
+                schema.name, child_value_data.name, child_field.name, child.name, child_field.number
+            )));
+            continue;
+        };
+        if program.primitive_type_reference(child_value_field.type_reference)
+            != program.primitive_type_reference(child_field.type_reference)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::{machine_name}` nested value field `{}.{}` is `{}`, but wire schema `{}` declares field {} as `{}`",
+                schema.name,
+                child_value_data.name,
+                child_field.name,
+                program.display_type_reference(child_value_field.type_reference),
+                child.name,
+                child_field.number,
+                program.display_type_reference(child_field.type_reference)
+            )));
+        }
     }
 }
 

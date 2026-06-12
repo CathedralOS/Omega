@@ -1,5 +1,5 @@
 use super::super::offsets::{
-    wire_decode_ok_page_offset, wire_decode_read_page_offset,
+    wire_decode_nested_end_page_offset, wire_decode_ok_page_offset, wire_decode_read_page_offset,
     wire_decode_varint_target_page_offset,
 };
 use super::context::InstructionRelocationContext;
@@ -76,6 +76,52 @@ pub(super) fn collect_wire_decode_relocations(
                     *zigzag,
                 ),
                 context.storage_region_symbol_handle(*target_region),
+            );
+            true
+        }
+        // The nested open/close share the decode prologue exactly, so the
+        // buffer/read/ok pages sit at the same offsets; the END-slot page is
+        // materialized right after the prologue.
+        SelectedInstructionKind::ReadWireNestedOpen {
+            buffer_region,
+            buffer_offset,
+            read_region,
+            read_offset,
+            ok_region,
+            end_region,
+            ..
+        }
+        | SelectedInstructionKind::ReadWireNestedClose {
+            buffer_region,
+            buffer_offset,
+            read_region,
+            read_offset,
+            ok_region,
+            end_region,
+            ..
+        } => {
+            context.insert_data_address_at_instruction_start(
+                context.storage_region_symbol_handle(*buffer_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_read_page_offset(context.input.target.architecture, *buffer_offset),
+                context.storage_region_symbol_handle(*read_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_ok_page_offset(
+                    context.input.target.architecture,
+                    *buffer_offset,
+                    *read_offset,
+                ),
+                context.storage_region_symbol_handle(*ok_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_nested_end_page_offset(
+                    context.input.target.architecture,
+                    *buffer_offset,
+                    *read_offset,
+                ),
+                context.storage_region_symbol_handle(*end_region),
             );
             true
         }

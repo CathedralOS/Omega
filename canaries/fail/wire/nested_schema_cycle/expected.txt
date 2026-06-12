@@ -1,0 +1,1 @@
+contains itself through its nested message fields

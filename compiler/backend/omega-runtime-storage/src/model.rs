@@ -21,6 +21,17 @@ pub struct RuntimeStoragePlan {
     /// Size of the reserved scratch region (0 if none). The scratch occupies
     /// `[frame_scratch_base, frame_scratch_base + frame_scratch_size)`.
     pub frame_scratch_size: usize,
+    /// Byte offset of the reserved WIRE NESTED-MESSAGE scratch region
+    /// (chapter 20): a `{ptr @ +0, len @ +8}` text descriptor followed by a
+    /// staging buffer at +16 sized for the largest nested sub-message's
+    /// worst-case body. The encoder stages a nested field's bytes here before
+    /// replaying them (length varint + copy) into the caller's out buffer;
+    /// the decoder reuses the first 8 bytes as the sub-region end-bound slot.
+    /// Wire ops run strictly inside one statement, so a single region serves
+    /// every encode/decode site. 0 means no wire scratch reserved.
+    pub wire_scratch_base: usize,
+    /// Size of the reserved wire scratch region (0 if none).
+    pub wire_scratch_size: usize,
 }
 
 impl RuntimeStoragePlan {
@@ -37,6 +48,8 @@ impl RuntimeStoragePlan {
             writes: Arena::with_capacity(write_capacity),
             frame_scratch_base: 0,
             frame_scratch_size: 0,
+            wire_scratch_base: 0,
+            wire_scratch_size: 0,
         }
     }
 

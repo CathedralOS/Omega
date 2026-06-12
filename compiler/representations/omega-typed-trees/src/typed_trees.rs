@@ -412,6 +412,78 @@ impl TypedTrees {
             .map(|position| position as u64)
     }
 
+    /// The sibling wire schema a wire field's type references (a NESTED
+    /// MESSAGE field, chapter 20), unwrapped through reference and constraint
+    /// shells. `None` for primitives and ordinary program types.
+    pub fn wire_field_nested_schema(
+        &self,
+        field: &wire::WireField,
+    ) -> Option<&wire::WireSchema> {
+        let name = self.named_type_reference_name(field.type_reference)?;
+        self.wire_schemas()
+            .iter()
+            .find(|schema| schema.name.as_str() == name)
+    }
+
+    /// The `Named` name underneath reference and constraint shells, if the
+    /// type reference bottoms out in one.
+    fn named_type_reference_name(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> Option<&str> {
+        if !type_reference.is_valid() {
+            return None;
+        }
+        match self.type_reference_table.type_reference(type_reference) {
+            types::TypeReferenceNode::Reference { referee, .. } => {
+                self.named_type_reference_name(*referee)
+            }
+            types::TypeReferenceNode::Constrained { base_type, .. } => {
+                self.named_type_reference_name(*base_type)
+            }
+            types::TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
+            _ => None,
+        }
+    }
+
+    /// The worst-case byte count of a schema's CURRENT-era body WITHOUT the
+    /// era discriminator -- the sub-message framing a nested message field
+    /// carries (chapter 20, decision 10: the era rides only the top-level
+    /// envelope, never a nested struct). `Some` only when every current-era
+    /// field is a plain stage 2 scalar: a String body is runtime-unbounded
+    /// and a doubly-nested body is a deeper composition, so both make the
+    /// caller reject with its own diagnostic.
+    pub fn wire_schema_scalar_body_worst_case(
+        &self,
+        schema: &wire::WireSchema,
+    ) -> Option<usize> {
+        let mut worst_case_bytes = 0usize;
+        for member in self.wire_members(schema.members) {
+            let wire::WireMember::Field(field) = member else {
+                continue;
+            };
+            if field.number < 0 {
+                return None;
+            }
+            let scalar = self
+                .primitive_type_reference(field.type_reference)
+                .and_then(wire::WireScalarEncoding::for_primitive)?;
+            worst_case_bytes += wire::wire_varint_bytes(field.number as u64).len()
+                + scalar.max_varint_length();
+        }
+        Some(worst_case_bytes)
+    }
+
+    /// The worst-case byte budget a nested message field adds to its parent's
+    /// encoding: the sub-message's scalar body worst case plus the LENGTH
+    /// varint that prefixes it (the actual length never exceeds the worst
+    /// case, so its varint never grows past the worst case's varint). The
+    /// field's TAG varint is the caller's to add.
+    pub fn wire_nested_field_worst_case(&self, child: &wire::WireSchema) -> Option<usize> {
+        let body = self.wire_schema_scalar_body_worst_case(child)?;
+        Some(wire::wire_varint_bytes(body as u64).len() + body)
+    }
+
     pub fn push_trait_definition(&mut self, trait_definition: trait_definition::TraitDefinition) {
         self.tables
             .traits

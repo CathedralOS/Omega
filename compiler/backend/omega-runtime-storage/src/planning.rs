@@ -69,6 +69,8 @@ pub fn build_runtime_storage_plan_with_workers(
             // Scratch is reserved later on the aggregate plan (stacking phase).
             frame_scratch_base: _,
             frame_scratch_size: _,
+            wire_scratch_base: _,
+            wire_scratch_size: _,
         } = body_plan;
         plan.frame_slots.insert_many(frame_slots.into_items());
         for write in writes.into_items() {
@@ -104,6 +106,51 @@ fn reserve_frame_scratch_region(plan: &mut RuntimeStoragePlan) {
     plan.frame_scratch_size = slots_extent;
 }
 
+/// Reserve the wire NESTED-MESSAGE scratch region (chapter 20): a 16-byte
+/// `{ptr, len}` descriptor plus a staging buffer sized for the largest
+/// nested sub-message's worst-case body, placed ABOVE every real slot and the
+/// argument-staging scratch. Reserved whenever any wire schema's current era
+/// declares a scalar-only nested message field -- a declared-but-never-called
+/// schema overallocates a few dozen frame bytes, which is cheaper than
+/// scanning every statement for encode/decode calls here. Call AFTER the
+/// frame layout is final (post call-context stacking).
+pub fn reserve_wire_nested_scratch(
+    plan: &mut RuntimeStoragePlan,
+    program: &omega_checked_trees::CheckedTrees,
+) {
+    use omega_checked_trees::wire::WireMember;
+
+    let mut staging_bytes = 0usize;
+    for schema in program.wire_schemas() {
+        for member in program.wire_members(schema.members) {
+            let WireMember::Field(field) = member else {
+                continue;
+            };
+            let Some(child) = program.wire_field_nested_schema(field) else {
+                continue;
+            };
+            let Some(child_worst) = program.wire_schema_scalar_body_worst_case(child) else {
+                continue;
+            };
+            staging_bytes = staging_bytes.max(child_worst);
+        }
+    }
+    if staging_bytes == 0 {
+        return;
+    }
+
+    let occupied_extent = (plan.frame_scratch_base + plan.frame_scratch_size).max(
+        plan.frame_slots
+            .iter()
+            .map(|(_, slot)| slot.byte_offset + slot.byte_size)
+            .max()
+            .unwrap_or(0),
+    );
+    // The descriptor's two 8-byte halves need 8-byte alignment.
+    plan.wire_scratch_base = align_to(occupied_extent.max(8), 8);
+    plan.wire_scratch_size = 16 + staging_bytes;
+}
+
 pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
     let slots_extent = plan
         .frame_slots
@@ -112,8 +159,11 @@ pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
         .max()
         .unwrap_or(0);
     // Include the reserved argument-staging scratch region, which lives ABOVE all
-    // real slots (see stack_runtime_storage_by_call_context).
-    slots_extent.max(plan.frame_scratch_base + plan.frame_scratch_size)
+    // real slots (see stack_runtime_storage_by_call_context), and the wire
+    // nested-message scratch above that.
+    slots_extent
+        .max(plan.frame_scratch_base + plan.frame_scratch_size)
+        .max(plan.wire_scratch_base + plan.wire_scratch_size)
 }
 
 pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {

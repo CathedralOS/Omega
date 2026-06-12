@@ -2763,6 +2763,153 @@ pub fn wire_decode_varint_target_page_offset(
         + if zigzag { wire_unzigzag_width() } else { 0 }
 }
 
+pub fn read_wire_nested_open_width(
+    _buffer_offset: usize,
+    _buffer_length: usize,
+    _read_offset: usize,
+    _ok_offset: usize,
+    _end_offset: usize,
+) -> usize {
+    // Prologue + end page mov (10) + length load (7) + success mov (6) +
+    // length cmp/jbe/fail xor (11) + end add (3) + bound cmp/jbe/fail xor
+    // (11) + end store (7) + epilogue.
+    wire_decode_prologue_width() + 55 + wire_decode_tail_width()
+}
+
+/// Open a nested sub-message region (chapter 20, nested message fields): the
+/// end slot holds the sub-message LENGTH the caller just varint-read into it;
+/// replace it with the ABSOLUTE end bound (`cursor + length`) and clear ok
+/// when that bound exceeds the buffer's compile-time length. The cursor does
+/// not move (the epilogue's write-back stores it unchanged, keeping the
+/// shared prologue/epilogue and their relocation offsets identical to the
+/// other wire decodes).
+pub fn encode_read_wire_nested_open(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(read_wire_nested_open_width(
+        buffer_offset,
+        buffer_length,
+        read_offset,
+        ok_offset,
+        end_offset,
+    ));
+    append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
+
+    // r8 = the end-slot page (imm64 relocated at
+    // `wire_decode_nested_end_page_offset`), rax = the LENGTH stored there.
+    bytes.extend([0x49, 0xb8]); // mov r8, imm64(end page)
+    bytes.extend(0u64.to_le_bytes());
+    let end_displacement = disp32(end_offset)?;
+    bytes.extend([0x49, 0x8b, 0x80]); // mov rax, [r8+disp32]
+    bytes.extend(end_displacement.to_le_bytes());
+
+    // ok &= length <= buffer length (a raw length past the buffer could wrap
+    // the 64-bit end sum back inside the bound -- reject it before adding);
+    // then end = cursor + length and ok &= end <= buffer length. The cursor
+    // never exceeds the buffer length and the length just passed its own
+    // check, so the sum cannot wrap.
+    //          mov  r9d, 1
+    //          cmp  rax, imm32(length)
+    //          jbe  len_ok          (+3: skip the fail xor)
+    //   fail1: xor  r9d, r9d
+    //  len_ok: add  rax, r10
+    //          cmp  rax, imm32(length)
+    //          jbe  done            (+3: bound fits -- skip the fail xor)
+    //   fail2: xor  r9d, r9d
+    //   done:
+    bytes.extend([0x41, 0xb9, 0x01, 0x00, 0x00, 0x00]); // mov r9d, 1
+    bytes.extend([0x48, 0x3d]); // cmp rax, imm32
+    bytes.extend(wire_decode_length_imm32(buffer_length)?.to_le_bytes());
+    bytes.extend([0x76, 0x03]); // jbe +3 -> len_ok
+    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d
+    bytes.extend([0x4c, 0x01, 0xd0]); // add rax, r10
+    bytes.extend([0x48, 0x3d]); // cmp rax, imm32
+    bytes.extend(wire_decode_length_imm32(buffer_length)?.to_le_bytes());
+    bytes.extend([0x76, 0x03]); // jbe +3 -> done
+    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d
+
+    bytes.extend([0x49, 0x89, 0x80]); // mov [r8+disp32], rax
+    bytes.extend(end_displacement.to_le_bytes());
+
+    append_wire_decode_epilogue(&mut bytes, read_offset, ok_offset)?;
+    debug_assert_eq!(
+        bytes.len(),
+        read_wire_nested_open_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset
+        )
+    );
+    Ok(bytes)
+}
+
+pub fn read_wire_nested_close_width(
+    _buffer_offset: usize,
+    _read_offset: usize,
+    _ok_offset: usize,
+    _end_offset: usize,
+) -> usize {
+    // Prologue + end page mov (10) + end load (7) + success mov (6) +
+    // cursor cmp (3) + je (2) + fail xor (3) + epilogue.
+    wire_decode_prologue_width() + 31 + wire_decode_tail_width()
+}
+
+/// Close a nested sub-message region (chapter 20, nested message fields):
+/// clear ok unless the cursor landed EXACTLY on the end bound the matching
+/// open stored -- the declared sub-message length must equal the bytes its
+/// fields consumed. The cursor does not move.
+pub fn encode_read_wire_nested_close(
+    buffer_offset: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(read_wire_nested_close_width(
+        buffer_offset,
+        read_offset,
+        ok_offset,
+        end_offset,
+    ));
+    append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
+
+    // r8 = the end-slot page, rax = the end bound stored there.
+    bytes.extend([0x49, 0xb8]); // mov r8, imm64(end page)
+    bytes.extend(0u64.to_le_bytes());
+    let end_displacement = disp32(end_offset)?;
+    bytes.extend([0x49, 0x8b, 0x80]); // mov rax, [r8+disp32]
+    bytes.extend(end_displacement.to_le_bytes());
+
+    // ok &= cursor == end:
+    //         mov  r9d, 1
+    //         cmp  r10, rax
+    //         je   done            (+3: skip the fail xor)
+    //   fail: xor  r9d, r9d
+    //   done:
+    bytes.extend([0x41, 0xb9, 0x01, 0x00, 0x00, 0x00]); // mov r9d, 1
+    bytes.extend([0x49, 0x39, 0xc2]); // cmp r10, rax
+    bytes.extend([0x74, 0x03]); // je +3 -> done
+    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d
+
+    append_wire_decode_epilogue(&mut bytes, read_offset, ok_offset)?;
+    debug_assert_eq!(
+        bytes.len(),
+        read_wire_nested_close_width(buffer_offset, read_offset, ok_offset, end_offset)
+    );
+    Ok(bytes)
+}
+
+/// Byte offset of the END-slot page mov inside both nested decodes
+/// (materialized right after the shared prologue).
+pub fn wire_decode_nested_end_page_offset(_buffer_offset: usize, _read_offset: usize) -> usize {
+    wire_decode_prologue_width()
+}
+
 pub fn runtime_machine_string_write_width(_byte_length: usize) -> usize {
     44
 }

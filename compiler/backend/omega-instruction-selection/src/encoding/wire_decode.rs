@@ -68,6 +68,49 @@ pub fn encode_read_wire_scalar_varint(
     }
 }
 
+pub fn encode_read_wire_nested_open(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_read_wire_nested_open(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+        ),
+        Architecture::X86_64 => x86_64::encode_read_wire_nested_open(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+        ),
+    }
+}
+
+pub fn encode_read_wire_nested_close(
+    architecture: Architecture,
+    buffer_offset: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_read_wire_nested_close(buffer_offset, read_offset, ok_offset, end_offset)
+        }
+        Architecture::X86_64 => {
+            x86_64::encode_read_wire_nested_close(buffer_offset, read_offset, ok_offset, end_offset)
+        }
+    }
+}
+
 // THE WIDTHS INVARIANT, pinned: every wire-decode encoder's emitted byte
 // count must equal its width function for every parameter shape, on both
 // architectures, or relocations drift and binaries segfault.
@@ -155,6 +198,59 @@ mod tests {
         }
     }
 
+    #[test]
+    fn wire_nested_open_and_close_widths_match_encoded_bytes() {
+        for architecture in [Architecture::Aarch64, Architecture::X86_64] {
+            for &buffer_offset in OFFSETS {
+                for &buffer_length in LENGTHS {
+                    for &end_offset in OFFSETS {
+                        let bytes = encode_read_wire_nested_open(
+                            architecture,
+                            buffer_offset,
+                            buffer_length,
+                            64,
+                            72,
+                            end_offset,
+                        )
+                        .expect("nested open should encode");
+                        assert_eq!(
+                            bytes.len(),
+                            widths::read_wire_nested_open_width(
+                                architecture,
+                                buffer_offset,
+                                buffer_length,
+                                64,
+                                72,
+                                end_offset
+                            ),
+                            "{architecture:?} nested open width drifted at buffer {buffer_offset} length {buffer_length} end {end_offset}"
+                        );
+
+                        let bytes = encode_read_wire_nested_close(
+                            architecture,
+                            buffer_offset,
+                            64,
+                            72,
+                            end_offset,
+                        )
+                        .expect("nested close should encode");
+                        assert_eq!(
+                            bytes.len(),
+                            widths::read_wire_nested_close_width(
+                                architecture,
+                                buffer_offset,
+                                64,
+                                72,
+                                end_offset
+                            ),
+                            "{architecture:?} nested close width drifted at buffer {buffer_offset} end {end_offset}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     /// The relocation offsets must land exactly on the page/imm64
     /// materialization instructions inside the emitted bytes.
     #[test]
@@ -201,6 +297,35 @@ mod tests {
                                 )
                         );
                     }
+                    // The nested open/close END-slot page sits right after the
+                    // shared prologue, inside both sequences.
+                    let end_page = widths::wire_decode_nested_end_page_offset(
+                        architecture,
+                        buffer_offset,
+                        read_offset,
+                    );
+                    assert!(ok_page < end_page);
+                    assert!(
+                        end_page
+                            < widths::read_wire_nested_close_width(
+                                architecture,
+                                buffer_offset,
+                                read_offset,
+                                0,
+                                0
+                            )
+                    );
+                    assert!(
+                        end_page
+                            < widths::read_wire_nested_open_width(
+                                architecture,
+                                buffer_offset,
+                                64,
+                                read_offset,
+                                0,
+                                0
+                            )
+                    );
                 }
             }
         }

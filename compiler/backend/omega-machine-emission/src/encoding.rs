@@ -358,6 +358,34 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_size,
             *zigzag,
         ),
+        SelectedInstructionKind::ReadWireNestedOpen {
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+            ..
+        } => omega_instruction_selection::encode_read_wire_nested_open(
+            input.target.architecture,
+            *buffer_offset,
+            *buffer_length,
+            *read_offset,
+            *ok_offset,
+            *end_offset,
+        ),
+        SelectedInstructionKind::ReadWireNestedClose {
+            buffer_offset,
+            read_offset,
+            ok_offset,
+            end_offset,
+            ..
+        } => omega_instruction_selection::encode_read_wire_nested_close(
+            input.target.architecture,
+            *buffer_offset,
+            *read_offset,
+            *ok_offset,
+            *end_offset,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
             index_region,

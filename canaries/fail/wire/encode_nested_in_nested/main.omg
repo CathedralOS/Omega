@@ -1,0 +1,51 @@
+// Wire nested message fields: ONE nesting level is the honest slice today --
+// the encoder stages a nested sub-message in a single planner-reserved
+// scratch region, and a child that itself nests another message would need a
+// second staging region mid-flight. A doubly-nested schema is rejected at
+// the encode call with a clear diagnostic.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Inner {
+    0: value: i32;
+}
+
+wire data Middle {
+    0: inner: Inner;
+}
+
+wire data Outer {
+    0: middle: Middle;
+}
+
+data InnerValue {
+    value: i32;
+}
+
+data MiddleValue {
+    inner: InnerValue;
+}
+
+data OuterValue {
+    middle: MiddleValue;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    let msg: OuterValue = OuterValue {
+        middle: MiddleValue {
+            inner: InnerValue { value: 1 }
+        }
+    };
+
+    Outer::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    self.console.exit_process(70);
+}

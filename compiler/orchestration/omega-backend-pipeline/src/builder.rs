@@ -29,7 +29,7 @@ use omega_runtime_dispatch_loop::{
     RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
 };
 use omega_runtime_storage::{
-    RuntimeStorageContext, build_runtime_storage_plan_with_workers,
+    RuntimeStorageContext, build_runtime_storage_plan_with_workers, reserve_wire_nested_scratch,
     runtime_frame_storage_alignment, runtime_frame_storage_size,
 };
 use omega_runtime_text::build_runtime_text_plan;
@@ -242,6 +242,11 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     // context still share their range (they are never simultaneously live), so
     // entry-only programs are unchanged.
     stack_runtime_storage_by_call_context(&mut backend_plan.runtime_storage, &runtime_flow);
+    // Reserve the wire nested-message staging scratch ABOVE the final layout
+    // (chapter 20): the encoder stages a nested sub-message here before
+    // replaying it (length varint + copy) into the caller's out buffer, and
+    // the decoder keeps the sub-region end bound in the same slots.
+    reserve_wire_nested_scratch(&mut backend_plan.runtime_storage, &program);
     // Observability: dump the absolute frame-slot layout (which logical slot lives
     // at which runtime byte offset) to stderr when OMEGA_DUMP_SLOTS is set. Inert
     // by default -- env unset is zero output and zero behavior change. Mirrors the

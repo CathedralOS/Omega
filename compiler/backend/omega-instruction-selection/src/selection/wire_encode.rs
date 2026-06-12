@@ -5,15 +5,32 @@
 //! a field-number varint (compile-time bytes) and a value varint (runtime
 //! scalar). A `String` field (validation guarantees at most one, encoding
 //! LAST) lowers to a text-bytes append instead: its length varint plus a
-//! byte-copy bounded by the out buffer's compile-time capacity. Front-end
-//! validation (`omega-validation::wire`) has already guaranteed the call
-//! shape, the field coverage, the stage 2a field set, and the out-buffer
-//! capacity for everything but the runtime-sized String content, so an
-//! unresolvable place here is a planning blocker rather than a silent skip.
+//! byte-copy bounded by the out buffer's compile-time capacity.
+//!
+//! A NESTED MESSAGE field (a field whose type is a sibling wire schema)
+//! encodes as tag + LENGTH varint + the sub-message's fields WITHOUT an era
+//! discriminator (decision 10: the era rides only the top-level envelope).
+//! The length is runtime-sized (varints), so the sub-message stages through
+//! the planner-reserved wire scratch region first: the scratch holds a
+//! `{ptr @ +0, len @ +8}` text descriptor whose ptr is written to point at
+//! the staging buffer at +16 and whose len slot doubles as the staging
+//! CURSOR. The child's fields append into the staging buffer through the
+//! ordinary wire appends (cursor in the len slot, capacity guaranteed by the
+//! scratch's worst-case size), and one text-bytes append then replays the
+//! descriptor into the caller's out buffer -- length varint + bounded
+//! byte-copy, exactly the nested framing.
+//!
+//! Front-end validation (`omega-validation::wire`) has already guaranteed
+//! the call shape, the field coverage, the stage 2 field set (scalar-only
+//! children, one nesting level), and the out-buffer capacity for everything
+//! but the runtime-sized String content, so an unresolvable place here is a
+//! planning blocker rather than a silent skip.
 
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_abstract_operations::{SelectedInstruction, SelectedInstructionKind};
+use omega_abstract_operations::{
+    RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind,
+};
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
@@ -22,12 +39,23 @@ use omega_checked_trees::wire::{WireFieldEncoding, WireMember, wire_varint_bytes
 
 use super::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place_in_table};
 
-/// One field of the CURRENT era, ready to append: its tag bytes and the
-/// resolved runtime place (a scalar slot, or a text descriptor for `String`).
+/// One field of the CURRENT era, ready to append.
 struct WireFieldAppend {
     number: i64,
-    encoding: WireFieldEncoding,
-    place: RuntimeStoragePlace,
+    content: WireFieldContent,
+}
+
+/// What follows a field's tag varint: a scalar/text place, or a nested
+/// sub-message's own field list (scalar places resolved one level down).
+enum WireFieldContent {
+    /// A scalar slot, or a text descriptor for `String`.
+    Direct {
+        encoding: WireFieldEncoding,
+        place: RuntimeStoragePlace,
+    },
+    /// A nested message: the child's fields in field-number order, staged
+    /// through the wire scratch region before the length-prefixed replay.
+    Nested { children: Vec<WireFieldAppend> },
 }
 
 /// Lower a recognized `encode_wire` call statement; `true` when the statement
@@ -105,53 +133,20 @@ pub(super) fn select_wire_encode_call(
     let text_descriptor_size = input.runtime_abi.text_descriptor().total_size();
 
     // Collect the CURRENT era's fields in field-number order, resolving each
-    // schema field name against the runtime value's matching member.
-    let mut fields = Vec::new();
-    for member in input.program.wire_members(schema.members) {
-        let WireMember::Field(field) = member else {
-            continue;
-        };
-        let Some(primitive) = input.program.primitive_type_reference(field.type_reference) else {
-            return false;
-        };
-        let Some(encoding) = WireFieldEncoding::for_primitive(primitive) else {
-            return false;
-        };
-        if field.number < 0 {
-            return false;
-        }
-
-        let member_handle = expressions.insert(ExpressionNode::Member(
-            omega_checked_trees::expression::TableMemberExpression {
-                receiver: value_root,
-                member_symbol: SymbolHandle::invalid(),
-                member: field.name.clone(),
-            },
-        ));
-        let Some(place) = resolve_runtime_storage_place_in_table(
-            input,
-            dispatch_index,
-            source_key,
-            &expressions,
-            member_handle,
-        ) else {
-            return false;
-        };
-        let expected_byte_count = match encoding {
-            WireFieldEncoding::Scalar(scalar) => scalar.byte_size,
-            WireFieldEncoding::Text => text_descriptor_size,
-        };
-        if place.byte_count != expected_byte_count {
-            return false;
-        }
-
-        fields.push(WireFieldAppend {
-            number: field.number,
-            encoding,
-            place,
-        });
-    }
-    fields.sort_by_key(|field| field.number);
+    // schema field name against the runtime value's matching member (nested
+    // message fields resolve their CHILD schema's fields one member deeper).
+    let Some(fields) = collect_field_appends(
+        input,
+        dispatch_index,
+        source_key,
+        &mut expressions,
+        value_root,
+        schema,
+        true,
+        text_descriptor_size,
+    ) else {
+        return false;
+    };
 
     let era = input.program.wire_schema_current_era(schema);
 
@@ -192,11 +187,14 @@ pub(super) fn select_wire_encode_call(
                 value: byte,
             });
         }
-        match field.encoding {
-            WireFieldEncoding::Scalar(scalar) => {
+        match &field.content {
+            WireFieldContent::Direct {
+                encoding: WireFieldEncoding::Scalar(scalar),
+                place,
+            } => {
                 push(SelectedInstructionKind::AppendWireScalarVarint {
-                    source_region: field.place.region,
-                    source_offset: field.place.byte_offset,
+                    source_region: place.region,
+                    source_offset: place.byte_offset,
                     byte_size: scalar.byte_size,
                     zigzag: scalar.zigzag,
                     out_region: out_place.region,
@@ -205,13 +203,102 @@ pub(super) fn select_wire_encode_call(
                     written_offset: written_place.byte_offset,
                 });
             }
-            WireFieldEncoding::Text => {
+            WireFieldContent::Direct {
+                encoding: WireFieldEncoding::Text,
+                place,
+            } => {
                 // Length varint + raw bytes from the descriptor; the
                 // byte-copy bounds every store against the out buffer's
                 // compile-time byte length (the one runtime-sized append).
                 push(SelectedInstructionKind::AppendWireTextBytes {
-                    source_region: field.place.region,
-                    source_offset: field.place.byte_offset,
+                    source_region: place.region,
+                    source_offset: place.byte_offset,
+                    out_region: out_place.region,
+                    out_offset: out_place.byte_offset,
+                    out_length: out_place.byte_count,
+                    written_region: written_place.region,
+                    written_offset: written_place.byte_offset,
+                });
+            }
+            WireFieldContent::Nested { children } => {
+                // The planner reserved the wire scratch from the same
+                // worst-case math validation budgeted with; if the staging
+                // buffer cannot hold this child's worst case, the plan
+                // drifted -- block emission rather than overrun the frame.
+                let staging_worst: usize = children
+                    .iter()
+                    .map(|child| {
+                        let WireFieldContent::Direct {
+                            encoding: WireFieldEncoding::Scalar(scalar),
+                            ..
+                        } = &child.content
+                        else {
+                            unreachable!("collection admits only scalar children");
+                        };
+                        wire_varint_bytes(child.number as u64).len()
+                            + scalar.max_varint_length()
+                    })
+                    .sum();
+                let scratch_base = input.runtime_storage.wire_scratch_base;
+                if scratch_base == 0
+                    || input.runtime_storage.wire_scratch_size < 16 + staging_worst
+                {
+                    return false;
+                }
+                let staging_offset = scratch_base + 16;
+                let cursor_offset = scratch_base + 8;
+
+                // Stage the sub-message: descriptor ptr -> staging buffer,
+                // staging cursor (the descriptor's len slot) = 0, then the
+                // child's fields through the ordinary appends. NO era varint
+                // -- the era rides only the top-level envelope (decision 10).
+                push(SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+                    source_region: RuntimeStorageRegion::RuntimeFrame,
+                    source_offset: staging_offset,
+                    target_offset: scratch_base,
+                });
+                push(SelectedInstructionKind::WriteRuntimeStorageInteger {
+                    target_region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: cursor_offset,
+                    byte_size: 8,
+                    value: 0,
+                });
+                for child in children {
+                    for byte in wire_varint_bytes(child.number as u64) {
+                        push(SelectedInstructionKind::AppendWireLiteralByte {
+                            out_region: RuntimeStorageRegion::RuntimeFrame,
+                            out_offset: staging_offset,
+                            written_region: RuntimeStorageRegion::RuntimeFrame,
+                            written_offset: cursor_offset,
+                            value: byte,
+                        });
+                    }
+                    let WireFieldContent::Direct {
+                        encoding: WireFieldEncoding::Scalar(scalar),
+                        place,
+                    } = &child.content
+                    else {
+                        unreachable!("collection admits only scalar children");
+                    };
+                    push(SelectedInstructionKind::AppendWireScalarVarint {
+                        source_region: place.region,
+                        source_offset: place.byte_offset,
+                        byte_size: scalar.byte_size,
+                        zigzag: scalar.zigzag,
+                        out_region: RuntimeStorageRegion::RuntimeFrame,
+                        out_offset: staging_offset,
+                        written_region: RuntimeStorageRegion::RuntimeFrame,
+                        written_offset: cursor_offset,
+                    });
+                }
+
+                // Replay the staged sub-message into the caller's out buffer:
+                // the text-bytes append reads the scratch descriptor and
+                // emits LENGTH varint + length raw bytes -- exactly the
+                // nested-message framing.
+                push(SelectedInstructionKind::AppendWireTextBytes {
+                    source_region: RuntimeStorageRegion::RuntimeFrame,
+                    source_offset: scratch_base,
                     out_region: out_place.region,
                     out_offset: out_place.byte_offset,
                     out_length: out_place.byte_count,
@@ -223,6 +310,99 @@ pub(super) fn select_wire_encode_call(
     }
 
     true
+}
+
+/// Collect a schema's CURRENT-era fields in field-number order, resolving
+/// each schema field name against the runtime value's matching member under
+/// `receiver`. A nested message field (when `allow_nested`) recurses one
+/// member deeper for its child schema with nesting disallowed -- validation
+/// admits exactly one level, and the single staging region matches.
+#[allow(clippy::too_many_arguments)]
+fn collect_field_appends(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &mut ExpressionTable,
+    receiver: ExpressionHandle,
+    schema: &omega_checked_trees::wire::WireSchema,
+    allow_nested: bool,
+    text_descriptor_size: usize,
+) -> Option<Vec<WireFieldAppend>> {
+    let mut fields = Vec::new();
+    for member in input.program.wire_members(schema.members) {
+        let WireMember::Field(field) = member else {
+            continue;
+        };
+        if field.number < 0 {
+            return None;
+        }
+
+        let member_handle = expressions.insert(ExpressionNode::Member(
+            omega_checked_trees::expression::TableMemberExpression {
+                receiver,
+                member_symbol: SymbolHandle::invalid(),
+                member: field.name.clone(),
+            },
+        ));
+
+        if let Some(child) = input.program.wire_field_nested_schema(field) {
+            if !allow_nested {
+                return None;
+            }
+            let children = collect_field_appends(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                member_handle,
+                child,
+                false,
+                text_descriptor_size,
+            )?;
+            // A nested child is scalar-only (validation's gate); a String or
+            // doubly-nested child reaching here is a planning blocker.
+            if children.iter().any(|child_field| {
+                !matches!(
+                    child_field.content,
+                    WireFieldContent::Direct {
+                        encoding: WireFieldEncoding::Scalar(_),
+                        ..
+                    }
+                )
+            }) {
+                return None;
+            }
+            fields.push(WireFieldAppend {
+                number: field.number,
+                content: WireFieldContent::Nested { children },
+            });
+            continue;
+        }
+
+        let primitive = input.program.primitive_type_reference(field.type_reference)?;
+        let encoding = WireFieldEncoding::for_primitive(primitive)?;
+        let place = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            member_handle,
+        )?;
+        let expected_byte_count = match encoding {
+            WireFieldEncoding::Scalar(scalar) => scalar.byte_size,
+            WireFieldEncoding::Text => text_descriptor_size,
+        };
+        if place.byte_count != expected_byte_count {
+            return None;
+        }
+
+        fields.push(WireFieldAppend {
+            number: field.number,
+            content: WireFieldContent::Direct { encoding, place },
+        });
+    }
+    fields.sort_by_key(|field| field.number);
+    Some(fields)
 }
 
 /// Copy one call argument into the scratch table, unwrapping the `&mut`

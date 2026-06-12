@@ -462,6 +462,34 @@ fn machine_instruction_width(
             *byte_size,
             *zigzag,
         ),
+        SelectedInstructionKind::ReadWireNestedOpen {
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+            ..
+        } => omega_instruction_selection::read_wire_nested_open_width(
+            input.target.architecture,
+            *buffer_offset,
+            *buffer_length,
+            *read_offset,
+            *ok_offset,
+            *end_offset,
+        ),
+        SelectedInstructionKind::ReadWireNestedClose {
+            buffer_offset,
+            read_offset,
+            ok_offset,
+            end_offset,
+            ..
+        } => omega_instruction_selection::read_wire_nested_close_width(
+            input.target.architecture,
+            *buffer_offset,
+            *read_offset,
+            *ok_offset,
+            *end_offset,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
             index_region,

@@ -1612,3 +1612,63 @@ pub fn wire_decode_varint_target_page_offset(
         ),
     }
 }
+
+pub fn read_wire_nested_open_width(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::read_wire_nested_open_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+        ),
+        Architecture::X86_64 => x86_64::read_wire_nested_open_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+        ),
+    }
+}
+
+pub fn read_wire_nested_close_width(
+    architecture: Architecture,
+    buffer_offset: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::read_wire_nested_close_width(buffer_offset, read_offset, ok_offset, end_offset)
+        }
+        Architecture::X86_64 => {
+            x86_64::read_wire_nested_close_width(buffer_offset, read_offset, ok_offset, end_offset)
+        }
+    }
+}
+
+/// Byte offset of the END-slot page address materialization inside both
+/// nested decodes (relocated to the end slot's region symbol).
+pub fn wire_decode_nested_end_page_offset(
+    architecture: Architecture,
+    buffer_offset: usize,
+    read_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::wire_decode_nested_end_page_offset(buffer_offset, read_offset)
+        }
+        Architecture::X86_64 => {
+            x86_64::wire_decode_nested_end_page_offset(buffer_offset, read_offset)
+        }
+    }
+}
