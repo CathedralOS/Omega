@@ -1,4 +1,4 @@
-//! Requires -> ensures ENTAILMENT for empty-body proof machines.
+//! Requires -> ensures ENTAILMENT for proof machines.
 //!
 //! An empty-body machine with `requires`/`ensures` contracts is a proof
 //! artifact (chapter 10): the claim is that the requirements entail the
@@ -6,6 +6,19 @@
 //! UNKNOWN, and -- when the whole contract lies inside the engine's language --
 //! rejects anything it cannot prove, so a false theorem can no longer pass
 //! `--check` silently (see `wiki/proof_engine_roadmap.md`).
+//!
+//! Ladder rung L7 extends the same judgment to INDUCTIVE theorems: a machine
+//! whose body is a chain of guarded value/tail-recursion transitions (the
+//! shape `transition n > 0 { true -> self.f(n - 1, ...) false -> base }`).
+//! Each transition arm is one proof obligation: the ensures with `result`
+//! bound to the arm's value, under the requires plus that arm's guard
+//! polarity. On a tail SELF-call arm the engine may assume the machine's own
+//! ensures for the call's arguments -- the INDUCTION HYPOTHESIS -- but only
+//! after discharging a strict decrease of the declared `decreases` measure at
+//! that exact call site (measure strictly smaller AND still non-negative
+//! under the arm's facts), which is the well-foundedness that makes the
+//! induction sound. No decreases clause, or an undischarged one, means no
+//! hypothesis. See `inductive_transition_entailment` below.
 //!
 //! ## The engine's language
 //!
@@ -51,24 +64,27 @@ use omega_typed_trees::domain::ProofFact;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::signature::SignatureContractKind;
+use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+
+/// The reserved binder naming a machine's return value inside `ensures`
+/// facts. Matches the call-site substitution rule in the checked-trees
+/// contract prover: a single-segment `result` that does not shadow a real
+/// parameter denotes the produced value.
+const RESULT_BINDER: &str = "result";
 
 pub(crate) fn validate_machine_contract_entailment(
     program: &TypedTrees,
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let body_is_empty = program.machine_states(machine).iter().all(|state| {
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .is_empty()
-    });
-    if !body_is_empty {
-        return;
-    }
-
     let mut requires = Vec::new();
     let mut ensures = Vec::new();
+    // Membership facts (`value in Domain`) are outside the engine's language.
+    // The empty-body path drops them silently (a dropped hypothesis only
+    // weakens proving power); the inductive path additionally refuses to
+    // REJECT when any are present, since the unread fact could entail the
+    // goal.
+    let mut all_facts_are_expressions = true;
     for contract in program.machine_contracts(machine) {
         let bucket = match contract.kind {
             SignatureContractKind::Requires => &mut requires,
@@ -76,12 +92,31 @@ pub(crate) fn validate_machine_contract_entailment(
             SignatureContractKind::Boundary => continue,
         };
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            if let ProofFact::Expression(expression) = fact {
-                bucket.push(*expression);
+            match fact {
+                ProofFact::Expression(expression) => bucket.push(*expression),
+                ProofFact::Membership(_) => all_facts_are_expressions = false,
             }
         }
     }
     if ensures.is_empty() {
+        return;
+    }
+
+    let body_is_empty = program.machine_states(machine).iter().all(|state| {
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .is_empty()
+    });
+    if !body_is_empty {
+        inductive_transition_entailment(
+            program,
+            machine,
+            &requires,
+            &ensures,
+            all_facts_are_expressions,
+            diagnostics,
+        );
         return;
     }
 
@@ -133,6 +168,416 @@ pub(crate) fn validate_machine_contract_entailment(
             }
         }
     }
+}
+
+/// One recognized transition arm of an inductive machine body.
+struct TransitionArm {
+    /// The arm's guard expression (`None` for an always-firing arm, which
+    /// contributes no path fact).
+    guard: Option<ExpressionHandle>,
+    kind: ArmKind,
+}
+
+enum ArmKind {
+    /// `guard -> value`: the machine exits producing `value`.
+    Value(ExpressionHandle),
+    /// `guard -> self.this_machine(args)`: tail self-recursion. The arm's
+    /// result IS the recursive call's result, so the induction hypothesis and
+    /// the goal share the `result` atom.
+    TailSelfCall(Vec<ExpressionHandle>),
+}
+
+/// L7: judge the ensures of a machine whose body is a chain of guarded
+/// value / tail-self-call transitions. Anything outside that recognized shape
+/// stands down (bodied machines were previously never judged here, so this
+/// path only ever ADDS judgments for the shape it fully reads).
+fn inductive_transition_entailment(
+    program: &TypedTrees,
+    machine: &Machine,
+    requires: &[ExpressionHandle],
+    ensures: &[ExpressionHandle],
+    all_facts_are_expressions: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Single-state machines only: the state graph IS the recursion structure,
+    // and a tail self-call is a transition back to the root state.
+    let states = program.machine_states(machine);
+    let [root] = states else {
+        return;
+    };
+    let statements = program.statement_table.statements(root.statement_nodes);
+    if statements.is_empty() {
+        return;
+    }
+    let mut arms = Vec::new();
+    for statement in statements {
+        let StatementNode::Transition(transition) = statement else {
+            return; // assignments / locals / calls: out of shape, stand down
+        };
+        if transition.continuation.is_valid() {
+            return;
+        }
+        let guard = match transition.guard {
+            TransitionGuardNode::When(guard) => Some(guard),
+            TransitionGuardNode::Always => None,
+        };
+        let target = program.statement_table.transition_target(transition.target);
+        let kind = match target {
+            TransitionTargetNode::Value(value) => ArmKind::Value(*value),
+            TransitionTargetNode::Named { path, arguments } if path.symbol == root.symbol => {
+                ArmKind::TailSelfCall(
+                    program
+                        .statement_table
+                        .expression_handles(*arguments)
+                        .to_vec(),
+                )
+            }
+            // Transitions to other states (or `self` / terminal targets) are
+            // outside the recognized inductive shape.
+            _ => return,
+        };
+        arms.push(TransitionArm { guard, kind });
+    }
+
+    let trace = std::env::var("OMEGA_ENTAILMENT_TRACE").is_ok();
+    let mut judged_arms = Vec::new();
+    let mut every_arm_visible = true;
+    for arm in &arms {
+        let Some(judged) = prepare_arm(program, machine, root, requires, ensures, arm) else {
+            // The arm's value or argument list is unreadable: the whole body
+            // cannot be anchored, so nothing can be judged or rejected.
+            return;
+        };
+        every_arm_visible &= judged.fully_visible;
+        judged_arms.push(judged);
+    }
+
+    let machine_fully_visible = all_facts_are_expressions && every_arm_visible;
+    for fact in ensures {
+        let mut constant_false_arm = None;
+        let mut refuted_arm = None;
+        let mut unknown_arm = None;
+        let mut goal_always_in_language = true;
+        for arm in &mut judged_arms {
+            if arm.vacuous {
+                // The arm's visible facts are contradictory: that arm is
+                // unreachable, so its obligation holds vacuously.
+                continue;
+            }
+            let judgment = arm.engine.judge(*fact);
+            if trace {
+                eprintln!(
+                    "ENTAILDBG inductive machine={} arm_guard={} fact={} visible={}",
+                    machine.name,
+                    arm.guard_display,
+                    program.expression_table.display_name(*fact),
+                    arm.fully_visible,
+                );
+            }
+            match judgment {
+                Judgment::Proven => {}
+                Judgment::ConstantFalse => {
+                    constant_false_arm.get_or_insert(arm.guard_display.clone());
+                }
+                Judgment::Refuted => {
+                    refuted_arm.get_or_insert(arm.guard_display.clone());
+                }
+                Judgment::Unknown { goal_in_language } => {
+                    unknown_arm.get_or_insert(arm.guard_display.clone());
+                    goal_always_in_language &= goal_in_language;
+                }
+            }
+        }
+        if let Some(guard) = constant_false_arm {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic on the transition arm guarded by `{}`",
+                machine.name,
+                program.expression_table.display_name(*fact),
+                guard
+            )));
+        } else if let Some(guard) = refuted_arm {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` ensures contract proof fact `{}` is disproved on the transition arm guarded by `{}`: the arm's facts entail its negation",
+                machine.name,
+                program.expression_table.display_name(*fact),
+                guard
+            )));
+        } else if let Some(guard) = unknown_arm
+            && goal_always_in_language
+            && machine_fully_visible
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` cannot prove ensures contract proof fact `{}` on the transition arm guarded by `{}`",
+                machine.name,
+                program.expression_table.display_name(*fact),
+                guard
+            )));
+        }
+        // An unknown that is not fully visible means some fact lies outside
+        // the engine's language: stand down rather than reject what we
+        // cannot fully read.
+    }
+}
+
+/// An arm with its proof context installed, ready to judge ensures goals.
+struct JudgedArm<'program> {
+    engine: Engine<'program>,
+    /// The arm's visible facts are unsatisfiable (unreachable arm).
+    vacuous: bool,
+    /// Every hypothesis the arm relies on was readable -- including, for a
+    /// self-call arm, a DISCHARGED strict decrease and a fully instantiated
+    /// induction hypothesis. Only fully visible arms may drive rejection.
+    fully_visible: bool,
+    guard_display: String,
+}
+
+fn prepare_arm<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    root: &omega_typed_trees::state::State,
+    requires: &[ExpressionHandle],
+    ensures: &[ExpressionHandle],
+    arm: &TransitionArm,
+) -> Option<JudgedArm<'program>> {
+    let guard_display = match arm.guard {
+        Some(guard) => program.expression_table.display_name(guard),
+        None => "<always>".to_owned(),
+    };
+
+    let mut engine = Engine::with_result_atom(program, machine, root);
+    let mut comparisons = Vec::new();
+    let mut fully_visible = engine.collect_comparisons(requires, &mut comparisons);
+
+    // The arm's path condition: the guard with its boolean polarity applied
+    // (`expr == false` lowers each dispatch arm; the negated comparison is the
+    // arm's fact). An unreadable guard only weakens proving power.
+    if let Some(guard) = arm.guard {
+        match guard_arm_comparison(&mut engine, guard) {
+            Some(comparison) => comparisons.push(comparison),
+            None => fully_visible = false,
+        }
+    }
+
+    let value = match &arm.kind {
+        ArmKind::Value(value) => {
+            // Bind `result` to the arm's value, so ensures goals over
+            // `result` ground out in parameter terms.
+            let polynomial = engine.normalize(*value)?;
+            Some(polynomial)
+        }
+        ArmKind::TailSelfCall(arguments) => {
+            // INDUCTION: the recursive call's instantiated ensures may enter
+            // the arm's facts, exactly as a nested callee's ensures would,
+            // PROVIDED a strict decrease is discharged at this exact call
+            // site. Build the gate context first (requires + guard, no
+            // hypothesis), then instantiate.
+            let mut gate_engine = Engine::with_result_atom(program, machine, root);
+            let mut gate_comparisons = Vec::new();
+            gate_engine.collect_comparisons(requires, &mut gate_comparisons);
+            if let Some(guard) = arm.guard
+                && let Some(comparison) = guard_arm_comparison(&mut gate_engine, guard)
+            {
+                gate_comparisons.push(comparison);
+            }
+            gate_engine.install_hypotheses(gate_comparisons);
+
+            let argument_map = self_call_argument_map(&mut engine, root, arguments)?;
+            if gate_engine.requires_unsatisfiable {
+                // Unreachable arm: vacuous regardless of the hypothesis.
+            } else if discharges_strict_decrease(program, machine, &mut gate_engine, &argument_map)
+            {
+                // Instantiate the machine's own ensures over the call's
+                // arguments; `result` stays shared (the arm's result IS the
+                // call's result). Conjuncts the engine cannot instantiate are
+                // dropped -- a weaker hypothesis is sound but blocks
+                // rejection.
+                for fact in ensures {
+                    for conjunct in engine.conjuncts(*fact) {
+                        match instantiated_hypothesis(&mut engine, conjunct, &argument_map) {
+                            Some(comparison) => comparisons.push(comparison),
+                            None => fully_visible = false,
+                        }
+                    }
+                }
+            } else {
+                // No discharged decrease at this call site: NO induction
+                // hypothesis. The goal must prove some other way; rejection
+                // is suppressed because the missing hypothesis (not the
+                // theorem) may be at fault.
+                fully_visible = false;
+            }
+            None
+        }
+    };
+
+    if let Some(polynomial) = value {
+        engine
+            .substitutions
+            .insert(RESULT_BINDER.to_owned(), polynomial);
+    }
+    fully_visible &= engine.install_hypotheses(comparisons);
+    let vacuous = engine.requires_unsatisfiable;
+    Some(JudgedArm {
+        engine,
+        vacuous,
+        fully_visible,
+        guard_display,
+    })
+}
+
+/// Read a transition arm's guard as a comparison fact. The dispatch lowering
+/// wraps each arm's guard as `scrutinee == true` / `scrutinee == false`;
+/// unwrap the wrapper and fold the polarity into the comparison operator.
+fn guard_arm_comparison(
+    engine: &mut Engine<'_>,
+    guard: ExpressionHandle,
+) -> Option<(BinaryOperator, Polynomial, Polynomial)> {
+    let node = engine.program.expression_table.expression(guard).clone();
+    if let ExpressionNode::Binary(binary) = &node
+        && binary.operator == BinaryOperator::Equal
+        && let ExpressionNode::Boolean(polarity) =
+            engine.program.expression_table.expression(binary.right)
+    {
+        let polarity = *polarity;
+        let (operator, left, right) = engine.comparison_polynomials(binary.left)?;
+        let operator = if polarity {
+            operator
+        } else {
+            negated_comparison(operator)?
+        };
+        return Some((operator, left, right));
+    }
+    engine.comparison_polynomials(guard)
+}
+
+/// The classical negation of a comparison operator (integer semantics).
+fn negated_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
+    match operator {
+        BinaryOperator::Equal => Some(BinaryOperator::NotEqual),
+        BinaryOperator::NotEqual => Some(BinaryOperator::Equal),
+        BinaryOperator::Less => Some(BinaryOperator::GreaterOrEqual),
+        BinaryOperator::LessOrEqual => Some(BinaryOperator::Greater),
+        BinaryOperator::Greater => Some(BinaryOperator::LessOrEqual),
+        BinaryOperator::GreaterOrEqual => Some(BinaryOperator::Less),
+        _ => None,
+    }
+}
+
+/// Positional map from the machine's non-self parameters to the recursive
+/// call's argument polynomials. `None` when an argument is outside the
+/// engine's language.
+fn self_call_argument_map(
+    engine: &mut Engine<'_>,
+    root: &omega_typed_trees::state::State,
+    arguments: &[ExpressionHandle],
+) -> Option<BTreeMap<String, Polynomial>> {
+    let parameters: Vec<String> = engine
+        .program
+        .state_parameters(root)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect();
+    if parameters.len() != arguments.len() {
+        return None;
+    }
+    let mut map = BTreeMap::new();
+    for (name, argument) in parameters.into_iter().zip(arguments) {
+        let polynomial = engine.normalize(*argument)?;
+        map.insert(name, polynomial);
+    }
+    Some(map)
+}
+
+/// SOUNDNESS GATE for the induction hypothesis: prove, from the arm's own
+/// facts (requires + guard, no hypothesis), that the declared `decreases`
+/// measure is strictly smaller at the recursive call AND still non-negative
+/// there. A strictly decreasing integer measure bounded below by zero admits
+/// no infinite descent, which is exactly the well-foundedness that justifies
+/// assuming the contract for the smaller instance. Only the plain
+/// descending-naturals reading (`decreases value`, or explicitly
+/// `-> Nat::Descending`) is verified here; view and declared-measure orders
+/// have meanings the polynomial engine cannot read, so they never gate a
+/// hypothesis in. The machine-level termination pass independently re-checks
+/// the declared clause and fails compilation when it cannot.
+fn discharges_strict_decrease(
+    program: &TypedTrees,
+    machine: &Machine,
+    engine: &mut Engine<'_>,
+    argument_map: &BTreeMap<String, Polynomial>,
+) -> bool {
+    if !machine.terminates {
+        return false;
+    }
+    let decreases = program
+        .expression_table
+        .expression_handles(machine.decreases);
+    let [measure] = decreases else {
+        return false;
+    };
+    let order = program.machine_decrease_order(machine.decrease_order);
+    let descending_naturals = order.is_empty()
+        || (order.len() == 2 && order[0].as_str() == "Nat" && order[1].as_str() == "Descending");
+    if !descending_naturals {
+        return false;
+    }
+    let Some(measure) = engine.normalize(*measure) else {
+        return false;
+    };
+    let Some(measure_after) = apply_argument_map(&measure, argument_map) else {
+        return false;
+    };
+    let measure_now = engine.substituted(&measure);
+    let measure_after = engine.substituted(&measure_after);
+    let Some(difference) = measure_now.checked_sub(&measure_after) else {
+        return false;
+    };
+    engine.prove_at_least(&difference, 1) && engine.prove_at_least(&measure_after, 0)
+}
+
+/// One ensures conjunct instantiated over the recursive call's arguments:
+/// parameter atoms are replaced (simultaneously) by argument polynomials and
+/// `result` is kept shared. This is the induction hypothesis the arm may
+/// assume once the decrease gate has discharged.
+fn instantiated_hypothesis(
+    engine: &mut Engine<'_>,
+    conjunct: ExpressionHandle,
+    argument_map: &BTreeMap<String, Polynomial>,
+) -> Option<(BinaryOperator, Polynomial, Polynomial)> {
+    let (operator, left, right) = engine.comparison_polynomials(conjunct)?;
+    let left = apply_argument_map(&left, argument_map)?;
+    let right = apply_argument_map(&right, argument_map)?;
+    Some((operator, left, right))
+}
+
+/// Simultaneous single-pass substitution of parameter atoms by argument
+/// polynomials. Single-pass is essential: arguments mention the same
+/// parameters (`n -> n - 1`), so a fixpoint application would telescope.
+/// Atoms that are neither mapped parameters nor `result` (mod-term and
+/// proof-view atoms embed parameter names in their rendered form) cannot be
+/// instantiated and fail the substitution.
+fn apply_argument_map(
+    polynomial: &Polynomial,
+    argument_map: &BTreeMap<String, Polynomial>,
+) -> Option<Polynomial> {
+    let mut result = Polynomial::default();
+    for (monomial, coefficient) in &polynomial.terms {
+        let mut piece = Polynomial::constant(*coefficient);
+        for (atom, power) in monomial {
+            let base = if let Some(replacement) = argument_map.get(atom) {
+                replacement.clone()
+            } else if atom == RESULT_BINDER {
+                Polynomial::atom(atom.clone())
+            } else {
+                return None;
+            };
+            for _ in 0..*power {
+                piece = piece.checked_mul(&base)?;
+            }
+        }
+        result = result.checked_add(&piece)?;
+    }
+    Some(result)
 }
 
 enum Judgment {
@@ -465,16 +910,54 @@ impl<'program> Engine<'program> {
         }
     }
 
+    /// Like [`Engine::new`], plus the reserved `result` atom for the
+    /// machine's return value (unless a real parameter shadows it, matching
+    /// the call-site binder rule). Used by the inductive transition path,
+    /// where each arm binds or shares `result`.
+    fn with_result_atom(
+        program: &'program TypedTrees,
+        machine: &Machine,
+        root: &omega_typed_trees::state::State,
+    ) -> Self {
+        let mut engine = Self::new(program, machine);
+        let shadowed = program
+            .state_parameters(root)
+            .iter()
+            .any(|parameter| !parameter.is_self && parameter.name.as_str() == RESULT_BINDER);
+        if !shadowed {
+            engine.parameter_atoms.push(RESULT_BINDER.to_owned());
+            if root.return_type.is_valid()
+                && let Some(primitive) = program
+                    .type_reference_table
+                    .primitive_type(root.return_type)
+                && !primitive.is_signed_integer()
+            {
+                engine.unsigned_atoms.push(RESULT_BINDER.to_owned());
+            }
+        }
+        engine
+    }
+
     /// Load the requires facts. Returns whether EVERY fact was inside the
     /// engine's language (full visibility is the precondition for rejecting
     /// unproven ensures).
     fn add_requires(&mut self, facts: &[ExpressionHandle]) -> bool {
-        // First pass: harvest substitutions from equations so every later
-        // normalization sees them. Range membership lowers to `&&` chains
-        // (`x in 1..=10` arrives as `(x >= 1) && (x <= 10)`), so facts split
-        // into conjuncts first.
-        let mut fully_visible = true;
         let mut comparisons = Vec::new();
+        let mut fully_visible = self.collect_comparisons(facts, &mut comparisons);
+        fully_visible &= self.install_hypotheses(comparisons);
+        fully_visible
+    }
+
+    /// First ingestion pass: split facts into conjuncts and normalize each to
+    /// a comparison triple. Range membership lowers to `&&` chains
+    /// (`x in 1..=10` arrives as `(x >= 1) && (x <= 10)`), so facts split
+    /// into conjuncts first. Returns whether every conjunct was readable.
+    fn collect_comparisons(
+        &mut self,
+        facts: &[ExpressionHandle],
+        comparisons: &mut Vec<(BinaryOperator, Polynomial, Polynomial)>,
+    ) -> bool {
+        let mut fully_visible = true;
         for fact in facts {
             for conjunct in self.conjuncts(*fact) {
                 match self.comparison_polynomials(conjunct) {
@@ -483,6 +966,18 @@ impl<'program> Engine<'program> {
                 }
             }
         }
+        fully_visible
+    }
+
+    /// Second ingestion pass: harvest substitutions from equations so every
+    /// later normalization sees them, store lower bounds, then seed and close
+    /// the difference-bound matrix. Returns whether every hypothesis
+    /// installed without arithmetic overflow.
+    fn install_hypotheses(
+        &mut self,
+        comparisons: Vec<(BinaryOperator, Polynomial, Polynomial)>,
+    ) -> bool {
+        let mut fully_visible = true;
         for (operator, left, right) in &comparisons {
             if *operator == BinaryOperator::Equal {
                 self.harvest_substitution(left, right);
@@ -671,6 +1166,16 @@ impl<'program> Engine<'program> {
                         return true;
                     }
                 }
+            }
+        }
+        // A stored hypothesis bound whose polynomial IS the goal polynomial
+        // subsumes it directly. This is the shape induction hypotheses
+        // arrive in: general polynomial equations (e.g. `2*result - P >= 0`)
+        // that fit neither the difference-bound matrix nor the interval
+        // evaluator, but whose canonical form matches the goal exactly.
+        for (stored, stored_bound) in &self.bounds {
+            if stored == polynomial && *stored_bound >= bound {
+                return true;
             }
         }
         if let Some(low) = self.polynomial_interval(polynomial).low {

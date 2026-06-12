@@ -1,0 +1,28 @@
+// Ladder rung L7 (induction via recursive contracts + decreases): the
+// accumulator form of Gauss's sum, 2 * gauss_sum(n, acc) == 2*acc + n*(n+1).
+// Lean analog: `Finset.sum_range_id_mul_two` by induction on n. The engine
+// judges each transition arm: the base arm binds `result := acc` under
+// n == 0, and the recursive arm may assume the machine's own ensures for
+// (n - 1, acc + n) -- the induction hypothesis -- because the `decreases n`
+// measure strictly decreases (and stays non-negative) at that exact call
+// site under the n > 0 guard. Both arms discharge by polynomial identity.
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let total: usize = self.gauss_sum(4, 0);
+}
+
+machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+terminates {
+    decreases n;
+}
+ensures
+    result * 2 == acc * 2 + n * (n + 1)
+{
+    transition n > 0 {
+        true -> self.gauss_sum(n - 1, acc + n)
+        false -> acc
+    }
+}

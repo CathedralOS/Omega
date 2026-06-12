@@ -5,6 +5,60 @@ ladder in `canaries/pass/proofs/` and `samples/math_proofs/` to the engine
 increments each rung needs, and records what the checker actually discharges
 today (2026-06).
 
+## UPDATE 2026-06-12: L7 IS DISCHARGED (induction via recursive contracts + decreases)
+
+The entailment engine now judges INDUCTIVE theorems: single-state machines
+whose body is a chain of guarded transitions whose arms are either values or
+tail self-calls (the shape the frontend accepts for value recursion --
+compound arm expressions like `self.f(n - 1) + n` do not parse, so theorems
+are stated in accumulator form). Each arm is one obligation: the ensures with
+`result` bound to the arm's value, under requires plus the arm's guard
+polarity (the dispatch lowering wraps arm guards as `scrutinee == true` /
+`scrutinee == false`; the engine unwraps and folds the polarity into the
+comparison).
+
+THE INDUCTION HYPOTHESIS: on a tail self-call arm the engine instantiates the
+machine's own ensures over the call's arguments (simultaneous substitution of
+parameter atoms by argument polynomials; `result` stays shared because the
+arm's result IS the call's result), exactly as a nested callee's ensures
+enters a caller context. SOUNDNESS GATE, per call site: the hypothesis enters
+only after the engine proves, from that arm's own facts (requires + guard, no
+hypothesis), that the declared `decreases` measure is BOTH strictly smaller at
+the call's arguments AND still non-negative there -- a strictly decreasing
+integer measure bounded below admits no infinite descent, which is the
+well-foundedness that makes assuming the contract for the smaller instance
+sound. Only the plain descending-naturals reading (`decreases value` /
+`-> Nat::Descending`) is verified; view and declared-measure orders never gate
+a hypothesis in. No decreases claim, or an undischarged one at that call site,
+means no hypothesis -- and rejection is then suppressed (the missing
+hypothesis, not the theorem, may be at fault), so the bodied status quo of
+accept-by-default is preserved. The machine-level termination pass
+independently re-checks the declared clause and fails compilation when it
+cannot prove it.
+
+The discharge plumbing: induction hypotheses arrive as general polynomial
+equations (e.g. `2*result - P >= 0`) that fit neither the difference-bound
+matrix nor the interval evaluator, so `prove_at_least` gained direct
+subsumption against stored hypothesis bounds (canonical-form identity). The
+base arm grounds `result` through a directed substitution to the arm's value
+polynomial and discharges through the existing matrix/interval machinery.
+
+Canaries: `pass/proofs/proof_inductive_gauss_sum` (accumulator Gauss sum,
+2*gauss_sum(n, acc) == 2*acc + n*(n+1)) proves by induction;
+`fail/proofs/inductive_gauss_sum_false_twin` (off-by-one -- the inductive step
+is self-consistent, the BASE arm disproves by constant arithmetic) and
+`fail/proofs/inductive_gauss_sum_step_false_twin` (base true, step false --
+the recursive arm rejects as unprovable with the hypothesis available) pin
+both failure directions. The eight L0-L6 false twins promoted on 2026-06-10
+were also finally REGISTERED in the canary suite's fail list (they had been
+moved on disk but never wired in; `bag_view_false_twin`'s expected fragment
+was stale and now matches the engine's constant-arithmetic diagnostic).
+
+STAND-DOWN preserved: bodies containing anything but the recognized
+transition chain (statements, multi-state graphs, non-self transitions,
+unreadable arm values/arguments) are not judged at all, and membership facts
+or out-of-language conjuncts suppress rejection exactly as before.
+
 ## UPDATE 2026-06-10: L0-L6 ARE DISCHARGED
 
 The entailment engine landed in
@@ -26,9 +80,10 @@ rejects what it cannot fully read. `OMEGA_ENTAILMENT_TRACE=1` traces
 judgments.
 
 Open from here: the original anchoring gap below still stands for machines
-WITH bodies (their ensures flow through `build_contract_exit_facts`); the
-ladder's next rungs are induction via recursive contracts + `decreases`,
-quantified facts, and lowering proof views beyond opaque equality.
+WITH general bodies (their ensures flow through `build_contract_exit_facts`,
+which only anchors a trailing expression statement; the L7 update above
+covers all-transition bodies separately); the ladder's next rungs are
+quantified facts and lowering proof views beyond opaque equality.
 
 ## The Empirical Finding
 
@@ -112,7 +167,8 @@ to the engine's real diagnostic when promoting).
 | L6 | `proof_multiplication_distributivity` ((a+b)*c == a*c+b*c) | (covered by L4 normalization twin) | polynomial normalization (ring form) |
 | L6 | `proof_remainder_range` (a%2 in 0..=1) | `pending/proofs/remainder_range_false_twin` (0..=0) | built-in euclidean lemmas (`Nat.mod_lt` analog) |
 | L6 | `proof_bag_view_reflexivity` (Bag(items)==Bag(before) carried) | `pending/proofs/bag_view_false_twin` (ensures !=) | proof-view semantics: today `Bag(...)` is accepted surface with no lowering; even hypothesis-to-conclusion transport of an identical fact is unimplemented |
-| L7+ | (none yet) | (none yet) | induction via recursive contracts + `decreases`; quantified facts |
+| L7 | `proof_inductive_gauss_sum` (2*gauss_sum(n, acc) == 2*acc + n*(n+1), tail recursion) | `fail/proofs/inductive_gauss_sum_false_twin` (ACTIVE, base arm disproved); `fail/proofs/inductive_gauss_sum_step_false_twin` (ACTIVE, recursive arm unprovable) | DONE 2026-06-12: per-arm obligations over transition bodies, `result` binding, induction hypothesis gated on a per-call-site strict-decrease discharge, hypothesis-bound subsumption in `prove_at_least` |
+| L8+ | (none yet) | (none yet) | quantified facts; non-tail value recursion (blocked on frontend: compound arm expressions); statement-position recursion (blocked on termination graph coverage) |
 
 Suggested landing order: anchor ensures obligations for empty-body machines
 first (a `ContractExitFact` at statement_index 0 when the body is empty), with
