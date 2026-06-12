@@ -1,0 +1,1 @@
+cannot prove index `3` is within length 3; cannot prove `index < items.len` — the `requires` of `Slice::index` (spelled `[]`)

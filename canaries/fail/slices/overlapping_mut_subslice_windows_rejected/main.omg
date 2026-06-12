@@ -1,0 +1,14 @@
+// Overlapping mutable windows of the same base: `[0..2)` and `[1..3)` share
+// element 1, so granting both `&mut` views would alias mutable state. The
+// literal window bounds prove the overlap and the second borrow is rejected.
+
+data Main {
+    entries: [i32; 4];
+}
+
+machine Main::main(&mut self) -> usize {
+    let items: &mut [i32] = self.entries.as_mut_slice();
+    let a: &mut [i32] = items[0..2];
+    let b: &mut [i32] = items[1..3];
+    a.len + b.len
+}

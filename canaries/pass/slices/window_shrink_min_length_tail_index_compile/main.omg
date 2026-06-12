@@ -1,0 +1,15 @@
+// Window-shrinking length fact over a symbolic base length: the `requires`
+// floor `3 < items.len` proves the base holds at least 4 elements, and the
+// tail window `items[1..]` drops exactly one, so the tail provably holds at
+// least 3 — making `tail[2]` provable even though no concrete length exists.
+
+data Main {
+}
+
+machine Main::main(&mut self, items: &[i32]) -> i32
+requires
+    3 < items.len
+{
+    let tail: &[i32] = items[1..];
+    tail[2]
+}

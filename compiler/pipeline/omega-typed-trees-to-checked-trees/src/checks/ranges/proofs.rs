@@ -70,8 +70,15 @@ pub(super) fn unknown_length_range_is_proven(
         (true, true) => {
             let start_label = program.expression_table.display_name(range.start);
             let end_label = program.expression_table.display_name(range.end);
-            let start_is_at_most_end = expression_integer_value(program, facts, range.start)
-                .is_some_and(|start| start == 0)
+            // The ordering obligation `start <= end` holds when the start is
+            // the trivial zero, when both bounds fold to constants that
+            // compare, or when the ordering was established as a carried fact.
+            let folded_start = expression_integer_value(program, facts, range.start);
+            let folded_end = expression_integer_value(program, facts, range.end);
+            let start_is_at_most_end = folded_start.is_some_and(|start| start == 0)
+                || folded_start
+                    .zip(folded_end)
+                    .is_some_and(|(start, end)| start <= end)
                 || facts.at_most_is_proven(&start_label, &end_label);
 
             start_is_at_most_end

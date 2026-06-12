@@ -202,6 +202,50 @@ impl RangeFacts<'_> {
             })
     }
 
+    /// Forgets every label-keyed collection fact about `collection`: length
+    /// floors, exact lengths, the window-parent relation it was carved with,
+    /// and element-position proofs keyed on it. Called when a local collection
+    /// is reassigned — the facts described the old value, and keeping them
+    /// (the merge in `prove_minimum_length` keeps the larger floor) would let a
+    /// stale floor prove indexes into the new, possibly shorter value.
+    pub(in crate::checks::ranges) fn forget_collection_facts(&mut self, collection: &str) {
+        self.minimum_lengths.retain(|(known, _)| known != collection);
+        self.exact_lengths.retain(|(known, _)| known != collection);
+        self.window_parents
+            .retain(|(child, _, _)| child != collection);
+        self.proven_indexes.retain(|(known, _)| known != collection);
+        self.proven_range_bounds
+            .retain(|(known, _)| known != collection);
+    }
+
+    /// Derives the carved tail window's length facts from its parent's length
+    /// facts (window-shrinking length vocabulary): `parent[start..]` drops
+    /// exactly `start` elements, so a parent with at least `m` elements leaves
+    /// at least `m - start`, and a parent with exactly `n` elements leaves
+    /// exactly `n - start`. Only meaningful for a start-only window — a
+    /// constant-bounded window `[a..b)` already pins its exact length `b - a`
+    /// independent of the parent.
+    pub(in crate::checks::ranges) fn prove_shrunk_window_length(
+        &mut self,
+        child: &str,
+        parent: &str,
+        start: i64,
+    ) {
+        if start < 0 {
+            return;
+        }
+        if let Some(exact) = self.exact_length(parent) {
+            if exact >= start {
+                self.prove_exact_length(child.to_owned(), exact - start);
+            }
+        }
+        if let Some(minimum) = self.minimum_length(parent) {
+            // `prove_minimum_length` drops non-positive floors, so a shrink
+            // past the known floor simply records nothing.
+            self.prove_minimum_length(child.to_owned(), minimum - start);
+        }
+    }
+
     /// Records a window-shrinking fact: `child` is a subslice of `parent` and is
     /// therefore no longer than it. `bounds` are the child's constant `[start,
     /// end)` offsets into the parent when known. The relation is the basis for

@@ -1,0 +1,14 @@
+// Operator-contract bounds attribution for scalar indexing: with the core
+// slice surface imported, `Slice::index ... spelling [] ... requires
+// index < items.len` governs the access. The out-of-range literal index must
+// name the operator and its `requires` clause.
+
+use omega::language::core::slice;
+
+data Main {
+    values: [i32; 3];
+}
+
+machine Main::main(&mut self) {
+    let last: i32 = self.values[3];
+}

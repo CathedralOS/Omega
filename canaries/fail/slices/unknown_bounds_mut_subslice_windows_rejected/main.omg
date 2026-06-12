@@ -1,0 +1,15 @@
+// Conservative overlap for unknown window bounds: the full-range view `[..]`
+// carries no constant bounds, so disjointness from `[0..2)` cannot be proven
+// and the second `&mut` borrow must be rejected (windows of the same base are
+// assumed to overlap unless provably disjoint).
+
+data Main {
+    entries: [i32; 4];
+}
+
+machine Main::main(&mut self) -> usize {
+    let items: &mut [i32] = self.entries.as_mut_slice();
+    let a: &mut [i32] = items[0..2];
+    let b: &mut [i32] = items[..];
+    a.len + b.len
+}

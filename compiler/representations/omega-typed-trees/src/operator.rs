@@ -282,15 +282,16 @@ pub fn candidates_for_spelling(
         .collect()
 }
 
-/// The human-readable attribution label for the boundary operator governing a
-/// spelling, taken from the `requires` contract owner of the first spelled
-/// candidate that carries one (e.g. ``operator `Slice::range```). This is the
-/// `for <operator>` clause appended to a failed subslice/index bounds
-/// diagnostic so the failure points at the operator contract that sourced the
-/// obligation rather than a generic message.
+/// The browsable path of the boundary operator governing a spelling (e.g.
+/// `Slice::range`), taken from the `requires` contract owner of the first
+/// spelled candidate that carries one. Failed subslice/index bounds
+/// diagnostics name this path together with the spelling so the user can
+/// look up the operator declaration and read the contract that sourced the
+/// obligation.
 ///
-/// Returns `None` when no spelled candidate carries a `requires` contract.
-pub fn operator_contract_label(
+/// Returns `None` when no spelled candidate carries a `requires` contract or
+/// the carrying operator has no path members to name.
+pub fn operator_contract_path(
     program: &TypedTrees,
     operators: &[OperatorDefinition],
     spelling: OperatorSpelling,
@@ -304,18 +305,14 @@ pub fn operator_contract_label(
                 .iter()
                 .any(|contract| contract.kind == crate::signature::SignatureContractKind::Requires)
         })
-        .map(|operator| {
+        .and_then(|operator| {
             let path = program
                 .operator_path_members(operator.name)
                 .iter()
                 .map(|member| member.as_str().to_owned())
                 .collect::<Vec<_>>()
                 .join("::");
-            if path.is_empty() {
-                "operator".to_owned()
-            } else {
-                format!("operator `{path}`")
-            }
+            (!path.is_empty()).then_some(path)
         })
 }
 

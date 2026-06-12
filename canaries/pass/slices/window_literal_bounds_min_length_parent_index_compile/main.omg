@@ -1,0 +1,15 @@
+// Constant-bounded window over a symbolic base length: the folded bounds
+// `1..3` order trivially and the `requires` floor `4 <= items.len` discharges
+// the end bound, so the carve is provable. The window then carries the exact
+// derived length `3 - 1 = 2`, making `window[1]` provable.
+
+data Main {
+}
+
+machine Main::main(&mut self, items: &[i32]) -> i32
+requires
+    4 <= items.len
+{
+    let window: &[i32] = items[1..3];
+    window[1]
+}
