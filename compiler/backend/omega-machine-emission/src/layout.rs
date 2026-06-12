@@ -417,6 +417,38 @@ fn machine_instruction_width(
             *out_offset,
             *written_offset,
         ),
+        SelectedInstructionKind::ReadWireExpectedByte {
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            ..
+        } => omega_instruction_selection::read_wire_expected_byte_width(
+            input.target.architecture,
+            *buffer_offset,
+            *buffer_length,
+            *read_offset,
+            *ok_offset,
+        ),
+        SelectedInstructionKind::ReadWireScalarVarint {
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            target_offset,
+            byte_size,
+            zigzag,
+            ..
+        } => omega_instruction_selection::read_wire_scalar_varint_width(
+            input.target.architecture,
+            *buffer_offset,
+            *buffer_length,
+            *read_offset,
+            *ok_offset,
+            *target_offset,
+            *byte_size,
+            *zigzag,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
             index_region,

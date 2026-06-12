@@ -307,6 +307,42 @@ pub(super) fn encode_machine_instruction_bytes(
             *out_offset,
             *written_offset,
         ),
+        SelectedInstructionKind::ReadWireExpectedByte {
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            expected,
+            ..
+        } => omega_instruction_selection::encode_read_wire_expected_byte(
+            input.target.architecture,
+            *buffer_offset,
+            *buffer_length,
+            *read_offset,
+            *ok_offset,
+            *expected,
+        ),
+        SelectedInstructionKind::ReadWireScalarVarint {
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            target_region,
+            target_offset,
+            byte_size,
+            zigzag,
+            ..
+        } => omega_instruction_selection::encode_read_wire_scalar_varint(
+            input.target.architecture,
+            *buffer_offset,
+            *buffer_length,
+            *read_offset,
+            *ok_offset,
+            *target_region,
+            *target_offset,
+            *byte_size,
+            *zigzag,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineIndexedInteger {
             base_byte_offset,
             index_region,

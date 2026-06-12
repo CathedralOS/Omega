@@ -1093,6 +1093,78 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
+    // Wire stage 2b: encode { counter: 300, delta: -2, flag: true } into
+    // [0x00, 0x00, 0xAC, 0x02, 0x01, 0x03, 0x02, 0x01] (hand-computed in the
+    // canary header), then `decode_wire(&mut decoded, &buffer, &mut read,
+    // &mut ok)` reads the same 8 bytes back: ok = true, read = 8, and every
+    // decoded field equals the original (zigzag round-trips -2). Exits 70 on
+    // a full match.
+    let canary = pass_canary("wire/runtime_wire_roundtrip_primitive_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-roundtrip-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire roundtrip canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wire roundtrip canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the compact_binary v0 decoder to round-trip the encoded message (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_decode_rejects_wrong_era_exit_canary_runs() {
+    // Wire stage 2b: a hand-built buffer carrying era byte 5 (the schema's
+    // current era is 0) must fail to decode -- the era discriminator is the
+    // first expected byte and the failure flag is sticky. The canary exits 70
+    // on the failure path (`ok` = false).
+    let canary = pass_canary("wire/runtime_wire_decode_rejects_wrong_era_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-wrong-era-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire wrong-era canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wire wrong-era canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected decode_wire to reject a non-current era discriminator (exit 70 on the failure path), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_call_result_binary_operand_exit_canary_runs() {
     // A state-call result used as an operand of a larger value (`x = f() + 1`,
     // `x = max(y, f()+1)`) must apply the operator, not collapse to just the call's
@@ -7473,6 +7545,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/wire_cross_era_number_recycling",
     "wire/runtime_wire_encode_primitive_exit",
     "wire/runtime_wire_encode_era_discriminator_exit",
+    "wire/runtime_wire_roundtrip_primitive_exit",
+    "wire/runtime_wire_decode_rejects_wrong_era_exit",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -7483,6 +7557,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/version_field_retired_without_reserved",
     "wire/version_chain_retired_without_reserved",
     "wire/encode_unsupported_field_type",
+    "wire/decode_unsupported_field_type",
     "capabilities/unapproved_host_call",
     "data/bare_payload_case_equality_guard",
     "data/bare_payload_case_equality_suggests_in",
