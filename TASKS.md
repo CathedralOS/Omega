@@ -34,18 +34,24 @@ Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
 below is complete; what remains is gated on these maintainer calls. Each
 points at the bullet carrying the full proposal:
 
-1. **`Versioned<T>` container** — the versioned-data stage-3 bullet's
-   "PROPOSED DESIGN AWAITING SIGN-OFF" block (name/permanence, era width,
-   payload storage, era queryability, chain severity). Unlocks stage
-   3a/3b and historical-era wire decode.
-2. **Argumented ranking-view spelling** — the Measures section's "NEEDS
-   MAINTAINER SIGN-OFF" note (`decreases index -> Distance::To(limit)` vs
-   keeping the named-subtraction form permanent). Grammar surgery either
-   way; pick before building.
-3. **Call-output borrows** — the wire bullet's String-decode KNOWN HOLE:
-   may a call's output retain a borrow of another argument (the borrow
-   model extension zero-copy decode needs)? Also shapes any future
-   view-returning machine surface.
+1. **`Versioned<T>` container** — DECIDED 2026-06-12 (frozen decision 14):
+   permanent builtin template type; u32 era; union-of-eras payload storage;
+   `era` read-only source-queryable; incomplete-chain = report verdict, not
+   error; paren arm form binds the whole historical value
+   (`Counter::v1(old) ->`). Stage 3a/3b unblocked.
+2. **Argumented ranking-view spelling** — DECIDED 2026-06-12: the use-site
+   subtraction (`decreases limit - index`) is rejected as permanent surface;
+   BUILD the argumented view `decreases (index, limit) ->
+   Nat::BoundedDistance` (tuple form: the arrow's left side is uniformly
+   the ranked subjects) and RETIRE the subtraction spelling once it lands.
+   See the Measures bullet for the grammar-surgery scope.
+3. **Call-output borrows** — DECIDED 2026-06-12 (frozen decision 15): adopt
+   the RUST MODEL wholesale — lifetime parameters with the tick spelling
+   (`machine header<'buf>(buffer: &'buf [u8], ...) -> &'buf string`),
+   aggressive elision (one ref input → output borrows it; `&self` → self),
+   borrow-carrying data IN-MODEL (`data ChatMessage<'buf>`), descriptive
+   lifetime names as house style. Unblocks zero-copy wire decode +
+   view-returning machines.
 4. **Long-view arc priority** — which big arc gets the next scout brief:
    concurrency model and atomics gate the most for Cathedral
    (wiki/cathedral_alignment.md tier 1); separate compilation, comptime,
@@ -69,6 +75,17 @@ contracts — still slip through). Decision 13's residue (machine-call
 monomorphization arguments not bound-checked; generics-completion arc)
 remains tracked in its bullet below.
 
+- [ ] **Lifetimes (decision 15).** New implementation arc: `'name` lifetime
+  parameters in the `<>` generic list (lexer tick token, parser, all three
+  tree representations), elision rules (one ref input → output borrows it;
+  `&self` → self), borrow-checker linkage (returned view extends the named
+  input's loan), borrow-carrying `data` declarations. Staging suggestion:
+  elision-only first (no user-visible ticks; fixes the conservative
+  all-args aliasing), then explicit parameters, then struct borrows.
+  Unlocks zero-copy String decode + view-returning machines.
+- [ ] **Ranking-view spelling (decision 2 above).** Build
+  `decreases (index, limit) -> Nat::BoundedDistance`; retire the use-site
+  subtraction form once landed. Grammar scope in the Measures bullet.
 - [ ] **Wire stage 2: encoders + decoders.** STAGE 2a LANDED (2026-06-11):
   era assignment along the version chain (decision 10; queryable on the
   typed `WireSchema`, surfaced in `04_wire_protocols.txt`), the synthesized
@@ -107,9 +124,11 @@ remains tracked in its bullet below.
   ..)` leaving `value`'s String field aliasing `buffer`, so buffer
   mutation after a zero-copy decode would silently invalidate the decoded
   string -- a KNOWN HOLE to close before (a) lands (borrow-facts follow-up:
-  model a call output retaining a borrow of another argument; then
-  zero-copy String decode is mechanical: read len varint, bounds-check
-  against the remaining buffer, store `{buffer_base + cursor, len}`).
+  model a call output retaining a borrow of another argument; RULED
+  2026-06-12, frozen decision 15: the Rust lifetime model is adopted, so
+  zero-copy String decode is mechanical once lifetimes are implemented:
+  read len varint, bounds-check against the remaining buffer, store
+  `{buffer_base + cursor, len}`).
   Encode also has no runtime overflow signal (content past capacity is
   dropped; callers size buffers for their longest text) -- an encode
   ok/overflow out-parameter is candidate follow-up work. NESTED MESSAGE
@@ -154,19 +173,16 @@ remains tracked in its bullet below.
   migration chains, `replaces`, quiescence obligations. (Stage 2 landed
   2026-06-11: historical-shape construction, the type-name migration call,
   the first runtime migration canary, struct-literal field validation.)
-  PROPOSED DESIGN AWAITING SIGN-OFF (scouted 2026-06-11): a builtin
-  `Versioned<T>` container — `{ era: u32, payload: opaque bytes of the
-  era's own shape }`, the trait-object pattern — constructed at boundaries
-  only (chapter 21: ordinary values never carry era tags); version match
-  arms become legal ONLY on `Versioned<T>` subjects (tag compare + shape
-  reinterpretation per arm); the wire decoder is NOT a prerequisite.
-  Stage 3b (no new surface, dispatchable independently): migration-chain
-  completeness validation along the declared version chain. Open decisions
-  for the maintainer: container name/permanence, era field width (u32
-  proposed), payload storage (opaque bytes vs union-of-eras), whether
-  `era` is source-queryable, and incomplete-chain severity (warning
-  proposed). `replaces`/quiescence stay deferred behind the concurrency
-  model.
+  DESIGN SIGNED OFF 2026-06-12 (frozen decision 14): builtin `Versioned<T>`
+  — `{ era: u32, payload: UNION-OF-ERAS }` — constructed at boundaries only
+  (chapter 21: ordinary values never carry era tags); version match arms
+  legal ONLY on `Versioned<T>` subjects (tag compare + shape
+  reinterpretation per arm; paren form binds the whole historical value);
+  `era` read-only source-queryable; incomplete-chain = report verdict; the
+  wire decoder is NOT a prerequisite. Stage 3b (no new surface,
+  dispatchable independently): migration-chain completeness validation
+  along the declared version chain. `replaces`/quiescence stay deferred
+  behind the concurrency model.
 - [ ] **Equatable synthesis / conformance defaults.** EQUATABLE SYNTHESIS
   LANDED (2026-06-11): `Type satisfies Equatable;` on a record or
   payload-bearing sum makes `==`/`!=` legal -- expanded INLINE at
@@ -804,6 +820,29 @@ Implementation slices below build against these. Minor/easily-reversible details
     attribute magic properties deliberately avoid). Leaves
     `T [copy] satisfies Equatable` room for trait bounds without
     collision.
+14. **`Versioned<T>` container.** A permanent builtin template type
+    `{ era: u32, payload: union-of-eras }` — the only thing version match
+    arms are legal on (matching `Counter::v1(...)` on a PLAIN value stays
+    an error; ordinary values never carry era tags). Constructed only at
+    boundaries (wire decode, storage read, hot-swap edges); consumption is
+    ordinary tag dispatch where the paren arm form binds the WHOLE
+    historical value (`Counter::v1(old) -> ...`; braces stay field
+    binding). `era` is read-only source-queryable. Migration-chain
+    completeness is a report verdict, not an error (an arm may handle an
+    old era manually). See chapter 21.
+15. **Lifetimes: the Rust model, adopted wholesale.** A call's output may
+    borrow an input; lifetime parameters (tick spelling, declared in the
+    same `<>` list as types and `const`) express which:
+    `machine header<'buf>(buffer: &'buf [u8], scratch: &mut [u8]) ->
+    &'buf string`. ELISION covers the common cases (one ref input → output
+    borrows it; `&self` → self) so most signatures stay annotation-free.
+    Borrow-carrying data is IN-MODEL from day one
+    (`data ChatMessage<'buf> { body: &'buf string; }`). House style:
+    descriptive lifetime names (`'buf`, `'arena`), not `'a`. Rejected
+    spellings: `from <arg>` clauses, `borrows` clauses, keyword
+    region/origin parameters, Mojo-style bracket origins (collide with
+    slice/property/invariant brackets). Unblocks zero-copy wire decode and
+    view-returning machines. See chapter 2 + appendix.
 
 ## Next Up (highest leverage)
 
@@ -1207,16 +1246,18 @@ exit.
   `proofs/proof_inductive_climbing_sum`, step-false twin
   `proofs/inductive_climbing_sum_step_false_twin` pins that the hypothesis
   actually enters through this gate); (e) the ambiguity diagnostic's browsable
-  builtin-view list now includes `Nat::BoundedDistance`. NEEDS MAINTAINER
-  SIGN-OFF (deferred): an argumented view spelling that removes the
-  subtraction from the use site entirely — `decreases index ->
-  Distance::To(limit)` or `decreases (index, limit) -> BoundedDistance` —
-  requires real grammar surgery: the ranking-view position is a plain
-  identifier path (`parse_path_handle_span` in
+  builtin-view list now includes `Nat::BoundedDistance`. DECIDED 2026-06-12
+  (maintainer): the use-site subtraction is NOT acceptable permanent
+  surface — build the argumented view spelling
+  `decreases (index, limit) -> Nat::BoundedDistance` (tuple form; the
+  arrow's left side stays uniformly the ranked subjects) and retire
+  `decreases limit - index` once it lands. Grammar-surgery scope: the
+  ranking-view position is a plain identifier path
+  (`parse_path_handle_span` in
   `omega-tokens-to-syntax-trees/src/parser/machine/clauses.rs`) and
   `decrease_order` is `HandleSpan<Identifier>` through all three tree
   representations, so view arguments need new syntax, storage, and symbol
-  resolution. Pick a spelling before building it. NOTE (pre-existing bug,
+  resolution. NOTE (pre-existing bug,
   RESOLVED 2026-06-12 below): a `requires` clause on a recursive machine used
   to overflow the compile-time contract evaluator's stack
   (`ContractExpressionEvaluator::integer_value` followed the self-call site's

@@ -164,6 +164,20 @@ This page tracks design pressure that is not fully nailed down yet.
   they follow at every position -- `data Box<T [copy]> [copy]`. Colon
   bounds and attribute-prefix lines are rejected; trait bounds compose as
   `T [copy] satisfies Equatable`.
+- Version matching (frozen decision 14): a builtin `Versioned<T>` container
+  (`{ era: u32, payload: union-of-eras }`), minted only at boundaries, is
+  the ONLY legal subject for version match arms -- plain values never carry
+  era tags (the per-struct tag tax stays rejected). `era` is read-only
+  queryable; the paren arm form binds the whole historical value;
+  migration-chain completeness is a report verdict.
+- Lifetimes (frozen decision 15): the Rust model, adopted wholesale --
+  tick-spelled lifetime parameters in the ordinary `<>` list, elision for
+  the common cases (single ref input; `&self`), borrow-carrying data
+  in-model (`data ChatMessage<'buf>`). Rejected spellings: `from`/`borrows`
+  clauses (cannot name a struct field's source), keyword region/origin
+  parameters (verbose ambiguity), Mojo bracket origins (collide with
+  slice/property/invariant brackets). House style: descriptive names
+  (`'buf`), never `'a`.
 
 ## Still Open
 

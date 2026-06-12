@@ -136,6 +136,48 @@ invalidated by the reallocation. This is the borrow-conflict rule for `Vec`; its
 canary is parked under `canaries/pending/borrow/vec_view_invalidated_by_push`
 until the `Vec` runtime/lowering is ready to exercise it end to end.
 
+## Lifetime Parameters
+
+Omega adopts the Rust lifetime model wholesale (frozen decision 15): a call's
+output may borrow an input, and LIFETIME PARAMETERS — declared in the same
+`<>` list as type and `const` parameters, tick spelling — say which:
+
+```omega
+machine header<'buf>(buffer: &'buf [u8], scratch: &mut [u8]) -> &'buf string {
+    // the returned view aliases `buffer`; the checker extends buffer's loan
+    // for as long as the result lives. `scratch` is unentangled.
+}
+```
+
+ELISION keeps the common cases annotation-free, exactly as in Rust: a single
+ref input means the output borrows it, and a `&self` method's output borrows
+self. Most signatures therefore never write a tick:
+
+```omega
+machine decode_body(buffer: &[u8]) -> &string { ... }       // borrows buffer
+machine Level::find_room(&self, id: CellId) -> &Room { ... } // borrows self
+```
+
+Borrow-carrying data is in-model from day one — a type holding views is
+generic over the lifetime of what it views, which is what makes zero-copy
+decoding spellable:
+
+```omega
+data ChatMessage<'buf> {
+    sender_id: i64;
+    body: &'buf string;     // view into the receive buffer; zero bytes copied
+}
+```
+
+House style: descriptive lifetime names (`'buf`, `'arena`, `'msg`), never
+`'a`. The tick was kept deliberately after surveying the alternatives
+(argument-naming clauses, keyword region/origin parameters, Mojo-style
+bracket origins): it is lexically self-identifying at use sites, collides
+with none of Omega's bracket meanings (slices, properties, invariant
+parameters), and elision makes it rare. Implementation is staged; until the
+checker learns the linkage it conservatively treats a returned view as
+aliasing every ref argument.
+
 ## Relationship To Drops
 
 Ownership decides who must clean up a value. The cleanup machinery itself is
