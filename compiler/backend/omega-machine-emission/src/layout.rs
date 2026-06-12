@@ -417,6 +417,19 @@ fn machine_instruction_width(
             *out_offset,
             *written_offset,
         ),
+        SelectedInstructionKind::AppendWireTextBytes {
+            source_offset,
+            out_offset,
+            out_length,
+            written_offset,
+            ..
+        } => omega_instruction_selection::append_wire_text_bytes_width(
+            input.target.architecture,
+            *source_offset,
+            *out_offset,
+            *out_length,
+            *written_offset,
+        ),
         SelectedInstructionKind::ReadWireExpectedByte {
             buffer_offset,
             buffer_length,

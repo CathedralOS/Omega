@@ -307,6 +307,21 @@ pub(super) fn encode_machine_instruction_bytes(
             *out_offset,
             *written_offset,
         ),
+        SelectedInstructionKind::AppendWireTextBytes {
+            source_region,
+            source_offset,
+            out_offset,
+            out_length,
+            written_offset,
+            ..
+        } => omega_instruction_selection::encode_append_wire_text_bytes(
+            input.target.architecture,
+            *source_region,
+            *source_offset,
+            *out_offset,
+            *out_length,
+            *written_offset,
+        ),
         SelectedInstructionKind::ReadWireExpectedByte {
             buffer_offset,
             buffer_length,

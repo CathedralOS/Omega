@@ -955,15 +955,19 @@ impl<'program> Evaluator<'program> {
     /// framing the native backends emit: the CURRENT era discriminator
     /// varint, then per field in field-number order a field-number varint and
     /// a value varint (unsigned LEB128; signed values zigzag
-    /// `(n << 1) ^ (n >> 63)`; bool = 0/1). The shared
-    /// `omega_typed_trees::wire` vocabulary (scalar encodings + varint bytes)
-    /// keeps both byte-for-byte in lockstep.
+    /// `(n << 1) ^ (n >> 63)`; bool = 0/1). A `String` field (at most one,
+    /// encoding LAST) rides as its byte-count varint followed by the raw
+    /// UTF-8 bytes, and -- matching the native bounds-checked byte-copy --
+    /// content past the out buffer's capacity is DROPPED rather than written.
+    /// The shared `omega_typed_trees::wire` vocabulary (field encodings +
+    /// varint bytes) keeps interpreter and backends byte-for-byte in
+    /// lockstep.
     fn try_wire_encode_call(
         &mut self,
         call: &TableCall,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        use omega_typed_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes};
+        use omega_typed_trees::wire::{WireFieldEncoding, WireMember, wire_varint_bytes};
 
         let Some(schema) = self.program.wire_encode_call_schema(call) else {
             return Ok(None);
@@ -972,7 +976,8 @@ impl<'program> Evaluator<'program> {
         let era = self.program.wire_schema_current_era(schema);
 
         // (field name, number, encoding) of the CURRENT era, in field-number
-        // order -- validation has already enforced the stage 2a scalar set.
+        // order -- validation has already enforced the stage 2a field set
+        // (scalars plus at most one trailing String).
         let mut fields = Vec::new();
         for member in self.program.wire_members(schema.members) {
             let WireMember::Field(field) = member else {
@@ -981,16 +986,19 @@ impl<'program> Evaluator<'program> {
             let encoding = self
                 .program
                 .primitive_type_reference(field.type_reference)
-                .and_then(WireScalarEncoding::for_primitive)
+                .and_then(WireFieldEncoding::for_primitive)
                 .ok_or_else(|| {
                     Halt::Unsupported(format!(
-                        "wire data `{schema_name}` field `{}` is not a stage 2a scalar",
+                        "wire data `{schema_name}` field `{}` is not a stage 2a scalar or String",
                         field.name
                     ))
                 })?;
             fields.push((field.name.as_str().to_owned(), field.number, encoding));
         }
         fields.sort_by_key(|(_, number, _)| *number);
+        let has_text_field = fields
+            .iter()
+            .any(|(_, _, encoding)| matches!(encoding, WireFieldEncoding::Text));
 
         let arguments = self.program.statement_table.expression_handles(call.arguments);
         let [value_argument, out_argument, written_argument] = arguments else {
@@ -1028,42 +1036,67 @@ impl<'program> Evaluator<'program> {
                     )));
                 }
             };
-            let raw = raw
-                .borrow()
-                .as_int()
-                .ok_or_else(|| {
-                    Halt::Trap(format!(
-                        "`{schema_name}::encode_wire` field `{field_name}` is not a scalar value"
-                    ))
-                })?;
+            match encoding {
+                WireFieldEncoding::Scalar(scalar) => {
+                    let raw = raw
+                        .borrow()
+                        .as_int()
+                        .ok_or_else(|| {
+                            Halt::Trap(format!(
+                                "`{schema_name}::encode_wire` field `{field_name}` is not a scalar value"
+                            ))
+                        })?;
 
-            // The same widths/signedness the native encoders apply: load at
-            // the source width (zero- or sign-extending), zigzag signed
-            // sources at 64 bits.
-            let encoded = match (encoding.byte_size, encoding.zigzag) {
-                (1, _) => u64::from(raw != 0),
-                (4, false) => u64::from(raw as u32),
-                (8, false) => raw as u64,
-                (4, true) => zigzag64(i64::from(raw as i32)),
-                (8, true) => zigzag64(raw),
-                _ => {
-                    return Err(Halt::Unsupported(format!(
-                        "wire scalar of {} bytes", encoding.byte_size
-                    )));
+                    // The same widths/signedness the native encoders apply:
+                    // load at the source width (zero- or sign-extending),
+                    // zigzag signed sources at 64 bits.
+                    let encoded = match (scalar.byte_size, scalar.zigzag) {
+                        (1, _) => u64::from(raw != 0),
+                        (4, false) => u64::from(raw as u32),
+                        (8, false) => raw as u64,
+                        (4, true) => zigzag64(i64::from(raw as i32)),
+                        (8, true) => zigzag64(raw),
+                        _ => {
+                            return Err(Halt::Unsupported(format!(
+                                "wire scalar of {} bytes",
+                                scalar.byte_size
+                            )));
+                        }
+                    };
+                    bytes.extend(wire_varint_bytes(encoded));
                 }
-            };
-            bytes.extend(wire_varint_bytes(encoded));
+                WireFieldEncoding::Text => {
+                    // Length varint (byte count) then the raw UTF-8 bytes --
+                    // the same framing the native text-bytes append emits.
+                    let text = match &*raw.borrow() {
+                        Value::Str(text) => text.borrow().clone(),
+                        _ => {
+                            return Err(Halt::Trap(format!(
+                                "`{schema_name}::encode_wire` field `{field_name}` is not a String value"
+                            )));
+                        }
+                    };
+                    bytes.extend(wire_varint_bytes(text.len() as u64));
+                    bytes.extend(text.as_bytes());
+                }
+            }
         }
 
         match &*out_cell.borrow() {
             Value::Array(elements) => {
-                if bytes.len() > elements.len() {
+                if bytes.len() > elements.len() && !has_text_field {
+                    // Without a String field validation's worst-case budget
+                    // covers every byte, so an overflow here is a compiler
+                    // bug, not a program state -- trap loudly.
                     return Err(Halt::Trap(format!(
                         "`{schema_name}::encode_wire` produced {} bytes into a {}-byte buffer",
                         bytes.len(),
                         elements.len()
                     )));
                 }
+                // With a String field the native byte-copy bounds every store
+                // against the buffer's capacity and DROPS overflowing content
+                // (the String encodes last); `zip` clamps identically.
                 for (element, byte) in elements.iter().zip(&bytes) {
                     *element.borrow_mut() = Value::Int(i64::from(*byte));
                 }
@@ -1074,7 +1107,11 @@ impl<'program> Evaluator<'program> {
                 )));
             }
         }
-        *written_cell.borrow_mut() = Value::Int(bytes.len() as i64);
+        let buffer_capacity = match &*out_cell.borrow() {
+            Value::Array(elements) => elements.len(),
+            _ => unreachable!("out argument validated as an array above"),
+        };
+        *written_cell.borrow_mut() = Value::Int(bytes.len().min(buffer_capacity) as i64);
 
         Ok(Some(Value::Unit))
     }

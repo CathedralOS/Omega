@@ -36,6 +36,16 @@ pub(super) fn collect_wire_encode_relocations(
             written_region,
             written_offset,
             ..
+        }
+        // The text-bytes append materializes its source (descriptor) page at
+        // the same post-prologue position as the varint's scalar page.
+        | SelectedInstructionKind::AppendWireTextBytes {
+            source_region,
+            out_region,
+            out_offset,
+            written_region,
+            written_offset,
+            ..
         } => {
             context.insert_data_address_at_instruction_start(
                 context.storage_region_symbol_handle(*out_region),

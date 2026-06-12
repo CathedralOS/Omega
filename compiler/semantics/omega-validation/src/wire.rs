@@ -378,12 +378,16 @@ pub(crate) fn validate_wire_schema_call(
 /// diagnostic, instead of in the backend:
 /// - exactly three arguments;
 /// - every current-era schema field is a stage 2a scalar (i32/i64/u32/u64/
-///   bool) -- strings, nested messages, and repeated fields reject;
+///   bool) or `String` -- nested messages and repeated fields reject;
+/// - at most one `String` field, and it carries the highest field number so
+///   it encodes LAST (its content is runtime-sized; see the worst-case rule);
 /// - the value argument's data type declares every schema field with the
 ///   SAME primitive type;
 /// - the out buffer is `&mut [u8; N]` with room for the WORST-CASE encoding
-///   (era varint + per field tag varint + max value varint), so the emitted
-///   appends never need a runtime bounds check;
+///   (era varint + per field tag varint + max value varint; a String field
+///   budgets tag + max length varint), so every append EXCEPT the trailing
+///   String byte-copy needs no runtime bounds check -- the byte-copy alone
+///   bounds against N at runtime and truncates content past capacity;
 /// - the written argument is `&mut usize`.
 ///
 /// Places this scope cannot type (alias-fed or computed arguments) skip the
@@ -407,12 +411,16 @@ fn validate_wire_encode_call(
         return;
     }
 
-    // Schema side: the stage 2a scalar set, and the worst-case byte budget
-    // the out buffer must cover (era varint + per-field tag varint + max
-    // value varint).
+    // Schema side: the stage 2a scalar set plus String, and the worst-case
+    // byte budget the out buffer must cover (era varint + per-field tag
+    // varint + max value varint; a String field budgets its tag + max length
+    // varint -- its CONTENT is runtime-sized, so the emitted byte-copy is the
+    // one append that bounds-checks against the buffer at runtime instead).
     let era = program.wire_schema_current_era(schema);
     let mut worst_case_bytes = omega_typed_trees::wire::wire_varint_bytes(era).len();
     let mut current_fields = Vec::new();
+    let mut text_fields: Vec<&WireField> = Vec::new();
+    let mut max_field_number = i64::MIN;
     let mut schema_rejects = false;
     for member in program.wire_members(schema.members) {
         let WireMember::Field(field) = member else {
@@ -420,10 +428,10 @@ fn validate_wire_encode_call(
         };
         let primitive = program.primitive_type_reference(field.type_reference);
         let Some(encoding) =
-            primitive.and_then(omega_typed_trees::wire::WireScalarEncoding::for_primitive)
+            primitive.and_then(omega_typed_trees::wire::WireFieldEncoding::for_primitive)
         else {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` field `{}`: `{}` is not encodable by the compact_binary v0 encoder yet; wire stage 2a supports i32, i64, u32, u64, and bool",
+                "wire data `{}` field `{}`: `{}` is not encodable by the compact_binary v0 encoder yet; wire stage 2a supports i32, i64, u32, u64, bool, and String",
                 schema.name,
                 field.name,
                 program.display_type_reference(field.type_reference)
@@ -439,10 +447,40 @@ fn validate_wire_encode_call(
             schema_rejects = true;
             continue;
         }
-        worst_case_bytes +=
-            omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len()
-                + encoding.max_varint_length();
+        max_field_number = max_field_number.max(field.number);
+        let tag_bytes = omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len();
+        worst_case_bytes += tag_bytes
+            + match encoding {
+                omega_typed_trees::wire::WireFieldEncoding::Scalar(scalar) => {
+                    scalar.max_varint_length()
+                }
+                omega_typed_trees::wire::WireFieldEncoding::Text => {
+                    text_fields.push(field);
+                    omega_typed_trees::wire::WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH
+                }
+            };
         current_fields.push((field, primitive.expect("encoding implies primitive")));
+    }
+    // A String field's byte count is runtime-sized, so every append AFTER it
+    // would run with the compile-time capacity guarantee already spent. The
+    // encoder therefore takes at most ONE String field, and it must encode
+    // LAST (the highest field number); everything before it stays covered by
+    // the worst-case budget, and the trailing byte-copy is runtime-bounded.
+    if let [first_text, more_text @ ..] = text_fields.as_slice() {
+        for field in more_text {
+            diagnostics.push(Diagnostic::error(format!(
+                "wire data `{}` field `{}`: the compact_binary v0 encoder supports at most one String field per message (String content is runtime-sized, so only the final field can be unbounded)",
+                schema.name, field.name
+            )));
+            schema_rejects = true;
+        }
+        if more_text.is_empty() && first_text.number != max_field_number {
+            diagnostics.push(Diagnostic::error(format!(
+                "wire data `{}` field `{}`: a String field must carry the schema's highest field number so it encodes last; its byte count is runtime-sized, and any field after it would lose the compile-time out-buffer guarantee",
+                schema.name, first_text.name
+            )));
+            schema_rejects = true;
+        }
     }
     if schema_rejects {
         return;
@@ -580,7 +618,7 @@ fn validate_wire_decode_call(
             .is_none()
         {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, and bool",
+                "wire data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, and bool (String fields are encode-only until the decoded descriptor's buffer-aliasing story lands)",
                 schema.name,
                 field.name,
                 program.display_type_reference(field.type_reference)
