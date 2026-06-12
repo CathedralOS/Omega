@@ -1092,8 +1092,43 @@ exit.
   locks the ruling; pass canary
   `termination/default_order_unsigned_width_countdown_compile` covers
   non-`usize` unsigned widths).
-- [ ] Replace arithmetic-facing proof UX such as `limit - index` with named
-  bounded-distance rankings.
+- [x] Replace arithmetic-facing proof UX such as `limit - index` with named
+  bounded-distance rankings. DONE (2026-06-12). The named view is
+  `Nat::BoundedDistance` ("rank by the natural-number distance from the lower
+  value up to the upper bound"), following the existing `Nat::Descending` /
+  `Slice::Length` Type::Name pattern, which the view position already parses
+  with no grammar change. What landed: (a) plain `decreases upper - lower`
+  resolves to the distinct `RankingOrder::BoundedDistance` (no longer folded
+  into NatDescending), so diagnostics and the checker name the ranking;
+  (b) explicit selection `decreases limit - index -> Nat::BoundedDistance`
+  (pass canary `termination/bounded_distance_named_view`); (c) the inverted
+  spelling `decreases index - limit` is recognized — the checker probes the
+  swapped operands, and when they prove, rejects with a diagnostic that names
+  the right shape ("... inverts the named bounded distance --
+  `Nat::BoundedDistance` ranks `upper - lower` ... write
+  `decreases limit - index`"; fail canary
+  `termination/bounded_distance_inverted`); (d) the L7 induction gate also
+  accepts the named view — the distance polynomial goes through the identical
+  strict-decrease + non-negativity check (pass canary
+  `proofs/proof_inductive_climbing_sum`, step-false twin
+  `proofs/inductive_climbing_sum_step_false_twin` pins that the hypothesis
+  actually enters through this gate); (e) the ambiguity diagnostic's browsable
+  builtin-view list now includes `Nat::BoundedDistance`. NEEDS MAINTAINER
+  SIGN-OFF (deferred): an argumented view spelling that removes the
+  subtraction from the use site entirely — `decreases index ->
+  Distance::To(limit)` or `decreases (index, limit) -> BoundedDistance` —
+  requires real grammar surgery: the ranking-view position is a plain
+  identifier path (`parse_path_handle_span` in
+  `omega-tokens-to-syntax-trees/src/parser/machine/clauses.rs`) and
+  `decrease_order` is `HandleSpan<Identifier>` through all three tree
+  representations, so view arguments need new syntax, storage, and symbol
+  resolution. Pick a spelling before building it. NOTE (pre-existing bug,
+  tracked separately): a `requires` clause on a recursive machine overflows
+  the compile-time contract evaluator's stack
+  (`ContractExpressionEvaluator::integer_value` follows the self-call site's
+  arguments in a loop), which is why `proof_inductive_climbing_sum` states its
+  theorem as `result >= acc + limit - index` (true without a precondition)
+  instead of the equality that would need `requires index <= limit`.
 - Resolved 2026-06-11: shrinking-slice recursion runtime exit canary added as
   `termination/runtime_shrinking_slice_recursion_exit` (suite ACTIVE list +
   dedicated run test + differential RUN_CANARIES; the parked

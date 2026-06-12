@@ -8,6 +8,13 @@ pub(super) enum RankingOrder {
     /// Built-in descending naturals (also used for a simple `usize`-valued measure
     /// whose body forwards the parameter directly).
     NatDescending,
+    /// Built-in `Nat::BoundedDistance`: the named bounded-distance ranking over
+    /// a subtraction-shaped value. `decreases upper - lower` ranks the pair by
+    /// the natural-number distance from `lower` up to `upper`, which descends
+    /// as the lower value climbs toward the fixed upper bound. Inferred for a
+    /// plain subtraction clause and selectable explicitly as
+    /// `-> Nat::BoundedDistance`.
+    BoundedDistance,
     /// Built-in `Slice::Length`.
     SliceLength,
     /// A declared `measure` whose body forwards the (already numeric) parameter.
@@ -95,6 +102,18 @@ impl RankingOrder {
         if path_matches(order, &["Nat", "Descending"]) {
             return Some(Self::NatDescending);
         }
+        if path_matches(order, &["Nat", "BoundedDistance"]) {
+            // The view names the `upper - lower` shape; a non-subtraction
+            // value has no bounded-distance reading to select.
+            return match program.expression_table.expression(decreases) {
+                ExpressionNode::Binary(binary)
+                    if matches!(binary.operator, BinaryOperator::Subtract) =>
+                {
+                    Some(Self::BoundedDistance)
+                }
+                _ => None,
+            };
+        }
         if path_matches(order, &["Slice", "Length"]) {
             return Some(Self::SliceLength);
         }
@@ -148,7 +167,8 @@ impl RankingOrder {
 ///   * a `usize`/nat-like scalar (or `slice.len`) counts down via descending
 ///     naturals;
 ///   * a slice parameter decreases by its length;
-///   * a bounded distance `upper - lower` (e.g. `limit - index`) descends
+///   * a bounded distance `upper - lower` (e.g. `limit - index`) — the named
+///     `Nat::BoundedDistance` ranking — descends
 ///     through the naturals as the lower bound rises toward the upper bound.
 ///
 /// Anything else (an unrecognized expression, or a value whose type offers no
@@ -162,13 +182,13 @@ fn infer_default_order(
     decreases: ExpressionHandle,
 ) -> OrderResolution {
     match program.expression_table.expression(decreases) {
-        // `decreases upper - lower` — a named bounded distance. As `lower` rises
-        // toward the fixed `upper`, the distance descends through the naturals.
-        // This is the named bounded-distance ranking that replaces hand-rolled
-        // subtraction proofs; it maps onto the existing Nat-descending distance
-        // prover.
+        // `decreases upper - lower` — the named bounded distance
+        // (`Nat::BoundedDistance`). As `lower` rises toward the fixed `upper`,
+        // the distance descends through the naturals. The named ranking is what
+        // diagnostics report for subtraction clauses, replacing arithmetic-facing
+        // proof vocabulary; it proves with the Nat-descending distance prover.
         ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Subtract) => {
-            OrderResolution::Resolved(RankingOrder::NatDescending)
+            OrderResolution::Resolved(RankingOrder::BoundedDistance)
         }
         // `decreases value` where `value` is a nat-like scalar counts down; where
         // it is a slice it decreases by length. A `value.len` member is already
@@ -220,7 +240,7 @@ fn describe_ambiguity(
 
 /// Render the decreasing value as source-like text for diagnostics. Falls back
 /// to the generic word `value` for shapes the renderer does not understand.
-fn decreasing_value_text(
+pub(super) fn decreasing_value_text(
     program: &omega_typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> String {

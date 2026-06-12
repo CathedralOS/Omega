@@ -1,0 +1,26 @@
+// The named bounded-distance ranking selected explicitly: the climbing-index
+// loop proves termination with `decreases limit - index -> Nat::BoundedDistance`,
+// the same internal ranking a plain `decreases limit - index` infers. The view
+// name is the browsable surface for what the checker uses (like Slice::Length),
+// so the use site reads as a ranking selection rather than ad-hoc proof
+// arithmetic.
+
+data Main {}
+
+machine Main::main(&mut self) -> usize {
+    transition {
+        _ -> self.walk(4, 0)
+    }
+}
+
+machine Main::walk(&mut self, limit: usize, index: usize)
+terminates {
+    decreases limit - index -> Nat::BoundedDistance;
+}
+-> usize
+{
+    transition index < limit {
+        true -> self.walk(limit, index + 1)
+        false -> index
+    }
+}
