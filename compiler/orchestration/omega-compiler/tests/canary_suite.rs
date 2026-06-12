@@ -979,6 +979,47 @@ fn runtime_version_migration_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_shrinking_slice_recursion_exit_canary_runs() {
+    // Self-recursive dispatch with threaded scalar arguments over a shrinking
+    // slice: `self.accumulate(items[1..], items[0].value)` retargets the SAME
+    // frame slots it reads (a self-recursive machine shares one call context),
+    // so the transition must stage the subslice descriptor AND read the head
+    // element THROUGH the old descriptor before committing either. A past bug
+    // resolved `items[0].value` as a plain place over the descriptor slot,
+    // handing `take` the data pointer's low bytes instead of the element.
+    // 10+20+15+25 threaded one step behind sums to 70 in machine state.
+    let canary = pass_canary("termination/runtime_shrinking_slice_recursion_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-shrinking-slice-recursion-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shrinking slice recursion canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shrinking slice recursion canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the threaded scalar accumulation over the shrinking slice to total 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wire_encode_primitive_exit_canary_runs() {
     // Wire stage 2a: `CounterMessage::encode_wire(&msg, &mut self.buffer,
     // &mut self.written)` frames the schema's CURRENT era in compact_binary
@@ -7240,6 +7281,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/default_order_slice_length_compile",
     "termination/default_order_bounded_distance_compile",
     "termination/default_order_unsigned_width_countdown_compile",
+    "termination/runtime_shrinking_slice_recursion_exit",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/runtime_local_string_field_copy_through_mut_exit",
     "text/runtime_machine_string_append_in_place_exit",

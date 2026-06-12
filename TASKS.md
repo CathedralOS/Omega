@@ -700,17 +700,26 @@ exit.
   non-`usize` unsigned widths).
 - [ ] Replace arithmetic-facing proof UX such as `limit - index` with named
   bounded-distance rankings.
-- [ ] Add a runtime exit canary for shrinking-slice recursion — BLOCKED on a
-  probe-confirmed accumulation bug (2026-06-11): a bare len-countdown
-  recursion runs correctly, but a recursion that ACCUMULATES (threading
-  `items[0].value` as a scalar parameter folded into a machine field per
-  entry) computes the wrong total natively in ALL THREE shapes probed
-  (value-position recursive call, statement call + field, pure tail
-  dispatch + field). Minimal repro parked at
-  `canaries/run/shrinking_slice_recursion_total_probe` (expected exit 70,
-  observed 71). Likely the recursive-dispatch threaded-argument family
-  (overlapping per-call frame slots), distinct from the fixed x18 zeroing.
-  Verify the interpreter agrees on 70 first, then chase the native fold.
+- Resolved 2026-06-11: shrinking-slice recursion runtime exit canary added as
+  `termination/runtime_shrinking_slice_recursion_exit` (suite ACTIVE list +
+  dedicated run test + differential RUN_CANARIES; the parked
+  `canaries/run/shrinking_slice_recursion_total_probe` is deleted). Root cause
+  of the wrong native total: `resolve_runtime_storage_place_in_table`'s
+  path-based fall-through DROPPED a root element index over a slice-descriptor
+  frame slot, so a threaded `items[0].value` transition argument resolved to a
+  plain place over the descriptor slot itself — `take` received the data
+  pointer's low bytes (observed exit 152 = (4*ptr + 4+8+12) & 0xff; 152 is not
+  a multiple of 5 while every element is, the fingerprint that ruled out any
+  element-sum). Fixed in instruction selection: the resolver now refuses an
+  unhonorable root index (descriptor slots always; inline fixed arrays for
+  index != 0), transition-argument materialization gained a descriptor-aware
+  `CopyRuntimeFrameFixedIndexedToRuntimeFrame` strategy, and
+  `argument_source_frame_range` reports the descriptor slot as the read range
+  so the same-context overlap staging (source -> scratch -> target) still
+  triggers — without it the in-place `items[1..]` update would shrink the
+  window BEFORE the head read. The statement-position shape of the same
+  accumulation still over-executes natively — that is the separate non-guard
+  executor-of-record residue, not this argument-lowering bug.
 
 ### Operators And Domains
 
