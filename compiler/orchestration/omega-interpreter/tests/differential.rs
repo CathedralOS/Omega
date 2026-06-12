@@ -89,6 +89,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("control_flow/runtime_tuple_transition_exit", 22),
     ("data/case_membership_union_guard_exit", 70),
     ("data/case_membership_value_exit", 70),
+    ("data/match_exhaustive_by_case_union_domain", 70),
+    ("data/match_exhaustive_by_cases", 70),
     ("data/case_payload_native_construction", 70),
     ("data/runtime_case_payload_guard_read_exit", 70),
     ("data/runtime_case_reassignment_exit", 70),
@@ -197,8 +199,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("types/runtime_u8_field_arith_exit", 70),
     ("types/runtime_u16_field_arith_exit", 70),
     ("versioning/runtime_version_migration_exit", 70),
+    ("wire/runtime_wire_decode_rejects_wrong_era_exit", 70),
     ("wire/runtime_wire_encode_era_discriminator_exit", 70),
     ("wire/runtime_wire_encode_primitive_exit", 70),
+    ("wire/runtime_wire_roundtrip_primitive_exit", 70),
 ];
 
 /// Run canaries the suite executes that are DELIBERATELY not in `RUN_CANARIES`,

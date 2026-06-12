@@ -1,0 +1,1 @@
+match over `Entity` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm

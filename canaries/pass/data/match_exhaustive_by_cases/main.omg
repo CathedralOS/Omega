@@ -1,0 +1,37 @@
+// Exhaustiveness counting over implicit case-domains (chapter 1 "Cases Are
+// Domains"): one case arm per declared case is a complete tag set, so the
+// dispatch is exhaustive WITHOUT `_`. Runs to verify the counted dispatch
+// still selects the right arm (exit 70 = the held case's arm).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    case None;
+    case Quit;
+    case Move(dx: i32);
+}
+
+data Main {
+    console: Console;
+    cmd: Command;
+}
+
+machine Main::main(&mut self) {
+    self.cmd = Command::Move { dx: 2 };
+
+    transition self.cmd {
+        Command::None -> missed()
+        Command::Quit -> missed()
+        Command::Move -> matched()
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

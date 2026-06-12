@@ -42,9 +42,9 @@ contracts — still slip through). Decision 13's residue (machine-call
 monomorphization arguments not bound-checked; generics-completion arc)
 remains tracked in its bullet below.
 
-- [ ] **Wire stage 2: encoders.** STAGE 2a LANDED (2026-06-11): era
-  assignment along the version chain (decision 10; queryable on the typed
-  `WireSchema`, surfaced in `04_wire_protocols.txt`), the synthesized
+- [ ] **Wire stage 2: encoders + decoders.** STAGE 2a LANDED (2026-06-11):
+  era assignment along the version chain (decision 10; queryable on the
+  typed `WireSchema`, surfaced in `04_wire_protocols.txt`), the synthesized
   `Schema::encode_wire(&value, &mut out, &mut written)` encoder for
   primitive integer fields (i32/i64/u32/u64/bool; other types reject), and
   compact_binary v0 framing (era varint, then per field a tag varint +
@@ -52,9 +52,20 @@ remains tracked in its bullet below.
   dedicated wire-append operations on BOTH aarch64 and x86_64 (cursor lives
   in the `written` slot; widths/relocations in pinned lockstep), with
   byte-identical native interpreter support and byte-exact run canaries in
-  the differential oracle. Remaining: the decoder, strings/nested/repeated
-  fields, wire-schemas-as-program-types, runtime layout of wire values,
-  encoding families beyond compact_binary v0, version negotiation.
+  the differential oracle. STAGE 2b LANDED (2026-06-11): the current-era
+  decoder `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)` --
+  expected-byte reads for the era discriminator and field tags plus a
+  bounds-checked LEB128 value read per field (un-zigzag for signed), as two
+  dedicated wire-read operations on BOTH ISAs (cursor in the `read` slot,
+  STICKY failure flag in the `ok` slot: wrong era / unexpected tag /
+  truncated / overlong varint fail cleanly, every read bounds-checked
+  against the buffer's compile-time length; widths/relocations pinned),
+  interpreter parity including the failure path, and round-trip +
+  wrong-era-rejection run canaries in the differential oracle. Remaining:
+  historical-era decode via `Versioned<T>` (after the stage 3 sign-off),
+  strings/nested/repeated fields, wire-schemas-as-program-types, runtime
+  layout of wire values, encoding families beyond compact_binary v0,
+  version negotiation.
 - [ ] **Versioned data stage 3.** Era tag + the wire integration decision 10
   assumes; era-tagged containers that make version MATCH arms selectable
   (stage 2 ruled them unreachable — no value can hold a historical era yet);
@@ -98,10 +109,35 @@ remains tracked in its bullet below.
   support, equality in contracts/domain facts (no typing scope there), and
   written-equals signature matching against `&Self` (validation accepts
   `Self` in trait signatures; substitution per conformance is unchecked).
-- [ ] **Case members: remaining halves.** Exhaustiveness counting over
-  implicit case-domains, case-subset domains, MIXED shapes (common fields +
-  case part). Payload sums are done; `self in Type::Case` and unions at use
-  sites landed with decision 11.
+- [ ] **Case members: remaining halves.** EXHAUSTIVENESS COUNTING LANDED
+  (2026-06-11), over implicit case-domains AND case-subset domains: a
+  dispatch run (consecutive transitions, the shape every block desugars to)
+  whose arms classify a case-bearing subject must cover every case or close
+  with `_`. Decidable arms: case arms (one tag) and PURE case-union domain
+  arms; predicate-domain arms, `if`-guarded patterns, and value compares are
+  uncountable, so uncovered+uncountable errors suggest `_`, while fully
+  counted gaps name the missing cases ("match over `Command` does not cover
+  `Command::Move`; add an arm or `_`"). RULING (chapter-1 footnote): pure
+  case-union recognition is SYNTACTIC -- the domain's `when` classifier must
+  be literally `self in Type::A | Type::B` over its own target type's cases
+  with NO other facts; classifier analysis stays a possible later widening.
+  The check runs on RESOLVED trees (omega-symbol-resolved-trees-to-typed-
+  trees/src/exhaustiveness.rs, the `crate::equality` pattern) because typed
+  lowering erases membership into tag compares/classifier expansions. With
+  it landed: `when` classifiers now admit membership unions, `domain T::D
+  when ...;` (semicolon, body-less) parses, and executable declared-domain
+  membership now ANDs the classifier into the test (a union-subset domain
+  works as a guard/arm at runtime; native+interpreter agree, see
+  pass/data/match_exhaustive_by_case_union_domain). Probe record: before the
+  check, a 2-of-3-case dispatch compiled and FELL THROUGH divergently at
+  runtime (native exit 1, interpreter exit 0) -- the error is the fix.
+  Corpus fallout: ZERO (suite was already covered-or-defaulted). Canaries:
+  fail data/match_nonexhaustive_cases +
+  data/match_predicate_domain_needs_default; pass+RUN
+  data/match_exhaustive_by_cases + data/match_exhaustive_by_case_union_domain;
+  pass data/match_default_satisfies_exhaustiveness. STILL OPEN: MIXED shapes
+  (common fields + case part). Payload sums are done; `self in Type::Case`
+  and unions at use sites landed with decision 11.
 
 **Backend residue (small, known):**
 

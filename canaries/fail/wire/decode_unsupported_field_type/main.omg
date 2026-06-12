@@ -1,0 +1,33 @@
+// Wire stage 2b: the compact_binary v0 decoder covers primitive integer
+// scalars only (i32/i64/u32/u64/bool). A schema field outside that set --
+// here a String -- rejects the decode call with a clear diagnostic instead
+// of silently mis-decoding.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data LabelMessage {
+    0: count: u32;
+    1: label: String;
+}
+
+data LabelSample {
+    count: u32;
+    label: String;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    read: usize;
+    ok: bool;
+}
+
+machine Main::main(&mut self) {
+    let value: LabelSample = LabelSample { count: 0, label: "x" };
+
+    LabelMessage::decode_wire(&mut value, &self.buffer, &mut self.read, &mut self.ok);
+
+    self.console.exit_process(70);
+}

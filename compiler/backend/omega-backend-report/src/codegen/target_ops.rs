@@ -355,6 +355,52 @@ fn selected_instruction_name(
                 "wire append {encoding} {source_symbol}@{source_offset} ({byte_size} bytes) -> {out_symbol}@{out_offset} + cursor {written_symbol}@{written_offset}"
             )
         }
+        SelectedInstructionKind::ReadWireExpectedByte {
+            buffer_region,
+            buffer_offset,
+            buffer_length,
+            read_region,
+            read_offset,
+            ok_region,
+            ok_offset,
+            expected,
+        } => {
+            let buffer_symbol =
+                storage_region_symbol_name(*buffer_region, backend_plan.entry_machine_name());
+            let read_symbol =
+                storage_region_symbol_name(*read_region, backend_plan.entry_machine_name());
+            let ok_symbol =
+                storage_region_symbol_name(*ok_region, backend_plan.entry_machine_name());
+            format!(
+                "wire read expect byte {expected:#04x} <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
+            )
+        }
+        SelectedInstructionKind::ReadWireScalarVarint {
+            buffer_region,
+            buffer_offset,
+            buffer_length,
+            read_region,
+            read_offset,
+            ok_region,
+            ok_offset,
+            target_region,
+            target_offset,
+            byte_size,
+            zigzag,
+        } => {
+            let buffer_symbol =
+                storage_region_symbol_name(*buffer_region, backend_plan.entry_machine_name());
+            let read_symbol =
+                storage_region_symbol_name(*read_region, backend_plan.entry_machine_name());
+            let ok_symbol =
+                storage_region_symbol_name(*ok_region, backend_plan.entry_machine_name());
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            let encoding = if *zigzag { "zigzag varint" } else { "varint" };
+            format!(
+                "wire read {encoding} {target_symbol}@{target_offset} ({byte_size} bytes) <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,
