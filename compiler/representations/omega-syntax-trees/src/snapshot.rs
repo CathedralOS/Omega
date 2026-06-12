@@ -408,6 +408,7 @@ pub enum TypeReferenceSnapshot {
 pub enum FixedArrayLengthSnapshot {
     Literal { value: usize },
     ConstParameter { name: IdentifierSnapshot },
+    ConstCall { name: IdentifierSnapshot },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1214,6 +1215,9 @@ fn snapshot_fixed_array_length(length: &FixedArrayLength) -> FixedArrayLengthSna
     match length {
         FixedArrayLength::Literal(value) => FixedArrayLengthSnapshot::Literal { value: *value },
         FixedArrayLength::ConstParameter(name) => FixedArrayLengthSnapshot::ConstParameter {
+            name: snapshot_identifier(name),
+        },
+        FixedArrayLength::ConstCall(name) => FixedArrayLengthSnapshot::ConstCall {
             name: snapshot_identifier(name),
         },
     }

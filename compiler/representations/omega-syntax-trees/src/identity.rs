@@ -614,8 +614,12 @@ fn count_type_reference_handle(
             length,
         } => {
             count_type_reference_handle(syntax_trees, *element_type, counts);
-            if let crate::types::FixedArrayLength::ConstParameter(name) = length {
-                count_identifier(name, counts);
+            match length {
+                crate::types::FixedArrayLength::ConstParameter(name)
+                | crate::types::FixedArrayLength::ConstCall(name) => {
+                    count_identifier(name, counts);
+                }
+                crate::types::FixedArrayLength::Literal(_) => {}
             }
         }
         crate::types::TypeReferenceNode::Slice { element_type } => {

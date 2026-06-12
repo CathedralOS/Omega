@@ -27,6 +27,7 @@ omega-artifacts = { path = "../omega-artifacts" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
+omega-interpreter = { path = "../omega-interpreter" }
 omega-effects = { path = "../../representations/omega-effects" }
 omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resolved-trees" }
 omega-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-symbol-resolved-trees-to-typed-trees" }

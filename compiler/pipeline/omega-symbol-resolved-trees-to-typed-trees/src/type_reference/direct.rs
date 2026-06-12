@@ -122,5 +122,10 @@ pub(super) fn lower_fixed_array_length(
                 name: crate::name::lower_name(name),
             }
         }
+        resolved::types::FixedArrayLength::ConstCall { name } => {
+            typed::types::FixedArrayLength::ConstCall {
+                name: crate::name::lower_name(name),
+            }
+        }
     }
 }
