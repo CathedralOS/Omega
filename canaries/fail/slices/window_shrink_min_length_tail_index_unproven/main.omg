@@ -1,0 +1,14 @@
+// One past the derived window floor: `3 < items.len` floors the base at 4
+// elements and the tail `items[1..]` at 3, so `tail[2]` is provable but
+// `tail[3]` is not — the base may hold exactly 4 elements.
+
+data Main {
+}
+
+machine Main::main(&mut self, items: &[i32]) -> i32
+requires
+    3 < items.len
+{
+    let tail: &[i32] = items[1..];
+    tail[3]
+}

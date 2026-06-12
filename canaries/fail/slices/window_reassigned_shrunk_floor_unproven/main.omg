@@ -1,0 +1,16 @@
+// Reassignment sheds derived window length facts: the first binding floors
+// `tail` at 3 elements (base floor 4 shrunk by 1), but the reassignment to a
+// window of `short` (floor 1) must forget that floor — proving `tail[2]`
+// against the old value's length would index out of the new value.
+
+data Main {
+}
+
+machine Main::main(&mut self, items: &[i32], short: &[i32]) -> i32
+requires
+    3 < items.len && 1 <= short.len
+{
+    let tail: &[i32] = items[1..];
+    tail = short[0..];
+    tail[2]
+}

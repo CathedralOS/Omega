@@ -124,6 +124,14 @@ impl RangeFacts<'_> {
         integer: Option<i64>,
     ) {
         self.forget_local(symbol, name);
+        // Collection facts (length floors, window relations, position proofs)
+        // are keyed by display label, not symbol; the reassigned local's label
+        // must shed them too or facts about the old value would prove accesses
+        // into the new one. The binding statement reseeds facts for the new
+        // value afterwards.
+        if let Some(name) = name {
+            self.forget_collection_facts(name);
+        }
         self.define_local(symbol, name.unwrap_or_default().to_owned(), length, integer);
     }
 

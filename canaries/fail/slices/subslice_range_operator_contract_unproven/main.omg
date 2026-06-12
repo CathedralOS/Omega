@@ -1,0 +1,22 @@
+// Operator-contract bounds attribution: importing the core slice surface makes
+// `Slice::range ... spelling [..] ... requires start <= end && end <= items.len`
+// the governing boundary operator for the subslice below. The failed start
+// bound must therefore name the operator and its `requires` clause so the user
+// can browse to `Slice::range` and read the contract that sourced the
+// obligation.
+
+use omega::language::core::slice;
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 4];
+}
+
+machine Main::main(&mut self) -> usize {
+    let view: &[Entry] = self.entries.as_slice();
+    let tail: &[Entry] = view[9..];
+    tail.len
+}

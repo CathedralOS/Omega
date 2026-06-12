@@ -88,10 +88,10 @@ pub(super) fn seed_subslice_window_facts(
 
     // Resolve the window's constant `[start, end)` offsets into the base, used
     // both for the exact-length fact and for provable-disjoint overlap.
-    let bounds = super::super::expressions::provable_range_bounds(program, facts, range)
-        .and_then(|(start, end)| Some((start, end?)));
+    let resolved = super::super::expressions::provable_range_bounds(program, facts, range);
+    let bounds = resolved.and_then(|(start, end)| Some((start, end?)));
 
-    facts.prove_window_parent(window_label.clone(), base_label, bounds);
+    facts.prove_window_parent(window_label.clone(), base_label.clone(), bounds);
 
     // Pin the exact length `b - a` for a constant-bounded window, even when the
     // base length is unknown (window-shrinking length fact).
@@ -103,5 +103,14 @@ pub(super) fn seed_subslice_window_facts(
                 }
             }
         }
+        return;
+    }
+
+    // Start-only tail window `base[a..]` with a constant start: the window's
+    // length follows the base's by exactly `a`, so a known length floor or
+    // exact length of the base carries over shrunk by `a` (window-shrinking
+    // length fact over a symbolic base length).
+    if let Some((start, None)) = resolved {
+        facts.prove_shrunk_window_length(&window_label, &base_label, start);
     }
 }

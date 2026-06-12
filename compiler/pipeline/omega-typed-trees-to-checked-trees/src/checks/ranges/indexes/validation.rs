@@ -5,7 +5,7 @@ use omega_typed_trees::expression::{
 };
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::operator::{
-    candidates_for_spelling, operator_contract_label, operator_requires_clauses,
+    candidates_for_spelling, operator_contract_path, operator_requires_clauses,
 };
 use omega_typed_trees::signature::SignatureContractKind;
 use omega_typed_trees::state::State;
@@ -41,28 +41,33 @@ struct OperatorBoundsObligation {
     operator_without_requires: bool,
     /// When the obligation is operator-sourced, the human-readable attribution
     /// for a failed bound, e.g.
-    /// "cannot prove `requires start <= end && end <= items.len` for Slice::range".
-    /// `None` when no governing operator carries a `requires` contract, in which
-    /// case the literal-shape fact diagnostics stand on their own.
+    /// "cannot prove `start <= end && end <= items.len` — the `requires` of
+    /// `Slice::range` (spelled `[..]`)". `None` when no governing operator
+    /// carries a `requires` contract, in which case the literal-shape fact
+    /// diagnostics stand on their own.
     attribution: Option<String>,
 }
 
 /// Builds the operator-contract attribution clause appended to a failed bounds
-/// diagnostic: `for <operator label> contract `requires <clauses>``.
+/// diagnostic. It names the unproven `requires` clauses, the operator that
+/// declares them, and the spelling that resolved to it, so the user can browse
+/// to the operator declaration (e.g. `Slice::range` in the core slice surface)
+/// and read the governing contract.
 fn operator_attribution(
     program: &omega_typed_trees::TypedTrees,
     spelling: OperatorSpelling,
 ) -> Option<String> {
     let operators = program.operators();
-    let label = operator_contract_label(program, operators, spelling)?;
+    let path = operator_contract_path(program, operators, spelling)?;
     let clauses = operator_requires_clauses(program, operators, spelling);
     if clauses.is_empty() {
         return None;
     }
     Some(format!(
-        "cannot prove `requires {}` for {}",
+        "cannot prove `{}` — the `requires` of `{}` (spelled `{}`)",
         clauses.join(" && "),
-        label
+        path,
+        spelling.symbol()
     ))
 }
 

@@ -1044,12 +1044,43 @@ exit.
 
 ### Proof-Backed Indexing And Subslicing
 
-- [ ] Thread refined subslice diagnostics through operator-contract errors once
-  `Slice::from/to/range` contracts drive checking directly. (Bounds obligation
-  now sources from the spelled operator's `requires` — extend the diagnostics.)
-- [ ] Represent length facts and window-shrinking facts as first-class slice
-  proof vocabulary (non-empty already exists).
-- [ ] Ensure alias and borrow facts understand subslice overlap conservatively.
+- [x] Thread refined subslice diagnostics through operator-contract errors once
+  `Slice::from/to/range` contracts drive checking directly. RESOLVED
+  (2026-06-12): a failed operator-sourced bound now names the spelled operator
+  and its contract for browsability — e.g. ``cannot prove `start <= end && end
+  <= items.len` — the `requires` of `Slice::range` (spelled `[..]`)`` appended
+  to the fact-level failure. Attribution only fires when the core slice surface
+  is imported (the obligation is operator-sourced); literal-shape diagnostics
+  stand alone otherwise. Pinned by
+  `fail/slices/subslice_range_operator_contract_unproven` and
+  `fail/slices/index_operator_contract_unproven`.
+- [x] Represent length facts and window-shrinking facts as first-class slice
+  proof vocabulary (non-empty already exists). LANDED (2026-06-12): the
+  vocabulary is `minimum_lengths` (floor), `exact_lengths` (pinned), and
+  `window_parents` (carve relation) in `RangeFacts`. New derivations: a
+  start-only tail `items[a..]` with constant `a` shrinks the parent's floor and
+  exact length by `a` (`prove_shrunk_window_length`), and a constant-bounded
+  range over a symbolic-length base discharges its `start <= end` ordering by
+  folding both bounds. Consumers: index proofs over the derived window length
+  (`pass/slices/window_shrink_min_length_tail_index_compile`,
+  `pass/slices/window_literal_bounds_min_length_parent_index_compile`; one-past
+  rejections pinned in the matching `fail/slices/*_unproven` canaries).
+  Soundness companion: reassigning a local collection now forgets its
+  label-keyed facts (floors, exact lengths, window relation, position proofs)
+  via `forget_collection_facts` — a stale floor from the old value must not
+  prove indexes into the new one
+  (`fail/slices/window_reassigned_shrunk_floor_unproven`).
+  Honest scope: symbolic (non-folded) bounds — e.g. `tail[parent_len - 3]` —
+  still need a symbolic length algebra; only constant-folded offsets shrink.
+- [x] Ensure alias and borrow facts understand subslice overlap conservatively.
+  VERIFIED CONSERVATIVE (2026-06-12): two `&mut` windows of the same base are
+  rejected unless their literal bounds prove disjointness
+  (`windows_may_overlap` defaults to overlap on any unknown bound; the borrow
+  pass reuses it via the loan-overlap engine). Probes: `items[0..2]`+`items[2..4]`
+  accepted, `items[0..2]`+`items[1..3]` rejected, `items[0..2]`+`items[..]`
+  rejected. Pinned by `pass/slices/disjoint_mut_subslice_windows_compile`,
+  `fail/slices/overlapping_mut_subslice_windows_rejected`, and
+  `fail/slices/unknown_bounds_mut_subslice_windows_rejected`.
 
 ### Slice Runtime Descriptor Semantics
 

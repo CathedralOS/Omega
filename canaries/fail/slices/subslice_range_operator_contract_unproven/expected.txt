@@ -1,0 +1,1 @@
+cannot prove subslice range start bound `9..` is within slice length 4; cannot prove `start <= end && end <= items.len` — the `requires` of `Slice::range` (spelled `[..]`)
