@@ -227,26 +227,40 @@ That mode would require stronger obligations: versioned dispatch, old callback
 fencing, shared-state compatibility, and clear ownership of which version may
 touch which state.
 
-## Version Matching
+## Version Matching: The `Versioned<T>` Container
 
-Code that receives unknown-version runtime state should be able to branch by
-version, but normal current-version code should not pay for version tags
-everywhere.
-
-Sketch:
+Code that receives unknown-version runtime state branches by version, but
+normal current-version code never pays for version tags. The resolution
+(frozen decision 14): matching a version on a PLAIN value is an error — an
+ordinary `Counter` has no era bit to test, and giving every struct a hidden
+tag is exactly the per-struct tax decision 10 rejected on the wire. The era
+bit physically exists only at boundaries, so there is a builtin container
+whose declared shape IS that bit plus the payload:
 
 ```omega
-match counter {
-    Counter::v1(old) -> migrate old to Counter
-    Counter(current) -> current
+// Versioned<T>: { era: u32, payload: union of T's declared era shapes }.
+// Constructed ONLY by boundary machinery (wire decode, storage read,
+// hot-swap edges); user code cannot mint one from a plain value.
+
+machine Store::load(&mut self, raw: Versioned<Counter>, out: &mut Counter) {
+    // raw.era is read-only queryable (logging, telemetry);
+    // the payload is reachable ONLY through version match arms:
+    transition raw {
+        Counter::v1(old) -> migrate_v1(old)   // tag test + reinterpret as Counter::v1
+        Counter(current) -> take(current)     // current era: payload IS the current shape
+    }
+    ...
 }
 ```
 
-Version tags are needed at boundaries that can actually contain multiple
-versions: hot-swap state stores, saved runtime snapshots, replicated state,
-debug tools, or explicit compatibility containers.
+The paren arm form binds the WHOLE historical value (`old: Counter::v1`);
+braces remain field binding. Payload storage is a union of the declared era
+shapes (static max size, no allocation, no indirection). Migration-chain
+completeness along the declared eras is a REPORT verdict, not an error: an
+arm may handle an old era manually without a migration machine existing.
 
-Inside normal current-version code, `Counter` is just the current type.
+Inside normal current-version code, `Counter` is just the current type, and
+version arms on it are compile errors.
 
 ## Reports
 
