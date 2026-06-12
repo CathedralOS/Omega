@@ -1,0 +1,78 @@
+// Wire stage 2b: the compact_binary v0 round trip. `encode_wire` frames the
+// message, `decode_wire(&mut value, &buffer, &mut read, &mut ok)` reads it
+// back: the CURRENT era varint must match byte for byte, then per field in
+// field-number order the expected tag varint and a value varint (LEB128;
+// signed values un-zigzag ((n >> 1) ^ -(n & 1)); bool 0/1). `read` receives
+// the bytes consumed and `ok` the success flag.
+//
+// Encoded bytes for { counter: 300, delta: -2, flag: true }, hand-computed:
+//   era 0          -> 0x00        (no version blocks)
+//   tag 0          -> 0x00
+//   counter 300    -> 0xAC 0x02   (300 = 0b1_0010_1100: low7 0101100|0x80 = 0xAC, then 0b10 = 0x02)
+//   tag 1          -> 0x01
+//   delta -2       -> 0x03        (zigzag(-2) = 3; unzigzag(3) = -2)
+//   tag 2          -> 0x02
+//   flag true      -> 0x01
+// written = 8; the decoder consumes the same 8 bytes (read = 8, ok = true)
+// and every decoded field equals the original.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data CounterMessage {
+    0: counter: u32;
+    1: delta: i32;
+    2: flag: bool;
+}
+
+data CounterSample {
+    counter: u32;
+    delta: i32;
+    flag: bool;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+    read: usize;
+    ok: bool;
+}
+
+machine Main::main(&mut self) {
+    let msg: CounterSample = CounterSample {
+        counter: 300,
+        delta: 0 - 2,
+        flag: true
+    };
+
+    CounterMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    let decoded: CounterSample = CounterSample {
+        counter: 0,
+        delta: 0,
+        flag: false
+    };
+
+    CounterMessage::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+
+    let matches: bool = self.ok
+        && self.written == 8
+        && self.read == 8
+        && decoded.counter == 300
+        && decoded.delta == 0 - 2
+        && decoded.flag;
+    transition matches {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -42,9 +42,9 @@ contracts — still slip through). Decision 13's residue (machine-call
 monomorphization arguments not bound-checked; generics-completion arc)
 remains tracked in its bullet below.
 
-- [ ] **Wire stage 2: encoders.** STAGE 2a LANDED (2026-06-11): era
-  assignment along the version chain (decision 10; queryable on the typed
-  `WireSchema`, surfaced in `04_wire_protocols.txt`), the synthesized
+- [ ] **Wire stage 2: encoders + decoders.** STAGE 2a LANDED (2026-06-11):
+  era assignment along the version chain (decision 10; queryable on the
+  typed `WireSchema`, surfaced in `04_wire_protocols.txt`), the synthesized
   `Schema::encode_wire(&value, &mut out, &mut written)` encoder for
   primitive integer fields (i32/i64/u32/u64/bool; other types reject), and
   compact_binary v0 framing (era varint, then per field a tag varint +
@@ -52,9 +52,20 @@ remains tracked in its bullet below.
   dedicated wire-append operations on BOTH aarch64 and x86_64 (cursor lives
   in the `written` slot; widths/relocations in pinned lockstep), with
   byte-identical native interpreter support and byte-exact run canaries in
-  the differential oracle. Remaining: the decoder, strings/nested/repeated
-  fields, wire-schemas-as-program-types, runtime layout of wire values,
-  encoding families beyond compact_binary v0, version negotiation.
+  the differential oracle. STAGE 2b LANDED (2026-06-11): the current-era
+  decoder `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)` --
+  expected-byte reads for the era discriminator and field tags plus a
+  bounds-checked LEB128 value read per field (un-zigzag for signed), as two
+  dedicated wire-read operations on BOTH ISAs (cursor in the `read` slot,
+  STICKY failure flag in the `ok` slot: wrong era / unexpected tag /
+  truncated / overlong varint fail cleanly, every read bounds-checked
+  against the buffer's compile-time length; widths/relocations pinned),
+  interpreter parity including the failure path, and round-trip +
+  wrong-era-rejection run canaries in the differential oracle. Remaining:
+  historical-era decode via `Versioned<T>` (after the stage 3 sign-off),
+  strings/nested/repeated fields, wire-schemas-as-program-types, runtime
+  layout of wire values, encoding families beyond compact_binary v0,
+  version negotiation.
 - [ ] **Versioned data stage 3.** Era tag + the wire integration decision 10
   assumes; era-tagged containers that make version MATCH arms selectable
   (stage 2 ruled them unreachable — no value can hold a historical era yet);

@@ -695,6 +695,11 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
+        // The synthesized wire decoder (chapter 20, wire stage 2b)?
+        if let Some(value) = self.try_wire_decode_call(call, frame)? {
+            return Ok(value);
+        }
+
         let target = call.target.as_str();
         let (machine, state_name, instance) = self.resolve_state_call(call.receiver, target, frame)?;
 
@@ -1070,6 +1075,180 @@ impl<'program> Evaluator<'program> {
             }
         }
         *written_cell.borrow_mut() = Value::Int(bytes.len() as i64);
+
+        Ok(Some(Value::Unit))
+    }
+
+    /// `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)` -- the
+    /// compact_binary v0 decoder the compiler synthesizes for a wire schema
+    /// (chapter 20, wire stage 2b). The interpreter simulates the IDENTICAL
+    /// operation sequence the native backends emit -- expected framing bytes
+    /// for the CURRENT era discriminator and each field-number tag, then a
+    /// bounds-checked LEB128 value read per field -- including the sticky
+    /// failure semantics: the first violation (wrong era, unexpected tag,
+    /// truncated input, overlong varint) clears `ok`, but the remaining
+    /// operations still run so cursor and field side effects match the native
+    /// sequences byte for byte even on the failure path.
+    fn try_wire_decode_call(
+        &mut self,
+        call: &TableCall,
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        use omega_typed_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes};
+
+        let Some(schema) = self.program.wire_decode_call_schema(call) else {
+            return Ok(None);
+        };
+        let schema_name = schema.name.as_str().to_owned();
+        let era = self.program.wire_schema_current_era(schema);
+
+        // (field name, number, encoding) of the CURRENT era, in field-number
+        // order -- validation has already enforced the stage 2 scalar set.
+        let mut fields = Vec::new();
+        for member in self.program.wire_members(schema.members) {
+            let WireMember::Field(field) = member else {
+                continue;
+            };
+            let encoding = self
+                .program
+                .primitive_type_reference(field.type_reference)
+                .and_then(WireScalarEncoding::for_primitive)
+                .ok_or_else(|| {
+                    Halt::Unsupported(format!(
+                        "wire data `{schema_name}` field `{}` is not a stage 2 scalar",
+                        field.name
+                    ))
+                })?;
+            fields.push((field.name.as_str().to_owned(), field.number, encoding));
+        }
+        fields.sort_by_key(|(_, number, _)| *number);
+
+        let arguments = self.program.statement_table.expression_handles(call.arguments);
+        let [value_argument, buffer_argument, read_argument, ok_argument] = arguments else {
+            return Err(Halt::Trap(format!(
+                "`{schema_name}::decode_wire` expects 4 arguments, got {}",
+                arguments.len()
+            )));
+        };
+        let (value_argument, buffer_argument, read_argument, ok_argument) =
+            (*value_argument, *buffer_argument, *read_argument, *ok_argument);
+
+        let value_cell = self.eval_argument(value_argument, frame)?;
+        let value_cell = self.deref_cell(value_cell);
+        let buffer_cell = self.eval_argument(buffer_argument, frame)?;
+        let buffer_cell = self.deref_cell(buffer_cell);
+        let read_cell = self.eval_argument(read_argument, frame)?;
+        let read_cell = self.deref_cell(read_cell);
+        let ok_cell = self.eval_argument(ok_argument, frame)?;
+        let ok_cell = self.deref_cell(ok_cell);
+
+        // The decode buffer's bytes and compile-time length.
+        let buffer: Vec<u8> = match &*buffer_cell.borrow() {
+            Value::Array(elements) => elements
+                .iter()
+                .map(|element| {
+                    element.borrow().as_int().map(|byte| byte as u8).ok_or_else(|| {
+                        Halt::Trap(format!(
+                            "`{schema_name}::decode_wire` buffer element is not a byte"
+                        ))
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+            _ => {
+                return Err(Halt::Trap(format!(
+                    "`{schema_name}::decode_wire` buffer argument is not a fixed byte array"
+                )));
+            }
+        };
+
+        // read = 0, ok = true -- then the sticky flag only ever clears.
+        let mut cursor = 0usize;
+        let mut ok = true;
+
+        // One expected framing byte: out of bounds clears ok without
+        // consuming; a mismatch consumes the byte and clears ok.
+        let expect_byte = |cursor: &mut usize, ok: &mut bool, expected: u8| {
+            let Some(byte) = buffer.get(*cursor).copied() else {
+                *ok = false;
+                return;
+            };
+            *cursor += 1;
+            if byte != expected {
+                *ok = false;
+            }
+        };
+
+        // One LEB128 value read, mirroring the native loop exactly:
+        // truncation and continuations past shift 63 (more than ten groups)
+        // clear ok; the accumulated value is returned regardless (the native
+        // sequence stores it unconditionally).
+        let read_varint = |cursor: &mut usize, ok: &mut bool| -> u64 {
+            let mut value = 0u64;
+            let mut shift = 0u32;
+            loop {
+                if shift > 63 {
+                    *ok = false;
+                    return value;
+                }
+                let Some(byte) = buffer.get(*cursor).copied() else {
+                    *ok = false;
+                    return value;
+                };
+                *cursor += 1;
+                value |= u64::from(byte & 0x7f) << shift;
+                shift += 7;
+                if byte & 0x80 == 0 {
+                    return value;
+                }
+            }
+        };
+
+        for byte in wire_varint_bytes(era) {
+            expect_byte(&mut cursor, &mut ok, byte);
+        }
+
+        for (field_name, number, encoding) in &fields {
+            for byte in wire_varint_bytes(*number as u64) {
+                expect_byte(&mut cursor, &mut ok, byte);
+            }
+            let raw = read_varint(&mut cursor, &mut ok);
+
+            // The same widths/signedness the native decoders apply: truncate
+            // to the field width, un-zigzag signed targets at 64 bits first.
+            let decoded = match (encoding.byte_size, encoding.zigzag) {
+                (1, _) => Value::Bool((raw & 0xff) != 0),
+                (4, false) => Value::Int(i64::from(raw as u32)),
+                (8, false) => Value::Int(raw as i64),
+                (4, true) => Value::Int(i64::from(unzigzag64(raw) as i32)),
+                (8, true) => Value::Int(unzigzag64(raw)),
+                _ => {
+                    return Err(Halt::Unsupported(format!(
+                        "wire scalar of {} bytes",
+                        encoding.byte_size
+                    )));
+                }
+            };
+
+            match &*value_cell.borrow() {
+                Value::Struct { fields, .. } => {
+                    let field_cell = fields.get(field_name).map(Rc::clone).ok_or_else(|| {
+                        Halt::Trap(format!(
+                            "`{schema_name}::decode_wire` value has no field `{field_name}`"
+                        ))
+                    })?;
+                    let field_cell = self.deref_cell(field_cell);
+                    *field_cell.borrow_mut() = decoded;
+                }
+                _ => {
+                    return Err(Halt::Trap(format!(
+                        "`{schema_name}::decode_wire` value argument is not a data value"
+                    )));
+                }
+            }
+        }
+
+        *read_cell.borrow_mut() = Value::Int(cursor as i64);
+        *ok_cell.borrow_mut() = Value::Bool(ok);
 
         Ok(Some(Value::Unit))
     }
@@ -2096,6 +2275,13 @@ fn is_canonical_host_method(name: &str) -> bool {
 /// compact_binary v0 varint, identical to the native encoders' shift/xor.
 fn zigzag64(value: i64) -> u64 {
     ((value << 1) ^ (value >> 63)) as u64
+}
+
+/// unzigzag(n) = (n >> 1) ^ -(n & 1): the signed-scalar post-step of the
+/// compact_binary v0 varint decode, identical to the native decoders'
+/// shift/mask/xor.
+fn unzigzag64(value: u64) -> i64 {
+    ((value >> 1) ^ (value & 1).wrapping_neg()) as i64
 }
 
 fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {

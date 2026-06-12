@@ -7,6 +7,7 @@ mod primitives;
 mod runtime_storage;
 mod runtime_text;
 mod widths;
+mod wire_decode;
 mod wire_encode;
 
 pub use dispatch::*;
@@ -14,6 +15,7 @@ use primitives::*;
 pub use runtime_storage::*;
 pub use runtime_text::*;
 pub use widths::*;
+pub use wire_decode::*;
 pub use wire_encode::*;
 
 pub fn encode_host_call_sequence(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diagnostic> {
