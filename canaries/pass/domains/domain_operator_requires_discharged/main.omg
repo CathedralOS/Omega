@@ -1,0 +1,36 @@
+// Use-site discharge of a selected BINARY operator meaning's `requires`
+// (the bounds-from-`requires` seam for `[]`/`[..]` is the model): the caller's
+// first `requires` fact proves `a in Quantity::Additive`, admitting the
+// domain-owned `+` meaning for the left operand (chapter 8 positive
+// proof-context selection), and the second proves the operator's own
+// `requires right in Quantity::Additive` after instantiation over the actual
+// operands (`right` -> `b`). With the contract discharged the selection
+// compiles; drop the `b in Quantity::Additive` fact and this exact program is
+// rejected (see fail/domains/domain_operator_requires_unproven).
+
+data Quantity {
+    value: i32;
+}
+
+domain Quantity::Additive {
+    self.value >= 0;
+
+    operator add(left: Quantity, right: Quantity) -> Quantity
+    spelling +
+    requires
+        right in Quantity::Additive;
+}
+
+data Main {
+}
+
+machine Main::combine(&self, a: Quantity, b: Quantity)
+requires
+    a in Quantity::Additive,
+    b in Quantity::Additive
+{
+    let sum: Quantity = a + b;
+}
+
+machine Main::main(&mut self) {
+}

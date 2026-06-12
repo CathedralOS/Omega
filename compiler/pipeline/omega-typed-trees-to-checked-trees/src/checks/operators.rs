@@ -1,8 +1,9 @@
 use omega_checked_trees::{CheckFacts, CheckedOperatorResolutionIssue};
 use omega_core::diagnostics::Diagnostic;
-use omega_core::operator_spelling::OperatorSpelling;
 
 use crate::labels::symbol_name;
+
+mod requires;
 
 pub(crate) fn check_operator_resolution(
     program: &omega_typed_trees::TypedTrees,
@@ -21,7 +22,7 @@ pub(crate) fn check_operator_resolution(
             }
         })
         .collect::<Vec<_>>();
-    diagnostics.extend(undischargeable_selected_contract_diagnostics(
+    diagnostics.extend(requires::selected_binary_requires_diagnostics(
         program, facts,
     ));
 
@@ -62,44 +63,6 @@ fn inadmissible_operator_diagnostic(
          and no builtin meaning exists for the operand type",
         issue.spelling().symbol(),
     ))
-}
-
-/// Honesty guard: contract discharge for spelled BINARY operator uses is not
-/// wired yet (slice `[]`/`[..]` contracts discharge through the ranges seam).
-/// Selecting a `requires`-carrying meaning and then never checking the
-/// contract would silently weaken the program, so reject loudly instead.
-fn undischargeable_selected_contract_diagnostics<'facts>(
-    program: &'facts omega_typed_trees::TypedTrees,
-    facts: &'facts CheckFacts,
-) -> impl Iterator<Item = Diagnostic> + 'facts {
-    facts
-        .operators
-        .resolved_uses()
-        .filter(|operator_use| {
-            !matches!(
-                operator_use.spelling,
-                OperatorSpelling::Index | OperatorSpelling::Range
-            )
-        })
-        .filter_map(|operator_use| {
-            let selected = facts.operators.selected_candidate(operator_use)?;
-            let carries_requires = program
-                .signature_contracts
-                .span_or_empty(selected.contracts)
-                .iter()
-                .any(|contract| {
-                    contract.kind == omega_typed_trees::signature::SignatureContractKind::Requires
-                });
-            carries_requires.then(|| {
-                Diagnostic::error(format!(
-                    "operator spelling `{}` selected meaning `{}` carries `requires` \
-                     contracts, but contract discharge at spelled binary use sites \
-                     is not implemented yet",
-                    operator_use.spelling.symbol(),
-                    symbol_name(program, selected.operator_symbol),
-                ))
-            })
-        })
 }
 
 fn ambiguous_operator_diagnostic(issue: CheckedOperatorResolutionIssue<'_>) -> Diagnostic {

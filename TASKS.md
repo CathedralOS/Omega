@@ -1293,11 +1293,29 @@ exit.
   previously-unregistered `domains/domain_operator_spelling_selected` (pass)
   and `domains/domain_operator_competing_spelling_meanings` (fail) now run in
   the sweeps.
-- [ ] Discharge `requires` contracts of selected spelled BINARY operator
-  meanings at the use site (instantiate the operator's parameter facts over the
-  operand places, prove them against the statement-entry contexts — the
-  call-requires prover is the model). Until then the checks reject selections
-  whose meaning carries `requires`, so nothing is silently unchecked.
+- Resolved 2026-06-12: `requires` contracts of selected spelled BINARY operator
+  meanings now discharge at the use site (`checks/operators/requires.rs`). The
+  selected candidate's contract span — preserved in the operator evidence
+  precisely for this — yields the `requires` proof facts, each instantiated
+  over the actual operands (parameter -> operand positional mapping at `Name`
+  nodes, the call-`requires` label-instantiation precedent from
+  `checks/contracts/labels/calls.rs`; operators have no `self` and no `result`
+  binder) and proven against the semantic contexts entering the use's
+  statement — the same invalidation-adjusted contexts the selection pass and
+  the call-`requires` discharge read. Membership clauses prove via
+  `domain_implies` + place/value label match; boolean clauses decompose
+  And/Or like the call prover and accept direct boolean facts or
+  domain-membership-derived facts (`domain_proves_expression_label`).
+  Unproven clauses report the indexed seam's contract-naming attribution
+  shape: ``cannot prove `b in Quantity::Additive` — the `requires` of
+  `Quantity::Additive::add` (spelled `+`)``. The honesty guard that rejected
+  contract-carrying binary selections outright is retired — selections are
+  now checked, not refused. Slice `[]`/`[..]` uses keep discharging through
+  the ranges seam, unchanged. Canaries:
+  pass `domains/domain_operator_requires_discharged` (caller facts prove both
+  the selecting membership and the operator's `requires`),
+  fail `domains/domain_operator_requires_unproven` (same shape minus the
+  `right`-operand fact, asserting the attribution diagnostic).
 
 ### Ownership, Borrowing, And Views
 
