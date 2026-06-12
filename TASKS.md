@@ -391,11 +391,24 @@ remains tracked in its bullet below.
   text/runtime_slice_fixed_indexed_string_guard_exit,
   text/runtime_pointee_string_guard_exit (alias + parameter shapes; also
   linux_x64 cross-emission smoke-checked for the width debug_asserts).
-  Still open follow-ups: the guard fallback itself still emits silence
-  rather than a hard error (guard-must-select-or-error tightening), and
-  array-literal String field INITIALIZERS (`[Room { label: "x" }, ..]` into
-  a local fixed array) emit rodata but never write the frame slots — spotted
-  by the now-honest guards, masked before.
+  Still open follow-up: the guard fallback itself still emits silence
+  rather than a hard error (guard-must-select-or-error tightening). The
+  array-literal initializer residue is RESOLVED (2026-06-12): `[Room {
+  label: "x" }, ..]` into a local fixed array emitted rodata but wrote NO
+  frame slots — and probing showed the gap was wider than the String guards
+  suggested: the local-initializer mutation path had a StructLiteral arm but
+  no ArrayLiteral arm, so the WHOLE initializer (scalar elements of
+  `[1, 2, 3]` included) fell through to the scalar path and selected
+  nothing. Fix (selection-level, writes/mod.rs): an ArrayLiteral arm in
+  select_runtime_storage_resolved_mutation_write_in_mutable_table recurses
+  per element through a literal-indexed target (`target[i]`), so
+  struct-literal elements expand into their per-field member writes (String
+  descriptors ride the landed fixed-indexed WriteRuntimeFrameString
+  machinery) and scalar elements ride the static-write path. Canary
+  (pass+RUN, differential oracle):
+  data/runtime_array_literal_string_field_exit (two elements, distinct
+  literals, runtime-indexed guards on each element's scalar sibling and
+  String field plus an element-0-vs-element-1-literal cross check; exit 70).
 - [ ] Signed/unsigned residue, two sibling shapes (found while shrinking, not
   yet canaried): (1) a modulo whose operand is a CAST — `((seed >> 32) as
   u32) % 199` inside a convert/value-operand chain — still picks the signed

@@ -170,6 +170,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("data/runtime_case_reassignment_exit", 70),
     ("data/runtime_data_properties_exit", 70),
     ("data/runtime_mixed_shape_exit", 70),
+    ("data/runtime_array_literal_string_field_exit", 70),
     ("data/runtime_struct_literal_string_field_exit", 70),
     ("domains/executable_domain_membership_expression_exit", 81),
     (
