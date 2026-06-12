@@ -1,0 +1,1 @@
+cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 3` on the transition arm guarded by `n > 0 == true`

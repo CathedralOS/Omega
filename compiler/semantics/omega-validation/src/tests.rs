@@ -373,6 +373,182 @@ fn refutation_skips_machines_with_body_statements() {
 }
 
 #[test]
+fn proves_inductive_theorem_via_recursive_contract_and_decrease() {
+    // Ladder rung L7: the accumulator Gauss sum. The recursive arm assumes
+    // the machine's own ensures for (n - 1, acc + n) -- justified by the
+    // discharged strict decrease of `n` under the n > 0 guard -- and the base
+    // arm grounds `result := acc` under n == 0.
+    validate_contract_source(
+        r#"
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+        let total: usize = self.gauss_sum(4, 0);
+    }
+
+    machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+    terminates {
+        decreases n;
+    }
+    ensures
+        result * 2 == acc * 2 + n * (n + 1)
+    {
+        transition n > 0 {
+            true -> self.gauss_sum(n - 1, acc + n)
+            false -> acc
+        }
+    }
+    "#,
+    )
+    .expect("the inductive gauss-sum theorem must prove");
+}
+
+#[test]
+fn refutes_inductive_false_twin_on_the_base_arm() {
+    // The off-by-one twin's inductive step is self-consistent; the base arm
+    // (n == 0, result := acc) collapses to 0 == 1 and must be disproved.
+    let diagnostics = validate_contract_source(
+        r#"
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+        let total: usize = self.gauss_sum(4, 0);
+    }
+
+    machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+    terminates {
+        decreases n;
+    }
+    ensures
+        result * 2 == acc * 2 + n * (n + 1) + 1
+    {
+        transition n > 0 {
+            true -> self.gauss_sum(n - 1, acc + n)
+            false -> acc
+        }
+    }
+    "#,
+    )
+    .expect_err("the off-by-one inductive twin must be disproved on its base arm");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "is disproved on the transition arm guarded by `n > 0 == false`: the arm's facts entail its negation"
+        )),
+        "expected base-arm refutation diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn rejects_inductive_step_false_twin_on_the_recursive_arm() {
+    // Base case true, step false: the instantiated hypothesis misses the
+    // goal, every fact is in-language and the decrease IS discharged, so the
+    // recursive arm's unproven obligation rejects.
+    let diagnostics = validate_contract_source(
+        r#"
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+        let total: usize = self.gauss_sum(4, 0);
+    }
+
+    machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+    terminates {
+        decreases n;
+    }
+    ensures
+        result * 2 == acc * 2 + n * (n + 3)
+    {
+        transition n > 0 {
+            true -> self.gauss_sum(n - 1, acc + n)
+            false -> acc
+        }
+    }
+    "#,
+    )
+    .expect_err("the step-false inductive twin must be rejected on its recursive arm");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "cannot prove ensures contract proof fact `result * 2 == acc * 2 + n * n + 3` on the transition arm guarded by `n > 0 == true`"
+        )),
+        "expected recursive-arm cannot-prove diagnostic, got {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn no_induction_hypothesis_without_a_decreases_claim() {
+    // SOUNDNESS GATE: without `terminates { decreases ... }` there is no
+    // well-founded measure, so the recursive arm gets no induction
+    // hypothesis. The goal cannot prove, but the missing hypothesis (not the
+    // theorem) may be at fault, so the engine stands down rather than
+    // rejecting -- the theorem is accepted UNCHECKED, exactly the bodied
+    // status quo.
+    validate_contract_source(
+        r#"
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+        let total: usize = self.gauss_sum(4, 0);
+    }
+
+    machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+    ensures
+        result * 2 == acc * 2 + n * (n + 1)
+    {
+        transition n > 0 {
+            true -> self.gauss_sum(n - 1, acc + n)
+            false -> acc
+        }
+    }
+    "#,
+    )
+    .expect("no decreases claim means no hypothesis and no rejection");
+}
+
+#[test]
+fn no_induction_hypothesis_when_the_call_site_decrease_is_undischarged() {
+    // The decreases clause names `n`, but the recursive call passes `n`
+    // unchanged: the strict decrease fails at that exact call site, so no
+    // hypothesis enters and the arm cannot drive a rejection. (The
+    // machine-level termination pass independently rejects this program; the
+    // entailment engine must not pile a false ensures rejection on top.)
+    let diagnostics = validate_contract_source(
+        r#"
+    data Main {
+    }
+
+    machine Main::main(&mut self) {
+        let total: usize = self.gauss_sum(4, 0);
+    }
+
+    machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+    terminates {
+        decreases n;
+    }
+    ensures
+        result * 2 == acc * 2 + n * (n + 1)
+    {
+        transition n > 0 {
+            true -> self.gauss_sum(n, acc + n)
+            false -> acc
+        }
+    }
+    "#,
+    )
+    .err()
+    .unwrap_or_default();
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("ensures contract proof fact")),
+        "an undischarged call-site decrease must not produce an ensures rejection, got {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn accepts_true_theorems_on_empty_proof_machines() {
     validate_contract_source(
         r#"

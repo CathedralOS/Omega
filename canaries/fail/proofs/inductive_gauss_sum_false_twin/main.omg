@@ -1,0 +1,27 @@
+// False twin of proofs/proof_inductive_gauss_sum (ladder rung L7). The
+// ensures is off by one: 2 * gauss_sum(n, acc) == 2*acc + n*(n+1) + 1. The
+// inductive STEP is self-consistent (assuming the false contract for n - 1
+// "proves" it for n), so the refutation must come from the BASE arm: under
+// n == 0 the goal collapses to 0 == 1 with `result := acc`, and the engine
+// disproves it on that arm. Pins that induction cannot launder a false
+// theorem past its base case.
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let total: usize = self.gauss_sum(4, 0);
+}
+
+machine Main::gauss_sum(&mut self, n: usize, acc: usize) -> usize
+terminates {
+    decreases n;
+}
+ensures
+    result * 2 == acc * 2 + n * (n + 1) + 1
+{
+    transition n > 0 {
+        true -> self.gauss_sum(n - 1, acc + n)
+        false -> acc
+    }
+}

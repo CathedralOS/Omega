@@ -1,1 +1,1 @@
-is disproved: the requires contract entails its negation
+is disproved by constant arithmetic

@@ -591,9 +591,17 @@ stay visible, not because they're next):**
 - [ ] **Repr control for hardware structures.** packed, explicit
   offsets/alignment, untagged unions (page tables, descriptor tables, device
   registers). Chapter 19 has `repr native` only.
-- [ ] **Proof engine arcs.** Anchoring for machines WITH bodies, induction
-  via recursive contracts + decreases, quantifiers, Bag/Seq lowering,
-  growing the Lean ladder past L6.
+- [ ] **Proof engine arcs.** L7 LANDED 2026-06-12: induction via recursive
+  contracts + decreases for single-state machines whose body is a chain of
+  guarded value/tail-self-call transitions (`proofs/proof_inductive_gauss_sum`
+  proves; `inductive_gauss_sum_false_twin` and `..._step_false_twin` reject).
+  The recursive arm assumes the machine's own ensures for the call's
+  arguments only after the engine discharges a strict decrease of the
+  declared measure at that exact call site. Still open: exit-ensures
+  anchoring for general bodies (statement-position recursion gets no
+  hypothesis — the termination graph does not see those calls), non-tail
+  value recursion (compound arm expressions do not parse), quantifiers,
+  Bag/Seq lowering, growing the Lean ladder past L7.
 - [ ] **Hot-swap semantics.** Quiescence proofs, borrows as swap
   back-pressure, multi-version concurrency mode, replacement declarations
   (`replaces`/`migrates`) — versioned data stage 3+, depends on the
