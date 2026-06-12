@@ -171,6 +171,31 @@ encoding families, negotiation) are derivable from decision 10 + the
 landed framing without sign-off. Language-design open questions with no
 implementation pressure stay in the guide's appendix "Still Open".
 
+**Wave landed 2026-06-12 (round 1 of the execution sweep; suite 234/234,
+oracle fully matched, `cargo test --workspace` green):**
+(a) RANKING VIEWS: `decreases (index, limit) -> Nat::BoundedDistance` built;
+the use-site subtraction is retired with a guided error; 7 corpus files
+migrated. (b) LIFETIMES STAGE 1: elision-only output-borrow linkage — a
+free-machine view return now links to its single ref input (closing what
+was an actual silent soundness hole, not a conservative rejection);
+`&self` rule unchanged; two-plus ref inputs + view output errors
+("explicit lifetime parameters are not implemented yet"). (c) VERSIONED
+STAGE 3: `Versioned<Counter>` synthesizes an ordinary data definition
+(era u32 + per-era payload fields), version match arms desugar to era tag
+compares (paren whole-value binding), `era` reads, writes rejected, plain
+subjects suggest the container; chain-completeness verdicts in
+04_wire_protocols.txt. KNOWN DEVIATION: payload layout is a STRUCT (sum of
+era sizes), not the frozen union-of-eras max layout — unobservable until a
+boundary decoder mints non-zero eras; true union layout lands with the
+decoder (stage 4). (d) WIRE REPEATED FIELDS: `N: name: [scalar; max];`
+packed LEN-delimited, max-unrolled self-guarded ops both ISAs, count
+companion `name_count`, hostile counts rejected by the Open/Close bound
+discipline. (e) COMPTIME STAGE 1: `[T; table_size()]` const-evaluates
+zero-arg effect-free machines via the reference interpreter
+(orchestration-layer pass pre-checking; decision-12 purity gate; 100k fuel
+backstop; target-width audited). (f) TEST DEBT: cargo test --workspace
+compiles + passes everywhere; architecture_boundaries 6/6.
+
 **Implementation, design already frozen:**
 
 All three frozen decisions (11, 12, 13) landed 2026-06-11 — see the wave
