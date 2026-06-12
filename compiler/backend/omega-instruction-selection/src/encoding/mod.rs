@@ -2,8 +2,10 @@ mod dispatch;
 mod host;
 mod runtime_storage;
 mod runtime_text;
+mod wire_decode;
 mod wire_encode;
 
+pub use wire_decode::{encode_read_wire_expected_byte, encode_read_wire_scalar_varint};
 pub use wire_encode::{encode_append_wire_literal_byte, encode_append_wire_scalar_varint};
 
 pub use dispatch::{

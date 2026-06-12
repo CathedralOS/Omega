@@ -261,6 +261,23 @@ one byte 0/1. The out buffer must be a `&mut [u8; N]` large enough for the
 worst-case encoding (checked at compile time, so the encoder needs no runtime
 bounds checks), and `written` receives the encoded byte count.
 
+The matching decoder is
+`Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)`: it reads the
+era varint, then per field the expected field-number varint and a value
+varint, un-zigzagging signed fields, and writes each value into the matching
+field of `value`. `read` receives the byte count consumed and `ok` the
+success flag. The decoder accepts the schema's CURRENT era only -- a payload
+carrying any other era discriminator fails on its first byte; decoding
+historical eras is deferred until the `Versioned<T>` container (chapter 21
+stage 3) is signed off, since ordinary values cannot carry an era tag.
+Failure semantics: `ok` is sticky -- the first violation (wrong era, a tag
+that is not the next expected field number, truncated input, or an overlong
+varint past ten groups) makes the decode report failure, and nothing can set
+the flag back. On failure the decoder guarantees only the flag: `read` and
+the message's fields may reflect a partial or garbage decode (no rollback),
+but every byte read is bounds-checked against the buffer's compile-time
+length, so a failed decode never reads out of bounds.
+
 ## Compatibility Reports
 
 The compiler should be able to report protocol compatibility changes.

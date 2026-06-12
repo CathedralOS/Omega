@@ -1106,3 +1106,92 @@ pub fn wire_append_written_page_offset(out_offset: usize) -> usize {
 pub fn wire_append_varint_source_page_offset(out_offset: usize, written_offset: usize) -> usize {
     wire_append_prologue_width(out_offset, written_offset)
 }
+
+/// Shared wire-decode prologue (`wire_decode.rs`): buffer page pair +
+/// buffer-offset add + read page pair + cursor load + pointer add + ok page
+/// pair.
+fn wire_decode_prologue_width(buffer_offset: usize, read_offset: usize) -> usize {
+    8 + add_constant_width(buffer_offset) + 8 + load_data_offset_width(read_offset, 8) + 4 + 8
+}
+
+/// Shared wire-decode epilogue: sticky ok-flag merge (load + and + store) +
+/// cursor write-back.
+fn wire_decode_tail_width(read_offset: usize, ok_offset: usize) -> usize {
+    load_data_offset_width(ok_offset, 1)
+        + 4
+        + store_data_offset_width(ok_offset, 1)
+        + store_data_offset_width(read_offset, 8)
+}
+
+/// The fixed fourteen-instruction LEB128 read loop in
+/// `encode_read_wire_scalar_varint`.
+pub fn wire_varint_read_loop_width() -> usize {
+    56
+}
+
+/// movz #63 + lslv + asr + lsr + eor (`(n >> 1) ^ -(n & 1)`).
+pub fn wire_unzigzag_width() -> usize {
+    20
+}
+
+pub fn read_wire_expected_byte_width(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+) -> usize {
+    // Prologue + length materialization + success-bit movz + the fixed
+    // seven-instruction check block + epilogue.
+    wire_decode_prologue_width(buffer_offset, read_offset)
+        + unsigned_immediate_width(buffer_length as u64)
+        + 4
+        + 28
+        + wire_decode_tail_width(read_offset, ok_offset)
+}
+
+pub fn read_wire_scalar_varint_width(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    target_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+) -> usize {
+    // Prologue + length materialization + success/value/shift movz triple +
+    // read loop + optional unzigzag + target page pair + truncating store +
+    // epilogue.
+    wire_decode_prologue_width(buffer_offset, read_offset)
+        + unsigned_immediate_width(buffer_length as u64)
+        + 12
+        + wire_varint_read_loop_width()
+        + if zigzag { wire_unzigzag_width() } else { 0 }
+        + 8
+        + store_data_offset_width(target_offset, byte_size)
+        + wire_decode_tail_width(read_offset, ok_offset)
+}
+
+/// Byte offset of the READ (cursor) page adrp pair inside both wire decodes.
+pub fn wire_decode_read_page_offset(buffer_offset: usize) -> usize {
+    8 + add_constant_width(buffer_offset)
+}
+
+/// Byte offset of the OK (sticky flag) page adrp pair inside both wire
+/// decodes.
+pub fn wire_decode_ok_page_offset(buffer_offset: usize, read_offset: usize) -> usize {
+    wire_decode_read_page_offset(buffer_offset) + 8 + load_data_offset_width(read_offset, 8) + 4
+}
+
+/// Byte offset of the TARGET page adrp pair inside the varint decode.
+pub fn wire_decode_varint_target_page_offset(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    zigzag: bool,
+) -> usize {
+    wire_decode_prologue_width(buffer_offset, read_offset)
+        + unsigned_immediate_width(buffer_length as u64)
+        + 12
+        + wire_varint_read_loop_width()
+        + if zigzag { wire_unzigzag_width() } else { 0 }
+}

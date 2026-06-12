@@ -315,28 +315,12 @@ fn validate_adjacent_eras(
     }
 }
 
-/// Validate the synthesized wire encoder call
-/// `Schema::encode_wire(&value, &mut out, &mut written)` (chapter 20, wire
-/// stage 2a). Returns `true` when the receiver names a wire schema (the call
-/// belongs to this module whether or not it validates).
-///
-/// The checks that make a bad program fail HERE, with a source-shaped
-/// diagnostic, instead of in the backend:
-/// - the only generated machine is `encode_wire`, with exactly three
-///   arguments;
-/// - every current-era schema field is a stage 2a scalar (i32/i64/u32/u64/
-///   bool) -- strings, nested messages, and repeated fields reject;
-/// - the value argument's data type declares every schema field with the
-///   SAME primitive type;
-/// - the out buffer is `&mut [u8; N]` with room for the WORST-CASE encoding
-///   (era varint + per field tag varint + max value varint), so the emitted
-///   appends never need a runtime bounds check;
-/// - the written argument is `&mut usize`.
-///
-/// Places this scope cannot type (alias-fed or computed arguments) skip the
-/// value/out/written checks; instruction selection re-resolves every place
-/// and an unresolved one surfaces as an emission-planning blocker.
-pub(crate) fn validate_wire_encode_call(
+/// Validate a call whose receiver names a wire schema: the synthesized
+/// `Schema::encode_wire(&value, &mut out, &mut written)` encoder (wire stage
+/// 2a) or `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)`
+/// decoder (wire stage 2b). Returns `true` when the receiver names a wire
+/// schema (the call belongs to this module whether or not it validates).
+pub(crate) fn validate_wire_schema_call(
     program: &TypedTrees,
     call: &omega_typed_trees::statement::TableCall,
     current_machine: &omega_typed_trees::machine::Machine,
@@ -355,14 +339,64 @@ pub(crate) fn validate_wire_encode_call(
         return false;
     };
 
-    if call.target.as_str() != omega_typed_trees::wire::WIRE_ENCODE_MACHINE_NAME {
-        diagnostics.push(Diagnostic::error(format!(
-            "wire data `{}` has no machine `{}`; the compiler only synthesizes `encode_wire(&value, &mut out, &mut written)` (wire stage 2a)",
-            schema.name, call.target
-        )));
-        return true;
+    match call.target.as_str() {
+        omega_typed_trees::wire::WIRE_ENCODE_MACHINE_NAME => {
+            validate_wire_encode_call(
+                program,
+                schema,
+                call,
+                current_machine,
+                current_state,
+                diagnostics,
+            );
+        }
+        omega_typed_trees::wire::WIRE_DECODE_MACHINE_NAME => {
+            validate_wire_decode_call(
+                program,
+                schema,
+                call,
+                current_machine,
+                current_state,
+                diagnostics,
+            );
+        }
+        _ => {
+            diagnostics.push(Diagnostic::error(format!(
+                "wire data `{}` has no machine `{}`; the compiler only synthesizes `encode_wire(&value, &mut out, &mut written)` and `decode_wire(&mut value, &buffer, &mut read, &mut ok)` (wire stage 2)",
+                schema.name, call.target
+            )));
+        }
     }
+    true
+}
 
+/// Validate the synthesized wire encoder call
+/// `Schema::encode_wire(&value, &mut out, &mut written)` (chapter 20, wire
+/// stage 2a).
+///
+/// The checks that make a bad program fail HERE, with a source-shaped
+/// diagnostic, instead of in the backend:
+/// - exactly three arguments;
+/// - every current-era schema field is a stage 2a scalar (i32/i64/u32/u64/
+///   bool) -- strings, nested messages, and repeated fields reject;
+/// - the value argument's data type declares every schema field with the
+///   SAME primitive type;
+/// - the out buffer is `&mut [u8; N]` with room for the WORST-CASE encoding
+///   (era varint + per field tag varint + max value varint), so the emitted
+///   appends never need a runtime bounds check;
+/// - the written argument is `&mut usize`.
+///
+/// Places this scope cannot type (alias-fed or computed arguments) skip the
+/// value/out/written checks; instruction selection re-resolves every place
+/// and an unresolved one surfaces as an emission-planning blocker.
+fn validate_wire_encode_call(
+    program: &TypedTrees,
+    schema: &WireSchema,
+    call: &omega_typed_trees::statement::TableCall,
+    current_machine: &omega_typed_trees::machine::Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     let arguments = program.statement_table.expression_handles(call.arguments);
     if arguments.len() != 3 {
         diagnostics.push(Diagnostic::error(format!(
@@ -370,7 +404,7 @@ pub(crate) fn validate_wire_encode_call(
             schema.name,
             arguments.len()
         )));
-        return true;
+        return;
     }
 
     // Schema side: the stage 2a scalar set, and the worst-case byte budget
@@ -411,7 +445,7 @@ pub(crate) fn validate_wire_encode_call(
         current_fields.push((field, primitive.expect("encoding implies primitive")));
     }
     if schema_rejects {
-        return true;
+        return;
     }
 
     // Value argument: its data type must declare every schema field with the
@@ -495,8 +529,165 @@ pub(crate) fn validate_wire_encode_call(
             program.display_type_reference(written_type)
         )));
     }
+}
 
-    true
+/// Validate the synthesized wire decoder call
+/// `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)` (chapter
+/// 20, wire stage 2b).
+///
+/// The checks, mirroring the encoder's:
+/// - exactly four arguments;
+/// - every current-era schema field is a stage 2 scalar (i32/i64/u32/u64/
+///   bool) -- strings, nested messages, and repeated fields reject;
+/// - the value argument's data type declares every schema field with the
+///   SAME primitive type;
+/// - the buffer is a fixed `[u8; N]` byte array (its compile-time length
+///   bounds every runtime read -- the decoder never reads past it);
+/// - `read` is `&mut usize` (receives the byte count consumed) and `ok` is
+///   `&mut bool` (the success flag).
+///
+/// Places this scope cannot type skip their checks; instruction selection
+/// re-resolves every place and an unresolved one surfaces as an
+/// emission-planning blocker.
+fn validate_wire_decode_call(
+    program: &TypedTrees,
+    schema: &WireSchema,
+    call: &omega_typed_trees::statement::TableCall,
+    current_machine: &omega_typed_trees::machine::Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    if arguments.len() != 4 {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{}::decode_wire` expects 4 arguments (&mut value, &buffer, &mut read, &mut ok), got {}",
+            schema.name,
+            arguments.len()
+        )));
+        return;
+    }
+
+    // Schema side: the stage 2 scalar set, same gate as the encoder.
+    let mut current_fields = Vec::new();
+    let mut schema_rejects = false;
+    for member in program.wire_members(schema.members) {
+        let WireMember::Field(field) = member else {
+            continue;
+        };
+        let primitive = program.primitive_type_reference(field.type_reference);
+        if primitive
+            .and_then(omega_typed_trees::wire::WireScalarEncoding::for_primitive)
+            .is_none()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "wire data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, and bool",
+                schema.name,
+                field.name,
+                program.display_type_reference(field.type_reference)
+            )));
+            schema_rejects = true;
+            continue;
+        }
+        if field.number < 0 {
+            diagnostics.push(Diagnostic::error(format!(
+                "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                schema.name, field.name, field.number
+            )));
+            schema_rejects = true;
+            continue;
+        }
+        current_fields.push((field, primitive.expect("encoding implies primitive")));
+    }
+    if schema_rejects {
+        return;
+    }
+
+    // Value argument: its data type must declare every schema field with the
+    // same primitive type.
+    if let Some(value_type) =
+        declared_place_type(program, current_machine, current_state, arguments[0])
+        && let Some(value_data) = named_data_definition(program, value_type)
+    {
+        for (field, schema_primitive) in &current_fields {
+            let Some(value_field) = program
+                .data_members(value_data)
+                .iter()
+                .find_map(|member| match member {
+                    omega_typed_trees::data::DataMember::Field(data_field)
+                        if data_field.name == field.name =>
+                    {
+                        Some(data_field)
+                    }
+                    _ => None,
+                })
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::decode_wire` value type `{}` has no field `{}` to decode into (schema field {})",
+                    schema.name, value_data.name, field.name, field.number
+                )));
+                continue;
+            };
+            if program.primitive_type_reference(value_field.type_reference)
+                != Some(*schema_primitive)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::decode_wire` value field `{}.{}` is `{}`, but the schema declares field {} as `{}`",
+                    schema.name,
+                    value_data.name,
+                    field.name,
+                    program.display_type_reference(value_field.type_reference),
+                    field.number,
+                    program.display_type_reference(field.type_reference)
+                )));
+            }
+        }
+    }
+
+    // Buffer argument: a fixed `[u8; N]` byte array (any length -- the
+    // decoder bounds-checks every read against N at runtime).
+    if let Some(buffer_type) =
+        declared_place_type(program, current_machine, current_state, arguments[1])
+        && !matches!(
+            program.type_reference_table.type_reference(buffer_type),
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: omega_typed_trees::types::FixedArrayLength::Literal(_),
+            } if program.primitive_type_reference(*element_type)
+                == Some(omega_typed_trees::types::PrimitiveType::U8)
+        )
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{}::decode_wire` buffer argument must be `&[u8; N]`, got `{}`",
+            schema.name,
+            program.display_type_reference(buffer_type)
+        )));
+    }
+
+    // Read argument: `&mut usize`.
+    if let Some(read_type) =
+        declared_place_type(program, current_machine, current_state, arguments[2])
+        && program.primitive_type_reference(read_type)
+            != Some(omega_typed_trees::types::PrimitiveType::Usize)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{}::decode_wire` read argument must be `&mut usize`, got `{}`",
+            schema.name,
+            program.display_type_reference(read_type)
+        )));
+    }
+
+    // Ok argument: `&mut bool`.
+    if let Some(ok_type) =
+        declared_place_type(program, current_machine, current_state, arguments[3])
+        && program.primitive_type_reference(ok_type)
+            != Some(omega_typed_trees::types::PrimitiveType::Bool)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "`{}::decode_wire` ok argument must be `&mut bool`, got `{}`",
+            schema.name,
+            program.display_type_reference(ok_type)
+        )));
+    }
 }
 
 /// The DECLARED type of a simple place argument: a bare local/parameter name

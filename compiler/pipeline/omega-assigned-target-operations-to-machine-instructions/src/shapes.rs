@@ -74,6 +74,12 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::AppendWireScalarVarint { .. } => {
             MachineInstructionKind::WireScalarVarintAppend
         }
+        SelectedInstructionKind::ReadWireExpectedByte { .. } => {
+            MachineInstructionKind::WireExpectedByteRead
+        }
+        SelectedInstructionKind::ReadWireScalarVarint { .. } => {
+            MachineInstructionKind::WireScalarVarintRead
+        }
         SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { .. } => {
             MachineInstructionKind::RuntimeStorageCopyToReturnRegister
         }
