@@ -834,6 +834,29 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
+    // An all-literal concat (`"prefix " + "omega"`) writes its FOLDED value as
+    // one descriptor write. The runtime-text planner folds these (no builder
+    // is planned), so the builder path below cannot lower them; left to the
+    // per-segment builder machinery they would also overwrite indexed targets
+    // segment by segment instead of appending.
+    if matches!(value, Expression::Binary(_))
+        && let Some(folded) = fold_static_string_tree_value(value)
+    {
+        select_runtime_string_descriptor_write(
+            input,
+            operation_source_key,
+            target_source_key,
+            source_machine,
+            source_state,
+            dispatch_index,
+            statement_index,
+            resolved_target,
+            &folded,
+            selected_instructions,
+        );
+        return;
+    }
+
     if runtime_text_builder_write_with_scratch_emit(
         input,
         dispatch_index,
@@ -1684,4 +1707,22 @@ fn select_runtime_binary_mutation_write(
         right,
         is_float,
     })
+}
+
+/// Fold an all-literal `+` tree to the single string it denotes; `None` when
+/// any leaf is not a string literal. Mirrors the runtime-text planner's fold
+/// (which classifies these writes as StaticText) and the data planner's
+/// folded-literal object, so the descriptor write finds matching bytes.
+fn fold_static_string_tree_value(value: &Expression) -> Option<String> {
+    match value {
+        Expression::String(value) => Some(value.to_string()),
+        Expression::Binary(binary)
+            if binary.operator == omega_checked_trees::expression::BinaryOperator::Add =>
+        {
+            let mut folded = fold_static_string_tree_value(&binary.left)?;
+            folded.push_str(&fold_static_string_tree_value(&binary.right)?);
+            Some(folded)
+        }
+        _ => None,
+    }
 }

@@ -16,10 +16,12 @@ use super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
-    resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+    resolve_runtime_frame_indexed_primitive_type_in_table, resolve_runtime_storage_place,
+    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
     resolve_runtime_transition_guard_call_result_place, static_elided_local_value_in_table,
     static_fixed_array_len_in_table,
 };
+use omega_checked_trees::types::PrimitiveType;
 use omega_abstract_operations::{
     RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind, TargetDataObjectHandle,
 };
@@ -272,6 +274,16 @@ pub(super) fn select_runtime_dispatch_expression_guard(
         });
     }
 
+    if let Some(guard) = runtime_text_equals_literal_guard(
+        input,
+        dispatch_index,
+        source_key,
+        &normalized_guard,
+        runtime_value_operands,
+    ) {
+        return Some(guard);
+    }
+
     runtime_text_storage_guard(input, dispatch_index, source_key, &normalized_guard)
         .or_else(|| {
             runtime_value_guard(
@@ -355,6 +367,17 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
             buffer: literal_guard.buffer,
             literal: literal_guard.literal,
         });
+    }
+
+    if let Some(selected) = runtime_text_equals_literal_guard_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        guard,
+        runtime_value_operands,
+    ) {
+        return Some(selected);
     }
 
     runtime_text_storage_guard_in_table(input, dispatch_index, source_key, expressions, guard)
@@ -672,6 +695,160 @@ fn runtime_text_literal_guard_in_table(
         buffer: buffer.buffer,
         literal,
     })
+}
+
+/// `String place ==/!= "literal"` in guard position, lowered as the inline
+/// `TextEqualsLiteral` content compare (bool 0/1) against 1. This is the
+/// selection for text guards whose String side has NO runtime text buffer --
+/// plain machine/frame String fields and slice-element String fields
+/// (`transition items[i].name == "expected"`). Before it existed these guards
+/// selected NOTHING: the dispatch edge silently emitted no compare and was
+/// always taken, so the guard evaluated TRUE even against an EMPTY field.
+fn runtime_text_equals_literal_guard(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    guard: &TransitionGuard,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let TransitionGuard::When(expression) = guard else {
+        return None;
+    };
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    runtime_text_equals_literal_guard_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+        runtime_value_operands,
+    )
+}
+
+fn runtime_text_equals_literal_guard_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return None;
+    };
+    let operator = match binary.operator {
+        BinaryOperator::Equal => StateGuardOperator::Equal,
+        BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
+        _ => return None,
+    };
+    let (place_expression, literal) = if let Some(literal) =
+        expressions.string_literal_value(binary.left)
+    {
+        (binary.right, literal)
+    } else if let Some(literal) = expressions.string_literal_value(binary.right) {
+        (binary.left, literal)
+    } else {
+        return None;
+    };
+    let place = resolve_runtime_text_descriptor_place_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        place_expression,
+        runtime_value_operands,
+    )?;
+    let text_equals = runtime_value_operands.insert(RuntimeValueOperand::TextEqualsLiteral {
+        place,
+        literal: literal.to_string(),
+    });
+    let expected_true = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
+    // `==` holds when the content-equality bool is 1; `!=` when it is not.
+    Some(SelectedInstructionKind::CompareRuntimeValues {
+        left: text_equals,
+        right: expected_true,
+        byte_size: 1,
+        operator,
+    })
+}
+
+/// The String side of a text-vs-literal guard as a PLACE operand naming its
+/// 16-byte `{ptr, len}` text descriptor. Frame-indexed resolution is tried
+/// FIRST: a slice-indexed expression must never fall back to a static storage
+/// resolution of the descriptor slot itself (the descriptor-as-value trap).
+/// Only String-typed places qualify -- this operand is a CONTENT compare and
+/// must never see a scalar that happens to be 16 bytes.
+fn resolve_runtime_text_descriptor_place_operand_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
+    // The leaf-descriptor resolver covers name paths (`self.name`); the
+    // indexed resolver covers slice-element fields (`items[i].name`), whose
+    // Index node the name-path walk cannot see through.
+    let place_is_string = matches!(
+        resolve_runtime_storage_primitive_type_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            expression,
+        ),
+        Some(PrimitiveType::String)
+    ) || matches!(
+        resolve_runtime_frame_indexed_primitive_type_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            expression,
+        ),
+        Some(PrimitiveType::String)
+    );
+    if !place_is_string {
+        return None;
+    }
+    let string_descriptor_size = input.runtime_abi.string_descriptor_size();
+
+    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) && indexed_target.byte_count == string_descriptor_size
+    {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
+                descriptor_offset: indexed_target.descriptor_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
+    if let Some(place) = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) && place.byte_count == string_descriptor_size
+    {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
+        }));
+    }
+
+    None
 }
 
 fn runtime_text_storage_guard(
@@ -1359,7 +1536,7 @@ fn runtime_value_operand_byte_size(
             target_byte_size, ..
         } => *target_byte_size,
         // Text content equality evaluates to a bool.
-        RuntimeValueOperand::TextEquals { .. } => 1,
+        RuntimeValueOperand::TextEquals { .. } | RuntimeValueOperand::TextEqualsLiteral { .. } => 1,
     }
 }
 

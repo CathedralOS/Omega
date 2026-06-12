@@ -332,10 +332,48 @@ remains tracked in its bullet below.
   post-fix 70 = interpreter), in the differential oracle. The dungeon
   scripted suite test now detours through R06 and asserts BOTH side-room
   description lines; the full tour is byte-identical to the interpreter.
-  Residue spotted while hunting (separate, unfixed): a `transition
-  rooms[i].description == "literal"` String-equality guard evaluated TRUE
-  natively while the field was empty (two false-negative probes) — the
-  slice-indexed String guard comparison needs its own minimal hunt.
+  Residue spotted while hunting: a `transition rooms[i].description ==
+  "literal"` String-equality guard evaluated TRUE natively while the field
+  was empty (two false-negative probes) — RESOLVED, next bullet.
+- [x] Slice-indexed String guard compares lied — RESOLVED (2026-06-12).
+  Failure class: SILENTLY DROPPED COMPARE, guard defaults truthy. A
+  `String place == "literal"` guard (slice-indexed `items[i].name` AND plain
+  fields `self.name` alike, `!=` too) had NO selection: the buffer-literal
+  guard needs a runtime text buffer (stdin machinery), the storage guard
+  needs places on BOTH sides, and the value guard can neither resolve a
+  literal operand nor compare 16-byte descriptors — every path returned None,
+  the dispatch edge emitted no compare (`EvaluateDispatchGuard
+  NeedsRuntimeExpression` encodes nothing), and the first arm was taken
+  unconditionally. Both probe regimes lied (empty AND non-empty-differing);
+  the matching case "passed" for the same reason. Fix: a new
+  `TextEqualsLiteral` value operand (place handle + inline literal bytes,
+  bool 0/1; guards lower it as `CompareRuntimeValues == 1`), selected by
+  `runtime_text_equals_literal_guard(_in_table)` for String-typed Storage and
+  FrameIndexed descriptor places (frame-indexed tried FIRST so a slice index
+  never falls back to the descriptor-as-value trap); emitters in both ISAs
+  with width fns in lockstep (length mismatch short-circuits unequal, so a
+  zeroed descriptor's null pointer is never dereferenced; the TextEquals
+  half-empty behavior was audited and is correct). Honest guards then
+  UNMASKED three double-masked write bugs, all fixed: (1) skewed relocation —
+  aarch64 `runtime_machine_indexed_string_runtime_frame_address_offset` said
+  20 but the encoder puts the frame adrp at 12, so machine-indexed string
+  writes read a garbage index and landed nowhere; (2) concat-built String
+  LOCALS (`let line = "== " + name + " =="`) were never materialized — local
+  initializers are not mutations, so the runtime-text planner never planned
+  their builder (StateLocalStorage now carries `initial_value`;
+  `collect_runtime_text_local_initializer_writes`); (3) ALL-LITERAL concats
+  (`"prefix " + "omega"`) per-segment "appends" to machine-indexed targets
+  are full descriptor writes, leaving only the LAST segment — now folded to
+  one StaticText write at planning/data/selection in lockstep. Canaries:
+  pass+RUN text/runtime_slice_indexed_string_guard_exit (empty field takes
+  the false arm, matching takes true, same-length-differing takes false;
+  exit 70 only when all three behave) and
+  text/runtime_string_field_literal_guard_exit (the storage-place sibling),
+  both in the differential oracle. Remaining gap (still silently dropped):
+  String guard compares whose place is FrameBaseIndexed/FrameFixedIndexed or
+  pointee-rooted select nothing and default truthy, and the guard fallback
+  itself still emits silence rather than a hard error — the
+  guard-must-select-or-error tightening is a follow-up.
 - [ ] Signed/unsigned residue, two sibling shapes (found while shrinking, not
   yet canaried): (1) a modulo whose operand is a CAST — `((seed >> 32) as
   u32) % 199` inside a convert/value-operand chain — still picks the signed

@@ -520,7 +520,15 @@ pub fn runtime_machine_indexed_string_write_width(
 pub fn runtime_machine_indexed_string_runtime_frame_address_offset(
     base_byte_offset: usize,
 ) -> usize {
-    20 + add_constant_width(base_byte_offset)
+    // The machine-index address setup is adrp+add (8) + mov x20,x16 (4) +
+    // add-constant(base), and THEN the frame-index page pair -- the same
+    // layout the copy-from-machine-indexed offset below uses. This was 20,
+    // which patched the index LOAD eight bytes past the frame adrp: the page
+    // bits corrupted the load and the unrelocated adrp read its index from a
+    // garbage page, so machine-indexed string writes landed nowhere (masked
+    // for as long as String guards silently passed; see the slice-indexed
+    // String guard canaries).
+    12 + add_constant_width(base_byte_offset)
 }
 
 pub fn runtime_machine_indexed_string_data_address_offset(
@@ -876,6 +884,37 @@ pub fn runtime_text_equals_operand_width() -> usize {
     8 + 24 + 24 + 8 + 24 + 24 + 11 * 4
 }
 
+/// Width of a guard-position text-vs-literal content compare operand (the
+/// `TextEqualsLiteral` arm of `append_runtime_value_operand`): the place's
+/// descriptor-address setup (relocated storage base, or the frame-indexed
+/// element address sequence, ending in x16), two descriptor word loads (8),
+/// a fixed 28-byte head (result zero, padded literal-length immediate, length
+/// compare, mismatch branch), one unrolled 12-byte load/compare/branch block
+/// per literal byte, and the final 4-byte result set. MUST stay in lockstep
+/// with that encoder (it ends with a `debug_assert_eq!` against this
+/// function).
+pub fn runtime_text_equals_literal_operand_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    place: RuntimeValueOperandHandle,
+    literal: &str,
+) -> usize {
+    let place_setup_width = if let Some((_, byte_offset, _)) =
+        runtime_value_operands.storage(place)
+    {
+        8 + add_constant_width(byte_offset)
+    } else if let Some((_, _, element_byte_size, field_byte_offset, _)) =
+        runtime_value_operands.frame_indexed(place)
+    {
+        runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+    } else {
+        // Selection only builds this operand over storage/frame-indexed text
+        // places; the encoder rejects anything else with a hard diagnostic
+        // before this width could be compared against emitted bytes.
+        0
+    };
+    place_setup_width + 8 + 28 + 12 * literal.len() + 4
+}
+
 /// Byte offset of the RIGHT descriptor's adrp inside a text-equals operand
 /// (left page + two fixed-width left descriptor loads precede it). The
 /// relocation planner targets the right region's symbol here.
@@ -932,6 +971,8 @@ pub fn runtime_value_operand_width(
         ) + runtime_load_data_width(byte_size)
     } else if runtime_value_operands.text_equals(operand).is_some() {
         runtime_text_equals_operand_width()
+    } else if let Some((place, literal)) = runtime_value_operands.text_equals_literal(operand) {
+        runtime_text_equals_literal_operand_width(runtime_value_operands, place, &literal)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
             runtime_float_binary_operation_width()
