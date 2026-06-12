@@ -11,10 +11,10 @@ use omega_state_guards::{StateGuardKind, StateGuardOperator};
 
 use super::super::storage_places::{
     clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
-    enum_variant_value, enum_variant_value_in_table, resolve_runtime_frame_base_indexed_target,
+    enum_variant_value, enum_variant_value_in_table,
     resolve_runtime_frame_base_indexed_target_in_table,
-    resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_frame_fixed_indexed_target_in_table,
+    resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
     resolve_runtime_transition_guard_call_result_place, static_elided_local_value_in_table,
@@ -1143,120 +1143,28 @@ fn static_guard_value_in_table(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn resolve_runtime_value_operand(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
     statement_index: usize,
-    source_machine: &str,
-    source_state: &str,
+    _source_machine: &str,
+    _source_state: &str,
     expression: &Expression,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<RuntimeValueOperandHandle> {
-    if let Some(value) =
-        enum_variant_value(&input.layouts, expression).or_else(|| static_guard_value(expression))
-    {
-        return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(value)));
-    }
-
-    if let Expression::Binary(binary) = expression {
-        let operator = runtime_arithmetic_operator(binary.operator)?;
-        let left = resolve_runtime_value_operand(
-            input,
-            dispatch_index,
-            source_key,
-            statement_index,
-            source_machine,
-            source_state,
-            &binary.left,
-            runtime_value_operands,
-        )?;
-        let right = resolve_runtime_value_operand(
-            input,
-            dispatch_index,
-            source_key,
-            statement_index,
-            source_machine,
-            source_state,
-            &binary.right,
-            runtime_value_operands,
-        )?;
-        return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
-            left,
-            operator,
-            right,
-            // Guard comparison operands; float comparisons lower via ucomisd
-            // elsewhere, so the integer value-operand path stays as-is here.
-            is_float: false,
-        }));
-    }
-
-    if matches!(expression, Expression::Call(_))
-        && let Some(place) = resolve_runtime_transition_guard_call_result_place(
-            input,
-            dispatch_index,
-            source_key,
-            statement_index,
-        )
-    {
-        return Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
-        }));
-    }
-
-    if let Some(pointer_target) =
-        resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, expression)
-    {
-        return Some(runtime_value_operands.insert(RuntimeValueOperand::Pointee {
-            pointer_byte_offset: pointer_target.pointer_byte_offset,
-            field_byte_offset: pointer_target.field_byte_offset,
-            byte_size: pointer_target.pointee_byte_size,
-        }));
-    }
-
-    if let Some(indexed_target) =
-        resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, expression)
-    {
-        return Some(
-            runtime_value_operands.insert(RuntimeValueOperand::FrameIndexed {
-                descriptor_offset: indexed_target.descriptor_offset,
-                index_offset: indexed_target.index_offset,
-                element_byte_size: indexed_target.element_byte_size,
-                field_byte_offset: indexed_target.field_byte_offset,
-                byte_size: indexed_target.byte_count,
-            }),
-        );
-    }
-
-    if let Some(indexed_target) =
-        resolve_runtime_frame_base_indexed_target(input, dispatch_index, source_key, expression)
-    {
-        return Some(
-            runtime_value_operands.insert(RuntimeValueOperand::FrameBaseIndexed {
-                base_byte_offset: indexed_target.base_byte_offset,
-                index_offset: indexed_target.index_offset,
-                element_byte_size: indexed_target.element_byte_size,
-                field_byte_offset: indexed_target.field_byte_offset,
-                byte_size: indexed_target.byte_count,
-            }),
-        );
-    }
-
-    let place = resolve_runtime_storage_place(
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_value_operand_in_table(
         input,
         dispatch_index,
         source_key,
-        source_machine,
-        source_state,
-        expression,
-    )?;
-    Some(runtime_value_operands.insert(RuntimeValueOperand::Storage {
-        region: place.region,
-        byte_offset: place.byte_offset,
-        byte_size: place.byte_count,
-    }))
+        statement_index,
+        &delegated_expressions,
+        delegated_expression,
+        runtime_value_operands,
+    )
 }
 
 fn resolve_runtime_value_operand_in_table(

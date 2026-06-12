@@ -21,15 +21,13 @@ pub(super) use static_values::{
 };
 
 use crate::InstructionSelectionInput;
-use expressions::{
-    StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
-};
+use expressions::{StorageNamePath, normalized_storage_name_path_in_table};
 use nested_fields::{
     NestedFieldLayoutCursor, resolve_nested_field_layout_step,
-    resolve_nested_field_layout_with_pairs, resolve_nested_field_layout_with_symbols,
+    resolve_nested_field_layout_with_pairs,
 };
 use omega_checked_trees::expression::{
-    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
 use omega_checked_trees::name::Identifier;
 use omega_checked_trees::types::PrimitiveType;
@@ -72,75 +70,9 @@ pub(super) fn resolve_runtime_storage_place(
     _source_state: &str,
     expression: &Expression,
 ) -> Option<RuntimeStoragePlace> {
-    if let Some(place) =
-        resolve_runtime_fixed_indexed_place(input, dispatch_index, source_key, expression)
-    {
-        return Some(place);
-    }
-
-    let normalized_expression = normalized_storage_expression(expression)?;
-    let Expression::Name(path) = &normalized_expression else {
-        return None;
-    };
-    if path.is_empty() {
-        return None;
-    }
-    let suffix = &path.members()[1..];
-    if let Some(slot) =
-        find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-            slot_matches_path(slot, path)
-        })
-        .or_else(|| {
-            latest_dispatch_frame_slot(input, dispatch_index, |slot| slot_matches_path(slot, path))
-        })
-    {
-        if let Some(place) = runtime_slice_descriptor_member_place(
-            input,
-            slot.byte_offset,
-            slot.byte_size,
-            suffix.first().map(|name| name.as_str()),
-            suffix.len(),
-        ) {
-            return Some(place);
-        }
-
-        let root_field = FieldLayout {
-            symbol: slot.symbol,
-            name: slot.name.clone(),
-            offset: slot.byte_offset,
-            type_symbol: slot.type_symbol,
-            type_name: slot.type_name.clone(),
-            type_descriptor: slot.type_descriptor.clone(),
-            layout: TypeLayout {
-                size: slot.byte_size,
-                alignment: slot.alignment,
-            },
-        };
-        let (byte_offset, layout) = resolve_nested_field_layout_with_symbols(
-            &input.layouts,
-            &root_field,
-            suffix,
-            |index| path.member_symbol(index + 1),
-        )?;
-
-        return Some(RuntimeStoragePlace {
-            region: RuntimeStorageRegion::RuntimeFrame,
-            byte_offset,
-            byte_count: layout.size,
-        });
-    }
-
-    resolve_machine_owned_place(
-        &input.layouts,
-        input.entry_key.machine,
-        source_key.machine,
-        expression,
-    )
-    .map(|(byte_offset, byte_count)| RuntimeStoragePlace {
-        region: RuntimeStorageRegion::Machine,
-        byte_offset,
-        byte_count,
-    })
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_storage_place_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
 }
 
 pub(super) fn resolve_runtime_assignment_value_call_result_place(
@@ -770,30 +702,16 @@ fn scalar_primitive_rank(primitive: PrimitiveType) -> u8 {
 
 /// Non-table counterpart of [`resolve_runtime_storage_primitive_type_in_table`]:
 /// resolve the leaf primitive type of a runtime storage target given as a resolved
-/// `Expression`. First cut handles a DIRECT frame slot (a local or top-level field,
-/// no nested-field suffix) -- enough to tell a float arithmetic target (`let c:
-/// f64 = ...`) from an integer one so the binary write picks addsd vs an integer
-/// op. Nested-field targets return `None` (the caller treats that as non-float).
+/// `Expression`.
 pub(super) fn resolve_runtime_storage_primitive_type(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
     expression: &Expression,
 ) -> Option<PrimitiveType> {
-    let normalized_expression = normalized_storage_expression(expression)?;
-    let Expression::Name(path) = &normalized_expression else {
-        return None;
-    };
-    if path.is_empty() || path.members().len() != 1 {
-        return None;
-    }
-    let slot = find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-        slot_matches_path(slot, path)
-    })
-    .or_else(|| {
-        latest_dispatch_frame_slot(input, dispatch_index, |slot| slot_matches_path(slot, path))
-    })?;
-    descriptor_primitive_type(&slot.type_descriptor)
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_storage_primitive_type_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
 }
 
 /// Walk a runtime storage target (frame slot or machine-owned `data` field, plus
@@ -1453,11 +1371,6 @@ pub(super) struct RuntimePointeeTarget {
     pub(super) pointee_byte_size: usize,
 }
 
-fn slot_matches_path(slot: &omega_runtime_storage::RuntimeFrameSlot, path: &NamePath) -> bool {
-    slot_matches_root(slot.symbol, path.head_symbol())
-        || path.first().is_some_and(|name| *name == slot.name)
-}
-
 fn slot_matches_table_path(
     slot: &omega_runtime_storage::RuntimeFrameSlot,
     path: &StorageNamePath<'_>,
@@ -1468,25 +1381,6 @@ fn slot_matches_table_path(
 
 fn slot_matches_root(slot_symbol: SymbolHandle, root_symbol: SymbolHandle) -> bool {
     slot_symbol.is_valid() && root_symbol.is_valid() && slot_symbol == root_symbol
-}
-
-fn runtime_frame_slot_for_expression<'plan>(
-    input: &'plan InstructionSelectionInput<'plan>,
-    dispatch_index: u32,
-    source_key: StateKey,
-    expression: &Expression,
-) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
-    let normalized_expression = normalized_storage_expression(expression)?;
-    let Expression::Name(path) = &normalized_expression else {
-        return None;
-    };
-
-    find_runtime_frame_slot_for_path(input, dispatch_index, source_key, |slot| {
-        slot_matches_path(slot, path)
-    })
-    .or_else(|| {
-        latest_dispatch_frame_slot(input, dispatch_index, |slot| slot_matches_path(slot, path))
-    })
 }
 
 /// Byte size of one element of the slice (or fixed array) named by `expression`,
@@ -1636,41 +1530,6 @@ fn latest_dispatch_frame_slot<'plan>(
                 matched_slot
             }
         })
-}
-
-fn resolve_runtime_fixed_indexed_place(
-    input: &InstructionSelectionInput<'_>,
-    dispatch_index: u32,
-    source_key: StateKey,
-    expression: &Expression,
-) -> Option<RuntimeStoragePlace> {
-    let fixed = fixed_indexed_target_path(expression)?;
-    let slot =
-        runtime_frame_slot_for_expression(input, dispatch_index, source_key, fixed.collection)?;
-    let element_descriptor = inline_fixed_array_element_type(&slot.type_descriptor)?;
-    let element_layout = descriptor_layout(input, element_descriptor);
-    let index = usize::try_from(fixed.index).ok()?;
-    let element_offset = index.checked_mul(element_layout.size)?;
-    let root_field = FieldLayout {
-        symbol: slot.symbol,
-        name: slot.name.clone(),
-        offset: 0,
-        type_symbol: element_descriptor.storage_symbol(),
-        type_name: "".into(),
-        type_descriptor: element_descriptor.clone(),
-        layout: element_layout,
-    };
-    let (field_byte_offset, field_layout) =
-        resolve_indexed_target_suffix_layout(input, &root_field, fixed.suffix_root)?;
-
-    Some(RuntimeStoragePlace {
-        region: RuntimeStorageRegion::RuntimeFrame,
-        byte_offset: slot
-            .byte_offset
-            .checked_add(element_offset)?
-            .checked_add(field_byte_offset)?,
-        byte_count: field_layout.size,
-    })
 }
 
 fn resolve_runtime_fixed_indexed_place_in_table(
@@ -1880,13 +1739,6 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target(
 }
 
 #[derive(Debug, Clone, Copy)]
-struct FixedIndexedTargetPath<'expression> {
-    collection: &'expression Expression,
-    index: i64,
-    suffix_root: &'expression Expression,
-}
-
-#[derive(Debug, Clone, Copy)]
 struct TableFixedIndexedTargetPath {
     collection: ExpressionHandle,
     index: i64,
@@ -1894,42 +1746,10 @@ struct TableFixedIndexedTargetPath {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct IndexedTargetPath<'expression> {
-    collection: &'expression Expression,
-    index: &'expression Expression,
-    suffix_root: &'expression Expression,
-}
-
-#[derive(Debug, Clone, Copy)]
 struct TableIndexedTargetPath {
     collection: ExpressionHandle,
     index: ExpressionHandle,
     suffix_root: ExpressionHandle,
-}
-
-fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTargetPath<'_>> {
-    match expression {
-        Expression::Mutable(target) => fixed_indexed_target_path(target),
-        Expression::Member(member) => {
-            let path = fixed_indexed_target_path(&member.receiver)?;
-            Some(FixedIndexedTargetPath {
-                collection: path.collection,
-                index: path.index,
-                suffix_root: expression,
-            })
-        }
-        Expression::Indexed(indexed) => {
-            let Expression::Integer(index) = &indexed.index else {
-                return None;
-            };
-            Some(FixedIndexedTargetPath {
-                collection: &indexed.collection,
-                index: *index,
-                suffix_root: expression,
-            })
-        }
-        _ => None,
-    }
 }
 
 fn fixed_indexed_target_path_in_table(
@@ -1994,51 +1814,6 @@ fn indexed_target_path_in_table(
                 index: indexed.index,
                 suffix_root: expression,
             })
-        }
-        _ => None,
-    }
-}
-
-fn resolve_indexed_target_suffix_layout(
-    input: &InstructionSelectionInput<'_>,
-    root_field: &FieldLayout,
-    expression: &Expression,
-) -> Option<(usize, TypeLayout)> {
-    let cursor = NestedFieldLayoutCursor::from_root(root_field);
-    let cursor = resolve_indexed_target_suffix_cursor(&input.layouts, cursor, expression)?;
-    Some((cursor.byte_offset(), cursor.layout()))
-}
-
-fn resolve_indexed_target_suffix_cursor<'layout>(
-    layouts: &'layout omega_layout::LayoutPlan,
-    cursor: NestedFieldLayoutCursor<'layout>,
-    expression: &Expression,
-) -> Option<NestedFieldLayoutCursor<'layout>> {
-    match expression {
-        Expression::Mutable(target) => {
-            resolve_indexed_target_suffix_cursor(layouts, cursor, target)
-        }
-        Expression::Indexed(indexed) => {
-            let Some(collection_cursor) =
-                resolve_indexed_target_suffix_cursor(layouts, cursor, &indexed.collection)
-            else {
-                return Some(cursor);
-            };
-
-            let Expression::Integer(index) = &indexed.index else {
-                return None;
-            };
-            apply_fixed_array_index_to_cursor(collection_cursor, usize::try_from(*index).ok()?)
-        }
-        Expression::Member(member) => {
-            let cursor = resolve_indexed_target_suffix_cursor(layouts, cursor, &member.receiver)?;
-            resolve_nested_field_layout_step(
-                layouts,
-                cursor,
-                &member.member,
-                member.member_symbol,
-                None,
-            )
         }
         _ => None,
     }
