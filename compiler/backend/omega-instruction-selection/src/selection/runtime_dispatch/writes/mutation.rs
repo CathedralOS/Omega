@@ -50,7 +50,9 @@ pub(super) use binary_table_writes::{
     select_runtime_binary_mutation_write_in_table, select_runtime_convert_mutation_write_in_table,
     select_runtime_frame_slot_convert_write_in_table, select_runtime_storage_binary_write_in_table,
 };
-pub(in crate::selection::runtime_dispatch) use binary_table_writes::signedness_adjusted_operator;
+pub(in crate::selection::runtime_dispatch) use binary_table_writes::{
+    signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
+};
 pub(in crate::selection) use frame_slots::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
     select_runtime_frame_slot_value_write_in_table_with_source_anchor,
@@ -1515,6 +1517,16 @@ fn select_runtime_binary_mutation_write(
         }
         _ => return None,
     };
+    // Same signedness policy as the `_in_table` binary writes: unsigned operands
+    // pick the unsigned division/modulo/shift/min/max/comparison encoding.
+    let operator = binary_table_writes::signedness_adjusted_operator_for_tree_operands(
+        input,
+        dispatch_index,
+        value_source_key,
+        left_expression,
+        right_expression,
+        operator,
+    );
     let left = resolve_runtime_value_operand(
         input,
         dispatch_index,

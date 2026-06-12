@@ -373,7 +373,7 @@ fn unsigned_operator_form(operator: StateGuardOperator) -> Option<StateGuardOper
 /// modulo: sdiv on raw >= 2^31 yields a negative remainder, which the unsigned
 /// dispatch guards then read as a huge value (the dungeon seed-7 extra enemy
 /// draw).
-pub(super) fn signedness_adjusted_operator_for_operands(
+pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_operands(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     value_source_key: StateKey,
@@ -407,6 +407,35 @@ pub(super) fn signedness_adjusted_operator_for_operands(
         Some(false) => unsigned,
         _ => operator,
     }
+}
+
+/// Tree-operand adapter over [`signedness_adjusted_operator_for_operands`] for
+/// the non-table write paths (alias-resolved branch-arm expressions carry OWNED
+/// `Expression` trees, not table handles). Follows the standard
+/// `insert_tree`+delegate collapse pattern so the signedness decision lives once.
+pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator_for_tree_operands(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    left_expression: &omega_checked_trees::expression::Expression,
+    right_expression: &omega_checked_trees::expression::Expression,
+    operator: StateGuardOperator,
+) -> StateGuardOperator {
+    if unsigned_operator_form(operator).is_none() {
+        return operator;
+    }
+    let mut delegated_expressions = ExpressionTable::default();
+    let left = delegated_expressions.insert_tree(left_expression);
+    let right = delegated_expressions.insert_tree(right_expression);
+    signedness_adjusted_operator_for_operands(
+        input,
+        dispatch_index,
+        value_source_key,
+        &delegated_expressions,
+        left,
+        right,
+        operator,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]

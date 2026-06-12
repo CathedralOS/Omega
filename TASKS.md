@@ -319,19 +319,54 @@ remains tracked in its bullet below.
   branch target is the suspect shape. Pre-existing (verified pre-signedness-
   fix); this — not RNG — is what keeps R05's description un-asserted in the
   dungeon scripted canaries.
-- [ ] Signed/unsigned residue, two sibling shapes (found while shrinking, not
-  yet canaried): (1) a modulo whose operand is a CAST — `((seed >> 32) as
-  u32) % 199` inside a convert/value-operand chain — still picks the signed
-  encoding because `resolve_runtime_storage_is_signed_in_table` cannot see
-  through Cast nodes (returns None -> signed fallback); the non-table
-  `select_runtime_binary_mutation_write` (writes/mutation.rs) also never
-  adjusts. (2) Trailing-state STALE READS of threaded `&mut` param fields:
-  a transition-guard SUBJECT read of `random.calls` in a state appended
-  after build_main_hall_1 saw the post-seed snapshot (0), and a `let hi =
-  (random.seed >> 32) as u32` in a state appended after build_main_hall_4
-  read a seed stale by the last TWO build_segment calls — instrumentation-
-  only so far, but the same one-shrink-away family; needs its own minimal
-  skeleton hunt.
+- [x] Signed/unsigned residue, shape (1) — CAST OPERANDS — FIXED (2026-06-12).
+  `((random.seed >> 32) as u32) % 199` lowered SIGNED because
+  `resolve_runtime_storage_is_signed_in_table` could not see through Cast
+  nodes (None -> signed fallback). The resolver now classifies a Cast by its
+  TARGET type name (storage_places.rs) — `(x as u32)` is unsigned no matter
+  what `x` is — which fixes every funnel at once (guards, edges, all binary
+  writes route through this one resolver). Sibling sweep in the same change:
+  the NESTED value-operand Binary/min-max builders never adjusted signedness
+  at all (only top-level write operators did) — the dungeon probe's inner
+  `seed >> 32` emitted the arithmetic shift, masked only by the following
+  4-byte truncation. All seven remaining operator-choosing sites now run the
+  shared decision: value_operands.rs in-table Binary + builtin-call,
+  value_operands.rs non-table Binary + builtin-call (via a new
+  `signedness_adjusted_operator_for_tree_operands` insert_tree adapter),
+  branches/mutation.rs nested Binary + builtin-call, and the non-table
+  `select_runtime_binary_mutation_write` (writes/mutation.rs — the cleanup
+  doc's [!] alias path; instrumented across the full suite + dungeon + a
+  purpose-built alias-fed guarded-transition probe, it is reached 0 times,
+  so the adjustment there is defense-in-depth and a canary for it cannot be
+  written from surface syntax today). Canary: pass+RUN
+  arithmetic/runtime_unsigned_modulo_cast_operand_exit (pre-fix native 71 =
+  signed remainder -87 in the u32 slot, post-fix 70 = interpreter), in the
+  differential oracle.
+- [ ] Stale assignment-call result when the local's slot is ELIDED —
+  deterministic repro (2026-06-12), root cause located, NOT yet fixed. The
+  "trailing-state stale-&mut-field reads" instrumentation observations
+  shrink to this: `let seed: u64 = self.rng.next_seed(&mut random)` (callee:
+  `state.seed = state.seed + 1; transition { _ -> state.seed }` — a PLAIN
+  `&mut`-param field terminal) followed by ANY consumer statement
+  (`let doubled: u64 = seed * 2`) makes `seed` deliver the PRE-call value
+  natively (probe guards: doubled==84 -> 70 post-mutation, ==82 -> 71 stale;
+  native 71, interpreter 70). Mechanism, read from the backend report +
+  lldb slot dumps: when the assignment local feeds a LATER STATEMENT's
+  initializer, the storage plan elides its LocalStorage op (slots.txt shows
+  only the call-result slot, no `local seed`); the deferral fix
+  (`leaf_expansions_defer_to_local_initializer`) has no LocalStorage op to
+  defer to, so the call-result copy (param field -> call-result slot) emits
+  at the StateCall body op, BEFORE the splice's mutation ops — emission
+  order is literally `copy @0 -> @8` then `write binary @0 = @0 Add 1`.
+  Guard-only consumption keeps the local slot and the copy emits AFTER
+  the mutation (correct), which is why
+  calls/runtime_assignment_call_post_mutation_value_exit stays green — its
+  local keeps a slot. Fix direction: defer the call-result selection to the
+  statement's position in splice order even when the local slot is elided
+  (or stop eliding the slot for &mut-param-field call results). The
+  trailing-state SUBJECT-read observation (`random.calls` after
+  build_main_hall_1) is consistent with this shape feeding a guard, but was
+  not separately reproduced.
 - [x] 3 pre-existing `_compile` canaries hang at runtime — STALE (probed
   2026-06-11): the slice-write `_compile` canaries run now (the hang was the
   x18 zeroing below) and their dispatch shape already has a runtime `_exit`

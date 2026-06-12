@@ -2122,6 +2122,42 @@ fn runtime_unsigned_modulo_call_argument_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_unsigned_modulo_cast_operand_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_unsigned_modulo_cast_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-unsigned-modulo-cast-operand-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsigned modulo cast-operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsigned modulo cast-operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `((random.seed >> 32) as u32) % 199` to use UNSIGNED modulo \
+         (the cast's TARGET type decides operand signedness; exit 70 = roll 158, \
+         interpreter semantics; exit 71 = the signed-remainder misfire stored \
+         -87 in the u32 slot), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_signed_division_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_signed_division_exit");
     let main_path = canary.join("main.omg");
