@@ -1,0 +1,20 @@
+// Chapter 21 (Versioned Data), stage 3: `Versioned<T>` exists only for data
+// types that declare `version vN { ... }` blocks -- an unversioned `Plain`
+// has a single (current) shape and no era chain to tag.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Plain {
+    count: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Plain>;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

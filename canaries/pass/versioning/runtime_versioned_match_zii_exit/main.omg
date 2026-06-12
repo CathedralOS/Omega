@@ -1,0 +1,50 @@
+// Chapter 21 (Versioned Data), stage 3: version match arms on a
+// `Versioned<Counter>` subject (the ONLY legal subject -- frozen decision 14).
+// The paren form binds the WHOLE historical value: `Counter::v1(old)` tests
+// the era tag and reinterprets the payload as the v1 shape; the bare
+// `Counter(current)` arm selects the CURRENT era.
+//
+// The zero-initialized container carries era 0 = v1 (decision-10 numbering),
+// so the v1 arm must be selected even though the CURRENT arm is written
+// FIRST -- this pins real tag dispatch, not first-arm fallthrough. The bound
+// `old.counter` is the ZII payload (0), driving exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+    timestamp: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    transition self.raw {
+        Counter(current) -> new_era(current.count)
+        Counter::v1(old) -> old_era(old.counter)
+    }
+    state old_era(&mut self, counter: i32) {
+        transition counter == 0 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state new_era(&mut self, count: i32) {
+        self.console.exit_process(72);
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

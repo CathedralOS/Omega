@@ -1,10 +1,11 @@
 use crate::pipeline::compile_options::CompileOptions;
 use omega_artifacts::{
-    ArtifactWriter, WireCompatibilityVerdicts, WireFieldReportEntry, WireProtocolReport,
-    WireSchemaReportEntry, WireVersionReportEntry,
+    ArtifactWriter, DataVersionReportEntry, WireCompatibilityVerdicts, WireFieldReportEntry,
+    WireProtocolReport, WireSchemaReportEntry, WireVersionReportEntry,
 };
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::versioning;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::wire::{WireMember, WireSchema};
 
@@ -28,7 +29,62 @@ fn build_wire_protocol_report(typed: &TypedTrees) -> WireProtocolReport {
             .iter()
             .map(|schema| schema_report_entry(typed, schema))
             .collect(),
+        data_versions: build_data_version_entries(typed),
     }
+}
+
+/// Versioned-data chain completeness (chapter 21, stage 3b): for every data
+/// type with declared `version vN` blocks, report the era chain and whether
+/// the prescribed migration machine (`T::from_vN`) exists for each era. A
+/// missing migration is a VERDICT, never an error (frozen decision 14): a
+/// `Versioned<T>` consumer may handle the old era manually in a version
+/// match arm.
+fn build_data_version_entries(typed: &TypedTrees) -> Vec<DataVersionReportEntry> {
+    // Historical shapes (`Counter::v1`) sit right after their parent in
+    // declaration order, so grouping by parent name preserves era order.
+    let mut entries: Vec<DataVersionReportEntry> = Vec::new();
+    for definition in typed.data_definitions() {
+        let Some((data_name, version_name)) =
+            versioning::split_version_shape_name(definition.name.as_str())
+        else {
+            continue;
+        };
+
+        match entries.iter_mut().find(|entry| entry.name == data_name) {
+            Some(entry) => entry.versions.push(version_name.to_owned()),
+            None => entries.push(DataVersionReportEntry {
+                name: data_name.to_owned(),
+                versions: vec![version_name.to_owned()],
+                ..DataVersionReportEntry::default()
+            }),
+        }
+    }
+
+    for entry in &mut entries {
+        entry.current_era = entry.versions.len() as u64;
+        for version_name in &entry.versions {
+            let machine_name = versioning::migration_machine_name(&entry.name, version_name);
+            if typed
+                .machines()
+                .iter()
+                .any(|machine| machine.name.as_str() == machine_name)
+            {
+                entry
+                    .migrations
+                    .push(format!("{version_name} -> current via `{machine_name}`"));
+            } else {
+                entry
+                    .migrations
+                    .push(format!("{version_name} -> current MISSING"));
+                entry.missing.push(format!(
+                    "era {version_name} declared but no `{machine_name}` exists; `Versioned<{}>` consumers must handle `{}::{version_name}` arms manually",
+                    entry.name, entry.name
+                ));
+            }
+        }
+    }
+
+    entries
 }
 
 struct ScopeTable {

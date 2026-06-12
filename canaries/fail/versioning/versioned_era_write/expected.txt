@@ -1,0 +1,1 @@
+`era` of `Versioned<Counter>` is read-only: the era tag is set only by the boundary that constructs the container

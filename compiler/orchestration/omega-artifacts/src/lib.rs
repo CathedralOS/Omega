@@ -515,6 +515,24 @@ impl ArtifactWriter {
             }
         }
 
+        if !wire_report.data_versions.is_empty() {
+            output.push_str(&format!(
+                "\n# Versioned Data\n\nversioned data types: {}\n",
+                wire_report.data_versions.len()
+            ));
+
+            for data_versions in &wire_report.data_versions {
+                output.push_str(&format!("\n## data {}\n", data_versions.name));
+                output.push_str(&format!(
+                    "versions: {}, current\n",
+                    data_versions.versions.join(", ")
+                ));
+                output.push_str(&format!("current era: {}\n", data_versions.current_era));
+                push_wire_verdicts(&mut output, "migrations", &data_versions.migrations);
+                push_wire_verdicts(&mut output, "missing", &data_versions.missing);
+            }
+        }
+
         self.write_text("04_wire_protocols.txt", &output)
     }
 
@@ -983,6 +1001,29 @@ fn push_wire_verdicts(output: &mut String, label: &str, verdicts: &[String]) {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WireProtocolReport {
     pub schemas: Vec<WireSchemaReportEntry>,
+    /// Versioned DATA types (chapter 21): declared era chains, the migration
+    /// machines found along them, and chain-completeness VERDICTS. A missing
+    /// migration is a report verdict, never a compile error (frozen decision
+    /// 14): a `Versioned<T>` consumer may handle an old era manually in a
+    /// version match arm.
+    pub data_versions: Vec<DataVersionReportEntry>,
+}
+
+/// One versioned data type's era chain: declared versions in declaration
+/// order (era 0, 1, ... per decision 10; the current shape's era is the
+/// declared-block count), the `T::from_vN` migration machines present, and
+/// the completeness verdicts.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DataVersionReportEntry {
+    pub name: String,
+    /// Declared version names, oldest first (`v1`, `v2`, ...).
+    pub versions: Vec<String>,
+    /// The era discriminator of the CURRENT shape (= declared version count).
+    pub current_era: u64,
+    /// Migration verdicts: one line per declared era, present or missing.
+    pub migrations: Vec<String>,
+    /// Chain-completeness verdicts for eras WITHOUT a migration machine.
+    pub missing: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

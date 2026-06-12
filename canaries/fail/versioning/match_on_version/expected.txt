@@ -1,1 +1,1 @@
-version match arms are unreachable: values carry no era tag yet
+version match arms require a `Versioned<Counter>` subject: `Counter` is a plain value and carries no era tag
