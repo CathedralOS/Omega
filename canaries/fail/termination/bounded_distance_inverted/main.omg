@@ -1,0 +1,24 @@
+// The bounded distance written backwards: `index - limit` cannot decrease as
+// the index climbs (it is the distance's negation). The checker recognizes the
+// inversion -- the swapped operands prove as the named bounded distance -- and
+// the diagnostic names the right shape instead of a bare "cannot prove".
+
+data Main {}
+
+machine Main::main(&mut self) -> usize {
+    transition {
+        _ -> self.walk(4, 0)
+    }
+}
+
+machine Main::walk(&mut self, limit: usize, index: usize)
+terminates {
+    decreases index - limit;
+}
+-> usize
+{
+    transition index < limit {
+        true -> self.walk(limit, index + 1)
+        false -> index
+    }
+}

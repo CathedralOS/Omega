@@ -494,12 +494,16 @@ fn self_call_argument_map(
 /// measure is strictly smaller at the recursive call AND still non-negative
 /// there. A strictly decreasing integer measure bounded below by zero admits
 /// no infinite descent, which is exactly the well-foundedness that justifies
-/// assuming the contract for the smaller instance. Only the plain
-/// descending-naturals reading (`decreases value`, or explicitly
-/// `-> Nat::Descending`) is verified here; view and declared-measure orders
-/// have meanings the polynomial engine cannot read, so they never gate a
-/// hypothesis in. The machine-level termination pass independently re-checks
-/// the declared clause and fails compilation when it cannot.
+/// assuming the contract for the smaller instance. Only the polynomial
+/// readings are verified here: the plain descending-naturals order
+/// (`decreases value`, or explicitly `-> Nat::Descending`) and the named
+/// bounded distance (`decreases upper - lower`, or explicitly
+/// `-> Nat::BoundedDistance`), whose distance polynomial goes through the
+/// identical strict-decrease + non-negativity check. Other view and
+/// declared-measure orders have meanings the polynomial engine cannot read,
+/// so they never gate a hypothesis in. The machine-level termination pass
+/// independently re-checks the declared clause and fails compilation when it
+/// cannot.
 fn discharges_strict_decrease(
     program: &TypedTrees,
     machine: &Machine,
@@ -516,9 +520,11 @@ fn discharges_strict_decrease(
         return false;
     };
     let order = program.machine_decrease_order(machine.decrease_order);
-    let descending_naturals = order.is_empty()
-        || (order.len() == 2 && order[0].as_str() == "Nat" && order[1].as_str() == "Descending");
-    if !descending_naturals {
+    let polynomial_order = order.is_empty()
+        || (order.len() == 2
+            && order[0].as_str() == "Nat"
+            && matches!(order[1].as_str(), "Descending" | "BoundedDistance"));
+    if !polynomial_order {
         return false;
     }
     let Some(measure) = engine.normalize(*measure) else {

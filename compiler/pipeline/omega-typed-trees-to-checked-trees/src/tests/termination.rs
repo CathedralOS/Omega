@@ -511,6 +511,123 @@ fn infers_default_bounded_distance_for_plain_subtraction_decreases() {
 }
 
 #[test]
+fn accepts_explicit_named_bounded_distance_view() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: usize = self.walk(4, 0);
+    }
+
+    machine Main::walk(&mut self, limit: usize, index: usize)
+    terminates {
+        decreases limit - index -> Nat::BoundedDistance;
+    }
+    -> usize
+    {
+        transition index < limit {
+            true -> self.walk(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+
+    lower_typed_trees(typed).expect("explicit named bounded-distance view should prove");
+}
+
+#[test]
+fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: usize = self.walk(4, 0);
+    }
+
+    machine Main::walk(&mut self, limit: usize, index: usize)
+    terminates {
+        decreases index - limit;
+    }
+    -> usize
+    {
+        transition index < limit {
+            true -> self.walk(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics = lower_typed_trees(typed).expect_err("inverted distance should fail");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("`decreases index - limit` inverts the named bounded distance")
+                && diagnostic.message.contains("`Nat::BoundedDistance`")
+                && diagnostic
+                    .message
+                    .contains("write `decreases limit - index`")
+        }),
+        "expected the inverted bounded-distance diagnostic, got: {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn rejects_named_bounded_distance_view_over_non_subtraction_value() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: usize = self.countdown(2);
+    }
+
+    machine Main::countdown(&mut self, remaining: usize)
+    terminates {
+        decreases remaining -> Nat::BoundedDistance;
+    }
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("the view names a subtraction shape only");
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove decreases clause"))
+    );
+}
+
+#[test]
 fn rejects_ambiguous_default_order_requiring_explicit_form() {
     let source = r#"
     data Main {}

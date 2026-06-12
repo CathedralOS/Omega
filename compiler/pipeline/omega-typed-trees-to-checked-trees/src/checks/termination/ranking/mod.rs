@@ -4,10 +4,10 @@ mod patterns;
 mod slice;
 mod struct_view;
 
-use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::graph;
-use super::order::{AmbiguousDefault, OrderResolution, RankingOrder};
+use super::order::{AmbiguousDefault, OrderResolution, RankingOrder, decreasing_value_text};
 
 /// The outcome of attempting to prove a terminating machine's `decreases`
 /// clause, distinguishing the cases the caller renders as different diagnostics.
@@ -20,6 +20,27 @@ pub(super) enum DecreaseOutcome {
     /// builtin well-founded order; the explicit `-> View` form is required.
     /// Carries the details the diagnostic renders.
     AmbiguousOrder(AmbiguousDefault),
+    /// A subtraction-shaped clause written backwards: the declared
+    /// `lower - upper` cannot decrease, but the swapped operands prove as the
+    /// named bounded distance on every cyclic edge. The diagnostic names the
+    /// right shape instead of a bare "cannot prove".
+    InvertedDistance(InvertedDistance),
+}
+
+/// The operand texts the inverted-distance diagnostic renders: the clause as
+/// declared and the corrected `upper - lower` spelling that proves.
+pub(super) struct InvertedDistance {
+    pub(super) declared: String,
+    pub(super) corrected: String,
+}
+
+/// Which operand orientation the nat distance prover should read from a
+/// subtraction-shaped decreases clause: the declared `left - right`, or the
+/// swapped probe used to recognize an inverted bounded distance.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum DistanceOrientation {
+    Declared,
+    Swapped,
 }
 
 pub(super) fn machine_decrease_outcome(
@@ -52,20 +73,50 @@ pub(super) fn machine_decrease_outcome(
     let adjacency = graph::machine_adjacency(program, machine);
     let components = graph::strongly_connected_components(&adjacency);
 
-    let proven = components
-        .iter()
-        .filter(|component| graph::component_is_cyclic(&adjacency, component))
-        .all(|component| {
-            component_has_proven_decrease(
-                program, machine, &adjacency, component, decreases, &order,
-            )
-        });
+    let proven_with = |orientation: DistanceOrientation| {
+        components
+            .iter()
+            .filter(|component| graph::component_is_cyclic(&adjacency, component))
+            .all(|component| {
+                component_has_proven_decrease(
+                    program,
+                    machine,
+                    &adjacency,
+                    component,
+                    decreases,
+                    &order,
+                    orientation,
+                )
+            })
+    };
 
-    if proven {
-        DecreaseOutcome::Proven
-    } else {
-        DecreaseOutcome::Unproven
+    if proven_with(DistanceOrientation::Declared) {
+        return DecreaseOutcome::Proven;
     }
+
+    // An unproven subtraction-shaped clause is probed with its operands
+    // swapped: when the swapped distance proves on every cyclic edge, the
+    // clause is the named bounded distance written backwards, and the
+    // diagnostic can point at the right shape.
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(decreases)
+        && matches!(binary.operator, BinaryOperator::Subtract)
+        && matches!(
+            order,
+            RankingOrder::BoundedDistance | RankingOrder::NatDescending
+        )
+        && proven_with(DistanceOrientation::Swapped)
+    {
+        return DecreaseOutcome::InvertedDistance(InvertedDistance {
+            declared: decreasing_value_text(program, decreases),
+            corrected: format!(
+                "{} - {}",
+                decreasing_value_text(program, binary.right),
+                decreasing_value_text(program, binary.left)
+            ),
+        });
+    }
+
+    DecreaseOutcome::Unproven
 }
 
 /// A cyclic component terminates when the measure strictly decreases across
@@ -80,6 +131,7 @@ fn component_has_proven_decrease(
     component: &[usize],
     decreases: ExpressionHandle,
     order: &RankingOrder,
+    orientation: DistanceOrientation,
 ) -> bool {
     let states = program.machine_states(machine);
     let edges = graph::cyclic_edges(adjacency, component);
@@ -102,9 +154,9 @@ fn component_has_proven_decrease(
         };
 
         if single_state_self_loop {
-            state_has_proven_supported_self_loop(program, source, decreases, order)
+            state_has_proven_supported_self_loop(program, source, decreases, order, orientation)
         } else {
-            edge_has_proven_decrease(program, source, target, decreases, order)
+            edge_has_proven_decrease(program, source, target, decreases, order, orientation)
         }
     })
 }
@@ -117,9 +169,12 @@ fn edge_has_proven_decrease(
     target: &omega_typed_trees::state::State,
     decreases: ExpressionHandle,
     order: &RankingOrder,
+    orientation: DistanceOrientation,
 ) -> bool {
     match order {
-        RankingOrder::NatDescending | RankingOrder::CustomNatDescending => program
+        RankingOrder::NatDescending
+        | RankingOrder::BoundedDistance
+        | RankingOrder::CustomNatDescending => program
             .statement_table
             .statements(source.statement_nodes)
             .iter()
@@ -132,6 +187,7 @@ fn edge_has_proven_decrease(
                     edge.guard,
                     edge.arguments,
                     decreases,
+                    orientation,
                 )
             }),
         // Slice-length, struct-view and lexicographic decreases are only
@@ -148,10 +204,13 @@ fn state_has_proven_supported_self_loop(
     state: &omega_typed_trees::state::State,
     decreases: ExpressionHandle,
     order: &RankingOrder,
+    orientation: DistanceOrientation,
 ) -> bool {
     match order {
-        RankingOrder::NatDescending | RankingOrder::CustomNatDescending => {
-            nat::state_has_proven_self_loop(program, state, decreases)
+        RankingOrder::NatDescending
+        | RankingOrder::BoundedDistance
+        | RankingOrder::CustomNatDescending => {
+            nat::state_has_proven_self_loop(program, state, decreases, orientation)
         }
         RankingOrder::SliceLength => slice::state_has_proven_self_loop(program, state, decreases),
         RankingOrder::CustomStructView(field) => {

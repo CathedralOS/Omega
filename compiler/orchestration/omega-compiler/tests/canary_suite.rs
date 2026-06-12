@@ -8214,6 +8214,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
     "termination/default_order_bounded_distance_compile",
+    "termination/bounded_distance_named_view",
     "termination/default_order_unsigned_width_countdown_compile",
     "termination/runtime_shrinking_slice_recursion_exit",
     // --- Language-guide chapter coverage (Ch1-22) ---
@@ -8270,6 +8271,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/proof_remainder_range",
     "proofs/proof_bag_view_reflexivity",
     "proofs/proof_inductive_gauss_sum",
+    "proofs/proof_inductive_climbing_sum",
     "control_flow/runtime_integer_literal_dispatch_exit",
     "control_flow/runtime_string_literal_dispatch_exit",
     "core/local_value_intro_compile",
@@ -8485,6 +8487,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/trait_unknown_signature_type",
     "termination/default_order_ambiguous",
     "termination/default_order_declared_measure_not_inferred",
+    "termination/bounded_distance_inverted",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/terminal_return_type_mismatch_rejected",
     "capabilities/duplicate_provider_declaration",
@@ -8507,6 +8510,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "proofs/bag_view_false_twin",
     "proofs/inductive_gauss_sum_false_twin",
     "proofs/inductive_gauss_sum_step_false_twin",
+    "proofs/inductive_climbing_sum_step_false_twin",
     "drops/drop_nonblocking_effect_unknown",
     "modules/ambiguous_imported_data",
     "modules/use_unresolved_path",

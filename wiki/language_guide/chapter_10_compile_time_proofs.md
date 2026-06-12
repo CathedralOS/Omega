@@ -182,10 +182,12 @@ The key idea is a ranking argument:
 - prove every recursive or cyclic step makes that ranked value strictly smaller
 
 This is a natural fit for proof-oriented helper vocabulary. The language
-provides built-in well-founded measures for common cases such as naturals and
-slice lengths. Names such as `Slice::Length` come from the browsable core
-semantic surface for slices, while richer rankings such as lexicographic tuples
-or domain/type-provided orders are declared with a dedicated `measure` keyword.
+provides built-in well-founded measures for common cases such as naturals,
+slice lengths, and bounded distances (`decreases limit - index` is the named
+`Nat::BoundedDistance` ranking; see chapter 9). Names such as `Slice::Length`
+come from the browsable core semantic surface for slices, while richer rankings
+such as lexicographic tuples or domain/type-provided orders are declared with a
+dedicated `measure` keyword.
 
 A `measure` is a standalone item: a function from the decreasing value into a
 well-founded domain such as `usize`. It is not an abused `operator` declaration.

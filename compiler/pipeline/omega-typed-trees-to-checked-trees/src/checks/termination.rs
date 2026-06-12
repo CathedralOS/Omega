@@ -41,6 +41,12 @@ pub(crate) fn check_machine_termination(
                     &ambiguity,
                 )));
             }
+            ranking::DecreaseOutcome::InvertedDistance(inverted) => {
+                diagnostics.push(Diagnostic::error(inverted_distance_message(
+                    &machine_name(program, machine.symbol),
+                    &inverted,
+                )));
+            }
         }
     }
 
@@ -73,7 +79,7 @@ fn ambiguous_order_message(machine: &str, ambiguity: &order::AmbiguousDefault) -
     let suggestion = match ambiguity.declared_measures.as_slice() {
         [] => format!(
             "select one with `decreases {clause} -> View` \
-             (builtin views: Nat::Descending, Slice::Length)"
+             (builtin views: Nat::Descending, Nat::BoundedDistance, Slice::Length)"
         ),
         [only] => format!(
             "declared measures are never selected implicitly; \
@@ -88,5 +94,20 @@ fn ambiguous_order_message(machine: &str, ambiguity: &order::AmbiguousDefault) -
     format!(
         "cannot infer a ranking for `decreases {clause}` in terminating machine {machine}: \
          {reason} -- {suggestion}"
+    )
+}
+
+/// Render the diagnostic for a subtraction-shaped `decreases` clause whose
+/// operands are inverted: the swapped operands prove as the named bounded
+/// distance, so the message names the ranking and the corrected spelling
+/// instead of a bare "cannot prove".
+fn inverted_distance_message(machine: &str, inverted: &ranking::InvertedDistance) -> String {
+    let declared = inverted.declared.as_str();
+    let corrected = inverted.corrected.as_str();
+    format!(
+        "cannot prove decreases clause for terminating machine {machine}: \
+         `decreases {declared}` inverts the named bounded distance -- \
+         `Nat::BoundedDistance` ranks `upper - lower`, which descends as the \
+         lower value climbs; write `decreases {corrected}`"
     )
 }

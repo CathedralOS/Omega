@@ -155,12 +155,36 @@ available without a `measure` declaration.
 Plain `decreases value` infers a ranking only when the value's type makes the
 builtin reading unambiguous: unsigned/natural integer kinds (and `slice.len`)
 count down via descending naturals, slice-typed values decrease under
-`Slice::Length`, and `upper - lower` is the named bounded distance. A declared
-`measure` is never selected implicitly — even when it is the only measure
-declared for the value's type — because inferring it would make declaring a
-second measure a breaking change at a distance. Signed integers, floats, and
-structs therefore require the explicit `decreases value -> View` form; the
-diagnostic suggests any matching declared measures by name.
+`Slice::Length`, and `upper - lower` is the named bounded distance
+`Nat::BoundedDistance`. A declared `measure` is never selected implicitly —
+even when it is the only measure declared for the value's type — because
+inferring it would make declaring a second measure a breaking change at a
+distance. Signed integers, floats, and structs therefore require the explicit
+`decreases value -> View` form; the diagnostic suggests any matching declared
+measures by name.
+
+The climbing-index loop is the canonical bounded-distance use. The checker
+ranks the pair by the named view `Nat::BoundedDistance` — "rank by the
+natural-number distance from the lower value up to the upper bound" — which is
+what diagnostics and the termination checker report, browsable like
+`Slice::Length`:
+
+```omega
+machine walk(limit: usize, index: usize)
+terminates {
+    decreases limit - index -> Nat::BoundedDistance;
+}
+{
+}
+```
+
+Plain `decreases limit - index` selects the same ranking implicitly. The
+inverted spelling `index - limit` is rejected with a diagnostic that names the
+right shape (the view ranks `upper - lower`, which descends as the lower value
+climbs) rather than a bare proof failure. An argumented view spelling that
+removes the subtraction from the use site entirely (for example
+`decreases index -> Distance::To(limit)`) is an open surface question: the
+ranking-view position currently accepts plain `Type::Name` paths only.
 
 For slices, `decreases items -> Slice::Length` naturally means each back-edge
 must operate on a strictly smaller remaining view, usually by carrying a
