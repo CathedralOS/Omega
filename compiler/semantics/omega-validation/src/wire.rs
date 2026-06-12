@@ -478,7 +478,7 @@ fn validate_wire_encode_call(
                 "`{}::encode_wire` value type `{}` is case-bearing; wire encoding over sums and mixed data shapes is not implemented yet (the case tag and payload have no schema spelling)",
                 schema.name, value_data.name
             )));
-            return true;
+            return;
         }
         for (field, schema_primitive) in &current_fields {
             let Some(value_field) =
@@ -635,6 +635,20 @@ fn validate_wire_decode_call(
         declared_place_type(program, current_machine, current_state, arguments[0])
         && let Some(value_data) = named_data_definition(program, value_type)
     {
+        // Mirrors the encoder's case-bearing rejection: the schema field set
+        // only describes scalar FIELD members, so a decoded sum or mixed
+        // value's tag and payload would stay silently unwritten.
+        if program
+            .data_members(value_data)
+            .iter()
+            .any(|member| matches!(member, omega_typed_trees::data::DataMember::Variant(_)))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::decode_wire` value type `{}` is case-bearing; wire decoding into sums and mixed data shapes is not implemented yet (the case tag and payload have no schema spelling)",
+                schema.name, value_data.name
+            )));
+            return;
+        }
         for (field, schema_primitive) in &current_fields {
             let Some(value_field) = program
                 .data_members(value_data)
