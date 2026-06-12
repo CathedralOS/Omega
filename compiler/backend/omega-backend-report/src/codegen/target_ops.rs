@@ -459,6 +459,66 @@ fn selected_instruction_name(
                 "wire nested close: ok {ok_symbol}@{ok_offset} &= cursor {read_symbol}@{read_offset} == end bound {end_symbol}@{end_offset}"
             )
         }
+        SelectedInstructionKind::AppendWireRepeatedScalarVarint {
+            source_region,
+            source_offset,
+            byte_size,
+            zigzag,
+            index,
+            count_region,
+            count_offset,
+            out_region,
+            out_offset,
+            written_region,
+            written_offset,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+            let count_symbol =
+                storage_region_symbol_name(*count_region, backend_plan.entry_machine_name());
+            let out_symbol =
+                storage_region_symbol_name(*out_region, backend_plan.entry_machine_name());
+            let written_symbol =
+                storage_region_symbol_name(*written_region, backend_plan.entry_machine_name());
+            let encoding = if *zigzag { "zigzag varint" } else { "varint" };
+            format!(
+                "wire append repeated {encoding} [{index}] {source_symbol}@{source_offset} ({byte_size} bytes) if {index} < count {count_symbol}@{count_offset} -> {out_symbol}@{out_offset} + cursor {written_symbol}@{written_offset}"
+            )
+        }
+        SelectedInstructionKind::ReadWireRepeatedScalarVarint {
+            buffer_region,
+            buffer_offset,
+            buffer_length,
+            read_region,
+            read_offset,
+            ok_region,
+            ok_offset,
+            end_region,
+            end_offset,
+            count_region,
+            count_offset,
+            target_region,
+            target_offset,
+            byte_size,
+            zigzag,
+        } => {
+            let buffer_symbol =
+                storage_region_symbol_name(*buffer_region, backend_plan.entry_machine_name());
+            let read_symbol =
+                storage_region_symbol_name(*read_region, backend_plan.entry_machine_name());
+            let ok_symbol =
+                storage_region_symbol_name(*ok_region, backend_plan.entry_machine_name());
+            let end_symbol =
+                storage_region_symbol_name(*end_region, backend_plan.entry_machine_name());
+            let count_symbol =
+                storage_region_symbol_name(*count_region, backend_plan.entry_machine_name());
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            let encoding = if *zigzag { "zigzag varint" } else { "varint" };
+            format!(
+                "wire read repeated {encoding} {target_symbol}@{target_offset} ({byte_size} bytes) while cursor < end {end_symbol}@{end_offset}, count {count_symbol}@{count_offset} += 1 <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,

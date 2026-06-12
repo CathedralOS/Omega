@@ -2905,9 +2905,394 @@ pub fn encode_read_wire_nested_close(
 }
 
 /// Byte offset of the END-slot page mov inside both nested decodes
-/// (materialized right after the shared prologue).
+/// (materialized right after the shared prologue). The repeated-element read
+/// materializes its end page at the same position.
 pub fn wire_decode_nested_end_page_offset(_buffer_offset: usize, _read_offset: usize) -> usize {
     wire_decode_prologue_width()
+}
+
+// ---- compact_binary v0 wire REPEATED fields (chapter 20) ----
+//
+// A repeated field packs LENGTH-delimited (tag + byte-length varint +
+// back-to-back element varints). The element count is runtime-sized but
+// bounded by the schema's declared maximum, so selection UNROLLS the maximum
+// and each unrolled operation guards itself: the encode-side append runs only
+// when its compile-time element index is below the count-companion slot's
+// value; the decode-side read runs only while the cursor sits below the end
+// bound the surrounding nested OPEN stored. Guarding keeps every emitted
+// width compile-time-fixed (the widths invariant) while the wire bytes track
+// the live count.
+
+/// Guard block of the repeated scalar append: count page mov (10, relocated)
+/// + count load (7) + index cmp (7) + jbe skip (2).
+fn wire_repeated_append_guard_width() -> usize {
+    26
+}
+
+pub fn append_wire_repeated_scalar_varint_width(
+    _source_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+    _index: u64,
+    _count_offset: usize,
+    _out_offset: usize,
+    _written_offset: usize,
+) -> usize {
+    // Prologue + guard + source imm64 (10) + sized load + optional zigzag +
+    // emit loop + cursor store (7).
+    wire_append_prologue_width()
+        + wire_repeated_append_guard_width()
+        + 10
+        + wire_varint_source_load_width(byte_size)
+        + if zigzag { wire_zigzag_width() } else { 0 }
+        + wire_varint_emit_loop_width()
+        + 7
+}
+
+/// LEB128-encode element `index` of a packed repeated field at the cursor,
+/// ONLY IF `index < count` (the count-companion slot, read as unsigned
+/// 64-bit). A skipped element leaves the cursor untouched, so the staged
+/// payload holds exactly the live elements. Counts past the declared maximum
+/// clamp for free: selection unrolls only `max` of these.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_append_wire_repeated_scalar_varint(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+    index: u64,
+    count_region: omega_target_operations::RuntimeStorageRegion,
+    count_offset: usize,
+    out_offset: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 wire encoder cannot varint-encode {byte_size}-byte scalars yet"
+        )));
+    }
+    let index_imm = i32::try_from(index).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 wire encoder cannot guard repeated element index {index} yet"
+        ))
+    })?;
+    // The regions only pick the relocation symbols; the encoded shape is
+    // identical for machine and frame places.
+    let _ = (source_region, count_region);
+
+    let mut bytes = Vec::with_capacity(append_wire_repeated_scalar_varint_width(
+        source_offset,
+        byte_size,
+        zigzag,
+        index,
+        count_offset,
+        out_offset,
+        written_offset,
+    ));
+    append_wire_append_prologue(&mut bytes, out_offset, written_offset)?;
+
+    // Guard: r9 = count (from the relocated count page); skip the whole
+    // append when count <= index (unsigned). The skip lands past the cursor
+    // store, so a skipped element changes nothing.
+    let skip_distance = 10
+        + wire_varint_source_load_width(byte_size)
+        + if zigzag { wire_zigzag_width() } else { 0 }
+        + wire_varint_emit_loop_width()
+        + 7;
+    let skip_rel8 = i8::try_from(skip_distance)
+        .expect("the guarded append body is well under the rel8 range");
+    bytes.extend([0x49, 0xb9]); // mov r9, imm64(count page)
+    bytes.extend(0u64.to_le_bytes());
+    bytes.extend([0x4d, 0x8b, 0x89]); // mov r9, [r9+disp32]
+    bytes.extend(disp32(count_offset)?.to_le_bytes());
+    bytes.extend([0x49, 0x81, 0xf9]); // cmp r9, imm32(index)
+    bytes.extend(index_imm.to_le_bytes());
+    bytes.extend([0x76, skip_rel8 as u8]); // jbe skip (count <= index)
+
+    // The unguarded scalar-varint body (see `encode_append_wire_scalar_varint`):
+    // r11 = source page (imm64 relocated), rax = the scalar.
+    append_mov_reg_imm64(&mut bytes, Reg64::R11, 0);
+    let displacement = disp32(source_offset)?;
+    match (byte_size, zigzag) {
+        (8, _) => bytes.extend([0x49, 0x8b, 0x83]), // mov rax, [r11+disp32]
+        (4, false) => bytes.extend([0x41, 0x8b, 0x83]), // mov eax, [r11+disp32]
+        (4, true) => bytes.extend([0x49, 0x63, 0x83]), // movsxd rax, dword [r11+disp32]
+        (1, _) => bytes.extend([0x41, 0x0f, 0xb6, 0x83]), // movzx eax, byte [r11+disp32]
+        _ => unreachable!("byte_size validated above"),
+    }
+    bytes.extend(displacement.to_le_bytes());
+
+    if zigzag {
+        bytes.extend([0x49, 0x89, 0xc3]); // mov r11, rax
+        bytes.extend([0x49, 0xc1, 0xfb, 0x3f]); // sar r11, 63
+        bytes.extend([0x48, 0xc1, 0xe0, 0x01]); // shl rax, 1
+        bytes.extend([0x4c, 0x31, 0xd8]); // xor rax, r11
+    }
+
+    // The same fixed 40-byte LEB128 emit loop as the scalar varint.
+    bytes.extend([0x49, 0x89, 0xc3]); // mov r11, rax
+    bytes.extend([0x49, 0x83, 0xe3, 0x7f]); // and r11, 0x7f
+    bytes.extend([0x48, 0xc1, 0xe8, 0x07]); // shr rax, 7
+    bytes.extend([0x48, 0x85, 0xc0]); // test rax, rax
+    bytes.extend([0x74, 0x12]); // je +18 -> last
+    bytes.extend([0x49, 0x81, 0xcb, 0x80, 0x00, 0x00, 0x00]); // or r11, 0x80
+    bytes.extend([0x45, 0x88, 0x1f]); // mov [r15], r11b
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+    bytes.extend([0xeb, 0xde]); // jmp -34 -> loop
+    bytes.extend([0x45, 0x88, 0x1f]); // mov [r15], r11b
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+
+    append_store_r10_to_r14(&mut bytes, written_offset, 8)?;
+    debug_assert_eq!(
+        bytes.len(),
+        append_wire_repeated_scalar_varint_width(
+            source_offset,
+            byte_size,
+            zigzag,
+            index,
+            count_offset,
+            out_offset,
+            written_offset
+        )
+    );
+    Ok(bytes)
+}
+
+/// Byte offset of the COUNT page mov inside the repeated append (right after
+/// the shared prologue).
+pub fn wire_append_repeated_count_page_offset(
+    _out_offset: usize,
+    _written_offset: usize,
+) -> usize {
+    wire_append_prologue_width()
+}
+
+/// Byte offset of the SOURCE page mov inside the repeated append (after the
+/// guard block).
+pub fn wire_append_repeated_source_page_offset(
+    _out_offset: usize,
+    _written_offset: usize,
+    _count_offset: usize,
+    _index: u64,
+) -> usize {
+    wire_append_prologue_width() + wire_repeated_append_guard_width()
+}
+
+/// Guard block of the repeated scalar read: end page mov (10, relocated) +
+/// end load (7) + cursor cmp (3) + jae rel32 skip (6).
+fn wire_repeated_read_guard_width() -> usize {
+    26
+}
+
+/// Count bump of the repeated scalar read: count page mov (10, relocated) +
+/// count load (7) + inc (3) + count store (7).
+fn wire_repeated_read_count_bump_width() -> usize {
+    27
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn read_wire_repeated_scalar_varint_width(
+    _buffer_offset: usize,
+    _buffer_length: usize,
+    _read_offset: usize,
+    _ok_offset: usize,
+    _end_offset: usize,
+    _count_offset: usize,
+    _target_offset: usize,
+    _byte_size: usize,
+    zigzag: bool,
+) -> usize {
+    // Prologue + guard + success/value/shift init (10) + read loop + optional
+    // unzigzag + target imm64 (10) + truncating store (7) + count bump +
+    // epilogue.
+    wire_decode_prologue_width()
+        + wire_repeated_read_guard_width()
+        + 10
+        + wire_varint_read_loop_width()
+        + if zigzag { wire_unzigzag_width() } else { 0 }
+        + 10
+        + 7
+        + wire_repeated_read_count_bump_width()
+        + wire_decode_tail_width()
+}
+
+/// LEB128-read one packed repeated element at the cursor into the target
+/// slot, ONLY IF the cursor sits strictly below the end bound the
+/// surrounding nested OPEN stored; the taken path also increments the
+/// count-companion slot. A skipped read changes nothing -- the jump lands
+/// past the epilogue, so cursor, ok, target, and count all stay put.
+/// Selection unrolls the declared maximum of these, so a payload packing
+/// more elements leaves the cursor short of the bound and the closing
+/// nested CLOSE clears ok (the hostile-count cap); every taken read stays
+/// bounds-checked against the buffer like any other wire read.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_read_wire_repeated_scalar_varint(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+    count_region: omega_target_operations::RuntimeStorageRegion,
+    count_offset: usize,
+    target_region: omega_target_operations::RuntimeStorageRegion,
+    target_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 wire decoder cannot varint-decode {byte_size}-byte scalars yet"
+        )));
+    }
+    // The regions only pick the relocation symbols; the encoded shape is
+    // identical for machine and frame places.
+    let _ = (count_region, target_region);
+
+    let mut bytes = Vec::with_capacity(read_wire_repeated_scalar_varint_width(
+        buffer_offset,
+        buffer_length,
+        read_offset,
+        ok_offset,
+        end_offset,
+        count_offset,
+        target_offset,
+        byte_size,
+        zigzag,
+    ));
+    append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
+
+    // Guard: r8 = the end-slot page (imm64 relocated at the nested end page
+    // offset), rax = the absolute end bound stored there; skip everything
+    // (including the epilogue) when cursor >= end.
+    let skip_distance = 10
+        + wire_varint_read_loop_width()
+        + if zigzag { wire_unzigzag_width() } else { 0 }
+        + 10
+        + 7
+        + wire_repeated_read_count_bump_width()
+        + wire_decode_tail_width();
+    bytes.extend([0x49, 0xb8]); // mov r8, imm64(end page)
+    bytes.extend(0u64.to_le_bytes());
+    let end_displacement = disp32(end_offset)?;
+    bytes.extend([0x49, 0x8b, 0x80]); // mov rax, [r8+disp32]
+    bytes.extend(end_displacement.to_le_bytes());
+    bytes.extend([0x49, 0x39, 0xc2]); // cmp r10, rax
+    bytes.extend([0x0f, 0x83]); // jae rel32 -> skip
+    bytes.extend(
+        i32::try_from(skip_distance)
+            .expect("the guarded read body is well under the rel32 range")
+            .to_le_bytes(),
+    );
+
+    // The unguarded scalar-varint body (see `encode_read_wire_scalar_varint`).
+    bytes.extend([0x41, 0xb9, 0x01, 0x00, 0x00, 0x00]); // mov r9d, 1
+    bytes.extend([0x31, 0xc0]); // xor eax, eax (value)
+    bytes.extend([0x31, 0xc9]); // xor ecx, ecx (shift)
+
+    bytes.extend([0x48, 0x83, 0xf9, 0x3f]); // cmp rcx, 63
+    bytes.extend([0x77, 0x2f]); // ja +47 -> fail
+    bytes.extend([0x49, 0x81, 0xfa]); // cmp r10, imm32
+    bytes.extend(wire_decode_length_imm32(buffer_length)?.to_le_bytes());
+    bytes.extend([0x73, 0x26]); // jae +38 -> fail
+    bytes.extend([0x45, 0x0f, 0xb6, 0x1f]); // movzx r11d, byte [r15]
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+    bytes.extend([0x4d, 0x89, 0xd8]); // mov r8, r11
+    bytes.extend([0x49, 0x83, 0xe0, 0x7f]); // and r8, 0x7f
+    bytes.extend([0x49, 0xd3, 0xe0]); // shl r8, cl
+    bytes.extend([0x4c, 0x09, 0xc0]); // or rax, r8
+    bytes.extend([0x48, 0x83, 0xc1, 0x07]); // add rcx, 7
+    bytes.extend([0x49, 0xf7, 0xc3, 0x80, 0x00, 0x00, 0x00]); // test r11, 0x80
+    bytes.extend([0x75, 0xcd]); // jnz -51 -> loop
+    bytes.extend([0xeb, 0x03]); // jmp +3 -> done
+    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d
+
+    if zigzag {
+        bytes.extend([0x49, 0x89, 0xc3]); // mov r11, rax
+        bytes.extend([0x49, 0x83, 0xe3, 0x01]); // and r11, 1
+        bytes.extend([0x49, 0xf7, 0xdb]); // neg r11
+        bytes.extend([0x48, 0xd1, 0xe8]); // shr rax, 1
+        bytes.extend([0x4c, 0x31, 0xd8]); // xor rax, r11
+    }
+
+    // r8 = the target page (imm64 relocated), then the truncating store.
+    bytes.extend([0x49, 0xb8]); // mov r8, imm64(target page)
+    bytes.extend(0u64.to_le_bytes());
+    let target_displacement = disp32(target_offset)?;
+    match byte_size {
+        1 => bytes.extend([0x41, 0x88, 0x80]), // mov [r8+disp32], al
+        4 => bytes.extend([0x41, 0x89, 0x80]), // mov [r8+disp32], eax
+        8 => bytes.extend([0x49, 0x89, 0x80]), // mov [r8+disp32], rax
+        _ => unreachable!("byte_size validated above"),
+    }
+    bytes.extend(target_displacement.to_le_bytes());
+
+    // Count bump: r11 = the count page (imm64 relocated), rcx = count + 1
+    // (rcx is free -- the read loop's shift use ended above).
+    bytes.extend([0x49, 0xbb]); // mov r11, imm64(count page)
+    bytes.extend(0u64.to_le_bytes());
+    let count_displacement = disp32(count_offset)?;
+    bytes.extend([0x49, 0x8b, 0x8b]); // mov rcx, [r11+disp32]
+    bytes.extend(count_displacement.to_le_bytes());
+    bytes.extend([0x48, 0xff, 0xc1]); // inc rcx
+    bytes.extend([0x49, 0x89, 0x8b]); // mov [r11+disp32], rcx
+    bytes.extend(count_displacement.to_le_bytes());
+
+    append_wire_decode_epilogue(&mut bytes, read_offset, ok_offset)?;
+    debug_assert_eq!(
+        bytes.len(),
+        read_wire_repeated_scalar_varint_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+            count_offset,
+            target_offset,
+            byte_size,
+            zigzag
+        )
+    );
+    Ok(bytes)
+}
+
+/// Byte offset of the TARGET page mov inside the repeated read (after the
+/// guard block and the read loop).
+pub fn wire_decode_repeated_target_page_offset(
+    _buffer_offset: usize,
+    _buffer_length: usize,
+    _read_offset: usize,
+    _end_offset: usize,
+    zigzag: bool,
+) -> usize {
+    wire_decode_prologue_width()
+        + wire_repeated_read_guard_width()
+        + 10
+        + wire_varint_read_loop_width()
+        + if zigzag { wire_unzigzag_width() } else { 0 }
+}
+
+/// Byte offset of the COUNT page mov inside the repeated read (after the
+/// target store).
+#[allow(clippy::too_many_arguments)]
+pub fn wire_decode_repeated_count_page_offset(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    end_offset: usize,
+    _target_offset: usize,
+    _byte_size: usize,
+    zigzag: bool,
+) -> usize {
+    wire_decode_repeated_target_page_offset(
+        buffer_offset,
+        buffer_length,
+        read_offset,
+        end_offset,
+        zigzag,
+    ) + 10
+        + 7
 }
 
 pub fn runtime_machine_string_write_width(_byte_length: usize) -> usize {

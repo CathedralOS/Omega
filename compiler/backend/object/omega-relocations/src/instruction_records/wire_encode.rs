@@ -1,4 +1,5 @@
 use super::super::offsets::{
+    wire_append_repeated_count_page_offset, wire_append_repeated_source_page_offset,
     wire_append_varint_source_page_offset, wire_append_written_page_offset,
 };
 use super::context::InstructionRelocationContext;
@@ -59,6 +60,47 @@ pub(super) fn collect_wire_encode_relocations(
                     context.input.target.architecture,
                     *out_offset,
                     *written_offset,
+                ),
+                context.storage_region_symbol_handle(*source_region),
+            );
+            true
+        }
+        // The repeated (guarded) append shares the out/written prologue, then
+        // materializes the COUNT page right after it and the element's SOURCE
+        // page after the guard block.
+        SelectedInstructionKind::AppendWireRepeatedScalarVarint {
+            source_region,
+            index,
+            count_region,
+            count_offset,
+            out_region,
+            out_offset,
+            written_region,
+            written_offset,
+            ..
+        } => {
+            context.insert_data_address_at_instruction_start(
+                context.storage_region_symbol_handle(*out_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_append_written_page_offset(context.input.target.architecture, *out_offset),
+                context.storage_region_symbol_handle(*written_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_append_repeated_count_page_offset(
+                    context.input.target.architecture,
+                    *out_offset,
+                    *written_offset,
+                ),
+                context.storage_region_symbol_handle(*count_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_append_repeated_source_page_offset(
+                    context.input.target.architecture,
+                    *out_offset,
+                    *written_offset,
+                    *count_offset,
+                    *index,
                 ),
                 context.storage_region_symbol_handle(*source_region),
             );

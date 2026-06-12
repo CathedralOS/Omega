@@ -388,12 +388,17 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         "wire/runtime_wire_decode_rejects_bad_nested_length_exit",
         70,
     ),
+    (
+        "wire/runtime_wire_decode_rejects_repeated_overflow_exit",
+        70,
+    ),
     ("wire/runtime_wire_decode_rejects_wrong_era_exit", 70),
     ("wire/runtime_wire_encode_era_discriminator_exit", 70),
     ("wire/runtime_wire_encode_primitive_exit", 70),
     ("wire/runtime_wire_encode_string_exit", 70),
     ("wire/runtime_wire_roundtrip_nested_exit", 70),
     ("wire/runtime_wire_roundtrip_primitive_exit", 70),
+    ("wire/runtime_wire_roundtrip_repeated_exit", 70),
 ];
 
 /// Run canaries the suite executes that are DELIBERATELY not in `RUN_CANARIES`,

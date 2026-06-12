@@ -1,0 +1,1 @@
+a repeated wire field needs a declared maximum element count

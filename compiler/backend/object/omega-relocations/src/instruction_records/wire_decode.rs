@@ -1,5 +1,6 @@
 use super::super::offsets::{
     wire_decode_nested_end_page_offset, wire_decode_ok_page_offset, wire_decode_read_page_offset,
+    wire_decode_repeated_count_page_offset, wire_decode_repeated_target_page_offset,
     wire_decode_varint_target_page_offset,
 };
 use super::context::InstructionRelocationContext;
@@ -122,6 +123,74 @@ pub(super) fn collect_wire_decode_relocations(
                     *read_offset,
                 ),
                 context.storage_region_symbol_handle(*end_region),
+            );
+            true
+        }
+        // The repeated (guarded) element read shares the decode prologue and
+        // the nested END-page position, then materializes the TARGET page
+        // after the read loop and the COUNT page after the target store.
+        SelectedInstructionKind::ReadWireRepeatedScalarVarint {
+            buffer_region,
+            buffer_offset,
+            buffer_length,
+            read_region,
+            read_offset,
+            ok_region,
+            end_region,
+            end_offset,
+            count_region,
+            target_region,
+            target_offset,
+            byte_size,
+            zigzag,
+            ..
+        } => {
+            context.insert_data_address_at_instruction_start(
+                context.storage_region_symbol_handle(*buffer_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_read_page_offset(context.input.target.architecture, *buffer_offset),
+                context.storage_region_symbol_handle(*read_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_ok_page_offset(
+                    context.input.target.architecture,
+                    *buffer_offset,
+                    *read_offset,
+                ),
+                context.storage_region_symbol_handle(*ok_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_nested_end_page_offset(
+                    context.input.target.architecture,
+                    *buffer_offset,
+                    *read_offset,
+                ),
+                context.storage_region_symbol_handle(*end_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_repeated_target_page_offset(
+                    context.input.target.architecture,
+                    *buffer_offset,
+                    *buffer_length,
+                    *read_offset,
+                    *end_offset,
+                    *zigzag,
+                ),
+                context.storage_region_symbol_handle(*target_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_repeated_count_page_offset(
+                    context.input.target.architecture,
+                    *buffer_offset,
+                    *buffer_length,
+                    *read_offset,
+                    *end_offset,
+                    *target_offset,
+                    *byte_size,
+                    *zigzag,
+                ),
+                context.storage_region_symbol_handle(*count_region),
             );
             true
         }

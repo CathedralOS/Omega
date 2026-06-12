@@ -1,0 +1,35 @@
+// Wire REPEATED fields: only stage 2 scalar elements (i32/i64/u32/u64/bool)
+// have an honest packed encoding today. A repeated String would make every
+// element runtime-sized -- the compile-time worst case the out-buffer
+// guarantee rests on would not exist -- so `[String; N]` rejects the encode
+// call loudly instead of half-supporting it.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data NameList {
+    0: names: [String; 4];
+}
+
+data NameListValue {
+    names: [String; 4];
+    names_count: usize;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    let msg: NameListValue = NameListValue {
+        names: ["a", "b", "c", "d"],
+        names_count: 2
+    };
+
+    NameList::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    self.console.exit_process(70);
+}

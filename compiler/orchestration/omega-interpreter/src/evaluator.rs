@@ -1127,6 +1127,14 @@ impl<'program> Evaluator<'program> {
             let WireMember::Field(field) = member else {
                 continue;
             };
+            if let Some(repeated) = self.program.wire_field_repeated_encoding(field) {
+                fields.push((
+                    field.name.as_str().to_owned(),
+                    field.number,
+                    WireInterpField::Repeated(repeated),
+                ));
+                continue;
+            }
             if let Some(child) = self.program.wire_field_nested_schema(field) {
                 let children = wire_nested_scalar_fields(&self.program, child)?;
                 fields.push((
@@ -1243,6 +1251,62 @@ impl<'program> Evaluator<'program> {
                     bytes.extend(wire_varint_bytes(body.len() as u64));
                     bytes.extend(body);
                 }
+                WireInterpField::Repeated(repeated) => {
+                    // A repeated field packs LENGTH-delimited: the live
+                    // elements (the count companion, capped at the declared
+                    // maximum -- the native unrolled guards clamp the same
+                    // way, comparing the count UNSIGNED) into a staging body
+                    // first, then the byte-LENGTH varint and the body.
+                    let count_name =
+                        omega_typed_trees::wire::wire_repeated_count_field_name(field_name);
+                    let count_cell = match &*value_cell.borrow() {
+                        Value::Struct { fields, .. } => fields
+                            .get(&count_name)
+                            .map(|cell| self.deref_cell(Rc::clone(cell)))
+                            .ok_or_else(|| {
+                                Halt::Trap(format!(
+                                    "`{schema_name}::encode_wire` value has no field `{count_name}`"
+                                ))
+                            })?,
+                        _ => {
+                            return Err(Halt::Trap(format!(
+                                "`{schema_name}::encode_wire` value argument is not a data value"
+                            )));
+                        }
+                    };
+                    let count = count_cell.borrow().as_int().ok_or_else(|| {
+                        Halt::Trap(format!(
+                            "`{schema_name}::encode_wire` field `{count_name}` is not a scalar value"
+                        ))
+                    })? as u64;
+                    let live = count.min(repeated.max_count as u64) as usize;
+                    let mut body = Vec::new();
+                    match &*raw.borrow() {
+                        Value::Array(elements) => {
+                            for element in elements.iter().take(live) {
+                                let element_raw =
+                                    self.deref_cell(Rc::clone(element)).borrow().as_int().ok_or_else(
+                                        || {
+                                            Halt::Trap(format!(
+                                                "`{schema_name}::encode_wire` repeated field `{field_name}` element is not a scalar value"
+                                            ))
+                                        },
+                                    )?;
+                                body.extend(wire_varint_bytes(wire_scalar_varint_value(
+                                    element_raw,
+                                    repeated.element,
+                                )?));
+                            }
+                        }
+                        _ => {
+                            return Err(Halt::Trap(format!(
+                                "`{schema_name}::encode_wire` repeated field `{field_name}` is not a fixed array value"
+                            )));
+                        }
+                    }
+                    bytes.extend(wire_varint_bytes(body.len() as u64));
+                    bytes.extend(body);
+                }
                 WireInterpField::Direct(WireFieldEncoding::Text) => {
                     // Length varint (byte count) then the raw UTF-8 bytes --
                     // the same framing the native text-bytes append emits.
@@ -1325,6 +1389,14 @@ impl<'program> Evaluator<'program> {
             let WireMember::Field(field) = member else {
                 continue;
             };
+            if let Some(repeated) = self.program.wire_field_repeated_encoding(field) {
+                fields.push((
+                    field.name.as_str().to_owned(),
+                    field.number,
+                    WireInterpScalarField::Repeated(repeated),
+                ));
+                continue;
+            }
             if let Some(child) = self.program.wire_field_nested_schema(field) {
                 let children = wire_nested_scalar_fields(&self.program, child)?;
                 fields.push((
@@ -1511,6 +1583,73 @@ impl<'program> Evaluator<'program> {
                         };
                         let child_cell = self.deref_cell(child_cell);
                         *child_cell.borrow_mut() = decoded;
+                    }
+                    if cursor != end {
+                        ok = false;
+                    }
+                }
+                WireInterpScalarField::Repeated(repeated) => {
+                    // Byte-LENGTH varint, the same OPEN bound checks as a
+                    // nested message, the count companion zeroed, then up to
+                    // `max_count` guarded element reads -- each runs only
+                    // while the cursor sits below the bound, mirroring the
+                    // native unrolled guards: the element value stores and
+                    // the count bumps even when the read itself failed (ok
+                    // is the contract, not the partial payload). The CLOSE
+                    // check rejects a length that disagrees with the
+                    // elements -- including MORE elements than the maximum
+                    // (the cursor stops short of the bound).
+                    let length = read_varint(&mut cursor, &mut ok);
+                    if length > buffer.len() as u64 {
+                        ok = false;
+                    }
+                    let end = cursor.wrapping_add(length as usize);
+                    if end > buffer.len() {
+                        ok = false;
+                    }
+                    let count_name =
+                        omega_typed_trees::wire::wire_repeated_count_field_name(field_name);
+                    let count_cell = match &*value_cell.borrow() {
+                        Value::Struct { fields, .. } => fields
+                            .get(&count_name)
+                            .map(|cell| self.deref_cell(Rc::clone(cell)))
+                            .ok_or_else(|| {
+                                Halt::Trap(format!(
+                                    "`{schema_name}::decode_wire` value has no field `{count_name}`"
+                                ))
+                            })?,
+                        _ => {
+                            return Err(Halt::Trap(format!(
+                                "`{schema_name}::decode_wire` value argument is not a data value"
+                            )));
+                        }
+                    };
+                    let mut decoded = 0i64;
+                    *count_cell.borrow_mut() = Value::Int(0);
+                    for index in 0..repeated.max_count {
+                        if cursor >= end {
+                            continue;
+                        }
+                        let raw_value = read_varint(&mut cursor, &mut ok);
+                        let decoded_value = wire_decoded_scalar_value(raw_value, repeated.element)?;
+                        let element_cell = match &*field_cell.borrow() {
+                            Value::Array(elements) => {
+                                elements.get(index).map(Rc::clone).ok_or_else(|| {
+                                    Halt::Trap(format!(
+                                        "`{schema_name}::decode_wire` repeated field `{field_name}` has no element {index}"
+                                    ))
+                                })?
+                            }
+                            _ => {
+                                return Err(Halt::Trap(format!(
+                                    "`{schema_name}::decode_wire` repeated field `{field_name}` is not a fixed array value"
+                                )));
+                            }
+                        };
+                        let element_cell = self.deref_cell(element_cell);
+                        *element_cell.borrow_mut() = decoded_value;
+                        decoded += 1;
+                        *count_cell.borrow_mut() = Value::Int(decoded);
                     }
                     if cursor != end {
                         ok = false;
@@ -2620,13 +2759,16 @@ fn is_canonical_host_method(name: &str) -> bool {
 enum WireInterpField {
     Direct(omega_typed_trees::wire::WireFieldEncoding),
     Nested(Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>),
+    Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
 }
 
 /// One CURRENT-era field of a wire schema, as the interpreter's decoder sees
-/// it (String is encode-only, so only scalars and nested messages appear).
+/// it (String is encode-only, so only scalars, nested messages, and repeated
+/// fields appear).
 enum WireInterpScalarField {
     Scalar(omega_typed_trees::wire::WireScalarEncoding),
     Nested(Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>),
+    Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
 }
 
 /// The CURRENT-era (name, number, scalar encoding) list of a nested wire

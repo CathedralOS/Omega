@@ -1,0 +1,83 @@
+// Wire REPEATED fields, failure paths: a hostile packed payload cannot
+// overrun the declared maximum or the buffer.
+//
+// Payload 1 (too many elements): [0x00, 0x00, 0x03, 0x02, 0x02, 0x02] -- era
+// 0, tag 0, byte-length 3, then THREE one-byte elements (zigzag(1) = 2) for
+// a `[i32; 2]` field. The two unrolled guarded reads consume two elements
+// (cursor = 5), the third never runs (the maximum is the cap), and the CLOSE
+// check clears ok because the cursor stopped short of the declared end bound
+// (6). The count companion reports the two elements actually decoded.
+//
+// Payload 2 (hostile length): [0x00, 0x00, 0x20, 0x02, 0x02, 0x02] -- the
+// byte-length claims 32 where only 3 bytes remain. The OPEN check clears ok
+// (the bound would run past the buffer); the guarded reads stay
+// bounds-checked against the buffer, so nothing reads out of bounds, and the
+// decode reports failure.
+//
+// Exit 70 only when BOTH decodes report failure AND the first decode's count
+// companion shows the maximum-capped element count (2, not 3).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Burst {
+    0: samples: [i32; 2];
+}
+
+data BurstValue {
+    samples: [i32; 2];
+    samples_count: usize;
+}
+
+data Main {
+    console: Console;
+    read_overflow: usize;
+    ok_overflow: bool;
+    read_hostile: usize;
+    ok_hostile: bool;
+    count_capped: bool;
+}
+
+machine Main::main(&mut self) {
+    let overflow_payload: [u8; 6] = [0, 0, 3, 2, 2, 2];
+    let hostile_payload: [u8; 6] = [0, 0, 32, 2, 2, 2];
+
+    let decoded: BurstValue = BurstValue {
+        samples: [0, 0],
+        samples_count: 0
+    };
+
+    Burst::decode_wire(&mut decoded, &overflow_payload, &mut self.read_overflow, &mut self.ok_overflow);
+    let capped: bool = decoded.samples_count == 2;
+    self.count_capped = capped;
+
+    Burst::decode_wire(&mut decoded, &hostile_payload, &mut self.read_hostile, &mut self.ok_hostile);
+
+    transition self.ok_overflow {
+        true -> bad()
+        false -> check_hostile()
+    }
+
+    state check_hostile(&mut self) {
+        transition self.ok_hostile {
+            true -> bad()
+            false -> check_cap()
+        }
+    }
+
+    state check_cap(&mut self) {
+        transition self.count_capped {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
