@@ -2048,6 +2048,43 @@ fn runtime_unsigned_division_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_unsigned_modulo_call_argument_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_unsigned_modulo_call_argument_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-unsigned-modulo-call-argument-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsigned modulo call-argument canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsigned modulo call-argument canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the inline `raw % 100` call argument to use UNSIGNED modulo \
+         so the dispatch ladder selects the satisfied arm (exit 70 = 3 RNG \
+         draws, interpreter semantics; exit 71 = the signed-remainder misfire \
+         routed the second event into the enemy arm and drew once extra -- the \
+         dungeon seed-7 14-vs-15 residual), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_signed_division_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_signed_division_exit");
     let main_path = canary.join("main.omg");
@@ -7187,16 +7224,15 @@ fn native_dungeon_crawler_runs_stable_scripted_loop() {
     assert!(stdout.contains("The fountain heals your wounds."));
     assert!(stdout.contains("You collect the loose gold."));
     // The east side chamber (R05) is identified by its gold-cache event line and
-    // its unique exit list. Its data-driven DESCRIPTION is deliberately not
-    // asserted: the seed-7 RNG streams still differ by ONE draw (generation:
-    // native 14 vs interpreter 15). The statement-chain executor multiplicity
-    // and the stale call-result read are fixed (canaries
-    // control_flow/runtime_statement_call_single_execution_exit and
-    // calls/runtime_assignment_call_post_mutation_value_exit); the residual is
-    // a mis-dispatched apply_event ARM during R00's carve (the enemy arm runs
-    // alongside the correct gold-cache arm, drawing once with a stale depth --
-    // see TASKS.md backend residue), so the two backends still disagree on
-    // R05's description line.
+    // its unique exit list. The seed-7 RNG streams now MATCH (the one-draw
+    // residual was the signed-modulo call argument, fixed and pinned by
+    // arithmetic/runtime_unsigned_modulo_call_argument_exit): every room's
+    // EVENT line agrees with the interpreter on a full eight-room tour. R05's
+    // data-driven DESCRIPTION is still not asserted, but for a different,
+    // RNG-independent reason: `room.description = self.room_description(...)`
+    // is lost natively for the SIDE rooms carved in should_carve-guarded branch
+    // targets (R05/R06 render an EMPTY description line; depth-derived text, so
+    // RNG plays no part) -- see the TASKS.md backend-residue bullet.
     assert!(stdout.contains("Loose gold glitters in the dust."));
     assert!(stdout.contains("[Paths] west"));
     assert!(stdout.contains("Inv: 30 gold. Purse heavy, charm secured."));
