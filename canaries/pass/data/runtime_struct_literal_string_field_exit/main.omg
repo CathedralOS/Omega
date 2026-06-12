@@ -1,0 +1,102 @@
+// Struct-LITERAL String field initialization lowers natively. Before the fix,
+// `let msg: LabelSample = LabelSample { count: 7, label: "hi" };` silently
+// emitted no descriptor write for `label`: data planning collected string
+// literals from assignments, state values, and branch targets, but never from
+// `let` LOCAL INITIALIZERS, so the descriptor-write selection found no data
+// object and skipped the write. Natively the descriptor stayed zeroed (empty
+// string) while `msg.label = "hi";` (the assignment form, pinned by
+// wire/runtime_wire_encode_string_exit) worked.
+//
+// Observed through the wire encoder, which reads the descriptor at runtime.
+// Expected bytes for { count: 7, label: "hi" }, hand-computed:
+//   era 0          -> 0x00        (no version blocks)
+//   tag 0          -> 0x00
+//   count 7        -> 0x07
+//   tag 1          -> 0x01
+//   len 2          -> 0x02        ("hi" is two UTF-8 bytes)
+//   'h'            -> 0x68 (104)
+//   'i'            -> 0x69 (105)
+// written = 7. An unwritten descriptor encodes length 0 (written = 5 -> bad()).
+//
+// Also covers the CASE-literal form with a String payload (`Command::Say
+// { text: "ok" }` as a local initializer) -- same root cause, observed by
+// destructuring the payload and comparing it natively. A distinct literal
+// ("ok", not "hi") so it cannot accidentally ride the record literal's data
+// object.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data LabelMessage {
+    0: count: u32;
+    1: label: String;
+}
+
+data LabelSample {
+    count: u32;
+    label: String;
+}
+
+data Command {
+    case None;
+    case Say(text: String);
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    // Struct-literal form: both fields initialized by the literal, no
+    // follow-up assignments.
+    let msg: LabelSample = LabelSample { count: 7, label: "hi" };
+
+    LabelMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    transition self.written == 7 {
+        true -> check_bytes()
+        false -> bad()
+    }
+
+    state check_bytes(&mut self) {
+        let ok: bool = self.buffer[0] == 0
+            && self.buffer[1] == 0
+            && self.buffer[2] == 7
+            && self.buffer[3] == 1
+            && self.buffer[4] == 2
+            && self.buffer[5] == 104
+            && self.buffer[6] == 105;
+        transition ok {
+            true -> check_case()
+            false -> bad()
+        }
+    }
+
+    state check_case(&mut self) {
+        // Case-literal form: the String payload field rides the same
+        // local-initializer path.
+        let cmd: Command = Command::Say { text: "ok" };
+        transition cmd {
+            Command::Say { text } -> check_text(text)
+            _ -> bad()
+        }
+    }
+
+    state check_text(&mut self, text: String) {
+        transition text == "ok" {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

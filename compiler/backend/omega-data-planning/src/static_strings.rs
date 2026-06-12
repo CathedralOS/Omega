@@ -1,7 +1,9 @@
+use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_runtime_branching::RuntimeBranchingCallPlan;
-use omega_state_storage::StateStoragePlan;
+use omega_state_storage::{StateLocalStorage, StateStoragePlan};
 use omega_state_values::StateValuePlan;
 use omega_target_operations::{TargetDataObject, TargetDataObjectKind, TargetDataPlan};
 
@@ -41,6 +43,63 @@ pub(super) fn collect_static_string_value_data(
             data_plan,
         );
     }
+}
+
+/// String literals reachable from `let` LOCAL INITIALIZERS (`let s: String =
+/// "hi"`, `let msg: T = T { label: "hi" }`). The storage plan records a local's
+/// slot but NOT its initializer expression (that stays in the checked program),
+/// so the mutation/value/branch collectors never visit these literals. Without
+/// this pass the descriptor-write selection finds no data object for the
+/// literal and silently skips the write, leaving the String descriptor zeroed
+/// natively (empty string) while the interpreter sees the value.
+pub(super) fn collect_static_string_local_initializer_data(
+    program: &CheckedTrees,
+    state_storage: &StateStoragePlan,
+    data_plan: &mut TargetDataPlan,
+) {
+    for (_, local) in state_storage.locals.iter() {
+        if !local.required {
+            continue;
+        }
+        let Some(initializer) = local_initializer_expression(program, local) else {
+            continue;
+        };
+
+        collect_static_string_expression_data(
+            &program.expression_table,
+            initializer,
+            local.source_key,
+            local.statement_index,
+            data_plan,
+        );
+    }
+}
+
+/// The declared initializer of `local`, read back from the checked program's
+/// statement for the local's (state, statement-index) coordinates.
+pub(super) fn local_initializer_expression(
+    program: &CheckedTrees,
+    local: &StateLocalStorage,
+) -> Option<ExpressionHandle> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == local.source_key.machine)?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == local.source_key.state)?;
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(local.statement_index)?;
+    let StatementNode::LocalData(local_data) = statement else {
+        return None;
+    };
+    local_data
+        .initial_value
+        .is_valid()
+        .then_some(local_data.initial_value)
 }
 
 pub(super) fn collect_static_string_branch_target_data(
