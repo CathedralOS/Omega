@@ -14,6 +14,7 @@ mod runtime_text_materialize;
 mod runtime_text_read;
 mod runtime_text_write;
 mod runtime_values;
+mod wire_decode;
 mod wire_encode;
 
 use crate::RelocationPlanningInput;
@@ -49,6 +50,7 @@ pub(super) fn collect_instruction_relocations(
             &instruction.kind,
         ) => {}
         _ if wire_encode::collect_wire_encode_relocations(&mut context, &instruction.kind) => {}
+        _ if wire_decode::collect_wire_decode_relocations(&mut context, &instruction.kind) => {}
         _ => runtime_text::collect_runtime_text_relocations(&mut context, &instruction.kind),
     }
 }

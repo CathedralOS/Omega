@@ -23,9 +23,10 @@ pub(crate) fn validate_call_node(
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
 
-    // `Schema::encode_wire(...)`: the wire module owns the synthesized
-    // encoder call's diagnostics (chapter 20, wire stage 2a).
-    if crate::wire::validate_wire_encode_call(
+    // `Schema::encode_wire(...)` / `Schema::decode_wire(...)`: the wire
+    // module owns the synthesized encoder/decoder calls' diagnostics
+    // (chapter 20, wire stage 2).
+    if crate::wire::validate_wire_schema_call(
         program,
         call,
         current_machine,

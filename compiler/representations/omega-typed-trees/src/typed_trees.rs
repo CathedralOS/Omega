@@ -363,6 +363,26 @@ impl TypedTrees {
             .find(|schema| schema.name.as_str() == schema_name.as_str())
     }
 
+    /// Recognize the compiler-synthesized wire decoder call shape
+    /// `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)`
+    /// (chapter 20, wire stage 2b): a statement call whose receiver path is
+    /// exactly one member naming a wire schema and whose target is
+    /// `decode_wire`.
+    pub fn wire_decode_call_schema(
+        &self,
+        call: &crate::statement::TableCall,
+    ) -> Option<&wire::WireSchema> {
+        if call.target.as_str() != wire::WIRE_DECODE_MACHINE_NAME {
+            return None;
+        }
+        let [schema_name] = self.statement_table.name_path_members(call.receiver) else {
+            return None;
+        };
+        self.wire_schemas()
+            .iter()
+            .find(|schema| schema.name.as_str() == schema_name.as_str())
+    }
+
     /// The era discriminator a schema's CURRENT body encodes (frozen decision
     /// 10): era 0 is the pre-versioning body, so a schema with no version
     /// blocks encodes era 0; declared version blocks snapshot earlier bodies

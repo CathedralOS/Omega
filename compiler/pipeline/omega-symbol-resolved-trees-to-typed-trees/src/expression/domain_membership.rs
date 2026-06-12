@@ -84,6 +84,20 @@ pub(super) fn lower_domain_membership_expression(
 
     let source = &program.tables.bodies.expressions;
     let mut lowered_facts = Vec::new();
+
+    // The `when` classifier is part of the runtime membership test: a
+    // case-subset domain (`when self in Type::A | Type::B`) has ONLY a
+    // classifier, and its membership is exactly that union of tag tests.
+    if domain_definition.classifier.is_valid() {
+        lowered_facts.push(lower_expression_handle_from_table_with_self_substitution(
+            Some(program),
+            source,
+            target,
+            domain_definition.classifier,
+            Some(value),
+        )?);
+    }
+
     for fact in program.proof_facts(domain_definition.facts) {
         let lowered = match fact {
             resolved::domain::ProofFact::Expression(expression) => {

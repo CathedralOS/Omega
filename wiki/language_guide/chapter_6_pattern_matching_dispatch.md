@@ -89,6 +89,14 @@ transition command {
 If `Command` later gains a variant, this transition should fail until it handles
 the new variant or proves that the new variant cannot occur.
 
+For case-bearing subjects this is ENFORCED today: exhaustiveness counts
+decidable arms only -- case arms (one tag each) and pure case-union domain
+arms (a declared `when self in Type::A | Type::B` tag set, see
+[Data, Values, And Literals](chapter_1_data_values_literals.md)). A dispatch
+with uncovered cases is a compile error naming them; a dispatch relying on
+arms the counter cannot decide (predicate domains, `if`-guarded patterns,
+value compares) must close with `_`.
+
 ## Tail Dispatch
 
 Transitions are expressed with the `transition` keyword. Tail transitions are

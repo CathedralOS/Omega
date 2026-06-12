@@ -175,6 +175,49 @@ pub enum AbstractOperationKind {
         written_region: RuntimeStorageRegion,
         written_offset: usize,
     },
+    /// compact_binary v0 wire decoding (chapter 20, wire stage 2b): expect one
+    /// COMPILE-TIME framing byte (era and field-tag varint bytes are known
+    /// when the schema is) at the stored cursor. The cursor lives in the
+    /// caller's `read` out-parameter slot; the sticky success flag lives in
+    /// the `ok` slot. A cursor at/after `buffer_length` clears `ok` without
+    /// consuming; a mismatching byte consumes one byte and clears `ok`. The
+    /// flag is only ever CLEARED here, so a failed decode stays failed no
+    /// matter what later steps read.
+    ReadWireExpectedByte {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        /// Compile-time byte length of the decode buffer (`[u8; N]`); every
+        /// byte read is bounds-checked against it.
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        expected: u8,
+    },
+    /// compact_binary v0 wire decoding (chapter 20, wire stage 2b): LEB128-read
+    /// a RUNTIME scalar at the stored cursor into the target place, advancing
+    /// the cursor by the consumed byte count. Truncated input (cursor past
+    /// `buffer_length` mid-varint) and overlong varints (more than ten groups,
+    /// i.e. a continuation past shift 63) clear the sticky `ok` flag; the
+    /// target is stored regardless (failed decodes leave unspecified field
+    /// contents -- the contract is `ok`, not the partial payload).
+    ReadWireScalarVarint {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        /// Width of the runtime scalar store: 1 (bool), 4, or 8 bytes; wider
+        /// decoded values truncate to the field width.
+        byte_size: usize,
+        /// Signed targets un-zigzag (`(n >> 1) ^ -(n & 1)`) after the read.
+        zigzag: bool,
+    },
     WriteRuntimeMachineInteger {
         byte_offset: usize,
         byte_size: usize,

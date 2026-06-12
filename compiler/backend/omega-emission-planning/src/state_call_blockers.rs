@@ -135,8 +135,9 @@ fn collect_unresolved_state_call_blockers(
     }
 }
 
-/// A statement that lowered into the wire-append family is the synthesized
-/// `Schema::encode_wire` call, not an unresolved state call.
+/// A statement that lowered into the wire append/read families is the
+/// synthesized `Schema::encode_wire` / `Schema::decode_wire` call, not an
+/// unresolved state call.
 fn unresolved_call_is_wire_encode(
     input: &EmissionPlanningInput<'_>,
     state_call: &StateCall,
@@ -163,6 +164,8 @@ pub(super) fn statement_has_wire_encode_lowering(
                 instruction.kind,
                 omega_target_operations::TargetOperationKind::AppendWireLiteralByte { .. }
                     | omega_target_operations::TargetOperationKind::AppendWireScalarVarint { .. }
+                    | omega_target_operations::TargetOperationKind::ReadWireExpectedByte { .. }
+                    | omega_target_operations::TargetOperationKind::ReadWireScalarVarint { .. }
             ) && state_key_matches_statement_source(instruction.source_key, source_key)
                 && instruction.source_statement == statement_index
         })

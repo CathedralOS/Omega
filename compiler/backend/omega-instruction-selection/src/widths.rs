@@ -1476,3 +1476,106 @@ pub fn wire_append_varint_source_page_offset(
         }
     }
 }
+
+pub fn read_wire_expected_byte_width(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::read_wire_expected_byte_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+        ),
+        Architecture::X86_64 => x86_64::read_wire_expected_byte_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn read_wire_scalar_varint_width(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    target_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::read_wire_scalar_varint_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            target_offset,
+            byte_size,
+            zigzag,
+        ),
+        Architecture::X86_64 => x86_64::read_wire_scalar_varint_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            target_offset,
+            byte_size,
+            zigzag,
+        ),
+    }
+}
+
+/// Byte offset of the READ (cursor) page address materialization inside both
+/// wire decodes (relocated to the read slot's region symbol).
+pub fn wire_decode_read_page_offset(architecture: Architecture, buffer_offset: usize) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::wire_decode_read_page_offset(buffer_offset),
+        Architecture::X86_64 => x86_64::wire_decode_read_page_offset(buffer_offset),
+    }
+}
+
+/// Byte offset of the OK (sticky flag) page address materialization inside
+/// both wire decodes (relocated to the ok slot's region symbol).
+pub fn wire_decode_ok_page_offset(
+    architecture: Architecture,
+    buffer_offset: usize,
+    read_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::wire_decode_ok_page_offset(buffer_offset, read_offset),
+        Architecture::X86_64 => x86_64::wire_decode_ok_page_offset(buffer_offset, read_offset),
+    }
+}
+
+/// Byte offset of the TARGET page address materialization inside the varint
+/// decode (relocated to the field's region symbol).
+pub fn wire_decode_varint_target_page_offset(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    zigzag: bool,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::wire_decode_varint_target_page_offset(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            zigzag,
+        ),
+        Architecture::X86_64 => x86_64::wire_decode_varint_target_page_offset(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            zigzag,
+        ),
+    }
+}

@@ -11,6 +11,7 @@ mod lookups;
 mod runtime_dispatch;
 mod state_bodies;
 mod storage_places;
+mod wire_decode;
 mod wire_encode;
 
 use self::bindings::RuntimeAliasBuffer;

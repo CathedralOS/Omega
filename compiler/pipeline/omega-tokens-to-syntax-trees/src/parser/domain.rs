@@ -1,4 +1,4 @@
-use crate::parser::expression::parse_expression_handle_without_struct_literals_or_membership;
+use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::operator::parse_operator_definition;
 use crate::parser::proof_fact::parse_proof_facts_until;
@@ -48,13 +48,24 @@ fn parse_optional_domain_classifier<'tokens, 'source>(
     }
 
     let input = input.take_keyword(KeywordKind::When, "when")?;
-    parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)
+    // Membership is legal in a classifier: the case-subset domain form is
+    // `when self in Type::A | Type::B` (chapter 1 "Cases Are Domains").
+    // Struct literals stay excluded -- their brace would swallow the body.
+    parse_expression_handle_without_struct_literals(syntax_trees, input)
 }
 
 fn parse_domain_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, (HandleSpan<ProofFact>, HandleSpan<OperatorDefinition>, usize)> {
+    // A classifier-only domain may end at `;` instead of an empty braced
+    // body: `domain Command::Interactive when self in Command::Move |
+    // Command::Say;` is the canonical case-subset spelling.
+    if input.at_punctuation(PunctuationKind::Semicolon) {
+        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        return Ok(((HandleSpan::empty(), HandleSpan::empty(), 0), input));
+    }
+
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let body_start_tokens = input.tokens.len();
     let mut facts = HandleSpan::empty();

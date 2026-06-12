@@ -163,6 +163,35 @@ pub enum TargetOperationKind {
         written_region: RuntimeStorageRegion,
         written_offset: usize,
     },
+    /// compact_binary v0 wire decoding: expect one compile-time framing byte
+    /// at the stored cursor (the caller's `read` slot); a bounds miss or a
+    /// mismatch clears the sticky `ok` flag.
+    ReadWireExpectedByte {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        expected: u8,
+    },
+    /// compact_binary v0 wire decoding: LEB128-read a runtime scalar at the
+    /// stored cursor into the target place (un-zigzagging when `zigzag` is
+    /// set); truncated or overlong varints clear the sticky `ok` flag.
+    ReadWireScalarVarint {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        zigzag: bool,
+    },
     WriteRuntimeMachineInteger {
         byte_offset: usize,
         byte_size: usize,
