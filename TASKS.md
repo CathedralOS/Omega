@@ -75,8 +75,42 @@ CONCURRENCY (briefs/concurrency_atomics.md):
   effect ceilings forbid `suspend` where parking is illegal (ISR
   contexts); atomicity is DERIVED (a state calling no suspending machine
   runs uninterrupted). Artifacts surface all suspension points.
-  `select` (first-ready-wins over multiple waitables, likely a transition
-  form) is deferred as its own design.
+  Follow-on decisions from the same discussion (2026-06-12):
+  - C1a SCOPED SPAWNS, no keyword: the lexical block IS the scope. A spawn
+    borrowing parent locals holds ordinary loans, so the join must occur
+    before the block ends; dropping a `Join<T>` JOINS (blocks), so an
+    unconsumed handle joins implicitly at scope end. Free-floating spawns
+    stay move/copy-only. DECIDED.
+  - C1b TASK STORAGE: no stack sizes exist — no general recursion + planned
+    frames mean the compiler computes each spawned machine's EXACT
+    worst-case storage M; pools are per-machine-type M x N slots (declared
+    N; overflow is a proof obligation or boundary failure). Region-backed
+    dynamic N later (allocator arc). Overflow-impossible by construction.
+    DECIDED.
+  - C1c ATOMIC-STATE GUARANTEE is derived and documented precisely: a state
+    body that calls no suspending machine cannot have ITS TASK parked
+    mid-body. It is NOT mutual exclusion (other tasks run on other cores;
+    cross-task safety = ownership/[send]/atomics). The language stays
+    scheduler-agnostic (Cathedral may preempt; guarantees come from
+    ownership, not non-preemption). DECIDED.
+  - C1d CANCELLATION IS A VALUE AT THE WAIT (proposed, pending ch15
+    alignment): no unwinding exists, so a cancelled scope makes each
+    child's current/next wait return the zero case (`Cancelled`) instead
+    of ready; the machine transitions to its own cleanup path and drops
+    run as frames retire. Never interrupts mid-state. A never-suspending
+    task is joinable but not cancellable (its effect surface says which).
+    Cancellation rides the SAME propagation channel as ch15 recoverable
+    errors, whatever that lands as.
+  - C1e WAITABLE SURFACE IS FUTEX-SHAPED AND SINGULAR: one primitive
+    (wait on word / wake N) — mutex, condvar, channel, join, timer are
+    library above it; interrupts and IO completions POST TO WORDS. The
+    anti-Linux-sprawl rule: no second wait mechanism, ever. DECIDED.
+  - C1f SELECT DISSOLVES: no select construct. Multiplexing is data-level —
+    producers post into ONE mailbox carrying a case-bearing sum
+    (`Event { case Packet(...); case Tick; ... }`), the consumer does one
+    wait and one ORDINARY transition over the sum (Erlang's one-mailbox
+    model; already Cathedral's IPC-ring shape). Deferred work shrinks to a
+    core MPSC event-queue library on the wait primitive. DECIDED.
 - C2 Unit of concurrency: spawned machine = one task, per-task frame
   discipline now (separate-compilation-ready). REC: yes.
 - C3 Cancellation: structured Join SCOPES (scope drop cancels children,
