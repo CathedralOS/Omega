@@ -52,11 +52,68 @@ points at the bullet carrying the full proposal:
    borrow-carrying data IN-MODEL (`data ChatMessage<'buf>`), descriptive
    lifetime names as house style. Unblocks zero-copy wire decode +
    view-returning machines.
-4. **Long-view arc priority** — which big arc gets the next scout brief:
-   concurrency model and atomics gate the most for Cathedral
-   (wiki/cathedral_alignment.md tier 1); separate compilation, comptime,
-   and the allocator story queue behind them. The arcs themselves are in
-   the long-view register below.
+4. **Long-view arc priority** — RESOLVED 2026-06-12: all four arcs were
+   scouted in parallel; the briefs live in wiki/design_briefs/ and their
+   maintainer decisions are the register below.
+
+**Decisions needed (scout round 2, 2026-06-12).** Four design briefs in
+wiki/design_briefs/ (concurrency_atomics, separate_compilation, comptime,
+allocator_story). Each question one line + the scout's recommendation;
+sign-off freezes them.
+
+CONCURRENCY (briefs/concurrency_atomics.md):
+- C1 Suspension spelling: explicit `yields` modifier on states (dispatcher
+  parks/resumes) — not async coloring, not implicit suspension. REC: yes.
+- C2 Unit of concurrency: spawned machine = one task, per-task frame
+  discipline now (separate-compilation-ready). REC: yes.
+- C3 Cancellation: structured Join SCOPES (scope drop cancels children,
+  deadlines attach to scopes). REC: yes.
+- C4 Sharing: atomics-only at language level; `Mutex<T>` is a core-library
+  type over atomic spin-locks, never a primitive. REC: yes.
+- C5 Atomics + model: compiler intrinsics, five C11 orderings, C11 memory
+  model wholesale. REC: yes.
+
+SEPARATE COMPILATION (briefs/separate_compilation.md):
+- S1 Component = PACKAGE; artifact = sealed IR + boundary manifest +
+  layout/wire reports (.o format follow-up). REC: yes.
+- S2 Linking: hermetic static composition phase first; loader-time
+  relocation deferred to Cathedral's loader. REC: yes.
+- S3 Cross-package monomorphization: REJECT in stage 1, resolve at
+  composition time in stage 2. REC: yes.
+- S4 Cross-component ABI: compiler-ENFORCED public layout reports +
+  wire-data contracts for evolution edges; host ABI reused for calls.
+  REC: yes.
+- S5 Dispatch: keep ONE fused loop with per-component entries + import
+  tables (never split per component). REC: yes.
+- S6 The composition/linker tool is OMEGA's (Cathedral consumes it).
+  REC: yes.
+
+COMPTIME (briefs/comptime.md):
+- M1 Purity gate: reuse decision 12's inferred transitive effect surface
+  (empty effects + no &mut/out = const-evaluable). REC: yes.
+- M2 Reflection access spelling: bracket form `self.[field]`;
+  `Self::fields` exposes names + types only in stage 1. REC: yes.
+- M3 Termination stage 1: reject direct self-recursion + fuel fallback;
+  decreases-required once proof L8 lands. REC: yes.
+- M4 First const position: fixed-array lengths; TARGET-width emulation in
+  the const evaluator is mandatory from day one. REC: yes.
+- M5 Generator bodies must expand to effect-free machines (build-time code
+  is declarative only). REC: yes.
+- M6 equatable.rs is TEMPORARY: stage 2 rewrites Equatable as a core trait
+  generator and retires the hand-rolled path. REC: yes.
+
+ALLOCATOR (briefs/allocator_story.md):
+- A1 No ambient heap ever; allocation is an explicit capability. REC: yes.
+- A2 The allocator surface is named `Region<'r>` (over `Arena`), bound
+  through the frozen `Allocation` provider category. REC: yes.
+- A3 Failure semantics: proof-obligated capacity (`requires len <
+  capacity`); `try_push -> Result` optional later; no silent traps.
+  REC: yes.
+- A4 Vec ladder: stage 1 fixed-capacity (no allocator at all); stage 2
+  `Vec<'r, T>` borrows a Region, capacity fixed at construction, NO
+  growth; pluggable allocators only if demand appears. REC: yes.
+- A5 Drops: elements drop immediately; the Region frees memory in bulk
+  (cleanup and memory release are separate concerns). REC: yes.
 
 Smaller wire remainders (repeated fields, arbitrary-depth nesting,
 encoding families, negotiation) are derivable from decision 10 + the
