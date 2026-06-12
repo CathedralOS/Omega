@@ -2,7 +2,7 @@
 // (the negated guard makes the remaining distance non-positive), but the
 // recursive arm STALLS the accumulator while the theorem claims one unit per
 // remaining unit of distance. The induction hypothesis still enters -- the
-// named bounded-distance measure (`limit - index -> Nat::BoundedDistance`)
+// argumented bounded-distance measure (`(index, limit) -> Nat::BoundedDistance`)
 // discharges at the call site -- but the instantiated hypothesis misses the
 // goal by one, so the recursive arm's obligation is unprovable and the engine
 // rejects rather than standing down. Pins that the bounded distance gates
@@ -18,7 +18,7 @@ machine Main::main(&mut self) {
 
 machine Main::climb(&mut self, limit: usize, index: usize, acc: usize) -> usize
 terminates {
-    decreases limit - index -> Nat::BoundedDistance;
+    decreases (index, limit) -> Nat::BoundedDistance;
 }
 ensures
     result >= acc + limit - index

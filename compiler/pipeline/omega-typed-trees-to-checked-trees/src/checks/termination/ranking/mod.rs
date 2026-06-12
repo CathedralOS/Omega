@@ -4,7 +4,7 @@ mod patterns;
 mod slice;
 mod struct_view;
 
-use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use omega_typed_trees::expression::ExpressionHandle;
 
 use super::graph;
 use super::order::{AmbiguousDefault, OrderResolution, RankingOrder, decreasing_value_text};
@@ -20,40 +20,56 @@ pub(super) enum DecreaseOutcome {
     /// builtin well-founded order; the explicit `-> View` form is required.
     /// Carries the details the diagnostic renders.
     AmbiguousOrder(AmbiguousDefault),
-    /// A subtraction-shaped clause written backwards: the declared
-    /// `lower - upper` cannot decrease, but the swapped operands prove as the
-    /// named bounded distance on every cyclic edge. The diagnostic names the
-    /// right shape instead of a bare "cannot prove".
+    /// A two-subject bounded distance written backwards: the declared
+    /// `(upper, lower)` tuple cannot decrease, but the swapped subjects prove
+    /// as the named bounded distance on every cyclic edge. The diagnostic
+    /// names the right shape instead of a bare "cannot prove".
     InvertedDistance(InvertedDistance),
 }
 
-/// The operand texts the inverted-distance diagnostic renders: the clause as
-/// declared and the corrected `upper - lower` spelling that proves.
+/// The subject texts the inverted-distance diagnostic renders: the clause as
+/// declared and the corrected `(lower, upper)` spelling that proves.
 pub(super) struct InvertedDistance {
     pub(super) declared: String,
     pub(super) corrected: String,
 }
 
-/// Which operand orientation the nat distance prover should read from a
-/// subtraction-shaped decreases clause: the declared `left - right`, or the
-/// swapped probe used to recognize an inverted bounded distance.
+/// Which subject orientation the nat distance prover should read from a
+/// two-subject decreases tuple: the declared `(lower, upper)`, or the swapped
+/// probe used to recognize an inverted bounded distance.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum DistanceOrientation {
     Declared,
     Swapped,
 }
 
+/// The ranked subjects a `decreases` clause threads into the edge provers: a
+/// single decreasing value, or the two-subject bounded distance whose subjects
+/// bind in order to `Nat::BoundedDistance`'s `(lower, upper)` parameters.
+#[derive(Clone, Copy)]
+pub(super) enum DecreaseMeasure {
+    Single(ExpressionHandle),
+    Distance {
+        lower: ExpressionHandle,
+        upper: ExpressionHandle,
+    },
+}
+
 pub(super) fn machine_decrease_outcome(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
 ) -> DecreaseOutcome {
-    let decreases = program
+    let subjects = program
         .expression_table
         .expression_handles(machine.decreases);
-    if decreases.len() != 1 {
-        return DecreaseOutcome::Unproven;
-    }
-    let decreases = decreases[0];
+    let measure = match subjects {
+        [single] => DecreaseMeasure::Single(*single),
+        [lower, upper] => DecreaseMeasure::Distance {
+            lower: *lower,
+            upper: *upper,
+        },
+        _ => return DecreaseOutcome::Unproven,
+    };
 
     let states = program.machine_states(machine);
     // The decreases clause is declared on the machine signature, so its names
@@ -62,7 +78,7 @@ pub(super) fn machine_decrease_outcome(
         return DecreaseOutcome::Proven;
     };
     let decrease_order = program.machine_decrease_order(machine.decrease_order);
-    let order = match RankingOrder::resolve(program, root_state, decreases, decrease_order) {
+    let order = match RankingOrder::resolve(program, root_state, subjects, decrease_order) {
         OrderResolution::Resolved(order) => order,
         OrderResolution::AmbiguousDefault(ambiguity) => {
             return DecreaseOutcome::AmbiguousOrder(ambiguity);
@@ -83,7 +99,7 @@ pub(super) fn machine_decrease_outcome(
                     machine,
                     &adjacency,
                     component,
-                    decreases,
+                    measure,
                     &order,
                     orientation,
                 )
@@ -94,24 +110,24 @@ pub(super) fn machine_decrease_outcome(
         return DecreaseOutcome::Proven;
     }
 
-    // An unproven subtraction-shaped clause is probed with its operands
-    // swapped: when the swapped distance proves on every cyclic edge, the
-    // clause is the named bounded distance written backwards, and the
-    // diagnostic can point at the right shape.
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(decreases)
-        && matches!(binary.operator, BinaryOperator::Subtract)
-        && matches!(
-            order,
-            RankingOrder::BoundedDistance | RankingOrder::NatDescending
-        )
+    // An unproven bounded-distance tuple is probed with its subjects swapped:
+    // when the swapped distance proves on every cyclic edge, the clause is the
+    // named bounded distance written backwards, and the diagnostic can point
+    // at the right shape.
+    if let DecreaseMeasure::Distance { lower, upper } = measure
+        && matches!(order, RankingOrder::BoundedDistance)
         && proven_with(DistanceOrientation::Swapped)
     {
         return DecreaseOutcome::InvertedDistance(InvertedDistance {
-            declared: decreasing_value_text(program, decreases),
+            declared: format!(
+                "({}, {})",
+                decreasing_value_text(program, lower),
+                decreasing_value_text(program, upper)
+            ),
             corrected: format!(
-                "{} - {}",
-                decreasing_value_text(program, binary.right),
-                decreasing_value_text(program, binary.left)
+                "({}, {})",
+                decreasing_value_text(program, upper),
+                decreasing_value_text(program, lower)
             ),
         });
     }
@@ -129,7 +145,7 @@ fn component_has_proven_decrease(
     machine: &omega_typed_trees::machine::Machine,
     adjacency: &[Vec<usize>],
     component: &[usize],
-    decreases: ExpressionHandle,
+    measure: DecreaseMeasure,
     order: &RankingOrder,
     orientation: DistanceOrientation,
 ) -> bool {
@@ -154,9 +170,9 @@ fn component_has_proven_decrease(
         };
 
         if single_state_self_loop {
-            state_has_proven_supported_self_loop(program, source, decreases, order, orientation)
+            state_has_proven_supported_self_loop(program, source, measure, order, orientation)
         } else {
-            edge_has_proven_decrease(program, source, target, decreases, order, orientation)
+            edge_has_proven_decrease(program, source, target, measure, order, orientation)
         }
     })
 }
@@ -167,7 +183,7 @@ fn edge_has_proven_decrease(
     program: &omega_typed_trees::TypedTrees,
     source: &omega_typed_trees::state::State,
     target: &omega_typed_trees::state::State,
-    decreases: ExpressionHandle,
+    measure: DecreaseMeasure,
     order: &RankingOrder,
     orientation: DistanceOrientation,
 ) -> bool {
@@ -186,7 +202,7 @@ fn edge_has_proven_decrease(
                     target,
                     edge.guard,
                     edge.arguments,
-                    decreases,
+                    measure,
                     orientation,
                 )
             }),
@@ -202,22 +218,29 @@ fn edge_has_proven_decrease(
 fn state_has_proven_supported_self_loop(
     program: &omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,
-    decreases: ExpressionHandle,
+    measure: DecreaseMeasure,
     order: &RankingOrder,
     orientation: DistanceOrientation,
 ) -> bool {
-    match order {
-        RankingOrder::NatDescending
-        | RankingOrder::BoundedDistance
-        | RankingOrder::CustomNatDescending => {
-            nat::state_has_proven_self_loop(program, state, decreases, orientation)
+    // Slice-length, struct-view and lexicographic orders rank a single
+    // decreasing value; only the nat provers understand the two-subject
+    // bounded distance.
+    match (order, measure) {
+        (
+            RankingOrder::NatDescending
+            | RankingOrder::BoundedDistance
+            | RankingOrder::CustomNatDescending,
+            _,
+        ) => nat::state_has_proven_self_loop(program, state, measure, orientation),
+        (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) => {
+            slice::state_has_proven_self_loop(program, state, decreases)
         }
-        RankingOrder::SliceLength => slice::state_has_proven_self_loop(program, state, decreases),
-        RankingOrder::CustomStructView(field) => {
+        (RankingOrder::CustomStructView(field), DecreaseMeasure::Single(decreases)) => {
             struct_view::state_has_proven_self_loop(program, state, decreases, field)
         }
-        RankingOrder::Lexicographic(fields) => {
+        (RankingOrder::Lexicographic(fields), DecreaseMeasure::Single(decreases)) => {
             lexicographic::state_has_proven_self_loop(program, state, decreases, fields)
         }
+        (_, DecreaseMeasure::Distance { .. }) => false,
     }
 }

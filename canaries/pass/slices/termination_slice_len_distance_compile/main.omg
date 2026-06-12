@@ -16,7 +16,7 @@ machine Main::main(&mut self) -> usize {
 
 machine Main::walk(&mut self, entries: &[Entry], index: usize)
 terminates {
-    decreases entries.len - index -> Nat::Descending;
+    decreases (index, entries.len) -> Nat::BoundedDistance;
 }
 -> usize
 {

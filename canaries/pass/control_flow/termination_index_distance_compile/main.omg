@@ -9,7 +9,7 @@ machine Main::main(&mut self) -> usize {
 
 machine Main::walk(&mut self, limit: usize, index: usize)
 terminates {
-    decreases limit - index -> Nat::Descending;
+    decreases (index, limit) -> Nat::BoundedDistance;
 }
 -> usize
 {
