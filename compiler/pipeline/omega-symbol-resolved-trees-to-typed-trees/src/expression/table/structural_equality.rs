@@ -245,15 +245,25 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             })
             .collect();
 
+        let fields: Vec<&DataField> = members
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Field(field) => Some(field),
+                _ => None,
+            })
+            .collect();
+
         if variants.is_empty() {
-            let fields: Vec<&DataField> = members
-                .iter()
-                .filter_map(|member| match member {
-                    DataMember::Field(field) => Some(field),
-                    _ => None,
-                })
-                .collect();
             let compares = self.field_compares(data, &fields, left, right, visiting)?;
+            return Ok(self.conjunction(compares));
+        }
+
+        // MIXED shape: equal when the COMMON fields match AND the case part
+        // matches (tag AND matching payload -- the ordinary sum expansion).
+        // Common fields compare unconditionally: they exist in every case.
+        if !fields.is_empty() {
+            let mut compares = self.field_compares(data, &fields, left, right, visiting)?;
+            compares.push(self.sum_equality(data, &variants, left, right, visiting)?);
             return Ok(self.conjunction(compares));
         }
 

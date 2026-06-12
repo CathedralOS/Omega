@@ -212,9 +212,39 @@ fn factor_common_conjuncts(left: &Expression, right: &Expression) -> Option<Expr
     let right_rest = combine_conjuncts(remaining_right.into_iter().cloned().collect::<Vec<_>>());
     let mut factored = boolean_or(left_rest, right_rest);
     for conjunct in common.into_iter().rev() {
-        factored = boolean_and(conjunct, factored);
+        // NOT `boolean_and`: that distributes the conjunct back over the
+        // disjunction it was just factored out of, and `boolean_or` would
+        // then factor it again -- non-terminating mutual recursion (first
+        // reachable through mixed-shape equality, whose synthesized
+        // `common-field compares && (case arms...)` repeats the common
+        // compares across every disjunction arm).
+        factored = conjoin_without_distribution(conjunct, factored);
     }
     Some(factored)
+}
+
+/// `boolean_and` minus the distribute-over-`Or` rewrite: the constant,
+/// duplicate, and comparison-conjunction rules only, never recursing into
+/// `boolean_or`. Used where an And node must wrap a disjunction AS-IS
+/// (re-attaching factored common conjuncts).
+fn conjoin_without_distribution(left: Expression, right: Expression) -> Expression {
+    if let Some(simplified) = simplify_comparison_conjunction(&left, &right) {
+        return simplified;
+    }
+
+    match (&left, &right) {
+        (Expression::Boolean(false), _) | (_, Expression::Boolean(false)) => {
+            Expression::Boolean(false)
+        }
+        (Expression::Boolean(true), _) => right,
+        (_, Expression::Boolean(true)) => left,
+        _ if left == right => left,
+        _ => Expression::Binary(Box::new(BinaryExpression {
+            left,
+            operator: BinaryOperator::And,
+            right,
+        })),
+    }
 }
 
 fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Option<Expression> {

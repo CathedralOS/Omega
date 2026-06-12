@@ -135,9 +135,61 @@ remains tracked in its bullet below.
   fail data/match_nonexhaustive_cases +
   data/match_predicate_domain_needs_default; pass+RUN
   data/match_exhaustive_by_cases + data/match_exhaustive_by_case_union_domain;
-  pass data/match_default_satisfies_exhaustiveness. STILL OPEN: MIXED shapes
-  (common fields + case part). Payload sums are done; `self in Type::Case`
-  and unions at use sites landed with decision 11.
+  pass data/match_default_satisfies_exhaustiveness. Payload sums are done;
+  `self in Type::Case` and unions at use sites landed with decision 11.
+  MIXED SHAPES LANDED (2026-06-11) -- the final half of decision 7; both
+  halves of this item are now closed (see the next entry).
+- [x] **Mixed data shapes (common fields + case part) LANDED (2026-06-11).**
+  Decision 7's final half; the trees already modeled fields+cases together
+  (only validation rejected). Decisions recorded here:
+  - LAYOUT (owned in omega-layout, `DataShape::Enum` now carries
+    `common_fields`): TAG-FIRST -- tag at offset 0, common fields packed
+    after the tag, payload overlay after the common fields. Deliberate
+    deviation from the suggested common-fields-first order: the backend's
+    tag-only compares/writes (state-guard clamps, runtime value operands,
+    static folds) treat "first ENUM_TAG_BYTES of the value" as the tag
+    WITHOUT layout context, so the tag offset must stay the universal
+    constant 0. Common-field offsets are case-independent constants in
+    either order; ZII holds (zeroed value = first case + zeroed common
+    fields); pure sums degenerate to the historical layout (empty common
+    span), so every existing offset is unchanged.
+  - CONSTRUCTION: case-literal form only (`Type::Case { ... }`; record-form
+    literals over case-bearing types are rejected). Common fields may be
+    named alongside payload fields; every common field NOT named
+    ZERO-INITIALIZES (explicit zero writes ride the ordinary member-write
+    path natively; the interpreter zeroes the cells), because construction
+    replaces the whole value. Consequences, both hard errors: common-field
+    defaults (would silently never apply) and non-scalar common fields
+    (first cut: zeroing nested aggregates/text at construction is deferred).
+    Payload-field names may not collide with common-field names (member
+    access searches both).
+  - ACCESS: common fields read/write WITHOUT case knowledge
+    (`event.consumed` / `event.bonus = 5`); payload fields stay case-bound.
+  - EQUALITY: Equatable over mixed = common fields AND tag AND matching
+    payload (equatable.rs Mixed -> Structural; structural_equality.rs
+    conjoins common compares with the sum expansion). FOUND+FIXED a latent
+    compiler hang: omega-state-values folding's `factor_common_conjuncts`
+    re-entered `boolean_and`, whose distribute-over-Or rewrite re-created
+    the factored shape -- non-terminating mutual recursion, first reachable
+    via mixed equality (its arms share the common-field compares). Factoring
+    now re-attaches conjuncts with a non-distributing combinator.
+  - REJECTED LOUDLY (scope kept honest): wire `encode_wire` over ANY
+    case-bearing value type (sum or mixed) -- the schema field set has no
+    spelling for the tag/payload, so encoding would silently drop the case
+    part (this also closed a pre-existing silent hole for pure sums).
+    Unnamed common fields in equality-compared case literals keep the
+    existing "literal omits field" diagnostic (name the field).
+  - Exhaustiveness, tag dispatch, payload binding, and `in` membership work
+    over mixed unchanged (tag@0 preserved every existing path). Canaries:
+    pass+RUN data/runtime_mixed_shape_exit (construct with named common
+    field, case change zeroes unnamed common field, common write, 3-case
+    dispatch with payload binding, exit 70) +
+    traits/equatable_mixed_shape_equality_exit (common-field-only
+    difference compares unequal), both differential; fail
+    data/mixed_common_field_nonscalar, data/mixed_common_field_default,
+    data/mixed_payload_field_shadows_common, data/mixed_record_literal,
+    wire/encode_case_bearing_value. Retired:
+    fail data/mixed_data_shape_unimplemented.
 
 **Backend residue (small, known):**
 
@@ -356,7 +408,9 @@ Implementation slices below build against these. Minor/easily-reversible details
    `omega-layout` and instruction-selection are consumers.
 7. **Case members, not `enum`.** Alternatives are a member class of `data`:
    `case` members with named payload fields, shape derived from members
-   (record / sum / MIXED; sum-only ships first, mixed is severable). First
+   (record / sum / MIXED; sum-only shipped first, mixed landed 2026-06-11
+   -- see the mixed-shapes entry under Outstanding for the recorded
+   layout/construction/access rules). First
    case is the zero case (ZII); no niche layout. A case implicitly declares
    the same-named DOMAIN (free tag-compare classifier), so `case` never
    appears at use sites: match arms are classifications -- case arms and

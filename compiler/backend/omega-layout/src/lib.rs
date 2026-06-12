@@ -154,8 +154,26 @@ impl Default for VariantLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataShape {
-    Enum { variants: HandleSpan<VariantLayout> },
-    Record { fields: HandleSpan<FieldLayout> },
+    /// Case-bearing data: pure sums AND mixed shapes (common fields + cases).
+    ///
+    /// Layout (owned HERE, decided once): the i32 tag sits at offset 0 for
+    /// EVERY case-bearing value, the common fields pack immediately after the
+    /// tag, and every case's payload fields overlay each other from a shared
+    /// base after the common fields. Tag-first (rather than common-fields-
+    /// first) is deliberate: the backend's tag-only compares and writes treat
+    /// "the first `ENUM_TAG_BYTES` of the value" as the tag WITHOUT consulting
+    /// the layout plan, so the tag offset must stay the universal constant 0.
+    /// Common-field offsets are still case-independent constants, and ZII
+    /// holds: a zeroed value is tag 0 (the first case) with zeroed common
+    /// fields and zeroed payload. Pure sums have an empty `common_fields`
+    /// span and degenerate to the historical tag-plus-overlay layout.
+    Enum {
+        common_fields: HandleSpan<FieldLayout>,
+        variants: HandleSpan<VariantLayout>,
+    },
+    Record {
+        fields: HandleSpan<FieldLayout>,
+    },
 }
 
 impl Default for DataShape {

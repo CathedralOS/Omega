@@ -232,8 +232,11 @@ impl<'program> LayoutBuilder<'program> {
         definition: &DataDefinition,
     ) -> Result<DataLayout, Diagnostic> {
         let members = self.program.data_members(definition);
-        if DataDefinition::shape_kind_from_members(members) == DataShapeKind::Enum {
-            return self.compute_enum_layout(definition, members);
+        if matches!(
+            DataDefinition::shape_kind_from_members(members),
+            DataShapeKind::Enum | DataShapeKind::Mixed
+        ) {
+            return self.compute_case_bearing_layout(definition, members);
         }
 
         let fields = members
@@ -267,13 +270,19 @@ impl<'program> LayoutBuilder<'program> {
         })
     }
 
-    /// Lay out a sum shape as a TAG-PREFIXED OVERLAY: the i32 tag sits at offset 0,
-    /// and every case's payload fields pack from a SHARED base offset (the tag size
-    /// aligned up to the strictest payload field alignment), overlaying each other.
-    /// The value's size covers the LARGEST case payload; payload-less enums keep
-    /// the historical 4-byte tag-only layout. No niche packing ever: the zero bit
-    /// pattern is the (payload-free) zero case and stays valid.
-    fn compute_enum_layout(
+    /// Lay out a case-bearing shape (sum OR mixed) as a TAG-PREFIXED OVERLAY:
+    /// the i32 tag sits at offset 0, the COMMON fields (mixed shapes only) pack
+    /// immediately after the tag, and every case's payload fields pack from a
+    /// SHARED base offset after the common fields (aligned up to the strictest
+    /// payload field alignment), overlaying each other. The value's size covers
+    /// the LARGEST case payload; payload-less pure sums keep the historical
+    /// 4-byte tag-only layout. Tag-first is deliberate (see `DataShape::Enum`):
+    /// tag-only compares address the first `ENUM_TAG_BYTES` of the value with
+    /// no layout context, so the tag offset must stay the constant 0; common-
+    /// field offsets remain case-independent constants either way. No niche
+    /// packing ever: the zero bit pattern is the zero case (with zeroed common
+    /// fields and payload) and stays valid.
+    fn compute_case_bearing_layout(
         &mut self,
         definition: &DataDefinition,
         members: &[DataMember],
@@ -283,7 +292,34 @@ impl<'program> LayoutBuilder<'program> {
             alignment: crate::ENUM_TAG_BYTES,
         };
 
-        // Plan every case's payload fields first: the shared payload base offset
+        // Common fields (mixed shapes) pack right after the tag; their end
+        // offset is the floor under every case's payload overlay.
+        let planned_common = members
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Field(field) => Some(field),
+                DataMember::Variant(_) => None,
+            })
+            .map(|field| {
+                let layout = self.layout_type_reference_handle(field.type_reference)?;
+                Ok(PlannedField {
+                    symbol: field.symbol,
+                    name: field.name.clone(),
+                    type_symbol: self.program.type_reference_symbol(field.type_reference),
+                    type_name: self
+                        .program
+                        .display_type_reference_with_constraints(field.type_reference)
+                        .into(),
+                    type_descriptor: self.type_descriptor(field.type_reference),
+                    layout,
+                })
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let (common_fields, common_layout) =
+            pack_fields_at(&mut self.fields, planned_common, TAG_LAYOUT.size);
+        let common_end = common_layout.size.max(TAG_LAYOUT.size);
+
+        // Plan every case's payload fields next: the shared payload base offset
         // depends on the strictest alignment across ALL cases.
         let mut planned_variants = Vec::new();
         let mut payload_alignment = 1usize;
@@ -316,10 +352,13 @@ impl<'program> LayoutBuilder<'program> {
             planned_variants.push((variant.symbol, variant.name.clone(), planned));
         }
 
-        let alignment = TAG_LAYOUT.alignment.max(payload_alignment);
-        let payload_base = TAG_LAYOUT.size.div_ceil(payload_alignment) * payload_alignment;
+        let alignment = TAG_LAYOUT
+            .alignment
+            .max(common_layout.alignment)
+            .max(payload_alignment);
+        let payload_base = common_end.div_ceil(payload_alignment) * payload_alignment;
 
-        let mut end_offset = TAG_LAYOUT.size;
+        let mut end_offset = common_end;
         let variant_layouts = planned_variants
             .into_iter()
             .map(|(symbol, name, planned)| {
@@ -338,7 +377,10 @@ impl<'program> LayoutBuilder<'program> {
         Ok(DataLayout {
             symbol: definition.symbol,
             name: definition.name.clone(),
-            shape: DataShape::Enum { variants },
+            shape: DataShape::Enum {
+                common_fields,
+                variants,
+            },
             layout: TypeLayout {
                 size: end_offset.div_ceil(alignment) * alignment,
                 alignment,
@@ -500,7 +542,10 @@ impl<'program> LayoutBuilder<'program> {
                     && let Ok(definition) = self.data_definition_by_symbol(*base_symbol)
                 {
                     let members = self.program.data_members(definition);
-                    if DataDefinition::shape_kind_from_members(members) == DataShapeKind::Enum {
+                    if matches!(
+                        DataDefinition::shape_kind_from_members(members),
+                        DataShapeKind::Enum | DataShapeKind::Mixed
+                    ) {
                         return self.layout_data_definition(*base_symbol);
                     }
 

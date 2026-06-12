@@ -1,0 +1,58 @@
+// Equatable over a MIXED data shape (frozen decisions 7 + 11): synthesized
+// structural equality is common fields AND tag AND matching payload. Two
+// values equal in case, payload, AND common field must compare equal; then
+// reconstructing one side WITHOUT naming `consumed` zero-initializes it
+// (construction's zero-unless-named rule), so the same case and payload must
+// now compare UNEQUAL through the common field alone. Exits 70 only when
+// both compares are right. Also the regression net for the boolean-folding
+// factor/distribute mutual recursion this shape first exposed.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data RoomEvent {
+    consumed: bool;
+    case Nothing;
+    case Treasure(gold: i32);
+}
+
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+RoomEvent satisfies Equatable;
+
+data Main {
+    console: Console;
+    left: RoomEvent;
+    right: RoomEvent;
+}
+
+machine Main::main(&mut self) {
+    self.left = RoomEvent::Treasure { consumed: true, gold: 5 };
+    self.right = RoomEvent::Treasure { consumed: true, gold: 5 };
+    let equal: bool = self.left == self.right;
+    transition equal {
+        false -> bad()
+        true -> diverge()
+    }
+
+    state diverge(&mut self) {
+        // Same case and payload, different COMMON field: must compare unequal.
+        self.right = RoomEvent::Treasure { gold: 5 };
+        let still_equal: bool = self.left == self.right;
+        transition still_equal {
+            true -> bad()
+            false -> done()
+        }
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,17 @@
+// A case-bearing type (sum or mixed) has no record-form brace literal:
+// construction always names the case, which pins the tag. The zero case
+// with named common fields is spelled `RoomEvent::Nothing { consumed: ... }`.
+
+data RoomEvent {
+    consumed: bool;
+    case Nothing;
+    case Treasure(gold: i32);
+}
+
+data Main {
+    event: RoomEvent;
+}
+
+machine Main::main(&mut self) {
+    self.event = RoomEvent { consumed: true };
+}

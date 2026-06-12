@@ -15,7 +15,7 @@
 //! visualization canaries, whose native exit code is undefined). The companion expected
 //! code documents the suite's own assertion and lets us sanity-check native against it.
 
-use omega_compiler::{compile, compile_to_checked, CompileOptions};
+use omega_compiler::{CompileOptions, compile, compile_to_checked};
 use omega_interpreter::interpret;
 use std::fs;
 use std::io::Write;
@@ -34,10 +34,19 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_min_max_signedness_exit", 70),
     ("arithmetic/runtime_signed_division_exit", 70),
     ("arithmetic/runtime_unsigned_division_exit", 70),
-    ("calls/runtime_alias_indexed_read_through_transition_exit", 70),
-    ("calls/runtime_alias_write_through_guarded_transition_exit", 70),
+    (
+        "calls/runtime_alias_indexed_read_through_transition_exit",
+        70,
+    ),
+    (
+        "calls/runtime_alias_write_through_guarded_transition_exit",
+        70,
+    ),
     ("calls/runtime_call_in_inlined_substate_exit", 70),
-    ("calls/runtime_call_result_through_reference_field_exit", 183),
+    (
+        "calls/runtime_call_result_through_reference_field_exit",
+        183,
+    ),
     ("calls/runtime_called_machine_loop_search_exit", 70),
     ("calls/runtime_dispatch_binary_call_argument_exit", 70),
     ("calls/runtime_exit_code_exit", 70),
@@ -47,44 +56,113 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_free_machine_value_call_mut_arg_exit", 70),
     ("calls/runtime_local_string_field_copy_through_mut_exit", 70),
     ("calls/runtime_multi_arm_value_transition_exit", 70),
-    ("calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit", 175),
-    ("calls/runtime_mutable_local_indexed_parameter_write_exit", 171),
+    (
+        "calls/runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit",
+        175,
+    ),
+    (
+        "calls/runtime_mutable_local_indexed_parameter_write_exit",
+        171,
+    ),
     ("calls/runtime_mutable_local_parameter_write_exit", 171),
-    ("calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit", 173),
-    ("calls/runtime_mutable_machine_owned_parameter_write_exit", 141),
-    ("calls/runtime_mutable_parameter_read_modify_write_exit", 191),
+    (
+        "calls/runtime_mutable_machine_owned_local_indexed_parameter_write_exit",
+        173,
+    ),
+    (
+        "calls/runtime_mutable_machine_owned_parameter_write_exit",
+        141,
+    ),
+    (
+        "calls/runtime_mutable_parameter_read_modify_write_exit",
+        191,
+    ),
     ("calls/runtime_nested_called_machine_loop_exit", 70),
-    ("calls/runtime_nested_guarded_reference_returned_slice_element_exit", 184),
+    (
+        "calls/runtime_nested_guarded_reference_returned_slice_element_exit",
+        184,
+    ),
     ("calls/runtime_nested_value_call_in_substate_exit", 70),
-    ("calls/runtime_offset_string_call_results_through_reference_fields_exit", 196),
+    (
+        "calls/runtime_offset_string_call_results_through_reference_fields_exit",
+        196,
+    ),
     ("calls/runtime_recursive_value_return_exit", 70),
-    ("calls/runtime_referenced_local_outlives_sibling_guard_call_exit", 70),
-    ("calls/runtime_reference_param_forwarded_through_loop_exit", 70),
-    ("calls/runtime_reference_returned_slice_element_through_param_exit", 70),
-    ("calls/runtime_reference_returned_slice_element_write_exit", 181),
-    ("calls/runtime_string_call_result_through_reference_field_exit", 186),
-    ("calls/runtime_transition_subject_call_single_evaluation_exit", 70),
-    ("calls/runtime_two_string_call_results_through_reference_fields_exit", 194),
+    (
+        "calls/runtime_referenced_local_outlives_sibling_guard_call_exit",
+        70,
+    ),
+    (
+        "calls/runtime_reference_param_forwarded_through_loop_exit",
+        70,
+    ),
+    (
+        "calls/runtime_reference_returned_slice_element_through_param_exit",
+        70,
+    ),
+    (
+        "calls/runtime_reference_returned_slice_element_write_exit",
+        181,
+    ),
+    (
+        "calls/runtime_string_call_result_through_reference_field_exit",
+        186,
+    ),
+    (
+        "calls/runtime_transition_subject_call_single_evaluation_exit",
+        70,
+    ),
+    (
+        "calls/runtime_two_string_call_results_through_reference_fields_exit",
+        194,
+    ),
     ("calls/runtime_value_call_single_execution_exit", 70),
     ("calls/runtime_value_call_slice_len_guard_exit", 70),
-    ("calls/runtime_value_call_through_alias_in_dispatch_exit", 70),
+    (
+        "calls/runtime_value_call_through_alias_in_dispatch_exit",
+        70,
+    ),
     ("calls/runtime_value_position_branching_call_exit", 70),
     ("calls/runtime_value_transition_unsigned_guard_exit", 70),
     ("control_flow/fixed_array_element_guard", 0),
     ("control_flow/runtime_boolean_or_guard_exit", 71),
     ("control_flow/runtime_case_member_dispatch_exit", 70),
-    ("control_flow/runtime_boolean_transition_argument_after_string_guard_exit", 247),
-    ("control_flow/runtime_direct_boolean_transition_argument_exit", 211),
-    ("control_flow/runtime_effectful_subject_single_evaluation_exit", 70),
-    ("control_flow/runtime_local_boolean_conjunction_value_exit", 74),
+    (
+        "control_flow/runtime_boolean_transition_argument_after_string_guard_exit",
+        247,
+    ),
+    (
+        "control_flow/runtime_direct_boolean_transition_argument_exit",
+        211,
+    ),
+    (
+        "control_flow/runtime_effectful_subject_single_evaluation_exit",
+        70,
+    ),
+    (
+        "control_flow/runtime_local_boolean_conjunction_value_exit",
+        74,
+    ),
     ("control_flow/runtime_local_boolean_or_value_exit", 251),
-    ("control_flow/runtime_local_boolean_transition_argument_exit", 201),
-    ("control_flow/runtime_local_scalar_comparison_value_exit", 76),
-    ("control_flow/runtime_local_string_comparison_value_exit", 78),
+    (
+        "control_flow/runtime_local_boolean_transition_argument_exit",
+        201,
+    ),
+    (
+        "control_flow/runtime_local_scalar_comparison_value_exit",
+        76,
+    ),
+    (
+        "control_flow/runtime_local_string_comparison_value_exit",
+        78,
+    ),
     ("control_flow/runtime_negated_boolean_place_guard_exit", 73),
     ("control_flow/runtime_negated_comparison_guard_exit", 75),
     ("control_flow/runtime_state_loop_indexed_search_exit", 70),
-    ("control_flow/runtime_straight_line_terminal_field_readback_exit", 70),
+    (
+        "control_flow/runtime_straight_line_terminal_field_readback_exit",
+        70,
+    ),
     ("control_flow/runtime_straight_line_terminal_local_exit", 70),
     ("control_flow/runtime_tuple_transition_exit", 22),
     ("data/case_membership_union_guard_exit", 70),
@@ -95,27 +173,55 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("data/runtime_case_payload_guard_read_exit", 70),
     ("data/runtime_case_reassignment_exit", 70),
     ("data/runtime_data_properties_exit", 70),
+    ("data/runtime_mixed_shape_exit", 70),
     ("domains/executable_domain_membership_expression_exit", 81),
-    ("domains/executable_domain_membership_intersection_guard_exit", 231),
-    ("domains/executable_domain_membership_intersection_value_exit", 233),
+    (
+        "domains/executable_domain_membership_intersection_guard_exit",
+        231,
+    ),
+    (
+        "domains/executable_domain_membership_intersection_value_exit",
+        233,
+    ),
     ("domains/executable_domain_membership_union_guard_exit", 241),
     ("domains/executable_domain_membership_union_value_exit", 205),
     ("domains/executable_imported_domain_membership_exit", 91),
-    ("domains/executable_imported_domain_membership_guard_exit", 81),
-    ("domains/executable_imported_domain_membership_intersection_guard_exit", 219),
-    ("domains/executable_imported_domain_membership_intersection_value_exit", 217),
-    ("domains/executable_imported_domain_membership_union_guard_exit", 217),
-    ("domains/executable_imported_domain_membership_union_value_exit", 215),
+    (
+        "domains/executable_imported_domain_membership_guard_exit",
+        81,
+    ),
+    (
+        "domains/executable_imported_domain_membership_intersection_guard_exit",
+        219,
+    ),
+    (
+        "domains/executable_imported_domain_membership_intersection_value_exit",
+        217,
+    ),
+    (
+        "domains/executable_imported_domain_membership_union_guard_exit",
+        217,
+    ),
+    (
+        "domains/executable_imported_domain_membership_union_value_exit",
+        215,
+    ),
     ("dungeon/runtime_clear_carve_render_string_fields_exit", 198),
     ("dungeon/runtime_direct_boolean_conjunction_exit", 21),
     ("dungeon/runtime_enemy_clear_reentry_exit", 51),
-    ("dungeon/runtime_full_level_wrapper_lookup_string_field_exit", 202),
+    (
+        "dungeon/runtime_full_level_wrapper_lookup_string_field_exit",
+        202,
+    ),
     ("dungeon/runtime_guarded_inline_leaf_arm_skip_exit", 70),
     ("dungeon/runtime_multi_room_reentry_exit", 63),
     ("dungeon/runtime_ordered_room_dispatch_after_call_exit", 83),
     ("dungeon/runtime_ordered_room_dispatch_exit", 73),
     ("dungeon/runtime_ordered_room_dispatch_game_shape_exit", 93),
-    ("dungeon/runtime_ordered_room_dispatch_large_machine_exit", 103),
+    (
+        "dungeon/runtime_ordered_room_dispatch_large_machine_exit",
+        103,
+    ),
     ("dungeon/runtime_room_use_reentry_exit", 41),
     ("expressions/runtime_call_result_binary_operand_exit", 70),
     ("expressions/runtime_cast_operand_exit", 70),
@@ -136,11 +242,17 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("operators/integer_literal_suffix_exit", 70),
     ("operators/runtime_shift_operators_exit", 70),
     ("operators/unary_negation_exit", 70),
-    ("slices/runtime_dispatch_mutable_slice_element_write_exit", 31),
+    (
+        "slices/runtime_dispatch_mutable_slice_element_write_exit",
+        31,
+    ),
     ("slices/runtime_frame_array_slice_parameter_alias_exit", 72),
     ("slices/runtime_local_slice_len_comparison_value_exit", 191),
     ("slices/runtime_mutable_slice_element_write_exit", 21),
-    ("slices/runtime_mutable_slice_element_write_straight_line_exit", 70),
+    (
+        "slices/runtime_mutable_slice_element_write_straight_line_exit",
+        70,
+    ),
     ("slices/runtime_nested_subslice_dynamic_index_exit", 213),
     ("slices/runtime_nested_subslice_fixed_index_exit", 215),
     ("slices/runtime_slice_fixed_index_guard_exit", 121),
@@ -159,32 +271,72 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("slices/runtime_subslice_range_len_exit", 203),
     ("slices/runtime_subslice_range_pointer_exit", 205),
     ("storage/runtime_dispatch_helper_local_alias_add_exit", 181),
-    ("storage/runtime_dispatch_local_index_binary_write_exit", 191),
-    ("storage/runtime_machine_owned_fixed_indexed_struct_copy_exit", 83),
-    ("storage/runtime_machine_owned_indexed_integer_write_exit", 79),
-    ("storage/runtime_machine_owned_indexed_nested_exit_write_exit", 89),
-    ("storage/runtime_machine_owned_indexed_nested_room_copy_exit", 87),
+    (
+        "storage/runtime_dispatch_local_index_binary_write_exit",
+        191,
+    ),
+    (
+        "storage/runtime_machine_owned_fixed_indexed_struct_copy_exit",
+        83,
+    ),
+    (
+        "storage/runtime_machine_owned_indexed_integer_write_exit",
+        79,
+    ),
+    (
+        "storage/runtime_machine_owned_indexed_nested_exit_write_exit",
+        89,
+    ),
+    (
+        "storage/runtime_machine_owned_indexed_nested_room_copy_exit",
+        87,
+    ),
     ("storage/runtime_machine_owned_indexed_struct_copy_exit", 85),
     ("storage/runtime_slice_alias_indexed_field_write_exit", 201),
     ("termination/runtime_shrinking_slice_recursion_exit", 70),
-    ("text/runtime_call_argument_struct_string_field_slice_alias_exit", 77),
+    (
+        "text/runtime_call_argument_struct_string_field_slice_alias_exit",
+        77,
+    ),
     ("text/runtime_chained_string_append_exit", 70),
     ("text/runtime_large_lookup_struct_field_concat_exit", 192),
-    ("text/runtime_large_room_lookup_struct_field_concat_exit", 200),
+    (
+        "text/runtime_large_room_lookup_struct_field_concat_exit",
+        200,
+    ),
     ("text/runtime_local_struct_string_field_concat_exit", 188),
     ("text/runtime_lookup_struct_field_concat_exit", 190),
-    ("text/runtime_machine_owned_indexed_string_field_concat_exit", 81),
+    (
+        "text/runtime_machine_owned_indexed_string_field_concat_exit",
+        81,
+    ),
     ("text/runtime_machine_string_append_in_place_exit", 70),
     ("text/runtime_mutable_string_parameter_concat_exit", 77),
-    ("text/runtime_mutable_string_parameter_concat_write_line", 77),
-    ("text/runtime_mutable_string_parameter_wrapped_concat_write_line", 77),
-    ("text/runtime_mutable_struct_string_field_copy_concat_exit", 77),
-    ("text/runtime_mutable_struct_string_field_copy_concat_write_line", 77),
-    ("text/runtime_slice_alias_indexed_string_field_concat_exit", 77),
+    (
+        "text/runtime_mutable_string_parameter_concat_write_line",
+        77,
+    ),
+    (
+        "text/runtime_mutable_string_parameter_wrapped_concat_write_line",
+        77,
+    ),
+    (
+        "text/runtime_mutable_struct_string_field_copy_concat_exit",
+        77,
+    ),
+    (
+        "text/runtime_mutable_struct_string_field_copy_concat_write_line",
+        77,
+    ),
+    (
+        "text/runtime_slice_alias_indexed_string_field_concat_exit",
+        77,
+    ),
     ("text/runtime_stderr_write_exit", 70),
     ("text/runtime_string_concat_membership_exit", 71),
     ("text/runtime_string_concat_two_fields_exit", 70),
     ("text/runtime_string_field_concat_exit", 73),
+    ("traits/equatable_mixed_shape_equality_exit", 70),
     ("traits/equatable_record_equality_exit", 70),
     ("traits/equatable_sum_payload_equality_exit", 70),
     ("traits/runtime_conformance_item_exit", 70),
@@ -242,10 +394,13 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
 fn run_canary_list_matches_canary_suite() {
     use std::collections::{BTreeMap, BTreeSet};
 
-    let suite_path = repo_root()
-        .join("compiler/orchestration/omega-compiler/tests/canary_suite.rs");
+    let suite_path =
+        repo_root().join("compiler/orchestration/omega-compiler/tests/canary_suite.rs");
     let source = fs::read_to_string(&suite_path).unwrap_or_else(|error| {
-        panic!("failed to read canary suite source at {}: {error}", suite_path.display())
+        panic!(
+            "failed to read canary suite source at {}: {error}",
+            suite_path.display()
+        )
     });
 
     let parsed = parse_suite_run_canaries(&source);
@@ -427,8 +582,7 @@ fn interpreter_matches_native_on_supported_canaries() {
             continue;
         }
 
-        let (native_code, native_stdout, native_stderr) =
-            compile_and_run_native(name, &main_path);
+        let (native_code, native_stdout, native_stderr) = compile_and_run_native(name, &main_path);
 
         // Native is the source of truth, but sanity-check the suite's documented code too:
         // if native disagrees with the recorded expected code the corpus drifted.
@@ -503,8 +657,12 @@ fn interpreter_matches_native_on_supported_canaries() {
 #[test]
 fn interpreter_matches_native_on_cli_mvp_sample() {
     let main_path = repo_root().join("samples").join("cli_mvp").join("main.omg");
-    let checked = compile_to_checked(&main_path, None)
-        .unwrap_or_else(|diagnostics| panic!("cli_mvp compile failed:\n{}", join_diagnostics(&diagnostics)));
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "cli_mvp compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
 
     let outcome = interpret(&checked, b"");
     assert!(
@@ -513,17 +671,18 @@ fn interpreter_matches_native_on_cli_mvp_sample() {
         outcome.error
     );
 
-    let (native_code, native_stdout, native_stderr) =
-        compile_and_run_native("cli_mvp", &main_path);
+    let (native_code, native_stdout, native_stderr) = compile_and_run_native("cli_mvp", &main_path);
     assert_eq!(outcome.exit_code, native_code, "cli_mvp exit code");
     assert_eq!(
-        outcome.stdout, native_stdout,
+        outcome.stdout,
+        native_stdout,
         "cli_mvp stdout: interp {:?} != native {:?}",
         String::from_utf8_lossy(&outcome.stdout),
         String::from_utf8_lossy(&native_stdout)
     );
     assert_eq!(
-        outcome.stderr, native_stderr,
+        outcome.stderr,
+        native_stderr,
         "cli_mvp stderr: interp {:?} != native {:?}",
         String::from_utf8_lossy(&outcome.stderr),
         String::from_utf8_lossy(&native_stderr)
@@ -583,7 +742,10 @@ fn interpreter_dungeon_renders_depth_correct_rooms() {
     // The per-line formatter machines (title/event/paths) write through `&mut String`
     // params forwarded INTO transition-target states; guard that they render their own
     // text rather than echoing the stale description (multi-hop ref-forwarding).
-    assert!(stdout.contains("The room is quiet."), "event line\n{stdout}");
+    assert!(
+        stdout.contains("The room is quiet."),
+        "event line\n{stdout}"
+    );
     assert!(
         stdout.contains("[Paths] south | north | east"),
         "paths line\n{stdout}"

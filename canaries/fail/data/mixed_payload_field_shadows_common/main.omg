@@ -1,0 +1,16 @@
+// Member access on a mixed value (`event.gold`) searches the COMMON fields
+// and every case's payload by name, so a payload field reusing a common
+// field's name would silently rebind reads. Collisions are hard errors.
+
+data RoomEvent {
+    gold: i32;
+    case Nothing;
+    case Treasure(gold: i32);
+}
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+}

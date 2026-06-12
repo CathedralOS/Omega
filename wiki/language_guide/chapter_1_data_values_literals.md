@@ -104,9 +104,25 @@ data RoomEvent {
 The mixed shape replaces the two-type split other languages force (a struct
 holding a separately-named `Kind` enum). The header and the tag belong to one
 declaration, so the compiler -- and the wire schema, and the version block --
-sees them as one thing. Sequencing: sum-only ships first; the mixed shape is
-a severable later step (nesting a sum-shaped field expresses the same data in
-the meantime), even though the compiler's trees already model it.
+sees them as one thing. Mixed shapes are LIVE with these rules:
+
+- LAYOUT: tag at offset 0 (the universal case-bearing constant), common
+  fields packed after the tag, payload overlay after the common fields.
+  Common-field offsets are case-independent constants; a zeroed value is the
+  first case with zeroed common fields (ZII unchanged).
+- CONSTRUCTION: always the case-literal form (`RoomEvent::Treasure { gold:
+  5 }` -- no record-form literal for case-bearing types). Common fields may
+  be named alongside payload fields (`RoomEvent::Treasure { consumed: true,
+  gold: 5 }`); every common field NOT named zero-initializes -- construction
+  replaces the whole value, and ZII makes the zero valid. Because of that
+  rule, common fields may not declare default initializers (a default would
+  silently never apply), and -- first cut -- must be scalar primitives.
+- ACCESS: common fields read and write WITHOUT case knowledge
+  (`event.consumed`); payload fields stay case-bound (arm bindings).
+- EQUALITY: synthesized structural `==` is common fields AND tag AND the
+  matching case's payload.
+- Wire encoding over case-bearing value types (sums AND mixed) is rejected
+  loudly until the case part has a schema spelling.
 
 ## Cases Are Domains
 
@@ -208,9 +224,9 @@ spelling `domain Command::Interactive when self in Command::Move |
 Command::Say;` parses (membership unions in `when` classifiers, body-less
 `;` form) and the classifier participates in executable membership, so a
 subset domain works as a runtime arm.
-Still pending: `match`-statement arms, mixed shapes, and `String`-bearing /
-recursive Equatable types (both rejected loudly at the conformance
-item).[^case-members]
+Mixed shapes are live (see the rules above). Still pending:
+`match`-statement arms, and `String`-bearing / recursive Equatable types
+(both rejected loudly at the conformance item).[^case-members]
 
 [^case-members]: Open details: payload-binding spelling in `transition` arms
 vs `match` arms (expected to reuse the data-destructure guard machinery);

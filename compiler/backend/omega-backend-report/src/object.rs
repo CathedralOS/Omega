@@ -35,7 +35,10 @@ pub(super) fn write_layout_object_sections(
         ));
 
         match &data_layout.shape {
-            DataShape::Enum { variants } => {
+            DataShape::Enum {
+                common_fields,
+                variants,
+            } => {
                 let variant_layouts = backend_plan.layouts.variants.span_or_empty(*variants);
                 let names = variant_layouts
                     .iter()
@@ -43,6 +46,19 @@ pub(super) fn write_layout_object_sections(
                     .collect::<Vec<_>>()
                     .join(", ");
                 output.push_str(&format!("  variants (tag at offset 0): {}\n", names));
+                if common_fields.count() > 0 {
+                    output.push_str("  common fields (every case):\n");
+                    for field in backend_plan.layouts.fields.span_or_empty(*common_fields) {
+                        output.push_str(&format!(
+                            "    - {}: offset {}, size {}, align {} ({})\n",
+                            field.name,
+                            field.offset,
+                            field.layout.size,
+                            field.layout.alignment,
+                            field.type_name
+                        ));
+                    }
+                }
                 for (tag, variant) in variant_layouts.iter().enumerate() {
                     if variant.fields.count() == 0 {
                         continue;

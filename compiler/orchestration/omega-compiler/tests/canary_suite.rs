@@ -146,7 +146,9 @@ fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
     // syscall path (a win32-import read would emit a `call rel32`, no read syscall).
     assert!(
         elf.windows(12).any(|w| w
-            == [0xba, 0x01, 0x00, 0x00, 0x00, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05]),
+            == [
+                0xba, 0x01, 0x00, 0x00, 0x00, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x05
+            ]),
         "ELF should set up a read(2) line-read loop (mov edx,1; mov eax,0; syscall)"
     );
 
@@ -610,8 +612,10 @@ fn runtime_shift_operators_exit_canary_runs() {
 fn integer_literal_suffix_exit_canary_runs() {
     let canary = pass_canary("operators/integer_literal_suffix_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-integer-literal-suffix-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-integer-literal-suffix-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -641,8 +645,10 @@ fn integer_literal_suffix_exit_canary_runs() {
 fn runtime_value_position_branching_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_position_branching_call_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-value-position-branching-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-position-branching-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -814,8 +820,10 @@ fn runtime_numeric_cast_exit_canary_runs() {
 fn runtime_float_place_comparison_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_float_place_comparison_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-float-place-compare-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-float-place-compare-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -845,8 +853,10 @@ fn runtime_float_place_comparison_exit_canary_runs() {
 fn runtime_float_comparison_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_float_comparison_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-float-compare-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-float-compare-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -912,7 +922,8 @@ fn runtime_field_default_exit_canary_runs() {
     // explicit overwrite + nested-data defaults; exits 70 when correct.
     let canary = pass_canary("expressions/runtime_field_default_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!("omega-field-default-{}", std::process::id()));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-field-default-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -949,10 +960,8 @@ fn runtime_version_migration_exit_canary_runs() {
     // writes landed; exits 70 when correct).
     let canary = pass_canary("versioning/runtime_version_migration_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-version-migration-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-version-migration-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1029,8 +1038,7 @@ fn runtime_wire_encode_primitive_exit_canary_runs() {
     // and the written count in-language; exits 70 when byte-exact.
     let canary = pass_canary("wire/runtime_wire_encode_primitive_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-wire-encode-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-wire-encode-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1065,8 +1073,7 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
     // when byte-exact.
     let canary = pass_canary("wire/runtime_wire_encode_era_discriminator_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-wire-era-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-wire-era-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1356,8 +1363,10 @@ fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
     // 71; a correct unsigned compare selects the default arm and exits 70.
     let canary = pass_canary("calls/runtime_value_transition_unsigned_guard_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-value-transition-unsigned-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-transition-unsigned-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1392,8 +1401,10 @@ fn runtime_fixed_array_field_guard_exit_canary_runs() {
     // index exits 71 instead of 70.
     let canary = pass_canary("expressions/runtime_fixed_array_field_guard_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-fixed-array-field-guard-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-fixed-array-field-guard-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1429,8 +1440,10 @@ fn runtime_fixed_array_field_value_exit_canary_runs() {
     // guards it; a dropped index exits 71 instead of 70.
     let canary = pass_canary("expressions/runtime_fixed_array_field_value_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-fixed-array-field-value-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-fixed-array-field-value-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1464,8 +1477,10 @@ fn fixed_array_element_guard_canary_runs() {
     // layout applied the constant index; exits 0 when the guard reads cells[2].
     let canary = pass_canary("control_flow/fixed_array_element_guard");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-fixed-array-elem-guard-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-fixed-array-elem-guard-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1499,8 +1514,10 @@ fn runtime_float_local_arithmetic_exit_canary_runs() {
     // (6.5) and exits 70 only when correct (71 otherwise).
     let canary = pass_canary("expressions/runtime_float_local_arithmetic_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-float-local-arith-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-float-local-arith-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1534,8 +1551,10 @@ fn runtime_literal_source_cast_exit_canary_runs() {
     // float->int and int->float results, exits 70 only when both are correct.
     let canary = pass_canary("expressions/runtime_literal_source_cast_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-runtime-literal-source-cast-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-literal-source-cast-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1627,8 +1646,10 @@ fn runtime_match_value_exit_canary_runs() {
 fn runtime_conformance_item_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_conformance_item_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-conformance-item-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-conformance-item-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1728,11 +1749,51 @@ fn equatable_sum_payload_equality_exit_canary_runs() {
 }
 
 #[test]
+fn equatable_mixed_shape_equality_exit_canary_runs() {
+    // Equatable synthesis on a MIXED shape: common fields AND tag AND the
+    // matching case's payload. The second compare differs ONLY in a common
+    // field (the reconstruction zero-initialized it), so equality that skips
+    // common fields exits 71. Also regression net for the boolean-folding
+    // factor/distribute mutual recursion this expansion first exposed.
+    let canary = pass_canary("traits/equatable_mixed_shape_equality_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-equatable-mixed-shape-equality-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("equatable mixed shape equality canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("equatable mixed shape equality canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected synthesized structural `==` on `RoomEvent` to compare common fields AND tag AND payload (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_data_properties_exit_canary_runs() {
     let canary = pass_canary("data/runtime_data_properties_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-data-properties-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-data-properties-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1793,8 +1854,10 @@ fn compound_assignment_exit_canary_runs() {
 fn runtime_chained_field_mutation_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_chained_field_mutation_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-chained-field-mutation-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-chained-field-mutation-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1824,8 +1887,10 @@ fn runtime_chained_field_mutation_exit_canary_runs() {
 fn runtime_comparison_guard_signedness_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_comparison_guard_signedness_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-comparison-guard-signedness-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-comparison-guard-signedness-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -1855,8 +1920,10 @@ fn runtime_comparison_guard_signedness_exit_canary_runs() {
 fn runtime_comparison_value_signedness_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_comparison_value_signedness_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-comparison-value-signedness-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-comparison-value-signedness-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -2041,8 +2108,10 @@ fn runtime_i64_full_width_exit_canary_runs() {
 fn runtime_chained_string_append_exit_canary_runs() {
     let canary = pass_canary("text/runtime_chained_string_append_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-chained-string-append-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-chained-string-append-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3269,10 +3338,8 @@ fn runtime_case_reassignment_exit_canary_runs() {
     // stale payload exits with the wrong code.
     let canary = pass_canary("data/runtime_case_reassignment_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-case-reassignment-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-case-reassignment-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -3291,6 +3358,42 @@ fn runtime_case_reassignment_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected the second case construction to fully replace the first (exit 70), got {:?} (9 = stale tag took the Walk arm, 72 = no arm matched)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_mixed_shape_exit_canary_runs() {
+    // MIXED data shape (frozen decision 7): common fields + cases in one
+    // declaration. Construction names a common field alongside the payload,
+    // a case change zero-initializes the unnamed common field, a common
+    // field is read AND written without case knowledge, and tag dispatch
+    // binds the payload. Layout: tag at 0, common fields after the tag,
+    // payload overlay after the common fields.
+    let canary = pass_canary("data/runtime_mixed_shape_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-mixed-shape-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mixed shape canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mixed shape canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected common-field reads/writes and payload binding to agree (exit 70), got {:?} (71 = a dispatch step observed the wrong value)\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -3601,8 +3704,10 @@ fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
 fn runtime_subslice_of_slice_param_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_of_slice_param_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-subslice-param-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-subslice-param-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4732,8 +4837,10 @@ fn runtime_exit_code_exit_canary_runs() {
 fn runtime_u8_field_arith_exit_canary_runs() {
     let canary = pass_canary("types/runtime_u8_field_arith_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-u8-field-arith-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-u8-field-arith-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4763,8 +4870,10 @@ fn runtime_u8_field_arith_exit_canary_runs() {
 fn runtime_i8_signed_arith_exit_canary_runs() {
     let canary = pass_canary("types/runtime_i8_signed_arith_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-i8-signed-arith-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-i8-signed-arith-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4794,8 +4903,10 @@ fn runtime_i8_signed_arith_exit_canary_runs() {
 fn runtime_i16_signed_arith_exit_canary_runs() {
     let canary = pass_canary("types/runtime_i16_signed_arith_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-i16-signed-arith-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-i16-signed-arith-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4827,8 +4938,10 @@ fn runtime_i16_signed_arith_exit_canary_runs() {
 fn runtime_u16_field_arith_exit_canary_runs() {
     let canary = pass_canary("types/runtime_u16_field_arith_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-u16-field-arith-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-u16-field-arith-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -4860,8 +4973,10 @@ fn runtime_u16_field_arith_exit_canary_runs() {
 fn runtime_isize_signed_arith_exit_canary_runs() {
     let canary = pass_canary("types/runtime_isize_signed_arith_exit");
     let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-runtime-isize-signed-arith-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-isize-signed-arith-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -5916,10 +6031,8 @@ fn runtime_stderr_write_exit_canary_runs() {
     // code.
     let canary = pass_canary("text/runtime_stderr_write_exit");
     let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-runtime-stderr-write-{}",
-        std::process::id()
-    ));
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-stderr-write-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
     compile(CompileOptions {
@@ -7196,6 +7309,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "data/match_exhaustive_by_cases",
     "data/runtime_case_payload_guard_read_exit",
     "data/runtime_case_reassignment_exit",
+    "data/runtime_mixed_shape_exit",
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
     "domains/call_requires_preserved_across_disjoint_mutation",
     "domains/call_requires_satisfied_by_caller_requires",
@@ -7424,6 +7538,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/trait_declaration_bundle",
     "traits/trait_satisfies_machine_signature",
     "traits/equatable_record_equality_exit",
+    "traits/equatable_mixed_shape_equality_exit",
     "traits/equatable_sum_payload_equality_exit",
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
@@ -7558,6 +7673,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/version_chain_retired_without_reserved",
     "wire/encode_unsupported_field_type",
     "wire/decode_unsupported_field_type",
+    "wire/encode_case_bearing_value",
     "capabilities/unapproved_host_call",
     "data/bare_payload_case_equality_guard",
     "data/bare_payload_case_equality_suggests_in",
@@ -7567,7 +7683,10 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/enum_keyword_retired",
     "data/match_nonexhaustive_cases",
     "data/match_predicate_domain_needs_default",
-    "data/mixed_data_shape_unimplemented",
+    "data/mixed_common_field_default",
+    "data/mixed_common_field_nonscalar",
+    "data/mixed_payload_field_shadows_common",
+    "data/mixed_record_literal",
     "data/property_copy_string_field",
     "data/property_copy_violation",
     "data/property_sized_declared",
