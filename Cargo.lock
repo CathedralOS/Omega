@@ -224,6 +224,7 @@ dependencies = [
  "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
+ "omega-facts",
  "omega-layout",
  "omega-machine-bytes",
  "omega-machine-instructions",

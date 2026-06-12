@@ -10,7 +10,10 @@ mod type_references;
 pub(super) use calls::append_call_ownership_events;
 pub(super) use drops::append_state_exit_drop_events;
 use events::{append_drop_event_for_place, append_move_event_for_place};
-use moves::{append_move_events_for_expression, initializer_produces_owned_value};
+use moves::{
+    append_move_events_for_expression, append_move_events_for_operator_statement_call,
+    initializer_produces_owned_value,
+};
 use type_references::type_requires_ownership;
 
 pub(super) fn append_statement_ownership_events(
@@ -21,14 +24,33 @@ pub(super) fn append_statement_ownership_events(
     statement: &StatementNode,
 ) {
     match statement {
-        StatementNode::Assignment(assignment) => append_move_events_for_expression(
-            program,
-            ctx,
-            state_symbol,
-            statement_index,
-            assignment.value,
-            FlowOwnershipEventSource::Statement { statement_index },
-        ),
+        StatementNode::Assignment(assignment) => {
+            let source = FlowOwnershipEventSource::Statement { statement_index };
+            append_move_events_for_expression(
+                program,
+                ctx,
+                state_symbol,
+                statement_index,
+                assignment.value,
+                source,
+            );
+            // The assignment twin of the `let`-init owned-production seam
+            // below: an operator result that is freshly owned storage
+            // transfers ownership *into* the assignment target, and the
+            // source-side recursion records nothing for a non-place
+            // initializer. Record the production as a move into the target
+            // place.
+            if initializer_produces_owned_value(program, assignment.value) {
+                if let Some(place) = canonical_place_from_expression_in_state(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    assignment.target,
+                ) {
+                    append_move_event_for_place(program, ctx, place, source);
+                }
+            }
+        }
         StatementNode::LocalData(local_data) => {
             if type_requires_ownership(program, local_data.type_reference) {
                 let source = FlowOwnershipEventSource::Statement { statement_index };
@@ -50,7 +72,7 @@ pub(super) fn append_statement_ownership_events(
                 // slice/string operator-result extension of ownership events.
                 if initializer_produces_owned_value(program, local_data.initial_value) {
                     if let Some(place) = canonical_place_from_symbol(local_data.symbol) {
-                        append_move_event_for_place(ctx, place, source);
+                        append_move_event_for_place(program, ctx, place, source);
                     }
                 }
             }
@@ -88,6 +110,31 @@ pub(super) fn append_statement_ownership_events(
                 }
             }
         }
-        StatementNode::Call(_) | StatementNode::Expression(_) => {}
+        // A statement-level call that dispatches to a machine state is owned by
+        // the call-flow pass (its `BorrowCallFact` drives
+        // `append_call_ownership_events`). A statement-level call that resolves
+        // to an operator/boundary definition gets no borrow-call fact, so its
+        // owned by-value argument transfers are recorded here instead.
+        StatementNode::Call(call) => append_move_events_for_operator_statement_call(
+            program,
+            ctx,
+            state_symbol,
+            statement_index,
+            call,
+            FlowOwnershipEventSource::Statement { statement_index },
+        ),
+        // A bare/terminal value expression (the parser's brace-terminated state
+        // result or an `expr;` statement) moves owned values it reads out of
+        // their places: the type-aware recursion records those source-side
+        // moves. Nested state borrow calls are skipped inside the recursion, so
+        // the call-flow pass keeps sole ownership of their argument events.
+        StatementNode::Expression(expression) => append_move_events_for_expression(
+            program,
+            ctx,
+            state_symbol,
+            statement_index,
+            *expression,
+            FlowOwnershipEventSource::Statement { statement_index },
+        ),
     }
 }

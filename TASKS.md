@@ -1266,9 +1266,27 @@ exit.
 ### Ownership, Borrowing, And Views
 
 - [ ] Continue appending ownership transfer/drop events from the remaining
-  value-expression sites (operator-result + let-init seams now covered).
+  value-expression sites. (Now covered: operator-result + let-init seams,
+  assignment-target owned production, statement-level operator/boundary calls,
+  terminal/bare expression statements, and exit-drop obligations for owned
+  by-value state parameters. Operator argument/receiver policies resolve by
+  spelled path — call sites carry no operator symbols today — and a static
+  type-name receiver like `String::with_capacity` no longer records a bogus
+  type-symbol move. `self.field` event roots re-root at the machine symbol so
+  downstream stages, which filter `self` parameters, can still resolve them.
+  Remaining: move-subtraction/liveness so exit drops become per-edge truths
+  instead of conservative obligations, and events for owned operator results
+  produced directly in argument/transition-value positions, which have no
+  place to root at yet.)
 - [ ] Lower abstract ownership summaries into explicit backend transfer and
-  cleanup operations.
+  cleanup operations. (First landing: the encoded ownership summary now
+  renders per event in the backend report's Artifact Semantic Spine — place,
+  machine/state, and source point — proving the events survive checked trees
+  through the encoded machine. Real transfer/cleanup operations are
+  deliberately NOT emitted yet: no type carries a cleanup machine, so every
+  drop is semantically empty and emitting no-op cleanup code would be dead
+  weight. Revisit when drop-bearing types land — Vec/String real storage and
+  the allocator story.)
 
 ### Array, Vec, String, And Views
 
