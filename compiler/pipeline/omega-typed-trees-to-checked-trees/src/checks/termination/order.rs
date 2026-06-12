@@ -9,11 +9,12 @@ pub(super) enum RankingOrder {
     /// whose body forwards the parameter directly).
     NatDescending,
     /// Built-in `Nat::BoundedDistance`: the named bounded-distance ranking over
-    /// a subtraction-shaped value. `decreases upper - lower` ranks the pair by
-    /// the natural-number distance from `lower` up to `upper`, which descends
-    /// as the lower value climbs toward the fixed upper bound. Inferred for a
-    /// plain subtraction clause and selectable explicitly as
-    /// `-> Nat::BoundedDistance`.
+    /// a two-subject tuple. `decreases (index, limit) -> Nat::BoundedDistance`
+    /// binds the subjects in order to the view's `(lower, upper)` parameters
+    /// and ranks the pair by the natural-number distance from `lower` up to
+    /// `upper`, which descends as the lower value climbs toward the fixed
+    /// upper bound. Inferred for a plain two-subject tuple (the only builtin
+    /// two-subject view) and selectable explicitly as `-> Nat::BoundedDistance`.
     BoundedDistance,
     /// Built-in `Slice::Length`.
     SliceLength,
@@ -72,24 +73,41 @@ pub(super) enum AmbiguityReason {
 }
 
 impl RankingOrder {
-    /// Resolve the ordering for a `decreases value -> order` clause. When `order`
-    /// is empty (plain `decreases value`, no explicit `-> Order`), the order is
-    /// inferred from the decreasing value's type when that interpretation is
-    /// unambiguous; otherwise an [`OrderResolution::AmbiguousDefault`] is
-    /// returned so the caller can ask for the explicit form. The explicit
-    /// `decreases value -> Type::Name` path is unchanged.
+    /// Resolve the ordering for a `decreases subjects -> order` clause. A
+    /// single subject with an empty `order` (plain `decreases value`) infers
+    /// from the value's type when that interpretation is unambiguous;
+    /// otherwise an [`OrderResolution::AmbiguousDefault`] is returned so the
+    /// caller can ask for the explicit form. The explicit
+    /// `decreases value -> Type::Name` path is unchanged. A two-subject tuple
+    /// `decreases (lower, upper)` is the argumented bounded distance: the
+    /// subjects bind in order to `Nat::BoundedDistance`'s `(lower, upper)`
+    /// parameters, and the view is inferred when omitted because it is the
+    /// only builtin two-subject ranking.
     pub(super) fn resolve(
         program: &omega_typed_trees::TypedTrees,
         state: &omega_typed_trees::state::State,
-        decreases: ExpressionHandle,
+        subjects: &[ExpressionHandle],
         order: &[omega_typed_trees::name::Identifier],
     ) -> OrderResolution {
-        if order.is_empty() {
-            return infer_default_order(program, state, decreases);
-        }
-        match Self::from_path(program, state, decreases, order) {
-            Some(resolved) => OrderResolution::Resolved(resolved),
-            None => OrderResolution::Unsupported,
+        match subjects {
+            [single] => {
+                if order.is_empty() {
+                    return infer_default_order(program, state, *single);
+                }
+                match Self::from_path(program, state, *single, order) {
+                    Some(resolved) => OrderResolution::Resolved(resolved),
+                    None => OrderResolution::Unsupported,
+                }
+            }
+            [_lower, _upper] => {
+                if order.is_empty() || path_matches(order, &["Nat", "BoundedDistance"]) {
+                    OrderResolution::Resolved(Self::BoundedDistance)
+                } else {
+                    // No other builtin or declared view takes two subjects.
+                    OrderResolution::Unsupported
+                }
+            }
+            _ => OrderResolution::Unsupported,
         }
     }
 
@@ -103,16 +121,9 @@ impl RankingOrder {
             return Some(Self::NatDescending);
         }
         if path_matches(order, &["Nat", "BoundedDistance"]) {
-            // The view names the `upper - lower` shape; a non-subtraction
-            // value has no bounded-distance reading to select.
-            return match program.expression_table.expression(decreases) {
-                ExpressionNode::Binary(binary)
-                    if matches!(binary.operator, BinaryOperator::Subtract) =>
-                {
-                    Some(Self::BoundedDistance)
-                }
-                _ => None,
-            };
+            // The bounded distance ranks a `(lower, upper)` pair; a single
+            // subject has no distance reading to select.
+            return None;
         }
         if path_matches(order, &["Slice", "Length"]) {
             return Some(Self::SliceLength);
@@ -166,10 +177,11 @@ impl RankingOrder {
 /// reading:
 ///   * a `usize`/nat-like scalar (or `slice.len`) counts down via descending
 ///     naturals;
-///   * a slice parameter decreases by its length;
-///   * a bounded distance `upper - lower` (e.g. `limit - index`) — the named
-///     `Nat::BoundedDistance` ranking — descends
-///     through the naturals as the lower bound rises toward the upper bound.
+///   * a slice parameter decreases by its length.
+///
+/// (The two-subject bounded distance `decreases (index, limit)` is inferred
+/// upstream in [`RankingOrder::resolve`]; the retired use-site subtraction
+/// `decreases upper - lower` is rejected before inference runs.)
 ///
 /// Anything else (an unrecognized expression, or a value whose type offers no
 /// obvious interpretation) is reported as ambiguous so the caller can require
@@ -182,14 +194,6 @@ fn infer_default_order(
     decreases: ExpressionHandle,
 ) -> OrderResolution {
     match program.expression_table.expression(decreases) {
-        // `decreases upper - lower` — the named bounded distance
-        // (`Nat::BoundedDistance`). As `lower` rises toward the fixed `upper`,
-        // the distance descends through the naturals. The named ranking is what
-        // diagnostics report for subtraction clauses, replacing arithmetic-facing
-        // proof vocabulary; it proves with the Nat-descending distance prover.
-        ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Subtract) => {
-            OrderResolution::Resolved(RankingOrder::BoundedDistance)
-        }
         // `decreases value` where `value` is a nat-like scalar counts down; where
         // it is a slice it decreases by length. A `value.len` member is already
         // nat-like.

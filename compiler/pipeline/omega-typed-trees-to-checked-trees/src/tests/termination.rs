@@ -98,7 +98,7 @@ fn accepts_terminating_distance_machine_with_decreases() {
 
     machine Main::walk(&mut self, limit: usize, index: usize)
     terminates {
-        decreases limit - index -> Nat::Descending;
+        decreases (index, limit) -> Nat::BoundedDistance;
     }
     -> usize
     {
@@ -137,7 +137,7 @@ fn accepts_terminating_slice_distance_machine_with_decreases() {
 
     machine Main::walk(&mut self, entries: &[Entry], index: usize)
     terminates {
-        decreases entries.len - index -> Nat::Descending;
+        decreases (index, entries.len) -> Nat::BoundedDistance;
     }
     -> usize
     {
@@ -212,7 +212,7 @@ fn rejects_terminating_slice_distance_machine_with_stalled_index() {
 
     machine Main::walk(&mut self, entries: &[Entry], index: usize)
     terminates {
-        decreases entries.len - index -> Nat::Descending;
+        decreases (index, entries.len) -> Nat::BoundedDistance;
     }
     -> usize
     {
@@ -479,7 +479,7 @@ fn infers_default_slice_length_for_plain_slice_decreases() {
 }
 
 #[test]
-fn infers_default_bounded_distance_for_plain_subtraction_decreases() {
+fn infers_default_bounded_distance_for_plain_two_subject_tuple() {
     let source = r#"
     data Main {}
 
@@ -489,7 +489,7 @@ fn infers_default_bounded_distance_for_plain_subtraction_decreases() {
 
     machine Main::walk(&mut self, limit: usize, index: usize)
     terminates {
-        decreases limit - index;
+        decreases (index, limit);
     }
     -> usize
     {
@@ -521,7 +521,7 @@ fn accepts_explicit_named_bounded_distance_view() {
 
     machine Main::walk(&mut self, limit: usize, index: usize)
     terminates {
-        decreases limit - index -> Nat::BoundedDistance;
+        decreases (index, limit) -> Nat::BoundedDistance;
     }
     -> usize
     {
@@ -553,7 +553,7 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
 
     machine Main::walk(&mut self, limit: usize, index: usize)
     terminates {
-        decreases index - limit;
+        decreases (limit, index);
     }
     -> usize
     {
@@ -576,11 +576,11 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("`decreases index - limit` inverts the named bounded distance")
+                .contains("`decreases (limit, index)` inverts the named bounded distance")
                 && diagnostic.message.contains("`Nat::BoundedDistance`")
                 && diagnostic
                     .message
-                    .contains("write `decreases limit - index`")
+                    .contains("write `decreases (index, limit) -> Nat::BoundedDistance`")
         }),
         "expected the inverted bounded-distance diagnostic, got: {:?}",
         diagnostics
@@ -591,7 +591,56 @@ fn rejects_inverted_bounded_distance_with_naming_diagnostic() {
 }
 
 #[test]
-fn rejects_named_bounded_distance_view_over_non_subtraction_value() {
+fn rejects_retired_subtraction_decreases_spelling_with_tuple_guidance() {
+    let source = r#"
+    data Main {}
+
+    machine Main::main(&mut self) {
+        let value: usize = self.walk(4, 0);
+    }
+
+    machine Main::walk(&mut self, limit: usize, index: usize)
+    terminates {
+        decreases limit - index;
+    }
+    -> usize
+    {
+        transition index < limit {
+            true -> self.walk(limit, index + 1)
+            false -> index
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("the subtraction spelling is retired surface");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("the use-site subtraction `decreases limit - index`")
+                && diagnostic.message.contains("is retired")
+                && diagnostic.message.contains(
+                    "spell the ranking as `decreases (index, limit) -> Nat::BoundedDistance`",
+                )
+        }),
+        "expected the retired-subtraction diagnostic, got: {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn rejects_named_bounded_distance_view_over_single_subject() {
     let source = r#"
     data Main {}
 
@@ -618,7 +667,7 @@ fn rejects_named_bounded_distance_view_over_non_subtraction_value() {
     let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
     let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
     let diagnostics =
-        lower_typed_trees(typed).expect_err("the view names a subtraction shape only");
+        lower_typed_trees(typed).expect_err("the view ranks a (lower, upper) pair only");
 
     assert!(
         diagnostics

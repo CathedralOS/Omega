@@ -497,13 +497,13 @@ fn self_call_argument_map(
 /// assuming the contract for the smaller instance. Only the polynomial
 /// readings are verified here: the plain descending-naturals order
 /// (`decreases value`, or explicitly `-> Nat::Descending`) and the named
-/// bounded distance (`decreases upper - lower`, or explicitly
-/// `-> Nat::BoundedDistance`), whose distance polynomial goes through the
-/// identical strict-decrease + non-negativity check. Other view and
-/// declared-measure orders have meanings the polynomial engine cannot read,
-/// so they never gate a hypothesis in. The machine-level termination pass
-/// independently re-checks the declared clause and fails compilation when it
-/// cannot.
+/// bounded distance (the argumented tuple `decreases (lower, upper)`, or
+/// explicitly `-> Nat::BoundedDistance`), whose distance polynomial
+/// `upper - lower` goes through the identical strict-decrease +
+/// non-negativity check. Other view and declared-measure orders have meanings
+/// the polynomial engine cannot read, so they never gate a hypothesis in. The
+/// machine-level termination pass independently re-checks the declared clause
+/// and fails compilation when it cannot.
 fn discharges_strict_decrease(
     program: &TypedTrees,
     machine: &Machine,
@@ -516,9 +516,6 @@ fn discharges_strict_decrease(
     let decreases = program
         .expression_table
         .expression_handles(machine.decreases);
-    let [measure] = decreases else {
-        return false;
-    };
     let order = program.machine_decrease_order(machine.decrease_order);
     let polynomial_order = order.is_empty()
         || (order.len() == 2
@@ -527,7 +524,18 @@ fn discharges_strict_decrease(
     if !polynomial_order {
         return false;
     }
-    let Some(measure) = engine.normalize(*measure) else {
+    let measure = match decreases {
+        [single] => engine.normalize(*single),
+        // The two-subject bounded distance: the subjects bind in order to the
+        // view's (lower, upper) parameters and the measure polynomial is the
+        // distance `upper - lower`.
+        [lower, upper] => engine
+            .normalize(*upper)
+            .zip(engine.normalize(*lower))
+            .and_then(|(upper, lower)| upper.checked_sub(&lower)),
+        _ => None,
+    };
+    let Some(measure) = measure else {
         return false;
     };
     let Some(measure_after) = apply_argument_map(&measure, argument_map) else {
@@ -1413,7 +1421,10 @@ impl<'program> Engine<'program> {
             ExpressionNode::Integer(value) => Some(Polynomial::constant(value)),
             ExpressionNode::Mutable(inner) => self.normalize(inner),
             ExpressionNode::Name(path) => {
-                let members = self.program.expression_table.name_path_members(path.members);
+                let members = self
+                    .program
+                    .expression_table
+                    .name_path_members(path.members);
                 if members.len() != 1 {
                     return None;
                 }
@@ -1426,46 +1437,40 @@ impl<'program> Engine<'program> {
             // The typed-tree unary operator is logical-not only (negative
             // literals fold into Integer), so unary nodes are never terms.
             ExpressionNode::Unary(_) => None,
-            ExpressionNode::Binary(binary) => {
-                match binary.operator {
-                    BinaryOperator::Add => {
-                        let left = self.normalize(binary.left)?;
-                        let right = self.normalize(binary.right)?;
-                        left.checked_add(&right)
-                    }
-                    BinaryOperator::Subtract => {
-                        let left = self.normalize(binary.left)?;
-                        let right = self.normalize(binary.right)?;
-                        left.checked_sub(&right)
-                    }
-                    BinaryOperator::Multiply => {
-                        let left = self.normalize(binary.left)?;
-                        let right = self.normalize(binary.right)?;
-                        left.checked_mul(&right)
-                    }
-                    BinaryOperator::Modulo => {
-                        let operand = self.normalize(binary.left)?;
-                        let modulus = self.normalize(binary.right)?.constant_value()?;
-                        if modulus <= 0 {
-                            return None;
-                        }
-                        let display = format!(
-                            "({}) % {}",
-                            polynomial_display(&operand),
-                            modulus
-                        );
-                        self.mod_intervals.insert(
-                            display.clone(),
-                            Interval {
-                                low: Some(0),
-                                high: Some(modulus - 1),
-                            },
-                        );
-                        Some(Polynomial::atom(display))
-                    }
-                    _ => None,
+            ExpressionNode::Binary(binary) => match binary.operator {
+                BinaryOperator::Add => {
+                    let left = self.normalize(binary.left)?;
+                    let right = self.normalize(binary.right)?;
+                    left.checked_add(&right)
                 }
-            }
+                BinaryOperator::Subtract => {
+                    let left = self.normalize(binary.left)?;
+                    let right = self.normalize(binary.right)?;
+                    left.checked_sub(&right)
+                }
+                BinaryOperator::Multiply => {
+                    let left = self.normalize(binary.left)?;
+                    let right = self.normalize(binary.right)?;
+                    left.checked_mul(&right)
+                }
+                BinaryOperator::Modulo => {
+                    let operand = self.normalize(binary.left)?;
+                    let modulus = self.normalize(binary.right)?.constant_value()?;
+                    if modulus <= 0 {
+                        return None;
+                    }
+                    let display = format!("({}) % {}", polynomial_display(&operand), modulus);
+                    self.mod_intervals.insert(
+                        display.clone(),
+                        Interval {
+                            low: Some(0),
+                            high: Some(modulus - 1),
+                        },
+                    );
+                    Some(Polynomial::atom(display))
+                }
+                _ => None,
+            },
             ExpressionNode::Call(call) => {
                 // Proof-view applications are opaque atoms compared by
                 // equality only. Anything else is outside the language.

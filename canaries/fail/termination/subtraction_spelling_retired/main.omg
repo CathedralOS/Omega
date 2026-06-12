@@ -1,0 +1,27 @@
+// The use-site subtraction spelling `decreases limit - index` is RETIRED
+// (maintainer decision 2026-06-12): the ranked subjects are spelled as the
+// argumented tuple `decreases (index, limit) -> Nat::BoundedDistance`, where
+// the arrow's left side is uniformly the ranked subjects and the named view
+// receives them as arguments in order. The diagnostic spells the exact
+// replacement, with the subtraction's operands reordered into the view's
+// (lower, upper) parameter order.
+
+data Main {}
+
+machine Main::main(&mut self) -> usize {
+    transition {
+        _ -> self.walk(4, 0)
+    }
+}
+
+machine Main::walk(&mut self, limit: usize, index: usize)
+terminates {
+    decreases limit - index;
+}
+-> usize
+{
+    transition index < limit {
+        true -> self.walk(limit, index + 1)
+        false -> index
+    }
+}

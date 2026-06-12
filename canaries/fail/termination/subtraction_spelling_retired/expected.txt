@@ -1,0 +1,1 @@
+the use-site subtraction `decreases limit - index` on machine Main::walk is retired: spell the ranking as `decreases (index, limit) -> Nat::BoundedDistance` (the tuple lists the ranked subjects, bound in order to the view's (lower, upper) parameters)

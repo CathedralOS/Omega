@@ -225,11 +225,30 @@ fn parse_decreases_clause<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DecreasesClause> {
     let input = input.take_contextual("decreases")?;
-    let (expression, mut rest) =
-        parse_expression_handle_without_struct_literals(syntax_trees, input)?;
-    let decreases = syntax_trees
-        .expressions
-        .insert_expression_handles([expression]);
+    let (subjects, mut rest) = if input.at_punctuation(PunctuationKind::LeftParen) {
+        // The tuple form `decreases (index, limit) -> View`: the arrow's left
+        // side is uniformly the ranked subjects, bound in order to the named
+        // view's parameters.
+        let mut tuple_input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+        let mut subjects = Vec::new();
+        loop {
+            let (subject, after_subject) =
+                parse_expression_handle_without_struct_literals(syntax_trees, tuple_input)?;
+            subjects.push(subject);
+            if after_subject.at_punctuation(PunctuationKind::Comma) {
+                tuple_input = after_subject.take_punctuation(PunctuationKind::Comma, ",")?;
+                continue;
+            }
+            tuple_input = after_subject.take_punctuation(PunctuationKind::RightParen, ")")?;
+            break;
+        }
+        (subjects, tuple_input)
+    } else {
+        let (expression, rest) =
+            parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+        (vec![expression], rest)
+    };
+    let decreases = syntax_trees.expressions.insert_expression_handles(subjects);
     let mut decrease_order = HandleSpan::empty();
 
     if rest.at_punctuation(PunctuationKind::Arrow) {

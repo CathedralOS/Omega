@@ -8876,6 +8876,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/default_order_ambiguous",
     "termination/default_order_declared_measure_not_inferred",
     "termination/bounded_distance_inverted",
+    "termination/subtraction_spelling_retired",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/terminal_return_type_mismatch_rejected",
     "capabilities/duplicate_provider_declaration",
