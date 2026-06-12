@@ -30,7 +30,7 @@ use super::super::writes::{
     RuntimeStaticValues, runtime_storage_copy_in_table,
     runtime_storage_fixed_indexed_source_copy_in_table,
     runtime_storage_indexed_source_copy_in_table, runtime_storage_indirect_copy_in_table,
-    select_runtime_case_tag_write_in_table,
+    select_runtime_case_tag_write_in_table, signedness_adjusted_operator,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 
@@ -997,6 +997,23 @@ fn select_runtime_binary_mutation_write_in_table(
         }
         _ => return None,
     };
+
+    // Signedness matters for division/modulo/right-shift/min/max/comparisons:
+    // a u32 argument value like `f(raw % 100)` must use the UNSIGNED encoding
+    // (sdiv on raw >= 2^31 produces a negative remainder, which the unsigned
+    // dispatch guards then read as a huge value -- the dungeon seed-7 extra
+    // enemy draw). Same policy as the mutation-table write path.
+    let operator = signedness_adjusted_operator(
+        input,
+        dispatch_index,
+        target_source_key,
+        value_source_key,
+        expressions,
+        target,
+        left_expression,
+        right_expression,
+        operator,
+    );
 
     let left = resolve_runtime_value_operand_in_table(
         input,

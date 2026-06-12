@@ -1,0 +1,137 @@
+// Distilled from dungeon_crawler_cli seed-7 generation (delta-debugged to this
+// skeleton): a dispatch-machine CALL ARGUMENT computed inline from a u32 call
+// result -- `self.apply_event(depth, random, raw % 100)` -- must lower with the
+// UNSIGNED modulo. The signed encoding (sdiv) yields a NEGATIVE remainder once
+// `raw >= 2^31`; the dispatch ladder's unsigned guards then read it as a huge
+// value, fall past every satisfied arm into the enemy chain, and draw once
+// extra (the dungeon's "native 14 vs interpreter 15" residual). The shape needs
+// all of: the draw-then-computed-argument statement pair, the 3-arm roll ladder
+// with a drawing middle arm, the nested depth sub-dispatch, and TWO call sites
+// (the first call's raw stays below 2^31, masking the bug; the second crosses
+// it). Hoisting `raw % 100` into a local, or passing `raw` directly, hides the
+// divergence -- keep the argument expression inline.
+//
+// Exit 70: exactly 3 draws ran (seed-7 stream: roll=56 -> gold draw, roll=6 ->
+// quiet), matching the interpreter. Exit 71: 4 draws = the historic signed-
+// remainder misfire (second event dispatched to the enemy/bat arm). Exit 1:
+// any other stream.
+
+data RandomState {
+    seed: u64;
+}
+
+data Random {
+}
+
+machine Random::next_u32(
+    &mut self,
+    state: &mut RandomState
+    ) -> u32 {
+    state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
+
+    transition {
+        _ -> ((state.seed >> 32) as u32)
+    }
+}
+
+data Main {
+    rng: Random;
+}
+
+machine Main::roll_event(
+    &mut self,
+    depth: u32,
+    random: &mut RandomState
+) {
+    let raw: u32 = self.rng.next_u32(random);
+    self.apply_event(depth, random, raw % 100);
+}
+
+machine Main::apply_event(
+    &mut self,
+    depth: u32,
+    random: &mut RandomState,
+    roll: u32
+) {
+    transition {
+        roll < 20 -> no_event()
+        roll < 60 -> gold_cache(depth, random)
+        _ -> enemy(depth, random)
+    }
+
+    state no_event(&mut self) {
+    }
+
+    state gold_cache(
+        &mut self,
+        depth: u32,
+        random: &mut RandomState
+    ) {
+        _ = self.rng.next_u32(random);
+    }
+
+    state enemy(
+        &mut self,
+        depth: u32,
+        random: &mut RandomState
+    ) {
+        transition depth <= 1 {
+            true -> bat(random)
+            false -> pit_fiend(random)
+        }
+    }
+
+    state bat(
+        &mut self,
+        random: &mut RandomState
+    ) {
+        _ = self.rng.next_u32(random);
+    }
+
+    state pit_fiend(
+        &mut self,
+        random: &mut RandomState
+    ) {
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    let random: RandomState;
+    random.seed = 7;
+
+    self.roll_event(9, &mut random);
+    self.roll_event(1, &mut random);
+
+    transition {
+        _ -> verify(&mut random)
+    }
+
+
+    state verify(
+        &mut self,
+        random: &mut RandomState
+    ) {
+        // The final seed identifies the exact draw count: 3 LCG steps from 7
+        // land on hi32 3893713506, a fourth (the misfired bat draw) on
+        // hi32 1171437346.
+        let hi: u32 = ((random.seed >> 32) as u32);
+
+        transition {
+            hi == 3893713506 -> three_draws()
+            hi == 1171437346 -> four_draws()
+            _ -> unexpected_stream()
+        }
+    }
+
+    state three_draws(&mut self) {
+        70
+    }
+
+    state four_draws(&mut self) {
+        71
+    }
+
+    state unexpected_stream(&mut self) {
+        1
+    }
+}
