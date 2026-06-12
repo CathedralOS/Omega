@@ -3,7 +3,9 @@ mod direct;
 mod domains;
 mod evaluator;
 mod exits;
-mod labels;
+// `pub(super)` so the operator-`requires` discharge (checks/operators) can
+// reuse the domain-derived boolean proving labels.
+pub(super) mod labels;
 mod places;
 mod prover;
 
