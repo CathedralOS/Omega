@@ -284,6 +284,23 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 written_region: *written_region,
                 written_offset: *written_offset,
             },
+            omega_abstract_operations::AbstractOperationKind::AppendWireTextBytes {
+                source_region,
+                source_offset,
+                out_region,
+                out_offset,
+                out_length,
+                written_region,
+                written_offset,
+            } => Self::AppendWireTextBytes {
+                source_region: *source_region,
+                source_offset: *source_offset,
+                out_region: *out_region,
+                out_offset: *out_offset,
+                out_length: *out_length,
+                written_region: *written_region,
+                written_offset: *written_offset,
+            },
             omega_abstract_operations::AbstractOperationKind::ReadWireExpectedByte {
                 buffer_region,
                 buffer_offset,

@@ -1,0 +1,34 @@
+// Wire stage 2a: a String field's byte count is runtime-sized, so the
+// compact_binary v0 encoder requires it to carry the schema's HIGHEST field
+// number (it must encode last). Every append before the trailing byte-copy
+// stays covered by the compile-time worst-case out-buffer budget; a field
+// AFTER the String would write with that guarantee already spent. Here the
+// String holds field 0 and a u32 follows at field 1 -- rejected.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data LabelMessage {
+    0: label: String;
+    1: count: u32;
+}
+
+data LabelSample {
+    label: String;
+    count: u32;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    let msg: LabelSample = LabelSample { label: "x", count: 1 };
+
+    LabelMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    self.console.exit_process(70);
+}

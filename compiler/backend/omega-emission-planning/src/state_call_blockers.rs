@@ -164,6 +164,7 @@ pub(super) fn statement_has_wire_encode_lowering(
                 instruction.kind,
                 omega_target_operations::TargetOperationKind::AppendWireLiteralByte { .. }
                     | omega_target_operations::TargetOperationKind::AppendWireScalarVarint { .. }
+                    | omega_target_operations::TargetOperationKind::AppendWireTextBytes { .. }
                     | omega_target_operations::TargetOperationKind::ReadWireExpectedByte { .. }
                     | omega_target_operations::TargetOperationKind::ReadWireScalarVarint { .. }
             ) && state_key_matches_statement_source(instruction.source_key, source_key)

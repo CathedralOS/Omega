@@ -61,11 +61,38 @@ remains tracked in its bullet below.
   truncated / overlong varint fail cleanly, every read bounds-checked
   against the buffer's compile-time length; widths/relocations pinned),
   interpreter parity including the failure path, and round-trip +
-  wrong-era-rejection run canaries in the differential oracle. Remaining:
+  wrong-era-rejection run canaries in the differential oracle. STRING
+  FIELDS, ENCODE-ONLY, LANDED (2026-06-11): a String field rides as tag
+  varint + LENGTH varint (byte count) + raw UTF-8 bytes (no NUL, no
+  padding), lowered as one new `AppendWireTextBytes` operation on BOTH ISAs
+  (loads the `{ptr, len}` text descriptor, reuses the scalar LEB128 emit
+  loop for the length, then a byte-copy loop that bounds EVERY store
+  against the out buffer's compile-time capacity and drops overflow --
+  widths/relocations pinned, byte-exact run canary in the differential
+  oracle). Validation allows at most ONE String field and requires it to
+  carry the highest field number (it encodes last) so every earlier append
+  keeps the compile-time worst-case capacity guarantee; the worst case
+  budgets the String's tag + ten-byte max length varint. String DECODE
+  stays rejected -- the honest options were (a) zero-copy (descriptor
+  pointing into the decode buffer) or (b) reject, and we took (b) because
+  today's borrow facts only track view loans from explicit borrow
+  expressions: the checker cannot see `decode_wire(&mut value, &buffer,
+  ..)` leaving `value`'s String field aliasing `buffer`, so buffer
+  mutation after a zero-copy decode would silently invalidate the decoded
+  string -- a KNOWN HOLE to close before (a) lands (borrow-facts follow-up:
+  model a call output retaining a borrow of another argument; then
+  zero-copy String decode is mechanical: read len varint, bounds-check
+  against the remaining buffer, store `{buffer_base + cursor, len}`).
+  Encode also has no runtime overflow signal (content past capacity is
+  dropped; callers size buffers for their longest text) -- an encode
+  ok/overflow out-parameter is candidate follow-up work. Remaining:
   historical-era decode via `Versioned<T>` (after the stage 3 sign-off),
-  strings/nested/repeated fields, wire-schemas-as-program-types, runtime
-  layout of wire values, encoding families beyond compact_binary v0,
-  version negotiation.
+  String decode (above), nested/repeated fields,
+  wire-schemas-as-program-types, runtime layout of wire values, encoding
+  families beyond compact_binary v0, version negotiation. (Found while
+  landing: struct-literal String field initialization does not lower to a
+  native descriptor write -- silent miscompile, tracked separately; the
+  string canary uses field-assignment form.)
 - [ ] **Versioned data stage 3.** Era tag + the wire integration decision 10
   assumes; era-tagged containers that make version MATCH arms selectable
   (stage 2 ruled them unreachable — no value can hold a historical era yet);
@@ -646,9 +673,12 @@ worst-case out-buffer capacity so the emitted code needs no runtime bounds
 checks), and compact_binary v0 framing emitted through two new wire-append
 operations (literal framing byte + runtime scalar varint) implemented on both
 ISAs with widths/relocation-offset functions asserted against the encoders.
-Still needed (stage 2b+): the decoder, strings/nested/repeated fields,
-wire-schemas-as-program-types, runtime layout of wire values, encoding-family
-semantics beyond compact_binary v0, and version negotiation.
+STAGE 2b (current-era decoder) and STRING-FIELD ENCODE landed 2026-06-11
+(see the wire stage 2 bullet above for the String storage decision and its
+known holes). Still needed: String decode (borrow-facts follow-up),
+nested/repeated fields, wire-schemas-as-program-types, runtime layout of
+wire values, encoding-family semantics beyond compact_binary v0, and version
+negotiation.
 
 **Host-provider semantics follow-up.** Current host-provider support is
 syntax-preserving metadata: it parses and snapshots syscall mapping rows, but
