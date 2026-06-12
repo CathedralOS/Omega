@@ -194,17 +194,24 @@ fn type_parameter_declares_property(parameter: &TypeParameter, property: &str) -
     }
 }
 
-/// The type parameter a field type ultimately names, if any — used to point
-/// the diagnostic at the missing bound rather than the generic "not
-/// `{property}`" wording.
-fn referenced_type_parameter<'program>(
+/// The type parameter a field or state-parameter type ultimately names, if
+/// any — used to point the data-property diagnostic at the missing bound, and
+/// by the machine-call bound check (decision 13) to find which parameter a
+/// signature type like `&T` instantiates.
+pub(crate) fn referenced_type_parameter<'program>(
     program: &TypedTrees,
     type_parameters: &'program [TypeParameter],
     type_reference: omega_typed_trees::types::TypeReferenceHandle,
 ) -> Option<&'program TypeParameter> {
+    if !type_reference.is_valid() {
+        return None;
+    }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { name, .. } => {
             type_parameter_named(type_parameters, name.as_str())
+        }
+        TypeReferenceNode::Reference { referee, .. } => {
+            referenced_type_parameter(program, type_parameters, *referee)
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
             referenced_type_parameter(program, type_parameters, *base_type)

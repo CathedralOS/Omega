@@ -1,0 +1,31 @@
+// Frozen decision 13 residue: machine-call instantiations that SATISFY the
+// bracket bound stay legal -- a `[copy]` data type, a scalar primitive, and a
+// generic caller forwarding its own bounded parameter (`U [copy]` counts as
+// carrying `[copy]` in scope) all qualify, through both the attached-method
+// path (`self.copy_it(...)`) and the free-machine path (`copy_free(...)`).
+
+data Light [copy] {
+    weight: i32;
+}
+
+data Main {
+    l: Light;
+    n: i32;
+}
+
+machine copy_free<T [copy]>(x: &T) {
+}
+
+machine Main::copy_it<T [copy]>(&self, x: &T) {
+}
+
+machine Main::wrap<U [copy]>(&self, y: &U) {
+    self.copy_it(y);
+}
+
+machine Main::main(&mut self) {
+    self.copy_it(&self.l);
+    self.copy_it(&self.n);
+    self.wrap(&self.l);
+    copy_free(&self.l);
+}
