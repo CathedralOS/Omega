@@ -180,6 +180,10 @@ pub enum TypeReferenceNode {
 pub enum FixedArrayLength {
     Literal(usize),
     ConstParameter(Identifier),
+    /// A zero-argument machine call in length position (`[u8; table_size()]`):
+    /// the effect-free callee is CONST-EVALUATED by the reference interpreter
+    /// before layout (comptime stage 1).
+    ConstCall(Identifier),
 }
 
 impl Default for FixedArrayLength {
@@ -199,6 +203,7 @@ impl fmt::Display for FixedArrayLength {
         match self {
             Self::Literal(value) => write!(formatter, "{value}"),
             Self::ConstParameter(name) => write!(formatter, "{name}"),
+            Self::ConstCall(name) => write!(formatter, "{name}()"),
         }
     }
 }

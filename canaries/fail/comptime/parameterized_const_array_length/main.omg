@@ -1,0 +1,24 @@
+// COMPTIME STAGE 1 -- ZERO-ARG SCOPE: const arguments are not supported yet,
+// so a machine taking parameters cannot be named in an array-length call
+// (this also discharges decision 12's "no &mut/out params" half of the
+// purity predicate). `sized(n: i32)` takes a parameter; the const site must
+// reject with the stage boundary spelled out.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    slots: [i64; sized()];
+}
+
+machine sized(n: i32) -> usize {
+    transition {
+        n > 0 -> 8
+        _ -> 16
+    }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

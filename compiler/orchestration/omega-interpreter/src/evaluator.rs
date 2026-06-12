@@ -1,7 +1,7 @@
 use crate::InterpretOutcome;
 use crate::value::{Cell, Value};
-use omega_checked_trees::CheckedTrees;
 use omega_core::symbols::SymbolHandle;
+use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
 use omega_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
@@ -17,12 +17,17 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 const STEP_BUDGET: u64 = 10_000_000;
+/// Fuel cap for CONST EVALUATION (comptime stage 1). The language's
+/// termination discipline (no general recursion, loops carry decreases) is the
+/// real guarantee; this cap is defense-in-depth against checker gaps. Exceeding
+/// it is a compile error at the const site.
+const CONST_EVAL_STEP_BUDGET: u64 = 100_000;
 /// Max native recursion depth (call / cross-machine transition nesting) before we decline
 /// rather than overflow the host stack. Deep recursive programs are skipped (reported as
 /// unsupported), never crash the differential harness.
 const CALL_DEPTH_BUDGET: u32 = 512;
 
-pub(crate) fn run(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
+pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     // Run on a worker thread with a generous stack: the tree-walker recurses with the
     // program's call/expression nesting, which can exceed the default test-thread stack on
     // deep programs even with the call-depth budget. A scoped thread lets us keep the
@@ -39,7 +44,43 @@ pub(crate) fn run(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
     })
 }
 
-fn run_on_current_thread(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
+/// CONST EVALUATION (comptime stage 1): run a zero-argument, effect-free
+/// machine to its terminal value and return that value as an `i64`, width-
+/// adjusted to the machine's declared integer return type (the same
+/// `wrap_to_width` the interpreter applies on writes, so the result is
+/// TARGET-width-correct, not host-width). The caller (the compiler's
+/// const-eval pass) owns the purity gate; this entry owns evaluation and a
+/// small fuel cap. Errors carry a human-readable reason for the compile
+/// diagnostic at the const site.
+pub(crate) fn run_const_machine(program: &TypedTrees, machine_name: &str) -> Result<i64, String> {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn_scoped(scope, || {
+                run_const_machine_on_current_thread(program, machine_name)
+            })
+            .expect("spawn const-eval worker thread")
+            .join()
+            .unwrap_or_else(|_| Err("const evaluator thread panicked".to_owned()))
+    })
+}
+
+fn run_const_machine_on_current_thread(
+    program: &TypedTrees,
+    machine_name: &str,
+) -> Result<i64, String> {
+    let mut evaluator = Evaluator::new(program, &[]);
+    evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
+    match evaluator.run_const_machine(machine_name) {
+        Ok(value) => Ok(value),
+        Err(Halt::Exit(code)) => Err(format!(
+            "the machine attempted to exit the process (code {code}) instead of returning a value"
+        )),
+        Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
+    }
+}
+
+fn run_on_current_thread(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     let mut evaluator = Evaluator::new(checked, stdin);
     match evaluator.run_entry() {
         Ok(()) => {
@@ -94,12 +135,16 @@ struct Frame {
 }
 
 struct Evaluator<'program> {
-    program: &'program CheckedTrees,
+    program: &'program TypedTrees,
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     stdin: &'program [u8],
     stdin_cursor: usize,
     steps: u64,
+    /// Total step allowance for this run. Full-program interpretation uses
+    /// `STEP_BUDGET`; const evaluation uses the much smaller
+    /// `CONST_EVAL_STEP_BUDGET` as a defense-in-depth fuel cap.
+    step_budget: u64,
     call_depth: u32,
     /// Non-zero while evaluating a transition GUARD expression. Value-calls evaluated
     /// under a guard memoize into the frame's `guard_call_results` so the per-arm
@@ -108,7 +153,7 @@ struct Evaluator<'program> {
 }
 
 impl<'program> Evaluator<'program> {
-    fn new(program: &'program CheckedTrees, stdin: &'program [u8]) -> Self {
+    fn new(program: &'program TypedTrees, stdin: &'program [u8]) -> Self {
         Self {
             program,
             stdout: Vec::new(),
@@ -116,6 +161,7 @@ impl<'program> Evaluator<'program> {
             stdin,
             stdin_cursor: 0,
             steps: 0,
+            step_budget: STEP_BUDGET,
             call_depth: 0,
             guard_depth: 0,
         }
@@ -123,7 +169,7 @@ impl<'program> Evaluator<'program> {
 
     fn tick(&mut self) -> EvalResult<()> {
         self.steps += 1;
-        if self.steps > STEP_BUDGET {
+        if self.steps > self.step_budget {
             return trap("step budget exceeded");
         }
         Ok(())
@@ -154,6 +200,64 @@ impl<'program> Evaluator<'program> {
             }
         }
         Ok(())
+    }
+
+    /// CONST EVALUATION: run `machine_name` (zero arguments, fresh default
+    /// instance) to its terminal value. The machine's declared integer return
+    /// type fixes the result's width semantics via `wrap_to_width` (target
+    /// widths, never host widths). Non-integer terminal values are errors.
+    fn run_const_machine(&mut self, machine_name: &str) -> EvalResult<i64> {
+        let machine = self
+            .find_machine_by_name(machine_name)
+            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
+            .clone();
+        let entry_state_name = self.machine_entry_state_name(&machine).ok_or_else(|| {
+            Halt::Trap(format!(
+                "machine `{machine_name}` has no states to evaluate"
+            ))
+        })?;
+        // The declared INTEGER return type fixes the result's width semantics
+        // (checked before running so the diagnostic names the type, not
+        // whatever value the body happened to produce).
+        let return_primitive = match self
+            .find_state(&machine, &entry_state_name)
+            .and_then(|state| self.program.primitive_type_reference(state.return_type))
+        {
+            Some(primitive)
+                if primitive != PrimitiveType::Bool
+                    && primitive != PrimitiveType::F32
+                    && primitive != PrimitiveType::F64
+                    && primitive != PrimitiveType::String =>
+            {
+                primitive
+            }
+            Some(primitive) => {
+                return Err(Halt::Trap(format!(
+                    "machine `{machine_name}` returns `{}`, not an integer type",
+                    primitive.name()
+                )));
+            }
+            None => {
+                return Err(Halt::Trap(format!(
+                    "machine `{machine_name}` does not declare an integer return type"
+                )));
+            }
+        };
+
+        let instance = self.instantiate_machine(&machine)?;
+        let returned = self.run_state_collect(&machine, &entry_state_name, instance, Vec::new())?;
+        let value = returned.ok_or_else(|| {
+            Halt::Trap(format!(
+                "machine `{machine_name}` terminated without producing a value"
+            ))
+        })?;
+        let raw = value.as_int().ok_or_else(|| {
+            Halt::Trap(format!(
+                "machine `{machine_name}` produced a non-integer value"
+            ))
+        })?;
+
+        Ok(wrap_to_width(raw, return_primitive))
     }
 
     // ---- machine / data instantiation --------------------------------------
@@ -1248,15 +1352,22 @@ impl<'program> Evaluator<'program> {
         }
         fields.sort_by_key(|(_, number, _)| *number);
 
-        let arguments = self.program.statement_table.expression_handles(call.arguments);
+        let arguments = self
+            .program
+            .statement_table
+            .expression_handles(call.arguments);
         let [value_argument, buffer_argument, read_argument, ok_argument] = arguments else {
             return Err(Halt::Trap(format!(
                 "`{schema_name}::decode_wire` expects 4 arguments, got {}",
                 arguments.len()
             )));
         };
-        let (value_argument, buffer_argument, read_argument, ok_argument) =
-            (*value_argument, *buffer_argument, *read_argument, *ok_argument);
+        let (value_argument, buffer_argument, read_argument, ok_argument) = (
+            *value_argument,
+            *buffer_argument,
+            *read_argument,
+            *ok_argument,
+        );
 
         let value_cell = self.eval_argument(value_argument, frame)?;
         let value_cell = self.deref_cell(value_cell);
@@ -1272,11 +1383,15 @@ impl<'program> Evaluator<'program> {
             Value::Array(elements) => elements
                 .iter()
                 .map(|element| {
-                    element.borrow().as_int().map(|byte| byte as u8).ok_or_else(|| {
-                        Halt::Trap(format!(
-                            "`{schema_name}::decode_wire` buffer element is not a byte"
-                        ))
-                    })
+                    element
+                        .borrow()
+                        .as_int()
+                        .map(|byte| byte as u8)
+                        .ok_or_else(|| {
+                            Halt::Trap(format!(
+                                "`{schema_name}::decode_wire` buffer element is not a byte"
+                            ))
+                        })
                 })
                 .collect::<Result<_, _>>()?,
             _ => {
@@ -2076,16 +2191,12 @@ impl<'program> Evaluator<'program> {
         // (recursing through this function) and slice the resulting window;
         // element cells stay shared, matching the fat-descriptor model where a
         // subslice only offsets the pointer.
-        let nested_view = if let ExpressionNode::Indexed(inner) = self
-            .program
-            .expression_table
-            .expression(collection)
-            .clone()
+        let nested_view = if let ExpressionNode::Indexed(inner) =
+            self.program.expression_table.expression(collection).clone()
             && matches!(
                 self.program.expression_table.expression(inner.index),
                 ExpressionNode::Range(_)
-            )
-        {
+            ) {
             Some(self.eval_expression(collection, frame)?)
         } else {
             None
@@ -2522,7 +2633,7 @@ enum WireInterpScalarField {
 /// schema, sorted by field number -- validation has already guaranteed the
 /// scalar-only child body.
 fn wire_nested_scalar_fields(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     child: &omega_typed_trees::wire::WireSchema,
 ) -> Result<Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>, Halt> {
     use omega_typed_trees::wire::{WireMember, WireScalarEncoding};

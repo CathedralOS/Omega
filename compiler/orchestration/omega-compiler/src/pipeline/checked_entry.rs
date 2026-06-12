@@ -22,7 +22,10 @@ pub fn compile_to_checked(
     let (_source_file_count, syntax) =
         source_files_to_syntax_trees(root_path, target_name, &mut timings)?;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
-    let typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
+    let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
+    // COMPTIME STAGE 1: substitute const-evaluated fixed-array lengths before
+    // checking, exactly as the full `compile` pipeline does.
+    crate::pipeline::const_lengths::evaluate_const_array_lengths(&mut typed)?;
     let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the

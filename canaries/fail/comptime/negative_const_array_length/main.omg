@@ -1,0 +1,22 @@
+// COMPTIME STAGE 1 -- RESULT VALIDATION: a const-evaluated array length must
+// be a NON-NEGATIVE integer. `shrunk_size` is perfectly effect-free but
+// evaluates to -5 (at its declared i32 width); the const site must reject
+// naming the machine and the offending value.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    slots: [i64; shrunk_size()];
+}
+
+machine shrunk_size() -> i32 {
+    transition {
+        _ -> (0 - 5)
+    }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

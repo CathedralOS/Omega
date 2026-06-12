@@ -1,6 +1,7 @@
 mod artifacts;
 mod boundary_report;
 mod checked_entry;
+mod const_lengths;
 pub mod compile_options;
 pub mod compile_report;
 pub mod compiler;

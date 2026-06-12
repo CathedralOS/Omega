@@ -26,7 +26,10 @@ pub(super) fn fixed_array_type_length(
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::FixedArray { length, .. } => match length {
             FixedArrayLength::Literal(length) => Some(*length),
-            FixedArrayLength::ConstParameter { .. } => None,
+            // ConstCall lengths are substituted to literals by the
+            // orchestration const-eval pass before checking; treat a survivor
+            // like an unresolved const parameter (no concrete length known).
+            FixedArrayLength::ConstParameter { .. } | FixedArrayLength::ConstCall { .. } => None,
         },
         TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {

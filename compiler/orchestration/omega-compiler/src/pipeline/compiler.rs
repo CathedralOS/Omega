@@ -70,7 +70,11 @@ impl Compiler {
         let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
         write_resolved_snapshot(&self.options, &resolved)?;
 
-        let typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
+        let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
+        // COMPTIME STAGE 1: evaluate effect-free machine calls in fixed-array
+        // length position and substitute concrete literals BEFORE checking,
+        // proof facts, and layout consume the lengths.
+        crate::pipeline::const_lengths::evaluate_const_array_lengths(&mut typed)?;
         write_typed_snapshot(&self.options, &typed)?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 

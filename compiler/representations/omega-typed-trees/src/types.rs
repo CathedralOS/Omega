@@ -114,6 +114,31 @@ impl TypeReferenceTable {
         self.type_references.get(handle)
     }
 
+    /// Every fixed-array type reference in the table, as `(handle, length)`
+    /// pairs. The orchestration const-eval pass scans these for `ConstCall`
+    /// lengths to substitute before checking/layout.
+    pub fn fixed_array_lengths(
+        &self,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, &FixedArrayLength)> {
+        self.type_references
+            .iter()
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::FixedArray { length, .. } => Some((handle, length)),
+                _ => None,
+            })
+    }
+
+    /// Replace a fixed-array type reference's length with a concrete literal
+    /// (the comptime const-eval substitution). Panics if `handle` is not a
+    /// fixed-array node -- callers obtain handles from `fixed_array_lengths`.
+    pub fn set_fixed_array_length(&mut self, handle: TypeReferenceHandle, value: usize) {
+        let TypeReferenceNode::FixedArray { length, .. } = self.type_references.get_mut(handle)
+        else {
+            panic!("set_fixed_array_length called on a non-fixed-array type reference");
+        };
+        *length = FixedArrayLength::Literal(value);
+    }
+
     pub fn type_reference_handles(
         &self,
         span: HandleSpan<TypeReferenceHandle>,
@@ -364,6 +389,13 @@ pub enum FixedArrayLength {
         symbol: SymbolHandle,
         name: Identifier,
     },
+    /// A zero-argument machine call in length position (`[u8; table_size()]`).
+    /// The orchestration const-eval pass replaces this with `Literal` before
+    /// checking/layout; downstream consumers never see it in a well-formed
+    /// pipeline (comptime stage 1).
+    ConstCall {
+        name: Identifier,
+    },
 }
 
 impl Default for FixedArrayLength {
@@ -383,6 +415,7 @@ impl fmt::Display for FixedArrayLength {
         match self {
             Self::Literal(value) => write!(formatter, "{value}"),
             Self::ConstParameter { name, .. } => write!(formatter, "{name}"),
+            Self::ConstCall { name } => write!(formatter, "{name}()"),
         }
     }
 }
@@ -551,7 +584,10 @@ impl PrimitiveType {
     /// the safe choice for codegen that only distinguishes signed vs unsigned
     /// integer machine operations.
     pub fn is_signed_integer(self) -> bool {
-        !matches!(self, Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::Usize)
+        !matches!(
+            self,
+            Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::Usize
+        )
     }
 
     pub fn accepts_range_constraint(self) -> bool {

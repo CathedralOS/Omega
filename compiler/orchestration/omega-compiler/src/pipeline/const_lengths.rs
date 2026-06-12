@@ -1,0 +1,162 @@
+//! COMPTIME STAGE 1 -- const evaluation of FIXED-ARRAY LENGTHS.
+//!
+//! `[T; table_size()]` puts an effect-free, zero-argument machine call in a
+//! constant position: the position makes it comptime, the effect system makes
+//! it legal (no keyword, no macro -- chapter 13's frozen direction). This pass
+//! runs in the ORCHESTRATION layer between typed-tree lowering and checking:
+//!
+//! - EARLY enough that range checking (`typed-trees-to-checked-trees`), proof
+//!   facts, layout, and codegen all see an ordinary `FixedArrayLength::Literal`
+//!   -- indistinguishable from a written `[T; 16]`.
+//! - LATE enough that the whole program is typed, so the reference interpreter
+//!   (`omega-interpreter`, the differential oracle) can evaluate the callee
+//!   over the very trees the rest of the pipeline consumes. The dependency is
+//!   acyclic: the interpreter depends only on `omega-core`/`omega-typed-trees`
+//!   /`omega-checked-trees` (its `omega-compiler` edge is dev-only).
+//!
+//! LEGALITY GATE (frozen decision 12's purity predicate, reused, not
+//! reinvented): the callee's INFERRED TRANSITIVE effect surface must be empty
+//! -- read from `omega_effects::infer_effects`, the same plan
+//! `validate_pure_discards` consults -- and the callee must take no
+//! parameters at all (stage 1 is zero-arg, which also discharges the
+//! "no `&mut`/out params" half of the predicate).
+//!
+//! TERMINATION: no new rule -- the language's existing discipline (no general
+//! recursion, loops carry decreases) covers const callees. The interpreter
+//! entry adds a ~100k-step fuel cap purely as defense-in-depth; exceeding it
+//! is a compile error here.
+//!
+//! DETERMINISM: the interpreter width-adjusts the terminal value to the
+//! machine's declared integer return type (the same wrap-on-write it applies
+//! differentially), so the result carries TARGET integer semantics, never
+//! host widths.
+
+use omega_core::diagnostics::Diagnostic;
+use omega_typed_trees::TypedTrees;
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
+use std::collections::BTreeMap;
+
+/// Evaluate every `FixedArrayLength::ConstCall` in the program and substitute
+/// the concrete `Literal` length in place. Errors name the array-length
+/// position (the spelled type) and the failing machine.
+pub(super) fn evaluate_const_array_lengths(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let pending: Vec<(TypeReferenceHandle, String)> = typed
+        .type_reference_table
+        .fixed_array_lengths()
+        .filter_map(|(handle, length)| match length {
+            FixedArrayLength::ConstCall { name } => Some((handle, name.as_str().to_owned())),
+            _ => None,
+        })
+        .collect();
+
+    if pending.is_empty() {
+        return Ok(());
+    }
+
+    // The purity gate reads the same inferred TRANSITIVE effect plan that
+    // decision 12's pure-discard validation consults.
+    let effect_plan = omega_effects::infer_effects(typed);
+
+    let mut diagnostics = Vec::new();
+    let mut evaluated: BTreeMap<String, Result<usize, ()>> = BTreeMap::new();
+    let mut substitutions: Vec<(TypeReferenceHandle, usize)> = Vec::new();
+
+    for (handle, machine_name) in &pending {
+        let result = evaluated.entry(machine_name.clone()).or_insert_with(|| {
+            match evaluate_one(typed, &effect_plan, machine_name) {
+                Ok(value) => Ok(value),
+                Err(reason) => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "fixed-array length `{}`: const evaluation of `{machine_name}` failed: {reason}",
+                        typed.type_reference_table.display_name(*handle)
+                    )));
+                    Err(())
+                }
+            }
+        });
+        if let Ok(value) = result {
+            substitutions.push((*handle, *value));
+        }
+    }
+
+    for (handle, value) in substitutions {
+        typed
+            .type_reference_table
+            .set_fixed_array_length(handle, value);
+    }
+
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn evaluate_one(
+    typed: &TypedTrees,
+    effect_plan: &omega_effects::EffectPlan,
+    machine_name: &str,
+) -> Result<usize, String> {
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+        .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
+
+    // Stage 1 scope: a zero-argument machine. (This also discharges the
+    // "no `&mut`/out parameters" half of decision 12's purity predicate.)
+    let parameter_count = entry_state_parameter_count(typed, machine);
+    if parameter_count > 0 {
+        return Err(format!(
+            "machine `{machine_name}` takes {parameter_count} parameter(s); a const-evaluated \
+             array length must call a zero-argument machine (const arguments are not supported yet)"
+        ));
+    }
+
+    // Purity gate: the INFERRED TRANSITIVE effect surface must be empty.
+    let transitive = effect_plan
+        .machines()
+        .iter()
+        .find(|entry| entry.symbol == machine.symbol)
+        .map(|entry| entry.transitive)
+        .unwrap_or_else(omega_effects::EffectSet::empty);
+    if !transitive.is_empty() {
+        return Err(format!(
+            "machine `{machine_name}` is not effect-free: it reaches effects `{}`; only \
+             effect-free machines may be evaluated at compile time",
+            transitive.names().collect::<Vec<_>>().join(", ")
+        ));
+    }
+
+    let value = omega_interpreter::evaluate_const_machine(typed, machine_name)?;
+
+    if value < 0 {
+        return Err(format!(
+            "the call returned {value}, but an array length must be a non-negative integer"
+        ));
+    }
+
+    usize::try_from(value)
+        .map_err(|_| format!("the call returned {value}, which does not fit an array length"))
+}
+
+/// The parameter count of the machine's entry state (the body of a free
+/// machine; mirrors the interpreter's entry-state selection: the state named
+/// like the machine's leaf, else the first state).
+fn entry_state_parameter_count(typed: &TypedTrees, machine: &Machine) -> usize {
+    let leaf = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or_default();
+    let states = typed.machine_states(machine);
+    let entry = states
+        .iter()
+        .find(|state| state.name.as_str() == leaf)
+        .or_else(|| states.first());
+    entry
+        .map(|state| typed.state_parameters(state).len())
+        .unwrap_or(0)
+}
