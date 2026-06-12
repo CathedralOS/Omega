@@ -31,9 +31,27 @@ NO suspension keyword, NO await. The model:
 - Visibility: declared effects on public signatures (house style), and
   the state-graph/boundary artifacts surface every suspension point
   ("show me everywhere this program can park" is a browsable query).
-- `select` (wait on multiple sources, first ready wins — maps naturally
-  onto a transition whose arm subjects are waitables) is DEFERRED as its
-  own design.
+- `select` DISSOLVES (decided same discussion): there is no select
+  construct. Multiplexing is data-level — producers post into ONE mailbox
+  carrying a case-bearing sum; the consumer does one wait and one ordinary
+  transition over the sum (Erlang's one-mailbox model). The deferred work
+  is a core MPSC event-queue library over the wait primitive, not syntax.
+- Scoped spawns need no keyword: the lexical block is the scope (loans
+  force the join; dropping a `Join<T>` joins; unconsumed handles join at
+  block end). Free spawns stay move/copy-only.
+- Task storage: per-machine-type pools of EXACT compiler-computed
+  worst-case frame size (no recursion + planned frames = no stack sizes,
+  no overflow). Declared N per pool; Region-backed dynamic N later.
+- Atomic-state guarantee is derived and documented: "your task cannot park
+  mid-body unless the body calls a suspending machine" — NOT mutual
+  exclusion; the language stays scheduler-agnostic.
+- Cancellation is a value at the wait (pending ch15 alignment): cancelled
+  scope -> child's wait returns the zero `Cancelled` case; machine takes
+  its own cleanup path; drops run normally; nothing is interrupted
+  mid-state. Rides the ch15 recoverable-condition channel.
+- Waitable surface: futex-shaped and SINGULAR (wait on word / wake N);
+  everything else is library; ISRs/IO post to words. No second wait
+  mechanism, ever.
 - Termination note from the same discussion: const-eval/comptime needs no
   new termination rule either — general recursion does not exist in the
   language (self-calls are tail self-loops; loops carry
