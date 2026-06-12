@@ -1259,9 +1259,45 @@ exit.
   different questions and intentionally remain separate consumers of the one
   authority; the bounds-from-`requires` seam keeps consuming the typed-trees
   helpers unchanged.
-- [ ] Prove that only facts in the CURRENT context can select a domain-operator
-  meaning. (Spelling dispatch, bounds-from-`requires`, and competing-meaning
-  rejection now exist; the positive proof-context selection is the remaining gap.)
+- Resolved 2026-06-12: positive proof-context operator selection landed — only
+  facts in the CURRENT context can select a domain-operator meaning. Spelled
+  binary uses are now recorded as operator evidence (`build_operator_facts`
+  gains a `Binary` arm; builtin-only arithmetic with no spelled candidates
+  stays unrecorded and untouched), and a post-flow pass
+  (`operators/selection.rs`, run from `build_check_facts` after flow facts
+  exist) admits a domain-owned candidate only when the LEFT operand's domain
+  membership is PROVEN by the semantic contexts entering the statement — the
+  same invalidation-adjusted contexts the call-`requires` discharge reads, so
+  caller `requires`, call `ensures`, and interleaved-mutation invalidation all
+  participate. Selection ruling from chapter 8's "participates only if it
+  exposes a unique operator meaning" text: exactly ONE admissible (proven)
+  domain meaning wins the expression over the builtin — the `requires`
+  deliberately narrowed the context; ZERO admissible domain meanings leave the
+  ordinary meaning in place when one exists (unique root spelled candidate, or
+  the builtin scalar operation for primitive operands → evidence status
+  `BuiltinFallback`) and reject otherwise (`Inadmissible`, the positive-proof
+  error); TWO or more admissible domain meanings are ambiguous (largely
+  precluded by the declaration-level competing-meanings rejection). What
+  selection PRODUCES: evidence (`CheckedOperatorFacts` records the winning
+  meaning; `selected_candidate` exposes it) — domain operators have no bodies,
+  so a selected meaning never changes lowering (no hidden runtime tag, per the
+  chapter), and as an honesty guard a selected binary-spelling meaning that
+  carries `requires` contracts is rejected loudly because contract discharge at
+  spelled binary use sites is not wired yet (slice `[]`/`[..]` discharge
+  through the ranges seam is unaffected). Canaries:
+  pass `domains/domain_operator_proven_fact_selects_meaning` (+ suite test
+  asserting the domain meaning is the recorded selection),
+  pass `domains/domain_operator_unproven_keeps_builtin_meaning` (+ suite test
+  asserting `BuiltinFallback`), fail `domains/domain_operator_meaning_unproven`,
+  fail `domains/domain_operator_meaning_invalidated_by_mutation`, and the
+  previously-unregistered `domains/domain_operator_spelling_selected` (pass)
+  and `domains/domain_operator_competing_spelling_meanings` (fail) now run in
+  the sweeps.
+- [ ] Discharge `requires` contracts of selected spelled BINARY operator
+  meanings at the use site (instantiate the operator's parameter facts over the
+  operand places, prove them against the statement-entry contexts — the
+  call-requires prover is the model). Until then the checks reject selections
+  whose meaning carries `requires`, so nothing is silently unchecked.
 
 ### Ownership, Borrowing, And Views
 

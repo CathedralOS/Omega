@@ -1,0 +1,21 @@
+// The other half of the chapter 8 selection ruling: declaring a domain
+// operator does NOT replace the ordinary integer `+`. No fact proves
+// `value in i32::Degrees` here, so the domain-owned meaning is inadmissible
+// and the builtin scalar addition stays selected (evidence records the use as
+// a builtin fallback). The program compiles; runtime behavior is unchanged.
+
+domain i32::Degrees {
+    self >= 0;
+
+    operator add(left: i32, right: i32) -> i32 spelling +;
+}
+
+data Main {
+}
+
+machine Main::rotate(&self, value: i32, delta: i32) {
+    let sum: i32 = value + delta;
+}
+
+machine Main::main(&mut self) {
+}

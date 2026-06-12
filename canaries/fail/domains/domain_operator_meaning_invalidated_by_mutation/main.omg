@@ -1,0 +1,38 @@
+// Mutation invalidation de-admits a domain operator meaning (chapter 8 +
+// the call-requires invalidation model): `mark_additive` proves
+// `self.total in Quantity::Additive` via its ensures, but the interleaved
+// `scramble` call mutates `self.total` and kills the fact before the `+` use.
+// With the membership no longer proven, the domain-owned meaning is
+// inadmissible and `Quantity` has no builtin meaning, so the use is rejected.
+// Removing the `scramble` call makes this program compile.
+
+data Quantity {
+    value: i32;
+}
+
+domain Quantity::Additive {
+    self.value >= 0;
+
+    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+}
+
+data Main {
+    total: Quantity;
+}
+
+machine Main::mark_additive(&mut self, quantity: &mut Quantity)
+ensures
+    quantity in Quantity::Additive
+{
+    quantity.value = 0;
+}
+
+machine Main::scramble(&mut self, quantity: &mut Quantity) {
+    quantity.value = -1;
+}
+
+machine Main::main(&mut self) {
+    self.mark_additive(&mut self.total);
+    self.scramble(&mut self.total);
+    let sum: Quantity = self.total + self.total;
+}

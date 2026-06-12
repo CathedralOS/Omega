@@ -1,0 +1,29 @@
+// Positive proof-context operator selection (chapter 8, "Domain-Sensitive
+// Operators"): the caller's `requires` proves `left in Quantity::Additive`, so
+// the domain-owned `+` meaning is admissible at the use site and — being the
+// unique admissible meaning for a `Quantity` operand — is selected for the
+// expression. Without that proven fact this exact program is rejected (see
+// fail/domains/domain_operator_meaning_unproven).
+
+data Quantity {
+    value: i32;
+}
+
+domain Quantity::Additive {
+    self.value >= 0;
+
+    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+}
+
+data Main {
+}
+
+machine Main::combine(&self, left: Quantity, right: Quantity)
+requires
+    left in Quantity::Additive
+{
+    let sum: Quantity = left + right;
+}
+
+machine Main::main(&mut self) {
+}
