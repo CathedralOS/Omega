@@ -306,19 +306,49 @@ remains tracked in its bullet below.
   4 draws, post-fix 70 = 3 draws = interpreter), in the differential oracle.
   Dungeon seed-7: full-tour event/path lines now byte-match the interpreter
   across all eight rooms (draw streams agree; the bullet's "14 vs 15" is
-  retired). R05's description stays un-asserted for a DIFFERENT reason — see
-  the side-room description residual below.
-- [ ] Side-room DESCRIPTIONS lost natively (RNG-independent): on the pristine
-  dungeon, a full tour (`north,east,west,north,west,east,north,east,west,
-  north,quit`) renders R05/R06 with an EMPTY description line where the
-  interpreter prints the depth-derived text. `room.description =
-  self.room_description(depth, branch_id)` lands for main-hall rooms (R01..
-  R04 assert green) but is lost for rooms carved by build_side_room_N — the
-  TRUE arm of a `transition self.should_carve(...)` guard. String call-result
-  assignment through `room_mut`'s returned `&mut Room` inside a GUARDED
-  branch target is the suspect shape. Pre-existing (verified pre-signedness-
-  fix); this — not RNG — is what keeps R05's description un-asserted in the
-  dungeon scripted canaries.
+  retired). R05's description stayed un-asserted for a DIFFERENT reason — the
+  side-room carve guard, since resolved (next bullet); both side-room
+  description lines are now asserted in the scripted suite test.
+- [x] Side-room DESCRIPTIONS lost natively — RESOLVED (2026-06-12). The
+  suspect shape was wrong: the description WRITE machinery (carve through
+  `room_mut`'s `&mut Room` in a guard-branch target) was sound and its
+  selected/encoded code byte-correct per dispatch. The side rooms were never
+  CARVED natively at all: `transition self.should_carve(random, N)` always
+  took the FALSE arm because the guard byte was never computed. should_carve
+  returns `self.rng.chance(random, chance, 100)`, and chance's inline leaf
+  value `roll < numerator` binds `numerator` to should_carve's local `chance`
+  (`max(15, 80 - depth*6)`), a fold-only local with NO frame slot — the leaf
+  context could not resolve the name as a place, so
+  `select_runtime_leaf_branch_terminal_value_write` silently emitted nothing
+  and the chance call-result slot stayed 0. Every other side-room render line
+  (label/event/paths) is HARDCODED per cell in the view, which is why only
+  the data-driven description line exposed it (and why the "RNG streams
+  match" observation held: the draws ran via the straight-line expansion;
+  only the decision byte was lost). Fix: leaf terminal-value resolution now
+  substitutes caller-local initializer names (bindings re-applied) for
+  slot-less locals (`resolve_leaf_caller_local_initializer_names`,
+  branches/leaf.rs) — selection-level only. Canary: pass+RUN
+  dungeon/runtime_nested_value_call_caller_local_guard_exit (pre-fix exit 71,
+  post-fix 70 = interpreter), in the differential oracle. The dungeon
+  scripted suite test now detours through R06 and asserts BOTH side-room
+  description lines; the full tour is byte-identical to the interpreter.
+  Residue spotted while hunting (separate, unfixed): a `transition
+  rooms[i].description == "literal"` String-equality guard evaluated TRUE
+  natively while the field was empty (two false-negative probes) — the
+  slice-indexed String guard comparison needs its own minimal hunt.
+- [ ] Signed/unsigned residue, two sibling shapes (found while shrinking, not
+  yet canaried): (1) a modulo whose operand is a CAST — `((seed >> 32) as
+  u32) % 199` inside a convert/value-operand chain — still picks the signed
+  encoding because `resolve_runtime_storage_is_signed_in_table` cannot see
+  through Cast nodes (returns None -> signed fallback); the non-table
+  `select_runtime_binary_mutation_write` (writes/mutation.rs) also never
+  adjusts. (2) Trailing-state STALE READS of threaded `&mut` param fields:
+  a transition-guard SUBJECT read of `random.calls` in a state appended
+  after build_main_hall_1 saw the post-seed snapshot (0), and a `let hi =
+  (random.seed >> 32) as u32` in a state appended after build_main_hall_4
+  read a seed stale by the last TWO build_segment calls — instrumentation-
+  only so far, but the same one-shrink-away family; needs its own minimal
+  skeleton hunt.
 - [x] Signed/unsigned residue, shape (1) — CAST OPERANDS — FIXED (2026-06-12).
   `((random.seed >> 32) as u32) % 199` lowered SIGNED because
   `resolve_runtime_storage_is_signed_in_table` could not see through Cast
@@ -505,9 +535,9 @@ stay visible, not because they're next):**
   the encoder using interrupt-clobbered x18 as a scratch register (see the
   backend-residue entry above for the full diagnosis). The scripted dungeon
   loop and the dungeon differential oracle are green on the arm64 host; the
-  one remaining interpreter/native divergence (R05 description) is the
-  non-guard call-chain RNG-stream issue in the backend-residue list (the
-  eager-guard half of it is fixed).
+  last interpreter/native divergence (R05/R06 descriptions) was the
+  side-room carve guard's lost call-result write, since resolved (see the
+  backend-residue list) — the scripted tour is now byte-identical.
 - [ ] **Text/string proof domains.** `String::Utf8`/`NoNul` as
   boundary-established carried facts without a byte-level proof tax (frozen
   direction in decision 5; the domains themselves unbuilt).
@@ -920,9 +950,10 @@ exit.
 - [x] Blank-room rendering RESOLVED (verified 2026-06-11): native dungeon
   room lookup/render now produces labels/descriptions byte-identical to the
   interpreter on the canonical scripted loop (the x18 reserved-register fix
-  closed the remaining corruption). The only dungeon divergence left is
-  R05's data-driven description, owned by the non-guard executor-of-record
-  residue bullet — descriptor initialization itself is fixed.
+  closed the remaining corruption). The final dungeon divergence (R05/R06
+  data-driven descriptions) was the side-room carve guard's lost call-result
+  write, since resolved in the backend-residue list — descriptor
+  initialization itself was already fixed.
 - [ ] Generalize subslice descriptor pointer offsets beyond fixed-array alias
   copy special cases (the `FatDescriptorAbi::subslice` seam exists; widen its
   callers past literal fixed-array bases). Runtime verification is in place:

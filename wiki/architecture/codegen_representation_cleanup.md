@@ -152,6 +152,16 @@ real table-path gap to port first.
   work (Phase 5 frame/dispatch). The branch-family deletion already captured the bulk
   of the mutation duplication; the place/value/guard resolver pairs are the better
   next Phase-4 target.
+
+  NOT-THE-CULPRIT note (2026-06-12): the dungeon's empty side-room descriptions
+  (R05/R06) were long suspected to be this gap, but the hunt proved this fallback
+  emits correctly in every carve dispatch (main hall AND side room). The real bug
+  was upstream — `should_carve`'s nested `chance` leaf value (`roll < numerator`)
+  lost its call-result write because `numerator` bound to a caller-local with no
+  frame slot, so the side-room transitions never fired at all (fixed in
+  branches/leaf.rs `resolve_leaf_caller_local_initializer_names`; canary
+  dungeon/runtime_nested_value_call_caller_local_guard_exit). This item remains a
+  representation-cleanup deferral only, not a live correctness bug.
 - [x] **place-resolver family — collapsed 7 of 10 (aaa24483, −319 lines).** Each
   non-table place resolver becomes `insert_tree`+delegate to its `_in_table` sibling
   (`insert_tree` is a faithful inverse of `to_tree` — preserves every symbol handle).

@@ -1,12 +1,16 @@
 use crate::InstructionSelectionInput;
-use omega_checked_trees::expression::{Expression, ExpressionTable};
+use omega_checked_trees::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
-use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
+use omega_runtime_branching::{
+    RuntimeLeafBranchBinding, RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind,
+};
 use omega_state_calls::StateCallRole;
 
 use super::super::super::bindings::resolve_leaf_binding_expression_handle;
@@ -28,9 +32,7 @@ use super::super::writes::{
     runtime_frame_slot_target_expression, runtime_storage_copy,
     runtime_storage_fixed_indexed_source_copy, select_runtime_frame_slot_value_write_in_table,
 };
-use super::mutation::{
-    select_runtime_resolved_mutation_write_in_table_with_scratch,
-};
+use super::mutation::select_runtime_resolved_mutation_write_in_table_with_scratch;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
@@ -395,9 +397,7 @@ fn statement_dispatches_call_result(
                 .span(case.edges)
                 .unwrap_or(&[])
                 .iter()
-                .any(|edge| {
-                    edge.statement_index == statement_index && edge.call_result.is_some()
-                })
+                .any(|edge| edge.statement_index == statement_index && edge.call_result.is_some())
     })
 }
 
@@ -589,6 +589,21 @@ fn select_runtime_leaf_branch_terminal_value_write(
         value,
         bindings,
     );
+    // A nested inline value call's terminal value can reference its CALLER's
+    // fold-only locals: `chance`'s `roll < numerator` binds `numerator` to
+    // should_carve's local `chance`, which has no frame slot (the planner
+    // expects it to fold), so the leaf context cannot resolve the name as a
+    // place and the whole result-slot write silently dropped (the dungeon's
+    // side-room transitions never fired). Substitute such names with the
+    // local's initializer, bindings re-applied.
+    let resolved_value = resolve_leaf_caller_local_initializer_names(
+        input,
+        expansion,
+        expressions,
+        resolved_value,
+        bindings,
+        expansion.statement_index,
+    );
     let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
     if emit_runtime_frame_slot_slice_descriptor_write_in_table(
         input,
@@ -645,6 +660,206 @@ fn select_runtime_leaf_branch_terminal_value_write(
     // `_in_table` path above handles every case that actually lowers. Removed in the
     // Phase 4 selection cleanup; an unhandled case here simply emits nothing, exactly
     // as before.
+}
+
+/// Substitute names that refer to the expansion SOURCE state's earlier `let`
+/// locals with their initializer expressions, bindings re-applied. Only locals
+/// WITHOUT a frame slot in this dispatch are substituted: a slot-less local is
+/// one the storage planner expected to fold away, so a name reaching selection
+/// can never resolve as a place -- without substitution the containing write is
+/// silently dropped. Locals WITH a slot keep their name and resolve against
+/// live storage. `statement_bound` restricts matching to locals declared
+/// before the referencing statement; recursing with the matched local's own
+/// index keeps initializer chains strictly decreasing, so this terminates.
+fn resolve_leaf_caller_local_initializer_names(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeLeafBranchExpansion,
+    expressions: &mut ExpressionTable,
+    expression: ExpressionHandle,
+    bindings: &[RuntimeLeafBranchBinding],
+    statement_bound: usize,
+) -> ExpressionHandle {
+    match expressions.expression(expression).clone() {
+        ExpressionNode::Binary(binary) => {
+            let left = resolve_leaf_caller_local_initializer_names(
+                input,
+                expansion,
+                expressions,
+                binary.left,
+                bindings,
+                statement_bound,
+            );
+            let right = resolve_leaf_caller_local_initializer_names(
+                input,
+                expansion,
+                expressions,
+                binary.right,
+                bindings,
+                statement_bound,
+            );
+            if left == binary.left && right == binary.right {
+                return expression;
+            }
+            expressions.insert(ExpressionNode::Binary(
+                omega_checked_trees::expression::TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                },
+            ))
+        }
+        ExpressionNode::Cast(cast) => {
+            let value = resolve_leaf_caller_local_initializer_names(
+                input,
+                expansion,
+                expressions,
+                cast.value,
+                bindings,
+                statement_bound,
+            );
+            if value == cast.value {
+                return expression;
+            }
+            expressions.insert(ExpressionNode::Cast(
+                omega_checked_trees::expression::TableCastExpression {
+                    value,
+                    target_type: cast.target_type,
+                },
+            ))
+        }
+        ExpressionNode::Call(call) => {
+            let mut changed = false;
+            let receiver = if call.receiver.is_valid() {
+                let resolved = resolve_leaf_caller_local_initializer_names(
+                    input,
+                    expansion,
+                    expressions,
+                    call.receiver,
+                    bindings,
+                    statement_bound,
+                );
+                changed |= resolved != call.receiver;
+                resolved
+            } else {
+                call.receiver
+            };
+            let copied_arguments = expressions.reserve_expression_handles(call.arguments.count());
+            for offset in 0..call.arguments.count() {
+                let argument = expressions.expression_handle_at_offset(call.arguments, offset);
+                let resolved = resolve_leaf_caller_local_initializer_names(
+                    input,
+                    expansion,
+                    expressions,
+                    argument,
+                    bindings,
+                    statement_bound,
+                );
+                changed |= resolved != argument;
+                expressions.set_expression_handle_at_offset(copied_arguments, offset, resolved);
+            }
+            if !changed {
+                return expression;
+            }
+            expressions.insert(ExpressionNode::Call(
+                omega_checked_trees::expression::TableCallExpression {
+                    receiver,
+                    target_symbol: call.target_symbol,
+                    target: call.target.clone(),
+                    arguments: copied_arguments,
+                },
+            ))
+        }
+        ExpressionNode::Mutable(inner) => {
+            let resolved = resolve_leaf_caller_local_initializer_names(
+                input,
+                expansion,
+                expressions,
+                inner,
+                bindings,
+                statement_bound,
+            );
+            if resolved == inner {
+                return expression;
+            }
+            expressions.insert(ExpressionNode::Mutable(resolved))
+        }
+        ExpressionNode::Name(path) => {
+            if path.members.count() != 1 {
+                return expression;
+            }
+            let Some(machine) = input
+                .program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == expansion.source_key.machine)
+            else {
+                return expression;
+            };
+            let Some(state) = input
+                .program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == expansion.source_key.state)
+            else {
+                return expression;
+            };
+            let statements = input
+                .program
+                .statement_table
+                .statements(state.statement_nodes);
+            let mut matched: Option<(usize, ExpressionHandle)> = None;
+            for (index, statement) in statements.iter().enumerate().take(statement_bound) {
+                let StatementNode::LocalData(local) = statement else {
+                    continue;
+                };
+                // Match by SYMBOL when the path carries one (distinct same-named
+                // locals stay distinct); fall back to the name for symbol-less
+                // paths (the shape leaf binding expressions actually carry).
+                let matches = if path.head_symbol.is_valid() || path.symbol.is_valid() {
+                    local.symbol == path.symbol || local.symbol == path.head_symbol
+                } else {
+                    expressions
+                        .name_path_members(path.members)
+                        .first()
+                        .is_some_and(|name| *name == local.name)
+                };
+                if matches && local.initial_value.is_valid() {
+                    matched = Some((index, local.initial_value));
+                }
+            }
+            let Some((local_index, initial_value)) = matched else {
+                return expression;
+            };
+            let has_slot = input.runtime_storage.frame_slots.iter().any(|(_, slot)| {
+                slot.dispatch_index == expansion.dispatch_index
+                    && slot.source_key == expansion.source_key
+                    && slot.statement_index == local_index
+                    && matches!(
+                        slot.kind,
+                        omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                    )
+            });
+            if has_slot {
+                return expression;
+            }
+            let initializer = expressions.copy_from(&input.program.expression_table, initial_value);
+            let bound = resolve_leaf_binding_expression_handle(
+                &input.runtime_branching_calls.expressions,
+                expressions,
+                initializer,
+                bindings,
+            );
+            resolve_leaf_caller_local_initializer_names(
+                input,
+                expansion,
+                expressions,
+                bound,
+                bindings,
+                local_index,
+            )
+        }
+        _ => expression,
+    }
 }
 
 fn select_runtime_leaf_assignment_value_target_copy(
