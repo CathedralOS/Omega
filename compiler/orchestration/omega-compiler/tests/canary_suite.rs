@@ -5154,6 +5154,41 @@ fn runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_view_linked_input_unrelated_ref_write_exit_canary_runs() {
+    let canary = pass_canary("borrow/runtime_view_linked_input_unrelated_ref_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-view-linked-input-unrelated-ref-write-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("view-linked-input-unrelated-ref-write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("view-linked-input-unrelated-ref-write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the elision-linked view (borrowing `a` only) to coexist with a write to the \
+         unlinked ref input `b` (lifetimes stage 1 win), and both writes to land \
+         (first.cells[2]=7 + second.cells[0]=1 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_value_call_single_execution_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_single_execution_exit");
     let main_path = canary.join("main.omg");
@@ -8396,6 +8431,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "borrow/disjoint_subslice_owner_write_compile",
     "borrow/disjoint_mutable_slice_element_reborrow_compile",
     "borrow/disjoint_field_owner_call_compile",
+    "borrow/runtime_view_linked_input_unrelated_ref_write_exit",
     "domains/local_alias_domain_transfer",
     "calls/effectless_mut_out_param_discard_compile",
     "calls/mutable_output_host_call",
@@ -8787,6 +8823,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/string_view_invalidated_by_owner_write",
     "borrow/slice_view_invalidated_by_owner_call",
     "borrow/vec_view_invalidated_by_push",
+    "borrow/free_machine_view_invalidated_by_linked_input_write",
+    "borrow/view_return_ambiguous_ref_inputs",
     "concurrency/barrier_wait_contract",
     "concurrency/mutex_lock_guard",
     "concurrency/spawn_join_handle",
