@@ -165,7 +165,8 @@ fn validate_runtime_value_home(
         }
         RuntimeValueOperand::Binary { .. }
         | RuntimeValueOperand::Convert { .. }
-        | RuntimeValueOperand::TextEquals { .. } => {
+        | RuntimeValueOperand::TextEquals { .. }
+        | RuntimeValueOperand::TextEqualsLiteral { .. } => {
             if !matches!(
                 home,
                 omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister { .. }

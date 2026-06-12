@@ -149,6 +149,18 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
         }
     }
 
+    fn text_equals_literal(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(omega_target_operations::RuntimeValueOperandHandle, String)> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::TextEqualsLiteral { place, literal } => {
+                Some((*place, literal.clone()))
+            }
+            _ => None,
+        }
+    }
+
     fn convert(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,

@@ -13,7 +13,8 @@ use super::primitives::{
     encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
     encode_float_multiply, encode_float_to_signed_int, encode_signed_int_to_float,
     encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w, encode_sign_extend_word_to_x,
-    encode_float_subtract, encode_compare_w_register, encode_compare_x_register,
+    encode_float_subtract, encode_compare_w_immediate, encode_compare_w_register,
+    encode_compare_x_register, encode_load_byte_w_from_x,
     encode_conditional_branch_equal, encode_conditional_branch_greater,
     encode_conditional_branch_greater_or_equal, encode_conditional_branch_higher,
     encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
@@ -1704,6 +1705,16 @@ fn append_runtime_value_operand(
             right_offset,
         )?;
         Ok(())
+    } else if let Some((place, literal)) = runtime_value_operands.text_equals_literal(operand) {
+        append_runtime_text_equals_literal_operand(
+            runtime_value_operands,
+            bytes,
+            destination_register,
+            scratch_registers,
+            place,
+            &literal,
+        )?;
+        Ok(())
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let Some((&rhs_register, remaining_scratch)) = scratch_registers.split_first() else {
             return Err(Diagnostic::error(
@@ -1862,6 +1873,100 @@ fn append_runtime_text_equals_operand(
         bytes.len() - operand_start,
         super::widths::runtime_text_equals_operand_width(),
         "text-equals operand encoder length must match its width"
+    );
+    Ok(())
+}
+
+/// Guard-position text content equality against an inline literal:
+/// `destination = (place == literal)` as bool 0/1, where `place` names the
+/// String side's `{ptr @ +0, len @ +8}` text descriptor (a relocated storage
+/// base, or a frame-indexed slice element field) and the literal's expected
+/// bytes are compared as inline immediates -- no rodata descriptor exists for
+/// the literal side. Width is `runtime_text_equals_literal_operand_width`
+/// (place-setup plus a fixed head plus 12 bytes per literal byte).
+///
+/// Register use: the place address setup lands the descriptor address in x16
+/// (clobbering x17/x19/x20/x21/x26 on the frame-indexed path, exactly like
+/// the frame-indexed load operand); ptr/len/byte scratch come from the pool,
+/// and `destination` is only written after the setup. The operand is built as
+/// the LEFT side of its compare, so nothing live sits in those registers yet.
+fn append_runtime_text_equals_literal_operand(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    scratch_registers: &[u8],
+    place: RuntimeValueOperandHandle,
+    literal: &str,
+) -> Result<(), Diagnostic> {
+    let [ptr_register, len_register, byte_scratch, ..] = *scratch_registers else {
+        return Err(Diagnostic::error(
+            "AArch64 MVP encoder ran out of scratch registers for runtime text literal equality",
+        ));
+    };
+    let operand_start = bytes.len();
+
+    // Descriptor address -> x16. The relocated page materialization sits at
+    // the operand start (the relocation planner targets it there).
+    if let Some((_, byte_offset, _)) = runtime_value_operands.storage(place) {
+        bytes.extend(encode_adrp_placeholder(16));
+        bytes.extend(encode_add_page_offset_placeholder(16));
+        append_add_constant_to_x_register(bytes, 16, byte_offset)?;
+    } else if let Some((descriptor_offset, index_offset, element_byte_size, field_byte_offset, _)) =
+        runtime_value_operands.frame_indexed(place)
+    {
+        append_runtime_frame_index_target_address(
+            bytes,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        )?;
+    } else {
+        return Err(Diagnostic::error(
+            "AArch64 MVP encoder cannot compare this text place against a literal yet",
+        ));
+    }
+
+    bytes.extend(encode_load_x_from_x(ptr_register, 16, 0)?);
+    bytes.extend(encode_load_x_from_x(len_register, 16, 8)?);
+
+    // result = 0; a length mismatch is unequal text. The b.ne also means an
+    // all-zero (default) descriptor never has its null pointer dereferenced
+    // when the literal is non-empty.
+    bytes.extend(encode_movz_w(destination_register, 0));
+    append_unsigned_immediate_padded(bytes, byte_scratch, literal.len() as u64);
+    bytes.extend(encode_compare_x_register(len_register, byte_scratch));
+    let literal_bytes = literal.as_bytes();
+    // Forward distances to `done` (the instruction after the final movz):
+    // each unrolled byte block is 12 bytes, plus the 4-byte equal-result movz.
+    bytes.extend(encode_conditional_branch_not_equal(
+        (12 * literal_bytes.len() + 8) as isize,
+    )?);
+    for (byte_index, expected_byte) in literal_bytes.iter().enumerate() {
+        bytes.extend(encode_load_byte_w_from_x(
+            byte_scratch,
+            ptr_register,
+            byte_index,
+        )?);
+        bytes.extend(encode_compare_w_immediate(
+            byte_scratch,
+            u32::from(*expected_byte),
+        )?);
+        let remaining_blocks = literal_bytes.len() - 1 - byte_index;
+        bytes.extend(encode_conditional_branch_not_equal(
+            (12 * remaining_blocks + 8) as isize,
+        )?);
+    }
+    bytes.extend(encode_movz_w(destination_register, 1));
+
+    debug_assert_eq!(
+        bytes.len() - operand_start,
+        super::widths::runtime_text_equals_literal_operand_width(
+            runtime_value_operands,
+            place,
+            literal
+        ),
+        "text-equals-literal operand encoder length must match its width"
     );
     Ok(())
 }
@@ -2168,7 +2273,7 @@ fn runtime_value_operand_value_byte_size(
     if let Some((_, _, target_byte_size, _, _, _)) = operands.convert(operand) {
         return Some(target_byte_size);
     }
-    if operands.text_equals(operand).is_some() {
+    if operands.text_equals(operand).is_some() || operands.text_equals_literal(operand).is_some() {
         // Text content equality evaluates to a bool.
         return Some(1);
     }

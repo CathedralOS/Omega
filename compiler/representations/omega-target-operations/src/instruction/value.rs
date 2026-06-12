@@ -57,6 +57,13 @@ pub trait RuntimeValueOperandSource {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<(RuntimeStorageRegion, usize, RuntimeStorageRegion, usize)>;
+    /// A `TextEqualsLiteral` (guard-position text content compare against an
+    /// inline literal) operand: `(place, literal)` where `place` is the String
+    /// side's 16-byte text descriptor place operand. Evaluates to bool 0/1.
+    fn text_equals_literal(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeValueOperandHandle, String)>;
 }
 
 impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
@@ -195,6 +202,18 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
                 right_region,
                 right_offset,
             } => Some((*left_region, *left_offset, *right_region, *right_offset)),
+            _ => None,
+        }
+    }
+
+    fn text_equals_literal(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeValueOperandHandle, String)> {
+        match self.get(handle) {
+            RuntimeValueOperand::TextEqualsLiteral { place, literal } => {
+                Some((*place, literal.clone()))
+            }
             _ => None,
         }
     }

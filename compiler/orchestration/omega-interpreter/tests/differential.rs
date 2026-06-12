@@ -333,6 +333,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         "text/runtime_slice_alias_indexed_string_field_concat_exit",
         77,
     ),
+    ("text/runtime_slice_indexed_string_guard_exit", 70),
+    ("text/runtime_string_field_literal_guard_exit", 70),
     ("text/runtime_stderr_write_exit", 70),
     ("text/runtime_string_concat_membership_exit", 71),
     ("text/runtime_string_concat_two_fields_exit", 70),

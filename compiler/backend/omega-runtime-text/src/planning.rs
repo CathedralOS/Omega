@@ -6,7 +6,7 @@ use crate::{
     RuntimeTextBuilderSegmentKind, RuntimeTextPlan, RuntimeTextWrite, RuntimeTextWriteKind,
 };
 use omega_checked_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
 };
 use omega_core::arena::{Arena, ArenaSpanInserter, HandleSpan};
 use omega_platform_interface::HostCallPlan;
@@ -38,6 +38,7 @@ pub fn build_runtime_text_plan(
         collect_host_call_runtime_text(host_calls, host_call, &mut plan);
     }
     collect_runtime_text_writes(state_storage, &mut plan);
+    collect_runtime_text_local_initializer_writes(state_storage, &mut plan);
     collect_runtime_text_builders(&mut plan);
     plan.slots = build_runtime_text_slots(&mut plan);
 
@@ -55,13 +56,94 @@ fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut Runt
         let target = plan
             .expressions
             .copy_from(&state_storage.expressions, mutation.target);
-        let value = plan
-            .expressions
-            .copy_from(&state_storage.expressions, mutation.value);
+        let value = copy_text_value_folding_static_concat(
+            &state_storage.expressions,
+            mutation.value,
+            &mut plan.expressions,
+        );
 
         plan.writes.insert(RuntimeTextWrite {
             source_key: mutation.source_key,
             statement_index: mutation.statement_index,
+            kind: classify_runtime_text_write(&plan.expressions, value),
+            target,
+            value,
+        });
+    }
+}
+
+/// Copy a text write's VALUE into the plan, folding an all-literal concat
+/// (`"prefix " + "omega"`) into the single literal it denotes. Left unfolded,
+/// such a value classifies as a GeneratedString builder whose per-segment
+/// emission OVERWRITES indexed targets segment by segment (each machine-indexed
+/// "append" is a full descriptor write), leaving only the last segment's bytes
+/// behind. Folded, it is an ordinary StaticText write with one data object.
+fn copy_text_value_folding_static_concat(
+    source_expressions: &ExpressionTable,
+    value: ExpressionHandle,
+    plan_expressions: &mut ExpressionTable,
+) -> ExpressionHandle {
+    if matches!(
+        source_expressions.expression(value),
+        ExpressionNode::Binary(_)
+    ) && let Some(folded) = fold_static_text_value(source_expressions, value)
+    {
+        return plan_expressions.insert(ExpressionNode::String(folded.into()));
+    }
+    plan_expressions.copy_from(source_expressions, value)
+}
+
+fn fold_static_text_value(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    match table.expression(expression) {
+        ExpressionNode::String(value) => Some(value.to_string()),
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Add => {
+            let mut folded = fold_static_text_value(table, binary.left)?;
+            folded.push_str(&fold_static_text_value(table, binary.right)?);
+            Some(folded)
+        }
+        _ => None,
+    }
+}
+
+/// Collect text writes for CONCAT-built String LOCALS (`let line = "== " +
+/// name + " =="`): an initializer is a write in every sense except the
+/// mutation arena's, and without one here no builder is ever planned, so the
+/// local's frame slot silently stays zeroed (an empty string) at every later
+/// read. Single-segment initializers (`let line = "Gate"`, `let line = other`)
+/// stay on the frame-slot value-write path, which already materializes them --
+/// only the Binary concat shape was unplanned.
+fn collect_runtime_text_local_initializer_writes(
+    state_storage: &StateStoragePlan,
+    plan: &mut RuntimeTextPlan,
+) {
+    for (_, local) in state_storage.locals.iter() {
+        if !local.initial_value.is_valid()
+            || !matches!(
+                state_storage.expressions.expression(local.initial_value),
+                ExpressionNode::Binary(_)
+            )
+            || !is_obvious_runtime_text_value(&state_storage.expressions, local.initial_value)
+        {
+            continue;
+        }
+
+        // The write target is the local by name, matching how later reads
+        // (guards, host-call arguments) spell it.
+        let target = plan.expressions.insert_tree(&Expression::Name(
+            NamePath::resolved(vec![local.name.clone()], local.symbol, local.symbol),
+        ));
+        let value = copy_text_value_folding_static_concat(
+            &state_storage.expressions,
+            local.initial_value,
+            &mut plan.expressions,
+        );
+
+        plan.writes.insert(RuntimeTextWrite {
+            source_key: local.source_key,
+            statement_index: local.statement_index,
             kind: classify_runtime_text_write(&plan.expressions, value),
             target,
             value,

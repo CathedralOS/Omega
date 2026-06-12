@@ -96,6 +96,11 @@ pub fn build_state_storage_plan_with_workers(
                 &mut plan.expressions,
                 local.type_reference,
             );
+            let local_initial_value = if local.initial_value.is_valid() {
+                plan.expressions.copy_from(&expressions, local.initial_value)
+            } else {
+                ExpressionHandle::invalid()
+            };
             plan.locals.insert(StateLocalStorage {
                 source_key: local.source_key,
                 statement_index: local.statement_index,
@@ -105,6 +110,7 @@ pub fn build_state_storage_plan_with_workers(
                 type_reference: local_type_reference,
                 invariant_names: local_invariant_names,
                 required: local.required,
+                initial_value: local_initial_value,
             });
         }
         for mutation in mutations.into_items() {
@@ -182,6 +188,12 @@ fn build_machine_state_storage_plan(
                             &mut plan.invariant_names,
                         ),
                         required,
+                        initial_value: if local_data.initial_value.is_valid() {
+                            plan.expressions
+                                .copy_from(&program.expression_table, local_data.initial_value)
+                        } else {
+                            ExpressionHandle::invalid()
+                        },
                     });
                 }
                 StatementNode::Assignment(assignment) => {

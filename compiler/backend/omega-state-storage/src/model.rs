@@ -40,6 +40,13 @@ pub struct StateLocalStorage {
     pub type_reference: TypeReferenceHandle,
     pub invariant_names: HandleSpan<Identifier>,
     pub required: bool,
+    /// The local's initializer expression (in the plan's expression table), so
+    /// downstream planners can see what the slot is initialized WITH -- the
+    /// runtime-text planner needs it to materialize concat-built String locals
+    /// (`let line = "== " + name + " =="`), which are text writes in every
+    /// sense except the mutation arena's. Invalid when there is no initializer
+    /// to carry.
+    pub initial_value: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
