@@ -332,6 +332,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("text/runtime_string_field_concat_exit", 73),
     ("traits/equatable_mixed_shape_equality_exit", 70),
     ("traits/equatable_record_equality_exit", 70),
+    ("traits/equatable_string_field_equality_exit", 70),
     ("traits/equatable_sum_payload_equality_exit", 70),
     ("traits/runtime_conformance_item_exit", 70),
     ("traits/runtime_dyn_single_impl_dispatch_exit", 70),

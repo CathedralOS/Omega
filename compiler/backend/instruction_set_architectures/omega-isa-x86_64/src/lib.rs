@@ -3541,6 +3541,21 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     Ok(bytes)
 }
 
+/// Fixed width of a value-position text-equals operand (the `TextEquals` arm
+/// of `append_runtime_value_operand`): two relocated descriptor-base imm64
+/// movs (10 each) with two 7-byte disp32 descriptor word loads apiece, then a
+/// fixed 39-byte length-compare + bounded byte loop block and the 3-byte
+/// result mov. MUST stay in lockstep with that encoder (it ends with a
+/// `debug_assert_eq!` against this function) and with
+/// `RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET` below.
+pub fn runtime_text_equals_operand_width() -> usize {
+    (10 + 7 + 7) + (10 + 7 + 7) + 39 + 3
+}
+
+/// Byte offset of the RIGHT descriptor's base `mov r15, imm64` inside a
+/// text-equals operand (the relocation planner adds the +2 imm offset itself).
+pub const RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET: usize = 10 + 7 + 7;
+
 pub fn runtime_value_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
@@ -3568,6 +3583,8 @@ pub fn runtime_value_operand_width(
         // matches the pointee case: mov r15,imm64 (10) + mov rax,[r15+desc] (7)
         // + load dest,[rax+const] (7).
         24
+    } else if runtime_value_operands.text_equals(operand).is_some() {
+        runtime_text_equals_operand_width()
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
             // Float operands: the SSE op (movq xmm<-r, op, movq r<-xmm) is a fixed
@@ -3673,6 +3690,11 @@ fn append_runtime_value_operand(
                 Diagnostic::error("X86_64 fixed indexed value operand offset overflow")
             })?;
         append_load_reg_from_rax(bytes, destination, displacement, byte_size)
+    } else if let Some((_, left_offset, _, right_offset)) =
+        runtime_value_operands.text_equals(operand)
+    {
+        append_runtime_text_equals_operand(bytes, destination, left_offset, right_offset)?;
+        Ok(())
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         // Every comparison/operation accumulates its result in r10, so evaluating
         // the right operand clobbers the left result. Stash left on the stack
@@ -3723,6 +3745,91 @@ fn append_runtime_value_operand(
     }
 }
 
+/// Value-position text content equality: `destination = (left == right)` as
+/// bool 0/1, where both sides are `{ptr @ +0, len @ +8}` text descriptors at
+/// relocated region bases. FIXED-WIDTH (`runtime_text_equals_operand_width`):
+/// every descriptor word loads through a disp32 form, keeping the relocation
+/// offsets (left base mov at the operand start, right base mov at
+/// `RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET`) pinned.
+///
+/// Register use: r15 = descriptor base, then the right length, then the byte
+/// scratch in the loop; rax/rcx = left ptr/len, rdx = right ptr, r9 = the
+/// bool result (moved into `destination` last). r12/r13/r14 stay untouched
+/// (dispatch state and the binary-write shapes' target base live there).
+fn append_runtime_text_equals_operand(
+    bytes: &mut Vec<u8>,
+    destination: Reg64,
+    left_offset: usize,
+    right_offset: usize,
+) -> Result<(), Diagnostic> {
+    let operand_start = bytes.len();
+
+    // Left descriptor: base (imm64 relocated at the operand start), ptr, len.
+    append_mov_r15_imm64(bytes, 0);
+    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15+disp32] (left ptr)
+    bytes.extend(disp32(left_offset)?.to_le_bytes());
+    bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15+disp32] (left len)
+    bytes.extend(disp32(left_offset + 8)?.to_le_bytes());
+
+    // Right descriptor: base relocated at the pinned right-base offset; the
+    // length load consumes r15 LAST (the base is no longer needed after it).
+    debug_assert_eq!(
+        bytes.len() - operand_start,
+        RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET,
+        "right descriptor base must sit at the pinned relocation offset"
+    );
+    append_mov_r15_imm64(bytes, 0);
+    bytes.extend([0x49, 0x8b, 0x97]); // mov rdx, [r15+disp32] (right ptr)
+    bytes.extend(disp32(right_offset)?.to_le_bytes());
+    bytes.extend([0x4d, 0x8b, 0xbf]); // mov r15, [r15+disp32] (right len)
+    bytes.extend(disp32(right_offset + 8)?.to_le_bytes());
+
+    // result = 0; unequal lengths are unequal text. The jne also means a
+    // zero-length pair never enters the loop, so an all-zero (default)
+    // descriptor's null pointer is never dereferenced. Fixed 39-byte block:
+    //         xor   r9d, r9d
+    //         cmp   rcx, r15
+    //         jne   done            (+31)
+    //   loop: test  rcx, rcx
+    //         je    equal           (+20: all bytes matched)
+    //         movzx r15d, byte [rax]
+    //         cmp   r15b, [rdx]
+    //         jne   done            (+17)
+    //         inc   rax
+    //         inc   rdx
+    //         dec   rcx
+    //         jmp   loop            (-25)
+    //  equal: mov   r9d, 1
+    //   done:
+    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d
+    bytes.extend([0x4c, 0x39, 0xf9]); // cmp rcx, r15
+    bytes.extend([0x75, 0x1f]); // jne +31 -> done
+    bytes.extend([0x48, 0x85, 0xc9]); // test rcx, rcx
+    bytes.extend([0x74, 0x14]); // je +20 -> equal
+    bytes.extend([0x44, 0x0f, 0xb6, 0x38]); // movzx r15d, byte [rax]
+    bytes.extend([0x44, 0x3a, 0x3a]); // cmp r15b, [rdx]
+    bytes.extend([0x75, 0x11]); // jne +17 -> done
+    bytes.extend([0x48, 0xff, 0xc0]); // inc rax
+    bytes.extend([0x48, 0xff, 0xc2]); // inc rdx
+    bytes.extend([0x48, 0xff, 0xc9]); // dec rcx
+    bytes.extend([0xeb, 0xe7]); // jmp -25 -> loop
+    bytes.extend([0x41, 0xb9]); // mov r9d, imm32 (equal: result = 1)
+    bytes.extend(1i32.to_le_bytes());
+
+    // done: move the bool into the requested destination register.
+    match destination {
+        Reg64::R10 => bytes.extend([0x4d, 0x89, 0xca]), // mov r10, r9
+        Reg64::R11 => bytes.extend([0x4d, 0x89, 0xcb]), // mov r11, r9
+    }
+
+    debug_assert_eq!(
+        bytes.len() - operand_start,
+        runtime_text_equals_operand_width(),
+        "text-equals operand encoder length must match its width"
+    );
+    Ok(())
+}
+
 /// Value width of a runtime operand, looking through nested binary operands.
 /// `None` for immediates (which carry no width). Used to size comparisons, whose
 /// result type (bool) does not reflect the compared operands' width.
@@ -3751,6 +3858,10 @@ fn runtime_value_operand_value_byte_size(
     }
     if let Some((_, _, target_byte_size, _, _, _)) = operands.convert(operand) {
         return Some(target_byte_size);
+    }
+    if operands.text_equals(operand).is_some() {
+        // Text content equality evaluates to a bool.
+        return Some(1);
     }
     None
 }

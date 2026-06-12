@@ -124,21 +124,32 @@ remains tracked in its bullet below.
   types and extended with a declare-the-conformance suggestion for
   non-conforming ones; a written `Type::equals` wins (`==` lowers to a
   call); prerequisites error at the conformance item (every field scalar /
-  payload-less sum / conforming; `String` fields rejected -- no native
-  value-position text compare; recursive types rejected). The interpreter
-  short-circuits `&&`/`||` and ZII-defaults enum fields to the zero case;
-  the native value-operand resolver reads oversize enum places as their tag
-  prefix in tag compares (was a silent statement drop for two-field
-  payloads). Canaries: pass+RUN `traits/equatable_record_equality_exit` +
-  `traits/equatable_sum_payload_equality_exit`, fail
+  `String` / payload-less sum / conforming; recursive types rejected). The
+  interpreter short-circuits `&&`/`||` and ZII-defaults enum fields to the
+  zero case; the native value-operand resolver reads oversize enum places
+  as their tag prefix in tag compares (was a silent statement drop for
+  two-field payloads). STRING FIELDS LANDED (2026-06-11): a `String` field
+  compares by CONTENT through a new `TextEquals` value-operand LEAF
+  (`{left, right}` descriptor places -> bool) lowered in both ISAs as a
+  length compare plus a bounded byte loop (fixed-width encodings, pinned
+  left/right descriptor-base relocation offsets, debug_asserts against the
+  width functions); selection routes `String == String` place compares to
+  it in nested-operand AND top-level binary-write positions; comparing a
+  String field against a CONSTRUCTED LITERAL stays rejected (no stored
+  descriptor at the compare site -- bind it to a value first). Canaries:
+  pass+RUN `traits/equatable_record_equality_exit` +
+  `traits/equatable_sum_payload_equality_exit` +
+  `traits/equatable_string_field_equality_exit` (equal contents / same
+  length different bytes / different lengths / scalar sibling), fail
   `traits/equatable_missing_conformance_suggested` /
   `equatable_field_not_equatable` / `equatable_recursive_type` /
-  `equatable_string_field_unsupported`. STILL OPEN: a CALLABLE synthesized
-  `Type::equals` machine (comptime/trait-generator arc), trait `default
-  machine` instantiation for other traits, `String`/recursive Equatable
-  support, equality in contracts/domain facts (no typing scope there), and
-  written-equals signature matching against `&Self` (validation accepts
-  `Self` in trait signatures; substitution per conformance is unchecked).
+  `equatable_string_field_literal_compare`. STILL OPEN: a CALLABLE
+  synthesized `Type::equals` machine (comptime/trait-generator arc), trait
+  `default machine` instantiation for other traits, recursive Equatable
+  support, String-vs-literal structural compares, equality in
+  contracts/domain facts (no typing scope there), and written-equals
+  signature matching against `&Self` (validation accepts `Self` in trait
+  signatures; substitution per conformance is unchecked).
 - [ ] **Case members: remaining halves.** EXHAUSTIVENESS COUNTING LANDED
   (2026-06-11), over implicit case-domains AND case-subset domains: a
   dispatch run (consecutive transitions, the shape every block desugars to)

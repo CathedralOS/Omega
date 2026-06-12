@@ -104,6 +104,18 @@ pub(super) fn runtime_value_operand_name(
             if *is_float { " f" } else { "" },
             runtime_value_operand_name(backend_plan, *right),
         ),
+        RuntimeValueOperand::TextEquals {
+            left_region,
+            left_offset,
+            right_region,
+            right_offset,
+        } => {
+            let left_symbol =
+                storage_region_symbol_name(*left_region, backend_plan.entry_machine_name());
+            let right_symbol =
+                storage_region_symbol_name(*right_region, backend_plan.entry_machine_name());
+            format!("text_equals({left_symbol}@{left_offset}, {right_symbol}@{right_offset})")
+        }
         RuntimeValueOperand::Convert {
             source,
             source_byte_size,

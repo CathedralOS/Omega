@@ -1358,6 +1358,8 @@ fn runtime_value_operand_byte_size(
         RuntimeValueOperand::Convert {
             target_byte_size, ..
         } => *target_byte_size,
+        // Text content equality evaluates to a bool.
+        RuntimeValueOperand::TextEquals { .. } => 1,
     }
 }
 

@@ -1,0 +1,27 @@
+// The one String shape still outside synthesized equality: comparing a
+// String-bearing value against a CONSTRUCTED LITERAL. The backend's
+// value-position text compare reads two stored {ptr, len} descriptor places,
+// and a literal's String field has no stored descriptor at the compare site,
+// so the expansion rejects it with a bindable workaround instead of
+// comparing garbage. (Stored-value compares are the pass canary
+// traits/equatable_string_field_equality_exit.)
+
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+data Tag {
+    label: String;
+    weight: i32;
+}
+
+Tag satisfies Equatable;
+
+data Main {
+    tag: Tag;
+    hit: bool;
+}
+
+machine Main::main(&mut self) {
+    self.hit = self.tag == Tag { label: "amulet", weight: 3 };
+}

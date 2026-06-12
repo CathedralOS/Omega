@@ -10,6 +10,7 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     classify_scalar_value_type_in_table, resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_primitive_type_in_table,
 };
 use omega_abstract_operations::{RuntimeValueOperand, RuntimeValueOperandHandle};
 use omega_checked_trees::expression::{
@@ -85,6 +86,21 @@ pub(super) fn resolve_runtime_value_operand_in_table(
     }
 
     if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
+        // String `==` is CONTENT equality (length AND bytes), not a scalar
+        // compare of descriptor words: when both sides are String-typed
+        // descriptor places this becomes the dedicated text-equals leaf.
+        if let Some(text_equals) = resolve_runtime_text_equals_operand_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.operator,
+            binary.left,
+            binary.right,
+            runtime_value_operands,
+        ) {
+            return Some(text_equals);
+        }
         let operator = runtime_binary_operator(binary.operator)?;
         let left_expr = binary.left;
         let right_expr = binary.right;
@@ -315,6 +331,70 @@ pub(super) fn resolve_runtime_value_operand_in_table(
         region: place.region,
         byte_offset: place.byte_offset,
         byte_size: place.byte_count,
+    }))
+}
+
+/// Resolve a `String == String` compare to the dedicated `TextEquals` value
+/// operand: text equality is CONTENT equality (length AND bytes), so the
+/// generic scalar path -- which would compare 8 of the descriptor's 16 bytes,
+/// i.e. the POINTERS -- must never see it. Applies only when BOTH sides are
+/// String-typed runtime storage places (the synthesized member reads of
+/// Equatable structural equality, plain field/local reads); other String
+/// shapes (literals, slice elements) return `None` and surface as a hard
+/// "needs runtime value lowering" emission blocker instead of comparing
+/// descriptor words. `==` only: the Equatable expansion spells `!=` as
+/// `equality == false`, which wraps this operand in an ordinary compare.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection::runtime_dispatch::writes) fn resolve_runtime_text_equals_operand_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    operator: omega_checked_trees::expression::BinaryOperator,
+    left_expression: ExpressionHandle,
+    right_expression: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<RuntimeValueOperandHandle> {
+    if operator != omega_checked_trees::expression::BinaryOperator::Equal {
+        return None;
+    }
+    let operand_is_string = |expression: ExpressionHandle| {
+        matches!(
+            resolve_runtime_storage_primitive_type_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                expression,
+            ),
+            Some(PrimitiveType::String)
+        )
+    };
+    if !operand_is_string(left_expression) || !operand_is_string(right_expression) {
+        return None;
+    }
+    let left_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        left_expression,
+    )?;
+    let right_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        right_expression,
+    )?;
+    // A String place is its 16-byte `{ptr, len}` text descriptor.
+    debug_assert_eq!(left_place.byte_count, 16, "String place must be a text descriptor");
+    debug_assert_eq!(right_place.byte_count, 16, "String place must be a text descriptor");
+    Some(runtime_value_operands.insert(RuntimeValueOperand::TextEquals {
+        left_region: left_place.region,
+        left_offset: left_place.byte_offset,
+        right_region: right_place.region,
+        right_offset: right_place.byte_offset,
     }))
 }
 
