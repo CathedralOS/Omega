@@ -66,6 +66,8 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::ReadWireScalarVarint { .. }
             | Self::ReadWireNestedOpen { .. }
             | Self::ReadWireNestedClose { .. }
+            | Self::AppendWireRepeatedScalarVarint { .. }
+            | Self::ReadWireRepeatedScalarVarint { .. }
             | Self::WriteReturnRegisterInteger { .. }
             | Self::CopyRuntimeStorageToReturnRegister { .. } => TargetOperationDomain::RuntimeWrite,
 

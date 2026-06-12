@@ -817,7 +817,7 @@ fn immediate_width(value: i64) -> usize {
     unsigned_immediate_width(value as u64)
 }
 
-fn unsigned_immediate_width(value: u64) -> usize {
+pub(in crate::aarch64) fn unsigned_immediate_width(value: u64) -> usize {
     let high_nonzero_halfwords = (1..4)
         .filter(|halfword_shift| halfword(value, *halfword_shift) != 0)
         .count();
@@ -859,7 +859,7 @@ fn runtime_storage_copy_data_width(
     width
 }
 
-fn load_data_offset_width(byte_offset: usize, byte_size: usize) -> usize {
+pub(in crate::aarch64) fn load_data_offset_width(byte_offset: usize, byte_size: usize) -> usize {
     if data_offset_encodable(byte_offset, byte_size) {
         4
     } else {
@@ -867,7 +867,7 @@ fn load_data_offset_width(byte_offset: usize, byte_size: usize) -> usize {
     }
 }
 
-fn store_data_offset_width(byte_offset: usize, byte_size: usize) -> usize {
+pub(in crate::aarch64) fn store_data_offset_width(byte_offset: usize, byte_size: usize) -> usize {
     if data_offset_encodable(byte_offset, byte_size) {
         4
     } else {
@@ -1182,7 +1182,7 @@ pub fn wire_varint_emit_loop_width() -> usize {
 
 /// Sign-mask + shift + xor (12), plus the `sxtw` a 4-byte signed source needs
 /// before zigzagging at 64 bits.
-fn wire_zigzag_width(byte_size: usize) -> usize {
+pub(in crate::aarch64) fn wire_zigzag_width(byte_size: usize) -> usize {
     if byte_size == 4 { 16 } else { 12 }
 }
 
@@ -1371,7 +1371,127 @@ pub fn read_wire_nested_close_width(
 }
 
 /// Byte offset of the END-slot page adrp pair inside both nested decodes
-/// (materialized right after the shared prologue).
+/// (materialized right after the shared prologue). The repeated-element read
+/// materializes its end page at the same position.
 pub fn wire_decode_nested_end_page_offset(buffer_offset: usize, read_offset: usize) -> usize {
     wire_decode_prologue_width(buffer_offset, read_offset)
+}
+
+pub fn append_wire_repeated_scalar_varint_width(
+    source_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+    index: u64,
+    count_offset: usize,
+    out_offset: usize,
+    written_offset: usize,
+) -> usize {
+    // Prologue + count page pair + count load + index materialization +
+    // cmp/b.hs guard + source page pair + scalar load + optional zigzag +
+    // emit loop + cursor store.
+    wire_append_prologue_width(out_offset, written_offset)
+        + 8
+        + load_data_offset_width(count_offset, 8)
+        + unsigned_immediate_width(index)
+        + 8
+        + 8
+        + load_data_offset_width(source_offset, byte_size)
+        + if zigzag { wire_zigzag_width(byte_size) } else { 0 }
+        + wire_varint_emit_loop_width()
+        + store_data_offset_width(written_offset, 8)
+}
+
+/// Byte offset of the COUNT page adrp pair inside the repeated append (right
+/// after the shared prologue).
+pub fn wire_append_repeated_count_page_offset(out_offset: usize, written_offset: usize) -> usize {
+    wire_append_prologue_width(out_offset, written_offset)
+}
+
+/// Byte offset of the SOURCE page adrp pair inside the repeated append
+/// (after the count guard).
+pub fn wire_append_repeated_source_page_offset(
+    out_offset: usize,
+    written_offset: usize,
+    count_offset: usize,
+    index: u64,
+) -> usize {
+    wire_append_repeated_count_page_offset(out_offset, written_offset)
+        + 8
+        + load_data_offset_width(count_offset, 8)
+        + unsigned_immediate_width(index)
+        + 8
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn read_wire_repeated_scalar_varint_width(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+    count_offset: usize,
+    target_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+) -> usize {
+    // Prologue + end page pair + end load + cmp/b.hs guard + length
+    // materialization + success/value/shift movz triple + read loop +
+    // optional unzigzag + target page pair + truncating store + count page
+    // pair + count load + add + count store + epilogue.
+    wire_decode_prologue_width(buffer_offset, read_offset)
+        + 8
+        + load_data_offset_width(end_offset, 8)
+        + 8
+        + unsigned_immediate_width(buffer_length as u64)
+        + 12
+        + wire_varint_read_loop_width()
+        + if zigzag { wire_unzigzag_width() } else { 0 }
+        + 8
+        + store_data_offset_width(target_offset, byte_size)
+        + 8
+        + load_data_offset_width(count_offset, 8)
+        + 4
+        + store_data_offset_width(count_offset, 8)
+        + wire_decode_tail_width(read_offset, ok_offset)
+}
+
+/// Byte offset of the TARGET page adrp pair inside the repeated read (after
+/// the guard and the read loop).
+pub fn wire_decode_repeated_target_page_offset(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    end_offset: usize,
+    zigzag: bool,
+) -> usize {
+    wire_decode_prologue_width(buffer_offset, read_offset)
+        + 8
+        + load_data_offset_width(end_offset, 8)
+        + 8
+        + unsigned_immediate_width(buffer_length as u64)
+        + 12
+        + wire_varint_read_loop_width()
+        + if zigzag { wire_unzigzag_width() } else { 0 }
+}
+
+/// Byte offset of the COUNT page adrp pair inside the repeated read (after
+/// the target store).
+#[allow(clippy::too_many_arguments)]
+pub fn wire_decode_repeated_count_page_offset(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    end_offset: usize,
+    target_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+) -> usize {
+    wire_decode_repeated_target_page_offset(
+        buffer_offset,
+        buffer_length,
+        read_offset,
+        end_offset,
+        zigzag,
+    ) + 8
+        + store_data_offset_width(target_offset, byte_size)
 }

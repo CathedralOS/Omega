@@ -46,3 +46,44 @@ pub(crate) fn wire_decode_nested_end_page_offset(
         read_offset,
     )
 }
+
+pub(crate) fn wire_decode_repeated_target_page_offset(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    end_offset: usize,
+    zigzag: bool,
+) -> usize {
+    omega_instruction_selection::wire_decode_repeated_target_page_offset(
+        architecture,
+        buffer_offset,
+        buffer_length,
+        read_offset,
+        end_offset,
+        zigzag,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn wire_decode_repeated_count_page_offset(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    end_offset: usize,
+    target_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+) -> usize {
+    omega_instruction_selection::wire_decode_repeated_count_page_offset(
+        architecture,
+        buffer_offset,
+        buffer_length,
+        read_offset,
+        end_offset,
+        target_offset,
+        byte_size,
+        zigzag,
+    )
+}

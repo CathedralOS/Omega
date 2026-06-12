@@ -230,6 +230,33 @@ fn validate_scope_field_types(
             field.type_reference,
             diagnostics,
         );
+
+        // A repeated field is spelled `[element; max]`. The declared maximum
+        // is part of the wire contract -- it is what gives the packed payload
+        // a finite worst case -- so a bare slice (`[element]`, no maximum)
+        // can never be encoded and is rejected at the declaration, like a
+        // schema cycle. A zero maximum declares a field that can never carry
+        // an element; reject it as a contradiction rather than encode an
+        // always-empty payload.
+        if program.wire_field_is_unbounded_slice(field) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{} field `{}`: a repeated wire field needs a declared maximum element count (`[{}; N]`); a bare slice has no finite worst-case encoding",
+                scope_label(schema, scope),
+                field.name,
+                program.display_type_reference(field.type_reference)
+                    .trim_start_matches('[')
+                    .trim_end_matches(']')
+            )));
+        } else if let Some((_, max_count)) = program.wire_field_fixed_array(field)
+            && max_count == 0
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "{} field `{}`: a repeated wire field's maximum element count must be at least 1, got `{}`",
+                scope_label(schema, scope),
+                field.name,
+                program.display_type_reference(field.type_reference)
+            )));
+        }
     }
 }
 
@@ -488,6 +515,8 @@ fn validate_wire_encode_call(
     let mut worst_case_bytes = omega_typed_trees::wire::wire_varint_bytes(era).len();
     let mut current_fields = Vec::new();
     let mut nested_fields: Vec<(&WireField, &WireSchema)> = Vec::new();
+    let mut repeated_fields: Vec<(&WireField, omega_typed_trees::wire::WireRepeatedEncoding)> =
+        Vec::new();
     let mut text_fields: Vec<&WireField> = Vec::new();
     let mut max_field_number = i64::MIN;
     let mut schema_rejects = false;
@@ -495,6 +524,40 @@ fn validate_wire_encode_call(
         let WireMember::Field(field) = member else {
             continue;
         };
+        // A REPEATED field (`[scalar; max]`) packs LENGTH-delimited: tag +
+        // byte-length varint + back-to-back element varints (protobuf's
+        // packed encoding). The declared maximum bounds it statically, so it
+        // joins the worst-case budget like a scalar and may sit anywhere.
+        // Only scalar elements are honest today: a String element is
+        // runtime-sized and a nested-message element would need per-element
+        // staging, so both reject loudly.
+        if let Some((_, max_count)) = program.wire_field_fixed_array(field) {
+            if field.number < 0 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                    schema.name, field.name, field.number
+                )));
+                schema_rejects = true;
+                continue;
+            }
+            let Some(repeated) = program.wire_field_repeated_encoding(field) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "wire data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated String and repeated nested messages reject until they have an honest encoding)",
+                    schema.name,
+                    field.name,
+                    program.display_type_reference(field.type_reference)
+                )));
+                schema_rejects = true;
+                continue;
+            };
+            let _ = max_count;
+            max_field_number = max_field_number.max(field.number);
+            worst_case_bytes +=
+                omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len()
+                    + repeated.worst_case_payload_bytes();
+            repeated_fields.push((field, repeated));
+            continue;
+        }
         let primitive = program.primitive_type_reference(field.type_reference);
         let encoding =
             primitive.and_then(omega_typed_trees::wire::WireFieldEncoding::for_primitive);
@@ -643,6 +706,17 @@ fn validate_wire_encode_call(
                 diagnostics,
             );
         }
+        for (field, repeated) in &repeated_fields {
+            validate_repeated_value_field(
+                program,
+                schema,
+                "encode_wire",
+                value_data,
+                field,
+                *repeated,
+                diagnostics,
+            );
+        }
     }
 
     // Out argument: `&mut [u8; N]` with N covering the worst case.
@@ -725,15 +799,43 @@ fn validate_wire_decode_call(
         return;
     }
 
-    // Schema side: the stage 2 scalar set plus nested message fields, same
-    // gate as the encoder (String stays encode-only).
+    // Schema side: the stage 2 scalar set plus nested message fields plus
+    // repeated scalar fields, same gate as the encoder (String stays
+    // encode-only).
     let mut current_fields = Vec::new();
     let mut nested_fields: Vec<(&WireField, &WireSchema)> = Vec::new();
+    let mut repeated_fields: Vec<(&WireField, omega_typed_trees::wire::WireRepeatedEncoding)> =
+        Vec::new();
     let mut schema_rejects = false;
     for member in program.wire_members(schema.members) {
         let WireMember::Field(field) = member else {
             continue;
         };
+        // Mirrors the encoder's repeated gate: `[scalar; max]` decodes as a
+        // LENGTH-delimited packed payload (bounds-checked loop capped at the
+        // declared maximum); non-scalar elements reject.
+        if program.wire_field_fixed_array(field).is_some() {
+            if field.number < 0 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                    schema.name, field.name, field.number
+                )));
+                schema_rejects = true;
+                continue;
+            }
+            let Some(repeated) = program.wire_field_repeated_encoding(field) else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "wire data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated String and repeated nested messages reject until they have an honest encoding)",
+                    schema.name,
+                    field.name,
+                    program.display_type_reference(field.type_reference)
+                )));
+                schema_rejects = true;
+                continue;
+            };
+            repeated_fields.push((field, repeated));
+            continue;
+        }
         let primitive = program.primitive_type_reference(field.type_reference);
         let scalar =
             primitive.and_then(omega_typed_trees::wire::WireScalarEncoding::for_primitive);
@@ -839,6 +941,17 @@ fn validate_wire_decode_call(
                 value_data,
                 field,
                 child,
+                diagnostics,
+            );
+        }
+        for (field, repeated) in &repeated_fields {
+            validate_repeated_value_field(
+                program,
+                schema,
+                "decode_wire",
+                value_data,
+                field,
+                *repeated,
                 diagnostics,
             );
         }
@@ -985,6 +1098,97 @@ fn validate_nested_value_field(
                 child_field.number,
                 program.display_type_reference(child_field.type_reference)
             )));
+        }
+    }
+}
+
+/// A repeated wire field's value member must mirror the schema spelling
+/// exactly -- `name: [element; max]` with the SAME element primitive and the
+/// SAME maximum -- and the value type must also declare the COUNT COMPANION
+/// `name_count: usize`: the wire carries the packed byte length, never the
+/// count, so the companion is where the runtime element count lives (the
+/// encoder reads it, the decoder writes it).
+fn validate_repeated_value_field(
+    program: &TypedTrees,
+    schema: &WireSchema,
+    machine_name: &str,
+    value_data: &omega_typed_trees::data::DataDefinition,
+    field: &WireField,
+    repeated: omega_typed_trees::wire::WireRepeatedEncoding,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let find_field = |name: &str| {
+        program
+            .data_members(value_data)
+            .iter()
+            .find_map(|member| match member {
+                omega_typed_trees::data::DataMember::Field(data_field)
+                    if data_field.name.as_str() == name =>
+                {
+                    Some(data_field)
+                }
+                _ => None,
+            })
+    };
+
+    match find_field(field.name.as_str()) {
+        None => {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::{machine_name}` value type `{}` has no field `{}` (schema field {} is repeated)",
+                schema.name, value_data.name, field.name, field.number
+            )));
+        }
+        Some(value_field) => {
+            let matches_schema = unwrapped_type_reference(program, value_field.type_reference)
+                .map(|unwrapped| program.type_reference_table.type_reference(unwrapped))
+                .is_some_and(|node| {
+                    matches!(
+                        node,
+                        TypeReferenceNode::FixedArray {
+                            element_type,
+                            length: omega_typed_trees::types::FixedArrayLength::Literal(length),
+                        } if *length == repeated.max_count
+                            && program
+                                .primitive_type_reference(*element_type)
+                                .and_then(
+                                    omega_typed_trees::wire::WireScalarEncoding::for_primitive
+                                )
+                                == Some(repeated.element)
+                    )
+                });
+            if !matches_schema {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::{machine_name}` value field `{}.{}` is `{}`, but the schema declares repeated field {} as `{}` -- the value array must match the element type and maximum exactly",
+                    schema.name,
+                    value_data.name,
+                    field.name,
+                    program.display_type_reference(value_field.type_reference),
+                    field.number,
+                    program.display_type_reference(field.type_reference)
+                )));
+            }
+        }
+    }
+
+    let count_name = omega_typed_trees::wire::wire_repeated_count_field_name(field.name.as_str());
+    match find_field(&count_name) {
+        None => {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::{machine_name}` value type `{}` has no field `{count_name}`: a repeated wire field needs a `usize` count companion next to the array (`{count_name}: usize;`) -- the encoder reads it and the decoder writes the decoded element count back",
+                schema.name, value_data.name
+            )));
+        }
+        Some(count_field) => {
+            if program.primitive_type_reference(count_field.type_reference)
+                != Some(omega_typed_trees::types::PrimitiveType::Usize)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::{machine_name}` value field `{}.{count_name}` must be `usize` (the repeated field's count companion), got `{}`",
+                    schema.name,
+                    value_data.name,
+                    program.display_type_reference(count_field.type_reference)
+                )));
+            }
         }
     }
 }

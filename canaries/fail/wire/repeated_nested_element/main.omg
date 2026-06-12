@@ -1,0 +1,48 @@
+// Wire REPEATED fields: only stage 2 scalar elements (i32/i64/u32/u64/bool)
+// have an honest packed encoding today. A repeated NESTED MESSAGE would need
+// per-element length framing and per-element staging, so `[Schema; N]`
+// rejects the encode call loudly instead of half-supporting it.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Point {
+    0: x: i32;
+    1: y: i32;
+}
+
+wire data Polygon {
+    0: points: [Point; 3];
+}
+
+data PointValue {
+    x: i32;
+    y: i32;
+}
+
+data PolygonValue {
+    points: [PointValue; 3];
+    points_count: usize;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    let msg: PolygonValue = PolygonValue {
+        points: [
+            PointValue { x: 0, y: 0 },
+            PointValue { x: 1, y: 0 },
+            PointValue { x: 0, y: 1 }
+        ],
+        points_count: 3
+    };
+
+    Polygon::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    self.console.exit_process(70);
+}

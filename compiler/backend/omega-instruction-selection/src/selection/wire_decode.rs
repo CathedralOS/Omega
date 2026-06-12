@@ -43,14 +43,26 @@ struct WireFieldRead {
     content: WireReadContent,
 }
 
-/// What follows a field's expected tag bytes: a scalar target place, or a
-/// nested sub-message's own field list (resolved one member deeper).
+/// What follows a field's expected tag bytes: a scalar target place, a
+/// nested sub-message's own field list (resolved one member deeper), or a
+/// repeated field's packed element run.
 enum WireReadContent {
     Scalar {
         encoding: WireScalarEncoding,
         place: RuntimeStoragePlace,
     },
     Nested { children: Vec<WireFieldRead> },
+    /// A repeated field: a byte-LENGTH varint opens a bounded sub-region,
+    /// then up to `max_count` guarded element reads (each runs only while
+    /// the cursor sits below the bound, bumping the count companion), and
+    /// the exact-end close rejects payloads whose length disagrees with the
+    /// elements -- including MORE elements than the declared maximum.
+    Repeated {
+        element: WireScalarEncoding,
+        base: RuntimeStoragePlace,
+        count: RuntimeStoragePlace,
+        max_count: usize,
+    },
 }
 
 /// Lower a recognized `decode_wire` call statement; `true` when the statement
@@ -155,12 +167,15 @@ pub(super) fn select_wire_decode_call(
     ) else {
         return false;
     };
-    let has_nested = fields
-        .iter()
-        .any(|field| matches!(field.content, WireReadContent::Nested { .. }));
-    // The nested end-bound slot is the wire scratch's first 8 bytes (the
-    // encoder's descriptor ptr slot -- never live at the same time, since
-    // wire ops run strictly inside one statement).
+    let has_nested = fields.iter().any(|field| {
+        matches!(
+            field.content,
+            WireReadContent::Nested { .. } | WireReadContent::Repeated { .. }
+        )
+    });
+    // The nested/repeated end-bound slot is the wire scratch's first 8 bytes
+    // (the encoder's descriptor ptr slot -- never live at the same time,
+    // since wire ops run strictly inside one statement).
     let end_offset = input.runtime_storage.wire_scratch_base;
     if has_nested && (end_offset == 0 || input.runtime_storage.wire_scratch_size < 8) {
         return false;
@@ -286,6 +301,81 @@ pub(super) fn select_wire_decode_call(
                     end_offset,
                 });
             }
+            WireReadContent::Repeated {
+                element,
+                base,
+                count,
+                max_count,
+            } => {
+                // Byte-LENGTH varint into the end-bound slot, OPEN bounds it
+                // against the buffer (a hostile length cannot wrap the
+                // 64-bit sum or run past the buffer), the count companion
+                // zeroes, then `max_count` unrolled guarded reads -- each
+                // runs only while the cursor sits below the bound, so the
+                // element count is capped by the declared maximum -- and
+                // CLOSE fails ok unless the cursor landed exactly on the
+                // bound (a payload packing more than `max_count` elements
+                // leaves the cursor short and rejects).
+                push(SelectedInstructionKind::ReadWireScalarVarint {
+                    buffer_region: buffer_place.region,
+                    buffer_offset: buffer_place.byte_offset,
+                    buffer_length,
+                    read_region: read_place.region,
+                    read_offset: read_place.byte_offset,
+                    ok_region: ok_place.region,
+                    ok_offset: ok_place.byte_offset,
+                    target_region: RuntimeStorageRegion::RuntimeFrame,
+                    target_offset: end_offset,
+                    byte_size: 8,
+                    zigzag: false,
+                });
+                push(SelectedInstructionKind::ReadWireNestedOpen {
+                    buffer_region: buffer_place.region,
+                    buffer_offset: buffer_place.byte_offset,
+                    buffer_length,
+                    read_region: read_place.region,
+                    read_offset: read_place.byte_offset,
+                    ok_region: ok_place.region,
+                    ok_offset: ok_place.byte_offset,
+                    end_region: RuntimeStorageRegion::RuntimeFrame,
+                    end_offset,
+                });
+                push(SelectedInstructionKind::WriteRuntimeStorageInteger {
+                    target_region: count.region,
+                    byte_offset: count.byte_offset,
+                    byte_size: count.byte_count,
+                    value: 0,
+                });
+                for index in 0..*max_count {
+                    push(SelectedInstructionKind::ReadWireRepeatedScalarVarint {
+                        buffer_region: buffer_place.region,
+                        buffer_offset: buffer_place.byte_offset,
+                        buffer_length,
+                        read_region: read_place.region,
+                        read_offset: read_place.byte_offset,
+                        ok_region: ok_place.region,
+                        ok_offset: ok_place.byte_offset,
+                        end_region: RuntimeStorageRegion::RuntimeFrame,
+                        end_offset,
+                        count_region: count.region,
+                        count_offset: count.byte_offset,
+                        target_region: base.region,
+                        target_offset: base.byte_offset + index * element.byte_size,
+                        byte_size: element.byte_size,
+                        zigzag: element.zigzag,
+                    });
+                }
+                push(SelectedInstructionKind::ReadWireNestedClose {
+                    buffer_region: buffer_place.region,
+                    buffer_offset: buffer_place.byte_offset,
+                    read_region: read_place.region,
+                    read_offset: read_place.byte_offset,
+                    ok_region: ok_place.region,
+                    ok_offset: ok_place.byte_offset,
+                    end_region: RuntimeStorageRegion::RuntimeFrame,
+                    end_offset,
+                });
+            }
         }
     }
 
@@ -322,6 +412,56 @@ fn collect_field_reads(
                 member: field.name.clone(),
             },
         ));
+
+        // A repeated field resolves the array member AND its count companion
+        // (`<name>_count`); validation has guaranteed both exist with the
+        // right shapes. Repeated fields live at the top level only -- a
+        // child body admits plain scalars alone.
+        if let Some(repeated) = input.program.wire_field_repeated_encoding(field) {
+            if !allow_nested {
+                return None;
+            }
+            let base = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                member_handle,
+            )?;
+            if base.byte_count != repeated.max_count * repeated.element.byte_size {
+                return None;
+            }
+            let count_name = omega_checked_trees::wire::wire_repeated_count_field_name(
+                field.name.as_str(),
+            );
+            let count_handle = expressions.insert(ExpressionNode::Member(
+                omega_checked_trees::expression::TableMemberExpression {
+                    receiver,
+                    member_symbol: SymbolHandle::invalid(),
+                    member: count_name.as_str().into(),
+                },
+            ));
+            let count = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                count_handle,
+            )?;
+            if count.byte_count != 8 {
+                return None;
+            }
+            fields.push(WireFieldRead {
+                number: field.number,
+                content: WireReadContent::Repeated {
+                    element: repeated.element,
+                    base,
+                    count,
+                    max_count: repeated.max_count,
+                },
+            });
+            continue;
+        }
 
         if let Some(child) = input.program.wire_field_nested_schema(field) {
             if !allow_nested {
