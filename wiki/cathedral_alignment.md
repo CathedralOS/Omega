@@ -75,21 +75,26 @@ implementation work. Each one gets more expensive to retrofit every month.
    explicit architecture note: which backend layers are allowed to assume
    whole-program, and which must stay relocatable/per-component.
 
-5. **Concurrency: pick the model's hard answers** (DESIGN-ONLY; every target
-   declares `threads = disabled`; zero canaries). Chapter 17's `spawn`/`Join`
-   sketch is fine, but Cathedral needs answers to the questions the appendix
-   already lists: *can typed state clusters suspend across ticks* (that IS the
-   scheduler-suspension question), cancellation/deadline propagation
-   (structured concurrency), and how "no locks because ownership" interacts
-   with a real scheduler. The OS design cannot finalize its scheduler chapter
-   until the language answers these.
+5. **Concurrency: pick the model's hard answers** — CORE MODEL DECIDED
+   (frozen decision 16, 2026-06-12; implementation not started): typed
+   state clusters CAN suspend; no await/no keyword — waiting originates at
+   a futex-shaped `Scheduler` boundary trait (Cathedral kernel implements
+   it over hlt/interrupts; userland binds the scheduler capability);
+   `suspend` is an inferred effect; cancellation is a value at the wait;
+   scoped spawns borrow; task pools are exact compiler-computed frames; no
+   select (one-mailbox sums — exactly the IPC-ring shape). Cathedral's
+   scheduler chapter can now align against chapter 17 + the design brief.
+   Remaining sign-offs: C2-C5 (task unit, Join scopes, atomics-only
+   sharing, C11 intrinsics) in TASKS.md's register.
 
-6. **Atomics and a memory model** (ABSENT — the word "atomic" appears in no
-   language chapter). Cathedral's one IPC primitive is a shared-memory ring
-   driven by "plain reads and writes plus atomics," and any SMP kernel needs
-   ordered atomics. Decide the shape now: language primitives, boundary
-   operators with contracts, or a core library over compiler intrinsics — and
-   which orderings exist. This gates IPC, the scheduler, and `spawn`.
+6. **Atomics and a memory model** — direction scouted + chapter 17 now
+   carries the Rust-like atomics section (distinct core types, five C11
+   orderings); the scout recommendation (compiler intrinsics, C11 model
+   wholesale, atomics-only sharing with Mutex as library) awaits sign-off
+   as C4/C5 in TASKS.md's register. The wait primitive itself is decided
+   (decision 16): `wait_until_nonzero(&AtomicU32)` / wake — atomics are
+   the words everything parks on, so C4/C5 gate IPC, the scheduler, and
+   `spawn` implementation.
 
 7. **Freestanding target + hardware access vocabulary** (ABSENT/narrow).
    Boot needs: a target with *no* host bindings and a custom entry (the

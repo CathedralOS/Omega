@@ -951,6 +951,29 @@ Implementation slices below build against these. Minor/easily-reversible details
     region/origin parameters, Mojo-style bracket origins (collide with
     slice/property/invariant brackets). Unblocks zero-copy wire decode and
     view-returning machines. See chapter 2 + appendix.
+16. **Suspension: no await, no keyword; waiting is a boundary primitive.**
+    Typed state clusters CAN suspend across ticks. Waiting originates only
+    at a futex-shaped `Scheduler` boundary trait (wait-on-word / wake-N --
+    the ONLY wait mechanism, ever; ISRs/IO completions post to words);
+    `suspend` is an inferred transitive effect (decision-12 machinery),
+    declarable and checked; awaiting = calling (a parked task is state +
+    planned frame storage -- no Future reification); borrows may not span
+    suspend-effect call sites; effect ceilings forbid suspension where
+    parking is illegal (ISR contexts); atomic-state is DERIVED ("your task
+    cannot park mid-body unless the body calls a suspending machine" --
+    not mutual exclusion; scheduler-agnostic). Scoped spawns borrow with
+    no scope keyword (loans force the join; drop of `Join<T>` joins;
+    free spawns stay move/copy-only). Task storage: per-machine-type pools
+    of EXACT compiler-computed worst-case frames (no recursion = no stack
+    sizes, overflow impossible); declared N, Region-backed later.
+    Cancellation is a VALUE at the wait (zero case, no unwinding; rides
+    chapter 15's recoverable channel; never-suspending tasks are joinable,
+    not cancellable). There is NO select: producers post into one mailbox
+    carrying a case-bearing sum, the consumer waits once and transitions
+    ordinarily (Erlang one-mailbox model). See chapter 17 +
+    wiki/design_briefs/concurrency_atomics.md. (C2-C5 of the scout
+    register -- task unit, Join scopes, atomics-only sharing, C11
+    intrinsics -- remain open for sign-off.)
 
 ## Next Up (highest leverage)
 

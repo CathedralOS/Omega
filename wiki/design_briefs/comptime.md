@@ -27,9 +27,12 @@ Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions M1-M6 in TASKS.md).
 2. **Purity gate: reuse decision 12** — `is_const_evaluable(callee) =
    transitive effects empty AND no &mut/out params`. No new annotation; the
    position makes it comptime, the effect system makes it legal.
-3. **Termination (stage 1)**: reject direct self-recursion + fuel-limit
-   fallback (~10k calls); swap to decreases-required once proof L8
-   (recursive decreases) exists.
+3. **Termination**: NO new rule (maintainer-corrected 2026-06-12; the
+   self-recursion framing was Rust-shaped). General recursion does not
+   exist in the language — self-calls are tail self-loops and loops carry
+   decreases/measures — so const-evaluable machines simply inherit the
+   existing termination discipline. Fuel at most as a defense-in-depth
+   backstop against checker gaps.
 4. **Determinism**: emulate TARGET integer widths in the const evaluator
    (the interpreter already has signedness/width adjustment — audit and
    reuse). Host-width leakage is a correctness bug; cross-compilation is a

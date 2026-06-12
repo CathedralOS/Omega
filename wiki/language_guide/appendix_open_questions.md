@@ -178,6 +178,25 @@ This page tracks design pressure that is not fully nailed down yet.
   parameters (verbose ambiguity), Mojo bracket origins (collide with
   slice/property/invariant brackets). House style: descriptive names
   (`'buf`), never `'a`.
+- Suspension (frozen decision 16): typed state clusters CAN suspend across
+  ticks, with no await, no async coloring, and no suspension keyword.
+  Waiting originates only at boundary wait primitives (a futex-shaped
+  `Scheduler` boundary trait: wait-on-word / wake-N -- the ONLY wait
+  mechanism, ever); `suspend` is an inferred transitive effect; awaiting =
+  calling (parked task = state + planned frame storage, no Future
+  reification); borrows may not span suspend-effect call sites; effect
+  ceilings forbid suspension in ISR-like contexts; scoped spawns borrow
+  with no scope keyword (drop of `Join<T>` joins); task storage is exact
+  per-machine pools (no stack sizes; no general recursion); cancellation
+  is a value returned at the wait (zero case `Cancelled`, no unwinding),
+  riding chapter 15's recoverable channel; there is NO select -- producers
+  post into one mailbox carrying a case-bearing sum (Erlang's model). See
+  chapter 17 + wiki/design_briefs/concurrency_atomics.md.
+- Ranking views (decided 2026-06-12): the use-site subtraction
+  (`decreases limit - index`) is rejected as permanent surface; the
+  argumented tuple form `decreases (index, limit) -> Nat::BoundedDistance`
+  is the blessed spelling (the arrow's left side is uniformly the ranked
+  subjects) and the subtraction form retires once it lands.
 
 ## Still Open
 
@@ -199,7 +218,6 @@ This page tracks design pressure that is not fully nailed down yet.
 - Should relax ever permit graph-edge proof debt, or should it remain strictly
   lexical and non-transitioning?
 - How explicit should weakened machine invariants be in target state signatures?
-- Can typed state clusters suspend across ticks, or must they complete in one scheduling turn?
 - What syntax should Omega use for float optimization permissions, separate from float invariants?
 - Which float properties should be first-class invariants: `finite`, `non_nan`, `normal`, signed-zero policy, or something else?
 - What exact spelling should arithmetic modes use: scoped policy, operator variants, or domain-sensitive operator resolution for semantic quantity domains?
