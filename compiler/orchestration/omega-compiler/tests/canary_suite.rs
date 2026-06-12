@@ -3082,6 +3082,79 @@ fn case_membership_value_exit_canary_runs() {
 }
 
 #[test]
+fn match_exhaustive_by_cases_canary_runs() {
+    // Exhaustiveness over implicit case-domains: one arm per case counts as
+    // a complete tag set (no `_`), and the counted dispatch still selects
+    // the right arm at runtime.
+    let canary = pass_canary("data/match_exhaustive_by_cases");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-match-exhaustive-by-cases-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("exhaustive-by-cases canary should compile without a `_` arm");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("exhaustive-by-cases canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the held case's arm (exit 70), got {:?} (71 = dispatch missed)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn match_exhaustive_by_case_union_domain_canary_runs() {
+    // A PURE case-union domain arm (`when self in Command::Move |
+    // Command::Say`, nothing else) contributes its tag set to exhaustiveness
+    // -- no `_` needed -- and classifies at runtime: the held value is the
+    // SECOND union member, so a lowering that drops union arms exits 71.
+    let canary = pass_canary("data/match_exhaustive_by_case_union_domain");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-match-exhaustive-union-domain-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("case-union-domain canary should compile without a `_` arm");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("case-union-domain canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the union-domain arm to classify `Command::Say` (exit 70), got {:?} (71 = union membership missed)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn case_membership_union_guard_exit_canary_runs() {
     // Decision 11: a union of implicit case domains as a transition guard
     // subject; the held value matches the SECOND (payload-bearing) arm.
@@ -7046,6 +7119,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/stores_capability",
     "data/case_payload_declaration",
     "data/case_payload_native_construction",
+    "data/match_default_satisfies_exhaustiveness",
+    "data/match_exhaustive_by_case_union_domain",
+    "data/match_exhaustive_by_cases",
     "data/runtime_case_payload_guard_read_exit",
     "data/runtime_case_reassignment_exit",
     "domains/call_requires_preserved_across_imported_disjoint_mutation",
@@ -7414,6 +7490,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/case_payload_malformed",
     "data/case_zero_payload",
     "data/enum_keyword_retired",
+    "data/match_nonexhaustive_cases",
+    "data/match_predicate_domain_needs_default",
     "data/mixed_data_shape_unimplemented",
     "data/property_copy_string_field",
     "data/property_copy_violation",

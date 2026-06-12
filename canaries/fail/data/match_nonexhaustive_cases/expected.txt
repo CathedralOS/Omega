@@ -1,0 +1,1 @@
+match over `Command` does not cover `Command::Move`; add an arm or `_`

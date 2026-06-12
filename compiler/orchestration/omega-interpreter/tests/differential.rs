@@ -89,6 +89,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("control_flow/runtime_tuple_transition_exit", 22),
     ("data/case_membership_union_guard_exit", 70),
     ("data/case_membership_value_exit", 70),
+    ("data/match_exhaustive_by_case_union_domain", 70),
+    ("data/match_exhaustive_by_cases", 70),
     ("data/case_payload_native_construction", 70),
     ("data/runtime_case_payload_guard_read_exit", 70),
     ("data/runtime_case_reassignment_exit", 70),
