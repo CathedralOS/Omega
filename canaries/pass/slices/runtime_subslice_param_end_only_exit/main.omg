@@ -1,0 +1,36 @@
+// End-only subslice of a runtime slice PARAMETER (`sub[..2]`). The descriptor
+// pointer is copied unchanged (start 0) and the length is the literal end —
+// computed from the runtime base descriptor, not a fixed-array special case.
+
+use platform::console;
+
+data Entry { value: i32; }
+
+data Main {
+    console: Console;
+    entries: [Entry; 5];
+}
+
+machine Main::main(&mut self) {
+    let view: &[Entry] = self.entries.as_slice();
+    transition {
+        _ -> self.check(view)
+    }
+}
+
+machine Main::check(&mut self, sub: &[Entry]) {
+    transition sub.len > 1 {
+        true -> self.verify(sub[..2])
+        false -> bad()
+    }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::verify(&mut self, sub: &[Entry]) {
+    transition sub.len == 2 {
+        true -> good()
+        false -> wrong()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state wrong(&mut self) { self.console.exit_process(72); }
+}

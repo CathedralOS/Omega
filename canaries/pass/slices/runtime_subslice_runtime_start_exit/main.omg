@@ -1,0 +1,38 @@
+// Subslice with a RUNTIME start over a slice parameter (`sub[start..]` where
+// `start: usize` is only known at runtime). The descriptor pointer must be
+// computed as ptr = sub.ptr + start*elem via the descriptor-indexed address op,
+// and len = sub.len - start as a storage-storage subtraction. The guard
+// `start < sub.len` proves the bound.
+
+use platform::console;
+
+data Entry { value: i32; }
+
+data Main {
+    console: Console;
+    entries: [Entry; 5];
+}
+
+machine Main::main(&mut self) {
+    let view: &[Entry] = self.entries.as_slice();
+    transition {
+        _ -> self.check(view, 2)
+    }
+}
+
+machine Main::check(&mut self, sub: &[Entry], start: usize) {
+    transition start < sub.len {
+        true -> self.verify(sub[start..])
+        false -> bad()
+    }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::verify(&mut self, sub: &[Entry]) {
+    transition sub.len == 3 {
+        true -> good()
+        false -> wrong()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state wrong(&mut self) { self.console.exit_process(72); }
+}

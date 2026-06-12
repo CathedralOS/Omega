@@ -5,6 +5,7 @@ use crate::runtime_dispatch_blockers::{
     collect_runtime_dispatch_blockers, runtime_and_required_states, runtime_dispatch_loop_blocker,
     runtime_dispatch_loop_can_emit,
 };
+use crate::descriptor_argument_blockers::collect_descriptor_argument_blockers;
 use crate::required_emission_verification::verify_required_items_emitted;
 use crate::runtime_text_blockers::collect_state_value_blockers;
 use crate::semantic_scope::{proof_scope_suffix, state_name};
@@ -85,6 +86,7 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
     collect_unlowered_guard_blockers(input, &mut blockers);
 
     verify_required_items_emitted(input, needs_runtime_dispatch, &mut blockers);
+    collect_descriptor_argument_blockers(input, needs_runtime_dispatch, &mut blockers);
 
     if !can_emit_direct_image(input) {
         blockers.insert_many([

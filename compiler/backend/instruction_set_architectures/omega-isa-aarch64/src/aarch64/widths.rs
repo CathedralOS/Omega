@@ -600,8 +600,11 @@ pub fn runtime_frame_indexed_address_to_runtime_frame_write_width(
     field_byte_offset: usize,
     target_offset: usize,
 ) -> usize {
-    20 + scale_index_width(element_byte_size)
-        + add_constant_width(field_byte_offset)
+    // Same `append_runtime_frame_index_target_address` prologue as the indexed
+    // reads/writes (fixed-width descriptor + index loads), then a store of the
+    // computed address. The old hand-summed `20 + …` predates the fixed-width
+    // load helpers and under-planned the encoder by 40 bytes.
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
         + store_x_offset_width(target_offset)
 }
 

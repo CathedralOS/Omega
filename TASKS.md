@@ -1091,16 +1091,52 @@ exit.
   data-driven descriptions) was the side-room carve guard's lost call-result
   write, since resolved in the backend-residue list — descriptor
   initialization itself was already fixed.
-- [ ] Generalize subslice descriptor pointer offsets beyond fixed-array alias
-  copy special cases (the `FatDescriptorAbi::subslice` seam exists; widen its
-  callers past literal fixed-array bases). Runtime verification is in place:
-  all nine `runtime_subslice_*`/nested-subslice canaries are registered
-  runtime tests in the suite and differential oracle (verified 2026-06-11).
-- [ ] Generalize start-only/end-only/bounded descriptors beyond literal
-  fixed-array-backed views.
-- [ ] Add focused pass/fail canaries for each newly supported subslice descriptor
-  lowering shape as it becomes real.
-- [ ] Keep backend reports explicit about descriptor construction and mutation.
+- [x] Generalize subslice descriptor pointer offsets beyond fixed-array alias
+  copy special cases. DONE (2026-06-12): every slice-descriptor write consumer
+  (locals, transition arguments, branch preludes, mutations) routes through one
+  seam — `emit_runtime_frame_slot_slice_descriptor_write_in_table` now tries the
+  generalized runtime-descriptor subslice after the literal fixed-array path.
+  Newly lowering shapes (all interpreter-differential-verified):
+  subslice-of-param into a LOCAL (`let tail = sub[1..]`, previously a silent
+  whole-descriptor copy), nested subslice in one expression (`sub[1..][1..]`,
+  literal layers fold into a window bias; previously a silent un-offset
+  descriptor natively AND an interpreter reject — `eval_subslice` now evaluates
+  nested range-indexed bases as views), and runtime-start over a subslice local
+  (`tail[start..]`, bias rides the indexed-address op's field offset).
+- [x] Generalize start-only/end-only/bounded descriptors beyond literal
+  fixed-array-backed views. DONE (2026-06-12): bounded (`sub[1..4]`) and
+  end-only (`sub[..2]`) literal ranges over runtime descriptors already lowered
+  (now pinned by canaries); RUNTIME bounds are new — `sub[start..]` computes
+  ptr via `WriteRuntimeFrameIndexedAddressToRuntimeFrame` (its aarch64 width
+  table was stale by 40 bytes — fixed to use `runtime_frame_index_setup_width`)
+  and len as a storage-storage subtraction; `sub[..end]` reads the runtime
+  length from `end`'s slot; literal inclusive ends (`sub[1..=3]`) fold to
+  `end + 1` at selection time. STILL UNSUPPORTED (loud, see below): computed
+  bounds (`sub[offset + 1..]`), RUNTIME inclusive ends (`sub[..=n]`, needs a
+  +1 at runtime), and runtime bounds in a NESTED inner layer. Slice-typed
+  `data` fields (`items: &[T]`) do not parse, so the "machine-field slice"
+  base shape is not expressible at the language level today.
+- [x] Add focused pass/fail canaries for each newly supported subslice descriptor
+  lowering shape. DONE (2026-06-12): eight new runtime canaries (suite + RUN +
+  differential): `runtime_subslice_param_bounded_range_exit`,
+  `runtime_subslice_param_end_only_exit`, `runtime_subslice_param_local_exit`,
+  `runtime_subslice_runtime_start_exit`, `runtime_subslice_runtime_end_exit`,
+  `runtime_subslice_nested_of_param_exit`,
+  `runtime_subslice_runtime_start_over_local_exit`,
+  `runtime_subslice_param_inclusive_end_exit`.
+- [x] Unsupported subslice shapes now fail LOUDLY instead of silently keeping a
+  stale/garbage descriptor: the `descriptor_argument_blockers` emission pass
+  verifies every range-indexed transition argument writes its callee parameter
+  slot and every subslice-initialized slice local writes its descriptor slot,
+  and blocks emission naming the state, statement, and expression otherwise
+  (probed with `sub[offset + 1..]` in both argument and local position — both
+  previously compiled and exited wrong; both now block).
+- [x] Keep backend reports explicit about descriptor construction and mutation.
+  Verified 2026-06-12 by probe: each construction renders one line per half —
+  `write runtime-frame pointer @T = &(runtime_frame@desc[runtime_frame@idx * elem]) +bias`
+  for the pointer and a `write runtime storage binary … Subtract …` /
+  `write runtime storage integer …` for the length — base, start source, and
+  length source are all readable. No gaps found; nothing changed.
 
 ### Measures, Orderings, And Rankings
 

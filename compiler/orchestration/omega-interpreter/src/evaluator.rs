@@ -2071,10 +2071,35 @@ impl<'program> Evaluator<'program> {
         range: &omega_typed_trees::expression::TableRangeExpression,
         frame: &Frame,
     ) -> EvalResult<Value> {
-        let collection_cell = self.resolve_place(collection, frame)?;
-        let elements = match &*self.deref_cell(collection_cell).borrow() {
-            Value::Array(elements) => elements.clone(),
-            other => return trap(format!("cannot subslice {other:?}")),
+        // A nested subslice base (`sub[1..][1..]`) is not a place — the inner
+        // range-indexed expression produces a VIEW value. Evaluate it as a value
+        // (recursing through this function) and slice the resulting window;
+        // element cells stay shared, matching the fat-descriptor model where a
+        // subslice only offsets the pointer.
+        let nested_view = if let ExpressionNode::Indexed(inner) = self
+            .program
+            .expression_table
+            .expression(collection)
+            .clone()
+            && matches!(
+                self.program.expression_table.expression(inner.index),
+                ExpressionNode::Range(_)
+            )
+        {
+            Some(self.eval_expression(collection, frame)?)
+        } else {
+            None
+        };
+        let elements = match nested_view {
+            Some(Value::Array(elements)) => elements,
+            Some(other) => return trap(format!("cannot subslice {other:?}")),
+            None => {
+                let collection_cell = self.resolve_place(collection, frame)?;
+                match &*self.deref_cell(collection_cell).borrow() {
+                    Value::Array(elements) => elements.clone(),
+                    other => return trap(format!("cannot subslice {other:?}")),
+                }
+            }
         };
         let len = elements.len();
         let start = if range.start.is_valid() {

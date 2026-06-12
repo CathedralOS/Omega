@@ -4233,6 +4233,246 @@ fn runtime_slice_len_transition_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_subslice_param_bounded_range_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_param_bounded_range_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-subslice-param-bounded-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime subslice param bounded range canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime subslice param bounded range canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a bounded literal subslice of a runtime slice param to materialize length 3 and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_subslice_param_end_only_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_param_end_only_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-subslice-param-end-only-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime subslice param end-only canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime subslice param end-only canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an end-only subslice of a runtime slice param to materialize length 2 and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_subslice_param_local_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_param_local_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-subslice-param-local-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime subslice param local canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime subslice param local canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a subslice of a slice param assigned to a local to shrink the descriptor and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_subslice_runtime_start_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_runtime_start_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-subslice-runtime-start-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime subslice runtime start canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime subslice runtime start canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a runtime-start subslice (sub[start..]) to offset the descriptor pointer and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_subslice_runtime_end_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_runtime_end_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-subslice-runtime-end-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime subslice runtime end canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime subslice runtime end canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a runtime-end subslice (sub[..end]) to take the runtime length and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_subslice_nested_of_param_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_nested_of_param_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-subslice-nested-param-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime nested subslice of param canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime nested subslice of param canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a nested subslice (sub[1..][1..]) over a runtime slice param to compose biases and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_subslice_runtime_start_over_local_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_runtime_start_over_local_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-subslice-start-over-local-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime subslice runtime start over local canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime subslice runtime start over local canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a runtime-start subslice over a subslice local (tail[start..]) to compose and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_subslice_param_inclusive_end_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_param_inclusive_end_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-subslice-inclusive-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime subslice param inclusive end canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime subslice param inclusive end canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an inclusive-end subslice (sub[1..=3]) over a runtime slice param to fold to end + 1 and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_subslice_range_len_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_range_len_exit");
     let build_dir =
@@ -8176,6 +8416,14 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_slice_index_read_dispatch_exit",
     "slices/runtime_slice_index_read_exit",
     "slices/runtime_subslice_of_slice_param_exit",
+    "slices/runtime_subslice_param_bounded_range_exit",
+    "slices/runtime_subslice_param_end_only_exit",
+    "slices/runtime_subslice_param_local_exit",
+    "slices/runtime_subslice_runtime_start_exit",
+    "slices/runtime_subslice_runtime_end_exit",
+    "slices/runtime_subslice_nested_of_param_exit",
+    "slices/runtime_subslice_runtime_start_over_local_exit",
+    "slices/runtime_subslice_param_inclusive_end_exit",
     "rewards/runtime_reward_table_roll_item_shape",
     "dungeon/runtime_room_use_reentry_guard",
     "dungeon/runtime_room_use_reentry_exit",

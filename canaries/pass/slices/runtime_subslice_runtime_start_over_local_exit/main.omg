@@ -1,0 +1,46 @@
+// RUNTIME start over a slice LOCAL that is itself a subslice of a parameter
+// (`let tail = sub[1..]; … tail[start..]`). The local folds back to its
+// initializer, so the lowering sees `sub[1..][start..]`: the literal layer
+// becomes the indexed-address op's field offset (bias 1*elem) and the runtime
+// start rides the index register — ptr = sub.ptr + start*elem + 1*elem,
+// len = sub.len - 1 - start.
+
+use platform::console;
+
+data Entry { value: i32; }
+
+data Main {
+    console: Console;
+    entries: [Entry; 5];
+}
+
+machine Main::main(&mut self) {
+    let view: &[Entry] = self.entries.as_slice();
+    transition {
+        _ -> self.check(view, 1)
+    }
+}
+
+machine Main::check(&mut self, sub: &[Entry], start: usize) {
+    transition sub.len > 1 {
+        true -> narrow(start)
+        false -> bad()
+    }
+    state narrow(&mut self, start: usize) {
+        let tail: &[Entry] = sub[1..];
+        transition start < tail.len {
+            true -> self.verify(tail[start..])
+            false -> bad()
+        }
+    }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::verify(&mut self, sub: &[Entry]) {
+    transition sub.len == 3 {
+        true -> good()
+        false -> wrong()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state wrong(&mut self) { self.console.exit_process(72); }
+}

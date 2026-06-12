@@ -619,6 +619,7 @@ fn select_runtime_leaf_branch_terminal_value_write(
         &expressions,
         slot,
         resolved_value,
+        runtime_value_operands,
         selected_instructions,
     ) {
         return;
@@ -1006,6 +1007,7 @@ fn select_runtime_leaf_local_initializer_writes(
             expressions,
             slot,
             resolved_initializer,
+            runtime_value_operands,
             selected_instructions,
         ) {
             continue;

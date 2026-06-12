@@ -561,6 +561,7 @@ fn select_runtime_dispatch_local_initializer_write(
         expressions,
         slot,
         resolved_initializer,
+        runtime_value_operands,
         selected_instructions,
     );
     if wrote_slice {

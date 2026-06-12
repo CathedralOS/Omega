@@ -1,5 +1,4 @@
 use super::writes::{
-    emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table,
     emit_runtime_frame_slot_slice_descriptor_write_in_table,
     select_runtime_frame_slot_value_write_in_table_with_source_anchor,
 };
@@ -167,23 +166,11 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
+        // Slice-descriptor argument (an `as_slice()` view or a subslice of a
+        // runtime-length slice, including the self-recursive `decreases … Length`
+        // shape where source slot == target slot): one seam covers every
+        // descriptor-construction strategy.
         if emit_runtime_frame_slot_slice_descriptor_write_in_table(
-            input,
-            source_dispatch_index,
-            argument_source_key,
-            statement_index,
-            expressions,
-            slot,
-            argument,
-            selected_instructions,
-        ) {
-            continue;
-        }
-
-        // Subslice of a runtime-length slice (`entries[1..]` on a `&[T]` param):
-        // compute the shrunk (ptr, len) from the source descriptor. Handles the
-        // self-recursive `decreases … Length` shape (source slot == target slot).
-        if emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(
             input,
             source_dispatch_index,
             argument_source_key,
