@@ -1137,6 +1137,80 @@ fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_roundtrip_nested_exit_canary_runs() {
+    // Wire nested message fields: encode { header: { room_id: 300, kind: -2 },
+    // depth: -64 } into [0x00, 0x00, 0x05, 0x00, 0xAC, 0x02, 0x01, 0x03,
+    // 0x01, 0x7F] (hand-computed in the canary header -- the nested field is
+    // tag + LENGTH varint + the child's fields with NO era discriminator),
+    // then decode back into a fresh value: ok = true, read = 10, and every
+    // field including the nested ones equals the original. Exits 70 on a
+    // full match.
+    let canary = pass_canary("wire/runtime_wire_roundtrip_nested_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-nested-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire nested roundtrip canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wire nested roundtrip canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the compact_binary v0 round trip to preserve the nested message (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_decode_rejects_bad_nested_length_exit_canary_runs() {
+    // Wire nested message fields, failure path: a hand-built buffer whose
+    // nested LENGTH byte says 6 where the child's fields occupy 5 must fail
+    // the decode -- the nested CLOSE check clears the sticky ok because the
+    // cursor lands one byte before the declared end bound (walk in the
+    // canary header). Exits 70 on the failure path.
+    let canary = pass_canary("wire/runtime_wire_decode_rejects_bad_nested_length_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-nested-length-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire bad-nested-length canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wire bad-nested-length canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the decoder to reject a nested length that disagrees with the content (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wire_decode_rejects_wrong_era_exit_canary_runs() {
     // Wire stage 2b: a hand-built buffer carrying era byte 5 (the schema's
     // current era is 0) must fail to decode -- the era discriminator is the
@@ -8274,6 +8348,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/encode_string_field_not_last",
     "wire/decode_unsupported_field_type",
     "wire/encode_case_bearing_value",
+    "wire/nested_schema_cycle",
+    "wire/encode_nested_in_nested",
     "capabilities/unapproved_host_call",
     "data/bare_payload_case_equality_guard",
     "data/bare_payload_case_equality_suggests_in",

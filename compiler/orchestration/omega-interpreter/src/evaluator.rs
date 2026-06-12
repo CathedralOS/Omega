@@ -995,9 +995,12 @@ impl<'program> Evaluator<'program> {
     /// encoding LAST) rides as its byte-count varint followed by the raw
     /// UTF-8 bytes, and -- matching the native bounds-checked byte-copy --
     /// content past the out buffer's capacity is DROPPED rather than written.
-    /// The shared `omega_typed_trees::wire` vocabulary (field encodings +
-    /// varint bytes) keeps interpreter and backends byte-for-byte in
-    /// lockstep.
+    /// A NESTED MESSAGE field rides as its tag varint, a byte-LENGTH varint,
+    /// then the child schema's fields (tags + scalar varints) WITHOUT an era
+    /// discriminator (decision 10: the era rides only the top-level
+    /// envelope). The shared `omega_typed_trees::wire` vocabulary (field
+    /// encodings + varint bytes) keeps interpreter and backends byte-for-byte
+    /// in lockstep.
     fn try_wire_encode_call(
         &mut self,
         call: &TableCall,
@@ -1011,14 +1014,24 @@ impl<'program> Evaluator<'program> {
         let schema_name = schema.name.as_str().to_owned();
         let era = self.program.wire_schema_current_era(schema);
 
-        // (field name, number, encoding) of the CURRENT era, in field-number
-        // order -- validation has already enforced the stage 2a field set
-        // (scalars plus at most one trailing String).
+        // (field name, number, content) of the CURRENT era, in field-number
+        // order -- validation has already enforced the stage 2 field set
+        // (scalars, at most one trailing String, scalar-only nested
+        // messages).
         let mut fields = Vec::new();
         for member in self.program.wire_members(schema.members) {
             let WireMember::Field(field) = member else {
                 continue;
             };
+            if let Some(child) = self.program.wire_field_nested_schema(field) {
+                let children = wire_nested_scalar_fields(&self.program, child)?;
+                fields.push((
+                    field.name.as_str().to_owned(),
+                    field.number,
+                    WireInterpField::Nested(children),
+                ));
+                continue;
+            }
             let encoding = self
                 .program
                 .primitive_type_reference(field.type_reference)
@@ -1029,12 +1042,16 @@ impl<'program> Evaluator<'program> {
                         field.name
                     ))
                 })?;
-            fields.push((field.name.as_str().to_owned(), field.number, encoding));
+            fields.push((
+                field.name.as_str().to_owned(),
+                field.number,
+                WireInterpField::Direct(encoding),
+            ));
         }
         fields.sort_by_key(|(_, number, _)| *number);
-        let has_text_field = fields
-            .iter()
-            .any(|(_, _, encoding)| matches!(encoding, WireFieldEncoding::Text));
+        let has_text_field = fields.iter().any(|(_, _, content)| {
+            matches!(content, WireInterpField::Direct(WireFieldEncoding::Text))
+        });
 
         let arguments = self
             .program
@@ -1057,7 +1074,7 @@ impl<'program> Evaluator<'program> {
         let written_cell = self.deref_cell(written_cell);
 
         let mut bytes = wire_varint_bytes(era);
-        for (field_name, number, encoding) in &fields {
+        for (field_name, number, content) in &fields {
             bytes.extend(wire_varint_bytes(*number as u64));
 
             let raw = match &*value_cell.borrow() {
@@ -1075,8 +1092,8 @@ impl<'program> Evaluator<'program> {
                     )));
                 }
             };
-            match encoding {
-                WireFieldEncoding::Scalar(scalar) => {
+            match content {
+                WireInterpField::Direct(WireFieldEncoding::Scalar(scalar)) => {
                     let raw = raw
                         .borrow()
                         .as_int()
@@ -1085,26 +1102,44 @@ impl<'program> Evaluator<'program> {
                                 "`{schema_name}::encode_wire` field `{field_name}` is not a scalar value"
                             ))
                         })?;
-
-                    // The same widths/signedness the native encoders apply:
-                    // load at the source width (zero- or sign-extending),
-                    // zigzag signed sources at 64 bits.
-                    let encoded = match (scalar.byte_size, scalar.zigzag) {
-                        (1, _) => u64::from(raw != 0),
-                        (4, false) => u64::from(raw as u32),
-                        (8, false) => raw as u64,
-                        (4, true) => zigzag64(i64::from(raw as i32)),
-                        (8, true) => zigzag64(raw),
-                        _ => {
-                            return Err(Halt::Unsupported(format!(
-                                "wire scalar of {} bytes",
-                                scalar.byte_size
-                            )));
-                        }
-                    };
-                    bytes.extend(wire_varint_bytes(encoded));
+                    bytes.extend(wire_varint_bytes(wire_scalar_varint_value(raw, *scalar)?));
                 }
-                WireFieldEncoding::Text => {
+                WireInterpField::Nested(children) => {
+                    // The sub-message's fields into a staging body first --
+                    // mirroring the native scratch staging -- then the LENGTH
+                    // varint and the body. NO era discriminator: the era
+                    // rides only the top-level envelope (decision 10).
+                    let mut body = Vec::new();
+                    for (child_name, child_number, scalar) in children {
+                        body.extend(wire_varint_bytes(*child_number as u64));
+                        let child_raw = match &*raw.borrow() {
+                            Value::Struct { fields, .. } => fields
+                                .get(child_name)
+                                .map(|cell| self.deref_cell(Rc::clone(cell)))
+                                .ok_or_else(|| {
+                                    Halt::Trap(format!(
+                                        "`{schema_name}::encode_wire` nested field `{field_name}` has no member `{child_name}`"
+                                    ))
+                                })?,
+                            _ => {
+                                return Err(Halt::Trap(format!(
+                                    "`{schema_name}::encode_wire` nested field `{field_name}` is not a data value"
+                                )));
+                            }
+                        };
+                        let child_raw = child_raw.borrow().as_int().ok_or_else(|| {
+                            Halt::Trap(format!(
+                                "`{schema_name}::encode_wire` nested field `{field_name}.{child_name}` is not a scalar value"
+                            ))
+                        })?;
+                        body.extend(wire_varint_bytes(wire_scalar_varint_value(
+                            child_raw, *scalar,
+                        )?));
+                    }
+                    bytes.extend(wire_varint_bytes(body.len() as u64));
+                    bytes.extend(body);
+                }
+                WireInterpField::Direct(WireFieldEncoding::Text) => {
                     // Length varint (byte count) then the raw UTF-8 bytes --
                     // the same framing the native text-bytes append emits.
                     let text = match &*raw.borrow() {
@@ -1178,13 +1213,23 @@ impl<'program> Evaluator<'program> {
         let schema_name = schema.name.as_str().to_owned();
         let era = self.program.wire_schema_current_era(schema);
 
-        // (field name, number, encoding) of the CURRENT era, in field-number
-        // order -- validation has already enforced the stage 2 scalar set.
+        // (field name, number, content) of the CURRENT era, in field-number
+        // order -- validation has already enforced the stage 2 field set
+        // (scalars plus scalar-only nested messages).
         let mut fields = Vec::new();
         for member in self.program.wire_members(schema.members) {
             let WireMember::Field(field) = member else {
                 continue;
             };
+            if let Some(child) = self.program.wire_field_nested_schema(field) {
+                let children = wire_nested_scalar_fields(&self.program, child)?;
+                fields.push((
+                    field.name.as_str().to_owned(),
+                    field.number,
+                    WireInterpScalarField::Nested(children),
+                ));
+                continue;
+            }
             let encoding = self
                 .program
                 .primitive_type_reference(field.type_reference)
@@ -1195,7 +1240,11 @@ impl<'program> Evaluator<'program> {
                         field.name
                     ))
                 })?;
-            fields.push((field.name.as_str().to_owned(), field.number, encoding));
+            fields.push((
+                field.name.as_str().to_owned(),
+                field.number,
+                WireInterpScalarField::Scalar(encoding),
+            ));
         }
         fields.sort_by_key(|(_, number, _)| *number);
 
@@ -1283,42 +1332,74 @@ impl<'program> Evaluator<'program> {
             expect_byte(&mut cursor, &mut ok, byte);
         }
 
-        for (field_name, number, encoding) in &fields {
+        for (field_name, number, content) in &fields {
             for byte in wire_varint_bytes(*number as u64) {
                 expect_byte(&mut cursor, &mut ok, byte);
             }
-            let raw = read_varint(&mut cursor, &mut ok);
 
-            // The same widths/signedness the native decoders apply: truncate
-            // to the field width, un-zigzag signed targets at 64 bits first.
-            let decoded = match (encoding.byte_size, encoding.zigzag) {
-                (1, _) => Value::Bool((raw & 0xff) != 0),
-                (4, false) => Value::Int(i64::from(raw as u32)),
-                (8, false) => Value::Int(raw as i64),
-                (4, true) => Value::Int(i64::from(unzigzag64(raw) as i32)),
-                (8, true) => Value::Int(unzigzag64(raw)),
-                _ => {
-                    return Err(Halt::Unsupported(format!(
-                        "wire scalar of {} bytes",
-                        encoding.byte_size
-                    )));
-                }
-            };
-
-            match &*value_cell.borrow() {
+            let field_cell = match &*value_cell.borrow() {
                 Value::Struct { fields, .. } => {
-                    let field_cell = fields.get(field_name).map(Rc::clone).ok_or_else(|| {
+                    fields.get(field_name).map(Rc::clone).ok_or_else(|| {
                         Halt::Trap(format!(
                             "`{schema_name}::decode_wire` value has no field `{field_name}`"
                         ))
-                    })?;
-                    let field_cell = self.deref_cell(field_cell);
-                    *field_cell.borrow_mut() = decoded;
+                    })?
                 }
                 _ => {
                     return Err(Halt::Trap(format!(
                         "`{schema_name}::decode_wire` value argument is not a data value"
                     )));
+                }
+            };
+            let field_cell = self.deref_cell(field_cell);
+
+            match content {
+                WireInterpScalarField::Scalar(encoding) => {
+                    let raw = read_varint(&mut cursor, &mut ok);
+                    *field_cell.borrow_mut() = wire_decoded_scalar_value(raw, *encoding)?;
+                }
+                WireInterpScalarField::Nested(children) => {
+                    // LENGTH varint, then the absolute end bound -- the same
+                    // two checks the native nested OPEN applies: the raw
+                    // length must fit the buffer (so the 64-bit sum cannot
+                    // wrap back inside it) and so must the bound. The child's
+                    // fields decode WITHOUT an era discriminator, and the
+                    // CLOSE check fails ok unless the cursor landed exactly
+                    // on the bound.
+                    let length = read_varint(&mut cursor, &mut ok);
+                    if length > buffer.len() as u64 {
+                        ok = false;
+                    }
+                    let end = cursor.wrapping_add(length as usize);
+                    if end > buffer.len() {
+                        ok = false;
+                    }
+                    for (child_name, child_number, encoding) in children {
+                        for byte in wire_varint_bytes(*child_number as u64) {
+                            expect_byte(&mut cursor, &mut ok, byte);
+                        }
+                        let raw = read_varint(&mut cursor, &mut ok);
+                        let decoded = wire_decoded_scalar_value(raw, *encoding)?;
+                        let child_cell = match &*field_cell.borrow() {
+                            Value::Struct { fields, .. } => {
+                                fields.get(child_name).map(Rc::clone).ok_or_else(|| {
+                                    Halt::Trap(format!(
+                                        "`{schema_name}::decode_wire` nested field `{field_name}` has no member `{child_name}`"
+                                    ))
+                                })?
+                            }
+                            _ => {
+                                return Err(Halt::Trap(format!(
+                                    "`{schema_name}::decode_wire` nested field `{field_name}` is not a data value"
+                                )));
+                            }
+                        };
+                        let child_cell = self.deref_cell(child_cell);
+                        *child_cell.borrow_mut() = decoded;
+                    }
+                    if cursor != end {
+                        ok = false;
+                    }
                 }
             }
         }
@@ -2397,6 +2478,90 @@ fn is_canonical_host_method(name: &str) -> bool {
 /// stays 250; `i8` 250 wraps to -6; `u32` of a negative becomes its 32-bit unsigned value.
 /// zigzag(n) = (n << 1) ^ (n >> 63): the signed-scalar pre-step of the
 /// compact_binary v0 varint, identical to the native encoders' shift/xor.
+/// One CURRENT-era field of a wire schema, as the interpreter's encoder sees
+/// it: a directly encodable scalar/String, or a nested message's scalar-only
+/// field list (chapter 20).
+enum WireInterpField {
+    Direct(omega_typed_trees::wire::WireFieldEncoding),
+    Nested(Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>),
+}
+
+/// One CURRENT-era field of a wire schema, as the interpreter's decoder sees
+/// it (String is encode-only, so only scalars and nested messages appear).
+enum WireInterpScalarField {
+    Scalar(omega_typed_trees::wire::WireScalarEncoding),
+    Nested(Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>),
+}
+
+/// The CURRENT-era (name, number, scalar encoding) list of a nested wire
+/// schema, sorted by field number -- validation has already guaranteed the
+/// scalar-only child body.
+fn wire_nested_scalar_fields(
+    program: &CheckedTrees,
+    child: &omega_typed_trees::wire::WireSchema,
+) -> Result<Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>, Halt> {
+    use omega_typed_trees::wire::{WireMember, WireScalarEncoding};
+
+    let mut children = Vec::new();
+    for member in program.wire_members(child.members) {
+        let WireMember::Field(field) = member else {
+            continue;
+        };
+        let scalar = program
+            .primitive_type_reference(field.type_reference)
+            .and_then(WireScalarEncoding::for_primitive)
+            .ok_or_else(|| {
+                Halt::Unsupported(format!(
+                    "wire data `{}` nested field `{}` is not a stage 2 scalar",
+                    child.name, field.name
+                ))
+            })?;
+        children.push((field.name.as_str().to_owned(), field.number, scalar));
+    }
+    children.sort_by_key(|(_, number, _)| *number);
+    Ok(children)
+}
+
+/// The unsigned LEB128 payload a scalar value encodes as -- the same
+/// widths/signedness the native encoders apply: load at the source width
+/// (zero- or sign-extending), zigzag signed sources at 64 bits.
+fn wire_scalar_varint_value(
+    raw: i64,
+    scalar: omega_typed_trees::wire::WireScalarEncoding,
+) -> Result<u64, Halt> {
+    match (scalar.byte_size, scalar.zigzag) {
+        (1, _) => Ok(u64::from(raw != 0)),
+        (4, false) => Ok(u64::from(raw as u32)),
+        (8, false) => Ok(raw as u64),
+        (4, true) => Ok(zigzag64(i64::from(raw as i32))),
+        (8, true) => Ok(zigzag64(raw)),
+        _ => Err(Halt::Unsupported(format!(
+            "wire scalar of {} bytes",
+            scalar.byte_size
+        ))),
+    }
+}
+
+/// The decoded value a raw LEB128 payload produces -- the same
+/// widths/signedness the native decoders apply: truncate to the field width,
+/// un-zigzag signed targets at 64 bits first.
+fn wire_decoded_scalar_value(
+    raw: u64,
+    encoding: omega_typed_trees::wire::WireScalarEncoding,
+) -> Result<Value, Halt> {
+    match (encoding.byte_size, encoding.zigzag) {
+        (1, _) => Ok(Value::Bool((raw & 0xff) != 0)),
+        (4, false) => Ok(Value::Int(i64::from(raw as u32))),
+        (8, false) => Ok(Value::Int(raw as i64)),
+        (4, true) => Ok(Value::Int(i64::from(unzigzag64(raw) as i32))),
+        (8, true) => Ok(Value::Int(unzigzag64(raw))),
+        _ => Err(Halt::Unsupported(format!(
+            "wire scalar of {} bytes",
+            encoding.byte_size
+        ))),
+    }
+}
+
 fn zigzag64(value: i64) -> u64 {
     ((value << 1) ^ (value >> 63)) as u64
 }

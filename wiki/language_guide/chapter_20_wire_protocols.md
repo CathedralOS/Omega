@@ -300,6 +300,49 @@ the message's fields may reflect a partial or garbage decode (no rollback),
 but every byte read is bounds-checked against the buffer's compile-time
 length, so a failed decode never reads out of bounds.
 
+A NESTED MESSAGE field -- a field whose type is another wire schema, like
+`0: header: RoomHeader;` -- rides as its tag varint, then a byte-LENGTH
+varint, then the sub-message's fields (tag + value pairs) WITHOUT an era
+discriminator. Decision 10's frozen text settles the framing: one era varint
+per top-level message, NEVER per struct. The era rides only the top-level
+envelope; a nested schema's version chain is checked at its own top-level
+uses, and its declaration is validated like any other schema's. Today's
+honest slice is ONE nesting level with a scalar-only child body (i32, i64,
+u32, u64, bool): a String child is runtime-sized and a doubly-nested child
+would need a second staging region, so both reject with clear diagnostics,
+and a schema that reaches itself through nested fields (no finite worst case)
+is a hard error at the declaration.
+
+The length prefix is the interesting part: the sub-message's field SET is
+compile-time-known, so its WORST-CASE size is static, but its actual size is
+runtime (varints shrink with their values). Of the honest mechanisms --
+two-pass staging, an overlong fixed-width length varint (rejected: our own
+decoder's overlong check refuses non-minimal varints), or back-patching the
+length after the fact (rejected: a runtime byte-distance plus a shifting
+rewrite) -- the encoder takes two-pass staging, and it reuses machinery that
+already existed. The compiler reserves a scratch region in the runtime frame
+shaped as a `{ptr, len}` text descriptor followed by a staging buffer sized
+to the largest nested child's worst case; the nested field encodes by
+pointing the descriptor at the staging buffer, zeroing the len slot (which
+doubles as the staging cursor), appending the child's fields into the buffer
+with the ordinary wire appends, and then replaying the descriptor through the
+same text-bytes append a String field uses -- which emits exactly a length
+varint followed by that many bytes. The parent's worst-case budget counts the
+nested field as tag + length varint + child worst case, so the capacity rule
+composes; nested fields are statically bounded, so the one-String-LAST rule
+is unaffected by them and applies PER MESSAGE SCOPE (a child body simply has
+no String today).
+
+The decoder reads the nested tag, reads the length varint into the scratch
+slot, then OPENS the sub-region: the length must fit the remaining buffer
+(checked both as a raw value and as the absolute end bound, so a huge length
+cannot wrap the 64-bit sum back inside the buffer), failure clearing the
+sticky `ok` as usual. The child's fields then decode with the ordinary
+expected-tag and value-varint reads -- still bounds-checked against the full
+buffer for memory safety -- and a CLOSE check fails `ok` unless the cursor
+landed EXACTLY on the declared end: a length that disagrees with the content
+in either direction is a malformed payload, not a silent skew.
+
 ## Compatibility Reports
 
 The compiler should be able to report protocol compatibility changes.

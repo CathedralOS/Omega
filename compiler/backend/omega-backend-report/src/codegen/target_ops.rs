@@ -420,6 +420,45 @@ fn selected_instruction_name(
                 "wire read {encoding} {target_symbol}@{target_offset} ({byte_size} bytes) <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
             )
         }
+        SelectedInstructionKind::ReadWireNestedOpen {
+            buffer_length,
+            read_region,
+            read_offset,
+            ok_region,
+            ok_offset,
+            end_region,
+            end_offset,
+            ..
+        } => {
+            let read_symbol =
+                storage_region_symbol_name(*read_region, backend_plan.entry_machine_name());
+            let ok_symbol =
+                storage_region_symbol_name(*ok_region, backend_plan.entry_machine_name());
+            let end_symbol =
+                storage_region_symbol_name(*end_region, backend_plan.entry_machine_name());
+            format!(
+                "wire nested open: end bound {end_symbol}@{end_offset} += cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset} &= end <= {buffer_length}"
+            )
+        }
+        SelectedInstructionKind::ReadWireNestedClose {
+            read_region,
+            read_offset,
+            ok_region,
+            ok_offset,
+            end_region,
+            end_offset,
+            ..
+        } => {
+            let read_symbol =
+                storage_region_symbol_name(*read_region, backend_plan.entry_machine_name());
+            let ok_symbol =
+                storage_region_symbol_name(*ok_region, backend_plan.entry_machine_name());
+            let end_symbol =
+                storage_region_symbol_name(*end_region, backend_plan.entry_machine_name());
+            format!(
+                "wire nested close: ok {ok_symbol}@{ok_offset} &= cursor {read_symbol}@{read_offset} == end bound {end_symbol}@{end_offset}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,

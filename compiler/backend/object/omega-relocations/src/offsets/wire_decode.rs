@@ -34,3 +34,15 @@ pub(crate) fn wire_decode_varint_target_page_offset(
         zigzag,
     )
 }
+
+pub(crate) fn wire_decode_nested_end_page_offset(
+    architecture: Architecture,
+    buffer_offset: usize,
+    read_offset: usize,
+) -> usize {
+    omega_instruction_selection::wire_decode_nested_end_page_offset(
+        architecture,
+        buffer_offset,
+        read_offset,
+    )
+}

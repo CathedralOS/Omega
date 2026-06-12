@@ -238,6 +238,38 @@ pub enum AbstractOperationKind {
         /// Signed targets un-zigzag (`(n >> 1) ^ -(n & 1)`) after the read.
         zigzag: bool,
     },
+    /// compact_binary v0 wire decoding (chapter 20, nested message fields):
+    /// turn the sub-message LENGTH just read into the `end` slot into an
+    /// ABSOLUTE end bound (`end += cursor`) and clear the sticky `ok` flag
+    /// when the bound exceeds the buffer's compile-time length. Runs after
+    /// the nested field's length varint, before its field reads; the cursor
+    /// does not move.
+    ReadWireNestedOpen {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        end_region: RuntimeStorageRegion,
+        end_offset: usize,
+    },
+    /// compact_binary v0 wire decoding (chapter 20, nested message fields):
+    /// clear the sticky `ok` flag unless the cursor landed EXACTLY on the end
+    /// bound the matching `ReadWireNestedOpen` stored -- the declared
+    /// sub-message length must equal the bytes its fields consumed. The
+    /// cursor does not move.
+    ReadWireNestedClose {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        end_region: RuntimeStorageRegion,
+        end_offset: usize,
+    },
     WriteRuntimeMachineInteger {
         byte_offset: usize,
         byte_size: usize,

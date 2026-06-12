@@ -38,8 +38,8 @@ use super::primitives::{
     encode_movz, encode_orr_x_register, encode_unconditional_branch,
 };
 use super::widths::{
-    read_wire_expected_byte_width, read_wire_scalar_varint_width, wire_unzigzag_width,
-    wire_varint_read_loop_width,
+    read_wire_expected_byte_width, read_wire_nested_close_width, read_wire_nested_open_width,
+    read_wire_scalar_varint_width, wire_unzigzag_width, wire_varint_read_loop_width,
 };
 
 /// Shared prologue: x16 = buffer base + buffer offset + cursor, x17 = cursor,
@@ -235,6 +235,118 @@ pub fn encode_read_wire_scalar_varint(
             byte_size,
             zigzag
         )
+    );
+    Ok(bytes)
+}
+
+/// Open a nested sub-message region (chapter 20, nested message fields): the
+/// end slot holds the sub-message LENGTH the caller just varint-read into it;
+/// replace it with the ABSOLUTE end bound (`cursor + length`) and clear ok
+/// when that bound exceeds the buffer's compile-time length. The cursor does
+/// not move (the epilogue's write-back stores it unchanged, keeping the
+/// shared prologue/epilogue and their relocation offsets identical to the
+/// other wire decodes).
+pub fn encode_read_wire_nested_open(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(read_wire_nested_open_width(
+        buffer_offset,
+        buffer_length,
+        read_offset,
+        ok_offset,
+        end_offset,
+    ));
+    append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
+
+    // x25 = the end-slot page, x26 = the LENGTH stored there.
+    bytes.extend(encode_adrp_placeholder(25));
+    bytes.extend(encode_add_page_offset_placeholder(25));
+    super::runtime_storage::append_load_data_from_x_offset(&mut bytes, 26, 25, end_offset, 8, 19)?;
+
+    // ok &= length <= buffer length (a raw length past the buffer could wrap
+    // the 64-bit end sum back inside the bound -- reject it before adding);
+    // then end = cursor + length and ok &= end <= buffer length. The cursor
+    // never exceeds the buffer length and the length just passed its own
+    // check, so the sum cannot wrap. Fixed eight-instruction block (32
+    // bytes):
+    //          x24 = buffer_length (materialized above this block)
+    //          movz x23, #1
+    //          cmp  x24, x26
+    //          b.hs len_ok          (+8: skip the fail movz)
+    //   fail1: movz x23, #0
+    //  len_ok: add  x26, x26, x17
+    //          cmp  x24, x26
+    //          b.hs done            (+8: bound fits -- skip the fail movz)
+    //   fail2: movz x23, #0
+    //   done:
+    append_unsigned_immediate(&mut bytes, 24, buffer_length as u64);
+    bytes.extend(encode_movz(23, 1));
+    bytes.extend(encode_compare_x_register(24, 26));
+    bytes.extend(encode_conditional_branch_higher_or_same(8)?);
+    bytes.extend(encode_movz(23, 0));
+    bytes.extend(encode_add_x_register(26, 26, 17));
+    bytes.extend(encode_compare_x_register(24, 26));
+    bytes.extend(encode_conditional_branch_higher_or_same(8)?);
+    bytes.extend(encode_movz(23, 0));
+
+    super::runtime_storage::append_store_data_to_x_offset(&mut bytes, 26, 25, end_offset, 8, 19)?;
+
+    append_wire_decode_epilogue(&mut bytes, read_offset, ok_offset)?;
+    debug_assert_eq!(
+        bytes.len(),
+        read_wire_nested_open_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset
+        )
+    );
+    Ok(bytes)
+}
+
+/// Close a nested sub-message region (chapter 20, nested message fields):
+/// clear ok unless the cursor landed EXACTLY on the end bound the matching
+/// open stored -- the declared sub-message length must equal the bytes its
+/// fields consumed. The cursor does not move.
+pub fn encode_read_wire_nested_close(
+    buffer_offset: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(read_wire_nested_close_width(
+        buffer_offset,
+        read_offset,
+        ok_offset,
+        end_offset,
+    ));
+    append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
+
+    // x25 = the end-slot page, x26 = the end bound stored there.
+    bytes.extend(encode_adrp_placeholder(25));
+    bytes.extend(encode_add_page_offset_placeholder(25));
+    super::runtime_storage::append_load_data_from_x_offset(&mut bytes, 26, 25, end_offset, 8, 19)?;
+
+    // ok &= cursor == end:
+    //         movz x23, #1
+    //         cmp  x17, x26
+    //         b.eq done            (+8: skip the fail movz)
+    //   fail: movz x23, #0
+    //   done:
+    bytes.extend(encode_movz(23, 1));
+    bytes.extend(encode_compare_x_register(17, 26));
+    bytes.extend(encode_conditional_branch_equal(8)?);
+    bytes.extend(encode_movz(23, 0));
+
+    append_wire_decode_epilogue(&mut bytes, read_offset, ok_offset)?;
+    debug_assert_eq!(
+        bytes.len(),
+        read_wire_nested_close_width(buffer_offset, read_offset, ok_offset, end_offset)
     );
     Ok(bytes)
 }

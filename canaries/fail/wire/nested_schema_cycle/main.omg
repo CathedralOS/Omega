@@ -1,0 +1,25 @@
+// Wire nested message fields: a schema that reaches ITSELF through nested
+// message fields (here through a sibling) can never have a finite worst-case
+// encoding, so the cycle is rejected at the declaration -- loudly, not at
+// some later encode call site.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data PacketHeader {
+    0: parent: Packet;
+}
+
+wire data Packet {
+    0: header: PacketHeader;
+    1: depth: i32;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

@@ -85,9 +85,34 @@ remains tracked in its bullet below.
   against the remaining buffer, store `{buffer_base + cursor, len}`).
   Encode also has no runtime overflow signal (content past capacity is
   dropped; callers size buffers for their longest text) -- an encode
-  ok/overflow out-parameter is candidate follow-up work. Remaining:
-  historical-era decode via `Versioned<T>` (after the stage 3 sign-off),
-  String decode (above), nested/repeated fields,
+  ok/overflow out-parameter is candidate follow-up work. NESTED MESSAGE
+  FIELDS LANDED (2026-06-12), one level deep, scalar-only child bodies: a
+  field whose type is a sibling wire schema rides as tag + byte-LENGTH
+  varint + the child's tag/value pairs with NO era discriminator (decision
+  10: one era varint per top-level message, never per struct). The actual
+  length is runtime-sized (varints), so the encoder two-pass STAGES the
+  sub-message through a planner-reserved frame scratch region shaped as a
+  `{ptr, len}` text descriptor + worst-case staging buffer, then replays it
+  through the existing `AppendWireTextBytes` (length varint + bounded copy)
+  -- ZERO new encode operations; capacity math composes (parent worst case
+  counts tag + length varint + child worst case), and the one-String-LAST
+  rule is per message scope (child bodies have no String today). The
+  decoder reads the length into the scratch slot, then two new loop-free
+  operations on BOTH ISAs (widths/relocations pinned):
+  `ReadWireNestedOpen` (absolute end bound = cursor + length, checked both
+  as raw length and as bound against the buffer so a huge length cannot
+  wrap the 64-bit sum) and `ReadWireNestedClose` (sticky ok fails unless
+  the cursor lands EXACTLY on the bound). Schema cycles (no finite worst
+  case) are hard errors at the declaration
+  (wire/nested_schema_cycle); String-in-child and nested-in-nested reject
+  at the call (wire/encode_nested_in_nested); round-trip + corrupted-length
+  run canaries with hand-computed bytes in the differential oracle
+  (wire/runtime_wire_roundtrip_nested_exit,
+  wire/runtime_wire_decode_rejects_bad_nested_length_exit), interpreter
+  parity included.
+  Remaining: historical-era decode via `Versioned<T>` (after the stage 3
+  sign-off), String decode (above), arbitrary-depth nesting (needs
+  per-level staging regions), repeated fields,
   wire-schemas-as-program-types, runtime layout of wire values, encoding
   families beyond compact_binary v0, version negotiation. (Found while
   landing, FIXED 2026-06-11: struct-literal String field initialization did
