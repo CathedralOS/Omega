@@ -1123,12 +1123,36 @@ exit.
   `decrease_order` is `HandleSpan<Identifier>` through all three tree
   representations, so view arguments need new syntax, storage, and symbol
   resolution. Pick a spelling before building it. NOTE (pre-existing bug,
-  tracked separately): a `requires` clause on a recursive machine overflows
-  the compile-time contract evaluator's stack
-  (`ContractExpressionEvaluator::integer_value` follows the self-call site's
+  RESOLVED 2026-06-12 below): a `requires` clause on a recursive machine used
+  to overflow the compile-time contract evaluator's stack
+  (`ContractExpressionEvaluator::integer_value` followed the self-call site's
   arguments in a loop), which is why `proof_inductive_climbing_sum` states its
   theorem as `result >= acc + limit - index` (true without a precondition)
-  instead of the equality that would need `requires index <= limit`.
+  instead of the equality that would need `requires index <= limit` (the
+  climbing canary's weaker theorem statement is kept as-is).
+- Resolved 2026-06-12: `requires` on a recursive machine no longer crashes
+  the compiler. Root cause: the contract evaluator's constant walk
+  (`checks/contracts/evaluator/` in omega-typed-trees-to-checked-trees)
+  resolves a callee parameter to the call-site argument expression to
+  discharge `requires` by constant propagation; at a SELF call site the
+  argument mentions the same parameter (`n` resolves to `n - 1`, whose `n`
+  resolves to `n - 1` again), so `integer_value`/`resolved_expression`
+  alternated forever. The pre-existing same-handle check in the Name arm only
+  caught cycles of length 1. Fix: two active-expression stacks
+  (`active_evaluations`, `active_resolutions` on
+  `ContractExpressionEvaluator`, threaded through `guarding_cycles`) detect
+  re-entry into an expression still being evaluated/resolved and STAND DOWN
+  with None -- unknown never proves and never falsely rejects, so discharge
+  falls through to the semantic provers (arm facts, caller requires).
+  Legitimate constant following is untouched (pass
+  constraints/scalar_requires_satisfied_by_literal and the rest of the suite
+  are unchanged). Regression pin: pass canary
+  proofs/recursive_machine_with_requires_compiles -- a recursive gauss_sum
+  threading an untouched `limit` parameter with `requires limit > 0`,
+  discharged by the literal at the outer call (constant walk) and by the
+  caller's own requires at the recursive call; its value is that it compiles
+  AT ALL. Unprovable shapes on recursive machines (e.g. `requires n >= 0`)
+  now produce the normal cannot-prove diagnostic instead of a stack overflow.
 - Resolved 2026-06-11: shrinking-slice recursion runtime exit canary added as
   `termination/runtime_shrinking_slice_recursion_exit` (suite ACTIVE list +
   dedicated run test + differential RUN_CANARIES; the parked

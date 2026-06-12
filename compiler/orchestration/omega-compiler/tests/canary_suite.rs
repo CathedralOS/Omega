@@ -8272,6 +8272,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "proofs/proof_bag_view_reflexivity",
     "proofs/proof_inductive_gauss_sum",
     "proofs/proof_inductive_climbing_sum",
+    "proofs/recursive_machine_with_requires_compiles",
     "control_flow/runtime_integer_literal_dispatch_exit",
     "control_flow/runtime_string_literal_dispatch_exit",
     "core/local_value_intro_compile",

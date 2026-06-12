@@ -1,0 +1,33 @@
+// Regression pin: a `requires` clause on a recursive machine used to crash
+// the compiler with a stack overflow -- the contract evaluator's constant
+// walk (ContractExpressionEvaluator::integer_value) followed the SELF call
+// site's arguments in a loop (`limit` resolves to the argument at the
+// recursive call, whose names resolve back through the same call site
+// forever). The evaluator now detects the cycle and stands down (unknown),
+// so discharge falls to the other provers. This canary's value is that it
+// compiles AT ALL; the requires shape is chosen so both call sites
+// legitimately discharge:
+//   - the outer call passes the literal 7, proven by constant following
+//     (the same walk the cycle guard must not break), and
+//   - the recursive call threads `limit` unchanged, proven by the caller's
+//     own `requires limit > 0` entry fact.
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let total: usize = self.gauss_sum(4, 0, 7);
+}
+
+machine Main::gauss_sum(&mut self, n: usize, acc: usize, limit: usize) -> usize
+terminates {
+    decreases n;
+}
+requires
+    limit > 0
+{
+    transition n > 0 {
+        true -> self.gauss_sum(n - 1, acc + n, limit)
+        false -> acc
+    }
+}
