@@ -1484,6 +1484,183 @@ pub fn append_wire_text_bytes_width(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn append_wire_repeated_scalar_varint_width(
+    architecture: Architecture,
+    source_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+    index: u64,
+    count_offset: usize,
+    out_offset: usize,
+    written_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::append_wire_repeated_scalar_varint_width(
+            source_offset,
+            byte_size,
+            zigzag,
+            index,
+            count_offset,
+            out_offset,
+            written_offset,
+        ),
+        Architecture::X86_64 => x86_64::append_wire_repeated_scalar_varint_width(
+            source_offset,
+            byte_size,
+            zigzag,
+            index,
+            count_offset,
+            out_offset,
+            written_offset,
+        ),
+    }
+}
+
+/// Byte offset of the COUNT page address materialization inside the repeated
+/// append (relocated to the count companion's region symbol).
+pub fn wire_append_repeated_count_page_offset(
+    architecture: Architecture,
+    out_offset: usize,
+    written_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::wire_append_repeated_count_page_offset(out_offset, written_offset)
+        }
+        Architecture::X86_64 => {
+            x86_64::wire_append_repeated_count_page_offset(out_offset, written_offset)
+        }
+    }
+}
+
+/// Byte offset of the SOURCE page address materialization inside the repeated
+/// append (relocated to the element's region symbol).
+pub fn wire_append_repeated_source_page_offset(
+    architecture: Architecture,
+    out_offset: usize,
+    written_offset: usize,
+    count_offset: usize,
+    index: u64,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::wire_append_repeated_source_page_offset(
+            out_offset,
+            written_offset,
+            count_offset,
+            index,
+        ),
+        Architecture::X86_64 => x86_64::wire_append_repeated_source_page_offset(
+            out_offset,
+            written_offset,
+            count_offset,
+            index,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn read_wire_repeated_scalar_varint_width(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+    count_offset: usize,
+    target_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::read_wire_repeated_scalar_varint_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+            count_offset,
+            target_offset,
+            byte_size,
+            zigzag,
+        ),
+        Architecture::X86_64 => x86_64::read_wire_repeated_scalar_varint_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+            count_offset,
+            target_offset,
+            byte_size,
+            zigzag,
+        ),
+    }
+}
+
+/// Byte offset of the TARGET page address materialization inside the repeated
+/// read (relocated to the element slot's region symbol).
+pub fn wire_decode_repeated_target_page_offset(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    end_offset: usize,
+    zigzag: bool,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::wire_decode_repeated_target_page_offset(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            end_offset,
+            zigzag,
+        ),
+        Architecture::X86_64 => x86_64::wire_decode_repeated_target_page_offset(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            end_offset,
+            zigzag,
+        ),
+    }
+}
+
+/// Byte offset of the COUNT page address materialization inside the repeated
+/// read (relocated to the count companion's region symbol).
+#[allow(clippy::too_many_arguments)]
+pub fn wire_decode_repeated_count_page_offset(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    end_offset: usize,
+    target_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::wire_decode_repeated_count_page_offset(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            end_offset,
+            target_offset,
+            byte_size,
+            zigzag,
+        ),
+        Architecture::X86_64 => x86_64::wire_decode_repeated_count_page_offset(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            end_offset,
+            target_offset,
+            byte_size,
+            zigzag,
+        ),
+    }
+}
+
 /// Byte offset of the WRITTEN page address materialization inside both wire
 /// appends (relocated to the written slot's region symbol).
 pub fn wire_append_written_page_offset(architecture: Architecture, out_offset: usize) -> usize {

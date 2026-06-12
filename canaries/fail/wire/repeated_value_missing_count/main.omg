@@ -1,0 +1,34 @@
+// Wire REPEATED fields: the wire carries the packed BYTE LENGTH, never the
+// element count, so the runtime value type must declare a `usize` COUNT
+// COMPANION (`<name>_count`) next to the array -- the encoder reads it (how
+// many elements are live) and the decoder writes the decoded element count
+// back. A value type without the companion rejects the call with a clear
+// diagnostic.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Telemetry {
+    0: readings: [u32; 4];
+}
+
+data TelemetryValue {
+    readings: [u32; 4];
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    let msg: TelemetryValue = TelemetryValue {
+        readings: [1, 2, 3, 4]
+    };
+
+    Telemetry::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    self.console.exit_process(70);
+}

@@ -149,6 +149,51 @@ impl WireFieldEncoding {
 /// half of a text descriptor is one 64-bit pointer wide, so ten groups.
 pub const WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH: usize = 10;
 
+/// The suffix of the COUNT COMPANION field a repeated wire field requires on
+/// the runtime value type (chapter 20, repeated fields): a schema field
+/// `1: samples: [i32; 4];` encodes/decodes through a value type declaring
+/// BOTH `samples: [i32; 4]` and `samples_count: usize`. The wire never
+/// carries the count -- compact_binary v0 packs repeated scalars
+/// LENGTH-delimited (tag + byte-length varint + back-to-back element
+/// varints, protobuf's packed encoding) -- so the companion is the runtime
+/// element count: the encoder emits the first `min(count, max)` elements and
+/// the decoder writes back how many elements it read.
+pub const WIRE_REPEATED_COUNT_SUFFIX: &str = "_count";
+
+/// The name of the count companion field a repeated wire field `name` reads
+/// (encode) and writes (decode) on the runtime value type.
+pub fn wire_repeated_count_field_name(field_name: &str) -> String {
+    format!("{field_name}{WIRE_REPEATED_COUNT_SUFFIX}")
+}
+
+/// A REPEATED wire field's shape (chapter 20): a fixed maximum element count
+/// declared in the schema spelling `[element; max]` plus the element's scalar
+/// encoding. The declared maximum is part of the wire contract -- it is what
+/// gives the packed payload a finite worst case, so the compile-time
+/// out-buffer capacity guarantee survives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WireRepeatedEncoding {
+    pub element: WireScalarEncoding,
+    pub max_count: usize,
+}
+
+impl WireRepeatedEncoding {
+    /// The worst-case byte count of the PACKED payload (byte-length varint +
+    /// max_count elements at their widest). The field's TAG varint is the
+    /// caller's to add. The actual byte length never exceeds the worst-case
+    /// body, so its varint never grows past the worst-case body's varint.
+    pub fn worst_case_payload_bytes(self) -> usize {
+        let body = self.max_count * self.element.max_varint_length();
+        wire_varint_bytes(body as u64).len() + body
+    }
+
+    /// The worst-case byte count of the packed elements alone (the staging
+    /// buffer the encoder needs while it two-passes the byte length).
+    pub fn worst_case_body_bytes(self) -> usize {
+        self.max_count * self.element.max_varint_length()
+    }
+}
+
 /// The unsigned LEB128 byte sequence for a compile-time value (era
 /// discriminators and field-number tags are known at compile time).
 pub fn wire_varint_bytes(mut value: u64) -> Vec<u8> {

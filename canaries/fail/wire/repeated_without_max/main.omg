@@ -1,0 +1,21 @@
+// Wire REPEATED fields: the declared maximum element count is part of the
+// wire contract -- it is what gives the packed payload a finite worst case,
+// so the compile-time out-buffer capacity guarantee survives. A bare slice
+// (`[u32]`, no maximum) can never satisfy that, so it is a hard error at the
+// DECLARATION, like a schema cycle -- not a call-site rejection.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Telemetry {
+    0: readings: [u32];
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

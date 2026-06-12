@@ -1,0 +1,1 @@
+a repeated wire field's element must be a stage 2 scalar

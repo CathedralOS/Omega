@@ -446,6 +446,70 @@ impl TypedTrees {
         }
     }
 
+    /// A wire field's FIXED-ARRAY shape (`[element; max]`), unwrapped through
+    /// reference and constraint shells: the element type reference and the
+    /// literal maximum. `None` for non-array fields and for const-parameter
+    /// lengths (a wire schema is a standalone contract -- its maximum must be
+    /// a literal).
+    pub fn wire_field_fixed_array(
+        &self,
+        field: &wire::WireField,
+    ) -> Option<(types::TypeReferenceHandle, usize)> {
+        let mut handle = field.type_reference;
+        loop {
+            if !handle.is_valid() {
+                return None;
+            }
+            match self.type_reference_table.type_reference(handle) {
+                types::TypeReferenceNode::Reference { referee, .. } => handle = *referee,
+                types::TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
+                types::TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: types::FixedArrayLength::Literal(length),
+                } => return Some((*element_type, *length)),
+                _ => return None,
+            }
+        }
+    }
+
+    /// `true` when a wire field's type bottoms out in a SLICE (`[element]`)
+    /// -- a repeated spelling with no declared maximum, which can never have
+    /// a finite worst-case encoding and is rejected at the declaration.
+    pub fn wire_field_is_unbounded_slice(&self, field: &wire::WireField) -> bool {
+        let mut handle = field.type_reference;
+        loop {
+            if !handle.is_valid() {
+                return false;
+            }
+            match self.type_reference_table.type_reference(handle) {
+                types::TypeReferenceNode::Reference { referee, .. } => handle = *referee,
+                types::TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
+                types::TypeReferenceNode::Slice { .. } => return true,
+                _ => return false,
+            }
+        }
+    }
+
+    /// A wire field's REPEATED encoding (chapter 20): `[scalar; max]` with a
+    /// stage 2 scalar element (i32/i64/u32/u64/bool) and a positive literal
+    /// maximum. `None` for plain fields AND for array fields whose element is
+    /// not an encodable scalar (the caller rejects those with its own
+    /// diagnostic -- repeated String / repeated nested message are not
+    /// supported).
+    pub fn wire_field_repeated_encoding(
+        &self,
+        field: &wire::WireField,
+    ) -> Option<wire::WireRepeatedEncoding> {
+        let (element_type, max_count) = self.wire_field_fixed_array(field)?;
+        if max_count == 0 {
+            return None;
+        }
+        let element = self
+            .primitive_type_reference(element_type)
+            .and_then(wire::WireScalarEncoding::for_primitive)?;
+        Some(wire::WireRepeatedEncoding { element, max_count })
+    }
+
     /// The worst-case byte count of a schema's CURRENT-era body WITHOUT the
     /// era discriminator -- the sub-message framing a nested message field
     /// carries (chapter 20, decision 10: the era rides only the top-level

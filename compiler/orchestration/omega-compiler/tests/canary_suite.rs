@@ -1258,6 +1258,85 @@ fn runtime_wire_decode_rejects_bad_nested_length_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_roundtrip_repeated_exit_canary_runs() {
+    // Wire repeated fields: encode { sensor_id: 7, samples: [150, -2, 0, 0],
+    // samples_count: 2, flag: true } into [0x00, 0x00, 0x07, 0x01, 0x03,
+    // 0xAC, 0x02, 0x03, 0x02, 0x01] (hand-computed in the canary header --
+    // the repeated field packs LENGTH-delimited: tag + byte-length varint +
+    // the live element varints, no per-element tags), then decode back into
+    // a fresh value: ok = true, read = 10, both live elements and the count
+    // companion round-trip. Exits 70 on a full match.
+    let canary = pass_canary("wire/runtime_wire_roundtrip_repeated_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-repeated-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire repeated roundtrip canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wire repeated roundtrip canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the compact_binary v0 repeated field to round-trip (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_decode_rejects_repeated_overflow_exit_canary_runs() {
+    // Wire repeated fields, failure paths: a packed payload carrying MORE
+    // elements than the declared maximum must fail the decode (the unrolled
+    // guarded reads stop at the maximum, so the cursor lands short of the
+    // declared end bound and the CLOSE check clears ok -- the count
+    // companion reports the capped element count), and a hostile byte-length
+    // claiming more than the buffer holds must fail at the OPEN check
+    // without reading out of bounds. Exits 70 when both decodes report
+    // failure (walk in the canary header).
+    let canary = pass_canary("wire/runtime_wire_decode_rejects_repeated_overflow_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-repeated-overflow-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire repeated overflow canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wire repeated overflow canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the decoder to reject repeated payloads past the declared maximum or the buffer (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wire_decode_rejects_wrong_era_exit_canary_runs() {
     // Wire stage 2b: a hand-built buffer carrying era byte 5 (the schema's
     // current era is 0) must fail to decode -- the era discriminator is the
@@ -8714,6 +8793,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_roundtrip_primitive_exit",
     "wire/runtime_wire_decode_rejects_wrong_era_exit",
     "wire/runtime_wire_encode_string_exit",
+    "wire/runtime_wire_roundtrip_repeated_exit",
+    "wire/runtime_wire_decode_rejects_repeated_overflow_exit",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -8729,6 +8810,10 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/encode_case_bearing_value",
     "wire/nested_schema_cycle",
     "wire/encode_nested_in_nested",
+    "wire/repeated_string_element",
+    "wire/repeated_nested_element",
+    "wire/repeated_without_max",
+    "wire/repeated_value_missing_count",
     "capabilities/unapproved_host_call",
     "data/bare_payload_case_equality_guard",
     "data/bare_payload_case_equality_suggests_in",
