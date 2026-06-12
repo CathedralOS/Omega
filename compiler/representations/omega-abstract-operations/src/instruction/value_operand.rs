@@ -71,6 +71,19 @@ pub enum ValueOperand {
         right_region: RuntimeStorageRegion,
         right_offset: usize,
     },
+    /// Runtime text CONTENT equality against an inline string literal
+    /// (`transition items[i].name == "expected"`): `place` names the String
+    /// side's 16-byte `{ptr, len}` text descriptor place (a `Storage` or
+    /// `FrameIndexed` operand used for its ADDRESS, never loaded as a scalar),
+    /// and the literal's bytes are compared inline as immediates, so no rodata
+    /// descriptor is materialized for the literal. Evaluates to bool 0/1 like
+    /// `TextEquals`; a length mismatch (including an all-zero default
+    /// descriptor vs a non-empty literal) is unequal without dereferencing the
+    /// place's pointer.
+    TextEqualsLiteral {
+        place: ValueOperandHandle,
+        literal: String,
+    },
     /// A numeric `as` cast applied to another operand (`(self.b as f64)` used as a
     /// binary/comparison operand): load `source`, then convert it in place
     /// (cvttsd2si / cvtsi2sd / cvtsd2ss / movsxd) to the target scalar. The result
@@ -116,6 +129,10 @@ impl ValueOperand {
                 operator: *operator,
                 right: remap(*right),
                 is_float: *is_float,
+            },
+            Self::TextEqualsLiteral { place, literal } => Self::TextEqualsLiteral {
+                place: remap(*place),
+                literal: literal.clone(),
             },
             Self::Convert {
                 source,

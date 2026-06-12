@@ -59,6 +59,23 @@ pub(super) fn collect_runtime_value_operand_relocations(
                 );
             context.insert_data_address(right_offset, right_symbol);
         }
+        RuntimeValueOperand::TextEqualsLiteral { place, .. } => {
+            // One descriptor-base relocation at the operand start (the place's
+            // address setup leads the encoding; the literal bytes are inline
+            // immediates and need no relocation). The symbol follows the place
+            // kind exactly like the plain place arms above.
+            let place_operand = context
+                .input
+                .assigned_target_operations
+                .runtime_value_operand(*place);
+            let symbol = match place_operand.map(|operand| &operand.kind) {
+                Some(RuntimeValueOperand::Storage { region, .. }) => {
+                    context.storage_region_symbol_handle(*region)
+                }
+                _ => context.runtime_frame_symbol_handle(),
+            };
+            context.insert_data_address(operand_text_offset, symbol);
+        }
         RuntimeValueOperand::Convert { source, .. } => {
             // The source is loaded first (at the operand's own text offset); the
             // in-place convert that follows carries no relocation of its own.

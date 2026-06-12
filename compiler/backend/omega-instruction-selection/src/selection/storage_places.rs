@@ -981,6 +981,47 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
     })
 }
 
+/// The primitive type of a frame-indexed target's FIELD (`items[i].name`),
+/// for guard/operand classification: the plain leaf-descriptor resolver walks
+/// NAME paths and cannot see through an Index node, so slice-indexed places
+/// resolve their suffix cursor against the collection slot's element type
+/// here instead.
+pub(super) fn resolve_runtime_frame_indexed_primitive_type_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<PrimitiveType> {
+    let indexed = indexed_target_path_in_table(expressions, expression)?;
+    let collection_slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )?;
+    let element_descriptor = collection_slot.type_descriptor.element_type()?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let root_field = FieldLayout {
+        symbol: collection_slot.symbol,
+        name: collection_slot.name.clone(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let cursor = NestedFieldLayoutCursor::from_root(&root_field);
+    let cursor = resolve_indexed_target_suffix_cursor_in_table(
+        &input.layouts,
+        cursor,
+        expressions,
+        indexed.suffix_root,
+    )?;
+    descriptor_primitive_type(cursor.type_descriptor())
+}
+
 pub(super) fn resolve_runtime_frame_indexed_target_near_slot_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,

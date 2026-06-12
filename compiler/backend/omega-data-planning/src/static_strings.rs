@@ -1,5 +1,7 @@
 use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_runtime_branching::RuntimeBranchingCallPlan;
@@ -203,6 +205,27 @@ fn collect_static_string_expression_data(
             );
         }
         ExpressionNode::Binary(binary) => {
+            // An all-literal concat (`"prefix " + "omega"`) is written as ONE
+            // folded literal (the runtime-text planner folds the write's
+            // value), so the descriptor write looks up a data object holding
+            // the folded bytes. Plan that object alongside the per-segment
+            // literals (which non-folded builder shapes still reference).
+            if let Some(folded) = fold_static_string_expression(expressions, expression) {
+                let offset = data_plan.bytes.len();
+                let byte_span = data_plan
+                    .bytes
+                    .insert_many(folded.as_bytes().iter().copied());
+                let symbol_index = data_plan.objects.len() + 1;
+                data_plan.objects.insert(TargetDataObject {
+                    symbol: format!("omega_string_literal_{symbol_index}").into(),
+                    kind: TargetDataObjectKind::StaticString,
+                    offset,
+                    bytes: byte_span,
+                    alignment: 1,
+                    source_key,
+                    source_statement,
+                });
+            }
             collect_static_string_expression_data(
                 expressions,
                 binary.left,
@@ -264,5 +287,23 @@ fn collect_static_string_expression_data(
         | ExpressionNode::Member(_)
         | ExpressionNode::Mutable(_)
         | ExpressionNode::Name(_) => {}
+    }
+}
+
+/// Fold an all-literal `+` tree to the single string it denotes; `None` when
+/// any leaf is not a string literal. Mirrors the runtime-text planner's fold
+/// so the data object it plans here matches the write value byte-for-byte.
+fn fold_static_string_expression(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    match expressions.expression(expression) {
+        ExpressionNode::String(value) => Some(value.to_string()),
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Add => {
+            let mut folded = fold_static_string_expression(expressions, binary.left)?;
+            folded.push_str(&fold_static_string_expression(expressions, binary.right)?);
+            Some(folded)
+        }
+        _ => None,
     }
 }

@@ -91,7 +91,8 @@ fn assign_value_home(
         },
         TargetValueOperand::Binary { .. }
         | TargetValueOperand::Convert { .. }
-        | TargetValueOperand::TextEquals { .. } => {
+        | TargetValueOperand::TextEquals { .. }
+        | TargetValueOperand::TextEqualsLiteral { .. } => {
             let name = registers::scratch_register_name(
                 target_operations.target.architecture,
                 *next_scratch_slot,
