@@ -1,0 +1,1 @@
+`Versioned` is the builtin era-tagged container type (chapter 21) and cannot be redeclared

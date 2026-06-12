@@ -1,0 +1,25 @@
+// Chapter 21 (Versioned Data), stage 3: `era` is READ-ONLY source-queryable
+// (frozen decision 14). The tag is set only by the boundary machinery that
+// constructs the container; a source-level write is rejected.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    self.raw.era = 1;
+    self.console.exit_process(0);
+}

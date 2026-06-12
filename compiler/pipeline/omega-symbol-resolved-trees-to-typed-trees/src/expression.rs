@@ -7,6 +7,7 @@ mod domain_membership;
 mod name_paths;
 mod operators;
 mod table;
+pub(crate) mod version_membership;
 #[cfg(test)]
 mod tests;
 

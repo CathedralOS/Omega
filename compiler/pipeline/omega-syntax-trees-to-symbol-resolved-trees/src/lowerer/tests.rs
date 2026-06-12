@@ -281,10 +281,29 @@ fn lowers_version_scoped_machine_as_attached_data_method() {
     let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
     // The version block becomes a root-level historical-shape data definition
-    // right after its parent, and the version-scoped machine attaches to it.
-    assert_eq!(program.data_definitions.len(), 2);
+    // right after its parent, followed by the synthesized era-tagged container
+    // (frozen decision 14); the version-scoped machine attaches to the shape.
+    assert_eq!(program.data_definitions.len(), 3);
     assert_eq!(program.data_definitions[0].name.as_str(), "Counter");
     assert_eq!(program.data_definitions[1].name.as_str(), "Counter::v1");
+    assert_eq!(
+        program.data_definitions[2].name.as_str(),
+        "Versioned<Counter>"
+    );
+    let container_fields = program
+        .data_members(program.data_definitions[2].members)
+        .iter()
+        .map(|member| match member {
+            omega_symbol_resolved_trees::data::DataMember::Field(field) => field.name.as_str(),
+            omega_symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                variant.name.as_str()
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        container_fields,
+        ["era", "__payload_v1", "__payload_current"]
+    );
 
     assert_eq!(program.machines.len(), 1);
     assert_eq!(program.machines[0].name.as_str(), "Counter::increment::v1");
