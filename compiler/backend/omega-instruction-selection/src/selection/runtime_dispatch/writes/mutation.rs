@@ -50,6 +50,7 @@ pub(super) use binary_table_writes::{
     select_runtime_binary_mutation_write_in_table, select_runtime_convert_mutation_write_in_table,
     select_runtime_frame_slot_convert_write_in_table, select_runtime_storage_binary_write_in_table,
 };
+pub(in crate::selection::runtime_dispatch) use binary_table_writes::signedness_adjusted_operator;
 pub(in crate::selection) use frame_slots::{
     runtime_frame_slot_target_expression, select_runtime_frame_slot_value_write_in_table,
     select_runtime_frame_slot_value_write_in_table_with_source_anchor,
