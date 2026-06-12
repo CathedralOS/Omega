@@ -12,11 +12,32 @@ use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::statement::TransitionGuardNode;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
+/// One named binding a pattern arm introduces: uses of `binding` rewrite to
+/// `subject.member` in the arm's guard and transition-target arguments. For
+/// field destructures the two names coincide (`{ text }` binds `text` to
+/// `subject.text`); a version arm's whole-value binding maps a user-chosen
+/// name onto the container's internal payload field (`Counter::v1(old)` binds
+/// `old` to `subject.__payload_v1`).
+#[derive(Clone)]
+pub(super) struct DestructureBinding {
+    pub(super) binding: Identifier,
+    pub(super) member: Identifier,
+}
+
+impl DestructureBinding {
+    fn field(name: Identifier) -> Self {
+        Self {
+            member: name.clone(),
+            binding: name,
+        }
+    }
+}
+
 /// The named bindings a destructure pattern arm introduces: each bound `field`
 /// rewrites to `subject.field` in the arm's guard and transition-target arguments.
 pub(super) struct DestructureBindings {
     pub(super) subject: ExpressionHandle,
-    pub(super) fields: Vec<Identifier>,
+    pub(super) fields: Vec<DestructureBinding>,
 }
 
 pub(super) fn parse_transition_guard_node<'tokens, 'source>(
@@ -33,14 +54,26 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
 > {
     let (pattern_input, rest) =
         input.split_at_top_level_punctuation(PunctuationKind::Arrow, "expected `->`")?;
-    // Stage-2 ruling on chapter 21's version matching: values carry NO era tag
-    // yet, so a `Type::vN(binding)` arm can never be selected at runtime --
-    // every value in the program has the current shape. Rejecting the arm as
-    // unreachable is the honest semantics until era-tagged containers (the
-    // versioned-data stage 3 frontier) make multi-era subjects expressible.
+
+    // Version match arms (frozen decision 14): on a `Versioned<T>` subject the
+    // paren form binds the WHOLE historical value -- `Counter::v1(old)` tests
+    // the era tag and binds `old` to the payload reinterpreted as the `v1`
+    // shape; the bare `Counter(current)` arm selects the CURRENT era. The
+    // parser desugars structurally (era-marker membership guard + payload
+    // member binding); the typed lowering resolves the era number and rejects
+    // non-`Versioned` subjects.
+    if subject.len() == 1
+        && let Some((guard, bindings)) =
+            parse_version_pattern_arm(syntax_trees, pattern_input, subject[0])?
+    {
+        return Ok((guard, Some(bindings), rest));
+    }
+    // Any OTHER spelling that embeds a `Type::vN(...)` selector (nested in a
+    // larger pattern expression, non-identifier binding, ...) is still
+    // rejected: there is no other meaning for a version selector call shape.
     if looks_like_version_match_arm(pattern_input) {
         return Err(pattern_input.error_here(
-            "version match arms are unreachable: values carry no era tag yet, so a `Type::vN(binding)` arm can never match -- era-tagged containers are not implemented",
+            "a version match arm must be the whole pattern: `Type::vN(binding) ->` or `Type(binding) ->` on a `Versioned<Type>` subject",
         ));
     }
 
@@ -189,6 +222,123 @@ where
     Ok((values, input))
 }
 
+/// Parse a single-subject VERSION pattern arm (frozen decision 14): the paren
+/// form binding the WHOLE value.
+///
+/// - `Type::vN(binding) -> ...` -- a historical-era arm: the guard tests the
+///   subject's era tag and `binding` rewrites to the container's `vN` payload
+///   field (the payload reinterpreted as the `Type::vN` shape).
+/// - `Type(binding) -> ...` -- the CURRENT-era arm: tag test against the
+///   current era; `binding` rewrites to the current-shape payload field.
+///
+/// The guard desugars to a marker MEMBERSHIP (`subject in Type::vN::<marker>`)
+/// the typed lowering resolves into an era equality compare -- the era NUMBER
+/// and the subject's `Versioned<Type>`-ness are unknown at parse time. `_`
+/// binds nothing. Returns `Ok(None)` when the pattern is not exactly this
+/// shape, so the caller falls back to the other arm forms. (A consequence of
+/// claiming the bare `Type(binding)` spelling: a transition arm can no longer
+/// compare the subject against a single-bare-identifier-argument CALL --
+/// a shape no known program uses; spell it through a `let` if needed.)
+fn parse_version_pattern_arm(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'_, '_>,
+    subject: ExpressionHandle,
+) -> Result<Option<(TransitionGuardNode, DestructureBindings)>, ParseError> {
+    if !input.at_name_like() {
+        return Ok(None);
+    }
+    let Ok((type_name, after_type)) = input.take_identifier() else {
+        return Ok(None);
+    };
+
+    let (version_name, after_path) = if after_type.at_punctuation(PunctuationKind::ColonColon) {
+        let Ok(after_separator) = after_type.take_punctuation(PunctuationKind::ColonColon, "::")
+        else {
+            return Ok(None);
+        };
+        let Ok((segment, rest)) = after_separator.take_identifier() else {
+            return Ok(None);
+        };
+        if !omega_core::versioning::is_version_selector(segment.as_str()) {
+            return Ok(None);
+        }
+        (Some(segment), rest)
+    } else {
+        (None, after_type)
+    };
+
+    if !after_path.at_punctuation(PunctuationKind::LeftParen) {
+        return Ok(None);
+    }
+    let Ok(in_parens) = after_path.take_punctuation(PunctuationKind::LeftParen, "(") else {
+        return Ok(None);
+    };
+    let (binding, after_binding) = if in_parens.at_contextual("_") {
+        let Ok(rest) = in_parens.take_contextual("_") else {
+            return Ok(None);
+        };
+        (None, rest)
+    } else {
+        let Ok((binding, rest)) = in_parens.take_identifier() else {
+            return Ok(None);
+        };
+        (Some(binding), rest)
+    };
+    let Ok(after_close) = after_binding.take_punctuation(PunctuationKind::RightParen, ")") else {
+        return Ok(None);
+    };
+    if !after_close.tokens.is_empty() {
+        return Ok(None);
+    }
+
+    // Guard: `subject in Type[::vN]::<marker>` -- the marker keeps version
+    // arms distinct from case/domain membership through symbol assignment;
+    // the typed lowering turns it into `subject.era == <era index>`.
+    let mut domain_members = vec![type_name];
+    let payload_member = match &version_name {
+        Some(version) => Identifier::generated(
+            omega_core::versioning::versioned_payload_field_name(version.as_str()),
+        ),
+        None => Identifier::generated(
+            omega_core::versioning::VERSIONED_CURRENT_PAYLOAD_FIELD.to_owned(),
+        ),
+    };
+    if let Some(version) = version_name {
+        domain_members.push(version);
+    }
+    domain_members.push(Identifier::generated(
+        omega_core::versioning::VERSION_ARM_MARKER.to_owned(),
+    ));
+
+    let mut domain_start = omega_core::arena::Handle::invalid();
+    let mut domain_count = 0u32;
+    for member in domain_members {
+        let handle = syntax_trees.expressions.append_identifier_path_member(member);
+        if domain_count == 0 {
+            domain_start = handle;
+        }
+        domain_count += 1;
+    }
+    let domain = HandleSpan::from_parts(domain_start, domain_count);
+
+    let guard = TransitionGuardNode::When(syntax_trees.expressions.insert(
+        ExpressionNode::Membership(TableMembershipExpression {
+            value: subject,
+            domain,
+        }),
+    ));
+
+    let fields = match binding {
+        Some(binding) => vec![DestructureBinding {
+            binding,
+            member: payload_member,
+        }],
+        None => Vec::new(),
+    };
+
+    Ok(Some((guard, DestructureBindings { subject, fields })))
+}
+
 fn looks_like_version_match_arm(input: Input<'_, '_>) -> bool {
     let semantic_tokens = input
         .tokens
@@ -276,6 +426,10 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     }
 
     let (fields, pattern_rest) = parse_data_destructure_pattern_fields(syntax_trees, after_path)?;
+    let fields = fields
+        .into_iter()
+        .map(DestructureBinding::field)
+        .collect::<Vec<_>>();
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected data destructure pattern"));
     }
@@ -388,7 +542,7 @@ pub(super) fn rewrite_destructure_guard_expression(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
     subject: ExpressionHandle,
-    fields: &[Identifier],
+    fields: &[DestructureBinding],
 ) -> ExpressionHandle {
     let rewritten = match syntax_trees.expressions.expression(expression).clone() {
         ExpressionNode::ArrayLiteral(values) => {
@@ -518,7 +672,7 @@ fn rewrite_optional_expression(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
     subject: ExpressionHandle,
-    fields: &[Identifier],
+    fields: &[DestructureBinding],
 ) -> ExpressionHandle {
     if expression.is_valid() {
         rewrite_destructure_guard_expression(syntax_trees, expression, subject, fields)
@@ -531,7 +685,7 @@ fn rewrite_expression_span(
     syntax_trees: &mut SyntaxTrees,
     expressions: HandleSpan<ExpressionHandle>,
     subject: ExpressionHandle,
-    fields: &[Identifier],
+    fields: &[DestructureBinding],
 ) -> HandleSpan<ExpressionHandle> {
     let source_expressions = syntax_trees
         .expressions
@@ -551,13 +705,16 @@ fn rewrite_expression_span(
 fn single_destructured_field_name(
     syntax_trees: &SyntaxTrees,
     path: HandleSpan<Identifier>,
-    fields: &[Identifier],
+    fields: &[DestructureBinding],
 ) -> Option<Identifier> {
     let members = syntax_trees.expressions.identifier_path_members(path);
     let [member] = members else {
         return None;
     };
-    fields.iter().find(|field| *field == member).cloned()
+    fields
+        .iter()
+        .find(|field| &field.binding == member)
+        .map(|field| field.member.clone())
 }
 
 trait FromTransitionMatchComponent {

@@ -466,10 +466,7 @@ impl DataVersion {
 /// (`machine Counter::increment::v1`), and version-shape type references
 /// (`Counter::v1`).
 pub fn is_version_selector(name: &str) -> bool {
-    let Some(rest) = name.strip_prefix('v') else {
-        return false;
-    };
-    !rest.is_empty() && rest.chars().all(|ch| ch.is_ascii_digit())
+    omega_core::versioning::is_version_selector(name)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

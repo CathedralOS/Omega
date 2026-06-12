@@ -1,21 +1,29 @@
-// Chapter 21 (Versioned Data): code receiving unknown-version state should branch
-// by version, e.g. `match counter { Counter::v1(old) -> migrate old to Counter
-// ...}`. Stage-2 ruling: values carry NO era tag, so every value has the
-// current shape and a `Type::vN(binding)` arm can never be selected -- the
-// arm is rejected as unreachable rather than lowered with fake runtime
-// semantics. Version matching becomes expressible when era-tagged containers
-// (stage 3) give a subject that can actually hold multiple eras.
+// Chapter 21 (Versioned Data), stage 3 (frozen decision 14): version match
+// arms are legal ONLY on `Versioned<T>` subjects. An ordinary `Counter` value
+// has no era bit to test (ordinary values never carry era tags -- the
+// per-struct tax decision 10 rejected on the wire), so a version arm on a
+// PLAIN value stays an error, now suggesting the boundary container.
 
 data Counter {
-    counter: i32;
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+    timestamp: i32;
 }
 
 data Main {
+    plain: Counter;
 }
 
 machine Main::main(&mut self) {
-    match counter {
-        Counter::v1(old) -> migrate old to Counter
-        Counter(current) -> current
+    transition self.plain {
+        Counter::v1(old) -> old_era(old.counter)
+        Counter(current) -> new_era(current.count)
+    }
+    state old_era(&mut self, counter: i32) {
+    }
+    state new_era(&mut self, count: i32) {
     }
 }

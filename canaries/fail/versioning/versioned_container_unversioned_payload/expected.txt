@@ -1,0 +1,1 @@
+`Versioned<T>` exists only for data types with `version vN { ... }` blocks -- `Plain` declares none

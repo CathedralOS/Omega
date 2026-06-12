@@ -335,6 +335,18 @@ fn validate_type_reference_handle_with_context(
             }
 
             if !symbols.has_type(name) && !type_parameter_scope.contains(name.as_str()) {
+                // The builtin era-tagged container exists only for data types
+                // that declare version blocks (frozen decision 14); an
+                // unresolved `Versioned<X>` means `X` has no eras (or does
+                // not exist).
+                if let Some(payload) =
+                    omega_core::versioning::versioned_container_payload(name.as_str())
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} references `{name}`, but `Versioned<T>` exists only for data types with `version vN {{ ... }}` blocks -- `{payload}` declares none"
+                    )));
+                    return;
+                }
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown data type `{name}`"
                 )));

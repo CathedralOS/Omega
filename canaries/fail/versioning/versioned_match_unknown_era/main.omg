@@ -1,0 +1,31 @@
+// Chapter 21 (Versioned Data), stage 3: a version match arm must name a
+// DECLARED era shape. `Counter` declares only `v1`, so a `Counter::v9(x)`
+// arm is rejected with the declared-era list.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    transition self.raw {
+        Counter::v9(old) -> old_era(old.counter)
+        Counter(current) -> new_era(current.count)
+    }
+    state old_era(&mut self, counter: i32) {
+    }
+    state new_era(&mut self, count: i32) {
+    }
+}
