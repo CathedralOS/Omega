@@ -106,14 +106,16 @@ fn reserve_frame_scratch_region(plan: &mut RuntimeStoragePlan) {
     plan.frame_scratch_size = slots_extent;
 }
 
-/// Reserve the wire NESTED-MESSAGE scratch region (chapter 20): a 16-byte
-/// `{ptr, len}` descriptor plus a staging buffer sized for the largest
-/// nested sub-message's worst-case body, placed ABOVE every real slot and the
-/// argument-staging scratch. Reserved whenever any wire schema's current era
-/// declares a scalar-only nested message field -- a declared-but-never-called
-/// schema overallocates a few dozen frame bytes, which is cheaper than
-/// scanning every statement for encode/decode calls here. Call AFTER the
-/// frame layout is final (post call-context stacking).
+/// Reserve the wire NESTED-MESSAGE / REPEATED-FIELD scratch region (chapter
+/// 20): a 16-byte `{ptr, len}` descriptor plus a staging buffer sized for
+/// the largest length-delimited payload's worst-case body -- the largest of
+/// the nested sub-messages' scalar bodies and the repeated fields' packed
+/// element runs -- placed ABOVE every real slot and the argument-staging
+/// scratch. Reserved whenever any wire schema's current era declares such a
+/// field -- a declared-but-never-called schema overallocates a few dozen
+/// frame bytes, which is cheaper than scanning every statement for
+/// encode/decode calls here. Call AFTER the frame layout is final (post
+/// call-context stacking).
 pub fn reserve_wire_nested_scratch(
     plan: &mut RuntimeStoragePlan,
     program: &omega_checked_trees::CheckedTrees,
@@ -126,6 +128,10 @@ pub fn reserve_wire_nested_scratch(
             let WireMember::Field(field) = member else {
                 continue;
             };
+            if let Some(repeated) = program.wire_field_repeated_encoding(field) {
+                staging_bytes = staging_bytes.max(repeated.worst_case_body_bytes());
+                continue;
+            }
             let Some(child) = program.wire_field_nested_schema(field) else {
                 continue;
             };

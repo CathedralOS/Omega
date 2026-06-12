@@ -111,6 +111,51 @@ pub fn encode_read_wire_nested_close(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_read_wire_repeated_scalar_varint(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    end_offset: usize,
+    count_region: RuntimeStorageRegion,
+    count_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_read_wire_repeated_scalar_varint(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+            count_region,
+            count_offset,
+            target_region,
+            target_offset,
+            byte_size,
+            zigzag,
+        ),
+        Architecture::X86_64 => x86_64::encode_read_wire_repeated_scalar_varint(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            end_offset,
+            count_region,
+            count_offset,
+            target_region,
+            target_offset,
+            byte_size,
+            zigzag,
+        ),
+    }
+}
+
 // THE WIDTHS INVARIANT, pinned: every wire-decode encoder's emitted byte
 // count must equal its width function for every parameter shape, on both
 // architectures, or relocations drift and binaries segfault.
@@ -251,6 +296,55 @@ mod tests {
         }
     }
 
+    #[test]
+    fn wire_repeated_scalar_varint_read_widths_match_encoded_bytes() {
+        for architecture in [Architecture::Aarch64, Architecture::X86_64] {
+            for &buffer_offset in OFFSETS {
+                for &buffer_length in LENGTHS {
+                    for &target_offset in OFFSETS {
+                        for &count_offset in OFFSETS {
+                            for (byte_size, zigzag) in
+                                [(1, false), (4, false), (4, true), (8, false), (8, true)]
+                            {
+                                let bytes = encode_read_wire_repeated_scalar_varint(
+                                    architecture,
+                                    buffer_offset,
+                                    buffer_length,
+                                    64,
+                                    72,
+                                    80,
+                                    RuntimeStorageRegion::RuntimeFrame,
+                                    count_offset,
+                                    RuntimeStorageRegion::RuntimeFrame,
+                                    target_offset,
+                                    byte_size,
+                                    zigzag,
+                                )
+                                .expect("repeated varint read should encode");
+                                assert_eq!(
+                                    bytes.len(),
+                                    widths::read_wire_repeated_scalar_varint_width(
+                                        architecture,
+                                        buffer_offset,
+                                        buffer_length,
+                                        64,
+                                        72,
+                                        80,
+                                        count_offset,
+                                        target_offset,
+                                        byte_size,
+                                        zigzag
+                                    ),
+                                    "{architecture:?} repeated varint read width drifted at buffer {buffer_offset} length {buffer_length} target {target_offset} count {count_offset} size {byte_size} zigzag {zigzag}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// The relocation offsets must land exactly on the page/imm64
     /// materialization instructions inside the emitted bytes.
     #[test]
@@ -326,6 +420,46 @@ mod tests {
                                 0
                             )
                     );
+                    // The repeated read shares the END page position with the
+                    // nested decodes; its TARGET and COUNT pages follow in
+                    // order, all inside the sequence.
+                    for zigzag in [false, true] {
+                        let repeated_target = widths::wire_decode_repeated_target_page_offset(
+                            architecture,
+                            buffer_offset,
+                            64,
+                            read_offset,
+                            0,
+                            zigzag,
+                        );
+                        let repeated_count = widths::wire_decode_repeated_count_page_offset(
+                            architecture,
+                            buffer_offset,
+                            64,
+                            read_offset,
+                            0,
+                            8,
+                            8,
+                            zigzag,
+                        );
+                        assert!(end_page < repeated_target);
+                        assert!(repeated_target < repeated_count);
+                        assert!(
+                            repeated_count
+                                < widths::read_wire_repeated_scalar_varint_width(
+                                    architecture,
+                                    buffer_offset,
+                                    64,
+                                    read_offset,
+                                    0,
+                                    0,
+                                    8,
+                                    8,
+                                    8,
+                                    zigzag
+                                )
+                        );
+                    }
                 }
             }
         }

@@ -1,0 +1,89 @@
+// Wire REPEATED fields: a schema field spelled `[scalar; max]` packs
+// LENGTH-delimited (protobuf's packed encoding) -- tag varint + byte-LENGTH
+// varint + back-to-back element varints, NO per-element tags. The runtime
+// value declares the matching array plus a `usize` COUNT COMPANION
+// (`<name>_count`): the wire never carries the count, so the encoder reads
+// the companion (emitting min(count, max) elements through unrolled guarded
+// appends staged in the wire scratch) and the decoder writes the decoded
+// element count back (unrolled guarded reads bounded by the OPEN/CLOSE end
+// bound, capped at the declared maximum).
+//
+// Encoded bytes for { sensor_id: 7, samples: [150, -2, 0, 0],
+// samples_count: 2, flag: true }, hand-computed:
+//   era 0          -> 0x00        (no version blocks)
+//   tag 0          -> 0x00        (sensor_id)
+//   sensor_id 7    -> 0x07
+//   tag 1          -> 0x01        (samples)
+//   length 3       -> 0x03        (the packed elements below)
+//     150          -> 0xAC 0x02   (zigzag(150) = 300 = 0b1_0010_1100)
+//     -2           -> 0x03        (zigzag(-2) = 3)
+//   tag 2          -> 0x02        (flag)
+//   flag true      -> 0x01
+// written = 10; the decoder consumes the same 10 bytes (read = 10,
+// ok = true), decodes both live elements, and writes samples_count = 2.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data SensorReadings {
+    0: sensor_id: u32;
+    1: samples: [i32; 4];
+    2: flag: bool;
+}
+
+data SensorSample {
+    sensor_id: u32;
+    samples: [i32; 4];
+    samples_count: usize;
+    flag: bool;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+    read: usize;
+    ok: bool;
+}
+
+machine Main::main(&mut self) {
+    let msg: SensorSample = SensorSample {
+        sensor_id: 7,
+        samples: [150, 0 - 2, 0, 0],
+        samples_count: 2,
+        flag: true
+    };
+
+    SensorReadings::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    let decoded: SensorSample = SensorSample {
+        sensor_id: 0,
+        samples: [0, 0, 0, 0],
+        samples_count: 0,
+        flag: false
+    };
+
+    SensorReadings::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+
+    let matches: bool = self.ok
+        && self.written == 10
+        && self.read == 10
+        && decoded.sensor_id == 7
+        && decoded.samples_count == 2
+        && decoded.samples[0] == 150
+        && decoded.samples[1] == 0 - 2
+        && decoded.flag;
+    transition matches {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

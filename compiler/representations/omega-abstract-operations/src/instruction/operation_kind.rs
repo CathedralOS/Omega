@@ -270,6 +270,62 @@ pub enum AbstractOperationKind {
         end_region: RuntimeStorageRegion,
         end_offset: usize,
     },
+    /// compact_binary v0 wire framing (chapter 20, repeated fields): append
+    /// element `index` of a packed repeated field ONLY IF `index < count`
+    /// (the runtime element count in the value's count-companion slot, read
+    /// as an unsigned 64-bit `usize`). A repeated field's element count is
+    /// runtime-sized but bounded by the schema's declared maximum, so
+    /// selection unrolls the maximum and guards each append -- the emitted
+    /// width stays compile-time-fixed (the widths invariant) while the
+    /// payload reflects the live count. A skipped append leaves the cursor
+    /// untouched.
+    AppendWireRepeatedScalarVarint {
+        source_region: RuntimeStorageRegion,
+        /// Byte offset of element `index`'s slot (array base + index * size).
+        source_offset: usize,
+        /// Width of the runtime scalar load: 1 (bool), 4, or 8 bytes.
+        byte_size: usize,
+        /// Signed sources sign-extend to 64 bits and zigzag before the emit.
+        zigzag: bool,
+        /// This element's compile-time position in the repeated field.
+        index: u64,
+        count_region: RuntimeStorageRegion,
+        count_offset: usize,
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+    },
+    /// compact_binary v0 wire decoding (chapter 20, repeated fields): read
+    /// one packed element ONLY IF the cursor sits strictly BELOW the end
+    /// bound the surrounding `ReadWireNestedOpen` stored; on the taken path,
+    /// LEB128-read a scalar into the target slot (sticky-ok semantics
+    /// identical to `ReadWireScalarVarint`) and increment the
+    /// count-companion slot. Selection unrolls the declared maximum, so a
+    /// payload packing more elements than the maximum leaves the cursor
+    /// short of the bound and the closing `ReadWireNestedClose` clears `ok`
+    /// -- the hostile-count cap. A skipped read changes nothing (cursor, ok,
+    /// target, and count all stay put).
+    ReadWireRepeatedScalarVarint {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        end_region: RuntimeStorageRegion,
+        end_offset: usize,
+        count_region: RuntimeStorageRegion,
+        count_offset: usize,
+        target_region: RuntimeStorageRegion,
+        /// Byte offset of this element's slot (array base + index * size).
+        target_offset: usize,
+        /// Width of the runtime scalar store: 1 (bool), 4, or 8 bytes.
+        byte_size: usize,
+        /// Signed targets un-zigzag after the read.
+        zigzag: bool,
+    },
     WriteRuntimeMachineInteger {
         byte_offset: usize,
         byte_size: usize,

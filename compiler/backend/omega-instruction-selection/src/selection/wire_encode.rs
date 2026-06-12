@@ -45,8 +45,9 @@ struct WireFieldAppend {
     content: WireFieldContent,
 }
 
-/// What follows a field's tag varint: a scalar/text place, or a nested
-/// sub-message's own field list (scalar places resolved one level down).
+/// What follows a field's tag varint: a scalar/text place, a nested
+/// sub-message's own field list (scalar places resolved one level down), or
+/// a repeated field's packed element run.
 enum WireFieldContent {
     /// A scalar slot, or a text descriptor for `String`.
     Direct {
@@ -56,6 +57,15 @@ enum WireFieldContent {
     /// A nested message: the child's fields in field-number order, staged
     /// through the wire scratch region before the length-prefixed replay.
     Nested { children: Vec<WireFieldAppend> },
+    /// A repeated field: `min(count, max_count)` packed element varints,
+    /// staged through the wire scratch region (guarded appends, one per
+    /// unrolled element index) before the length-prefixed replay.
+    Repeated {
+        element: omega_checked_trees::wire::WireScalarEncoding,
+        base: RuntimeStoragePlace,
+        count: RuntimeStoragePlace,
+        max_count: usize,
+    },
 }
 
 /// Lower a recognized `encode_wire` call statement; `true` when the statement
@@ -220,6 +230,68 @@ pub(super) fn select_wire_encode_call(
                     written_offset: written_place.byte_offset,
                 });
             }
+            WireFieldContent::Repeated {
+                element,
+                base,
+                count,
+                max_count,
+            } => {
+                // A repeated field packs LENGTH-delimited, exactly like a
+                // nested message: stage the live elements into the wire
+                // scratch (each unrolled element append guards itself on
+                // `index < count`, so the staged bytes hold exactly
+                // min(count, max) elements), then replay the staged run
+                // through the text-bytes append -- byte-length varint +
+                // bounded copy. The planner reserved the scratch from the
+                // same worst-case math validation budgeted with; if it
+                // cannot hold this field's worst case, the plan drifted --
+                // block emission rather than overrun the frame.
+                let staging_worst = max_count * element.max_varint_length();
+                let scratch_base = input.runtime_storage.wire_scratch_base;
+                if scratch_base == 0
+                    || input.runtime_storage.wire_scratch_size < 16 + staging_worst
+                {
+                    return false;
+                }
+                let staging_offset = scratch_base + 16;
+                let cursor_offset = scratch_base + 8;
+
+                push(SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+                    source_region: RuntimeStorageRegion::RuntimeFrame,
+                    source_offset: staging_offset,
+                    target_offset: scratch_base,
+                });
+                push(SelectedInstructionKind::WriteRuntimeStorageInteger {
+                    target_region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: cursor_offset,
+                    byte_size: 8,
+                    value: 0,
+                });
+                for index in 0..*max_count {
+                    push(SelectedInstructionKind::AppendWireRepeatedScalarVarint {
+                        source_region: base.region,
+                        source_offset: base.byte_offset + index * element.byte_size,
+                        byte_size: element.byte_size,
+                        zigzag: element.zigzag,
+                        index: index as u64,
+                        count_region: count.region,
+                        count_offset: count.byte_offset,
+                        out_region: RuntimeStorageRegion::RuntimeFrame,
+                        out_offset: staging_offset,
+                        written_region: RuntimeStorageRegion::RuntimeFrame,
+                        written_offset: cursor_offset,
+                    });
+                }
+                push(SelectedInstructionKind::AppendWireTextBytes {
+                    source_region: RuntimeStorageRegion::RuntimeFrame,
+                    source_offset: scratch_base,
+                    out_region: out_place.region,
+                    out_offset: out_place.byte_offset,
+                    out_length: out_place.byte_count,
+                    written_region: written_place.region,
+                    written_offset: written_place.byte_offset,
+                });
+            }
             WireFieldContent::Nested { children } => {
                 // The planner reserved the wire scratch from the same
                 // worst-case math validation budgeted with; if the staging
@@ -344,6 +416,56 @@ fn collect_field_appends(
                 member: field.name.clone(),
             },
         ));
+
+        // A repeated field resolves the array member AND its count companion
+        // (`<name>_count`); validation has guaranteed both exist with the
+        // right shapes. Repeated fields live at the top level only -- a
+        // child body admits plain scalars alone.
+        if let Some(repeated) = input.program.wire_field_repeated_encoding(field) {
+            if !allow_nested {
+                return None;
+            }
+            let base = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                member_handle,
+            )?;
+            if base.byte_count != repeated.max_count * repeated.element.byte_size {
+                return None;
+            }
+            let count_name = omega_checked_trees::wire::wire_repeated_count_field_name(
+                field.name.as_str(),
+            );
+            let count_handle = expressions.insert(ExpressionNode::Member(
+                omega_checked_trees::expression::TableMemberExpression {
+                    receiver,
+                    member_symbol: SymbolHandle::invalid(),
+                    member: count_name.as_str().into(),
+                },
+            ));
+            let count = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                count_handle,
+            )?;
+            if count.byte_count != 8 {
+                return None;
+            }
+            fields.push(WireFieldAppend {
+                number: field.number,
+                content: WireFieldContent::Repeated {
+                    element: repeated.element,
+                    base,
+                    count,
+                    max_count: repeated.max_count,
+                },
+            });
+            continue;
+        }
 
         if let Some(child) = input.program.wire_field_nested_schema(field) {
             if !allow_nested {

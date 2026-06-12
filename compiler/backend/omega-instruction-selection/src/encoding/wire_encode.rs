@@ -77,6 +77,45 @@ pub fn encode_append_wire_text_bytes(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_append_wire_repeated_scalar_varint(
+    architecture: Architecture,
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+    index: u64,
+    count_region: RuntimeStorageRegion,
+    count_offset: usize,
+    out_offset: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_append_wire_repeated_scalar_varint(
+            source_region,
+            source_offset,
+            byte_size,
+            zigzag,
+            index,
+            count_region,
+            count_offset,
+            out_offset,
+            written_offset,
+        ),
+        Architecture::X86_64 => x86_64::encode_append_wire_repeated_scalar_varint(
+            source_region,
+            source_offset,
+            byte_size,
+            zigzag,
+            index,
+            count_region,
+            count_offset,
+            out_offset,
+            written_offset,
+        ),
+    }
+}
+
 // THE WIDTHS INVARIANT, pinned: every wire-append encoder's emitted byte
 // count must equal its width function for every parameter shape, on both
 // architectures, or relocations drift and binaries segfault.
@@ -186,6 +225,50 @@ mod tests {
         }
     }
 
+    #[test]
+    fn wire_repeated_scalar_varint_widths_match_encoded_bytes() {
+        const INDICES: &[u64] = &[0, 1, 7, 100, 5000];
+        for architecture in [Architecture::Aarch64, Architecture::X86_64] {
+            for &source_offset in OFFSETS {
+                for &count_offset in OFFSETS {
+                    for &index in INDICES {
+                        for (byte_size, zigzag) in
+                            [(1, false), (4, false), (4, true), (8, false), (8, true)]
+                        {
+                            let bytes = encode_append_wire_repeated_scalar_varint(
+                                architecture,
+                                RuntimeStorageRegion::RuntimeFrame,
+                                source_offset,
+                                byte_size,
+                                zigzag,
+                                index,
+                                RuntimeStorageRegion::RuntimeFrame,
+                                count_offset,
+                                64,
+                                72,
+                            )
+                            .expect("repeated varint append should encode");
+                            assert_eq!(
+                                bytes.len(),
+                                widths::append_wire_repeated_scalar_varint_width(
+                                    architecture,
+                                    source_offset,
+                                    byte_size,
+                                    zigzag,
+                                    index,
+                                    count_offset,
+                                    64,
+                                    72
+                                ),
+                                "{architecture:?} repeated varint width drifted at source {source_offset} count {count_offset} index {index} size {byte_size} zigzag {zigzag}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// The relocation offsets must land exactly on the page/imm64
     /// materialization instructions inside the emitted bytes.
     #[test]
@@ -227,6 +310,36 @@ mod tests {
                                 0,
                                 out_offset,
                                 64,
+                                written_offset
+                            )
+                    );
+                    // The repeated append's COUNT page sits right after the
+                    // shared prologue and its SOURCE page after the guard,
+                    // both inside the sequence.
+                    let repeated_count = widths::wire_append_repeated_count_page_offset(
+                        architecture,
+                        out_offset,
+                        written_offset,
+                    );
+                    let repeated_source = widths::wire_append_repeated_source_page_offset(
+                        architecture,
+                        out_offset,
+                        written_offset,
+                        8,
+                        3,
+                    );
+                    assert!(written_page < repeated_count);
+                    assert!(repeated_count < repeated_source);
+                    assert!(
+                        repeated_source
+                            < widths::append_wire_repeated_scalar_varint_width(
+                                architecture,
+                                0,
+                                8,
+                                false,
+                                3,
+                                8,
+                                out_offset,
                                 written_offset
                             )
                     );

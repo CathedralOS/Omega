@@ -30,8 +30,9 @@ use super::primitives::{
     encode_store_byte_w_post_increment, encode_subs_x_immediate, encode_unconditional_branch,
 };
 use super::widths::{
-    append_wire_literal_byte_width, append_wire_scalar_varint_width, append_wire_text_bytes_width,
-    wire_text_copy_loop_width, wire_varint_emit_loop_width,
+    append_wire_literal_byte_width, append_wire_repeated_scalar_varint_width,
+    append_wire_scalar_varint_width, append_wire_text_bytes_width, wire_text_copy_loop_width,
+    wire_varint_emit_loop_width,
 };
 
 /// Shared prologue: x16 = out base + out offset + cursor, x17 = cursor,
@@ -178,6 +179,122 @@ pub fn encode_append_wire_scalar_varint(
             source_offset,
             byte_size,
             zigzag,
+            out_offset,
+            written_offset
+        )
+    );
+    Ok(bytes)
+}
+
+/// LEB128-encode element `index` of a packed repeated field at the cursor,
+/// ONLY IF `index < count` (the count-companion slot, read as unsigned
+/// 64-bit). A skipped element leaves the cursor untouched, so the staged
+/// payload holds exactly the live elements. Counts past the declared maximum
+/// clamp for free: selection unrolls only `max` of these.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_append_wire_repeated_scalar_varint(
+    source_region: RuntimeStorageRegion,
+    source_offset: usize,
+    byte_size: usize,
+    zigzag: bool,
+    index: u64,
+    count_region: RuntimeStorageRegion,
+    count_offset: usize,
+    out_offset: usize,
+    written_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 wire encoder cannot varint-encode {byte_size}-byte scalars yet"
+        )));
+    }
+    // The regions only pick the relocation symbols; the encoded shape is
+    // identical for machine and frame places.
+    let _ = (source_region, count_region);
+
+    let mut bytes = Vec::with_capacity(append_wire_repeated_scalar_varint_width(
+        source_offset,
+        byte_size,
+        zigzag,
+        index,
+        count_offset,
+        out_offset,
+        written_offset,
+    ));
+    append_wire_append_prologue(&mut bytes, out_offset, written_offset)?;
+
+    // Guard: x26 = count (from the relocated count page), x19 = the
+    // compile-time element index; skip the whole append (including the
+    // cursor write-back) when index >= count.
+    bytes.extend(encode_adrp_placeholder(26));
+    bytes.extend(encode_add_page_offset_placeholder(26));
+    super::runtime_storage::append_load_data_from_x_offset(
+        &mut bytes,
+        26,
+        26,
+        count_offset,
+        8,
+        19,
+    )?;
+    append_unsigned_immediate(&mut bytes, 19, index);
+    let zigzag_width = if zigzag {
+        super::widths::wire_zigzag_width(byte_size)
+    } else {
+        0
+    };
+    let remaining_after_branch = 8
+        + super::widths::load_data_offset_width(source_offset, byte_size)
+        + zigzag_width
+        + wire_varint_emit_loop_width()
+        + super::widths::store_data_offset_width(written_offset, 8);
+    bytes.extend(encode_compare_x_register(19, 26));
+    bytes.extend(encode_conditional_branch_higher_or_same(
+        (remaining_after_branch + 4) as isize,
+    )?);
+
+    // The unguarded scalar-varint body (see `encode_append_wire_scalar_varint`):
+    // x26 = the source page, then the scalar itself (zero-extended load).
+    bytes.extend(encode_adrp_placeholder(26));
+    bytes.extend(encode_add_page_offset_placeholder(26));
+    super::runtime_storage::append_load_data_from_x_offset(
+        &mut bytes,
+        26,
+        26,
+        source_offset,
+        byte_size,
+        19,
+    )?;
+
+    if zigzag {
+        if byte_size == 4 {
+            bytes.extend(encode_sign_extend_word_to_x(26, 26));
+        }
+        bytes.extend(encode_asr_x_immediate(19, 26, 63));
+        bytes.extend(encode_add_x_register(26, 26, 26));
+        bytes.extend(encode_eor_x_register(26, 26, 19));
+    }
+
+    // The same fixed nine-instruction LEB128 emit loop as the scalar varint.
+    bytes.extend(encode_and_x_immediate_low_seven(19, 26));
+    bytes.extend(encode_lsr_x_immediate(26, 26, 7));
+    bytes.extend(encode_cbz_x(26, 20)?);
+    bytes.extend(encode_orr_x_immediate_bit_seven(19, 19));
+    bytes.extend(encode_store_byte_w_post_increment(19, 16, 1)?);
+    bytes.extend(encode_add_x_immediate(17, 17, 1)?);
+    bytes.extend(encode_unconditional_branch(-24)?);
+    bytes.extend(encode_store_byte_w_post_increment(19, 16, 1)?);
+    bytes.extend(encode_add_x_immediate(17, 17, 1)?);
+    debug_assert_eq!(wire_varint_emit_loop_width(), 36);
+
+    append_wire_append_epilogue(&mut bytes, written_offset)?;
+    debug_assert_eq!(
+        bytes.len(),
+        append_wire_repeated_scalar_varint_width(
+            source_offset,
+            byte_size,
+            zigzag,
+            index,
+            count_offset,
             out_offset,
             written_offset
         )
