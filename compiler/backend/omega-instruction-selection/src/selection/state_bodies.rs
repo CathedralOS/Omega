@@ -457,6 +457,7 @@ fn select_runtime_state_body_local_initializer_write(
         expressions,
         slot,
         resolved_initializer.expression,
+        runtime_value_operands,
         selected_instructions,
     ) {
         return;

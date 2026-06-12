@@ -663,6 +663,7 @@ pub(super) fn select_runtime_state_call_result_write(
         &value_expressions,
         slot,
         resolved_value.expression,
+        runtime_value_operands,
         selected_instructions,
     ) {
         return;

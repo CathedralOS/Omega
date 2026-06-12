@@ -207,6 +207,7 @@ fn select_runtime_straight_line_branch_terminal_value_write(
         expressions,
         slot,
         resolved_value,
+        runtime_value_operands,
         selected_instructions,
     ) {
         return;
@@ -621,6 +622,7 @@ fn select_runtime_straight_line_local_initializer_write(
         expressions,
         slot,
         resolved_initializer,
+        runtime_value_operands,
         selected_instructions,
     ) {
         return;
@@ -1254,6 +1256,7 @@ fn select_runtime_leaf_state_call_local_initializer_write(
         &scratch.expressions,
         slot,
         resolved_initializer,
+        runtime_value_operands,
         selected_instructions,
     ) {
         return;

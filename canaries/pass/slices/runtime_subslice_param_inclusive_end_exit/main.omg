@@ -1,0 +1,37 @@
+// Inclusive-end subslice of a runtime slice PARAMETER (`sub[1..=3]`). The
+// literal inclusive end folds to the half-open `end + 1` at selection time, so
+// the descriptor lowering stays on the canonical `[start, end)` shape:
+// ptr = sub.ptr + 1*elem, len = 3 (elements 1, 2, 3).
+
+use platform::console;
+
+data Entry { value: i32; }
+
+data Main {
+    console: Console;
+    entries: [Entry; 5];
+}
+
+machine Main::main(&mut self) {
+    let view: &[Entry] = self.entries.as_slice();
+    transition {
+        _ -> self.check(view)
+    }
+}
+
+machine Main::check(&mut self, sub: &[Entry]) {
+    transition sub.len > 3 {
+        true -> self.verify(sub[1..=3])
+        false -> bad()
+    }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::verify(&mut self, sub: &[Entry]) {
+    transition sub.len == 3 {
+        true -> good()
+        false -> wrong()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state wrong(&mut self) { self.console.exit_process(72); }
+}

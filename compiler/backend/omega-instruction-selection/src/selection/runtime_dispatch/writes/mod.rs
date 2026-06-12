@@ -37,10 +37,7 @@ pub(in crate::selection) use mutation::{
 pub(in crate::selection::runtime_dispatch) use mutation::{
     signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
 };
-pub(in crate::selection) use slice_descriptors::{
-    emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table,
-    emit_runtime_frame_slot_slice_descriptor_write_in_table,
-};
+pub(in crate::selection) use slice_descriptors::emit_runtime_frame_slot_slice_descriptor_write_in_table;
 pub(super) use storage_copy::{
     runtime_storage_copy, runtime_storage_copy_in_table, runtime_storage_fixed_indexed_source_copy,
     runtime_storage_fixed_indexed_source_copy_in_table,

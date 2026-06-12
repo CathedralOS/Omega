@@ -322,6 +322,7 @@ fn select_runtime_branch_prelude_local_initializer_write(
         expressions,
         slot,
         resolved_initializer,
+        runtime_value_operands,
         selected_instructions,
     ) {
         return;
