@@ -90,9 +90,12 @@ remains tracked in its bullet below.
   String decode (above), nested/repeated fields,
   wire-schemas-as-program-types, runtime layout of wire values, encoding
   families beyond compact_binary v0, version negotiation. (Found while
-  landing: struct-literal String field initialization does not lower to a
-  native descriptor write -- silent miscompile, tracked separately; the
-  string canary uses field-assignment form.)
+  landing, FIXED 2026-06-11: struct-literal String field initialization did
+  not lower to a native descriptor write -- data planning never collected
+  string literals from `let` local initializers, so the descriptor-write
+  selection found no data object and silently skipped; pinned by
+  data/runtime_struct_literal_string_field_exit, which covers the record-
+  and case-literal forms.)
 - [ ] **Versioned data stage 3.** Era tag + the wire integration decision 10
   assumes; era-tagged containers that make version MATCH arms selectable
   (stage 2 ruled them unreachable — no value can hold a historical era yet);
