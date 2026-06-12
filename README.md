@@ -119,22 +119,33 @@ Important artifact files:
 
 ## Current Native Status
 
-The native path currently supports a small but real subset:
+The native path runs real programs on macOS ARM64, Windows x64, and Linux
+(x64 and ARM64 ELF), all as directly emitted executable images:
 
-- macOS ARM64 direct executable image emission.
-- Linux ARM64 direct static ELF executable emission for tiny syscall-only programs.
-- Host calls for stdout, stdin read buffers, and process exit.
-- Unconditional state chains.
-- Simple nested machine continuations.
-- Constant integer assignment into host-call arguments.
-- Static guarded transition selection for compile-time-known enum-style values.
-- Static record/array/field text lowering for simple sample data.
-- Enough runtime dispatch, storage, text building, and host calls to plan the dungeon crawler sample up to native emission.
+- Runtime dispatch over machine/state graphs, including nested machine calls,
+  value-position calls, and guarded multi-arm transitions with payload-binding
+  case arms.
+- Integer arithmetic across widths and signedness (including division,
+  shifts, min/max), f32/f64 arithmetic and comparisons, and width-honest
+  casts — all verified against a reference interpreter as a differential
+  oracle (exit code and stdout must match exactly).
+- Console host calls on every target: stdout, stderr, line-disciplined stdin
+  (CRLF-correct), and process exit. The full `dungeon_crawler_cli` sample
+  runs its scripted loop byte-identically to the interpreter.
+- Slices and fat descriptors: element reads/writes through views, subslicing
+  (`items[1..]`), descriptor materialization, and runtime text building.
+- Case payload construction, tag dispatch, membership tests (`in`),
+  synthesized structural equality, and `wire data` encoders with byte-exact
+  LEB128 output.
 
-Current known limitation:
+Current known limitations:
 
-- `console.read_line` on macOS is blocked before emission because the old direct Darwin stdin syscall path can produce unsafe, unkillable test binaries. The next runtime milestone is explicit line discipline through a compiler-owned buffer or a libSystem-backed host binding.
-- Linux ARM64 direct ELF currently targets the small CLI path first. More runtime dispatch coverage should move over once the direct image writer grows beyond the initial syscall proof.
+- Non-guard statement-call chains can over-execute effectful callees, and
+  self-recursive dispatch with threaded scalar arguments can mis-accumulate;
+  both are diagnosed with minimal repros and tracked in TASKS.md backend
+  residue.
+- Terminal expressions in no-transition machine bodies deliver literals,
+  locals, and field read-backs, but not yet runtime arithmetic results.
 
 Targets without a direct image writer fail the executable emission phase instead of falling back to an object-shaped bridge.
 
