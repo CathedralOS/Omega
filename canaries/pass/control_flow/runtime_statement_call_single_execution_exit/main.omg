@@ -1,0 +1,98 @@
+// A STATEMENT-position call chain executes its leaf side effect exactly ONCE
+// natively, matching the interpreter. This is the dungeon
+// `carve_room -> roll_event -> rng.range -> next_u32` shape: a void statement
+// call whose callee assigns a nested call's result to a local and forwards it
+// to a second statement call. Pre-fix the native backend emitted THREE
+// executors for the leaf mutation -- the runtime-bodies splice's flattened
+// mutation op, the non-guard branch prelude's StateCall arm re-walking the
+// callee, and the nested-walk straight-line expansion matched again at the
+// flattened nested call -- so the leaf ran 3x (native exit 3, interpreter 70).
+// The splice is now the single executor of record for non-guard chains.
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Tally {
+    calls: u64;
+    pad: u64;
+}
+
+data Main {
+    console: Console;
+    tally: Tally;
+}
+
+machine Main::next_u32(
+    &mut self,
+    tally: &mut Tally
+    ) -> u32 {
+    tally.calls = tally.calls + 1;
+
+    transition {
+        _ -> (tally.calls as u32)
+    }
+}
+
+machine Main::range(
+    &mut self,
+    tally: &mut Tally
+    ) -> u32 {
+    let raw: u32 = self.next_u32(tally);
+
+    transition {
+        _ -> raw
+    }
+}
+
+machine Main::consume(
+    &mut self,
+    roll: u32
+) {
+    self.tally.pad = (roll as u64);
+}
+
+machine Main::roll_event(
+    &mut self,
+    tally: &mut Tally
+) {
+    let roll: u32 = self.range(tally);
+    self.consume(roll);
+}
+
+machine Main::carve(
+    &mut self,
+    tally: &mut Tally
+) {
+    self.roll_event(tally);
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.tally.calls = 40;
+    self.tally.pad = 0;
+    self.carve(&mut self.tally);
+
+    transition {
+        _ -> check()
+    }
+
+
+    state check(&mut self) {
+        // The probe ladder maps each plausible execution count to a distinct
+        // exit code so a regression reports HOW MANY executors emitted.
+        transition {
+            self.tally.calls == 40 -> exit_never_ran()
+            self.tally.calls == 41 -> exit_once()
+            self.tally.calls == 42 -> exit_twice()
+            self.tally.calls == 43 -> exit_thrice()
+            _ -> exit_other()
+        }
+    }
+
+    state exit_never_ran(&mut self) { self.console.exit_process(10); }
+    state exit_once(&mut self) { self.console.exit_process(70); }
+    state exit_twice(&mut self) { self.console.exit_process(2); }
+    state exit_thrice(&mut self) { self.console.exit_process(3); }
+    state exit_other(&mut self) { self.console.exit_process(77); }
+}

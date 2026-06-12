@@ -130,6 +130,34 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
     }
 }
 
+/// True when every leaf expansion matching this operation is an
+/// ASSIGNMENT-VALUE selection (`let v = self.f(...)`) -- the deferral-safe
+/// shape. The runtime-bodies splice lays the callee's effect operations out
+/// BETWEEN the StateCall operation and the statement's LocalStorage operation,
+/// so a value selection emitted at the StateCall reads the callee's
+/// PRE-mutation state (the interpreter delivers the post-mutation value); the
+/// dispatch loop defers it to the LocalStorage operation instead. Statements
+/// that also carry call-argument or statement-role leafs keep the immediate
+/// emission: their values feed sibling machinery emitted before the splice
+/// completes.
+pub(in crate::selection) fn leaf_expansions_defer_to_local_initializer(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation: &RuntimeDispatchBodyOperation,
+) -> bool {
+    let mut any_matched = false;
+    for (_, expansion) in input.runtime_branching_calls.leaf_expansions.iter() {
+        if !leaf_expansion_matches_operation(expansion, dispatch_index, operation, false) {
+            continue;
+        }
+        if expansion.role != StateCallRole::AssignmentValue {
+            return false;
+        }
+        any_matched = true;
+    }
+    any_matched
+}
+
 fn leaf_expansion_matches_operation(
     expansion: &RuntimeLeafBranchExpansion,
     dispatch_index: u32,
