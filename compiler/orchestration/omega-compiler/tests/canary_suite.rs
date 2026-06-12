@@ -6578,6 +6578,119 @@ fn runtime_string_field_literal_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_array_indexed_string_guard_exit_canary_runs() {
+    // The frame-BASE-indexed sibling of the slice-indexed shape: a LOCAL
+    // inline fixed array's element String field guard-compared against a
+    // literal at a runtime index (empty field takes the false arm, matching
+    // takes true, same-length-differing takes false; the lying-guard
+    // regression selected no compare and took the true arm unconditionally).
+    let canary = pass_canary("text/runtime_local_array_indexed_string_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-local-array-indexed-string-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime local array indexed string guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime local array indexed string guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected local-array-indexed String guard compares to be content compares (empty != literal, match == literal, same-length differ != literal) and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_slice_fixed_indexed_string_guard_exit_canary_runs() {
+    // The CONSTANT-index sibling of the slice-indexed shape: a slice
+    // element's String field guard-compared against a literal at a literal
+    // index (`room_slice[0]`), lowering through the fixed-indexed place
+    // (descriptor deref + folded constant offset). Same three regimes.
+    let canary = pass_canary("text/runtime_slice_fixed_indexed_string_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-slice-fixed-indexed-string-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice fixed indexed string guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice fixed indexed string guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected fixed-indexed String guard compares to be content compares (empty != literal, match == literal, same-length differ != literal) and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_pointee_string_guard_exit_canary_runs() {
+    // The POINTEE sibling: a String field read through a `&mut Room` pointer
+    // slot (local alias AND called-machine parameter), guard-compared against
+    // a literal. The pre-fix regression here was an always-unequal compare:
+    // the place resolved to the pointer slot's raw bytes rather than the
+    // pointee's descriptor, so the MATCH regime took the false arm.
+    let canary = pass_canary("text/runtime_pointee_string_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-pointee-string-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime pointee string guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime pointee string guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected pointee String guard compares to be content compares (empty != literal, match == literal, same-length differ != literal, parameter shape included) and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_mutable_string_parameter_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_mutable_string_parameter_concat_exit");
     let main_path = canary.join("main.omg");
@@ -7822,6 +7935,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_machine_owned_indexed_string_field_concat_exit",
     "text/runtime_slice_alias_indexed_string_field_concat_exit",
     "text/runtime_slice_indexed_string_guard_exit",
+    "text/runtime_local_array_indexed_string_guard_exit",
+    "text/runtime_slice_fixed_indexed_string_guard_exit",
+    "text/runtime_pointee_string_guard_exit",
     "text/runtime_string_field_literal_guard_exit",
     "text/runtime_mutable_string_parameter_concat_exit",
     "text/runtime_mutable_string_parameter_concat_write_line",

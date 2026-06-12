@@ -369,11 +369,33 @@ remains tracked in its bullet below.
   the false arm, matching takes true, same-length-differing takes false;
   exit 70 only when all three behave) and
   text/runtime_string_field_literal_guard_exit (the storage-place sibling),
-  both in the differential oracle. Remaining gap (still silently dropped):
-  String guard compares whose place is FrameBaseIndexed/FrameFixedIndexed or
-  pointee-rooted select nothing and default truthy, and the guard fallback
-  itself still emits silence rather than a hard error — the
-  guard-must-select-or-error tightening is a follow-up.
+  both in the differential oracle. The remaining place-kind gap is RESOLVED
+  (2026-06-12): TextEqualsLiteral selection + both ISA emitters now cover
+  FrameBaseIndexed (local inline fixed array, frame base + runtime index
+  scale), FrameFixedIndexed (slice descriptor + folded constant offset), and
+  Pointee (pointer slot deref + field offset) places, widths in lockstep
+  (x86_64 setup 30/17/17 bytes; aarch64 reuses the storage-read setup width
+  fns). Probes pre-fix: base- and fixed-indexed selected NOTHING (silent
+  truthy — empty field "equalled" the literal); pointee places lied
+  DIFFERENTLY — the storage resolver saw through the reference and selected
+  the POINTER SLOT's raw bytes as the descriptor, an always-false compare
+  (match regime took the false arm), in both the `&mut Room` local-alias and
+  called-machine-parameter shapes. Fix: descriptor-place resolution tries
+  frame-indexed, base-indexed, fixed-indexed, then pointee, with static
+  storage LAST (pointee-before-storage kills the pointer-slot-as-descriptor
+  trap; direct base-indexed String WRITES still hard-error
+  `needs runtime storage write lowering` — honest, writes go through slice
+  aliases). Canaries (pass+RUN, three regimes each — empty≠literal, match,
+  same-length-differ — all in the differential oracle):
+  text/runtime_local_array_indexed_string_guard_exit,
+  text/runtime_slice_fixed_indexed_string_guard_exit,
+  text/runtime_pointee_string_guard_exit (alias + parameter shapes; also
+  linux_x64 cross-emission smoke-checked for the width debug_asserts).
+  Still open follow-ups: the guard fallback itself still emits silence
+  rather than a hard error (guard-must-select-or-error tightening), and
+  array-literal String field INITIALIZERS (`[Room { label: "x" }, ..]` into
+  a local fixed array) emit rodata but never write the frame slots — spotted
+  by the now-honest guards, masked before.
 - [ ] Signed/unsigned residue, two sibling shapes (found while shrinking, not
   yet canaried): (1) a modulo whose operand is a CAST — `((seed >> 32) as
   u32) % 199` inside a convert/value-operand chain — still picks the signed

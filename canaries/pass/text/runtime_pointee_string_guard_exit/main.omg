@@ -1,0 +1,79 @@
+// A String field read through a `&mut Room` POINTER slot (the pointee place:
+// pointer slot deref + field offset) compared against a literal in GUARD
+// position must compare CONTENT, in all three regimes:
+//   1. an EMPTY (default-zeroed) field never equals a non-empty literal,
+//   2. a field holding the literal's exact bytes equals it,
+//   3. a same-length field differing in its last byte does not equal it.
+// Before the TextEqualsLiteral selection resolved pointee places, this guard
+// shape fell back to a STORAGE resolution of the path -- reading the pointer
+// slot's own raw bytes as if they were the text descriptor, an always-unequal
+// compare (the match regime took the false arm). Both the local-alias shape
+// and the called-machine `&mut Room` PARAMETER shape are covered.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    label: String;
+}
+
+data Main {
+    console: Console;
+    empty_room: Room;
+    match_room: Room;
+    differ_room: Room;
+}
+
+machine Main::main(&mut self) {
+    self.match_room.label = "expected";
+    // Same length as the literal, differing only in the final byte, so the
+    // inequality must come from the byte loop rather than the length check.
+    self.differ_room.label = "expectes";
+    let room: &mut Room = &mut self.empty_room;
+
+    transition room.label == "expected" {
+        true -> fail()
+        false -> check_match()
+    }
+
+    state check_match(&mut self) {
+        let room: &mut Room = &mut self.match_room;
+        transition room.label == "expected" {
+            true -> check_differ()
+            false -> fail()
+        }
+    }
+
+    state check_differ(&mut self) {
+        let room: &mut Room = &mut self.differ_room;
+        transition room.label == "expected" {
+            true -> fail()
+            false -> check_parameter()
+        }
+    }
+
+    state check_parameter(&mut self) {
+        // The parameter shape: the same pointee place through a real pointer
+        // slot in the CALLED machine's frame. Exits inside.
+        self.verify(&mut self.match_room);
+    }
+
+    state fail(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::verify(&mut self, room: &mut Room) {
+    transition room.label == "expected" {
+        true -> pass()
+        false -> fail()
+    }
+
+    state pass(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state fail(&mut self) {
+        self.console.exit_process(71);
+    }
+}

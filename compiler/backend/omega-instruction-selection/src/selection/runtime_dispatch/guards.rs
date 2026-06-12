@@ -774,9 +774,13 @@ fn runtime_text_equals_literal_guard_in_table(
 }
 
 /// The String side of a text-vs-literal guard as a PLACE operand naming its
-/// 16-byte `{ptr, len}` text descriptor. Frame-indexed resolution is tried
-/// FIRST: a slice-indexed expression must never fall back to a static storage
-/// resolution of the descriptor slot itself (the descriptor-as-value trap).
+/// 16-byte `{ptr, len}` text descriptor. The indirect resolutions
+/// (frame-indexed, frame-base-indexed, frame-fixed-indexed, pointee) are all
+/// tried BEFORE the static storage fallback: an indexed or pointer-rooted
+/// expression must never fall back to a static storage resolution of the
+/// descriptor slot itself (the descriptor-as-value trap -- for a pointee
+/// place the storage resolver "sees through" the reference and hands back
+/// the POINTER slot's raw bytes as if they were the descriptor).
 /// Only String-typed places qualify -- this operand is a CONTENT compare and
 /// must never see a scalar that happens to be 16 bytes.
 fn resolve_runtime_text_descriptor_place_operand_in_table(
@@ -787,9 +791,11 @@ fn resolve_runtime_text_descriptor_place_operand_in_table(
     expression: ExpressionHandle,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<RuntimeValueOperandHandle> {
-    // The leaf-descriptor resolver covers name paths (`self.name`); the
-    // indexed resolver covers slice-element fields (`items[i].name`), whose
-    // Index node the name-path walk cannot see through.
+    // The leaf-descriptor resolver covers name paths (`self.name`, pointee
+    // `room.name`, and constant member-index paths); the indexed resolver
+    // covers indexed element fields (`items[i].name`, fixed `items[0].name`,
+    // and inline-array elements alike), whose Index node the name-path walk
+    // cannot see through.
     let place_is_string = matches!(
         resolve_runtime_storage_primitive_type_in_table(
             input,
@@ -831,6 +837,67 @@ fn resolve_runtime_text_descriptor_place_operand_in_table(
                 byte_size: indexed_target.byte_count,
             }),
         );
+    }
+
+    // Inline frame fixed arrays (`let rooms: [Room; N]` indexed at runtime):
+    // the element address is frame base + base offset + index*element.
+    if let Some(indexed_target) = resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) && indexed_target.byte_count == string_descriptor_size
+    {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameBaseIndexed {
+                base_byte_offset: indexed_target.base_byte_offset,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
+    // Slice elements at a CONSTANT index (`items[0].name`): descriptor-based
+    // access with the scaled index folded into a constant offset.
+    if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) && indexed_target.byte_count == string_descriptor_size
+    {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::FrameFixedIndexed {
+                descriptor_offset: indexed_target.descriptor_offset,
+                element_index: indexed_target.element_index,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
+    // Pointer-rooted fields (`room.name` where `room` is a `&mut Room` frame
+    // slot): deref the pointer slot, descriptor at pointee + field offset.
+    // MUST precede the storage fallback, which would otherwise resolve the
+    // same path to the pointer slot's own bytes (always-unequal compare).
+    if let Some(pointee_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) && pointee_target.pointee_byte_size == string_descriptor_size
+    {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Pointee {
+            pointer_byte_offset: pointee_target.pointer_byte_offset,
+            field_byte_offset: pointee_target.field_byte_offset,
+            byte_size: pointee_target.pointee_byte_size,
+        }));
     }
 
     if let Some(place) = resolve_runtime_storage_place_in_table(

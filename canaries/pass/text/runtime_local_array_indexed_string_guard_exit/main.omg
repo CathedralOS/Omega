@@ -1,0 +1,81 @@
+// A String field of a LOCAL inline fixed array element (frame base + scaled
+// runtime index -- the frame-BASE-indexed place, not the slice-descriptor
+// place) compared against a literal in GUARD position must compare CONTENT,
+// in all three regimes:
+//   1. an EMPTY (default-zeroed) field never equals a non-empty literal,
+//   2. a field holding the literal's exact bytes equals it,
+//   3. a same-length field differing in its last byte does not equal it.
+// Before the TextEqualsLiteral selection covered base-indexed places, this
+// guard shape selected NO compare at all and the first transition arm was
+// taken unconditionally -- an empty field "equalled" any literal.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    label: String;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let rooms: [Room; 3] = [
+        Room { label: "" },
+        Room { label: "" },
+        Room { label: "" }
+    ];
+    let empty_index: usize = 0;
+
+    transition rooms[empty_index].label == "expected" {
+        true -> fail()
+        false -> check_match()
+    }
+
+    state check_match(&mut self) {
+        let rooms: [Room; 3] = [
+            Room { label: "" },
+            Room { label: "" },
+            Room { label: "" }
+        ];
+        // The write goes through a slice alias (the supported indexed String
+        // write path); the GUARD reads the array directly so its place stays
+        // base-indexed.
+        let room_slice: &mut [Room] = rooms.as_mut_slice();
+        let write_index: usize = 1;
+        room_slice[write_index].label = "expected";
+        let index: usize = 1;
+        transition rooms[index].label == "expected" {
+            true -> check_differ()
+            false -> fail()
+        }
+    }
+
+    state check_differ(&mut self) {
+        let rooms: [Room; 3] = [
+            Room { label: "" },
+            Room { label: "" },
+            Room { label: "" }
+        ];
+        let room_slice: &mut [Room] = rooms.as_mut_slice();
+        let write_index: usize = 2;
+        // Same length as the literal, differing only in the final byte, so
+        // the inequality must come from the byte loop rather than the length
+        // check.
+        room_slice[write_index].label = "expectes";
+        let index: usize = 2;
+        transition rooms[index].label == "expected" {
+            true -> fail()
+            false -> pass()
+        }
+    }
+
+    state pass(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state fail(&mut self) {
+        self.console.exit_process(71);
+    }
+}
