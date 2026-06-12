@@ -40,6 +40,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_alias_write_through_guarded_transition_exit", 70),
     ("calls/runtime_assignment_call_post_mutation_value_exit", 70),
     ("calls/runtime_call_in_inlined_substate_exit", 70),
+    ("calls/runtime_call_result_after_splice_mutation_exit", 70),
     (
         "calls/runtime_call_result_through_reference_field_exit",
         183,

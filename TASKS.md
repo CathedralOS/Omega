@@ -342,8 +342,20 @@ remains tracked in its bullet below.
   arithmetic/runtime_unsigned_modulo_cast_operand_exit (pre-fix native 71 =
   signed remainder -87 in the u32 slot, post-fix 70 = interpreter), in the
   differential oracle.
-- [ ] Stale assignment-call result when the local's slot is ELIDED —
-  deterministic repro (2026-06-12), root cause located, NOT yet fixed. The
+- [x] Stale assignment-call result when the local's slot is ELIDED — FIXED
+  (2026-06-12), option (b): the storage plan no longer elides the LocalStorage
+  slot when the local's initializer contains a MUTATING call (a call passing a
+  `&mut` argument). One condition in `local_data_requires_storage`
+  (omega-state-storage/collection.rs, new `expression_contains_mutating_call`
+  walk) — the elision is an optimization and correctness gates it: with the
+  slot kept, the executor-of-record deferral
+  (`leaf_expansions_defer_to_local_initializer`) has its landing op and the
+  call-result copy emits AFTER the splice's mutation writes (backend report
+  now shows `write binary ... Add 1` then `copy @0 -> frame@0`). Canary:
+  pass+RUN calls/runtime_call_result_after_splice_mutation_exit (pre-fix
+  native 71 / interpreter 70, post-fix both 70), in the differential oracle;
+  guard-only sibling runtime_assignment_call_post_mutation_value_exit
+  re-verified green. Original report follows. The
   "trailing-state stale-&mut-field reads" instrumentation observations
   shrink to this: `let seed: u64 = self.rng.next_seed(&mut random)` (callee:
   `state.seed = state.seed + 1; transition { _ -> state.seed }` — a PLAIN

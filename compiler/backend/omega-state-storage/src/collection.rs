@@ -159,7 +159,7 @@ fn build_machine_state_storage_plan(
                         statement_index,
                         local_data.symbol,
                         &local_data.name,
-                        local_data.initial_value.is_valid(),
+                        local_data.initial_value,
                         uses_runtime_flow || required,
                     ) {
                         continue;
@@ -288,10 +288,23 @@ fn local_data_requires_storage(
     local_statement_index: usize,
     local_symbol: SymbolHandle,
     local_name: &Identifier,
-    has_initial_value: bool,
+    initial_value: ExpressionHandle,
     uses_runtime_flow: bool,
 ) -> bool {
-    if !has_initial_value {
+    if !initial_value.is_valid() {
+        return true;
+    }
+
+    // A MUTATING-call initializer (`let seed = self.next_seed(&mut rng)`) must
+    // keep its LocalStorage slot no matter how the local is consumed. The
+    // runtime-bodies splice lays the callee's mutation operations out BETWEEN
+    // the StateCall operation and the statement's LocalStorage operation, and
+    // the call-result value selection is DEFERRED to that LocalStorage
+    // operation so it reads the POST-mutation state. Eliding the slot (the
+    // consumed-by-a-later-initializer optimization below) removes the
+    // deferral's landing operation, so the call-result copy emitted at the
+    // StateCall and delivered the PRE-call value.
+    if expression_contains_mutating_call(expressions, initial_value) {
         return true;
     }
 
@@ -329,6 +342,64 @@ fn local_data_requires_storage(
                     local_name,
                 )
         })
+}
+
+/// Whether the expression contains a MUTATING call -- a call passing a `&mut`
+/// argument (`self.next_seed(&mut rng)`). Syntactic: the `&mut` at the call
+/// site is the caller-visible mark that the callee's body splices mutation
+/// operations before the result is available.
+fn expression_contains_mutating_call(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Call(call) => {
+            expressions
+                .expression_handles(call.arguments)
+                .iter()
+                .copied()
+                .any(|argument| {
+                    matches!(expressions.expression(argument), ExpressionNode::Mutable(_))
+                        || expression_contains_mutating_call(expressions, argument)
+                })
+                || (call.receiver.is_valid()
+                    && expression_contains_mutating_call(expressions, call.receiver))
+        }
+        ExpressionNode::Mutable(inner) => expression_contains_mutating_call(expressions, *inner),
+        ExpressionNode::ArrayLiteral(items) => expressions
+            .expression_handles(*items)
+            .iter()
+            .copied()
+            .any(|item| expression_contains_mutating_call(expressions, item)),
+        ExpressionNode::Binary(binary) => {
+            expression_contains_mutating_call(expressions, binary.left)
+                || expression_contains_mutating_call(expressions, binary.right)
+        }
+        ExpressionNode::Cast(cast) => expression_contains_mutating_call(expressions, cast.value),
+        ExpressionNode::Indexed(indexed) => {
+            expression_contains_mutating_call(expressions, indexed.collection)
+                || expression_contains_mutating_call(expressions, indexed.index)
+        }
+        ExpressionNode::Range(range) => {
+            expression_contains_mutating_call(expressions, range.start)
+                || expression_contains_mutating_call(expressions, range.end)
+        }
+        ExpressionNode::Member(member) => {
+            expression_contains_mutating_call(expressions, member.receiver)
+        }
+        ExpressionNode::Unary(unary) => {
+            expression_contains_mutating_call(expressions, unary.operand)
+        }
+        ExpressionNode::StructLiteral(struct_literal) => expressions
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| expression_contains_mutating_call(expressions, field.value)),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => false,
+    }
 }
 
 /// Whether a CALL statement references the local in one of its ARGUMENTS

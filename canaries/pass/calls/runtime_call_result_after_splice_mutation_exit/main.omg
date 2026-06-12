@@ -1,0 +1,54 @@
+// `let seed = self.next_seed(&mut rng)` (callee terminal: a PLAIN `&mut`-param
+// field read, `_ -> state.seed`) followed by ANY consumer `let` statement must
+// deliver the POST-mutation value. Pre-fix the consumer made the storage plan
+// ELIDE `seed`'s LocalStorage slot, so the executor-of-record deferral had no
+// landing operation and the call-result copy emitted at the StateCall body op,
+// BEFORE the splice's mutation writes -- `seed` carried the PRE-call value
+// (native exit 71, interpreter 70). The storage plan now keeps the slot when
+// the initializer is a mutating call. The guard-only sibling
+// (runtime_assignment_call_post_mutation_value_exit) keeps its slot either way
+// and stays green.
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Rng {
+    seed: u64;
+    pad: u64;
+}
+
+data Main {
+    console: Console;
+    rng: Rng;
+}
+
+machine Main::next_seed(
+    &mut self,
+    state: &mut Rng
+    ) -> u64 {
+    state.seed = state.seed + 1;
+
+    transition {
+        _ -> state.seed
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.rng.seed = 41;
+    self.rng.pad = 0;
+    let seed: u64 = self.next_seed(&mut self.rng);
+    let doubled: u64 = seed * 2;
+
+    transition {
+        doubled == 84 -> exit_post()
+        doubled == 82 -> exit_stale()
+        _ -> exit_other()
+    }
+
+
+    state exit_post(&mut self) { self.console.exit_process(70); }
+    state exit_stale(&mut self) { self.console.exit_process(71); }
+    state exit_other(&mut self) { self.console.exit_process(77); }
+}

@@ -4950,6 +4950,43 @@ fn runtime_assignment_call_post_mutation_value_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_call_result_after_splice_mutation_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_call_result_after_splice_mutation_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-call-result-after-splice-mutation-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("call-result-after-splice-mutation canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("call-result-after-splice-mutation canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `let seed = self.next_seed(&mut rng)` followed by a consumer \
+         `let` to deliver the POST-mutation value (exit 70 = interpreter \
+         semantics; exit 71 = the consumer made the storage plan elide seed's \
+         LocalStorage slot, the deferral had no landing op, and the call-result \
+         copy emitted before the splice's mutation writes), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_called_machine_loop_search_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_called_machine_loop_search_exit");
     let main_path = canary.join("main.omg");
@@ -7677,6 +7714,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_call_enum_field_with_mut_arg",
     "calls/runtime_call_enum_sequence",
     "calls/runtime_call_enum_value",
+    "calls/runtime_call_result_after_splice_mutation_exit",
     "calls/runtime_string_call_result_through_reference_field_exit",
     "calls/runtime_two_string_call_results_through_reference_fields_exit",
     "calls/runtime_offset_string_call_results_through_reference_fields_exit",
