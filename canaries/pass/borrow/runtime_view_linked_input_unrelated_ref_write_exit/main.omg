@@ -1,0 +1,58 @@
+// RUN canary (lifetimes stage 1, elision-only output-borrow linkage): a free
+// machine returning a view with EXACTLY ONE candidate ref input links the
+// returned view's loan to THAT input -- not to every ref the caller holds.
+//
+// `fill` holds two ref inputs. The view returned by `pick(a)` borrows `a`
+// only, so mutating the UNLINKED input `b` while the view is live must
+// compile (the stage-1 win; a whole-frame-aliasing model would reject it).
+// The runtime assertion proves both writes landed: the write through the
+// linked view into `a` and the direct write into `b`.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    value: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Console;
+    first: Bag;
+    second: Bag;
+}
+
+machine pick(bag: &mut Bag) -> &mut Cell {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    transition {
+        _ -> &mut cells[2]
+    }
+}
+
+machine fill(a: &mut Bag, b: &mut Bag) {
+    let cell: &mut Cell = pick(a);
+    // `cell` borrows `a` (the single ref input of `pick`); `b` is unentangled.
+    b.cells[0] = Cell { value: 1 };
+    cell.value = 7;
+}
+
+machine Main::main(&mut self) {
+    fill(&mut self.first, &mut self.second);
+
+    transition self.first.cells[2].value + self.second.cells[0].value == 8 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
