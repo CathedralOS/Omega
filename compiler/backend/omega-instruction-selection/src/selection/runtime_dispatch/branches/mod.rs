@@ -4,7 +4,8 @@ mod prelude;
 mod straight_line;
 
 pub(super) use leaf::{
-    LeafBranchSelectionScratch, select_runtime_leaf_branch_expansions_for_operation,
+    LeafBranchSelectionScratch, leaf_expansions_defer_to_local_initializer,
+    select_runtime_leaf_branch_expansions_for_operation,
     select_runtime_leaf_branch_expansions_matching_operation,
 };
 pub(in crate::selection) use prelude::{

@@ -161,21 +161,53 @@ remains tracked in its bullet below.
   runtime_effectful_subject_single_evaluation_exit (diverging-arm,
   3-deep chain; pre-fix native exits 77, post-fix 70 = interpreter) plus the
   measured dungeon shape (1 draw per should_carve decision in BOTH backends).
-- [ ] Non-guard call chains still over-draw / read stale values natively (the
-  REMAINING root of the dungeon R05 line). Measured with the same seed-7
-  tracing: one `carve_room -> roll_event -> rng.range -> next_u32` STATEMENT
-  chain runs `next_u32` 3x natively (interpreter 1x) — the splice's flattened
-  mutation ops, the parent prelude's nested walk, and the directly-matched
-  straight-line expansion are ALL emitted as executors; and a depth-1
-  `let v = self.next(&mut state)` returns the PRE-mutation value (leaf value
-  write emits before the splice's mutation writes; interpreter returns the
-  post-mutation value). Generation total: interpreter 15 draws, native 34, so
-  the stream diverges before the R05 `should_carve` decision and R05 stays
-  uncarved natively (its data-driven description renders empty) — still the
-  only dungeon output line the backends disagree on. The scripted-loop
-  canaries keep asserting R05's event/paths lines instead of its description
-  until the executor-of-record story (splice vs prelude vs nested walk) is
-  fixed for non-guard roles.
+- [x] Non-guard call chains over-draw / read stale values natively — BOTH
+  named symptoms FIXED (2026-06-11); the splice is now the single executor of
+  record for non-guard chains. (1) OVER-EXECUTION: the
+  `carve_room -> roll_event -> rng.range -> next_u32` STATEMENT chain ran
+  `next_u32` 3x natively (interpreter 1x). The three executors, mapped in the
+  backend report: the splice's flattened Mutation op (the keeper), the
+  non-guard branch PRELUDE's StateCall arm (a `let x = self.f(...)` statement
+  classifies as StateCall in prelude_operations, and its arm re-emitted the
+  callee's nested expansions), and the nested-walk straight-line expansion
+  (created by append_branch_prelude_expansion's callee walk, then matched
+  AGAIN at the flattened nested call's own body op). Plan-level suppression
+  mirroring the eager-guard fix: non-guard (LocalDataOnly) preludes now carry
+  ONLY call-free local initializers (omega-runtime-branching operations.rs)
+  and never walk nested callees (expansions.rs — only guard-role `All`
+  preludes walk, since the splice flattens every nested call into the body
+  where each gets directly-matched machinery). (2) STALE READ: depth-1
+  `let v = self.next(&mut state)` returned the PRE-mutation value because the
+  call-result value selection (leaf expansion) emitted at the StateCall body
+  op, before the splice's mutation ops. The dispatch loop now DEFERS the
+  selection to the statement's own LocalStorage operation (after the callee's
+  spliced effects, before the local copy) when the statement's only leaf role
+  is AssignmentValue (instruction-selection runtime_dispatch.rs + leaf.rs
+  `leaf_expansions_defer_to_local_initializer`). Canaries: pass+RUN
+  control_flow/runtime_statement_call_single_execution_exit (pre-fix native 3
+  = three executors, post-fix 70) and
+  calls/runtime_assignment_call_post_mutation_value_exit (pre-fix native 2 =
+  stale read, post-fix 70), both in the differential oracle. Dungeon: seed-7
+  generation went from 34 native draws to 14 (interpreter 15).
+- [ ] Dungeon residual, ONE draw: a mis-dispatched `apply_event` ARM during
+  R00's carve. Sentinel tracing (counter bumps compiled into each arm state)
+  on a generation-trimmed dungeon shows native runs the GOLD-CACHE arm
+  (correct, matches interpreter) AND the ENEMY arm chain for the same carve —
+  roll_enemy_kind then dispatches with a stale `depth` (R00 is depth 9 but
+  the BAT arm `depth <= 1` fires), drawing once. R01 dispatches quiet
+  correctly. Emission is NOT duplicated (each draw site appears exactly once,
+  in its own dispatch case, per the backend report) — the dispatch STATE
+  itself reaches the enemy cases, so this is an arm-selection/flow bug, not
+  executor multiplicity. Small probes of the same ladder (4 arms, compound
+  NeedsRuntimeExpression range guards, selected middle arm, nested reward
+  sub-dispatch, &mut args) all pass natively — the misfire needs deeper
+  dungeon context (slice-ref room via room_mut, field-machine chain
+  events.enemies.rng, two carve_room call contexts). Repro: trim
+  maze_builder::build to R00+R01 (stop after build_main_hall_1), expose
+  `random.calls` via a Level field read in Game::finished — native 4 draws vs
+  interpreter 3; with bat's `self.rng.range(random, 3)` made constant, 3=3.
+  R05's description stays un-asserted in the dungeon scripted canaries until
+  this lands.
 - [x] 3 pre-existing `_compile` canaries hang at runtime — STALE (probed
   2026-06-11): the slice-write `_compile` canaries run now (the hang was the
   x18 zeroing below) and their dispatch shape already has a runtime `_exit`

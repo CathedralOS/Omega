@@ -4585,6 +4585,79 @@ fn runtime_effectful_subject_single_evaluation_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_statement_call_single_execution_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_statement_call_single_execution_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-statement-call-single-execution-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("statement-call single-execution canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("statement-call single-execution canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the STATEMENT-position call chain's leaf side effect to run \
+         exactly ONCE (one increment -> exit 70; exit 2/3 reports the executor \
+         count -- the dungeon's non-guard RNG over-draw where the splice, the \
+         prelude's StateCall arm, and the nested-walk straight-line expansion \
+         all emitted the leaf), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_assignment_call_post_mutation_value_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_assignment_call_post_mutation_value_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-assignment-call-post-mutation-value-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("assignment-call post-mutation value canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("assignment-call post-mutation value canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `let v = self.next(&mut state)` to deliver the POST-mutation \
+         value (exit 70 = interpreter semantics; exit 2 = the call-result value \
+         selection emitted before the splice's mutation writes and read the \
+         stale pre-mutation state), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_called_machine_loop_search_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_called_machine_loop_search_exit");
     let main_path = canary.join("main.omg");
@@ -6925,11 +6998,15 @@ fn native_dungeon_crawler_runs_stable_scripted_loop() {
     assert!(stdout.contains("You collect the loose gold."));
     // The east side chamber (R05) is identified by its gold-cache event line and
     // its unique exit list. Its data-driven DESCRIPTION is deliberately not
-    // asserted: whether R05 gets carved depends on one RNG draw, and native's
-    // NON-guard call chains still over-draw the RNG stream relative to the
-    // interpreter (generation: 34 draws vs 15 -- the guard-subject half of the
-    // divergence is fixed; see TASKS.md backend residue), so the two backends
-    // currently disagree on that single line.
+    // asserted: the seed-7 RNG streams still differ by ONE draw (generation:
+    // native 14 vs interpreter 15). The statement-chain executor multiplicity
+    // and the stale call-result read are fixed (canaries
+    // control_flow/runtime_statement_call_single_execution_exit and
+    // calls/runtime_assignment_call_post_mutation_value_exit); the residual is
+    // a mis-dispatched apply_event ARM during R00's carve (the enemy arm runs
+    // alongside the correct gold-cache arm, drawing once with a stale depth --
+    // see TASKS.md backend residue), so the two backends still disagree on
+    // R05's description line.
     assert!(stdout.contains("Loose gold glitters in the dust."));
     assert!(stdout.contains("[Paths] west"));
     assert!(stdout.contains("Inv: 30 gold. Purse heavy, charm secured."));
