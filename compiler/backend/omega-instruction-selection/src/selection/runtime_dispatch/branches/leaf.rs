@@ -292,7 +292,13 @@ fn select_runtime_leaf_branch_expansion(
         selected_instructions,
     );
     select_runtime_leaf_assignment_value_target_copy(input, expansion, selected_instructions);
-    select_runtime_leaf_assignment_value_local_copy(input, expansion, selected_instructions);
+    // No call-result -> LOCAL-slot copy here: when the statement's local keeps
+    // its LocalStorage slot, the dispatch loop's initializer write
+    // (copy_assignment_value_call_result_into_local) emits that copy at the
+    // LocalStorage operation -- always AFTER the callee's spliced mutations.
+    // A leaf-side copy would either duplicate it (deferred emission lands at
+    // the same operation) or sit at the StateCall, BEFORE the splice (the
+    // stale-read position the deferral exists to avoid).
     select_runtime_leaf_local_initializer_writes(
         input,
         expansion,
@@ -1053,57 +1059,6 @@ fn local_initializer_handle(
         .initial_value
         .is_valid()
         .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
-}
-
-fn select_runtime_leaf_assignment_value_local_copy(
-    input: &InstructionSelectionInput<'_>,
-    expansion: &RuntimeLeafBranchExpansion,
-    selected_instructions: &mut SelectedInstructionSink,
-) {
-    if expansion.role != StateCallRole::AssignmentValue || !expansion.target_value.is_valid() {
-        return;
-    }
-    let Some(source_slot) = input.runtime_storage.call_result_slot_by_ordinal(
-        expansion.dispatch_index,
-        expansion.source_key,
-        expansion.statement_index,
-        expansion.role,
-        expansion.call_ordinal,
-    ) else {
-        return;
-    };
-    let Some(target_slot) = input
-        .runtime_storage
-        .frame_slots
-        .iter()
-        .find_map(|(_, slot)| {
-            (slot.dispatch_index == expansion.dispatch_index
-                && slot.source_key == expansion.source_key
-                && slot.statement_index == expansion.statement_index
-                && matches!(
-                    slot.kind,
-                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
-                ))
-            .then_some(slot)
-        })
-    else {
-        return;
-    };
-    if source_slot.byte_size != target_slot.byte_size || source_slot.byte_size == 0 {
-        return;
-    }
-
-    selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::CopyRuntimeStorage {
-            source_region: RuntimeStorageRegion::RuntimeFrame,
-            source_offset: source_slot.byte_offset,
-            target_region: RuntimeStorageRegion::RuntimeFrame,
-            target_offset: target_slot.byte_offset,
-            byte_count: source_slot.byte_size,
-        },
-        source_key: expansion.source_key,
-        source_statement: expansion.statement_index,
-    });
 }
 
 fn select_runtime_leaf_branch_mutation_writes(
