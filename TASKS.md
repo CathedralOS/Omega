@@ -61,6 +61,19 @@ remains tracked in its bullet below.
   migration chains, `replaces`, quiescence obligations. (Stage 2 landed
   2026-06-11: historical-shape construction, the type-name migration call,
   the first runtime migration canary, struct-literal field validation.)
+  PROPOSED DESIGN AWAITING SIGN-OFF (scouted 2026-06-11): a builtin
+  `Versioned<T>` container — `{ era: u32, payload: opaque bytes of the
+  era's own shape }`, the trait-object pattern — constructed at boundaries
+  only (chapter 21: ordinary values never carry era tags); version match
+  arms become legal ONLY on `Versioned<T>` subjects (tag compare + shape
+  reinterpretation per arm); the wire decoder is NOT a prerequisite.
+  Stage 3b (no new surface, dispatchable independently): migration-chain
+  completeness validation along the declared version chain. Open decisions
+  for the maintainer: container name/permanence, era field width (u32
+  proposed), payload storage (opaque bytes vs union-of-eras), whether
+  `era` is source-queryable, and incomplete-chain severity (warning
+  proposed). `replaces`/quiescence stay deferred behind the concurrency
+  model.
 - [ ] **Equatable synthesis / conformance defaults.** EQUATABLE SYNTHESIS
   LANDED (2026-06-11): `Type satisfies Equatable;` on a record or
   payload-bearing sum makes `==`/`!=` legal -- expanded INLINE at
