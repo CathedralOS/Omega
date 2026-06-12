@@ -1,0 +1,98 @@
+// ARRAY-literal struct-element initialization lowers natively, String fields
+// included. Before the fix, `let rooms: [Room; 2] = [Room { .. }, Room { .. }]`
+// selected NO writes at all: the local-initializer mutation path had a
+// StructLiteral arm but no ArrayLiteral arm, so the whole initializer fell
+// through to the scalar path and silently emitted nothing -- every element
+// frame slot stayed zeroed natively (scalar fields read 0, String descriptors
+// read empty) while the interpreter initialized them. The string rodata was
+// already collected (data planning walks array-literal elements), only the
+// frame writes were missing -- spotted by the now-honest String guards.
+//
+// Each element's scalar sibling and String field is guarded through a RUNTIME
+// index so the reads hit the frame (a literal index could fold statically),
+// with distinct literals per element so element 1's write cannot masquerade
+// as element 0's. A cross check (element 0 against element 1's literal) pins
+// that the compare is content-honest rather than vacuously true.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    number: u32;
+    label: String;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let rooms: [Room; 2] = [
+        Room { number: 11, label: "expected" },
+        Room { number: 22, label: "other" }
+    ];
+    let zero: usize = 0;
+    transition rooms[zero].number == 11 {
+        true -> scalar_one()
+        false -> fail()
+    }
+
+    state scalar_one(&mut self) {
+        let rooms: [Room; 2] = [
+            Room { number: 11, label: "expected" },
+            Room { number: 22, label: "other" }
+        ];
+        let one: usize = 1;
+        transition rooms[one].number == 22 {
+            true -> string_zero()
+            false -> fail()
+        }
+    }
+
+    state string_zero(&mut self) {
+        let rooms: [Room; 2] = [
+            Room { number: 11, label: "expected" },
+            Room { number: 22, label: "other" }
+        ];
+        let zero: usize = 0;
+        transition rooms[zero].label == "expected" {
+            true -> string_one()
+            false -> fail()
+        }
+    }
+
+    state string_one(&mut self) {
+        let rooms: [Room; 2] = [
+            Room { number: 11, label: "expected" },
+            Room { number: 22, label: "other" }
+        ];
+        let one: usize = 1;
+        transition rooms[one].label == "other" {
+            true -> string_cross()
+            false -> fail()
+        }
+    }
+
+    state string_cross(&mut self) {
+        // Element 0 must NOT equal element 1's literal: a vacuously-true
+        // compare (or a write landing on the wrong element) fails here.
+        let rooms: [Room; 2] = [
+            Room { number: 11, label: "expected" },
+            Room { number: 22, label: "other" }
+        ];
+        let zero: usize = 0;
+        transition rooms[zero].label == "other" {
+            true -> fail()
+            false -> pass()
+        }
+    }
+
+    state pass(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state fail(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -18,7 +18,8 @@ use omega_abstract_operations::{
     RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
 };
 use omega_checked_trees::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression,
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableIndexedExpression,
+    TableMemberExpression,
 };
 use omega_checked_trees::name::Identifier;
 use omega_control_flow::StateKey;
@@ -237,7 +238,7 @@ pub(in crate::selection) fn select_runtime_storage_resolved_mutation_write_in_ta
 ) -> bool {
     if matches!(
         expressions.expression(value),
-        ExpressionNode::StructLiteral(_)
+        ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_)
     ) {
         let source_expressions = expressions;
         mutable_expressions.clear();
@@ -299,6 +300,45 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) -> bool {
+    // An ARRAY literal (`[Room { label: "x" }, ..]` or `[1, 2, 3]`) writes
+    // element by element through a LITERAL-indexed target (`target[i]`): each
+    // element value recurses here, so struct-literal elements expand into
+    // their per-field member writes (String descriptor writes included) and
+    // scalar elements ride the ordinary static-write path. The literal index
+    // resolves to a static frame place (slot offset + element stride), the
+    // same fixed-indexed resolution guards already use. Before this arm,
+    // array-literal initializers fell through to the scalar path, selected
+    // NOTHING, and every element frame slot silently stayed zeroed natively.
+    if let ExpressionNode::ArrayLiteral(elements) = *expressions.expression(value) {
+        let mut emitted = false;
+        for offset in 0..elements.count() {
+            let element = expressions.expression_handle_at_offset(elements, offset);
+            let element_index = expressions.insert(ExpressionNode::Integer(i64::from(offset)));
+            let element_target =
+                expressions.insert(ExpressionNode::Indexed(TableIndexedExpression {
+                    collection: target,
+                    index: element_index,
+                }));
+            emitted |= select_runtime_storage_resolved_mutation_write_in_mutable_table(
+                input,
+                dispatch_index,
+                operation_source_key,
+                target_source_key,
+                value_source_key,
+                statement_index,
+                expressions,
+                element_target,
+                element,
+                aliases,
+                resolved_segment_expressions,
+                static_values,
+                runtime_value_operands,
+                selected_instructions,
+            );
+        }
+        return emitted;
+    }
+
     if let ExpressionNode::StructLiteral(struct_literal) = expressions.expression(value).clone() {
         let mut emitted = false;
         // Constructing a CASE (`Command::Move { steps: 70 }`) writes the i32

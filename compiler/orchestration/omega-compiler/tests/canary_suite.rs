@@ -3548,6 +3548,48 @@ fn runtime_mixed_shape_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_array_literal_string_field_exit_canary_runs() {
+    // ARRAY-literal struct-element initialization (`let rooms: [Room; 2] =
+    // [Room { number: 11, label: "expected" }, ..]`) must write every element
+    // field natively. The local-initializer mutation path had a StructLiteral
+    // arm but no ArrayLiteral arm, so the whole initializer fell through to
+    // the scalar path and selected NOTHING -- scalar element fields read 0 and
+    // String descriptors read empty while the interpreter initialized them.
+    // Guards read each element's scalar sibling and String field through a
+    // runtime index (frame reads, no static folds) plus a cross check that
+    // element 0 does not equal element 1's literal.
+    let canary = pass_canary("data/runtime_array_literal_string_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-array-literal-string-field-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("array literal string field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("array literal string field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected array-literal element init to write scalar and String fields natively (exit 70), got {:?} (71 = a guard observed a zeroed/incorrect element field)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_struct_literal_string_field_exit_canary_runs() {
     // Struct-LITERAL String field initialization (`let msg: T = T { label:
     // "hi" }`) must emit the native descriptor write, same as the assignment
@@ -7852,6 +7894,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "data/match_default_satisfies_exhaustiveness",
     "data/match_exhaustive_by_case_union_domain",
     "data/match_exhaustive_by_cases",
+    "data/runtime_array_literal_string_field_exit",
     "data/runtime_case_payload_guard_read_exit",
     "data/runtime_case_reassignment_exit",
     "data/runtime_mixed_shape_exit",
