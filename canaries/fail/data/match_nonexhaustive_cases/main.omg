@@ -1,0 +1,26 @@
+// Exhaustiveness counting over implicit case-domains (chapter 1 "Cases Are
+// Domains", decision 7): a dispatch over a case-bearing subject must cover
+// every case or close with `_`. This one names two of three cases and has no
+// default, so the uncovered case is named in the error. (Runtime fallthrough
+// is real and divergent -- probed 2026-06-11: native exits 1, the
+// interpreter completes with exit 0 -- which is why this is a compile error.)
+
+data Command {
+    case None;
+    case Quit;
+    case Move(dx: i32);
+}
+
+data Main {
+    cmd: Command;
+}
+
+machine Main::main(&mut self) {
+    transition self.cmd {
+        Command::None -> idle()
+        Command::Quit -> leave()
+    }
+
+    state idle(&mut self) { }
+    state leave(&mut self) { }
+}

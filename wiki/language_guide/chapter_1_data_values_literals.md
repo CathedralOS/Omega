@@ -199,16 +199,27 @@ or payload-bearing sum makes `==`/`!=` legal, expanded inline into
 field-by-field compares (tag-guarded per case for sums; constructed case
 literals compare structurally). Without the conformance, `==` on a
 structural type is a compile error suggesting the one-line conformance.
-Still pending: `match`-statement arms, mixed shapes, exhaustiveness counting
-over case domains, and `String`-bearing / recursive Equatable types (both
-rejected loudly at the conformance item).[^case-members]
+Exhaustiveness counting over case domains is LIVE: a dispatch over a
+case-bearing subject must cover every case through decidable arms (case arms
+and pure case-union domain arms) or close with `_`; counted gaps name the
+missing cases, and uncountable arms (predicate domains, `if`-guarded
+patterns, value compares) make the error suggest `_`. The case-subset
+spelling `domain Command::Interactive when self in Command::Move |
+Command::Say;` parses (membership unions in `when` classifiers, body-less
+`;` form) and the classifier participates in executable membership, so a
+subset domain works as a runtime arm.
+Still pending: `match`-statement arms, mixed shapes, and `String`-bearing /
+recursive Equatable types (both rejected loudly at the conformance
+item).[^case-members]
 
 [^case-members]: Open details: payload-binding spelling in `transition` arms
 vs `match` arms (expected to reuse the data-destructure guard machinery);
-generic payloads (`Option<T>`-style); the layout rule for payload storage
-(tag-prefixed overlay with the zero case payload-free); and whether a domain
-DECLARED as a pure case union gets recognized for exhaustiveness
-syntactically or by classifier analysis.
+generic payloads (`Option<T>`-style); and the layout rule for payload storage
+(tag-prefixed overlay with the zero case payload-free). RESOLVED 2026-06-11:
+a domain declared as a pure case union is recognized for exhaustiveness
+SYNTACTICALLY -- the `when` classifier must be literally `self in Type::A |
+Type::B` over the target type's own cases with no other facts; recognition by
+classifier analysis remains a possible later widening.
 
 ## Locals
 
