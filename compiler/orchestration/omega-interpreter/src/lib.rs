@@ -128,5 +128,26 @@ impl InterpretOutcome {
 /// Interpret a checked program, returning its exit code and stdout. `stdin` provides the
 /// bytes a `read_line` host call would consume (unused in the first milestone).
 pub fn interpret(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
-    evaluator::run(checked, stdin)
+    evaluator::run(&checked.typed, stdin)
+}
+
+/// CONST EVALUATION (comptime stage 1): evaluate the zero-argument machine
+/// `machine_name` at compile time, returning its terminal value width-adjusted
+/// to the machine's declared integer return type (TARGET widths -- the same
+/// wrap-on-write the differential interpreter applies -- never host widths).
+///
+/// The CALLER owns the legality gate (the machine's inferred transitive effect
+/// surface must be empty and it must take no parameters -- frozen decision 12's
+/// purity predicate); this entry owns evaluation only. Termination rides the
+/// language's existing discipline (no general recursion, loops carry
+/// decreases); a small fuel cap (~100k steps) backstops checker gaps. Errors
+/// are human-readable reasons for the compile diagnostic at the const site.
+///
+/// Works over `TypedTrees` (pre-checking) so the compiler pipeline can
+/// substitute results BEFORE range checking and layout consume the lengths.
+pub fn evaluate_const_machine(
+    program: &omega_typed_trees::TypedTrees,
+    machine_name: &str,
+) -> Result<i64, String> {
+    evaluator::run_const_machine(program, machine_name)
 }

@@ -1,0 +1,26 @@
+// COMPTIME STAGE 1 -- PURITY GATE: only an EFFECT-FREE machine may be
+// evaluated in a constant position (frozen decision 12's purity predicate,
+// read from the INFERRED TRANSITIVE effect plan). `loud_size` declares the
+// `process_exit` effect, so `[i64; loud_size()]` must reject naming the
+// machine and the effect -- never silently evaluate or fall back.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    slots: [i64; loud_size()];
+}
+
+machine loud_size() -> usize
+effects
+    process_exit
+{
+    transition {
+        _ -> (12 + 4)
+    }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

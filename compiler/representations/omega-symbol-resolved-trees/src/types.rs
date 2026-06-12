@@ -135,6 +135,9 @@ pub enum FixedArrayLength {
         symbol: SymbolHandle,
         name: DiagnosticName,
     },
+    /// A zero-argument machine call in length position (`[u8; table_size()]`),
+    /// const-evaluated before layout (comptime stage 1).
+    ConstCall { name: DiagnosticName },
 }
 
 impl Default for FixedArrayLength {
@@ -154,6 +157,7 @@ impl fmt::Display for FixedArrayLength {
         match self {
             Self::Literal(value) => write!(formatter, "{value}"),
             Self::ConstParameter { name, .. } => write!(formatter, "{name}"),
+            Self::ConstCall { name } => write!(formatter, "{name}()"),
         }
     }
 }
