@@ -1,0 +1,44 @@
+// Case-subset domains count toward exhaustiveness (chapter 1 "Cases Are
+// Domains"): `Command::Interactive` is declared as a PURE case union
+// (`when self in Command::Move | Command::Say`, nothing else -- syntactic
+// recognition per the chapter-1 footnote ruling), so its arm covers both
+// tags and the dispatch is exhaustive with the remaining case arms, no `_`.
+// Runs to verify the union arm actually classifies at runtime: the held
+// value is the SECOND union member, so a lowering that drops union arms
+// exits 71.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    case None;
+    case Quit;
+    case Move(dx: i32);
+    case Say(volume: i32);
+}
+
+domain Command::Interactive when self in Command::Move | Command::Say;
+
+data Main {
+    console: Console;
+    cmd: Command;
+}
+
+machine Main::main(&mut self) {
+    self.cmd = Command::Say { volume: 3 };
+
+    transition self.cmd {
+        Command::None -> missed()
+        Command::Quit -> missed()
+        Command::Interactive -> matched()
+    }
+
+    state matched(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

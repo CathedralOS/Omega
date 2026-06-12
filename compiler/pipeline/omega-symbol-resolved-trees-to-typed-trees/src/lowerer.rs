@@ -21,6 +21,12 @@ pub fn lower_symbol_resolved_trees(
     // before any `==` site tries to expand against a malformed type.
     crate::equatable::validate_equatable_conformances(symbol_resolved_trees)?;
 
+    // Exhaustiveness counting over case domains also needs the resolved
+    // trees: membership is still a distinct node here, so case arms and
+    // domain arms are recognizable before lowering erases them into tag
+    // compares and classifier expansions.
+    crate::exhaustiveness::validate_case_dispatch_exhaustiveness(symbol_resolved_trees)?;
+
     let mut lowerer = Lowerer {
         typed_trees: TypedTrees::default(),
         source_trees: symbol_resolved_trees,

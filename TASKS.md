@@ -98,10 +98,35 @@ remains tracked in its bullet below.
   support, equality in contracts/domain facts (no typing scope there), and
   written-equals signature matching against `&Self` (validation accepts
   `Self` in trait signatures; substitution per conformance is unchecked).
-- [ ] **Case members: remaining halves.** Exhaustiveness counting over
-  implicit case-domains, case-subset domains, MIXED shapes (common fields +
-  case part). Payload sums are done; `self in Type::Case` and unions at use
-  sites landed with decision 11.
+- [ ] **Case members: remaining halves.** EXHAUSTIVENESS COUNTING LANDED
+  (2026-06-11), over implicit case-domains AND case-subset domains: a
+  dispatch run (consecutive transitions, the shape every block desugars to)
+  whose arms classify a case-bearing subject must cover every case or close
+  with `_`. Decidable arms: case arms (one tag) and PURE case-union domain
+  arms; predicate-domain arms, `if`-guarded patterns, and value compares are
+  uncountable, so uncovered+uncountable errors suggest `_`, while fully
+  counted gaps name the missing cases ("match over `Command` does not cover
+  `Command::Move`; add an arm or `_`"). RULING (chapter-1 footnote): pure
+  case-union recognition is SYNTACTIC -- the domain's `when` classifier must
+  be literally `self in Type::A | Type::B` over its own target type's cases
+  with NO other facts; classifier analysis stays a possible later widening.
+  The check runs on RESOLVED trees (omega-symbol-resolved-trees-to-typed-
+  trees/src/exhaustiveness.rs, the `crate::equality` pattern) because typed
+  lowering erases membership into tag compares/classifier expansions. With
+  it landed: `when` classifiers now admit membership unions, `domain T::D
+  when ...;` (semicolon, body-less) parses, and executable declared-domain
+  membership now ANDs the classifier into the test (a union-subset domain
+  works as a guard/arm at runtime; native+interpreter agree, see
+  pass/data/match_exhaustive_by_case_union_domain). Probe record: before the
+  check, a 2-of-3-case dispatch compiled and FELL THROUGH divergently at
+  runtime (native exit 1, interpreter exit 0) -- the error is the fix.
+  Corpus fallout: ZERO (suite was already covered-or-defaulted). Canaries:
+  fail data/match_nonexhaustive_cases +
+  data/match_predicate_domain_needs_default; pass+RUN
+  data/match_exhaustive_by_cases + data/match_exhaustive_by_case_union_domain;
+  pass data/match_default_satisfies_exhaustiveness. STILL OPEN: MIXED shapes
+  (common fields + case part). Payload sums are done; `self in Type::Case`
+  and unions at use sites landed with decision 11.
 
 **Backend residue (small, known):**
 

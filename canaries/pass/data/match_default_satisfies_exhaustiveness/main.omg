@@ -1,0 +1,27 @@
+// `_` satisfies exhaustiveness outright (chapter 1 "Cases Are Domains"): a
+// dispatch that relies on a predicate-domain arm -- uncountable by rule --
+// compiles once it closes with `_`, and uncovered case arms are equally
+// forgiven. Compile-only: the shape under test is the counter's acceptance.
+
+data Entity {
+    case None;
+    case Monster(health: i32);
+}
+
+domain Entity::Dangerous when self in Entity::Monster {
+    self.health > 0;
+}
+
+data Main {
+    entity: Entity;
+}
+
+machine Main::main(&mut self) {
+    transition self.entity {
+        Entity::Dangerous -> threat()
+        _ -> calm()
+    }
+
+    state calm(&mut self) { }
+    state threat(&mut self) { }
+}
