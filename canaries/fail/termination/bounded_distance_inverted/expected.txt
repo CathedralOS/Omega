@@ -1,1 +1,1 @@
-cannot prove decreases clause for terminating machine Main::walk: `decreases index - limit` inverts the named bounded distance -- `Nat::BoundedDistance` ranks `upper - lower`, which descends as the lower value climbs; write `decreases limit - index`
+cannot prove decreases clause for terminating machine Main::walk: `decreases (limit, index)` inverts the named bounded distance -- `Nat::BoundedDistance` ranks `(lower, upper)`, which descends as the lower value climbs; write `decreases (index, limit) -> Nat::BoundedDistance`
