@@ -395,13 +395,30 @@ pub fn runtime_frame_base_indexed_integer_write_width(
     field_byte_offset: usize,
     byte_size: usize,
 ) -> usize {
+    runtime_frame_base_index_setup_width(
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    ) + runtime_store_data_width(byte_size)
+}
+
+/// Width of `append_runtime_frame_base_index_target_address` (inline frame
+/// fixed array element address -> x16): page pair + move (12), base-offset
+/// add, the 32-bit index load, the index scale, the base+index add (4), and
+/// the field-offset add.
+pub(in crate::aarch64) fn runtime_frame_base_index_setup_width(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
     16 + add_constant_width(base_byte_offset)
         // Index is loaded as a 32-bit (4-byte) value, see
         // append_runtime_frame_base_index_target_address.
         + load_data_offset_width(index_offset, 4)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
-        + runtime_store_data_width(byte_size)
 }
 
 pub fn runtime_machine_indexed_integer_write_width(
@@ -886,13 +903,13 @@ pub fn runtime_text_equals_operand_width() -> usize {
 
 /// Width of a guard-position text-vs-literal content compare operand (the
 /// `TextEqualsLiteral` arm of `append_runtime_value_operand`): the place's
-/// descriptor-address setup (relocated storage base, or the frame-indexed
-/// element address sequence, ending in x16), two descriptor word loads (8),
-/// a fixed 28-byte head (result zero, padded literal-length immediate, length
-/// compare, mismatch branch), one unrolled 12-byte load/compare/branch block
-/// per literal byte, and the final 4-byte result set. MUST stay in lockstep
-/// with that encoder (it ends with a `debug_assert_eq!` against this
-/// function).
+/// descriptor-address setup (relocated storage base, pointee pointer deref,
+/// or one of the indexed element address sequences, ending in x16), two
+/// descriptor word loads (8), a fixed 28-byte head (result zero, padded
+/// literal-length immediate, length compare, mismatch branch), one unrolled
+/// 12-byte load/compare/branch block per literal byte, and the final 4-byte
+/// result set. MUST stay in lockstep with that encoder (it ends with a
+/// `debug_assert_eq!` against this function).
 pub fn runtime_text_equals_literal_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     place: RuntimeValueOperandHandle,
@@ -902,14 +919,49 @@ pub fn runtime_text_equals_literal_operand_width(
         runtime_value_operands.storage(place)
     {
         8 + add_constant_width(byte_offset)
+    } else if let Some((pointer_byte_offset, field_byte_offset, _)) =
+        runtime_value_operands.pointee(place)
+    {
+        // Page pair (8) + the 8-byte pointer load (4) with its optional
+        // offset add, + the optional field-offset add.
+        12 + add_constant_width(pointer_byte_offset) + add_constant_width(field_byte_offset)
     } else if let Some((_, _, element_byte_size, field_byte_offset, _)) =
         runtime_value_operands.frame_indexed(place)
     {
         runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+    } else if let Some((
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        _,
+    )) = runtime_value_operands.frame_base_indexed(place)
+    {
+        runtime_frame_base_index_setup_width(
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        )
+    } else if let Some((
+        descriptor_offset,
+        element_index,
+        element_byte_size,
+        field_byte_offset,
+        _,
+    )) = runtime_value_operands.frame_fixed_indexed(place)
+    {
+        runtime_frame_fixed_index_setup_width(
+            descriptor_offset,
+            element_index,
+            element_byte_size,
+            field_byte_offset,
+        )
     } else {
-        // Selection only builds this operand over storage/frame-indexed text
-        // places; the encoder rejects anything else with a hard diagnostic
-        // before this width could be compared against emitted bytes.
+        // Selection only builds this operand over storage/pointee/indexed
+        // text places; the encoder rejects anything else with a hard
+        // diagnostic before this width could be compared against emitted
+        // bytes.
         0
     };
     place_setup_width + 8 + 28 + 12 * literal.len() + 4
@@ -947,14 +999,12 @@ pub fn runtime_value_operand_width(
         byte_size,
     )) = runtime_value_operands.frame_base_indexed(operand)
     {
-        runtime_frame_base_indexed_integer_write_width(
+        runtime_frame_base_index_setup_width(
             base_byte_offset,
             index_offset,
             element_byte_size,
             field_byte_offset,
-            byte_size,
-        ) - runtime_store_data_width(byte_size)
-            + runtime_load_data_width(byte_size)
+        ) + runtime_load_data_width(byte_size)
     } else if let Some((
         descriptor_offset,
         element_index,

@@ -1880,14 +1880,16 @@ fn append_runtime_text_equals_operand(
 /// Guard-position text content equality against an inline literal:
 /// `destination = (place == literal)` as bool 0/1, where `place` names the
 /// String side's `{ptr @ +0, len @ +8}` text descriptor (a relocated storage
-/// base, or a frame-indexed slice element field) and the literal's expected
-/// bytes are compared as inline immediates -- no rodata descriptor exists for
-/// the literal side. Width is `runtime_text_equals_literal_operand_width`
-/// (place-setup plus a fixed head plus 12 bytes per literal byte).
+/// base, a pointee field behind a frame pointer slot, or a frame-indexed /
+/// frame-base-indexed / frame-fixed-indexed element field) and the literal's
+/// expected bytes are compared as inline immediates -- no rodata descriptor
+/// exists for the literal side. Width is
+/// `runtime_text_equals_literal_operand_width` (place-setup plus a fixed
+/// head plus 12 bytes per literal byte).
 ///
 /// Register use: the place address setup lands the descriptor address in x16
-/// (clobbering x17/x19/x20/x21/x26 on the frame-indexed path, exactly like
-/// the frame-indexed load operand); ptr/len/byte scratch come from the pool,
+/// (clobbering x17/x19/x20/x21/x26 on the indexed paths, exactly like the
+/// corresponding load operands); ptr/len/byte scratch come from the pool,
 /// and `destination` is only written after the setup. The operand is built as
 /// the LEFT side of its compare, so nothing live sits in those registers yet.
 fn append_runtime_text_equals_literal_operand(
@@ -1911,6 +1913,18 @@ fn append_runtime_text_equals_literal_operand(
         bytes.extend(encode_adrp_placeholder(16));
         bytes.extend(encode_add_page_offset_placeholder(16));
         append_add_constant_to_x_register(bytes, 16, byte_offset)?;
+    } else if let Some((pointer_byte_offset, field_byte_offset, _)) =
+        runtime_value_operands.pointee(place)
+    {
+        // x16 = frame base (relocated page pair), then the stored pointer.
+        // The descriptor sits in the POINTEE at the field offset -- never
+        // read the pointer slot's own bytes as a descriptor.
+        bytes.extend(encode_adrp_placeholder(16));
+        bytes.extend(encode_add_page_offset_placeholder(16));
+        append_runtime_storage_load(bytes, 16, 16, pointer_byte_offset, 8, "runtime text pointee")?;
+        if field_byte_offset > 0 {
+            append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
+        }
     } else if let Some((descriptor_offset, index_offset, element_byte_size, field_byte_offset, _)) =
         runtime_value_operands.frame_indexed(place)
     {
@@ -1918,6 +1932,31 @@ fn append_runtime_text_equals_literal_operand(
             bytes,
             descriptor_offset,
             index_offset,
+            element_byte_size,
+            field_byte_offset,
+        )?;
+    } else if let Some((base_byte_offset, index_offset, element_byte_size, field_byte_offset, _)) =
+        runtime_value_operands.frame_base_indexed(place)
+    {
+        append_runtime_frame_base_index_target_address(
+            bytes,
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        )?;
+    } else if let Some((
+        descriptor_offset,
+        element_index,
+        element_byte_size,
+        field_byte_offset,
+        _,
+    )) = runtime_value_operands.frame_fixed_indexed(place)
+    {
+        append_runtime_frame_fixed_index_target_address(
+            bytes,
+            descriptor_offset,
+            element_index,
             element_byte_size,
             field_byte_offset,
         )?;

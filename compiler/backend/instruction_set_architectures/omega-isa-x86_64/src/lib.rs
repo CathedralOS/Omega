@@ -3558,7 +3558,8 @@ pub const RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET: usize = 10 + 7 + 7;
 
 /// Width of a guard-position text-vs-literal content compare operand (the
 /// `TextEqualsLiteral` arm of `append_runtime_value_operand`): the place's
-/// descriptor-address setup (13 bytes for a storage base, 34 for a
+/// descriptor-address setup (13 bytes for a storage base, 17 for a pointee or
+/// fixed-indexed deref, 30 for a frame-base-indexed element address, 34 for a
 /// frame-indexed element address, each starting with the relocated
 /// `mov r15, imm64`), then a fixed 30-byte head (two disp32 descriptor word
 /// loads, result zero, length compare + branch), one 13-byte disp32 byte
@@ -3573,14 +3574,26 @@ pub fn runtime_text_equals_literal_operand_width(
     let place_setup_width = if runtime_value_operands.storage(place).is_some() {
         // mov r15,imm64 (10) + mov rax,r15 (3)
         13
+    } else if runtime_value_operands.pointee(place).is_some() {
+        // mov r15,imm64 (10) + mov rax,[r15+ptr_off] (7)
+        17
     } else if runtime_value_operands.frame_indexed(place).is_some() {
         // mov r15,imm64 (10) + mov rax,[r15+desc] (7) + mov r11,[r15+idx] (7)
         // + imul r11,r11,elem (7) + add rax,r11 (3)
         34
+    } else if runtime_value_operands.frame_base_indexed(place).is_some() {
+        // mov r15,imm64 (10) + mov r11,[r15+idx] (7) + imul r11,r11,elem (7)
+        // + mov rax,r15 (3) + add rax,r11 (3)
+        30
+    } else if runtime_value_operands.frame_fixed_indexed(place).is_some() {
+        // Constant element index folds into the descriptor displacement:
+        // mov r15,imm64 (10) + mov rax,[r15+desc] (7)
+        17
     } else {
-        // Selection only builds this operand over storage/frame-indexed text
-        // places; the encoder rejects anything else with a hard diagnostic
-        // before this width could be compared against emitted bytes.
+        // Selection only builds this operand over storage/pointee/indexed
+        // text places; the encoder rejects anything else with a hard
+        // diagnostic before this width could be compared against emitted
+        // bytes.
         0
     };
     place_setup_width + 30 + 13 * literal.len() + 9
@@ -3874,9 +3887,11 @@ fn append_runtime_text_equals_operand(
 /// Guard-position text content equality against an inline literal:
 /// `destination = (place == literal)` as bool 0/1, where `place` names the
 /// String side's `{ptr @ +0, len @ +8}` text descriptor (a relocated storage
-/// base, or a frame-indexed slice element field) and the literal's expected
-/// bytes are compared as inline immediates -- no rodata descriptor exists for
-/// the literal side. Width is `runtime_text_equals_literal_operand_width`
+/// base, a pointee field behind a frame pointer slot, or a frame-indexed /
+/// frame-base-indexed / frame-fixed-indexed element field) and the literal's
+/// expected bytes are compared as inline immediates -- no rodata descriptor
+/// exists for the literal side. Width is
+/// `runtime_text_equals_literal_operand_width`
 /// (place-setup plus a fixed head plus 13 bytes per literal byte; every
 /// memory operand uses the disp32 form so the shape never varies with the
 /// offsets).
@@ -3901,6 +3916,15 @@ fn append_runtime_text_equals_literal_operand(
         append_mov_r15_imm64(bytes, 0);
         append_mov_rax_r15(bytes);
         descriptor_disp = byte_offset;
+    } else if let Some((pointer_byte_offset, field_byte_offset, _)) =
+        runtime_value_operands.pointee(place)
+    {
+        // r15 = frame base (relocated); rax = the stored pointer. The
+        // descriptor sits in the POINTEE at the field offset -- never read
+        // the pointer slot's own bytes as a descriptor.
+        append_mov_r15_imm64(bytes, 0);
+        append_load_rax_from_r15(bytes, pointer_byte_offset)?;
+        descriptor_disp = field_byte_offset;
     } else if let Some((descriptor_offset, index_offset, element_byte_size, field_byte_offset, _)) =
         runtime_value_operands.frame_indexed(place)
     {
@@ -3910,6 +3934,41 @@ fn append_runtime_text_equals_literal_operand(
         append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
         append_add_rax_r11(bytes);
         descriptor_disp = field_byte_offset;
+    } else if let Some((
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        _,
+    )) = runtime_value_operands.frame_base_indexed(place)
+    {
+        // Inline frame fixed array: the elements live in the frame itself at
+        // base_byte_offset; rax = frame base + index*element (same shape as
+        // the frame-base-indexed load operand above).
+        append_mov_r15_imm64(bytes, 0);
+        append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 8)?;
+        append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
+        append_mov_rax_r15(bytes);
+        append_add_rax_r11(bytes);
+        descriptor_disp = base_byte_offset + field_byte_offset;
+    } else if let Some((
+        descriptor_offset,
+        element_index,
+        element_byte_size,
+        field_byte_offset,
+        _,
+    )) = runtime_value_operands.frame_fixed_indexed(place)
+    {
+        // Constant element index: rax = the slice data pointer; the scaled
+        // index folds into the descriptor displacement.
+        append_mov_r15_imm64(bytes, 0);
+        append_load_rax_from_r15(bytes, descriptor_offset)?;
+        descriptor_disp = element_index
+            .checked_mul(element_byte_size)
+            .and_then(|scaled| scaled.checked_add(field_byte_offset))
+            .ok_or_else(|| {
+                Diagnostic::error("X86_64 fixed indexed text descriptor offset overflow")
+            })?;
     } else {
         return Err(Diagnostic::error(
             "X86_64 MVP encoder cannot compare this text place against a literal yet",

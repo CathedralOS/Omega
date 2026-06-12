@@ -1,0 +1,62 @@
+// A String field of a slice element at a CONSTANT index (the frame
+// FIXED-indexed place: descriptor deref + folded constant offset, no runtime
+// index load) compared against a literal in GUARD position must compare
+// CONTENT, in all three regimes:
+//   1. an EMPTY (default-zeroed) field never equals a non-empty literal,
+//   2. a field holding the literal's exact bytes equals it,
+//   3. a same-length field differing in its last byte does not equal it.
+// Before the TextEqualsLiteral selection covered fixed-indexed places, this
+// guard shape selected NO compare at all and the first transition arm was
+// taken unconditionally -- an empty field "equalled" any literal. (The
+// runtime-index sibling is runtime_slice_indexed_string_guard_exit.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    label: String;
+}
+
+data Main {
+    console: Console;
+    rooms: [Room; 3];
+}
+
+machine Main::main(&mut self) {
+    let match_index: usize = 1;
+    let differ_index: usize = 2;
+    let room_slice: &mut [Room] = self.rooms.as_mut_slice();
+    room_slice[match_index].label = "expected";
+    // Same length as the literal, differing only in the final byte, so the
+    // inequality must come from the byte loop rather than the length check.
+    room_slice[differ_index].label = "expectes";
+
+    transition room_slice[0].label == "expected" {
+        true -> fail()
+        false -> check_match()
+    }
+
+    state check_match(&mut self) {
+        let room_slice: &mut [Room] = self.rooms.as_mut_slice();
+        transition room_slice[1].label == "expected" {
+            true -> check_differ()
+            false -> fail()
+        }
+    }
+
+    state check_differ(&mut self) {
+        let room_slice: &mut [Room] = self.rooms.as_mut_slice();
+        transition room_slice[2].label == "expected" {
+            true -> fail()
+            false -> pass()
+        }
+    }
+
+    state pass(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state fail(&mut self) {
+        self.console.exit_process(71);
+    }
+}
