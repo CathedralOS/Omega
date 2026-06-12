@@ -3556,6 +3556,36 @@ pub fn runtime_text_equals_operand_width() -> usize {
 /// text-equals operand (the relocation planner adds the +2 imm offset itself).
 pub const RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET: usize = 10 + 7 + 7;
 
+/// Width of a guard-position text-vs-literal content compare operand (the
+/// `TextEqualsLiteral` arm of `append_runtime_value_operand`): the place's
+/// descriptor-address setup (13 bytes for a storage base, 34 for a
+/// frame-indexed element address, each starting with the relocated
+/// `mov r15, imm64`), then a fixed 30-byte head (two disp32 descriptor word
+/// loads, result zero, length compare + branch), one 13-byte disp32 byte
+/// compare + branch per literal byte, and the fixed 9-byte tail (equal-result
+/// mov + result move into the destination). MUST stay in lockstep with that
+/// encoder (it ends with a `debug_assert_eq!` against this function).
+pub fn runtime_text_equals_literal_operand_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    place: RuntimeValueOperandHandle,
+    literal: &str,
+) -> usize {
+    let place_setup_width = if runtime_value_operands.storage(place).is_some() {
+        // mov r15,imm64 (10) + mov rax,r15 (3)
+        13
+    } else if runtime_value_operands.frame_indexed(place).is_some() {
+        // mov r15,imm64 (10) + mov rax,[r15+desc] (7) + mov r11,[r15+idx] (7)
+        // + imul r11,r11,elem (7) + add rax,r11 (3)
+        34
+    } else {
+        // Selection only builds this operand over storage/frame-indexed text
+        // places; the encoder rejects anything else with a hard diagnostic
+        // before this width could be compared against emitted bytes.
+        0
+    };
+    place_setup_width + 30 + 13 * literal.len() + 9
+}
+
 pub fn runtime_value_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
@@ -3585,6 +3615,8 @@ pub fn runtime_value_operand_width(
         24
     } else if runtime_value_operands.text_equals(operand).is_some() {
         runtime_text_equals_operand_width()
+    } else if let Some((place, literal)) = runtime_value_operands.text_equals_literal(operand) {
+        runtime_text_equals_literal_operand_width(runtime_value_operands, place, &literal)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
             // Float operands: the SSE op (movq xmm<-r, op, movq r<-xmm) is a fixed
@@ -3694,6 +3726,15 @@ fn append_runtime_value_operand(
         runtime_value_operands.text_equals(operand)
     {
         append_runtime_text_equals_operand(bytes, destination, left_offset, right_offset)?;
+        Ok(())
+    } else if let Some((place, literal)) = runtime_value_operands.text_equals_literal(operand) {
+        append_runtime_text_equals_literal_operand(
+            runtime_value_operands,
+            bytes,
+            destination,
+            place,
+            &literal,
+        )?;
         Ok(())
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         // Every comparison/operation accumulates its result in r10, so evaluating
@@ -3830,6 +3871,92 @@ fn append_runtime_text_equals_operand(
     Ok(())
 }
 
+/// Guard-position text content equality against an inline literal:
+/// `destination = (place == literal)` as bool 0/1, where `place` names the
+/// String side's `{ptr @ +0, len @ +8}` text descriptor (a relocated storage
+/// base, or a frame-indexed slice element field) and the literal's expected
+/// bytes are compared as inline immediates -- no rodata descriptor exists for
+/// the literal side. Width is `runtime_text_equals_literal_operand_width`
+/// (place-setup plus a fixed head plus 13 bytes per literal byte; every
+/// memory operand uses the disp32 form so the shape never varies with the
+/// offsets).
+///
+/// Register use: r15 = relocated base, rax = descriptor address base,
+/// r11 = index scratch (frame-indexed setup), rcx/rdx = ptr/len, r9 = the
+/// bool result (moved into `destination` last). r12/r13/r14 stay untouched.
+fn append_runtime_text_equals_literal_operand(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    bytes: &mut Vec<u8>,
+    destination: Reg64,
+    place: RuntimeValueOperandHandle,
+    literal: &str,
+) -> Result<(), Diagnostic> {
+    let operand_start = bytes.len();
+
+    // Descriptor address base -> rax (+ `descriptor_disp` displacement). The
+    // relocated `mov r15, imm64` sits at the operand start (the relocation
+    // planner targets it there).
+    let descriptor_disp;
+    if let Some((_, byte_offset, _)) = runtime_value_operands.storage(place) {
+        append_mov_r15_imm64(bytes, 0);
+        append_mov_rax_r15(bytes);
+        descriptor_disp = byte_offset;
+    } else if let Some((descriptor_offset, index_offset, element_byte_size, field_byte_offset, _)) =
+        runtime_value_operands.frame_indexed(place)
+    {
+        append_mov_r15_imm64(bytes, 0);
+        append_load_rax_from_r15(bytes, descriptor_offset)?;
+        append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 8)?;
+        append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
+        append_add_rax_r11(bytes);
+        descriptor_disp = field_byte_offset;
+    } else {
+        return Err(Diagnostic::error(
+            "X86_64 MVP encoder cannot compare this text place against a literal yet",
+        ));
+    }
+
+    bytes.extend([0x48, 0x8b, 0x88]); // mov rcx, [rax+disp32] (ptr)
+    bytes.extend(disp32(descriptor_disp)?.to_le_bytes());
+    bytes.extend([0x48, 0x8b, 0x90]); // mov rdx, [rax+disp32] (len)
+    bytes.extend(disp32(descriptor_disp + 8)?.to_le_bytes());
+
+    // result = 0; a length mismatch is unequal text. The jne also means an
+    // all-zero (default) descriptor never has its null pointer dereferenced
+    // when the literal is non-empty.
+    let literal_bytes = literal.as_bytes();
+    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d
+    bytes.extend([0x48, 0x81, 0xfa]); // cmp rdx, imm32 (literal length)
+    bytes.extend(disp32(literal_bytes.len())?.to_le_bytes());
+    // Forward distances to `done` (the result move at the end): each byte
+    // compare block is 13 bytes, plus the 6-byte equal-result mov.
+    bytes.extend([0x0f, 0x85]); // jne rel32 -> done
+    bytes.extend(disp32(13 * literal_bytes.len() + 6)?.to_le_bytes());
+    for (byte_index, expected_byte) in literal_bytes.iter().enumerate() {
+        bytes.extend([0x80, 0xb9]); // cmp byte [rcx+disp32], imm8
+        bytes.extend(disp32(byte_index)?.to_le_bytes());
+        bytes.push(*expected_byte);
+        let remaining_blocks = literal_bytes.len() - 1 - byte_index;
+        bytes.extend([0x0f, 0x85]); // jne rel32 -> done
+        bytes.extend(disp32(13 * remaining_blocks + 6)?.to_le_bytes());
+    }
+    bytes.extend([0x41, 0xb9]); // mov r9d, imm32 (equal: result = 1)
+    bytes.extend(1i32.to_le_bytes());
+
+    // done: move the bool into the requested destination register.
+    match destination {
+        Reg64::R10 => bytes.extend([0x4d, 0x89, 0xca]), // mov r10, r9
+        Reg64::R11 => bytes.extend([0x4d, 0x89, 0xcb]), // mov r11, r9
+    }
+
+    debug_assert_eq!(
+        bytes.len() - operand_start,
+        runtime_text_equals_literal_operand_width(runtime_value_operands, place, literal),
+        "text-equals-literal operand encoder length must match its width"
+    );
+    Ok(())
+}
+
 /// Value width of a runtime operand, looking through nested binary operands.
 /// `None` for immediates (which carry no width). Used to size comparisons, whose
 /// result type (bool) does not reflect the compared operands' width.
@@ -3859,7 +3986,7 @@ fn runtime_value_operand_value_byte_size(
     if let Some((_, _, target_byte_size, _, _, _)) = operands.convert(operand) {
         return Some(target_byte_size);
     }
-    if operands.text_equals(operand).is_some() {
+    if operands.text_equals(operand).is_some() || operands.text_equals_literal(operand).is_some() {
         // Text content equality evaluates to a bool.
         return Some(1);
     }

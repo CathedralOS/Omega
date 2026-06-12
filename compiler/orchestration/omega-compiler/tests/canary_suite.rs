@@ -6504,6 +6504,80 @@ fn runtime_slice_alias_indexed_string_field_concat_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_slice_indexed_string_guard_exit_canary_runs() {
+    // A slice-indexed String field compared against a literal in guard
+    // position: an EMPTY (default-zeroed) field takes the false arm, the
+    // matching field takes the true arm, and a same-length differing field
+    // takes the false arm. Exit 70 only when all three behave (the lying-guard
+    // regression took the true arm unconditionally, exiting 71).
+    let canary = pass_canary("text/runtime_slice_indexed_string_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-slice-indexed-string-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice indexed string guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice indexed string guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected slice-indexed String guard compares to be content compares (empty != literal, match == literal, same-length differ != literal) and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_string_field_literal_guard_exit_canary_runs() {
+    // The storage-place sibling of the slice-indexed shape: a machine-owned
+    // String field guard-compared against a literal (empty field takes the
+    // false arm; written field takes the true arm).
+    let canary = pass_canary("text/runtime_string_field_literal_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-string-field-literal-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime string field literal guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime string field literal guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected machine String field guard compares against literals to be content compares and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_mutable_string_parameter_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_mutable_string_parameter_concat_exit");
     let main_path = canary.join("main.omg");
@@ -7747,6 +7821,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_string_field_concat_exit",
     "text/runtime_machine_owned_indexed_string_field_concat_exit",
     "text/runtime_slice_alias_indexed_string_field_concat_exit",
+    "text/runtime_slice_indexed_string_guard_exit",
+    "text/runtime_string_field_literal_guard_exit",
     "text/runtime_mutable_string_parameter_concat_exit",
     "text/runtime_mutable_string_parameter_concat_write_line",
     "text/runtime_mutable_string_parameter_wrapped_concat_write_line",
