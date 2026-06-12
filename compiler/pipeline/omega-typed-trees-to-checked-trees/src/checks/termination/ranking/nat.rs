@@ -1,4 +1,4 @@
-use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 mod arguments;
 mod guards;
@@ -10,13 +10,13 @@ use self::arguments::{
 use self::guards::{
     guard_is_index_below_limit, guard_is_positive_parameter, guard_is_positive_parameter_member,
 };
-use super::DistanceOrientation;
 use super::patterns;
+use super::{DecreaseMeasure, DistanceOrientation};
 
 pub(super) fn state_has_proven_self_loop(
     program: &omega_typed_trees::TypedTrees,
     state: &omega_typed_trees::state::State,
-    decreases: ExpressionHandle,
+    measure: DecreaseMeasure,
     orientation: DistanceOrientation,
 ) -> bool {
     program
@@ -31,7 +31,7 @@ pub(super) fn state_has_proven_self_loop(
                 state,
                 self_loop.guard,
                 self_loop.arguments,
-                decreases,
+                measure,
                 orientation,
             )
         })
@@ -48,27 +48,32 @@ pub(super) fn edge_decrease_proven(
     target: &omega_typed_trees::state::State,
     guard: ExpressionHandle,
     arguments: &[ExpressionHandle],
-    decreases: ExpressionHandle,
+    measure: DecreaseMeasure,
     orientation: DistanceOrientation,
 ) -> bool {
-    match program.expression_table.expression(decreases) {
-        ExpressionNode::Name(_) => {
-            countdown_edge(program, source, target, guard, arguments, decreases)
+    match measure {
+        DecreaseMeasure::Single(decreases) => {
+            match program.expression_table.expression(decreases) {
+                ExpressionNode::Name(_) => {
+                    countdown_edge(program, source, target, guard, arguments, decreases)
+                }
+                ExpressionNode::Member(_) => {
+                    member_countdown_edge(program, source, target, guard, arguments, decreases)
+                }
+                _ => false,
+            }
         }
-        ExpressionNode::Member(_) => {
-            member_countdown_edge(program, source, target, guard, arguments, decreases)
-        }
-        ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Subtract) => {
-            // The bounded distance reads `upper - lower`. The swapped
-            // orientation is the inverted-clause probe: it asks whether the
-            // operands written the other way around would have proven.
-            let (upper, lower) = match orientation {
-                DistanceOrientation::Declared => (binary.left, binary.right),
-                DistanceOrientation::Swapped => (binary.right, binary.left),
+        DecreaseMeasure::Distance { lower, upper } => {
+            // The bounded distance reads its `(lower, upper)` subjects in
+            // declaration order. The swapped orientation is the
+            // inverted-clause probe: it asks whether the subjects written the
+            // other way around would have proven.
+            let (lower, upper) = match orientation {
+                DistanceOrientation::Declared => (lower, upper),
+                DistanceOrientation::Swapped => (upper, lower),
             };
             distance_edge(program, source, target, guard, arguments, upper, lower)
         }
-        _ => false,
     }
 }
 

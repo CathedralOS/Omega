@@ -199,6 +199,48 @@ fn parses_machine_termination_clauses() {
 }
 
 #[test]
+fn parses_machine_termination_tuple_subjects() {
+    // The argumented ranking-view spelling: the arrow's left side is the
+    // ranked-subject tuple, bound in order to the named view's parameters.
+    let source = r#"
+        machine walk(limit: usize, index: usize)
+        terminates {
+            decreases (index, limit) -> Nat::BoundedDistance;
+        }
+        {
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            omega_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine root item");
+
+    assert!(machine.terminates);
+    assert_eq!(
+        parsed
+            .expressions
+            .expression_handles(machine.decreases)
+            .len(),
+        2
+    );
+    assert_eq!(
+        parsed
+            .items
+            .identifier_path_members(machine.decrease_order)
+            .len(),
+        2
+    );
+}
+
+#[test]
 fn rejects_bare_arrow_transition_in_explicit_state_body() {
     let source = r#"
         machine Main::main(&mut self) {

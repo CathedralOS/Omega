@@ -1,6 +1,7 @@
-// The bounded distance written backwards: `index - limit` cannot decrease as
-// the index climbs (it is the distance's negation). The checker recognizes the
-// inversion -- the swapped operands prove as the named bounded distance -- and
+// The bounded distance written backwards: `(limit, index)` binds the climbing
+// index as the UPPER subject, so the ranked distance is the true distance's
+// negation and cannot decrease as the index climbs. The checker recognizes the
+// inversion -- the swapped subjects prove as the named bounded distance -- and
 // the diagnostic names the right shape instead of a bare "cannot prove".
 
 data Main {}
@@ -13,7 +14,7 @@ machine Main::main(&mut self) -> usize {
 
 machine Main::walk(&mut self, limit: usize, index: usize)
 terminates {
-    decreases index - limit;
+    decreases (limit, index);
 }
 -> usize
 {

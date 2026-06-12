@@ -1,3 +1,8 @@
+// A plain two-subject tuple `decreases (index, limit)` infers the named
+// bounded distance: Nat::BoundedDistance is the only builtin two-subject
+// ranking, so the view may be omitted. The subjects bind in order to the
+// view's (lower, upper) parameters.
+
 data Main {}
 
 machine Main::main(&mut self) -> usize {
@@ -8,7 +13,7 @@ machine Main::main(&mut self) -> usize {
 
 machine Main::walk(&mut self, limit: usize, index: usize)
 terminates {
-    decreases limit - index;
+    decreases (index, limit);
 }
 -> usize
 {
