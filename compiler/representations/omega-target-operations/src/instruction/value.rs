@@ -50,6 +50,13 @@ pub trait RuntimeValueOperandSource {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<(RuntimeValueOperandHandle, usize, usize, bool, bool, bool)>;
+    /// A `TextEquals` (value-position text content compare) operand:
+    /// `(left_region, left_offset, right_region, right_offset)` of the two
+    /// `{ptr, len}` text descriptor places. Evaluates to bool 0/1.
+    fn text_equals(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeStorageRegion, usize, RuntimeStorageRegion, usize)>;
 }
 
 impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
@@ -175,6 +182,21 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
             self.get(handle),
             RuntimeValueOperand::Binary { is_float: true, .. }
         )
+    }
+
+    fn text_equals(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeStorageRegion, usize, RuntimeStorageRegion, usize)> {
+        match self.get(handle) {
+            RuntimeValueOperand::TextEquals {
+                left_region,
+                left_offset,
+                right_region,
+                right_offset,
+            } => Some((*left_region, *left_offset, *right_region, *right_offset)),
+            _ => None,
+        }
     }
 
     fn convert(

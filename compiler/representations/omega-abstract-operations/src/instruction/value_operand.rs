@@ -56,6 +56,21 @@ pub enum ValueOperand {
         /// SSE unit (addsd/subsd/...), not an integer add over the IEEE bits.
         is_float: bool,
     },
+    /// Runtime text CONTENT equality in VALUE position (Equatable synthesis
+    /// over `String` fields, chapter 13): both sides are `{ptr @ +0, len @ +8}`
+    /// text descriptor places; the operand evaluates to bool 1 when the
+    /// lengths match AND every byte matches, else 0. A LEAF of the operand
+    /// tree (its inputs are places, not nested operands), so the AND/OR
+    /// boolean tree the structural-equality expansion builds consumes it like
+    /// any other compare. Lowered as a length compare plus a bounded byte
+    /// loop in both ISAs (the value-position sibling of the guard-position
+    /// `CompareRuntimeTextStorage` and the wire encoder's text byte copy).
+    TextEquals {
+        left_region: RuntimeStorageRegion,
+        left_offset: usize,
+        right_region: RuntimeStorageRegion,
+        right_offset: usize,
+    },
     /// A numeric `as` cast applied to another operand (`(self.b as f64)` used as a
     /// binary/comparison operand): load `source`, then convert it in place
     /// (cvttsd2si / cvtsi2sd / cvtsd2ss / movsxd) to the target scalar. The result

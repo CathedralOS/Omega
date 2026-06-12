@@ -865,6 +865,22 @@ fn runtime_text_descriptor_store_pair_width(byte_offset: usize) -> usize {
     store_data_offset_width(byte_offset, 8) + store_data_offset_width(byte_offset + 8, 8)
 }
 
+/// Fixed width of a value-position text-equals operand (the `TextEquals` arm
+/// of `append_runtime_value_operand`): two relocated descriptor-page
+/// materializations (adrp+add, 8 bytes each), four fixed-width 24-byte
+/// descriptor word loads (padded immediate offset + add + ldr, so the width is
+/// offset-independent), and eleven 4-byte compare/loop instructions. MUST stay
+/// in lockstep with that encoder (it ends with a `debug_assert_eq!` against
+/// this function) and with `RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET` below.
+pub fn runtime_text_equals_operand_width() -> usize {
+    8 + 24 + 24 + 8 + 24 + 24 + 11 * 4
+}
+
+/// Byte offset of the RIGHT descriptor's adrp inside a text-equals operand
+/// (left page + two fixed-width left descriptor loads precede it). The
+/// relocation planner targets the right region's symbol here.
+pub const RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET: usize = 8 + 24 + 24;
+
 pub fn runtime_value_operand_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     operand: RuntimeValueOperandHandle,
@@ -914,6 +930,8 @@ pub fn runtime_value_operand_width(
             element_byte_size,
             field_byte_offset,
         ) + runtime_load_data_width(byte_size)
+    } else if runtime_value_operands.text_equals(operand).is_some() {
+        runtime_text_equals_operand_width()
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
             runtime_float_binary_operation_width()

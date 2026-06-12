@@ -6,7 +6,9 @@ use omega_target_operations::{
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
     append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder, encode_add_x_register,
-    encode_adrp_placeholder, encode_and_x_register, encode_float_add, encode_float_compare,
+    encode_adrp_placeholder, encode_and_x_register, encode_cbz_x, encode_float_add,
+    encode_float_compare, encode_load_byte_w_post_increment, encode_subs_x_immediate,
+    encode_unconditional_branch,
     encode_float_convert_double_to_single, encode_float_convert_single_to_double,
     encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
     encode_float_multiply, encode_float_to_signed_int, encode_signed_int_to_float,
@@ -1691,6 +1693,17 @@ fn append_runtime_value_operand(
             }
         }
         Ok(())
+    } else if let Some((_, left_offset, _, right_offset)) =
+        runtime_value_operands.text_equals(operand)
+    {
+        append_runtime_text_equals_operand(
+            bytes,
+            destination_register,
+            scratch_registers,
+            left_offset,
+            right_offset,
+        )?;
+        Ok(())
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let Some((&rhs_register, remaining_scratch)) = scratch_registers.split_first() else {
             return Err(Diagnostic::error(
@@ -1773,6 +1786,84 @@ fn append_runtime_value_operand(
             "AArch64 runtime value operand is not implemented yet",
         ))
     }
+}
+
+/// Value-position text content equality: `destination = (left == right)` as
+/// bool 0/1, where both sides are `{ptr @ +0, len @ +8}` text descriptors at
+/// relocated region bases. FIXED-WIDTH (`runtime_text_equals_operand_width`):
+/// the descriptor words load through `append_fixed_width_load_x_from_x_offset`
+/// so the encoding never varies with the field offsets, keeping the relocation
+/// offsets (left page at the operand start, right page at
+/// `RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET`) pinned.
+///
+/// Register use: x19 = descriptor page base, then the second byte scratch in
+/// the loop; five pool registers carry left ptr/len, right ptr/len, and the
+/// first byte scratch (doubling as the fixed-load offset scratch). x16/x20
+/// are NOT touched: binary-write shapes hold their target address there
+/// across operand evaluation.
+fn append_runtime_text_equals_operand(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    scratch_registers: &[u8],
+    left_offset: usize,
+    right_offset: usize,
+) -> Result<(), Diagnostic> {
+    let [left_ptr, left_len, right_ptr, right_len, byte_scratch, ..] = *scratch_registers else {
+        return Err(Diagnostic::error(
+            "AArch64 MVP encoder ran out of scratch registers for runtime text equality",
+        ));
+    };
+    let operand_start = bytes.len();
+
+    // Left descriptor: page (relocated at the operand start), then ptr and len.
+    bytes.extend(encode_adrp_placeholder(19));
+    bytes.extend(encode_add_page_offset_placeholder(19));
+    append_fixed_width_load_x_from_x_offset(bytes, left_ptr, 19, left_offset, byte_scratch);
+    append_fixed_width_load_x_from_x_offset(bytes, left_len, 19, left_offset + 8, byte_scratch);
+
+    // Right descriptor: page relocated at the pinned right-base offset.
+    debug_assert_eq!(
+        bytes.len() - operand_start,
+        super::widths::RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET,
+        "right descriptor page must sit at the pinned relocation offset"
+    );
+    bytes.extend(encode_adrp_placeholder(19));
+    bytes.extend(encode_add_page_offset_placeholder(19));
+    append_fixed_width_load_x_from_x_offset(bytes, right_ptr, 19, right_offset, byte_scratch);
+    append_fixed_width_load_x_from_x_offset(bytes, right_len, 19, right_offset + 8, byte_scratch);
+
+    // result = 0; unequal lengths are unequal text. The b.ne also means a
+    // zero-length pair never enters the loop, so an all-zero (default)
+    // descriptor's null pointer is never dereferenced.
+    bytes.extend(encode_movz_w(destination_register, 0));
+    bytes.extend(encode_compare_x_register(left_len, right_len));
+    bytes.extend(encode_conditional_branch_not_equal(36)?);
+    // Bounded byte loop (the value-position sibling of the wire encoder's
+    // text byte copy); left_len counts down the remaining bytes:
+    //   loop: cbz  left_len, equal    (+28)
+    //         ldrb byte_scratch, [left_ptr], #1
+    //         ldrb w19, [right_ptr], #1
+    //         cmp  byte_scratch, w19
+    //         b.ne done               (+16)
+    //         subs left_len, left_len, #1
+    //         b    loop               (-24)
+    //  equal: movz destination, #1
+    //  done:
+    bytes.extend(encode_cbz_x(left_len, 28)?);
+    bytes.extend(encode_load_byte_w_post_increment(byte_scratch, left_ptr, 1)?);
+    bytes.extend(encode_load_byte_w_post_increment(19, right_ptr, 1)?);
+    bytes.extend(encode_compare_w_register(byte_scratch, 19));
+    bytes.extend(encode_conditional_branch_not_equal(16)?);
+    bytes.extend(encode_subs_x_immediate(left_len, left_len, 1)?);
+    bytes.extend(encode_unconditional_branch(-24)?);
+    bytes.extend(encode_movz_w(destination_register, 1));
+
+    debug_assert_eq!(
+        bytes.len() - operand_start,
+        super::widths::runtime_text_equals_operand_width(),
+        "text-equals operand encoder length must match its width"
+    );
+    Ok(())
 }
 
 fn append_runtime_storage_load(
@@ -2076,6 +2167,10 @@ fn runtime_value_operand_value_byte_size(
     }
     if let Some((_, _, target_byte_size, _, _, _)) = operands.convert(operand) {
         return Some(target_byte_size);
+    }
+    if operands.text_equals(operand).is_some() {
+        // Text content equality evaluates to a bool.
+        return Some(1);
     }
     None
 }

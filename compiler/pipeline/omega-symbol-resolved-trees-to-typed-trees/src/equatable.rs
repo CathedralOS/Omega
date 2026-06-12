@@ -16,10 +16,11 @@
 //!
 //! The conformance PREREQUISITES are validated up front (before machine
 //! lowering) so violations error at the conformance item, not at some later
-//! `==` site: every field must be a scalar primitive, a payload-less sum, or
-//! itself an Equatable-conforming data type; `String` fields are rejected
-//! (text content equality has no native value-position comparison path yet);
-//! recursive types are rejected (inline expansion would not terminate).
+//! `==` site: every field must be a scalar primitive, a `String` (text
+//! content equality -- length AND bytes -- through the backend's dedicated
+//! value-position text-equals operand), a payload-less sum, or itself an
+//! Equatable-conforming data type; recursive types are rejected (inline
+//! expansion would not terminate).
 
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
@@ -112,6 +113,10 @@ pub(crate) fn written_equals_state_symbol(
 pub(crate) enum FieldEquality<'program> {
     /// Scalar primitives and payload-less sums compare directly with `==`.
     Direct,
+    /// A `String` field: the same `==` member-compare shape, but the operands
+    /// must be stored PLACES -- the backend lowers it to the value-position
+    /// text content compare (length AND bytes), not a scalar word compare.
+    Text,
     /// A nested Equatable-conforming record / payload-bearing sum: recurse.
     Structural(&'program DataDefinition),
 }
@@ -131,10 +136,7 @@ pub(crate) fn field_equality<'program>(
 
     if let Some(primitive) = PrimitiveType::from_name(&base_name) {
         if primitive == PrimitiveType::String {
-            return Err(Diagnostic::error(format!(
-                "conformance `{conforming_type} satisfies Equatable`: field `{}` of `{owner}` has type `String`: text content equality is not synthesized yet (no native value-position string comparison), so `String`-bearing types cannot satisfy Equatable",
-                field.name
-            )));
+            return Ok(FieldEquality::Text);
         }
         return Ok(FieldEquality::Direct);
     }

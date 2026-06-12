@@ -163,14 +163,16 @@ fn validate_runtime_value_home(
                 ));
             }
         }
-        RuntimeValueOperand::Binary { .. } | RuntimeValueOperand::Convert { .. } => {
+        RuntimeValueOperand::Binary { .. }
+        | RuntimeValueOperand::Convert { .. }
+        | RuntimeValueOperand::TextEquals { .. } => {
             if !matches!(
                 home,
                 omega_assigned_target_operations::AssignedValueHomeKind::ScratchRegister { .. }
                     | omega_assigned_target_operations::AssignedValueHomeKind::StackSlot { .. }
             ) {
                 return Err(Diagnostic::error(
-                    "binary/convert runtime value must lower through a scratch-register or stack-slot home",
+                    "binary/convert/text-equals runtime value must lower through a scratch-register or stack-slot home",
                 ));
             }
         }

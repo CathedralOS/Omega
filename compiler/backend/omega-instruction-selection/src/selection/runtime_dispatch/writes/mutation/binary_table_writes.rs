@@ -91,6 +91,36 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             _ => return None,
         };
 
+    // A TOP-LEVEL String `==` (`let equal: bool = a.label == b.label`, or a
+    // single-String-field Equatable expansion): the whole value IS the
+    // text-equals leaf. The binary write needs two operands, so the leaf is
+    // passed through unchanged as `text_equals | 0`.
+    if let Some(comparison_operator) = comparison_operator
+        && let Some(text_equals) = super::value_operands::resolve_runtime_text_equals_operand_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            comparison_operator,
+            left_expression,
+            right_expression,
+            runtime_value_operands,
+        )
+    {
+        invalidate_runtime_static_value_in_table(static_values, expressions, target);
+        let zero = runtime_value_operands.insert(RuntimeValueOperand::Immediate(0));
+        let target_place = target_place?;
+        return Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
+            target_region: target_place.region,
+            target_offset: target_place.byte_offset,
+            byte_size: target_place.byte_count,
+            left: text_equals,
+            operator: StateGuardOperator::Or,
+            right: zero,
+            is_float: false,
+        });
+    }
+
     // Division, modulo, right shift, min/max, and comparisons differ by
     // signedness; pick the unsigned encoding when the operands are unsigned.
     // Comparisons read their signedness from an operand (the target is bool);

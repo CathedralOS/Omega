@@ -42,6 +42,23 @@ pub(super) fn collect_runtime_value_operand_relocations(
                 );
             collect_runtime_value_operand_relocations(context, right_offset, *right);
         }
+        RuntimeValueOperand::TextEquals {
+            left_region,
+            right_region,
+            ..
+        } => {
+            // Two descriptor-base relocations: the left base sits at the
+            // operand start, the right base at the architecture's pinned
+            // right-base offset (the encoders keep the prefix fixed-width).
+            let left_symbol = context.storage_region_symbol_handle(*left_region);
+            context.insert_data_address(operand_text_offset, left_symbol);
+            let right_symbol = context.storage_region_symbol_handle(*right_region);
+            let right_offset = operand_text_offset
+                + omega_instruction_selection::runtime_text_equals_right_base_offset(
+                    context.input.target.architecture,
+                );
+            context.insert_data_address(right_offset, right_symbol);
+        }
         RuntimeValueOperand::Convert { source, .. } => {
             // The source is loaded first (at the operand's own text offset); the
             // in-place convert that follows carries no relocation of its own.

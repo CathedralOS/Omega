@@ -612,6 +612,16 @@ pub fn runtime_value_compare_width(
     }
 }
 
+/// Byte offset of the RIGHT descriptor base materialization inside a
+/// `TextEquals` value operand (the left base sits at the operand start). The
+/// relocation planner pins both region symbols through these offsets.
+pub fn runtime_text_equals_right_base_offset(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET,
+        Architecture::X86_64 => x86_64::RUNTIME_TEXT_EQUALS_RIGHT_BASE_OFFSET,
+    }
+}
+
 pub fn runtime_value_operand_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,

@@ -1,1 +1,0 @@
-field `label` of `Tag` has type `String`: text content equality is not synthesized yet

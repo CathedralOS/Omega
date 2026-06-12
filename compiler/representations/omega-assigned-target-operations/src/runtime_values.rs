@@ -134,6 +134,21 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
         })
     }
 
+    fn text_equals(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(RuntimeStorageRegion, usize, RuntimeStorageRegion, usize)> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::TextEquals {
+                left_region,
+                left_offset,
+                right_region,
+                right_offset,
+            } => Some((*left_region, *left_offset, *right_region, *right_offset)),
+            _ => None,
+        }
+    }
+
     fn convert(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,

@@ -1823,6 +1823,43 @@ fn equatable_mixed_shape_equality_exit_canary_runs() {
 }
 
 #[test]
+fn equatable_string_field_equality_exit_canary_runs() {
+    // Equatable synthesis over a String field: `==` compares text CONTENT
+    // (length AND bytes) through the value-position text-equals operand --
+    // equal contents match; same-length-different-bytes, different-length,
+    // and equal-text-different-scalar-sibling all miss.
+    let canary = pass_canary("traits/equatable_string_field_equality_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-equatable-string-field-equality-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("equatable string field equality canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("equatable string field equality canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected synthesized structural `==` on `Tag` to compare String content (length AND bytes) plus the scalar sibling (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_data_properties_exit_canary_runs() {
     let canary = pass_canary("data/runtime_data_properties_exit");
     let main_path = canary.join("main.omg");
@@ -7694,6 +7731,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/trait_satisfies_machine_signature",
     "traits/equatable_record_equality_exit",
     "traits/equatable_mixed_shape_equality_exit",
+    "traits/equatable_string_field_equality_exit",
     "traits/equatable_sum_payload_equality_exit",
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
@@ -7956,7 +7994,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/equatable_missing_conformance_suggested",
     "traits/equatable_field_not_equatable",
     "traits/equatable_recursive_type",
-    "traits/equatable_string_field_unsupported",
+    "traits/equatable_string_field_literal_compare",
     "traits/trait_composition_missing_requirement",
     "traits/trait_requirement_cycle",
     "traits/trait_requires_unknown",
