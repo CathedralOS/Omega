@@ -1,0 +1,19 @@
+// Frozen decision 13 residue: machine-call monomorphization arguments are
+// bound-checked. `copy_it<T [copy]>` demands a `[copy]` argument type at
+// every call-site instantiation; `Heavy` owns a String, declares no
+// properties, and is rejected.
+
+data Heavy {
+    note: String;
+}
+
+data Main {
+    h: Heavy;
+}
+
+machine Main::copy_it<T [copy]>(&self, x: &T) {
+}
+
+machine Main::main(&mut self) {
+    self.copy_it(&self.h);
+}

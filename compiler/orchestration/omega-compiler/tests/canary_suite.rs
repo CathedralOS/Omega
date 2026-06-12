@@ -8602,6 +8602,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "data/match_default_satisfies_exhaustiveness",
     "data/match_exhaustive_by_case_union_domain",
     "data/match_exhaustive_by_cases",
+    "data/payload_less_case_equality",
     "data/runtime_array_literal_string_field_exit",
     "data/runtime_case_payload_guard_read_exit",
     "data/runtime_case_reassignment_exit",
@@ -8950,6 +8951,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/generic_machine_where_trait_bound",
     "generics/generic_trait_type_param",
     "generics/generic_type_param_in_state",
+    "generics/machine_bound_satisfied_at_call",
     "generics/property_bound_type_parameter",
     "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
@@ -9035,6 +9037,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_unknown",
     "data/property_zero_init_nonzero_default",
     "generics/colon_bound_rejected",
+    "generics/machine_bound_violated_at_call",
     "generics/property_bound_missing_on_field",
     "generics/property_bound_violated_at_instantiation",
     "domains/call_requires_invalidated_by_mutation",
@@ -9234,5 +9237,14 @@ struct PendingCanary {
 // payload codegen landed (tag-prefix write + payload field writes + tag-only
 // guard compares + payload member reads); the compiler-side lowering gate was
 // removed with it.
+// machine_bound_value_call_unchecked: decision 13 residue frontier. The
+// machine-call type-parameter bound check lives in `validate_call_node`
+// (omega-validation/src/calls.rs), which only sees STATEMENT-position calls;
+// a VALUE-position call (`let r = self.pick(&self.h)`) bypasses argument
+// validation entirely, so its `[copy]` bound is not enforced yet. Promote to
+// fail/generics/ when value-position calls gain argument validation.
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[PendingCanary {
+    path: "generics/machine_bound_value_call_unchecked",
+    expectation: PendingCanaryExpectation::CurrentlyAccepts,
+}];

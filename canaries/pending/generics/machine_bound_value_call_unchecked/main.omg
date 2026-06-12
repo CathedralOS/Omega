@@ -1,0 +1,25 @@
+// FRONTIER (decision 13 residue): the machine-call bound check runs in
+// `validate_call_node`, which only sees STATEMENT-position calls. A VALUE-
+// position call (`let r = self.pick(...)`) never reaches it, so the `[copy]`
+// bound on `pick<T [copy]>` is NOT enforced here yet -- `Heavy` (non-copy)
+// currently slips through. When value-position calls gain argument
+// validation, this should reject like fail/generics/
+// machine_bound_violated_at_call and be promoted.
+
+data Heavy {
+    note: String;
+}
+
+data Main {
+    h: Heavy;
+    n: i32;
+}
+
+machine Main::pick<T [copy]>(&self, x: &T) -> i32 {
+    7
+}
+
+machine Main::main(&mut self) {
+    let r: i32 = self.pick(&self.h);
+    self.n = r;
+}

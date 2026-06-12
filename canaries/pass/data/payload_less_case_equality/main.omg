@@ -1,0 +1,18 @@
+// Frozen decision 11: a payload-LESS case name stays a legal `==` value even
+// when a SIBLING case carries a payload -- tag identity is total equality for
+// the payload-free case itself. Only the payload-BEARING bare name is the
+// category error (fail/data/bare_payload_case_equality_suggests_in).
+
+data Command {
+    case None;
+    case Move(dx: i32);
+}
+
+data Main {
+    cmd: Command;
+    hit: bool = false;
+}
+
+machine Main::main(&mut self) {
+    self.hit = self.cmd == Command::None;
+}

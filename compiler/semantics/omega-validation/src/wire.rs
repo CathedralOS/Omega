@@ -1,3 +1,4 @@
+use crate::places::{declared_place_type, unwrapped_type_reference};
 use crate::symbols::TopLevelSymbols;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
@@ -1190,107 +1191,6 @@ fn validate_repeated_value_field(
                 )));
             }
         }
-    }
-}
-
-/// The DECLARED type of a simple place argument: a bare local/parameter name
-/// (`msg`) or an attached-data field (`self.buffer`), through the `&mut`
-/// marker. `None` for shapes this scope cannot type (those re-resolve during
-/// instruction selection).
-fn declared_place_type(
-    program: &TypedTrees,
-    current_machine: &omega_typed_trees::machine::Machine,
-    current_state: Option<&omega_typed_trees::state::State>,
-    argument: omega_typed_trees::expression::ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    use omega_typed_trees::expression::ExpressionNode;
-
-    let mut handle = argument;
-    if let ExpressionNode::Mutable(inner) = program.expression_table.expression(handle) {
-        handle = *inner;
-    }
-
-    let members: Vec<String> = match program.expression_table.expression(handle) {
-        ExpressionNode::Name(path) => program
-            .expression_table
-            .name_path_members(path.members)
-            .iter()
-            .map(|member| member.as_str().to_owned())
-            .collect(),
-        ExpressionNode::Member(member) => {
-            let ExpressionNode::Name(receiver) =
-                program.expression_table.expression(member.receiver)
-            else {
-                return None;
-            };
-            let mut names: Vec<String> = program
-                .expression_table
-                .name_path_members(receiver.members)
-                .iter()
-                .map(|name| name.as_str().to_owned())
-                .collect();
-            names.push(member.member.as_str().to_owned());
-            names
-        }
-        _ => return None,
-    };
-
-    match members.as_slice() {
-        [name] => {
-            if let Some(state) = current_state {
-                for statement in program.statement_table.statements(state.statement_nodes) {
-                    if let omega_typed_trees::statement::StatementNode::LocalData(local) = statement
-                        && local.name.as_str() == name
-                    {
-                        return unwrapped_type_reference(program, local.type_reference);
-                    }
-                }
-                for parameter in program.state_parameters(state) {
-                    if parameter.name.as_str() == name {
-                        return unwrapped_type_reference(program, parameter.type_reference);
-                    }
-                }
-            }
-            None
-        }
-        [root, field_name] if root == "self" => {
-            let attached = current_machine.attached_data.as_ref()?;
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.name == *attached)?;
-            let field = program
-                .data_members(data)
-                .iter()
-                .find_map(|member| match member {
-                    omega_typed_trees::data::DataMember::Field(field)
-                        if field.name.as_str() == field_name =>
-                    {
-                        Some(field)
-                    }
-                    _ => None,
-                })?;
-            unwrapped_type_reference(program, field.type_reference)
-        }
-        _ => None,
-    }
-}
-
-/// Unwrap reference and constraint shells so the structural type underneath
-/// (`[u8; N]`, `usize`, a data name) is inspectable.
-fn unwrapped_type_reference(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    if !type_reference.is_valid() {
-        return None;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => unwrapped_type_reference(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            unwrapped_type_reference(program, *base_type)
-        }
-        _ => Some(type_reference),
     }
 }
 
