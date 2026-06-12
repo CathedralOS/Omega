@@ -282,25 +282,56 @@ remains tracked in its bullet below.
   calls/runtime_assignment_call_post_mutation_value_exit (pre-fix native 2 =
   stale read, post-fix 70), both in the differential oracle. Dungeon: seed-7
   generation went from 34 native draws to 14 (interpreter 15).
-- [ ] Dungeon residual, ONE draw: a mis-dispatched `apply_event` ARM during
-  R00's carve. Sentinel tracing (counter bumps compiled into each arm state)
-  on a generation-trimmed dungeon shows native runs the GOLD-CACHE arm
-  (correct, matches interpreter) AND the ENEMY arm chain for the same carve —
-  roll_enemy_kind then dispatches with a stale `depth` (R00 is depth 9 but
-  the BAT arm `depth <= 1` fires), drawing once. R01 dispatches quiet
-  correctly. Emission is NOT duplicated (each draw site appears exactly once,
-  in its own dispatch case, per the backend report) — the dispatch STATE
-  itself reaches the enemy cases, so this is an arm-selection/flow bug, not
-  executor multiplicity. Small probes of the same ladder (4 arms, compound
-  NeedsRuntimeExpression range guards, selected middle arm, nested reward
-  sub-dispatch, &mut args) all pass natively — the misfire needs deeper
-  dungeon context (slice-ref room via room_mut, field-machine chain
-  events.enemies.rng, two carve_room call contexts). Repro: trim
-  maze_builder::build to R00+R01 (stop after build_main_hall_1), expose
-  `random.calls` via a Level field read in Game::finished — native 4 draws vs
-  interpreter 3; with bat's `self.rng.range(random, 3)` made constant, 3=3.
-  R05's description stays un-asserted in the dungeon scripted canaries until
-  this lands.
+- [x] Dungeon residual, ONE draw — FIXED (2026-06-12). The misfire was NOT an
+  arm-selection/flow bug and NOT a stale depth: delta-debugging the dungeon
+  down to a 130-line skeleton (copy sample to /tmp, delete rooms/events/
+  systems while native!=interp held) plus an lldb breakpoint trace of the
+  emitted guard loads showed the second `roll_event`'s parameter slot
+  receiving 0xFFFFFFA6 = -90: the inline CALL ARGUMENT `raw % 100` (raw: u32,
+  a prior call result) was emitted with SIGNED division (sdiv 0x1ada0e33),
+  and for raw >= 2^31 the negative remainder reads as a huge value under the
+  ladder's UNSIGNED guards (`roll < 20`/`roll < 60` both fail), falling into
+  the enemy arm whose bat draw (depth 1 — legitimately <= 1, hence the
+  "stale depth" misread) advanced the stream once. The first call survives by
+  luck (its raw < 2^31), which is why the bug needed two call contexts; small
+  probes passed because their raw values never crossed 2^31. Root cause:
+  `select_runtime_storage_binary_write_in_table` (the pre-resolved-place
+  entry the frame-slot ARGUMENT write funnels through) never ran the
+  signedness adjustment its sibling targeted-mutation path has — fixed by an
+  operand-only `signedness_adjusted_operator_for_operands` (binary_table_
+  writes.rs); the branch-expansion binary write (branches/mutation.rs), a
+  third drifted copy, now adjusts too. Selection-level only; aarch64/x86
+  widths for Modulo vs ModuloUnsigned are identical. Canary: pass+RUN
+  arithmetic/runtime_unsigned_modulo_call_argument_exit (pre-fix native 71 =
+  4 draws, post-fix 70 = 3 draws = interpreter), in the differential oracle.
+  Dungeon seed-7: full-tour event/path lines now byte-match the interpreter
+  across all eight rooms (draw streams agree; the bullet's "14 vs 15" is
+  retired). R05's description stays un-asserted for a DIFFERENT reason — see
+  the side-room description residual below.
+- [ ] Side-room DESCRIPTIONS lost natively (RNG-independent): on the pristine
+  dungeon, a full tour (`north,east,west,north,west,east,north,east,west,
+  north,quit`) renders R05/R06 with an EMPTY description line where the
+  interpreter prints the depth-derived text. `room.description =
+  self.room_description(depth, branch_id)` lands for main-hall rooms (R01..
+  R04 assert green) but is lost for rooms carved by build_side_room_N — the
+  TRUE arm of a `transition self.should_carve(...)` guard. String call-result
+  assignment through `room_mut`'s returned `&mut Room` inside a GUARDED
+  branch target is the suspect shape. Pre-existing (verified pre-signedness-
+  fix); this — not RNG — is what keeps R05's description un-asserted in the
+  dungeon scripted canaries.
+- [ ] Signed/unsigned residue, two sibling shapes (found while shrinking, not
+  yet canaried): (1) a modulo whose operand is a CAST — `((seed >> 32) as
+  u32) % 199` inside a convert/value-operand chain — still picks the signed
+  encoding because `resolve_runtime_storage_is_signed_in_table` cannot see
+  through Cast nodes (returns None -> signed fallback); the non-table
+  `select_runtime_binary_mutation_write` (writes/mutation.rs) also never
+  adjusts. (2) Trailing-state STALE READS of threaded `&mut` param fields:
+  a transition-guard SUBJECT read of `random.calls` in a state appended
+  after build_main_hall_1 saw the post-seed snapshot (0), and a `let hi =
+  (random.seed >> 32) as u32` in a state appended after build_main_hall_4
+  read a seed stale by the last TWO build_segment calls — instrumentation-
+  only so far, but the same one-shrink-away family; needs its own minimal
+  skeleton hunt.
 - [x] 3 pre-existing `_compile` canaries hang at runtime — STALE (probed
   2026-06-11): the slice-write `_compile` canaries run now (the hang was the
   x18 zeroing below) and their dispatch shape already has a runtime `_exit`

@@ -296,8 +296,10 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
 /// Replace a signed division/modulo/right-shift/min/max/comparison operator with
 /// its unsigned form when the operands are an unsigned integer type. The default
 /// (signed, or an undeterminable type) is correct for the dominant i32/i64 case.
+/// Shared with the branch-expansion binary write (transition/call argument
+/// values like `f(raw % 100)`), which selects through the same operator table.
 #[allow(clippy::too_many_arguments)]
-fn signedness_adjusted_operator(
+pub(in crate::selection::runtime_dispatch) fn signedness_adjusted_operator(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     target_source_key: StateKey,
@@ -308,17 +310,8 @@ fn signedness_adjusted_operator(
     right_expression: ExpressionHandle,
     operator: StateGuardOperator,
 ) -> StateGuardOperator {
-    let unsigned = match operator {
-        StateGuardOperator::Divide => StateGuardOperator::DivideUnsigned,
-        StateGuardOperator::Modulo => StateGuardOperator::ModuloUnsigned,
-        StateGuardOperator::ShiftRight => StateGuardOperator::ShiftRightLogical,
-        StateGuardOperator::Min => StateGuardOperator::MinUnsigned,
-        StateGuardOperator::Max => StateGuardOperator::MaxUnsigned,
-        StateGuardOperator::Greater => StateGuardOperator::GreaterUnsigned,
-        StateGuardOperator::GreaterOrEqual => StateGuardOperator::GreaterOrEqualUnsigned,
-        StateGuardOperator::Less => StateGuardOperator::LessUnsigned,
-        StateGuardOperator::LessOrEqual => StateGuardOperator::LessOrEqualUnsigned,
-        _ => return operator,
+    let Some(unsigned) = unsigned_operator_form(operator) else {
+        return operator;
     };
 
     // For comparisons the result place is a bool, so the signedness lives on the
@@ -347,6 +340,66 @@ fn signedness_adjusted_operator(
             target_source_key,
             expressions,
             target,
+        )
+    });
+
+    match is_signed {
+        Some(false) => unsigned,
+        _ => operator,
+    }
+}
+
+/// The unsigned encoding of a signedness-sensitive operator, or `None` when the
+/// operator behaves identically for signed and unsigned operands.
+fn unsigned_operator_form(operator: StateGuardOperator) -> Option<StateGuardOperator> {
+    match operator {
+        StateGuardOperator::Divide => Some(StateGuardOperator::DivideUnsigned),
+        StateGuardOperator::Modulo => Some(StateGuardOperator::ModuloUnsigned),
+        StateGuardOperator::ShiftRight => Some(StateGuardOperator::ShiftRightLogical),
+        StateGuardOperator::Min => Some(StateGuardOperator::MinUnsigned),
+        StateGuardOperator::Max => Some(StateGuardOperator::MaxUnsigned),
+        StateGuardOperator::Greater => Some(StateGuardOperator::GreaterUnsigned),
+        StateGuardOperator::GreaterOrEqual => Some(StateGuardOperator::GreaterOrEqualUnsigned),
+        StateGuardOperator::Less => Some(StateGuardOperator::LessUnsigned),
+        StateGuardOperator::LessOrEqual => Some(StateGuardOperator::LessOrEqualUnsigned),
+        _ => None,
+    }
+}
+
+/// Operand-only variant of [`signedness_adjusted_operator`] for write paths that
+/// carry a PRE-RESOLVED target place instead of a target expression (the
+/// frame-slot value write that materializes call/transition arguments like
+/// `f(raw % 100)` into a parameter slot). A u32 `raw` must select the unsigned
+/// modulo: sdiv on raw >= 2^31 yields a negative remainder, which the unsigned
+/// dispatch guards then read as a huge value (the dungeon seed-7 extra enemy
+/// draw).
+pub(super) fn signedness_adjusted_operator_for_operands(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    expressions: &ExpressionTable,
+    left_expression: ExpressionHandle,
+    right_expression: ExpressionHandle,
+    operator: StateGuardOperator,
+) -> StateGuardOperator {
+    let Some(unsigned) = unsigned_operator_form(operator) else {
+        return operator;
+    };
+
+    let is_signed = resolve_runtime_storage_is_signed_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        left_expression,
+    )
+    .or_else(|| {
+        resolve_runtime_storage_is_signed_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            right_expression,
         )
     });
 
@@ -386,6 +439,18 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
             }
             _ => return None,
         };
+
+    // Same signedness policy as the targeted-mutation path above; this entry has
+    // no target EXPRESSION (the place is pre-resolved), so probe the operands.
+    let operator = signedness_adjusted_operator_for_operands(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        left_expression,
+        right_expression,
+        operator,
+    );
 
     let left = resolve_runtime_comparison_operand_in_table(
         input,
