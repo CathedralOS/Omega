@@ -1096,13 +1096,41 @@ pub fn append_wire_scalar_varint_width(
         + store_data_offset_width(written_offset, 8)
 }
 
+/// The fixed eight-instruction bounds-checked byte-copy loop in
+/// `encode_append_wire_text_bytes`.
+pub fn wire_text_copy_loop_width() -> usize {
+    32
+}
+
+pub fn append_wire_text_bytes_width(
+    source_offset: usize,
+    out_offset: usize,
+    out_length: usize,
+    written_offset: usize,
+) -> usize {
+    // Prologue + descriptor page pair + ptr load + len load + count move +
+    // length-varint emit loop + capacity materialization + bounded copy loop
+    // + cursor store.
+    wire_append_prologue_width(out_offset, written_offset)
+        + 8
+        + load_data_offset_width(source_offset, 8)
+        + load_data_offset_width(source_offset + 8, 8)
+        + 4
+        + wire_varint_emit_loop_width()
+        + unsigned_immediate_width(out_length as u64)
+        + wire_text_copy_loop_width()
+        + store_data_offset_width(written_offset, 8)
+}
+
 /// Byte offset of the WRITTEN page adrp pair inside both wire appends (the
 /// relocation planner points it at the written slot's region symbol).
 pub fn wire_append_written_page_offset(out_offset: usize) -> usize {
     8 + add_constant_width(out_offset)
 }
 
-/// Byte offset of the SOURCE page adrp pair inside the varint append.
+/// Byte offset of the SOURCE page adrp pair inside the varint append AND the
+/// text-bytes append (both materialize the source page right after the shared
+/// prologue).
 pub fn wire_append_varint_source_page_offset(out_offset: usize, written_offset: usize) -> usize {
     wire_append_prologue_width(out_offset, written_offset)
 }

@@ -1,0 +1,74 @@
+// Wire stage 2a, String fields: `LabelMessage::encode_wire(&msg,
+// &mut self.buffer, &mut self.written)` frames the schema's CURRENT era in
+// compact_binary v0. A String field rides as its tag varint, then a LENGTH
+// varint (byte count), then the raw UTF-8 bytes -- no NUL terminator, no
+// padding. The String field must carry the highest field number (it encodes
+// last; its byte-copy is the one runtime-sized append, bounds-checked
+// against the buffer's compile-time capacity).
+//
+// Expected bytes for { count: 7, label: "hi" }, hand-computed:
+//   era 0          -> 0x00        (no version blocks)
+//   tag 0          -> 0x00
+//   count 7        -> 0x07
+//   tag 1          -> 0x01
+//   len 2          -> 0x02        ("hi" is two UTF-8 bytes)
+//   'h'            -> 0x68 (104)
+//   'i'            -> 0x69 (105)
+// written = 7.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data LabelMessage {
+    0: count: u32;
+    1: label: String;
+}
+
+data LabelSample {
+    count: u32;
+    label: String;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    // Field-assignment form: struct-literal String field initialization does
+    // not lower to a native descriptor write yet (assignments do).
+    let msg: LabelSample;
+    msg.count = 7;
+    msg.label = "hi";
+
+    LabelMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    transition self.written == 7 {
+        true -> check_bytes()
+        false -> bad()
+    }
+
+    state check_bytes(&mut self) {
+        let ok: bool = self.buffer[0] == 0
+            && self.buffer[1] == 0
+            && self.buffer[2] == 7
+            && self.buffer[3] == 1
+            && self.buffer[4] == 2
+            && self.buffer[5] == 104
+            && self.buffer[6] == 105;
+        transition ok {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

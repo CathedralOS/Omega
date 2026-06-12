@@ -261,6 +261,28 @@ one byte 0/1. The out buffer must be a `&mut [u8; N]` large enough for the
 worst-case encoding (checked at compile time, so the encoder needs no runtime
 bounds checks), and `written` receives the encoded byte count.
 
+A `String` field rides as its tag varint, then a LENGTH varint (byte count),
+then the raw UTF-8 bytes -- no NUL terminator, no padding. String fields are
+ENCODE-ONLY today, and the encoder takes at most one per message, carrying
+the schema's highest field number so it encodes LAST. Both restrictions fall
+out of the same fact: a String's byte count is runtime-sized (the value is a
+`{ptr, len}` text descriptor), so it cannot participate in the compile-time
+worst-case capacity check. The worst-case budget covers everything up to and
+including the length varint (ten bytes max); the trailing byte-copy is the
+one append that bounds every store against the buffer's compile-time length
+at runtime, DROPPING content past capacity rather than writing out of bounds
+(callers size buffers for their longest expected text -- a runtime overflow
+signal for encode is future work). Decode REJECTS String fields for now.
+The honest storage options were: (a) zero-copy -- write a descriptor pointing
+INTO the decode buffer, which makes the decoded message silently alias the
+buffer; today's borrow facts track view loans created by explicit slice/text
+borrow expressions only, so the checker CANNOT see a call output retaining a
+borrow of another argument, and mutating or reusing the buffer would
+invalidate the decoded string with no diagnostic; or (b) reject decode until
+that aliasing relationship is checkable (or an allocator/copy target exists).
+We took (b): encode-only is a smaller honest slice; zero-copy decode awaits
+borrow facts that can model it (tracked in TASKS).
+
 The matching decoder is
 `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)`: it reads the
 era varint, then per field the expected field-number varint and a value

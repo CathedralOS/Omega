@@ -61,6 +61,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame { .. }
             | Self::AppendWireLiteralByte { .. }
             | Self::AppendWireScalarVarint { .. }
+            | Self::AppendWireTextBytes { .. }
             | Self::ReadWireExpectedByte { .. }
             | Self::ReadWireScalarVarint { .. }
             | Self::WriteReturnRegisterInteger { .. }

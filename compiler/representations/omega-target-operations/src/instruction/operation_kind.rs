@@ -163,6 +163,20 @@ pub enum TargetOperationKind {
         written_region: RuntimeStorageRegion,
         written_offset: usize,
     },
+    /// compact_binary v0 wire framing: append a runtime `String` field (a
+    /// `{ptr @ +0, len @ +8}` text descriptor at the source place) as the len
+    /// LEB128 varint followed by len raw bytes copied from ptr; every
+    /// byte-copy store bounds against `out_length` and drops content past
+    /// capacity.
+    AppendWireTextBytes {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        out_region: RuntimeStorageRegion,
+        out_offset: usize,
+        out_length: usize,
+        written_region: RuntimeStorageRegion,
+        written_offset: usize,
+    },
     /// compact_binary v0 wire decoding: expect one compile-time framing byte
     /// at the stored cursor (the caller's `read` slot); a bounds miss or a
     /// mismatch clears the sticky `ok` flag.
