@@ -8078,6 +8078,65 @@ fn native_dungeon_direct_movement_dispatch_runs() {
     let _ = fs::remove_dir_all(&package_dir);
 }
 
+// Positive proof-context operator selection (chapter 8): the proven caller
+// `requires` fact admits the domain-owned `+` meaning, and the checked
+// evidence must record THAT meaning as the selected one — not merely compile.
+#[test]
+fn domain_operator_selection_records_proven_domain_meaning_as_evidence() {
+    let canary = pass_canary("domains/domain_operator_proven_fact_selects_meaning");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("proven domain fact canary should compile to checked trees");
+
+    let selected_domain_uses = checked
+        .facts
+        .operators
+        .resolved_uses()
+        .filter(|operator_use| {
+            operator_use.spelling == omega_core::operator_spelling::OperatorSpelling::Add
+        })
+        .filter_map(|operator_use| checked.facts.operators.selected_candidate(operator_use))
+        .filter(|candidate| candidate.is_domain_owned())
+        .count();
+    assert!(
+        selected_domain_uses > 0,
+        "expected the proven `Quantity::Additive` fact to select the domain-owned `+` meaning \
+         and record it in the operator evidence"
+    );
+}
+
+// The other half of the selection ruling: without a proven fact the domain
+// meaning is inadmissible and the ordinary builtin operation stays selected.
+// The evidence must say so explicitly (builtin fallback), not pretend the
+// domain meaning won.
+#[test]
+fn domain_operator_selection_records_builtin_fallback_when_fact_unproven() {
+    let canary = pass_canary("domains/domain_operator_unproven_keeps_builtin_meaning");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("unproven builtin fallback canary should compile to checked trees");
+
+    let fallback_uses = checked
+        .facts
+        .operators
+        .uses_with_status(omega_checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback)
+        .count();
+    assert!(
+        fallback_uses > 0,
+        "expected the unproven `i32::Degrees` membership to de-admit the domain `+` meaning \
+         and record the use as a builtin fallback"
+    );
+    assert_eq!(
+        checked
+            .facts
+            .operators
+            .resolved_uses()
+            .filter_map(|operator_use| checked.facts.operators.selected_candidate(operator_use))
+            .filter(|candidate| candidate.is_domain_owned())
+            .count(),
+        0,
+        "no domain-owned meaning may be selected without a proven domain fact"
+    );
+}
+
 #[test]
 fn pass_canaries_compile() {
     for canary_name in ACTIVE_PASS_CANARIES {
@@ -8305,6 +8364,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/custom_ranking_order_compile",
     "termination/custom_ranking_struct_view",
     "domains/contracts_domain_membership_surface",
+    "domains/domain_operator_spelling_selected",
+    "domains/domain_operator_proven_fact_selects_meaning",
+    "domains/domain_operator_unproven_keeps_builtin_meaning",
     "domains/string_non_empty_classifier",
     "domains/when_classifier_clause",
     "domains/executable_domain_membership_expression_exit",
@@ -8781,6 +8843,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/domain_import_unknown",
     "domains/domain_import_wrong_target",
     "domains/domain_non_boolean_fact",
+    "domains/domain_operator_competing_spelling_meanings",
+    "domains/domain_operator_meaning_unproven",
+    "domains/domain_operator_meaning_invalidated_by_mutation",
     "domains/indexed_domain_requires_invalidated_by_same_index_mutation",
     "domains/indexed_domain_requires_invalidated_by_unknown_index_mutation",
     "operators/domain_operator_alpha_equivalent_generic_duplicate",

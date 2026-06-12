@@ -1,0 +1,27 @@
+// Positive proof-context operator selection (chapter 8): only PROVEN domains
+// participate in operator resolution. No fact places `left` in
+// `Quantity::Additive`, so the domain-owned `+` meaning is inadmissible — and
+// `Quantity` is not a primitive, so no builtin meaning exists to fall back to.
+// The use has no admissible meaning and is rejected. Adding
+// `requires left in Quantity::Additive` makes this exact program compile (see
+// pass/domains/domain_operator_proven_fact_selects_meaning).
+
+data Quantity {
+    value: i32;
+}
+
+domain Quantity::Additive {
+    self.value >= 0;
+
+    operator add(left: Quantity, right: Quantity) -> Quantity spelling +;
+}
+
+data Main {
+}
+
+machine Main::combine(&self, left: Quantity, right: Quantity) {
+    let sum: Quantity = left + right;
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,1 @@
+operator spelling `+` in `self.total + self.total` has no admissible meaning

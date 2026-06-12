@@ -45,7 +45,8 @@ fn expression_type_reference_in_state(
             statement_index,
             member.receiver,
         )
-        .and_then(|receiver| field_type_reference(program, receiver, member.member_symbol)),
+        .and_then(|receiver| field_type_reference(program, receiver, member.member_symbol))
+        .or_else(|| self_field_type_reference(program, state_symbol, member)),
         ExpressionNode::Indexed(indexed) => expression_type_reference_in_state(
             program,
             state_symbol,
@@ -103,6 +104,54 @@ fn local_type_reference_before_statement(
             };
             (local.symbol == symbol).then_some(local.type_reference)
         })
+}
+
+/// Field type for a `self.field` receiver. The `self` parameter often carries
+/// no usable declared type reference, so resolve the field through the
+/// machine's attached data definition instead.
+fn self_field_type_reference(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+    member: &omega_typed_trees::expression::TableMemberExpression,
+) -> Option<TypeReferenceHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
+        return None;
+    };
+    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let self_parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.is_self)?;
+    let path_members = program.expression_table.name_path_members(path.members);
+    let names_self = path_members.len() == 1
+        && (path_members
+            .first()
+            .is_some_and(|name| name.as_str() == "self")
+            || (path.symbol.is_valid() && path.symbol == self_parameter.symbol)
+            || (path.head_symbol.is_valid() && path.head_symbol == self_parameter.symbol));
+    if !names_self {
+        return None;
+    }
+
+    let machine = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|machine_state| machine_state.symbol == state_symbol)
+    })?;
+    let attached_data = machine.attached_data.as_ref()?;
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name == *attached_data)?;
+    program.data_members(data).iter().find_map(|data_member| {
+        let omega_typed_trees::data::DataMember::Field(field) = data_member else {
+            return None;
+        };
+        ((member.member_symbol.is_valid() && field.symbol == member.member_symbol)
+            || field.name == member.member)
+            .then_some(field.type_reference)
+    })
 }
 
 fn field_type_reference(

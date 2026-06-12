@@ -12,6 +12,21 @@ pub enum CheckedOperatorResolutionStatus {
     Missing,
     Resolved,
     Ambiguous,
+    /// Recorded before flow facts exist: the use carries domain-owned spelled
+    /// candidates whose admissibility depends on the proof context at the use
+    /// site (chapter 8: only PROVEN domains participate in operator
+    /// resolution). The post-flow selection pass rewrites this into one of the
+    /// final statuses; it must never survive to the checks.
+    DomainPending,
+    /// Final: every domain-owned candidate was inadmissible (its domain
+    /// membership is not proven at the use site) and the operand type carries
+    /// the ordinary builtin meaning, so the builtin operation stays selected
+    /// (chapter 8: the ordinary integer `+` is not automatically replaced).
+    BuiltinFallback,
+    /// Final: domain-owned candidates exist but none is admissible (no proven
+    /// domain fact) and no root or builtin meaning exists for the operand
+    /// type. The use has no admissible meaning and must be rejected.
+    Inadmissible,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,11 +125,17 @@ pub struct CheckedOperatorResolutionSummary {
     pub resolved: usize,
     pub missing: usize,
     pub ambiguous: usize,
+    pub builtin_fallback: usize,
+    pub inadmissible: usize,
+    pub domain_pending: usize,
 }
 
 impl CheckedOperatorResolutionSummary {
     pub const fn all_resolved(self) -> bool {
-        self.missing == 0 && self.ambiguous == 0
+        self.missing == 0
+            && self.ambiguous == 0
+            && self.inadmissible == 0
+            && self.domain_pending == 0
     }
 }
 
@@ -140,6 +161,13 @@ impl CheckedOperatorResolutionIssue<'_> {
         matches!(
             self.operator_use.status,
             CheckedOperatorResolutionStatus::Ambiguous
+        )
+    }
+
+    pub const fn is_inadmissible(&self) -> bool {
+        matches!(
+            self.operator_use.status,
+            CheckedOperatorResolutionStatus::Inadmissible
         )
     }
 
@@ -238,12 +266,28 @@ impl CheckedOperatorFacts {
                 operator_use.status,
                 CheckedOperatorResolutionStatus::Missing
                     | CheckedOperatorResolutionStatus::Ambiguous
+                    | CheckedOperatorResolutionStatus::Inadmissible
             )
             .then(|| CheckedOperatorResolutionIssue {
                 operator_use,
                 candidates: self.candidates(operator_use),
             })
         })
+    }
+
+    /// The candidate fact carrying the selected operator symbol of a resolved
+    /// use, when one was selected. Multi-candidate uses keep their full
+    /// considered set as evidence; the selected symbol names the winner.
+    pub fn selected_candidate(
+        &self,
+        operator_use: &CheckedOperatorUseFact,
+    ) -> Option<&CheckedOperatorCandidateFact> {
+        if !operator_use.selected_operator_symbol.is_valid() {
+            return None;
+        }
+        self.candidates(operator_use)
+            .iter()
+            .find(|candidate| candidate.operator_symbol == operator_use.selected_operator_symbol)
     }
 
     pub fn resolved_contract_uses(&self) -> impl Iterator<Item = CheckedOperatorContractUse<'_>> {
@@ -286,6 +330,15 @@ impl CheckedOperatorFacts {
                 }
                 CheckedOperatorResolutionStatus::Ambiguous => {
                     summary.ambiguous = summary.ambiguous.saturating_add(1);
+                }
+                CheckedOperatorResolutionStatus::BuiltinFallback => {
+                    summary.builtin_fallback = summary.builtin_fallback.saturating_add(1);
+                }
+                CheckedOperatorResolutionStatus::Inadmissible => {
+                    summary.inadmissible = summary.inadmissible.saturating_add(1);
+                }
+                CheckedOperatorResolutionStatus::DomainPending => {
+                    summary.domain_pending = summary.domain_pending.saturating_add(1);
                 }
             }
         }
@@ -355,6 +408,9 @@ mod tests {
                 resolved: 1,
                 missing: 0,
                 ambiguous: 1,
+                builtin_fallback: 0,
+                inadmissible: 0,
+                domain_pending: 0,
             }
         );
         assert!(!facts.resolution_summary().all_resolved());

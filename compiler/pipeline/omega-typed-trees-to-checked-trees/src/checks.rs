@@ -21,7 +21,7 @@ pub(crate) fn check_checked_facts(
         diagnostics.append(&mut contract_diagnostics);
     }
 
-    if let Err(mut operator_diagnostics) = operators::check_operator_resolution(facts) {
+    if let Err(mut operator_diagnostics) = operators::check_operator_resolution(program, facts) {
         diagnostics.append(&mut operator_diagnostics);
     }
 

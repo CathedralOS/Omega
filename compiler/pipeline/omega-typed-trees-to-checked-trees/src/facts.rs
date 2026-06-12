@@ -2,7 +2,7 @@ use crate::borrow::build_borrow_facts;
 use crate::capabilities::build_capability_facts;
 use crate::flow::{build_domain_facts, build_flow_facts};
 use crate::invariants::build_invariant_facts;
-use crate::operators::build_operator_facts;
+use crate::operators::{build_operator_facts, select_pending_domain_operator_meanings};
 use crate::proof::build_proof_facts_with_operators;
 use crate::semantic::build_semantic_facts;
 use crate::values::build_value_facts;
@@ -18,12 +18,17 @@ pub(crate) fn build_check_facts(
 ) -> CheckFacts {
     let borrow = build_borrow_facts(program);
     let values = build_value_facts(program);
-    let operators = build_operator_facts(program, &values);
+    let mut operators = build_operator_facts(program, &values);
     let proof = build_proof_facts_with_operators(program, proof_plan, &borrow, &operators);
     let invariants = build_invariant_facts(program);
     let mut semantic = build_semantic_facts(program, &proof);
     let domains = build_domain_facts(program, &semantic);
     let flow = build_flow_facts(program, &borrow, &proof, &mut semantic, &domains, &effects);
+    // Domain-owned spelled candidates can only be admitted by PROVEN domain
+    // facts (chapter 8), and proof contexts exist only now that flow facts are
+    // built: finalize every pending spelled binary use before the checks read
+    // the operator evidence.
+    select_pending_domain_operator_meanings(program, &mut operators, &mut semantic, &flow);
     let capabilities = build_capability_facts(program, &effects, &flow);
 
     CheckFacts::with_roots(
