@@ -62,11 +62,17 @@ pub(super) fn prelude_operations(
             ),
         })
         .filter(|operation| {
+            // Non-guard preludes carry ONLY call-free local initializers: the
+            // splice executes the callee's mutations, host calls, AND state
+            // calls (a `let x = self.f(...)` statement classifies as StateCall
+            // here, and the prelude's StateCall arm re-emits the callee's
+            // nested expansions -- one extra leaf run per statement chain, the
+            // dungeon's non-guard RNG over-draw).
             filter == PreludeStatementFilter::All
-                || !matches!(
+                || matches!(
                     operation.kind,
-                    RuntimeBranchPreludeOperationKind::Mutation { .. }
-                        | RuntimeBranchPreludeOperationKind::HostCall
+                    RuntimeBranchPreludeOperationKind::LocalData
+                        | RuntimeBranchPreludeOperationKind::Other
                 )
         })
         .collect();

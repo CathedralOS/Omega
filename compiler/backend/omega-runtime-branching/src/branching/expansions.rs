@@ -99,11 +99,16 @@ pub(super) fn append_branch_prelude_expansion(
         operations,
     });
 
-    // A repeated guard subject (filter None) keeps only the empty prelude record
-    // above: walking the callee's nested calls here would append another copy of
-    // every nested expansion PER ARM, and the prelude emitter re-runs each copy --
-    // the per-arm side-effect re-evaluation this filter exists to suppress.
-    if statement_filter == super::operations::PreludeStatementFilter::None {
+    // Only a guard-role prelude (filter All) walks the callee's nested calls:
+    // it is the chain's EXECUTOR, so the walk materializes the nested callees'
+    // expansions it will emit. A repeated guard subject (filter None) keeps only
+    // the empty prelude record above, and a NON-guard prelude (LocalDataOnly)
+    // must not walk either -- the runtime-bodies splice already flattens every
+    // nested call into the caller's body, where each gets its own directly
+    // matched machinery; expansions appended here would be emitted ON TOP of
+    // that (both through this prelude and through the flattened call's direct
+    // match), re-running the leaf callee's side effects per executor.
+    if statement_filter != super::operations::PreludeStatementFilter::All {
         return;
     }
 
