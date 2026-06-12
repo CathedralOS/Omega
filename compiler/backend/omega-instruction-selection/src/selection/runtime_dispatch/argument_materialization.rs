@@ -11,6 +11,7 @@ use crate::selection::bindings::{
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::{
     resolve_fixed_array_length_in_table, resolve_runtime_call_argument_call_result_place,
+    resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_transition_argument_call_result_place,
 };
@@ -305,6 +306,39 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
+        // A constant-index slice element (`items[0].value` where `items` is a
+        // frame-slot slice DESCRIPTOR, the self-recursive threaded-scalar shape
+        // `self.accumulate(items[1..], items[0].value)`): the element lives behind
+        // the descriptor's data pointer, so this is an indexed copy THROUGH the
+        // descriptor — never a plain place copy, which would read the descriptor
+        // slot's own bytes (the data pointer) as the value. The resolver returns
+        // None for inline fixed arrays; those keep their direct-place paths.
+        if let Some(indexed_source) = resolve_runtime_frame_fixed_indexed_target_in_table(
+            input,
+            source_dispatch_index,
+            argument_source_key,
+            expressions,
+            argument,
+        ) && indexed_source.byte_count == slot.byte_size
+            && indexed_source.byte_count > 0
+            && !matches!(expressions.expression(argument), ExpressionNode::Mutable(_))
+            && slot.type_descriptor.reference_referee().is_none()
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimeFrame {
+                    descriptor_offset: indexed_source.descriptor_offset,
+                    element_index: indexed_source.element_index,
+                    element_byte_size: indexed_source.element_byte_size,
+                    field_byte_offset: indexed_source.field_byte_offset,
+                    target_offset: slot.byte_offset,
+                    byte_count: slot.byte_size,
+                },
+                source_key,
+                source_statement: statement_index,
+            });
+            continue;
+        }
+
         if let Some(place) = resolve_runtime_storage_place_in_table(
             input,
             source_dispatch_index,
@@ -571,15 +605,34 @@ fn argument_source_frame_range(
         &mut scratch,
         resolved.expression,
     );
-    let place = resolve_runtime_storage_place_in_table(
+    if let Some(place) = resolve_runtime_storage_place_in_table(
+        input,
+        source_dispatch_index,
+        argument_source_key,
+        &scratch,
+        argument,
+    ) {
+        return (place.region == RuntimeStorageRegion::RuntimeFrame)
+            .then_some((place.byte_offset, place.byte_offset + place.byte_count));
+    }
+
+    // A constant-index slice element (`items[0].value`) has no static frame
+    // place, but its read still goes THROUGH the descriptor slot's data pointer.
+    // Report the descriptor slot as the frame source so a transition that also
+    // RETARGETS that descriptor (`self.accumulate(items[1..], items[0].value)`)
+    // sees the overlap and stages: an unstaged in-place descriptor update would
+    // shrink the window BEFORE the element read, fetching the next window's head.
+    let indexed = resolve_runtime_frame_fixed_indexed_target_in_table(
         input,
         source_dispatch_index,
         argument_source_key,
         &scratch,
         argument,
     )?;
-    (place.region == RuntimeStorageRegion::RuntimeFrame)
-        .then_some((place.byte_offset, place.byte_offset + place.byte_count))
+    Some((
+        indexed.descriptor_offset,
+        indexed.descriptor_offset + input.runtime_abi.pointer_size,
+    ))
 }
 
 fn ranges_overlap(a: (usize, usize), b: (usize, usize)) -> bool {
