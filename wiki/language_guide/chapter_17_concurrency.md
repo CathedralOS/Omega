@@ -14,13 +14,148 @@ copy/move rules as ordinary calls, with stricter lifetime requirements.
 
 Working rules:
 
-- Captured values must be copied or moved.
-- Borrowed parent-stack data cannot cross into a spawned block.
+- Captured values must be copied or moved -- UNLESS the spawn is scoped (below).
 - Moved values are unavailable to the parent after the spawn.
 - Shared mutation must go through data types whose contracts permit concurrent
   access.
 - A spawn used as a statement is fire-and-forget when the proof checker proves
   the spawned graph is self-contained.
+- Dropping a `Join<T>` JOINS: an unconsumed handle blocks at its scope's end
+  until the child completes. Strict result use (frozen decision 9) already
+  prevents silently ignoring the handle.
+
+## Scoped Spawns (no keyword)
+
+There is no `scope` construct: the lexical block IS the scope. A spawn may
+borrow parent locals; the borrows are ordinary loans, loans must end before
+the block ends, and drop-of-`Join` joins -- so the borrow checker forces every
+borrowing spawn to be joined inside the block, with no new syntax:
+
+```omega
+machine Main::main(&mut self) {
+    let mut totals: [u32; 2] = [0, 0];
+
+    {
+        let first: Join<()> = spawn { Worker::run(&self.ring, &mut totals[0]) };
+        let second: Join<()> = spawn { Worker::run(&self.ring, &mut totals[1]) };
+    }   // handles drop here -> implicit joins; the loans end; tasks are dead
+
+    let sum: u32 = totals[0] + totals[1];   // legal: provably no live task
+}
+```
+
+Disjoint `&mut` windows (distinct array elements above) follow the ordinary
+borrow rules. A spawn that escapes any enclosing borrow scope stays
+move/copy-only.
+
+## Suspension: No Await, No Keyword (frozen decision 16)
+
+There is no `await`, no `async` coloring, and no suspension keyword.
+AWAITING IS CALLING:
+
+```omega
+machine Server::handle(&mut self) {
+    let frame: Frame = self.ring.take();   // may park the TASK here
+    self.process(frame);                    // straight-line code resumes
+}
+```
+
+The model:
+
+- Waiting originates ONLY at boundary wait primitives -- a `Scheduler`
+  boundary trait (`wait_until_nonzero(flag: &AtomicU32) effects suspend;`
+  plus `wake_one`). Per-target bindings ride the existing host-provider
+  machinery: hosted targets bind futex/WaitOnAddress syscalls; Cathedral
+  userland binds the scheduler capability; the Cathedral kernel implements
+  it over hlt/interrupt wakeups. Waiting lives where it physically exists,
+  the same reflex that puts era tags only at boundaries (decision 14).
+- `suspend` is an INFERRED transitive effect (the decision-12 machinery).
+  Machines may declare it (`effects suspend`) as the reader-facing marker,
+  checked against inference like any declared effect.
+- A parked task is just data: machine frames are planned storage, not a
+  native stack, so the continuation-capture problem that forces
+  `Future`/`await` in stackless languages does not exist here.
+- Enforcement over vigilance: borrows may not live across a call site
+  carrying `suspend` (the world moves while parked); effect ceilings forbid
+  `suspend` where parking is illegal -- a trait requirement without
+  `suspend` IS the interrupt-handler safety rule; build artifacts surface
+  every suspension point.
+- The derived ATOMIC-STATE guarantee, stated precisely: a state body that
+  calls no suspending machine cannot have ITS TASK parked mid-body. This is
+  NOT mutual exclusion -- other tasks run simultaneously on other cores;
+  cross-task safety comes from ownership, `[send]`, and atomics. The
+  language is scheduler-agnostic (a host may preempt); the guarantees come
+  from ownership, never from non-preemption.
+
+## Task Storage: No Stack Sizes
+
+General recursion does not exist (self-calls are tail self-loops) and frames
+are planner-computed, so the compiler knows each spawned machine's EXACT
+worst-case storage. Nobody declares a stack size; overflow is impossible by
+construction. Task pools are per-machine-type `M x N`: M computed, N
+declared per spawn site (Embassy/RTIC precedent); spawning past N is a proof
+obligation or boundary failure. Region-backed dynamic N arrives with the
+allocator arc.
+
+## Cancellation Is A Value At The Wait
+
+There is no unwinding, so a task is never interrupted mid-state. Cancelling
+a scope makes each child's current or next WAIT return the zero case
+instead of a ready value; the machine transitions to its own cleanup path
+and drops run as frames retire normally:
+
+```omega
+data Take {
+    case Cancelled;            // zero case: the parked wait was cancelled
+    case Got(frame: Frame);
+}
+
+machine Worker::run(&mut self, ring: &mut Ring) {
+    let taken: Take = ring.take();
+    transition taken {
+        Take::Got(frame) -> work(frame)
+        Take::Cancelled  -> finish()    // ordinary transition; nothing interrupted
+    }
+    ...
+}
+```
+
+A task that never suspends is joinable but not cancellable -- its effect
+surface says which kind it is. Cancellation rides the same propagation
+channel as recoverable errors ([chapter 15](chapter_15_errors_traps_failure.md));
+the exact spelling follows that chapter's model.
+
+## There Is No Select
+
+Waiting on multiple sources is a DATA design, not a control construct:
+producers post into ONE mailbox carrying a case-bearing sum, and the
+consumer does one wait and one ordinary transition (Erlang's one-mailbox
+model; also exactly Cathedral's IPC-ring shape):
+
+```omega
+data Event {
+    case None;                  // zero case
+    case Packet(frame: Frame);
+    case Tick;
+    case Shutdown;
+}
+
+machine Server::run(&mut self) {
+    let event: Event = self.inbox.take();   // ONE wait, ONE word
+
+    transition event {                       // a completely ordinary transition
+        Event::Packet(frame) -> handle(frame)
+        Event::Tick          -> heartbeat()
+        Event::Shutdown      -> drain()
+        _                    -> run()
+    }
+}
+```
+
+The NIC interrupt posts `Packet`, the timer posts `Tick` -- interrupts and IO
+completions POST TO WORDS. The core library owes a multi-producer
+single-consumer event queue over the wait primitive; the language owes
+nothing.
 
 ## Joined Work
 
@@ -84,24 +219,24 @@ machine App::run(message: String) {
 If the spawn result is not bound, the proof checker treats it as intentionally
 unjoined and proves the spawned graph does not depend on the parent stack.
 
-## Waitable Contracts
+## Waitable Contracts: One Primitive
 
-Deadlock checking only works when waitable operations are visible.
+Deadlock checking only works when waitable operations are visible -- and
+visibility is cheap here because there is exactly ONE wait mechanism: the
+futex-shaped boundary primitive (wait on a word's value, wake N waiters).
+Everything that blocks is library code over it:
 
-Every blocking operation must declare what can unblock it. That includes
-standard runtime types and host/OS boundaries.
+- `Join<T>::join` waits on the child's completion word.
+- `Mutex<T>::lock` waits on the lock word (happy path never waits).
+- `Barrier<N>::wait` waits on the arrival-count word.
+- `Pipe::read` / `Socket::recv` / event queues wait on their buffer words;
+  the OS/ISR side POSTS to the word and wakes.
 
-Examples:
-
-- `Join<T>::join` waits until the spawned machine completes.
-- `Mutex<T>::lock` waits until the mutex is unlocked.
-- `Barrier<N>::wait` waits until `N` participants arrive.
-- `Pipe::read` waits until a matching write, close, timeout, or external event.
-- `Socket::recv` waits on external network input unless a timeout or cancel path
-  is part of the contract.
-
-The declaration can live in a standard type, platform entry, syscall surface, or
-boundary host package. The important rule is that blocking must not be invisible.
+The anti-sprawl rule is deliberate (no epoll/eventfd/io_uring zoo): no
+second wait mechanism, ever. Every blocking operation therefore carries the
+`suspend` effect by inference, and "what can unblock it" is always "who
+writes this word" -- a question the deadlock model below can actually
+answer.
 
 ## Atomics
 
