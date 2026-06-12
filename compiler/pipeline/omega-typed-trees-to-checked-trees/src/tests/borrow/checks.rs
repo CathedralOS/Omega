@@ -919,3 +919,212 @@ fn accepts_direct_mutable_borrow_after_local_alias_reassignment() {
     check_checked_facts(&typed, &facts)
         .expect("reassigned local alias should no longer block later direct mutable borrow");
 }
+
+/// Lifetimes stage 1 (elision rule 1): a free machine returning a view with
+/// exactly one ref input links the returned view's loan to THAT input, so
+/// mutating the linked source while the view is live is rejected. Before
+/// stage 1 no loan was tracked for a free-machine call result at all.
+#[test]
+fn rejects_linked_input_mutation_while_free_machine_view_is_active() {
+    let source = r#"
+        data Cell {
+            value: i32;
+        }
+
+        data Bag {
+            cells: [Cell; 4];
+        }
+
+        data Main {
+            bag: Bag;
+        }
+
+        machine pick(bag: &mut Bag) -> &mut Cell {
+            let cells: &mut [Cell] = bag.cells.as_mut_slice();
+            transition {
+                _ -> &mut cells[2]
+            }
+        }
+
+        machine Main::main(&mut self) {
+            let cell: &mut Cell = pick(&mut self.bag);
+            self.bag.cells[0] = Cell { value: 1 };
+            cell.value = 7;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        operators: Default::default(),
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    let diagnostics = check_checked_facts(&typed, &facts)
+        .expect_err("mutating the elision-linked input while the view is live should reject");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(
+            "statement 1 mutates `self.bag.cells[0]` while local borrow `cell` is still active"
+        ),
+        "expected the linked-input mutation rejection, got:\n{combined}"
+    );
+}
+
+/// Lifetimes stage 1 (elision rule 1, the win): the returned view borrows ONLY
+/// the single ref input it was linked to -- mutating a DIFFERENT ref input of
+/// the caller while the view is live compiles.
+#[test]
+fn accepts_unlinked_ref_input_mutation_while_free_machine_view_is_active() {
+    let source = r#"
+        data Cell {
+            value: i32;
+        }
+
+        data Bag {
+            cells: [Cell; 4];
+        }
+
+        data Main {
+            first: Bag;
+            second: Bag;
+        }
+
+        machine pick(bag: &mut Bag) -> &mut Cell {
+            let cells: &mut [Cell] = bag.cells.as_mut_slice();
+            transition {
+                _ -> &mut cells[2]
+            }
+        }
+
+        machine fill(a: &mut Bag, b: &mut Bag) {
+            let cell: &mut Cell = pick(a);
+            b.cells[0] = Cell { value: 1 };
+            cell.value = 7;
+        }
+
+        machine Main::main(&mut self) {
+            fill(&mut self.first, &mut self.second);
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        operators: Default::default(),
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    check_checked_facts(&typed, &facts)
+        .expect("mutating the unlinked ref input while the view is live should compile");
+}
+
+/// Lifetimes stage 1: a view-returning machine with MULTIPLE non-self ref
+/// inputs is ambiguous and rejected at the declaration (explicit lifetime
+/// parameters are not implemented yet). A `&self` method with extra ref params
+/// stays accepted (elision rule 3 links the output to self).
+#[test]
+fn rejects_ambiguous_view_return_with_multiple_ref_inputs() {
+    let source = r#"
+        data Cell {
+            value: i32;
+        }
+
+        data Bag {
+            cells: [Cell; 4];
+        }
+
+        data Main {
+            first: Bag;
+            second: Bag;
+        }
+
+        machine pick_either(a: &mut Bag, b: &mut Bag) -> &mut Cell {
+            let cells: &mut [Cell] = a.cells.as_mut_slice();
+            transition {
+                _ -> &mut cells[2]
+            }
+        }
+
+        machine Main::main(&mut self) {
+            let cell: &mut Cell = pick_either(&mut self.first, &mut self.second);
+            cell.value = 7;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        operators: Default::default(),
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    let diagnostics = check_checked_facts(&typed, &facts)
+        .expect_err("two non-self ref inputs with a view output should be ambiguous");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(
+            "cannot infer which input the returned view borrows; explicit lifetime parameters are not implemented yet"
+        ),
+        "expected the elision ambiguity rejection, got:\n{combined}"
+    );
+}

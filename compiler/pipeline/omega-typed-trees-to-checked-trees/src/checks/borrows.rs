@@ -1,5 +1,6 @@
 mod calls;
 mod details;
+mod elision;
 mod overlap;
 mod statements;
 
@@ -7,6 +8,7 @@ use omega_checked_trees::{CheckFacts, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 
 use self::calls::check_call_borrows;
+use self::elision::check_view_return_elision;
 use self::statements::check_statement_borrows;
 
 pub(crate) fn check_flow_call_borrows(
@@ -14,6 +16,8 @@ pub(crate) fn check_flow_call_borrows(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+
+    check_view_return_elision(program, &mut diagnostics);
 
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(borrow_state) = matching_borrow_state(facts, state_flow) else {

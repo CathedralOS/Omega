@@ -1,0 +1,36 @@
+// FAIL canary (lifetimes stage 1, elision-only output-borrow linkage): a
+// machine returning a view with MULTIPLE non-self candidate ref inputs is
+// ambiguous -- the elision rules cannot decide which input the returned view
+// borrows, and explicit lifetime parameters (the tick spelling of frozen
+// decision 15) are not implemented yet. Rejected at the declaration.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    value: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Console;
+    first: Bag;
+    second: Bag;
+}
+
+machine pick_either(a: &mut Bag, b: &mut Bag) -> &mut Cell {
+    let cells: &mut [Cell] = a.cells.as_mut_slice();
+    transition {
+        _ -> &mut cells[2]
+    }
+}
+
+machine Main::main(&mut self) {
+    let cell: &mut Cell = pick_either(&mut self.first, &mut self.second);
+    cell.value = 7;
+    self.console.exit_process(70);
+}

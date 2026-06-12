@@ -92,14 +92,13 @@ fn helper_call_borrow_loan_place(
     machine_symbol: SymbolHandle,
     call: &omega_checked_trees::expression::TableCallExpression,
 ) -> Option<accesses::BorrowAccessPlace> {
-    if !call.receiver.is_valid() {
-        return None;
-    }
-
     if matches!(
         call.target.as_str(),
         "as_slice" | "as_mut_slice" | "as_view"
     ) {
+        if !call.receiver.is_valid() {
+            return None;
+        }
         return borrow_access_place(
             program,
             state_symbol,
@@ -112,22 +111,104 @@ fn helper_call_borrow_loan_place(
     let Some(target_state) = find_state(program, call.target_symbol) else {
         return None;
     };
-    let receiver_is_self = program
-        .state_parameters(target_state)
-        .iter()
-        .any(|parameter| parameter.is_self);
-
-    if !receiver_is_self || !is_reference_type(program, target_state.return_type) {
+    if !is_reference_type(program, target_state.return_type) {
         return None;
     }
 
-    borrow_access_place(
+    let parameters = program.state_parameters(target_state);
+    let receiver_is_self = parameters.iter().any(|parameter| parameter.is_self);
+
+    if receiver_is_self {
+        // Rust's elision rule 3: a `&self`/`&mut self` method's returned view
+        // borrows self (the call receiver), even when other ref params exist.
+        if !call.receiver.is_valid() {
+            return None;
+        }
+        return borrow_access_place(
+            program,
+            state_symbol,
+            statement_index,
+            call.receiver,
+            machine_symbol,
+        );
+    }
+
+    // Elision rule 1 (lifetimes stage 1): a machine returning a view with
+    // EXACTLY ONE candidate ref input links the returned view's loan to that
+    // input's argument place. Zero candidates or multiple candidates produce
+    // no loan here; the multiple-candidate case is rejected at the machine's
+    // declaration (see `checks::borrows::elision`), and the zero-candidate
+    // case keeps the historical (conservative-free) behavior.
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let mut linked_argument: Option<ExpressionHandle> = None;
+    let mut argument_index = 0usize;
+    for parameter in parameters {
+        if parameter.is_self {
+            continue;
+        }
+        let argument = arguments.get(argument_index).copied();
+        argument_index = argument_index.saturating_add(1);
+        if !is_reference_type(program, parameter.type_reference) {
+            continue;
+        }
+        if linked_argument.is_some() {
+            return None;
+        }
+        linked_argument = argument;
+    }
+
+    argument_borrow_loan_place(
         program,
         state_symbol,
         statement_index,
-        call.receiver,
         machine_symbol,
+        linked_argument?,
     )
+}
+
+/// The loan place for a call argument that the called machine's returned view
+/// borrows (elision rule 1). Handles arguments that are themselves
+/// view-producing calls (`bag.cells.as_mut_slice()`, or a nested one-ref-input
+/// machine call) by recursing into the call's own loan place.
+fn argument_borrow_loan_place(
+    program: &omega_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    argument: ExpressionHandle,
+) -> Option<accesses::BorrowAccessPlace> {
+    match program.expression_table.expression(argument) {
+        omega_checked_trees::expression::ExpressionNode::Call(inner_call) => {
+            helper_call_borrow_loan_place(
+                program,
+                state_symbol,
+                statement_index,
+                machine_symbol,
+                inner_call,
+            )
+        }
+        omega_checked_trees::expression::ExpressionNode::Mutable(inner)
+            if matches!(
+                program.expression_table.expression(*inner),
+                omega_checked_trees::expression::ExpressionNode::Call(_)
+            ) =>
+        {
+            argument_borrow_loan_place(
+                program,
+                state_symbol,
+                statement_index,
+                machine_symbol,
+                *inner,
+            )
+        }
+        _ => borrow_access_place(
+            program,
+            state_symbol,
+            statement_index,
+            argument,
+            machine_symbol,
+        ),
+    }
 }
 
 fn rebase_borrow_place_through_local_loan(
