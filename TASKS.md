@@ -30,6 +30,33 @@ representation machinery behind a deliberate boundary.
 Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
 179/179, oracle fully matched). Ordered roughly by leverage.
 
+**Decisions needed (sign-off register, 2026-06-12).** Every vertical slice
+below is complete; what remains is gated on these maintainer calls. Each
+points at the bullet carrying the full proposal:
+
+1. **`Versioned<T>` container** — the versioned-data stage-3 bullet's
+   "PROPOSED DESIGN AWAITING SIGN-OFF" block (name/permanence, era width,
+   payload storage, era queryability, chain severity). Unlocks stage
+   3a/3b and historical-era wire decode.
+2. **Argumented ranking-view spelling** — the Measures section's "NEEDS
+   MAINTAINER SIGN-OFF" note (`decreases index -> Distance::To(limit)` vs
+   keeping the named-subtraction form permanent). Grammar surgery either
+   way; pick before building.
+3. **Call-output borrows** — the wire bullet's String-decode KNOWN HOLE:
+   may a call's output retain a borrow of another argument (the borrow
+   model extension zero-copy decode needs)? Also shapes any future
+   view-returning machine surface.
+4. **Long-view arc priority** — which big arc gets the next scout brief:
+   concurrency model and atomics gate the most for Cathedral
+   (wiki/cathedral_alignment.md tier 1); separate compilation, comptime,
+   and the allocator story queue behind them. The arcs themselves are in
+   the long-view register below.
+
+Smaller wire remainders (repeated fields, arbitrary-depth nesting,
+encoding families, negotiation) are derivable from decision 10 + the
+landed framing without sign-off. Language-design open questions with no
+implementation pressure stay in the guide's appendix "Still Open".
+
 **Implementation, design already frozen:**
 
 All three frozen decisions (11, 12, 13) landed 2026-06-11 — see the wave
