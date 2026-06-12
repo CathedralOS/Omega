@@ -1,6 +1,43 @@
 # Design Brief: Concurrency Model + Atomics
 
-Scouted 2026-06-12. Status: AWAITING SIGN-OFF (decisions C1-C5 in TASKS.md).
+Scouted 2026-06-12. Status: C1 DECIDED (revised in discussion — see below);
+C2-C5 awaiting sign-off (TASKS.md register).
+
+## C1 As Decided (supersedes the `yields` recommendation below)
+
+NO suspension keyword, NO await. The model:
+
+- Waiting originates ONLY at boundary wait primitives — a `Scheduler`
+  boundary trait (`wait_until_nonzero(&AtomicU32) effects suspend`,
+  `wake_one`). Per-target bindings via the existing host-provider
+  machinery: hosted = futex/WaitOnAddress syscalls; Cathedral userland =
+  scheduler capability; Cathedral kernel = implements it over
+  hlt/interrupt wakeups. Waiting lives where it physically exists — the
+  same reflex as decision 14's "the era bit lives at boundaries".
+- `suspend` is an INFERRED transitive effect (decision-12 machinery).
+  Machines may declare it on signatures (`effects suspend`) as the
+  reader-facing marker, checked against inference like any effect.
+- AWAITING = CALLING. A call into a suspending machine may park the task
+  inside the callee; the caller's code is straight-line. No Future
+  reification is needed because machine frames are planned storage, not
+  native stack — a parked task is just its state + frame region (the
+  continuation-capture problem that forces await in stackless languages
+  is pre-solved by the execution model).
+- Enforcement over vigilance: (1) borrows may not live across a call site
+  carrying `suspend` (the world moves while parked); (2) effect ceilings
+  forbid `suspend` where parking is illegal — a trait with no `suspend`
+  in its requirement IS the ISR-safety rule; (3) atomicity is DERIVED:
+  a state that calls no suspending machine runs uninterrupted.
+- Visibility: declared effects on public signatures (house style), and
+  the state-graph/boundary artifacts surface every suspension point
+  ("show me everywhere this program can park" is a browsable query).
+- `select` (wait on multiple sources, first ready wins — maps naturally
+  onto a transition whose arm subjects are waitables) is DEFERRED as its
+  own design.
+- Termination note from the same discussion: const-eval/comptime needs no
+  new termination rule either — general recursion does not exist in the
+  language (self-calls are tail self-loops; loops carry
+  decreases/measures), so existing discipline covers it (register M3).
 
 ## Current State
 
