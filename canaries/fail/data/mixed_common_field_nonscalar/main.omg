@@ -1,0 +1,17 @@
+// Mixed data shapes (common fields + cases) restrict COMMON fields to scalar
+// primitives for now: case construction zero-initializes every common field
+// the literal does not name, and a scalar zero is one storage write in both
+// backends. A String common field is rejected loudly instead of half-zeroing.
+
+data RoomEvent {
+    label: String;
+    case Nothing;
+    case Treasure(gold: i32);
+}
+
+data Main {
+    value: i32;
+}
+
+machine Main::main(&mut self) {
+}

@@ -197,10 +197,22 @@ fn validate_field_type_reference(
 ) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => validate_field_type_reference(
-            program, symbols, schema, scope, field, *referee, diagnostics,
+            program,
+            symbols,
+            schema,
+            scope,
+            field,
+            *referee,
+            diagnostics,
         ),
         TypeReferenceNode::Constrained { base_type, .. } => validate_field_type_reference(
-            program, symbols, schema, scope, field, *base_type, diagnostics,
+            program,
+            symbols,
+            schema,
+            scope,
+            field,
+            *base_type,
+            diagnostics,
         ),
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => validate_field_type_reference(
@@ -405,9 +417,8 @@ pub(crate) fn validate_wire_encode_call(
             schema_rejects = true;
             continue;
         }
-        worst_case_bytes +=
-            omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len()
-                + encoding.max_varint_length();
+        worst_case_bytes += omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len()
+            + encoding.max_varint_length();
         current_fields.push((field, primitive.expect("encoding implies primitive")));
     }
     if schema_rejects {
@@ -420,18 +431,34 @@ pub(crate) fn validate_wire_encode_call(
         declared_place_type(program, current_machine, current_state, arguments[0])
         && let Some(value_data) = named_data_definition(program, value_type)
     {
+        // Case-bearing value types (sums and mixed shapes) have no wire
+        // encoding yet: the schema field set only describes scalar FIELD
+        // members, so the case tag and payload would silently drop. Reject
+        // loudly until case-aware wire encoding lands.
+        if program
+            .data_members(value_data)
+            .iter()
+            .any(|member| matches!(member, omega_typed_trees::data::DataMember::Variant(_)))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::encode_wire` value type `{}` is case-bearing; wire encoding over sums and mixed data shapes is not implemented yet (the case tag and payload have no schema spelling)",
+                schema.name, value_data.name
+            )));
+            return true;
+        }
         for (field, schema_primitive) in &current_fields {
-            let Some(value_field) = program
-                .data_members(value_data)
-                .iter()
-                .find_map(|member| match member {
-                    omega_typed_trees::data::DataMember::Field(data_field)
-                        if data_field.name == field.name =>
-                    {
-                        Some(data_field)
-                    }
-                    _ => None,
-                })
+            let Some(value_field) =
+                program
+                    .data_members(value_data)
+                    .iter()
+                    .find_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Field(data_field)
+                            if data_field.name == field.name =>
+                        {
+                            Some(data_field)
+                        }
+                        _ => None,
+                    })
             else {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}::encode_wire` value type `{}` has no field `{}` to encode (schema field {})",
@@ -545,8 +572,7 @@ fn declared_place_type(
         [name] => {
             if let Some(state) = current_state {
                 for statement in program.statement_table.statements(state.statement_nodes) {
-                    if let omega_typed_trees::statement::StatementNode::LocalData(local) =
-                        statement
+                    if let omega_typed_trees::statement::StatementNode::LocalData(local) = statement
                         && local.name.as_str() == name
                     {
                         return unwrapped_type_reference(program, local.type_reference);

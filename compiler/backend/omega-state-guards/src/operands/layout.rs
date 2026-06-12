@@ -693,9 +693,10 @@ fn record_fields(layouts: &LayoutPlan, type_symbol: SymbolHandle) -> HandleSpan<
 }
 
 /// Resolve a member of `type_symbol` covering BOTH data shapes: record fields,
-/// and CASE PAYLOAD fields of an enum-shaped data (searched across every
-/// variant's payload span; payload offsets are absolute within the enum value,
-/// so the caller's offset arithmetic is shape-independent).
+/// and members of case-bearing data -- COMMON fields (mixed shapes, readable
+/// without case knowledge) plus CASE PAYLOAD fields (searched across every
+/// variant's payload span). All offsets are absolute within the value, so the
+/// caller's offset arithmetic is shape-independent.
 fn data_member_field_layout<'plan>(
     layouts: &'plan LayoutPlan,
     type_symbol: SymbolHandle,
@@ -703,14 +704,25 @@ fn data_member_field_layout<'plan>(
     field_name: &Identifier,
 ) -> Option<&'plan FieldLayout> {
     if let Some(data_layout) = data_layout(layouts, type_symbol)
-        && let DataShape::Enum { variants } = &data_layout.shape
+        && let DataShape::Enum {
+            common_fields,
+            variants,
+        } = &data_layout.shape
     {
-        return layouts
-            .variants
-            .span_or_empty(*variants)
-            .iter()
-            .find_map(|variant| {
-                field_layout_by_symbol_or_name(layouts, variant.fields, field_symbol, field_name)
+        return field_layout_by_symbol_or_name(layouts, *common_fields, field_symbol, field_name)
+            .or_else(|| {
+                layouts
+                    .variants
+                    .span_or_empty(*variants)
+                    .iter()
+                    .find_map(|variant| {
+                        field_layout_by_symbol_or_name(
+                            layouts,
+                            variant.fields,
+                            field_symbol,
+                            field_name,
+                        )
+                    })
             });
     }
 

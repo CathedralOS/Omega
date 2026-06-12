@@ -35,11 +35,10 @@ pub(crate) enum DataEqualityShape {
     /// Empty records and payload-less sums: tag/value identity IS total
     /// equality, so `==` stays the existing direct compare.
     Implicit,
-    /// Records and payload-bearing sums: `==` requires a declared
-    /// `Type satisfies Equatable;` conformance and expands structurally.
+    /// Records, payload-bearing sums, and mixed shapes: `==` requires a
+    /// declared `Type satisfies Equatable;` conformance and expands
+    /// structurally (mixed = common fields AND tag AND matching payload).
     Structural,
-    /// Mixed shapes are rejected elsewhere; equality leaves them alone.
-    Mixed,
 }
 
 pub(crate) fn data_definition_by_name<'program>(
@@ -59,8 +58,7 @@ pub(crate) fn data_equality_shape(
     let members = program.data_members(data.members);
     match DataDefinition::shape_kind_from_members(members) {
         DataShapeKind::Empty => DataEqualityShape::Implicit,
-        DataShapeKind::Record => DataEqualityShape::Structural,
-        DataShapeKind::Mixed => DataEqualityShape::Mixed,
+        DataShapeKind::Record | DataShapeKind::Mixed => DataEqualityShape::Structural,
         DataShapeKind::Enum => {
             let payload_bearing = members.iter().any(|member| {
                 matches!(member, DataMember::Variant(variant) if variant.payload.count() > 0)
@@ -150,10 +148,6 @@ pub(crate) fn field_equality<'program>(
 
     match data_equality_shape(program, field_data) {
         DataEqualityShape::Implicit => Ok(FieldEquality::Direct),
-        DataEqualityShape::Mixed => Err(Diagnostic::error(format!(
-            "conformance `{conforming_type} satisfies Equatable`: field `{}` of `{owner}` is not Equatable: mixed data shapes do not support equality",
-            field.name
-        ))),
         DataEqualityShape::Structural => {
             if equatable_conformance_declared(program, &base_name) {
                 Ok(FieldEquality::Structural(field_data))
