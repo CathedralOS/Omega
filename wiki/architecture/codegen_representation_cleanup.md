@@ -206,6 +206,18 @@ Beyond type-dedup; these are correctness/representation rewrites.
   slots.txt: each call context gets disjoint ranges) run the full scripted loop
   correctly, so the dungeon no longer evidences a frame-overlap bug; this redesign
   remains motivated by self-looping callees and separate compilation.
+  Attribution correction (2026-06-11, second instance): the shrinking-slice
+  threaded-scalar accumulation bug (`self.accumulate(items[1..], items[0].value)`
+  natively totaled 4*ptr+24 instead of 70) was ALSO not the shared-frame model —
+  the same-context overlap staging (source -> scratch -> target) is sound. The
+  argument lowering resolved `items[0].value` as a plain place over the slice
+  descriptor slot (root index dropped, no deref), reading the data pointer's low
+  bytes as the element; fixed in selection (descriptor-aware fixed-indexed copy +
+  resolver refusal), pinned by canary
+  `termination/runtime_shrinking_slice_recursion_exit`. The overlapping-frames
+  family has so far produced miscompiles whose roots were elsewhere; the redesign
+  case still rests on self-looping callees and separate compilation, not on
+  observed frame corruption.
 
 ## Done-when
 

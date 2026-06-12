@@ -330,6 +330,23 @@ pub(super) fn resolve_runtime_storage_place_in_table(
             })
         })
     {
+        // A root segment that carries an element index (`items[0].value` where
+        // `items` is the matched frame slot) only resolves to a static place when
+        // the slot stores the array INLINE — and the inline cases were already
+        // handled by the index-aware resolver above. When the slot holds a slice
+        // DESCRIPTOR the element lives behind the descriptor's data pointer, so
+        // no static frame place exists; the fall-through below used to DROP the
+        // index and alias the descriptor slot's own bytes as the element (a
+        // threaded `items[0].value` argument received the data pointer's low
+        // bytes). Refuse so callers fall back to descriptor-aware indexed
+        // strategies. Index 0 on an inline array keeps the legacy direct place
+        // (offset arithmetic is identical with the index dropped).
+        if let Some(root_index) = path.member_index(0)
+            && (root_index != 0 || !runtime_frame_slot_is_inline_fixed_array_storage(input, slot))
+        {
+            return None;
+        }
+
         if let Some(place) = runtime_slice_descriptor_member_place(
             input,
             slot.byte_offset,
