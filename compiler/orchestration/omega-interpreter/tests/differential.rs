@@ -34,14 +34,9 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_min_max_signedness_exit", 70),
     ("arithmetic/runtime_signed_division_exit", 70),
     ("arithmetic/runtime_unsigned_division_exit", 70),
-    (
-        "calls/runtime_alias_indexed_read_through_transition_exit",
-        70,
-    ),
-    (
-        "calls/runtime_alias_write_through_guarded_transition_exit",
-        70,
-    ),
+    ("calls/runtime_alias_indexed_read_through_transition_exit", 70),
+    ("calls/runtime_alias_write_through_guarded_transition_exit", 70),
+    ("calls/runtime_assignment_call_post_mutation_value_exit", 70),
     ("calls/runtime_call_in_inlined_substate_exit", 70),
     (
         "calls/runtime_call_result_through_reference_field_exit",
@@ -159,10 +154,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("control_flow/runtime_negated_boolean_place_guard_exit", 73),
     ("control_flow/runtime_negated_comparison_guard_exit", 75),
     ("control_flow/runtime_state_loop_indexed_search_exit", 70),
-    (
-        "control_flow/runtime_straight_line_terminal_field_readback_exit",
-        70,
-    ),
+    ("control_flow/runtime_statement_call_single_execution_exit", 70),
+    ("control_flow/runtime_straight_line_terminal_field_readback_exit", 70),
     ("control_flow/runtime_straight_line_terminal_local_exit", 70),
     ("control_flow/runtime_tuple_transition_exit", 22),
     ("data/case_membership_union_guard_exit", 70),

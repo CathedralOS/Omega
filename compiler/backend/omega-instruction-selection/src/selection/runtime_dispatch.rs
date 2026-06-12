@@ -4,7 +4,7 @@ use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, Expressi
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
-use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
+use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallRole;
 use omega_state_values::{StateValueRole, simplify_state_expression_for_role};
 
@@ -26,7 +26,8 @@ pub(super) use branches::{
     BranchPreludeSelectionScratch, select_runtime_branch_preludes_for_operation,
 };
 use branches::{
-    LeafBranchSelectionScratch, select_runtime_leaf_branch_expansions_for_operation,
+    LeafBranchSelectionScratch, leaf_expansions_defer_to_local_initializer,
+    select_runtime_leaf_branch_expansions_for_operation,
     select_runtime_straight_line_branch_expansions_for_operation,
 };
 use edges::select_runtime_dispatch_edge;
@@ -271,7 +272,13 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             runtime_static_values.clear();
             runtime_storage_write_scratch.clear();
 
-            for operation in operations.iter() {
+            // `let v = self.f(...)` call-result selections deferred past the
+            // callee's spliced effect operations; each waits here for the
+            // statement's own LocalStorage operation (see the deferral note at
+            // the leaf emission below).
+            let mut deferred_leaf_operations: Vec<RuntimeDispatchBodyOperation> = Vec::new();
+
+            for (operation_index, operation) in operations.iter().enumerate() {
                 bind_runtime_operation_aliases(
                     input,
                     operation,
@@ -307,6 +314,26 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     operation.kind,
                     RuntimeDispatchBodyOperationKind::LocalStorage { .. }
                 ) {
+                    // A deferred call-result selection lands HERE, after the
+                    // callee's spliced effect operations and before its local
+                    // initializer copy reads the call-result slot.
+                    if let Some(deferred_index) =
+                        deferred_leaf_operations.iter().position(|deferred| {
+                            deferred.source_key == operation.source_key
+                                && deferred.statement_index == operation.statement_index
+                        })
+                    {
+                        let deferred = deferred_leaf_operations.remove(deferred_index);
+                        select_runtime_leaf_branch_expansions_for_operation(
+                            input,
+                            dispatch_case.dispatch_index,
+                            &deferred,
+                            &mut leaf_expansion_cursor,
+                            &mut leaf_selection_scratch,
+                            runtime_value_operands,
+                            selected_instructions,
+                        );
+                    }
                     select_runtime_dispatch_local_initializer_write(
                         input,
                         dispatch_case.dispatch_index,
@@ -356,15 +383,37 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     runtime_value_operands,
                     selected_instructions,
                 );
-                select_runtime_leaf_branch_expansions_for_operation(
+                // The splice lays a `let v = self.f(...)` out as
+                // [StateCall, ...callee effect ops..., LocalStorage], so the
+                // call-result value selection emitted at the StateCall would
+                // read the callee's PRE-mutation state. When the statement's
+                // only leaf role is AssignmentValue and its LocalStorage
+                // operation follows in this body, defer the selection to that
+                // operation (the interpreter delivers the post-mutation value).
+                let defers_to_local_initializer = leaf_expansions_defer_to_local_initializer(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
-                    &mut leaf_expansion_cursor,
-                    &mut leaf_selection_scratch,
-                    runtime_value_operands,
-                    selected_instructions,
-                );
+                ) && operations.iter().skip(operation_index + 1).any(|later| {
+                    matches!(
+                        later.kind,
+                        RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+                    ) && later.source_key == operation.source_key
+                        && later.statement_index == operation.statement_index
+                });
+                if defers_to_local_initializer {
+                    deferred_leaf_operations.push(operation.clone());
+                } else {
+                    select_runtime_leaf_branch_expansions_for_operation(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation,
+                        &mut leaf_expansion_cursor,
+                        &mut leaf_selection_scratch,
+                        runtime_value_operands,
+                        selected_instructions,
+                    );
+                }
 
                 if matches!(operation.kind, RuntimeDispatchBodyOperationKind::HostCall)
                     && let Some(host_call) = host_call_for_statement(

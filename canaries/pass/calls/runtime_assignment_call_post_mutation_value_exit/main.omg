@@ -1,0 +1,50 @@
+// `let v = self.next(&mut state)` where the callee mutates the state and
+// returns the NEW value must deliver the POST-mutation value (interpreter
+// semantics). Pre-fix the native backend emitted the call-result value
+// selection at the StateCall body operation, BEFORE the splice's flattened
+// mutation ops, so `v` carried the PRE-mutation value (native exit 2,
+// interpreter 70); the selection is now deferred to the statement's
+// LocalStorage operation, after the callee's effects.
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Tally {
+    calls: u64;
+    pad: u64;
+}
+
+data Main {
+    console: Console;
+    tally: Tally;
+}
+
+machine Main::next(
+    &mut self,
+    tally: &mut Tally
+    ) -> u32 {
+    tally.calls = tally.calls + 1;
+
+    transition {
+        _ -> (tally.calls as u32)
+    }
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.tally.calls = 40;
+    self.tally.pad = 0;
+    let v: u32 = self.next(&mut self.tally);
+
+    transition {
+        v == 41 -> exit_post()
+        v == 40 -> exit_stale()
+        _ -> exit_other()
+    }
+
+
+    state exit_post(&mut self) { self.console.exit_process(70); }
+    state exit_stale(&mut self) { self.console.exit_process(2); }
+    state exit_other(&mut self) { self.console.exit_process(77); }
+}
