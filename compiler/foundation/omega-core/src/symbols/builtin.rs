@@ -1,6 +1,6 @@
 use super::{SymbolKind, SymbolNameRef};
 
-pub const BUILTIN_TYPE_COUNT: usize = 23;
+pub const BUILTIN_TYPE_COUNT: usize = 27;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinType {
@@ -94,6 +94,14 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
             SymbolNameRef::Static(BuiltinType::Real.name()),
         ),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("string")),
+        // Atomic types (chapter 17, concurrency stage 1). Layout matches the
+        // underlying primitive; the type name is retained so atomic method
+        // calls (load/store/fetch_add/compare_exchange) can be resolved by
+        // name in later stages.
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicBool")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicU32")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicU64")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("AtomicUsize")),
     ]
 }
 

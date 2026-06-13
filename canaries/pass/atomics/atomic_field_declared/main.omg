@@ -1,0 +1,53 @@
+// PASS canary (ch17 "Atomics" / concurrency stage 1, M1): AtomicU32, AtomicU64,
+// AtomicBool, and AtomicUsize may be declared as data fields and read/written
+// like their underlying plain integer equivalents. No atomic OPS yet -- this
+// confirms the types are recognized, laid out (same width as the wrapped
+// primitive), and zero-initialized. Guard-ladder exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    c32: AtomicU32;
+    c64: AtomicU64;
+    flag: AtomicBool;
+    sz: AtomicUsize;
+}
+
+machine Main::main(&mut self) {
+    self.c32 = 1;
+    self.c64 = 2;
+    self.flag = true;
+    self.sz = 3;
+
+    transition self.c32 == 1 {
+        true -> check_c64()
+        false -> bad()
+    }
+    state check_c64(&mut self) {
+        transition self.c64 == 2 {
+            true -> check_flag()
+            false -> bad()
+        }
+    }
+    state check_flag(&mut self) {
+        transition self.flag == true {
+            true -> check_sz()
+            false -> bad()
+        }
+    }
+    state check_sz(&mut self) {
+        transition self.sz == 3 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
