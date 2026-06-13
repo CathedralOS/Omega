@@ -380,6 +380,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("traits/runtime_equatable_scalar_not_equals_guard_exit", 70),
     ("traits/equatable_record_equality_exit", 70),
     ("traits/equatable_string_field_equality_exit", 70),
+    ("traits/equatable_string_not_equals_exit", 70),
     ("traits/equatable_sum_payload_equality_exit", 70),
     ("traits/runtime_conformance_item_exit", 70),
     ("traits/runtime_dyn_single_impl_dispatch_exit", 70),

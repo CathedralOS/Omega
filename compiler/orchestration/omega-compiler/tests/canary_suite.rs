@@ -1182,10 +1182,9 @@ fn runtime_versioned_three_era_match_zii_exit_canary_runs() {
 fn runtime_equatable_scalar_not_equals_guard_exit_canary_runs() {
     // Equatable `!=` negation + `==` of a scalar record DIRECTLY in guard
     // position (the other equatable canaries route compares through a `let`).
-    // String-bearing variants are pending: the negated String term miscompiles
-    // (pending/traits/equatable_string_not_equals_value) and guard-position
-    // String equality rejects (pending/traits/
-    // equatable_string_equality_guard_unlowered).
+    // String-bearing variants: pass/traits/equatable_string_not_equals_exit
+    // (value position) and pass/traits/equatable_string_equality_guard_exit
+    // (guard position).
     let canary = pass_canary("traits/runtime_equatable_scalar_not_equals_guard_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
@@ -2733,6 +2732,46 @@ fn equatable_string_field_equality_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected synthesized structural `==` on `Tag` to compare String content (length AND bytes) plus the scalar sibling (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn equatable_string_not_equals_exit_canary_runs() {
+    // Equatable `!=` over a String-bearing record in VALUE position: the
+    // simplifier De-Morgans `equality == false` into per-field `!=` compares,
+    // so the String term lowers as the negated text-equals leaf
+    // (`text_equals(..) == 0`). The names differ ("gold" vs "iron") while the
+    // scalar siblings are equal, so dropping the String term (the old
+    // miscompile: the whole initializer write silently vanished and the ZII
+    // false took the bad arm) flips the exit code.
+    let canary = pass_canary("traits/equatable_string_not_equals_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-equatable-string-not-equals-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("equatable string not-equals canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("equatable string not-equals canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected synthesized structural `!=` on `Tag` to see the differing String content (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -9437,6 +9476,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/equatable_record_equality_exit",
     "traits/equatable_mixed_shape_equality_exit",
     "traits/equatable_string_field_equality_exit",
+    "traits/equatable_string_not_equals_exit",
     "traits/equatable_sum_payload_equality_exit",
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
@@ -9848,10 +9888,6 @@ struct PendingCanary {
 //   EXHAUSTIVENESS is unchecked (a match handling only v1 compiles; ordinary
 //   case matches reject the analogous shape). Unobservable at runtime only
 //   because ZII era 0 is the sole construction path until stage-4 decoders.
-// - traits/equatable_string_not_equals_value: NATIVE MISCOMPILE -- `!=` over
-//   an Equatable record with a String field drops the String term (native
-//   exits 71 where the interpreter exits 70). `==` is right; scalar `!=` is
-//   right.
 // - traits/equatable_string_equality_guard_unlowered: guard-position
 //   structural `==` with a String field rejects (16-byte runtime operand)
 //   instead of reusing the value-position text-equals lowering.
@@ -9870,10 +9906,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "versioning/versioned_match_missing_current_arm",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "traits/equatable_string_not_equals_value",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
