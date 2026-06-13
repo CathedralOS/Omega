@@ -1,0 +1,49 @@
+// RUN canary (lifetimes stage 1, the complement of
+// fail/borrow/method_view_receiver_unrelated_field_write): the receiver-wide
+// loan of a method-returned view ends at the view's LAST USE, not at scope
+// end -- so writing another field of the same receiver AFTER the final write
+// through the view must compile (use-ranged loans, Rust's NLL shape). The
+// runtime assertion proves both writes landed: 7 through the view into
+// cells[2], then 63 directly into `other` (sum 70).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    value: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+    other: i32;
+}
+
+machine Bag::pick(&mut self) -> &mut Cell {
+    let slots: &mut [Cell] = self.cells.as_mut_slice();
+    transition {
+        _ -> &mut slots[2]
+    }
+}
+
+data Main {
+    console: Console;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) {
+    let cell: &mut Cell = self.bag.pick();
+    cell.value = 7;
+    // `cell` is dead from here on: the receiver-wide loan has ended.
+    self.bag.other = 63;
+    transition self.bag.cells[2].value + self.bag.other == 70 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

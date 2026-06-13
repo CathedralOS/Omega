@@ -1,0 +1,56 @@
+// COMPTIME STAGE 1, TRANSITIVE PURITY: the const-position callee
+// `table_size()` itself CALLS another effect-free machine (`base()`); the
+// decision-12 inferred effect surface is transitive, so the whole call tree
+// is const-evaluable and the reference interpreter folds it to 5 * 3 + 1 =
+// 16. The existing comptime canary's callee is a single arithmetic
+// expression -- this one pins that const evaluation runs the CALL machinery
+// (frame setup, value return), not just expression folding. Runtime ladder
+// as in the base canary: both ends of the 16-slot array hold their values
+// (index 15 only typechecks if 16 reached the range checker). Exits 70 only
+// when both reads are right.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    slots: [i64; table_size()];
+}
+
+machine base() -> usize {
+    transition {
+        _ -> 5
+    }
+}
+
+machine table_size() -> usize {
+    transition {
+        _ -> (base() * 3 + 1)
+    }
+}
+
+machine Main::main(&mut self) {
+    self.slots[0] = 7;
+    self.slots[15] = 63;
+
+    transition self.slots[0] == 7 {
+        true -> check_last()
+        false -> bad()
+    }
+
+    state check_last(&mut self) {
+        transition self.slots[15] == 63 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,54 @@
+// RUN canary (lifetimes stage 1): CHAINED view-of-view through two free
+// machines. `pick` returns a view borrowing the bag (its single ref input);
+// `narrow` returns a view borrowing THAT view. The elision linkage must
+// compose -- the leaf `&mut i32` ultimately keeps `self.bag` loaned -- and
+// the write through the two-hop view must land in the root storage. The
+// runtime read-back through `self.bag.cells[2].value` proves the leaf write
+// reached the machine-owned array element (exit 70).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    value: i32;
+    spare: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+machine pick(bag: &mut Bag) -> &mut Cell {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    transition {
+        _ -> &mut cells[2]
+    }
+}
+
+machine narrow(cell: &mut Cell) -> &mut i32 {
+    transition {
+        _ -> &mut cell.value
+    }
+}
+
+data Main {
+    console: Console;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) {
+    let cell: &mut Cell = pick(&mut self.bag);
+    let leaf: &mut i32 = narrow(cell);
+    leaf = 7;
+    transition self.bag.cells[2].value == 7 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,32 @@
+// FAIL canary (ch17 + frozen decision 9): a bare-statement `handle.join();`
+// discards the spawned call's non-unit result, so the program must not
+// compile. Today the rejection arrives via the GRAMMAR's
+// expression-statement rule (a bare value-producing call is only legal as a
+// terminal expression, and `main` declares no return type) rather than the
+// strict-result diagnostic the attached/trait paths give
+// (fail/calls/discarded_call_result). If the wording ever migrates to the
+// decision-9 "discards its non-unit result" form, update the fragment --
+// the contract this canary pins is only that the discard NEVER compiles
+// silently.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Worker {
+}
+
+machine Worker::run(x: i32) -> i32 {
+    x * 2
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let payload: i32 = 17;
+    let handle: Join<i32> = spawn { Worker::run(move payload) };
+    handle.join();
+    self.console.exit_process(70);
+}
