@@ -9556,6 +9556,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "versioning/runtime_versioned_three_era_match_zii_exit",
     "versioning/version_chain_report",
     "versioning/version_chain_report_complete",
+    "versioning/versioned_match_all_eras_exhaustive",
+    "versioning/versioned_match_default_arm",
     "wire/wire_generic_trait",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",
@@ -9801,6 +9803,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "versioning/versioned_redeclared",
     // --- 2026-06-12 canary coverage sweep (feature-edge additions) ---
     "versioning/versioned_match_wrong_type_arm",
+    "versioning/versioned_match_missing_current_arm",
     "data/property_send_case_payload_string",
     "data/property_zero_init_array_element_violation",
     "comptime/const_array_length_index_out_of_bounds",
@@ -9843,11 +9846,11 @@ struct PendingCanary {
 // a VALUE-position call (`let r = self.pick(&self.h)`) bypasses argument
 // validation entirely, so its `[copy]` bound is not enforced yet. Promote to
 // fail/generics/ when value-position calls gain argument validation.
+// versioned_match_missing_current_arm was promoted to fail/versioning/ when
+// version-match exhaustiveness counting landed (the decidable arm set of a
+// `Versioned<T>` subject is {each declared era vN} + {current};
+// crate::exhaustiveness in omega-symbol-resolved-trees-to-typed-trees).
 // 2026-06-12 canary coverage sweep additions:
-// - versioning/versioned_match_missing_current_arm: version-match
-//   EXHAUSTIVENESS is unchecked (a match handling only v1 compiles; ordinary
-//   case matches reject the analogous shape). Unobservable at runtime only
-//   because ZII era 0 is the sole construction path until stage-4 decoders.
 // - traits/equatable_string_not_equals_value: NATIVE MISCOMPILE -- `!=` over
 //   an Equatable record with a String field drops the String term (native
 //   exits 71 where the interpreter exits 70). `==` is right; scalar `!=` is
@@ -9866,10 +9869,6 @@ struct PendingCanary {
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "generics/machine_bound_value_call_unchecked",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "versioning/versioned_match_missing_current_arm",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {

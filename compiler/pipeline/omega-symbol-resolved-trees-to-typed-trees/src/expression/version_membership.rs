@@ -29,7 +29,7 @@ use omega_typed_trees as typed;
 
 /// Whether a membership domain path is a parser-synthesized version arm
 /// marker (`Type::<marker>` or `Type::vN::<marker>`).
-pub(super) fn is_version_arm_domain(
+pub(crate) fn is_version_arm_domain(
     source: &resolved::expression::ExpressionTable,
     domain: HandleSpan<resolved::name::DiagnosticName>,
 ) -> bool {
@@ -218,7 +218,7 @@ pub(crate) fn versioned_interior_write_error(
 /// symbol-stamped places alone: a state parameter, a data field reached
 /// through a member access, or machine-owned data. Returns `None` for
 /// inferred locals and computed subjects.
-fn subject_declared_type_name<'program>(
+pub(crate) fn subject_declared_type_name<'program>(
     program: &'program resolved::SymbolResolvedTrees,
     source: &resolved::expression::ExpressionTable,
     subject: resolved::expression::ExpressionHandle,
