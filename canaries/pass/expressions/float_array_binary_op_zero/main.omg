@@ -1,0 +1,38 @@
+// PASS CANARY -- float f64 array element binary arithmetic.
+//
+// `self.vals[0] + self.vals[1]` where both operands are fixed-array elements of
+// type f64 should produce the correct float sum (3.0 + 4.0 = 7.0).
+//
+// Root cause (fixed): `classify_scalar_value_type_in_table` called
+// `resolve_machine_owned_collection_in_table` for `self.vals[0]` but the
+// path suffix after the root field was empty, so the cursor stayed at the
+// array type `[f64; 2]` rather than descending to the element type `f64`.
+// `descriptor_primitive_type` on an array descriptor returns `None`, so
+// `binary_value_operands_are_float` returned `false` and emitted integer
+// add instead of addsd.  Fixed in `resolve_machine_owned_collection_in_table`
+// to apply the root-field member_index (array element index) when the suffix
+// is empty.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    vals: [f64; 2];
+}
+
+machine Main::main(&mut self) {
+    self.vals[0] = 3.0;
+    self.vals[1] = 4.0;
+
+    // arr[0] + arr[1] should be 7.0
+    let s: f64 = self.vals[0] + self.vals[1];
+    transition s > 6.0 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
