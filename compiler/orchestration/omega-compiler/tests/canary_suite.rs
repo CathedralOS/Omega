@@ -9855,6 +9855,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/generic_trait_type_param",
     "generics/generic_type_param_in_state",
     "generics/machine_bound_satisfied_at_call",
+    "generics/machine_bound_satisfied_at_value_call",
     "generics/property_bound_type_parameter",
     "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
@@ -9963,6 +9964,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_unknown",
     "data/property_zero_init_nonzero_default",
     "generics/colon_bound_rejected",
+    "generics/machine_bound_value_call_unchecked",
     "generics/machine_bound_violated_at_call",
     "generics/property_bound_missing_on_field",
     "generics/property_bound_violated_at_instantiation",
@@ -10172,12 +10174,13 @@ struct PendingCanary {
 // payload codegen landed (tag-prefix write + payload field writes + tag-only
 // guard compares + payload member reads); the compiler-side lowering gate was
 // removed with it.
-// machine_bound_value_call_unchecked: decision 13 residue frontier. The
-// machine-call type-parameter bound check lives in `validate_call_node`
-// (omega-validation/src/calls.rs), which only sees STATEMENT-position calls;
-// a VALUE-position call (`let r = self.pick(&self.h)`) bypasses argument
-// validation entirely, so its `[copy]` bound is not enforced yet. Promote to
-// fail/generics/ when value-position calls gain argument validation.
+// machine_bound_value_call_unchecked was promoted to fail/generics/ when
+// `validate_value_position_calls` landed in omega-validation/src/calls.rs:
+// the machine-call type-parameter bound check now runs for VALUE-position
+// calls (`let r = self.pick(&self.h)`) via an expression-tree walker that
+// mirrors the statement-position `validate_call_node` path.  A companion
+// pass canary (generics/machine_bound_satisfied_at_value_call) pins the
+// accepted side: `[copy]`-satisfying data types and scalars compile fine.
 // versioned_match_missing_current_arm was promoted to fail/versioning/ when
 // version-match exhaustiveness counting landed (the decidable arm set of a
 // `Versioned<T>` subject is {each declared era vN} + {current};
@@ -10206,9 +10209,4 @@ struct PendingCanary {
 //   runtime_const_array_length_bare_call_arm_exit (parenthesized lone-call
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    PendingCanary {
-        path: "generics/machine_bound_value_call_unchecked",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
