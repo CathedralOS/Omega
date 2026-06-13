@@ -1,0 +1,34 @@
+// PENDING (CurrentlyAccepts): EXHAUSTIVENESS over version match arms is NOT
+// checked. A boundary can mint a container at ANY declared era including
+// current, so a version match handling only the historical v1 shape leaves
+// the current era unhandled -- ordinary case matches reject this shape
+// (fail/data/match_nonexhaustive_cases), version matches should too. Today
+// it compiles silently; unobservable at runtime only because ZII (era 0) is
+// the sole construction path until boundary decoders mint non-zero eras
+// (stage 4). When exhaustiveness lands, promote to fail/ with the fragment.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    transition self.raw {
+        Counter::v1(old) -> old_era(old.counter)
+    }
+    state old_era(&mut self, counter: i32) {
+        self.console.exit_process(70);
+    }
+}

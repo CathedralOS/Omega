@@ -1,0 +1,36 @@
+// Chapter 21 stage 3 (frozen decision 14): `era` is read-only
+// source-queryable -- including DIRECTLY as a transition guard subject, not
+// only through a local copy (the existing era canary reads it into a `let`
+// first; this pins the guard-position read path). The ZII container carries
+// era 0, so the `== 0` arm must win and exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+    timestamp: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    transition self.raw.era == 0 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
