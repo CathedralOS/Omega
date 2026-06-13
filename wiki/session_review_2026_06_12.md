@@ -103,14 +103,31 @@ single-feature canaries each passed, but their COMBINATION (aggregate param
 
 ## 3. Bugs found and FIXED this session (no action needed, FYI)
 
-Seven native miscompiles surfaced by the new features + the canary sweep,
-all fixed and oracle-verified the same day: by-value struct ARGS to free
-machines (3 stacked instruction-selection bugs); by-value struct RETURNS;
-trailing bare-local-name returns (storage planner dropped the slot); String
-`!=` dropped the text term; guard-position String `==` was unlowered;
-versioned-match exhaustiveness was unchecked; const-eval misparsed a
-parenthesized bare-call arm. The versioned "more fields than current"
-suspected bug turned out NOT to exist (added regression coverage instead).
+NINE native miscompiles surfaced by the new features + the canary sweep +
+end-to-end sample authoring; eight fixed and oracle-verified, the ninth in a
+fix lane at time of writing:
+1. by-value struct ARGS to free machines (3 stacked instruction-selection bugs)
+2. by-value struct RETURNS
+3. trailing bare-local-name returns (storage planner dropped the slot)
+4. String `!=` dropped the text term
+5. guard-position String `==` was unlowered
+6. versioned-match exhaustiveness was unchecked
+7. const-eval misparsed a parenthesized bare-call arm
+8. by-value CASE param → dispatched self-write lost (StructLiteral arg never
+   materialized into the param slot — a2b961f8; found via vending_machine)
+9. sequential value-calls clobber result slots (callee-1 internal `let` +
+   callee-2 more args — found via shapes_area; FIX LANE RUNNING)
+
+The versioned "more fields than current" suspected bug turned out NOT to
+exist (added regression coverage instead). Also landed: value-position calls
+now run argument/bound validation (was a silent gap — decision-13 residue
+closed); `omega-names` (2152-line orphan crate) deleted; structure review +
+leaf.rs documentation.
+
+Samples filled this session (empty dirs → working programs, all exit 70):
+bounded_counter, vending_machine, shapes_area, wire_protocol, traffic_light,
+score_tracker (+ float/array round-2 lane running). This is the "graduate to
+ironclad" surface — combinations the canary corpus didn't exercise.
 
 ## 4. The pattern worth a structural fix (see structure review)
 
