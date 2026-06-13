@@ -552,6 +552,61 @@ fn source_completion_dispatch_index(
     targets.next().is_none().then_some(first)
 }
 
+/// Emit write instructions that deliver the leaf branch's terminal value into
+/// the call-result slot for the expansion's statement.
+///
+/// # Four-layer substitution pipeline
+///
+/// Terminal values frequently reference names and locals from the CALLER's
+/// context, not the leaf's own frame. Each fix below addressed a class of
+/// silent write drops where a name could not be resolved and the entire
+/// result-slot write vanished (call returned a stale zero):
+///
+/// 1. **Binding application** (`resolve_leaf_binding_expression_handle`): the
+///    leaf expansion carries `bindings` that map parameter names to their
+///    call-site expressions. Applied first so the terminal value references
+///    caller-side names after this step.
+///
+/// 2. **Caller-local initializer substitution**
+///    (`resolve_leaf_caller_local_initializer_names`): names that refer to
+///    fold-only locals in the CALLER state (locals without a frame slot
+///    because the storage planner expected them to be folded away) cannot be
+///    resolved as runtime places. This pass substitutes them with their
+///    initializer expressions, keeping the substitution strictly
+///    decreasing (local_index bound) so it terminates. Also handles
+///    `StructLiteral` receivers (projects the named field out) and guards
+///    against substituting call-result-backed locals with their raw call
+///    expression (which no write strategy can lower).
+///
+/// 3. **Dual-context resolution loop** (`resolution_keys`): after
+///    substitution the expression may reference names from the CALLEE context
+///    (`branch_key`) OR the CALLER context (`source_key`). Both are tried in
+///    order so that, e.g., an attached callee's `self.field` resolves in the
+///    callee context while a free-machine result that folds to a caller-side
+///    expression resolves in the caller context.
+///
+/// 4. **Write-strategy cascade**: for each resolution key, three strategies
+///    are attempted in order:
+///    - `emit_runtime_frame_slot_slice_descriptor_write_in_table` — slice/
+///      text-window fat descriptors.
+///    - `select_runtime_frame_slot_value_write_in_table` — scalar integers and
+///      pointer-sized values.
+///    - `select_runtime_resolved_mutation_write_in_table_with_scratch` — struct
+///      decomposition, storage copies, and other compound forms.
+///
+/// # Known-safe fallthrough
+///
+/// When all strategies fail for all resolution keys, **nothing is emitted**.
+/// This is intentional: unimplemented text-guard lowering through refs/params
+/// reaches this point, and emitting nothing is equivalent to the historical
+/// behaviour before the strategies were added. The `UnresolvedInlineArmGuard`
+/// poison (emitted higher up, before this function) converts the assignment-
+/// value inline-guard case to a compile error; this fallthrough covers
+/// remaining gaps that are not yet poisoned.
+///
+/// The slot's `byte_size` is always `> 0` when this function is called (the
+/// storage planner in `omega-runtime-storage` skips slot creation for zero-
+/// size return types at `body.rs:851`).
 fn select_runtime_leaf_branch_terminal_value_write(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
@@ -692,6 +747,11 @@ fn select_runtime_leaf_branch_terminal_value_write(
 /// live storage. `statement_bound` restricts matching to locals declared
 /// before the referencing statement; recursing with the matched local's own
 /// index keeps initializer chains strictly decreasing, so this terminates.
+///
+/// This is layer 2 of the four-layer substitution pipeline described on
+/// `select_runtime_leaf_branch_terminal_value_write`. Call sites apply bindings
+/// (layer 1) before calling this function, and the dual-context resolution loop
+/// (layer 3) retries write strategies after it returns.
 fn resolve_leaf_caller_local_initializer_names(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
