@@ -103,9 +103,9 @@ single-feature canaries each passed, but their COMBINATION (aggregate param
 
 ## 3. Bugs found and FIXED this session (no action needed, FYI)
 
-NINE native miscompiles surfaced by the new features + the canary sweep +
-end-to-end sample authoring; eight fixed and oracle-verified, the ninth in a
-fix lane at time of writing:
+ELEVEN native miscompiles surfaced by the new features + the canary sweep +
+end-to-end sample authoring; ALL eleven fixed and oracle-verified (suite 260,
+ACTIVE_PENDING_CANARIES empty):
 1. by-value struct ARGS to free machines (3 stacked instruction-selection bugs)
 2. by-value struct RETURNS
 3. trailing bare-local-name returns (storage planner dropped the slot)
@@ -116,7 +116,21 @@ fix lane at time of writing:
 8. by-value CASE param → dispatched self-write lost (StructLiteral arg never
    materialized into the param slot — a2b961f8; found via vending_machine)
 9. sequential value-calls clobber result slots (callee-1 internal `let` +
-   callee-2 more args — found via shapes_area; FIX LANE RUNNING)
+   callee-2 more args — found via shapes_area; a982fe66)
+10. i32 `let`-local through a nested state arg re-folded to its
+    post-mutation initializer (found via bank_ledger; bbcb81b3)
+11. f64 value through a state arg never materialized (Float literal gap in
+    argument materialization — found via particle_sim; bdf1d674)
+
+The recurring root across 8 of the 11: **value materialization in
+instruction selection picks a wrong/overlapping/missing slot or width, and
+the bad write is silent**. Each was a distinct trigger (struct arg, struct
+return, bare-local return, case-param arg, sequential-call slot, nested
+let-local fold, f64 literal) but the family is "the leaf/argument
+materialization path didn't handle this shape and emitted nothing or the
+wrong move." A blanket hard error there is NOT safe (structure review, §4),
+so the family must keep being closed shape-by-shape — end-to-end sample
+authoring is the most effective net for finding the remaining ones.
 
 The versioned "more fields than current" suspected bug turned out NOT to
 exist (added regression coverage instead). Also landed: value-position calls
