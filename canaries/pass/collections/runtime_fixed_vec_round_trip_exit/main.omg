@@ -56,10 +56,11 @@ ensures
     self.length = self.length + 1;
 }
 
-// NOTE the body shape: the popped slot index is captured BEFORE the length
-// write, and the trailing expression is the INDEXED read — a trailing bare
-// local name is mis-lowered at runtime today (returns a stale slot), so the
-// conventional read-into-local-then-return spelling is deliberately avoided.
+// The conventional read-into-local-then-return spelling: the popped value is
+// captured BEFORE the length write and returned as a trailing bare local.
+// (This shape used to be mis-lowered natively -- the trailing local had no
+// frame slot, so the result write silently dropped; pinned by
+// calls/runtime_trailing_local_return_exit.)
 machine FixedVecI32x4::pop(&mut self) -> i32
 requires
     self.length > 0;
@@ -67,8 +68,9 @@ requires
 {
     let slots: &[i32] = self.items.as_slice();
     let index: usize = self.length - 1;
+    let value: i32 = slots[index];
     self.length = index;
-    slots[index]
+    value
 }
 
 machine FixedVecI32x4::get(&self, index: usize) -> i32
