@@ -1,0 +1,55 @@
+// PASS CANARY -- exit 70.
+//
+// Verifies that f64 values forwarded through a transition arm state argument
+// (`transition { _ -> some_state(my_f64_val) }`) arrive with correct bits in
+// the callee state.  Bug 11 (2026-06-12): the 8-byte state-arg materialization
+// path skipped Float literals, leaving the parameter slot zero-initialised.
+//
+// Two paths are exercised:
+//   - put_flt(3.14): f64 literal passed from main -> put_flt -> store_flt
+//   - put_int(42):   i32 state-arg (already worked; regression guard)
+//
+// Interpreter: exits 70.
+// Native x64:  exits 70 after the float-literal materialization fix.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    int_result: i32;
+    flt_result: f64;
+}
+
+machine Main::main(&mut self) {
+    self.put_int(42);
+    self.put_flt(3.14);
+
+    transition self.int_result == 42 {
+        true -> check_flt()
+        _ -> bad_int()
+    }
+
+    state check_flt(&mut self) {
+        // flt_result should be 3.14 > 3.0.
+        transition self.flt_result > 3.0 {
+            true -> good()
+            _ -> bad_flt()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad_int(&mut self) { self.console.exit_process(71); }
+    state bad_flt(&mut self) { self.console.exit_process(72); }
+}
+
+machine Main::put_int(&mut self, x: i32) {
+    transition { _ -> store_int(x) }
+    state store_int(&mut self, x: i32) { self.int_result = x; }
+}
+
+machine Main::put_flt(&mut self, x: f64) {
+    transition { _ -> store_flt(x) }
+    state store_flt(&mut self, x: f64) { self.flt_result = x; }
+}

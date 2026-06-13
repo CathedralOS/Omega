@@ -261,6 +261,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/runtime_cast_operand_exit", 70),
     ("expressions/runtime_f32_arithmetic_exit", 70),
     ("expressions/runtime_f32_local_arithmetic_exit", 70),
+    ("expressions/runtime_f64_state_arg_exit", 70),
     ("expressions/runtime_field_default_exit", 70),
     ("expressions/runtime_fixed_array_field_guard_exit", 70),
     ("expressions/runtime_fixed_array_field_value_exit", 70),

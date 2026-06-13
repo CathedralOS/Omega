@@ -9400,6 +9400,49 @@ fn value_call_sequential_result_slots_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_f64_state_arg_exit_canary_runs() {
+    // Verifies that f64 values forwarded through a transition arm state
+    // argument (`transition { _ -> store_flt(x) }`) arrive with the correct
+    // IEEE-754 bits in the callee state.  Previously the Float literal path
+    // was absent from `static_runtime_argument_value`, so the 8-byte parameter
+    // slot was never written and the callee received zero-bits.  Bug 11
+    // (2026-06-12): fixed in argument_materialization.rs by adding an explicit
+    // ExpressionNode::Float branch that writes the bit-pattern via
+    // WriteRuntimeStorageInteger.  exit 72 = bad_flt (wrong bits); exit 71 =
+    // bad_int (regression); exit 70 = both args arrived correctly.
+    let canary = pass_canary("expressions/runtime_f64_state_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-f64-state-arg-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f64 state arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f64 state arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f64 state arg (3.14 > 3.0) and i32 state arg (42 == 42) to pass (exit 70); \
+         exit 72 = f64 bits wrong, exit 71 = i32 wrong, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn pending_canaries_reproduce_known_gaps() {
     for canary in ACTIVE_PENDING_CANARIES {
         let canary_dir = pending_canary(canary.path);
@@ -10258,23 +10301,15 @@ struct PendingCanary {
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    // STATE-ARGUMENT MATERIALIZATION miscompiles (found 2026-06-12 by sample
-    // authoring -- bank_ledger and particle_sim). Both: a value forwarded
-    // through a transition arm `-> state(arg)` arrives WRONG in the callee
-    // state. They COMPILE (CurrentlyAccepts) but run wrong (native vs
-    // interpreter divergence). Promote to pass RUN canaries when state-arg
-    // materialization is fixed.
-    // (10) an i32 `let`-local passed to a nested state arg gets the wrong
-    // value on repeated calls (native 72, interpreter 70).
+    // Bug 10: STATE-ARGUMENT MATERIALIZATION miscompile: a `let`-bound local
+    // whose initializer is a pure place read (e.g. `let slot: i32 =
+    // self.s.count`) is folded back to its initializer on transition arm
+    // expansion, bypassing the LocalStorage frame slot that captured the
+    // pre-mutation value. On repeated calls where the source field is mutated
+    // between the declaration and the transition arm, the fold re-reads the
+    // post-mutation value instead. Promote to pass when fixed.
     PendingCanary {
         path: "calls/let_local_passed_to_nested_state_arg_wrong",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    // (11) an f64 value passed as a state arg arrives with wrong bits
-    // (8-byte-wide state-arg materialization; i32 works) (native 72,
-    // interpreter 70).
-    PendingCanary {
-        path: "expressions/f64_param_guard_wrong",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
 ];
