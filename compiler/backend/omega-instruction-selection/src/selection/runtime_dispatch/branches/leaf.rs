@@ -842,6 +842,48 @@ fn resolve_leaf_caller_local_initializer_names(
             }
             expressions.insert(ExpressionNode::Mutable(resolved))
         }
+        // A STRUCT-LITERAL terminal value (`Pair { a: x, b: x + 1 }` returned
+        // by value) carries the substitution into each FIELD value: after
+        // binding, fields reference CALLER locals (`seed`) that may have no
+        // frame slot (the planner expects them to fold), so without the
+        // recursion every per-field result-slot write silently dropped (the
+        // by-value struct-RETURN miscompile).
+        ExpressionNode::StructLiteral(struct_literal) => {
+            let mut changed = false;
+            let copied_fields = expressions.reserve_struct_fields(struct_literal.fields.count());
+            for offset in 0..struct_literal.fields.count() {
+                let field = expressions
+                    .struct_field_at_offset(struct_literal.fields, offset)
+                    .clone();
+                let resolved = resolve_leaf_caller_local_initializer_names(
+                    input,
+                    expansion,
+                    expressions,
+                    field.value,
+                    bindings,
+                    statement_bound,
+                );
+                changed |= resolved != field.value;
+                expressions.set_struct_field_at_offset(
+                    copied_fields,
+                    offset,
+                    omega_checked_trees::expression::TableStructLiteralField {
+                        name: field.name,
+                        value: resolved,
+                    },
+                );
+            }
+            if !changed {
+                return expression;
+            }
+            expressions.insert(ExpressionNode::StructLiteral(
+                omega_checked_trees::expression::TableStructLiteral {
+                    type_name: struct_literal.type_name,
+                    case_name: struct_literal.case_name,
+                    fields: copied_fields,
+                },
+            ))
+        }
         ExpressionNode::Name(path) => {
             if path.members.count() != 1 {
                 return expression;
@@ -889,6 +931,14 @@ fn resolve_leaf_caller_local_initializer_names(
             let Some((local_index, initial_value)) = matched else {
                 return expression;
             };
+            // A local backed by LIVE storage keeps its name: either its own
+            // LocalStorage slot, or -- when its initializer is a state CALL --
+            // the call's RESULT slot (it carries the local's name and holds the
+            // runtime value). Substituting a call-result-backed local with its
+            // initializer plants a Call expression no write strategy can lower
+            // at runtime (the chained-call struct-RETURN miscompile: a field
+            // value `seed` with `let seed = Worker::bump(30)` substituted to
+            // the call and the whole field write silently dropped).
             let has_slot = input.runtime_storage.frame_slots.iter().any(|(_, slot)| {
                 slot.dispatch_index == expansion.dispatch_index
                     && slot.source_key == expansion.source_key
@@ -896,6 +946,10 @@ fn resolve_leaf_caller_local_initializer_names(
                     && matches!(
                         slot.kind,
                         omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                            | omega_runtime_storage::RuntimeFrameSlotKind::StateCallResult {
+                                role: StateCallRole::AssignmentValue,
+                                ..
+                            }
                     )
             });
             if has_slot {
