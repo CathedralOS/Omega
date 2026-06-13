@@ -1,0 +1,43 @@
+// Chapter 21 stage 3 (frozen decision 14): every version match arm must name
+// the SUBJECT's data type. `raw` is a `Versioned<Counter>`, so an arm spelled
+// `Other::v1(...)` -- a different versioned data type that happens to declare
+// a v1 era -- must be rejected, not silently treated as Counter's v1 (both
+// are era 0; an arm matcher keyed on era number alone would conflate them).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+}
+
+data Other {
+    version v1 {
+        value: i32;
+    }
+
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    transition self.raw {
+        Other::v1(old) -> old_era(old.value)
+        Counter(current) -> new_era(current.count)
+    }
+    state old_era(&mut self, value: i32) {
+        self.console.exit_process(71);
+    }
+    state new_era(&mut self, count: i32) {
+        self.console.exit_process(70);
+    }
+}

@@ -1,0 +1,68 @@
+// Decision 11 `in` membership over a MIXED data shape (decision 7): common
+// fields sit between the tag and the payload overlay, so a tag-only
+// membership test must keep reading ONLY the tag -- a compare keyed on the
+// full value width would drag the common fields in and miss. Ladder: the
+// constructed Treasure (with a non-zero common field) must be `in
+// Command::Treasure` (rung 1, exit 71) and must NOT be `in Command::Nothing`
+// (rung 2, exit 72); after a common-field write that leaves the case part
+// untouched, membership must still hit (rung 3, exit 73). Exits 70 when all
+// three are right.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    consumed: bool;
+    bonus: i32;
+    case Nothing;
+    case Treasure(gold: i32);
+}
+
+data Main {
+    console: Console;
+    cmd: Command;
+}
+
+machine Main::main(&mut self) {
+    self.cmd = Command::Treasure { consumed: true, gold: 9 };
+
+    let hit: bool = self.cmd in Command::Treasure;
+    transition hit {
+        false -> bad_first()
+        true -> check_miss()
+    }
+
+    state check_miss(&mut self) {
+        let wrong: bool = self.cmd in Command::Nothing;
+        transition wrong {
+            true -> bad_second()
+            false -> mutate_common()
+        }
+    }
+
+    state mutate_common(&mut self) {
+        self.cmd.bonus = 41;
+        let still: bool = self.cmd in Command::Treasure;
+        transition still {
+            false -> bad_third()
+            true -> good()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_first(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_second(&mut self) {
+        self.console.exit_process(72);
+    }
+
+    state bad_third(&mut self) {
+        self.console.exit_process(73);
+    }
+}

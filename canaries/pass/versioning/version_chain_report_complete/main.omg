@@ -1,0 +1,44 @@
+// Chapter 21 (Versioned Data), stage 3b, the COMPLETE side of the chain
+// verdict: `Counter` declares v1 and v2 and BOTH migration machines exist
+// (`Counter::from_v1`, `Counter::from_v2`), so the 04_wire_protocols.txt
+// report must show both hops as present and emit NO missing-migration
+// verdict -- pinning that the completeness checker has no off-by-one that
+// flags the newest declared era even when its migration is written.
+// (Asserted by `version_chain_report_renders_complete_chain` in the canary
+// suite.)
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    version v2 {
+        counter: i32;
+        stamp: i32;
+    }
+
+    count: i32;
+    timestamp: i32;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Counter::from_v1(old: Counter::v1, out: &mut Counter) {
+    out.count = old.counter;
+    out.timestamp = 0;
+}
+
+machine Counter::from_v2(old: Counter::v2, out: &mut Counter) {
+    out.count = old.counter;
+    out.timestamp = old.stamp;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}
