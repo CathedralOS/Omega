@@ -9844,6 +9844,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "versioning/version_chain_report_complete",
     "versioning/versioned_match_all_eras_exhaustive",
     "versioning/versioned_match_default_arm",
+    // version block with MORE fields than the current body (regression 2026-06-12)
+    "versioning/version_block_more_fields_than_current",
+    "versioning/version_block_three_fields_vs_one",
+    "versioning/version_block_v1_more_than_current",
     "wire/wire_generic_trait",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",

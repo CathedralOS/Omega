@@ -1,0 +1,32 @@
+// Test: v1 with more fields than current body
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        count: i64;
+        extra: i64;
+    }
+
+    count: i64;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    transition self.raw {
+        Counter(current) -> new_era(current.count)
+        Counter::v1(old) -> old_era(old.count)
+    }
+    state old_era(&mut self, count: i64) {
+        self.console.exit_process(71);
+    }
+    state new_era(&mut self, count: i64) {
+        self.console.exit_process(70);
+    }
+}
