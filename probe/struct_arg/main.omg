@@ -1,0 +1,35 @@
+// PROBE: by-value struct arg to a free machine.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Job {
+    id: i32;
+}
+
+machine work(job: Job) -> i32 {
+    job.id + 1
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let job: Job = Job { id: 69 };
+    let n: i32 = work(job);
+
+    transition n == 70 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

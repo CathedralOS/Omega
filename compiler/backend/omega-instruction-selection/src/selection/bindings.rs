@@ -709,12 +709,24 @@ pub(super) fn resolve_leaf_binding_expression_handle(
             })
             .map(|binding| {
                 let expression = table.copy_from(source_table, binding.expression);
-                let resolved = resolve_leaf_binding_expression_handle(
+                // A bare same-named symbol-less binding expression would
+                // re-match this binding by the name fallback and recurse
+                // forever; the substitution's only effect is stripping the
+                // callee parameter's symbol, so skip the re-resolve.
+                let resolved = if binding_substitution_is_self_similar_name(
                     source_table,
-                    table,
-                    expression,
-                    bindings,
-                );
+                    binding.expression,
+                    binding,
+                ) {
+                    expression
+                } else {
+                    resolve_leaf_binding_expression_handle(
+                        source_table,
+                        table,
+                        expression,
+                        bindings,
+                    )
+                };
                 if path.members.count() > 0 {
                     table.insert_copy_with_member_suffix(
                         resolved,
@@ -1084,19 +1096,52 @@ fn binding_expression_rewrites_leaf_parameter(
         // both are named `out` -- they are distinct parameters with distinct
         // symbols. (Across a dispatched-call split the caller arg may not be
         // alias-resolved to a differently-named place, so a name-only check
-        // wrongly rejects the binding and drops the arm's write.) Fall back to
-        // the name only when the path carries no symbol to compare.
+        // wrongly rejects the binding and drops the arm's write.) A SYMBOL-LESS
+        // expression name is CALLER material -- call-argument expressions reach
+        // selection through control flow WITHOUT symbols, while the callee's
+        // own names carry theirs -- so a same-named caller arg (`work(job)`
+        // into `machine work(job: Job)`) is a genuine rewrite too: rejecting it
+        // as a self-binding silently dropped the call's result-slot write (the
+        // by-value struct/scalar arg-to-free-machine miscompile). Substituting
+        // it strips the callee parameter's symbol, letting caller-local
+        // initializer substitution match the caller's `let job` by name.
+        // Termination: `binding_substitution_is_self_similar_name` stops the
+        // post-substitution re-resolve for these bare same-named copies.
         ExpressionNode::Name(path) => {
             if path.head_symbol.is_valid() || path.symbol.is_valid() {
                 !symbol_matches_table_path(binding.parameter_symbol, path)
             } else {
-                table
-                    .name_path_members(path.members)
-                    .first()
-                    .is_none_or(|name| *name != binding.parameter_name)
+                true
             }
         }
         _ => true,
+    }
+}
+
+/// True when the binding's expression is a bare symbol-less name IDENTICAL to
+/// the binding's parameter name (`work(job)` binding callee `job` to caller
+/// `job`). Substituting such a binding produces a copy that would re-match the
+/// same binding by the name fallback and recurse forever; the caller skips the
+/// post-substitution re-resolve for exactly this shape (the substitution's only
+/// effect -- intentionally -- is stripping the callee parameter's symbol).
+fn binding_substitution_is_self_similar_name(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    binding: &RuntimeLeafBranchBinding,
+) -> bool {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => {
+            binding_substitution_is_self_similar_name(table, *target, binding)
+        }
+        ExpressionNode::Name(path) => {
+            !path.head_symbol.is_valid()
+                && !path.symbol.is_valid()
+                && table
+                    .name_path_members(path.members)
+                    .first()
+                    .is_some_and(|name| *name == binding.parameter_name)
+        }
+        _ => false,
     }
 }
 

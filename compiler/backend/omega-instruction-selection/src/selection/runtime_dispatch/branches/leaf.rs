@@ -611,55 +611,69 @@ fn select_runtime_leaf_branch_terminal_value_write(
         expansion.statement_index,
     );
     let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
-    if emit_runtime_frame_slot_slice_descriptor_write_in_table(
-        input,
-        expansion.dispatch_index,
-        expansion.branch_key,
-        expansion.target_statement_index,
-        &expressions,
-        slot,
-        resolved_value,
-        runtime_value_operands,
-        selected_instructions,
-    ) {
-        return;
+    // Resolve in the CALLEE's context first (`branch_key`: the leaf value's own
+    // names -- an attached callee's `self.field` -- live there), then retry in
+    // the CALLER's context (`source_key`): after binding + caller-local
+    // initializer substitution the value references CALLER places (`work(y)`
+    // with `let y = self.v` resolves the terminal `y + 1` to the caller's
+    // `self.v + 1`), which the callee context cannot resolve -- the result-slot
+    // write silently dropped and the call returned a stale 0 (the by-value
+    // arg-to-free-machine miscompile).
+    let mut resolution_keys = [Some(expansion.branch_key), Some(expansion.source_key)];
+    if expansion.branch_key == expansion.source_key {
+        resolution_keys[1] = None;
     }
-    if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
-        input,
-        expansion.dispatch_index,
-        expansion.branch_key,
-        expansion.target_statement_index,
-        &expressions,
-        slot,
-        resolved_value,
-        &static_values,
-        runtime_value_operands,
-    ) {
-        selected_instructions.push(SelectedInstruction {
-            kind,
-            source_key: expansion.branch_key,
-            source_statement: expansion.target_statement_index,
-        });
-        return;
-    }
+    for resolution_key in resolution_keys.into_iter().flatten() {
+        if emit_runtime_frame_slot_slice_descriptor_write_in_table(
+            input,
+            expansion.dispatch_index,
+            resolution_key,
+            expansion.target_statement_index,
+            &expressions,
+            slot,
+            resolved_value,
+            runtime_value_operands,
+            selected_instructions,
+        ) {
+            return;
+        }
+        if let Some(kind) = select_runtime_frame_slot_value_write_in_table(
+            input,
+            expansion.dispatch_index,
+            resolution_key,
+            expansion.target_statement_index,
+            &expressions,
+            slot,
+            resolved_value,
+            &static_values,
+            runtime_value_operands,
+        ) {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key: resolution_key,
+                source_statement: expansion.target_statement_index,
+            });
+            return;
+        }
 
-    let target = runtime_frame_slot_target_expression(expressions, slot);
-    if select_runtime_resolved_mutation_write_in_table_with_scratch(
-        input,
-        expansion.dispatch_index,
-        expansion.branch_key,
-        expansion.source_key,
-        expansion.branch_key,
-        expansion.target_statement_index,
-        &expressions,
-        target,
-        resolved_value,
-        &mut scratch.mutable_expressions,
-        &mut scratch.resolved_segment_expressions,
-        runtime_value_operands,
-        selected_instructions,
-    ) {
-        return;
+        let target = runtime_frame_slot_target_expression(expressions, slot);
+        if select_runtime_resolved_mutation_write_in_table_with_scratch(
+            input,
+            expansion.dispatch_index,
+            resolution_key,
+            expansion.source_key,
+            resolution_key,
+            expansion.target_statement_index,
+            &expressions,
+            target,
+            resolved_value,
+            &mut scratch.mutable_expressions,
+            &mut scratch.resolved_segment_expressions,
+            runtime_value_operands,
+            selected_instructions,
+        ) {
+            return;
+        }
     }
 
     // The non-table mutation-write fallback was a proven dead emitter (0 emissions
@@ -773,6 +787,44 @@ fn resolve_leaf_caller_local_initializer_names(
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
                     arguments: copied_arguments,
+                },
+            ))
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = resolve_leaf_caller_local_initializer_names(
+                input,
+                expansion,
+                expressions,
+                member.receiver,
+                bindings,
+                statement_bound,
+            );
+            if receiver == member.receiver {
+                return expression;
+            }
+            // Project a STRUCT-LITERAL receiver onto the named field's value:
+            // `job.id` with slot-less `job` substituted by its initializer
+            // `Job { id: self.v }` folds to `self.v`. A literal has no storage
+            // place, so an unprojected `<literal>.id` member can never resolve
+            // and the containing write would silently drop (the by-value
+            // struct-arg-to-free-machine miscompile).
+            if let ExpressionNode::StructLiteral(struct_literal) =
+                expressions.expression(receiver).clone()
+            {
+                for offset in 0..struct_literal.fields.count() {
+                    let field = expressions
+                        .struct_field_at_offset(struct_literal.fields, offset)
+                        .clone();
+                    if field.name == member.member {
+                        return field.value;
+                    }
+                }
+            }
+            expressions.insert(ExpressionNode::Member(
+                omega_checked_trees::expression::TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member.clone(),
                 },
             ))
         }
