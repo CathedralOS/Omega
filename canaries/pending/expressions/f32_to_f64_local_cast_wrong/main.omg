@@ -1,0 +1,56 @@
+// PENDING CANARY -- currently miscompiles on native (exits 71 instead of 70).
+//
+// Bug: `f32 as f64` written to a LOCAL variable produces a wrong value when
+// that local is subsequently used in a numeric cast (`local as i32`) or
+// arithmetic. The local appears to hold the f32 bit pattern (4 bytes) rather
+// than the promoted f64 bit pattern (8 bytes), so integer conversion reads
+// garbage.
+//
+// Partial symptom: the f32->f64 local passes a FLOAT COMPARISON guard
+// (e.g., `wide > 4.0` where wide = src_f32 as f64) -- so the value IS correct
+// for float comparisons (which use only 4-byte reads / single-precision path)
+// but fails for any 8-byte integer conversion (cvttsd2si reads 8 bytes).
+//
+// What WORKS:
+//   - `f32 field as f64` written to a FIELD target (self.dest = self.src as f64)
+//   - `f32 as f64` used directly inline in a guard comparison
+//   - `f32 field as i32` directly (no intermediate f64 local)
+//   - `f64 field -> f64 local -> as i32` (f64 local written from f64 source)
+//
+// What FAILS:
+//   - `let wide: f64 = src_f32 as f64; let n: i32 = wide as i32;` → n = 0
+//   - `let wide: f64 = src_f32 as f64; transition wide + something` (arithmetic)
+//
+// Hypothesis: the local allocation for `wide: f64` uses the source type (f32 = 4
+// bytes) instead of the declared type (f64 = 8 bytes), so cvtss2sd writes 8
+// bytes to a 4-byte slot and cvttsd2si reads 8 bytes back getting upper garbage.
+//
+// Interpreter: exits 70 (wide = 7.0, n = 7, n == 7 -> good).
+// Native x64:  exits 71 (n = 0, n != 7 -> bad).
+//
+// Not registered in canary_suite.rs -- add to the registry when fixing.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    src: f32;
+}
+
+machine Main::main(&mut self) {
+    self.src = 7.0;
+
+    // f32->f64 cast stored in local, then cast local to i32
+    let wide: f64 = self.src as f64;  // Should be 7.0
+    let n: i32 = wide as i32;          // Should be 7
+
+    transition n == 7 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

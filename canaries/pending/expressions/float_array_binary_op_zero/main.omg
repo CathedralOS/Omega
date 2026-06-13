@@ -1,0 +1,51 @@
+// PENDING CANARY -- currently miscompiles on native (exits 71 instead of 70).
+//
+// Bug: when BOTH operands of a float binary arithmetic expression are fixed-array
+// elements (e.g., `self.vals[0] + self.vals[1]`), the result is always 0.0.
+// The bug affects f64 AND f32 arrays and all arithmetic operators (+, -, *, /).
+//
+// Root cause hypothesis: the binary right-operand evaluation for float array
+// elements clobbers the XMM register holding the left operand (or uses the wrong
+// register/frame offset for the right-operand load), yielding 0.0.
+//
+// What WORKS:
+//   - float array element + regular float field (arr[0] + self.field)
+//   - regular float field + float array element (self.field + arr[1])
+//   - i32 array element + i32 array element (integer path unaffected)
+//   - float array element read in a guard (ucomisd/ucomiss comparison path works)
+//   - float field + field binary op (both named fields)
+//
+// What FAILS:
+//   - float array element + float array element in any binary arithmetic
+//   - affects BOTH `let local: f64 = arr[i] + arr[j]` (local target) AND
+//     `self.field = arr[i] + arr[j]` (field target)
+//   - affects f32 AND f64
+//
+// Interpreter: exits 70 (arr[0]=3.0, arr[1]=4.0, sum=7.0 > 6.0 -> good).
+// Native x64:  exits 71 (sum evaluates to 0.0).
+//
+// Not registered in canary_suite.rs -- add to the registry when fixing.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    vals: [f64; 2];
+}
+
+machine Main::main(&mut self) {
+    self.vals[0] = 3.0;
+    self.vals[1] = 4.0;
+
+    // arr[0] + arr[1] should be 7.0
+    let s: f64 = self.vals[0] + self.vals[1];
+    transition s > 6.0 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
