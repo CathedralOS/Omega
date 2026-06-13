@@ -1,0 +1,31 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v2 {
+        count: i64;
+        extra: i64;
+        bonus: i32;
+    }
+
+    count: i64;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    transition self.raw {
+        Counter(current) -> new_era(current.count)
+        Counter::v2(old) -> old_era(old.count)
+    }
+    state old_era(&mut self, count: i64) {
+        self.console.exit_process(71);
+    }
+    state new_era(&mut self, count: i64) {
+        self.console.exit_process(70);
+    }
+}

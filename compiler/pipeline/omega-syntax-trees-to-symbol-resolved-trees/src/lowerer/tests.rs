@@ -323,6 +323,72 @@ fn lowers_version_scoped_machine_as_attached_data_method() {
 }
 
 #[test]
+fn version_block_with_more_fields_than_current_gets_valid_symbol() {
+    // Regression: when version vN declares MORE fields than the current body,
+    // the positional symbol assignment was desyncing, leaving the version shape
+    // definition with an invalid symbol. This caused every `Counter::v2`
+    // reference to error "declares no version `v2`".
+    let source = r#"
+    data Counter {
+        version v2 {
+            count: i64;
+            extra: i64;
+        }
+
+        count: i64;
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+
+    // Counter, Counter::v2, Versioned<Counter>
+    assert_eq!(program.data_definitions.len(), 3);
+    assert_eq!(program.data_definitions[0].name.as_str(), "Counter");
+    assert_eq!(program.data_definitions[1].name.as_str(), "Counter::v2");
+    assert_eq!(
+        program.data_definitions[2].name.as_str(),
+        "Versioned<Counter>"
+    );
+
+    // All three definitions must have valid symbols -- this was the bug site.
+    assert!(
+        program.data_definitions[0].symbol.is_valid(),
+        "Counter should have a valid symbol"
+    );
+    assert!(
+        program.data_definitions[1].symbol.is_valid(),
+        "Counter::v2 should have a valid symbol (bug: positional desync when version has more fields)"
+    );
+    assert!(
+        program.data_definitions[2].symbol.is_valid(),
+        "Versioned<Counter> should have a valid symbol"
+    );
+
+    // Fields inside Counter::v2 must also have valid symbols.
+    let v2_fields = program
+        .data_members(program.data_definitions[1].members)
+        .iter()
+        .map(|member| match member {
+            omega_symbol_resolved_trees::data::DataMember::Field(field) => {
+                (field.name.as_str(), field.symbol.is_valid())
+            }
+            omega_symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                (variant.name.as_str(), variant.symbol.is_valid())
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        v2_fields,
+        [("count", true), ("extra", true)],
+        "Counter::v2 fields must have valid symbols"
+    );
+}
+
+#[test]
 fn resolves_self_parameter_type_to_machine_symbol() {
     let source = r#"
     data Main {
