@@ -1,0 +1,50 @@
+// Structural `==` over an Equatable record with a String field DIRECTLY in
+// GUARD position (`transition self.left == self.right { ... }`). The String
+// clause of the conjunction lowers through the same `TextEquals` content
+// compare (length + bounded byte loop) the value position uses, checked
+// against 1; the scalar clause stays an ordinary place compare. Before that
+// routing existed, the dispatch-guard path loaded the 16-byte String
+// descriptor as a raw runtime operand and rejected with "X86_64 MVP encoder
+// cannot load 16-byte runtime operands yet". Equal contents here take the
+// `true` arm -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Tag {
+    name: String;
+    id: i32;
+}
+
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+Tag satisfies Equatable;
+
+data Main {
+    console: Console;
+    left: Tag;
+    right: Tag;
+}
+
+machine Main::main(&mut self) {
+    self.left.name = "gold";
+    self.left.id = 5;
+    self.right.name = "gold";
+    self.right.id = 5;
+
+    transition self.left == self.right {
+        false -> bad()
+        true -> good()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

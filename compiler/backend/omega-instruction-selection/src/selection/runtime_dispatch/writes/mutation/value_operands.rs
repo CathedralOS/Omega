@@ -365,10 +365,12 @@ pub(super) fn resolve_runtime_value_operand_in_table(
 /// Equatable structural equality, plain field/local reads); other String
 /// shapes (literals, slice elements) return `None` and surface as a hard
 /// "needs runtime value lowering" emission blocker instead of comparing
-/// descriptor words. `==` only: the Equatable expansion spells `!=` as
-/// `equality == false`, which wraps this operand in an ordinary compare.
+/// descriptor words. `!=` is the negated leaf: the state-values simplifier
+/// De-Morgans the Equatable expansion's `equality == false` spelling into
+/// per-field `!=` compares, so the String term reaches selection as a direct
+/// `String != String` binary -- it lowers as `text_equals(..) == 0`.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::selection::runtime_dispatch::writes) fn resolve_runtime_text_equals_operand_in_table(
+pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operand_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
@@ -378,9 +380,11 @@ pub(in crate::selection::runtime_dispatch::writes) fn resolve_runtime_text_equal
     right_expression: ExpressionHandle,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<RuntimeValueOperandHandle> {
-    if operator != omega_checked_trees::expression::BinaryOperator::Equal {
-        return None;
-    }
+    let negated = match operator {
+        omega_checked_trees::expression::BinaryOperator::Equal => false,
+        omega_checked_trees::expression::BinaryOperator::NotEqual => true,
+        _ => return None,
+    };
     let operand_is_string = |expression: ExpressionHandle| {
         matches!(
             resolve_runtime_storage_primitive_type_in_table(
@@ -413,11 +417,24 @@ pub(in crate::selection::runtime_dispatch::writes) fn resolve_runtime_text_equal
     // A String place is its 16-byte `{ptr, len}` text descriptor.
     debug_assert_eq!(left_place.byte_count, 16, "String place must be a text descriptor");
     debug_assert_eq!(right_place.byte_count, 16, "String place must be a text descriptor");
-    Some(runtime_value_operands.insert(RuntimeValueOperand::TextEquals {
+    let text_equals = runtime_value_operands.insert(RuntimeValueOperand::TextEquals {
         left_region: left_place.region,
         left_offset: left_place.byte_offset,
         right_region: right_place.region,
         right_offset: right_place.byte_offset,
+    });
+    if !negated {
+        return Some(text_equals);
+    }
+    // `!=`: invert the 0/1 text-equals result inside the operand tree
+    // (`text_equals == 0`), keeping the leaf shape every consumer already
+    // encodes.
+    let zero = runtime_value_operands.insert(RuntimeValueOperand::Immediate(0));
+    Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
+        left: text_equals,
+        operator: omega_abstract_operations::StateGuardOperator::Equal,
+        right: zero,
+        is_float: false,
     }))
 }
 

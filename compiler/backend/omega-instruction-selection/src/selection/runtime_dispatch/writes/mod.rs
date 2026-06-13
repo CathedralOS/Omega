@@ -35,7 +35,8 @@ pub(in crate::selection) use mutation::{
     select_runtime_frame_slot_value_write_in_table_with_source_anchor,
 };
 pub(in crate::selection::runtime_dispatch) use mutation::{
-    signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
+    resolve_runtime_text_equals_operand_in_table, signedness_adjusted_operator,
+    signedness_adjusted_operator_for_operands,
 };
 pub(in crate::selection) use slice_descriptors::emit_runtime_frame_slot_slice_descriptor_write_in_table;
 pub(super) use storage_copy::{
