@@ -1,0 +1,68 @@
+// PASS CANARY -- exit 70.
+//
+// Verifies that a `let`-bound local whose initializer is a pure place read
+// (e.g. `let slot: i32 = self.s.count`) is forwarded correctly through a
+// nested state argument chain.  Bug 10 (2026-06-12): argument materialization
+// folded the Name expression back to its initializer (`self.s.count`) instead
+// of reading the LocalStorage frame slot, which captured the pre-mutation
+// value.  On the second call to `put`, the slot re-evaluated to the
+// post-increment value (1 -> 1 after increment = 2? no: count was 1 at entry,
+// fold re-reads the already-incremented 2) so `try1` took the wrong arm.
+//
+// Interpreter: exits 70 (slot == 1 in try1 is correctly true).
+// Native x64:  exits 70 after the LocalStorage fold-block fix.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data S [copy, zero_init] {
+    arr: [i32; 4];
+    count: i32;
+}
+
+data Main {
+    console: Console;
+    s: S;
+}
+
+machine Main::main(&mut self) {
+    self.put(500);  // slot=0 -> arr[0]=500
+    self.put(200);  // slot=1 -> arr[1]=200
+
+    // Correct: arr[0]==500 AND arr[1]==200.
+    transition self.s.arr[0] == 500 {
+        true -> check1()
+        _ -> bad()
+    }
+
+    state check1(&mut self) {
+        transition self.s.arr[1] == 200 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(72); }
+}
+
+machine Main::put(&mut self, val: i32) {
+    let slot: i32 = self.s.count;       // capture count BEFORE increment
+    self.s.count = self.s.count + 1;    // increment
+    transition slot == 0 {
+        true -> set0(val)
+        _ -> try1(slot, val)            // forward let-local to nested state
+    }
+
+    state set0(&mut self, val: i32) { self.s.arr[0] = val; }
+
+    state try1(&mut self, slot: i32, val: i32) {
+        transition slot == 1 {
+            true -> set1(val)
+            _ -> set2(val)
+        }
+    }
+    state set1(&mut self, val: i32) { self.s.arr[1] = val; }
+    state set2(&mut self, val: i32) { self.s.arr[2] = val; }
+}

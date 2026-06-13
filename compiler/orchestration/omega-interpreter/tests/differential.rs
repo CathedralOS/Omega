@@ -66,6 +66,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_free_machine_struct_return_exit", 70),
     ("calls/runtime_free_machine_value_call_exit", 70),
     ("calls/runtime_free_machine_value_call_mut_arg_exit", 70),
+    ("calls/runtime_let_local_nested_state_arg_exit", 70),
     ("calls/runtime_local_string_field_copy_through_mut_exit", 70),
     ("calls/runtime_multi_arm_value_transition_exit", 70),
     (
