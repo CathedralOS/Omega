@@ -1,0 +1,66 @@
+// RUN canary (ch17 "Atomics" / concurrency stage 1, M3): AtomicU32 fetch_add.
+// `fetch_add(n, Relaxed)` returns the PRIOR value and adds n to the cell.
+// Stage-1 desugar: `let old = place.fetch_add(n, ord)` expands at the parser
+// to `let old = place; place = place + n;` -- correct under single-threaded
+// execution. A future pass will lower this to a single LOCK xadd instruction.
+//
+// Guard ladder (exits 70..73):
+//   - old1 == 10 (prior value before first fetch_add)           exit 71 on miss
+//   - counter == 15 (value after first fetch_add(5))             exit 72 on miss
+//   - old2 == 15 (prior value before second fetch_add)          exit 73 on miss
+//   - counter == 23 (value after second fetch_add(8))            exit 74 on miss
+//   - exit 70 = all four assertions pass
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    counter: AtomicU32;
+}
+
+machine Main::main(&mut self) {
+    self.counter.store(10, Relaxed);
+
+    let old1: u32 = self.counter.fetch_add(5, Relaxed);
+
+    transition old1 == 10 {
+        true -> check_after_first()
+        false -> bad_old1()
+    }
+    state check_after_first(&mut self) {
+        transition self.counter == 15 {
+            true -> do_second_add()
+            false -> bad_after_first()
+        }
+    }
+    state do_second_add(&mut self) {
+        let old2: u32 = self.counter.fetch_add(8, Relaxed);
+        transition old2 == 15 {
+            true -> check_after_second()
+            false -> bad_old2()
+        }
+    }
+    state check_after_second(&mut self) {
+        transition self.counter == 23 {
+            true -> good()
+            false -> bad_after_second()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad_old1(&mut self) {
+        self.console.exit_process(71);
+    }
+    state bad_after_first(&mut self) {
+        self.console.exit_process(72);
+    }
+    state bad_old2(&mut self) {
+        self.console.exit_process(73);
+    }
+    state bad_after_second(&mut self) {
+        self.console.exit_process(74);
+    }
+}

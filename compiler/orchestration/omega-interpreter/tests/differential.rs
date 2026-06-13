@@ -428,6 +428,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("wire/runtime_wire_encode_repeated_then_string_exit", 70),
     // --- ch17 atomics (concurrency stage 1) ---
     ("atomics/runtime_atomic_load_store_exit", 70),
+    ("atomics/runtime_atomic_fetch_add_exit", 70),
 ];
 
 /// Run canaries the suite executes that are DELIBERATELY not in `RUN_CANARIES`,
