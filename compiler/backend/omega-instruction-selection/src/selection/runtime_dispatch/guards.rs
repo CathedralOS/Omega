@@ -28,6 +28,7 @@ use omega_abstract_operations::{
 use omega_runtime_text::places::{
     expression_place_eq_across_tables, expression_place_eq_table_tree,
 };
+use super::writes::resolve_runtime_text_equals_operand_in_table;
 use std::sync::Arc;
 
 struct RuntimeTextLiteralGuard {
@@ -284,6 +285,16 @@ pub(super) fn select_runtime_dispatch_expression_guard(
         return Some(guard);
     }
 
+    if let Some(guard) = runtime_text_equals_place_guard(
+        input,
+        dispatch_index,
+        source_key,
+        &normalized_guard,
+        runtime_value_operands,
+    ) {
+        return Some(guard);
+    }
+
     runtime_text_storage_guard(input, dispatch_index, source_key, &normalized_guard)
         .or_else(|| {
             runtime_value_guard(
@@ -370,6 +381,17 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
     }
 
     if let Some(selected) = runtime_text_equals_literal_guard_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        guard,
+        runtime_value_operands,
+    ) {
+        return Some(selected);
+    }
+
+    if let Some(selected) = runtime_text_equals_place_guard_in_table(
         input,
         dispatch_index,
         source_key,
@@ -763,6 +785,73 @@ fn runtime_text_equals_literal_guard_in_table(
         place,
         literal: literal.to_string(),
     });
+    let expected_true = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
+    // `==` holds when the content-equality bool is 1; `!=` when it is not.
+    Some(SelectedInstructionKind::CompareRuntimeValues {
+        left: text_equals,
+        right: expected_true,
+        byte_size: 1,
+        operator,
+    })
+}
+
+/// `String place ==/!= String place` in guard position (the String clause of
+/// synthesized Equatable structural equality, or a direct field-vs-field
+/// compare), lowered through the SAME `TextEquals` content-compare leaf the
+/// value position uses (length compare + bounded byte loop), checked against
+/// 1. Without this the guard fell through to the raw storage compare, whose
+/// 16-byte descriptor load the encoder rejects loudly.
+fn runtime_text_equals_place_guard(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    guard: &TransitionGuard,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let TransitionGuard::When(expression) = guard else {
+        return None;
+    };
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    runtime_text_equals_place_guard_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+        runtime_value_operands,
+    )
+}
+
+fn runtime_text_equals_place_guard_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let ExpressionNode::Binary(binary) = expressions.expression(guard) else {
+        return None;
+    };
+    let operator = match binary.operator {
+        BinaryOperator::Equal => StateGuardOperator::Equal,
+        BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
+        _ => return None,
+    };
+    // Resolve the POSITIVE leaf (`Equal`) regardless of the guard's own
+    // polarity: `!=` is expressed by the compare operator below, never by the
+    // resolver's negated-leaf wrapping (which would double-negate).
+    let text_equals = resolve_runtime_text_equals_operand_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        BinaryOperator::Equal,
+        binary.left,
+        binary.right,
+        runtime_value_operands,
+    )?;
     let expected_true = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
     // `==` holds when the content-equality bool is 1; `!=` when it is not.
     Some(SelectedInstructionKind::CompareRuntimeValues {
