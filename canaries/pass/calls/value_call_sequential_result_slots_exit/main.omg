@@ -1,0 +1,61 @@
+// Two sequential value-position calls where callee 1 has an internal `let`
+// binding and callee 2 takes MORE arguments than callee 1.
+//
+// Before the fix, the dispatch body layout was:
+//   [StateCall(f), LocalStorage(f/rr), StateCall(g), Mutation]
+//
+// The leaf expansion for f (terminal value = rr) fired at the StateCall,
+// emitting `movl frame[rr], frame[a1_result]` BEFORE the LocalStorage op
+// wrote rr = r*r = 9 into frame[rr].  The stale read (rr == 0 at that point)
+// set a1_result = 0, so a1 + 61 yielded 61 and the program exited 71.
+//
+// After the fix, the deferral condition detects that callee-body LocalStorage
+// ops follow the StateCall and defers the leaf expansion to after the LAST
+// such callee local, so rr is written before the copy fires.
+//
+// Expected: exit 70 (a1 = 9, a2 = 40, self.v = a1 + 61 = 70).
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    v: i32;
+}
+
+machine Main::main(&mut self) {
+    let a1: i32 = self.f(3);
+    let a2: i32 = self.g(5, 8);
+    // a1 should be 9 (f returns rr = 3*3); a1 + 61 should be 70.
+    // a2 is 40 (5*8) -- included to verify g does not clobber a1's slot.
+    self.v = a1 + 61;
+
+    transition self.v == 70 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+// f has an internal let binding: rr = r * r.
+// NeedsBranchPrelude lowering: splices LocalStorage(rr) into the caller body.
+machine Main::f(&mut self, r: i32) -> i32 {
+    let rr: i32 = r * r;
+    transition {
+        _ -> rr
+    }
+}
+
+// g has two parameters (more than f's one), exercising the slot ordering
+// that previously caused the clobber.
+machine Main::g(&mut self, w: i32, h: i32) -> i32 {
+    transition {
+        _ -> (w * h)
+    }
+}
