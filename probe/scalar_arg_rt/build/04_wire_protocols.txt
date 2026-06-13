@@ -1,3 +1,0 @@
-# Omega Wire Protocols
-
-wire data schemas: 0
