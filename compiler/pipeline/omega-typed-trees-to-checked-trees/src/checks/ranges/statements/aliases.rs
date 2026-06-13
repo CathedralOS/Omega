@@ -17,6 +17,21 @@ pub(super) fn seed_local_alias_facts(
     // the value aliases. The source label must be the full display name (e.g.
     // `room.exit_count`), since that is how the facts were keyed when seeded.
     let Some(source_label) = alias_source_label(program, value) else {
+        // A local bound to ARITHMETIC (`let index = self.length - 1`) is a
+        // value alias: at the binding point it names exactly the value the
+        // arithmetic label denotes, so index-POSITION facts keyed on that
+        // label (e.g. a `requires self.length - 1 < self.items.len` index
+        // proof) transfer to the local. Collection facts do not transfer —
+        // arithmetic is not a place.
+        if matches!(
+            program.expression_table.expression(value),
+            ExpressionNode::Binary(_)
+        ) {
+            let source_label = program.expression_table.display_name(value);
+            if !source_label.is_empty() && source_label != target_label {
+                facts.alias_index(&source_label, &target_label);
+            }
+        }
         return;
     };
     if source_label.is_empty() || source_label == target_label {

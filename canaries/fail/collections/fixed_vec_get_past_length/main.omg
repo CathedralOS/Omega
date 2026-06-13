@@ -1,0 +1,48 @@
+// ALLOCATOR STORY STAGE 1: `get` on a fixed-capacity vec requires the index
+// be within the LIVE length (`length > index`), not merely within capacity.
+// After clear + one push the carried guarantee is only `length > 0`, so
+// reading index 1 — past the live length, though comfortably within the
+// static capacity of 4 — must be rejected.
+
+data FixedVecI32x4 {
+    items: [i32; 4];
+    length: usize;
+}
+
+machine FixedVecI32x4::clear(&mut self)
+ensures
+    self.length < self.items.len
+{
+    self.length = 0;
+}
+
+machine FixedVecI32x4::push(&mut self, value: i32)
+requires
+    self.length < self.items.len
+ensures
+    self.length > 0
+{
+    let slots: &mut [i32] = self.items.as_mut_slice();
+    let index: usize = self.length;
+    slots[index] = value;
+    self.length = self.length + 1;
+}
+
+machine FixedVecI32x4::get(&self, index: usize) -> i32
+requires
+    self.length > index;
+    index < self.items.len
+{
+    let slots: &[i32] = self.items.as_slice();
+    slots[index]
+}
+
+data Main {
+    vec: FixedVecI32x4;
+}
+
+machine Main::main(&mut self) {
+    self.vec.clear();
+    self.vec.push(7);
+    let past: i32 = self.vec.get(1);
+}
