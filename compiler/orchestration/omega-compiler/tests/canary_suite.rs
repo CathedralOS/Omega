@@ -760,6 +760,87 @@ fn runtime_free_machine_value_call_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_free_machine_struct_arg_exit_canary_runs() {
+    // A BY-VALUE STRUCT argument to a FREE machine (`machine work(job: Job)`
+    // called as `work(job)` / `combine(move pair)`) must deliver the caller's
+    // field values. Three stacked selection bugs dropped the call's
+    // result-slot write so the callee computed from a stale 0: the same-named
+    // caller arg was rejected as a no-op self-binding (caller args arrive
+    // symbol-less), caller-local initializer substitution had no Member arm
+    // to project `job.id` through the struct literal, and the leaf terminal
+    // value write resolved the substituted CALLER-context value in the
+    // CALLEE's context. Rung 1 = same-name 1-field struct (71 on miss),
+    // rung 2 = 2-field struct with explicit `move` (72). Exits 70 only when
+    // both callees saw the real runtime field values.
+    let canary = pass_canary("calls/runtime_free_machine_struct_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-free-machine-struct-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("free-machine struct arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("free-machine struct arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected by-value struct args to free machines to deliver the caller's field values (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_attached_machine_struct_arg_exit_canary_runs() {
+    // The attached (data-scoped, receiverless `Worker::run`) spelling of the
+    // by-value struct argument shape: the same leaf expansion path lowers it
+    // (binding rewrite + struct-literal member projection + caller-context
+    // value resolution), but resolution routes through the attached machine
+    // lookup, so it gets its own rung. Exits 70 only when the callee saw the
+    // real runtime field values (a dropped result-slot write reads 0 -> 71).
+    let canary = pass_canary("calls/runtime_attached_machine_struct_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-attached-machine-struct-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("attached-machine struct arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("attached-machine struct arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a by-value struct arg to an attached machine to deliver the caller's field values (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_free_machine_value_call_mut_arg_exit_canary_runs() {
     // A free-machine value call carrying a `&mut` tally argument alongside the
     // returned value: the callee increments the caller's field through the
@@ -8754,7 +8835,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/effectless_mut_out_param_discard_compile",
     "calls/mutable_output_host_call",
     "calls/nested_machine_continuation",
+    "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_explicit_discard_executes_exit",
+    "calls/runtime_free_machine_struct_arg_exit",
     "storage/runtime_alias_integer_write",
     "storage/runtime_alias_field_integer",
     "storage/runtime_alias_field_binary",
