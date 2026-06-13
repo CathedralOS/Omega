@@ -1,0 +1,51 @@
+// A BY-VALUE STRUCT argument to an ATTACHED (data-scoped, receiverless)
+// machine must deliver the caller's field values, exactly like the free-
+// machine shape in runtime_free_machine_struct_arg_exit -- the same leaf
+// expansion path lowers both (binding rewrite + struct-literal member
+// projection + caller-context value resolution), but the attached spelling
+// routes through `Worker::run` resolution, so it gets its own rung. The
+// struct's fields mix a runtime machine field with a literal so the
+// subtraction only lands when BOTH fields arrived (a dropped result-slot
+// write reads a stale 0 -> exit 71). Exits 70 only when the callee saw the
+// real field values.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Pair {
+    a: i32;
+    b: i32;
+}
+
+data Worker {
+}
+
+machine Worker::run(pair: Pair) -> i32 {
+    pair.b - pair.a
+}
+
+data Main {
+    console: Console;
+    v: i32;
+}
+
+machine Main::main(&mut self) {
+    self.v = 70;
+    self.v = self.v + 3; // runtime 73
+    let pair: Pair = Pair { a: 3, b: self.v };
+    let diff: i32 = Worker::run(move pair); // 73 - 3 = 70
+
+    transition diff == 70 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
