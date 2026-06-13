@@ -5829,6 +5829,50 @@ fn runtime_called_machine_loop_search_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_trailing_local_return_exit_canary_runs() {
+    // A machine whose trailing terminal expression is a BARE LOCAL NAME must
+    // return that local's value, captured at its declaration. The storage
+    // planner did not count a trailing `expression` statement as a reference
+    // that requires storage, so the local had no frame slot, the bare name
+    // could not resolve as a place at selection, and the call-result write
+    // silently dropped (`let r = f()` left r at 0). The canary pins three
+    // shapes: capture-before-field-mutation (must deliver the CAPTURED value,
+    // not the post-mutation re-read), computed-from-param, and a free machine
+    // returning a literal-folded local.
+    let canary = pass_canary("calls/runtime_trailing_local_return_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-trailing-local-return-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime trailing local return canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime trailing local return canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected every trailing-bare-local return to deliver its declaration-time value \
+         (exit 70); 71 = capture-before-mutation returned wrong/zero, 72 = param-computed \
+         local wrong, 73 = free-machine literal local wrong. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_recursive_value_return_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_recursive_value_return_exit");
     let main_path = canary.join("main.omg");
@@ -8952,6 +8996,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_stderr_write_exit",
     "text/runtime_stdin_command_branch_exit",
     "text/runtime_stdin_line_buffering_exit",
+    "calls/runtime_trailing_local_return_exit",
     "calls/runtime_transition_subject_call_guard",
     "calls/runtime_transition_argument_call_value",
     "collections/std_option_storage_write",

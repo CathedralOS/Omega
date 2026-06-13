@@ -332,6 +332,12 @@ fn local_data_requires_storage(
                     local_symbol,
                     local_name,
                 ))
+                || statement_expression_references_symbol(
+                    expressions,
+                    statement,
+                    local_symbol,
+                    local_name,
+                )
                 || assignment_target_references_symbol(
                     expressions,
                     statement,
@@ -419,6 +425,26 @@ fn expression_contains_mutating_call(
 /// local's storage slot, so the local needs one even when nothing else reads
 /// it -- without this the host-call argument resolved to no place, the call
 /// emitted zero bytes, and its relocation corrupted the following code.
+/// Whether a later trailing EXPRESSION statement (a state's terminal return
+/// value, e.g. `let v = self.n; ...; v`) references the local. Such a local
+/// must keep its slot: the terminal value is delivered AFTER the state's
+/// mutations (the runtime-bodies splice lays the callee's effects out before
+/// the deferred result write), so folding the local into its initializer would
+/// re-read post-mutation state instead of the value captured at declaration.
+/// Without a slot the bare name cannot resolve as a place at selection and the
+/// result write silently dropped (callee returned 0).
+fn statement_expression_references_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    let StatementNode::Expression(expression) = statement else {
+        return false;
+    };
+    expression_references_symbol(expressions, *expression, symbol, local_name)
+}
+
 fn statement_call_references_symbol(
     expressions: &omega_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
