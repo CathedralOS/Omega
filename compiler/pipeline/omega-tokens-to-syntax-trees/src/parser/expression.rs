@@ -11,10 +11,12 @@ use omega_tokens::{KeywordKind, PunctuationKind};
 mod membership;
 mod postfix;
 mod primary;
+mod spawn;
 
 use membership::parse_membership_expression_handle;
 pub(super) use postfix::parse_argument_list_after_open_paren_handle;
 use postfix::parse_postfix_expression_handle;
+pub(super) use spawn::parse_spawn_block_call_handle;
 
 pub(super) fn parse_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,

@@ -1,7 +1,7 @@
-// FAIL canary (ch17 intro): a `spawn { ... }` statement runs a block
-// concurrently with assignment-style work inside. `spawn` is not a keyword, so
-// `spawn { stmt; }` is mis-parsed as a struct literal and the leading `self`
-// statement is rejected. Captures the real parser gap for spawn-as-statement.
+// FAIL canary (ch17 intro / concurrency stage 1): a spawn block may run
+// arbitrary statements in the full design, but stage 1 (the synchronous-spawn
+// desugar) supports EXACTLY ONE machine call inside the braces. An assignment
+// statement body is rejected loudly rather than half-lowered.
 
 data Main {
     counter: i32;

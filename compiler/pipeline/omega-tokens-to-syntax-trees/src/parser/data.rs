@@ -14,6 +14,14 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataDefinition> {
     let (name, mut input) = input.take_identifier()?;
+    // CONCURRENCY STAGE 1: `Join` is reserved as a data-type name so the
+    // parser's `Join<T>` -> `T` erasure (type_reference.rs) can never collide
+    // with a user generic.
+    if name.as_str() == "Join" {
+        return Err(input.error_here(
+            "data name `Join` is reserved: `Join<T>` is the spawn handle type (chapter 17)",
+        ));
+    }
     let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
     input = next;
     let (properties, next) = parse_property_brackets(input)?;

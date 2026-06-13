@@ -10,11 +10,27 @@ use omega_syntax_trees::item::{State, StateParameterHandle, StateSignature};
 use omega_syntax_trees::types::TypeReferenceHandle;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
+/// CONCURRENCY STAGE 1: `join` is reserved as a state / trait-signature name
+/// so the parser's `handle.join()` identity rewrite (expression/postfix.rs)
+/// can never shadow user code.
+fn reject_reserved_join_name(
+    name: &Identifier,
+    input: &Input<'_, '_>,
+) -> Result<(), crate::parse_error::ParseError> {
+    if name.as_str() == "join" {
+        return Err(input.error_here(
+            "state name `join` is reserved: `handle.join()` joins a spawned task (chapter 17)",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn parse_state_signature<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StateSignature> {
     let (name, input) = input.take_identifier()?;
+    reject_reserved_join_name(&name, &input)?;
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, input) = parse_optional_return_type(syntax_trees, input)?;
 
@@ -42,6 +58,7 @@ pub(super) fn parse_state<'tokens, 'source>(
         } else {
             input.take_identifier()?
         };
+    reject_reserved_join_name(&name, &input)?;
 
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;

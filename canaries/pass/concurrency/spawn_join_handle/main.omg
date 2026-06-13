@@ -1,0 +1,47 @@
+// PASS canary (ch17 "Joined Work" / concurrency stage 1): a kept `spawn`
+// result is a join handle of type `Join<WorkResult>`, and `handle.join()`
+// returns the spawned call's result -- the chapter's exact program shape
+// (worker machine takes a moved Job, returns a struct; the scheduler joins
+// and reads a field). Stage 1 lowers spawn to a blocking call (the parser's
+// synchronous-spawn desugar): `Join<WorkResult>` erases to `WorkResult`, and
+// `.join()` is the identity on the completed handle. The runtime companions
+// are runtime_spawn_join_moved_arg_exit and runtime_spawn_interleaved_join_exit.
+// Promoted from fail/ when spawn parsing landed (it used to capture the
+// "unknown generic type `Join`" diagnostic).
+
+data Job {
+    id: u32;
+}
+
+data WorkResult {
+    job_id: u32;
+    ok: bool;
+}
+
+data Worker {
+}
+
+machine Worker::run(job: Job) -> WorkResult {
+    WorkResult {
+        job_id: job.id,
+        ok: true
+    }
+}
+
+data Scheduler {
+}
+
+machine Scheduler::run(job: Job) -> u32 {
+    let handle: Join<WorkResult> = spawn {
+        Worker::run(move job)
+    };
+
+    let result: WorkResult = handle.join();
+    result.job_id
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
