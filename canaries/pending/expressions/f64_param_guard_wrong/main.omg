@@ -1,0 +1,54 @@
+// PENDING CANARY -- currently miscompiles on native (exits 71 instead of 70).
+//
+// Bug: when an f64 machine parameter is used directly as a guard operand
+// in a dispatch transition (`transition x > 15.0`), the native codegen reads
+// wrong bits into the xmm register for `ucomisd`. The comparison evaluates
+// as if `x` were 0.0 or some garbage value, causing the false arm to be taken.
+//
+// This is distinct from the f64 FIELD guard bug which was already fixed
+// (runtime_float_comparison_exit / runtime_float_place_comparison_exit pass).
+// It is specific to an f64 PARAMETER (not a field, not a let-local from a
+// field) appearing as the left operand of a float comparison guard.
+//
+// Workaround: store the f64 parameter to a self field first, then guard on
+// that field -- the field-guard path loads bits correctly.
+//
+// Interpreter: exits 70 (x==20.0, guard 20.0>15.0 is true -> ok() -> result=20.0).
+// Native x64: exits 71 (ucomisd sees wrong bits for x, takes false arm -> result=0.0).
+//
+// Not registered in canary_suite.rs -- add to the registry when fixing.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    result: f64;
+}
+
+machine Main::main(&mut self) {
+    // Pass 20.0; guard `x > 15.0` should be true; result should be 20.0.
+    self.compute(20.0);
+
+    // If native is correct: result==20.0 -> > 19.5 -> good() -> 70.
+    // If native is broken:  result==0.0  -> < 19.5 -> bad()  -> 71.
+    transition self.result > 19.5 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::compute(&mut self, x: f64) {
+    // BUG: `x` as guard operand reads wrong bits on native.
+    transition x > 15.0 {
+        true -> ok()     // SHOULD be taken (x==20.0 > 15.0)
+        _ -> nope()      // wrongly taken on native
+    }
+
+    state ok(&mut self) { self.result = 20.0; }
+    state nope(&mut self) { self.result = 0.0; }
+}
