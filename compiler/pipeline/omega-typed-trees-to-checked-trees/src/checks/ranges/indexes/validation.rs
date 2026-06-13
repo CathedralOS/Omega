@@ -181,6 +181,7 @@ fn check_known_length_index(
         ExpressionNode::Range(range) => check_known_length_range_index(
             program,
             facts,
+            collection,
             index,
             range,
             length,
@@ -267,6 +268,7 @@ fn check_unknown_length_slice_index(
 fn check_known_length_range_index(
     program: &omega_typed_trees::TypedTrees,
     facts: &RangeFacts<'_>,
+    collection: ExpressionHandle,
     index: ExpressionHandle,
     range: &TableRangeExpression,
     length: usize,
@@ -274,6 +276,15 @@ fn check_known_length_range_index(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some((start, end)) = provable_range_bounds(program, facts, range) else {
+        // The bounds do not fold to constants, but a symbolic bound may still
+        // be a carried fact (e.g. a `requires self.length <= self.items.len`
+        // window over a fixed array). The unknown-length fact lane proves
+        // exactly that vocabulary (range bounds / index facts are recorded
+        // independent of the collection's concrete extent), so fall back to it
+        // before reporting a failure.
+        if unknown_length_range_is_proven(program, facts, collection, range) {
+            return;
+        }
         let failure = known_length_range_value_failure(program, facts, range);
         diagnostics.push(Diagnostic::error(with_attribution(
             format!(
