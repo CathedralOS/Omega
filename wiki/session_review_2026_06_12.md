@@ -104,11 +104,20 @@ suspected bug turned out NOT to exist (added regression coverage instead).
 
 Four of the seven miscompiles were the SAME shape: instruction-selection
 resolution returns `None` and the entire write silently vanishes — no
-diagnostic, just a wrong result. A "no write strategy selected" hard error in
-the leaf terminal-value pipeline would convert this whole bug class from
-miscompiles into compile errors. The structure-review lane was asked to
-assess whether that's safe to add (fires on zero legal programs). Check its
-report at `wiki/architecture/structure_review_2026_06_12.md`.
+diagnostic, just a wrong result. I hoped a "no write strategy selected" hard
+error in the leaf terminal-value pipeline could convert this whole bug class
+into compile errors. The structure-review lane checked and **it is NOT safe**:
+that fallthrough fires on legal programs that use text-guard lowering through
+refs/params (the existing `guard_contains_string_literal` carve-out). So the
+blanket guard is off the table; the bug class has to be closed case by case
+(four down, one — the by-value-case-param write-back, §2b — to go). The
+leaf.rs pipeline is now documented as a four-layer stack (commit `e3a227a5`).
+Full structure report: `wiki/architecture/structure_review_2026_06_12.md`.
+
+Structure review also flagged **`omega-names` as a 2127-line orphaned crate
+with zero consumers** (resolution moved to
+`omega-syntax-trees-to-symbol-resolved-trees` long ago). A removal lane is
+running; it's pure dead-inventory deletion.
 
 ## 5. Operational note
 
