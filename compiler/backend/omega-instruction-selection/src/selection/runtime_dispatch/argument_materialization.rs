@@ -21,6 +21,7 @@ use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, Expressi
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::{StateKey, StateParameterFlow};
 use omega_core::arena::Arena;
+use omega_layout::{DataShape, ENUM_TAG_BYTES};
 use omega_state_calls::{StateCallLowering, StateCallRole};
 
 #[allow(clippy::too_many_arguments)]
@@ -401,6 +402,146 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 source_statement: statement_index,
             });
             continue;
+        }
+
+        // A case-bearing struct literal argument (`Event::Insert { cents: 50 }`):
+        // write the enum tag and each payload field directly into the parameter
+        // slot. This path fires for InlineBranching calls where the argument is a
+        // StructLiteral expression (not yet in a local that resolve_prior_local_
+        // initializers_in_table would have folded away -- those are blocked by
+        // initial_value_blocks_inline_fold returning true, so they arrive here as
+        // a Name whose frame slot already holds the pre-populated aggregate).
+        // Note: if the argument arrived here as a Name (folded or blocked), it was
+        // already handled by the CopyRuntimeStorage place path above.  This
+        // branch covers the case where the StructLiteral IS the unfolded expression.
+        if let ExpressionNode::StructLiteral(struct_literal) =
+            expressions.expression(argument).clone()
+        {
+            // Write the case tag (i32 at offset 0 within the enum slot).
+            if let Some(case_name) = &struct_literal.case_name {
+                let tag: Option<i64> = {
+                    let type_name = &struct_literal.type_name;
+                    input
+                        .layouts
+                        .data_layouts
+                        .iter()
+                        .find(|(_, dl)| dl.name == *type_name)
+                        .and_then(|(_, dl)| {
+                            if let DataShape::Enum { variants, .. } = &dl.shape {
+                                input
+                                    .layouts
+                                    .variants
+                                    .span_or_empty(*variants)
+                                    .iter()
+                                    .position(|v| v.name == *case_name)
+                                    .and_then(|i| i64::try_from(i).ok())
+                            } else {
+                                None
+                            }
+                        })
+                };
+                if let Some(tag_value) = tag {
+                    selected_instructions.push(SelectedInstruction {
+                        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                            target_region: RuntimeStorageRegion::RuntimeFrame,
+                            byte_offset: slot.byte_offset,
+                            byte_size: ENUM_TAG_BYTES,
+                            value: tag_value,
+                        },
+                        source_key,
+                        source_statement: statement_index,
+                    });
+                }
+
+                // Write each payload field. Field offsets in VariantLayout are
+                // ABSOLUTE within the enum value (0 = start of the tag), so the
+                // frame address of a field is slot.byte_offset + field.offset.
+                let variant_fields: Vec<(omega_checked_trees::name::Identifier, usize, usize)> = {
+                    let type_name = &struct_literal.type_name;
+                    input
+                        .layouts
+                        .data_layouts
+                        .iter()
+                        .find(|(_, dl)| dl.name == *type_name)
+                        .and_then(|(_, dl)| {
+                            if let DataShape::Enum { variants, .. } = &dl.shape {
+                                input
+                                    .layouts
+                                    .variants
+                                    .span_or_empty(*variants)
+                                    .iter()
+                                    .find(|v| v.name == *case_name)
+                                    .map(|variant| {
+                                        input
+                                            .layouts
+                                            .fields
+                                            .span_or_empty(variant.fields)
+                                            .iter()
+                                            .map(|f| (f.name.clone(), f.offset, f.layout.size))
+                                            .collect()
+                                    })
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_default()
+                };
+
+                for offset in 0..struct_literal.fields.count() {
+                    let field = expressions
+                        .struct_field_at_offset(struct_literal.fields, offset)
+                        .clone();
+                    // Find the matching layout entry for this field name.
+                    let Some((_, field_offset, field_size)) =
+                        variant_fields.iter().find(|(name, _, _)| *name == field.name)
+                    else {
+                        continue;
+                    };
+                    let frame_offset = slot.byte_offset + field_offset;
+                    // Fast path: integer/bool literal.
+                    if let Some(int_val) =
+                        static_runtime_argument_value(expressions.expression(field.value))
+                    {
+                        if matches!(field_size, 1 | 2 | 4 | 8) {
+                            selected_instructions.push(SelectedInstruction {
+                                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                                    target_region: RuntimeStorageRegion::RuntimeFrame,
+                                    byte_offset: frame_offset,
+                                    byte_size: *field_size,
+                                    value: int_val,
+                                },
+                                source_key,
+                                source_statement: statement_index,
+                            });
+                        }
+                        continue;
+                    }
+                    // General path: synthesize a temporary slot at the field's
+                    // frame position and delegate to the standard scalar writer.
+                    let mut field_slot = slot.clone();
+                    field_slot.byte_offset = frame_offset;
+                    field_slot.byte_size = *field_size;
+                    if let Some(kind) = select_runtime_frame_slot_value_write_in_table_with_source_anchor(
+                        input,
+                        source_dispatch_index,
+                        argument_source_key,
+                        statement_index,
+                        expressions,
+                        &field_slot,
+                        field.value,
+                        &static_values,
+                        runtime_value_operands,
+                        frame_offset,
+                    ) {
+                        selected_instructions.push(SelectedInstruction {
+                            kind,
+                            source_key,
+                            source_statement: statement_index,
+                        });
+                    }
+                }
+                continue;
+            }
         }
 
         if let Some(kind) = select_runtime_frame_slot_value_write_in_table_with_source_anchor(
