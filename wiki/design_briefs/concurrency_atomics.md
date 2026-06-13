@@ -3,7 +3,18 @@
 Scouted 2026-06-12. Status: C1 DECIDED (revised in discussion — see below);
 C2-C5 awaiting sign-off (TASKS.md register).
 
-## C1 As Decided (supersedes the `yields` recommendation below)
+## C1 As Decided (AMENDED 2026-06-13 in chapter 17 — chapter is authority)
+
+AMENDMENT: an `await` call-site marker WAS reintroduced, and a new hard rule
+SUSPEND-IN-CALL IS FORBIDDEN was added. A wait is still an ordinary call (no
+`async`/`Future`, no signature coloring), but it is marked `await` at the
+call site and the compiler requires `await` on any `suspend`-carrying call
+(visibility, not coloring). Because a `suspend` machine can be SPAWNED but
+not CALLED, suspension never nests through a call chain and the per-task
+carry-set is SINGLE-LEVEL (M = max over a machine's own await points; N
+derived from the finite resource parked on, making `M x N` a model-checked
+bound rather than a guess). Everything else below stands. The original
+no-keyword text is kept for the record:
 
 NO suspension keyword, NO await. The model:
 

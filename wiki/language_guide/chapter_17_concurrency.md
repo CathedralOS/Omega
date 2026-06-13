@@ -48,15 +48,18 @@ Disjoint `&mut` windows (distinct array elements above) follow the ordinary
 borrow rules. A spawn that escapes any enclosing borrow scope stays
 move/copy-only.
 
-## Suspension: No Await, No Keyword (frozen decision 16)
+## Suspension: The `await` Marker (amends frozen decision 16)
 
-There is no `await`, no `async` coloring, and no suspension keyword.
-AWAITING IS CALLING:
+Blocking is still calling -- a wait is an ordinary call to a boundary wait
+primitive, not a separate `async` type, so there is NO function coloring and no
+`Future`. But the call is MARKED with `await`, so every suspension point is
+visible in source rather than hiding behind a plain call. Decision 16's
+original no-keyword stance is amended here for exactly that visibility:
 
 ```omega
 machine Server::handle(&mut self) {
-    let frame: Frame = self.ring.take();   // may park the TASK here
-    self.process(frame);                    // straight-line code resumes
+    let frame: Frame = await self.ring.take();   // PARK here, visibly
+    self.process(frame);                          // straight-line code resumes
 }
 ```
 
@@ -69,23 +72,33 @@ The model:
   userland binds the scheduler capability; the Cathedral kernel implements
   it over hlt/interrupt wakeups. Waiting lives where it physically exists,
   the same reflex that puts era tags only at boundaries (decision 14).
-- `suspend` is an INFERRED transitive effect (the decision-12 machinery).
-  Machines may declare it (`effects suspend`) as the reader-facing marker,
-  checked against inference like any declared effect.
+- `await` marks the call; `suspend` is the effect it carries. One concept,
+  two spellings -- `await` at the call site, `effects suspend` on the machine
+  signature -- and the compiler REQUIRES `await` on any call that carries
+  `suspend`, so a park can never hide in a plain call. This is call-site
+  marking, not signature coloring: the marker never infects a caller's type.
 - A parked task is just data: machine frames are planned storage, not a
-  native stack, so the continuation-capture problem that forces
-  `Future`/`await` in stackless languages does not exist here.
-- Enforcement over vigilance: borrows may not live across a call site
-  carrying `suspend` (the world moves while parked); effect ceilings forbid
-  `suspend` where parking is illegal -- a trait requirement without
-  `suspend` IS the interrupt-handler safety rule; build artifacts surface
-  every suspension point.
-- The derived ATOMIC-STATE guarantee, stated precisely: a state body that
-  calls no suspending machine cannot have ITS TASK parked mid-body. This is
-  NOT mutual exclusion -- other tasks run simultaneously on other cores;
-  cross-task safety comes from ownership, `[send]`, and atomics. The
-  language is scheduler-agnostic (a host may preempt); the guarantees come
-  from ownership, never from non-preemption.
+  native stack, so the continuation-capture problem that forces `Future` as a
+  type in stackless languages does not exist here. `await` is a visibility
+  marker, not a continuation type.
+- SUSPEND-IN-CALL IS FORBIDDEN. A machine carrying `suspend` can be SPAWNED but
+  not CALLED: ordinary calls run to completion and cannot park their caller, so
+  `suspend` does not propagate up through call sites. Suspension is therefore
+  never nested through a call chain -- a parked task's carry-set is always a
+  SINGLE machine's locals at its own `await`, never a chain of suspended
+  frames. This is the enforceable form of "calls run to completion," and it is
+  what keeps carry-set storage single-level (see Task Storage). A helper that
+  must wait is restructured as its own spawned machine + channel, not a call.
+- Borrows may not live across an `await` (the world moves while parked).
+  Effect ceilings forbid `suspend` where parking is illegal -- a trait
+  requirement without `suspend` IS the interrupt-handler safety rule; build
+  artifacts surface every `await`.
+- The ATOMIC-STATE guarantee, now exact: a task is parked ONLY at its own
+  `await` points; a call never parks the caller. This is NOT mutual exclusion
+  -- other tasks run simultaneously on other cores; cross-task safety comes
+  from ownership, `[send]`, and atomics. The language is scheduler-agnostic (a
+  host may preempt); the guarantees come from ownership, never from
+  non-preemption.
 
 ## Task Storage: No Stack Sizes
 
@@ -96,6 +109,24 @@ construction. Task pools are per-machine-type `M x N`: M computed, N
 declared per spawn site (Embassy/RTIC precedent); spawning past N is a proof
 obligation or boundary failure. Region-backed dynamic N arrives with the
 allocator arc.
+
+Because suspend-in-call is forbidden, the per-task carry-set is SINGLE-LEVEL:
+the live locals of one machine at its own `await`, sized to the MAX over that
+machine's await points, never the sum -- a task is parked at exactly one point
+at a time, so reserving every await point's locals at once would be waste. And
+N is not a free constant: the rigorous form DERIVES it from the finite resource
+the task parks on (a single-consumer mailbox -> 1; a permit/budget pool -> its
+capacity; a channel -> its endpoint count), so spawning is capability-gated and
+`M x N` is a proven bound, not a guess -- a wrong N fails a model-checked
+invariant at design time, not as an OOM in production. The run-to-completion
+actor pattern (one machine with a receive loop, handlers that `transition` back
+to it) collapses the carry-set to the actor's own `self`: nothing is held
+across the `await` but state that already had to exist. A continuation across
+several `await`s is threaded as data in a `self` field (a sum tagging the step),
+not as a paused call stack. Such a field is sized to its biggest case like any
+sum; shrinking it with out-of-line handles is the author's call, optionally
+pinned by a `[max_size = N]` property checked against the layout report
+(chapter 19).
 
 ## Cancellation Is A Value At The Wait
 
@@ -111,7 +142,7 @@ data Take {
 }
 
 machine Worker::run(&mut self, ring: &mut Ring) {
-    let taken: Take = ring.take();
+    let taken: Take = await ring.take();
     transition taken {
         Take::Got(frame) -> work(frame)
         Take::Cancelled  -> finish()    // ordinary transition; nothing interrupted
@@ -141,7 +172,7 @@ data Event {
 }
 
 machine Server::run(&mut self) {
-    let event: Event = self.inbox.take();   // ONE wait, ONE word
+    let event: Event = await self.inbox.take();   // ONE wait, ONE word
 
     transition event {                       // a completely ordinary transition
         Event::Packet(frame) -> handle(frame)

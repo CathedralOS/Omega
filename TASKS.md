@@ -978,7 +978,26 @@ Implementation slices below build against these. Minor/easily-reversible details
     region/origin parameters, Mojo-style bracket origins (collide with
     slice/property/invariant brackets). Unblocks zero-copy wire decode and
     view-returning machines. See chapter 2 + appendix.
-16. **Suspension: no await, no keyword; waiting is a boundary primitive.**
+16. **Suspension: the `await` marker; waiting is a boundary primitive.**
+    AMENDED 2026-06-13 in chapter 17 (chapter is authority): the original
+    no-keyword form below is SUPERSEDED. A wait is still an ordinary CALL
+    (no `async`/`Future`, no signature coloring) but is MARKED `await` at
+    the call site; the compiler REQUIRES `await` on any call carrying the
+    `suspend` effect (call-site marker for visibility, never infects the
+    caller's type). NEW HARD RULE: SUSPEND-IN-CALL IS FORBIDDEN -- a
+    `suspend` machine can be SPAWNED but not CALLED, so suspension never
+    nests through a call chain and a parked task's carry-set is SINGLE-LEVEL
+    (one machine's live locals at its own `await`; M = MAX over its await
+    points, not sum). N is DERIVED from the finite resource parked on
+    (mailbox->1, permit pool->capacity), so `M x N` is a model-checked
+    bound. Multi-await continuations thread as a `self` sum field
+    (optionally `[max_size=N]`-pinned), not a paused stack. Everything else
+    below still holds (boundary wait primitive, no-select one-mailbox,
+    cancellation-as-value, scopeless scoped spawns). C2-C5 ACCEPTED; atomics
+    stage 1 LANDED (load/store/fetch_add real; compare_exchange is an
+    interim non-atomic desugar -- must become LOCK CMPXCHG before real
+    parallelism).
+    --- ORIGINAL (superseded) ---
     Typed state clusters CAN suspend across ticks. Waiting originates only
     at a futex-shaped `Scheduler` boundary trait (wait-on-word / wake-N --
     the ONLY wait mechanism, ever; ISRs/IO completions post to words);
