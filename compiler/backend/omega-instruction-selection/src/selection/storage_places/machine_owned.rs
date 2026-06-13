@@ -8,7 +8,7 @@ use super::nested_fields::{
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_checked_trees::name::Identifier;
 use omega_core::symbols::SymbolHandle;
-use omega_layout::{FieldLayout, LayoutPlan, TypeLayoutDescriptor};
+use omega_layout::{FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor};
 
 #[derive(Clone)]
 pub(in crate::selection) struct MachineOwnedCollectionTarget {
@@ -72,6 +72,31 @@ pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
             field_symbol,
             field_index,
         )?;
+    }
+
+    // The root field position in the path (at `suffix_start_index - 1`) may carry an
+    // array element index (e.g. `self.vals[0]` → member 1 has index `Some(0)`).
+    // When the suffix above is empty (no nested members after the root field),
+    // `root_machine_field_layout_from_table_path` does not traverse that index and the
+    // cursor still holds the ARRAY type descriptor. Apply the element descent here so
+    // the returned descriptor is the scalar element type, not the array container.
+    if suffix_start_index > 0 {
+        if let Some(element_index) = path.member_index(suffix_start_index - 1) {
+            if let Some((element_type, length)) = cursor.type_descriptor().fixed_array() {
+                if element_index < length {
+                    let element_layout = TypeLayout {
+                        size: cursor.layout().size / length,
+                        alignment: cursor.layout().alignment,
+                    };
+                    cursor = NestedFieldLayoutCursor::from_indexed_fixed_array_element(
+                        cursor,
+                        element_index,
+                        element_type,
+                        element_layout,
+                    );
+                }
+            }
+        }
     }
 
     Some(MachineOwnedCollectionTarget {
