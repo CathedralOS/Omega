@@ -128,9 +128,13 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
         input = input.take_punctuation(PunctuationKind::Less, "<")?;
         let mut argument_start = Handle::invalid();
         let mut argument_count = 0u32;
+        let mut first_argument = TypeReferenceHandle::invalid();
 
         loop {
             let (argument, rest) = parse_type_reference_handle(syntax_trees, input)?;
+            if argument_count == 0 {
+                first_argument = argument;
+            }
             let handle = syntax_trees
                 .type_references
                 .append_type_reference_handle(argument);
@@ -156,12 +160,24 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
         } else {
             HandleSpan::from_parts(argument_start, argument_count)
         };
-        syntax_trees
-            .type_references
-            .insert(TypeReferenceNode::Generic {
-                base_name,
-                arguments,
-            })
+        // CONCURRENCY STAGE 1: `Join<T>` ERASES TO `T` here in the parser,
+        // mirroring the synchronous-spawn desugar (`expression/spawn.rs`):
+        // the spawned call completes at the spawn site, so the handle is
+        // structurally the completed result. `Join` is a reserved data-type
+        // name (rejected at `data` definitions), so the fold is never
+        // ambiguous with user generics. When a real scheduler lands, this
+        // fold is replaced by a synthesized container definition (the
+        // `Versioned<T>` precedent in omega-core/src/versioning.rs).
+        if base_name.as_str() == "Join" && argument_count == 1 {
+            first_argument
+        } else {
+            syntax_trees
+                .type_references
+                .insert(TypeReferenceNode::Generic {
+                    base_name,
+                    arguments,
+                })
+        }
     } else {
         syntax_trees.type_references.insert_named(base_name)
     };

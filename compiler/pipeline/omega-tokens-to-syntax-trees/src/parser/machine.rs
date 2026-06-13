@@ -27,6 +27,19 @@ pub(super) fn parse_machine<'tokens, 'source>(
             .expressions
             .append_identifier_path_member(member)
     })?;
+    // CONCURRENCY STAGE 1: `join` is reserved as a callable name so that the
+    // parser's `handle.join()` identity rewrite (expression/postfix.rs) can
+    // never shadow a user machine.
+    if syntax_trees
+        .expressions
+        .identifier_path_members(path)
+        .last()
+        .is_some_and(|member| member.as_str() == "join")
+    {
+        return Err(input.error_here(
+            "machine name `join` is reserved: `handle.join()` joins a spawned task (chapter 17)",
+        ));
+    }
     let (type_parameters, input) = parse_type_parameters(syntax_trees, input)?;
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;

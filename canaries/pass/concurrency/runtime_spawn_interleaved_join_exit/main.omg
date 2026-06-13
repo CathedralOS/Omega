@@ -1,0 +1,75 @@
+// CONCURRENCY STAGE 1 RUN canary (ch17 "Joined Work" + scoped-spawn shape):
+// spawn EARLY, do other work, join LATER. Under the stage-1 synchronous-spawn
+// desugar the spawned call completes at the spawn site, so the interleaved
+// statements run after it -- which is one legal schedule of the concurrent
+// program, and the only observable one (no atomics exist to see interleaving).
+//
+// The interleaved work writes machine state and locals BETWEEN the spawn and
+// the join; the join must still deliver the spawned result, and the
+// interleaved results must be unaffected by the spawn bookkeeping.
+//
+// Guard ladder: joined result (exit 71 on miss), interleaved field arithmetic
+// (exit 72), interleaved local derived from the field (exit 73). Exits 70
+// only when all three are correct.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Acc {
+}
+
+machine Acc::sum_to(n: i32) -> i32 {
+    n * (n + 1) / 2
+}
+
+data Main {
+    console: Console;
+    base: i32;
+}
+
+machine Main::main(&mut self) {
+    self.base = 5;
+
+    let handle: Join<i32> = spawn { Acc::sum_to(7) };
+
+    self.base = self.base + 1;
+    let other: i32 = self.base * 10;
+
+    let n: i32 = handle.join();
+
+    transition n == 28 {
+        true -> check_base(other)
+        _ -> bad_join()
+    }
+
+    state check_base(&mut self, other: i32) {
+        transition self.base == 6 {
+            true -> check_other(other)
+            _ -> bad_base()
+        }
+    }
+
+    state check_other(&mut self, other: i32) {
+        transition other == 60 {
+            true -> good()
+            _ -> bad_other()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_join(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_base(&mut self) {
+        self.console.exit_process(72);
+    }
+
+    state bad_other(&mut self) {
+        self.console.exit_process(73);
+    }
+}

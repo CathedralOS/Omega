@@ -1,0 +1,1 @@
+spawn cannot capture `self` in concurrency stage 1
