@@ -4,11 +4,11 @@
 // statement body is rejected loudly rather than half-lowered.
 
 data Main {
-    counter: i32;
 }
 
 machine Main::main(&mut self) {
+    let counter: i32 = 0;
     spawn {
-        self.counter = self.counter + 1;
+        counter = counter + 1;
     }
 }

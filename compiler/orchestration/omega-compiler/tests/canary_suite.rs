@@ -1706,6 +1706,81 @@ fn runtime_multi_arm_value_transition_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_spawn_join_moved_arg_exit_canary_runs() {
+    // CONCURRENCY STAGE 1: `spawn { Worker::run(move x) }` lowers to a BLOCKING
+    // call (the parser's synchronous-spawn desugar -- no scheduler/atomics exist,
+    // so nothing can observe interleaving). `Join<i32>` erases to `i32` and
+    // `handle.join()` is the identity on the completed handle. Two independent
+    // spawn+join pairs must each deliver their own moved-arg computation
+    // (exit 71 = first joined result wrong, 72 = second). Exits 70 when both
+    // joined results are correct.
+    let canary = pass_canary("concurrency/runtime_spawn_join_moved_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-spawn-join-moved-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("spawn join moved-arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("spawn join moved-arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both spawn+join pairs to deliver their moved-arg results (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_spawn_interleaved_join_exit_canary_runs() {
+    // CONCURRENCY STAGE 1: spawn EARLY, interleave field/local work, join LATER.
+    // Under the synchronous-spawn desugar the spawned call completes at the spawn
+    // site (one legal schedule of the concurrent program); the later join must
+    // still deliver the spawned result and the interleaved statements must be
+    // unaffected (exit 71 = joined result wrong, 72 = interleaved field wrong,
+    // 73 = interleaved local wrong). Exits 70 when all three are correct.
+    let canary = pass_canary("concurrency/runtime_spawn_interleaved_join_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-spawn-interleaved-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("spawn interleaved join canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("spawn interleaved join canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the late join to deliver the spawned result with interleaved work intact (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_value_transition_unsigned_guard_exit_canary_runs() {
     // A value-transition arm guard on an UNSIGNED (u32) operand must branch with
     // unsigned comparison conditions. The leaf value-transition guard path picked
@@ -8597,6 +8672,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
     "comptime/runtime_const_array_length_exit",
+    "concurrency/runtime_spawn_interleaved_join_exit",
+    "concurrency/runtime_spawn_join_moved_arg_exit",
+    "concurrency/spawn_fire_and_forget",
+    "concurrency/spawn_join_handle",
     "data/case_payload_declaration",
     "data/case_payload_native_construction",
     "data/match_default_satisfies_exhaustiveness",
@@ -9078,11 +9157,11 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "borrow/view_return_ambiguous_ref_inputs",
     "concurrency/barrier_wait_contract",
     "concurrency/mutex_lock_guard",
-    "concurrency/spawn_join_handle",
+    "concurrency/spawn_borrow_capture",
+    "concurrency/spawn_self_capture",
+    "concurrency/spawn_statement_block",
     "control_flow/bare_machine_arrow_transition",
     "control_flow/bare_state_arrow_transition",
-    "concurrency/spawn_fire_and_forget",
-    "concurrency/spawn_statement_block",
     "inline_asm/asm_label_loop",
     "inline_asm/asm_structured_ldr_str",
     "inline_asm/asm_where_contract",
