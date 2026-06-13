@@ -1786,6 +1786,48 @@ fn runtime_const_array_length_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_fixed_vec_round_trip_exit_canary_runs() {
+    // ALLOCATOR STORY STAGE 1: the fixed-capacity vec pattern (core
+    // FixedVec<T, const N: usize>, hand-instantiated at i32/N=4 pending
+    // generic machine instantiation) round-trips at runtime with every
+    // bounds obligation PROOF-discharged through contract chaining: clear
+    // establishes room, push consumes it and guarantees non-emptiness plus
+    // the popped slot's bound, pop/get consume push's guarantees. The guard
+    // ladder checks the actual data flow (pushed value lands, pop returns it
+    // and shrinks, a second clear/push cycle overwrites slot 0, final length
+    // is 1) and exits 70 only when all hold.
+    let canary = pass_canary("collections/runtime_fixed_vec_round_trip_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-fixed-vec-round-trip-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("fixed vec round trip canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("fixed vec round trip canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the proof-discharged push/pop/get round trip to hold its values (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_fixed_array_field_guard_exit_canary_runs() {
     // Reading `self.cells[i].value` (fixed-array element field, constant index) in a
     // GUARD must apply the index: the guard-operand layout consumed the root field
@@ -8834,7 +8876,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_transition_argument_call_value",
     "collections/std_option_storage_write",
     "collections/std_option_surface",
+    "collections/runtime_fixed_vec_round_trip_exit",
     "core/array_core_surface",
+    "core/fixed_vec_core_surface",
+    "core/region_core_surface",
     "core/collections_text_core_surface",
     "core/nat_core_surface",
     "core/ptr_core_surface",
@@ -8996,6 +9041,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "collections/fixed_vec_push_without_room",
+    "collections/fixed_vec_get_past_length",
     "wire/duplicate_field_number",
     "wire/field_reuses_reserved_number",
     "wire/duplicate_version_declaration",

@@ -1,0 +1,142 @@
+use platform::console;
+
+// ALLOCATOR STORY STAGE 1 — fixed-capacity vec, proof-discharged round trip.
+//
+// `FixedVecI32x4` is the core `FixedVec<T, const N: usize>` pattern
+// (core/fixed_vec.omg) instantiated BY HAND for i32 / N = 4, because generic
+// machine instantiation is not wired yet (any machine attached to the
+// generic data fails layout on `[T; N]`). The contracts are the core ones:
+//
+//   * push requires provable spare room (`length < items.len`) — no growth,
+//     no trap; an undischarged call is a compile error (see the
+//     fail/collections twins).
+//   * pop requires provable non-emptiness plus the spelled predecessor
+//     bound (`length - 1 < items.len`; derivable once data invariants
+//     exist).
+//   * get requires the index within the LIVE length; the capacity-side
+//     bound folds against the static extent.
+//
+// The discharge chain is pure contract chaining — no runtime checks:
+// clear ESTABLISHES room (ensures; valid here because N = 4 > 0), push
+// CONSUMES it and GUARANTEES non-emptiness + the popped slot's bound, pop
+// and get CONSUME push's guarantees. Mutating calls invalidate carried
+// facts, so each proof-obligated call is fed by the guarantee of the call
+// before it.
+//
+// At runtime the ladder checks the actual data flow: push(7) lands in the
+// store (get(0) == 7), pop returns the pushed value AND shrinks the vector,
+// a second clear/push cycle overwrites slot 0 (get(0) == 9), and the final
+// length is exactly 1. Exits 70 only when every value and the length hold.
+
+data FixedVecI32x4 {
+    items: [i32; 4];
+    length: usize;
+}
+
+// Empty the vector and ESTABLISH the has-room fact for the next push. The
+// strict `<` ensures is justified by this concrete capacity (4 > 0); the
+// generic core `clear` only guarantees `length == 0`.
+machine FixedVecI32x4::clear(&mut self)
+ensures
+    self.length < self.items.len
+{
+    self.length = 0;
+}
+
+machine FixedVecI32x4::push(&mut self, value: i32)
+requires
+    self.length < self.items.len
+ensures
+    self.length > 0;
+    self.length - 1 < self.items.len
+{
+    let slots: &mut [i32] = self.items.as_mut_slice();
+    let index: usize = self.length;
+    slots[index] = value;
+    self.length = self.length + 1;
+}
+
+// NOTE the body shape: the popped slot index is captured BEFORE the length
+// write, and the trailing expression is the INDEXED read — a trailing bare
+// local name is mis-lowered at runtime today (returns a stale slot), so the
+// conventional read-into-local-then-return spelling is deliberately avoided.
+machine FixedVecI32x4::pop(&mut self) -> i32
+requires
+    self.length > 0;
+    self.length - 1 < self.items.len
+{
+    let slots: &[i32] = self.items.as_slice();
+    let index: usize = self.length - 1;
+    self.length = index;
+    slots[index]
+}
+
+machine FixedVecI32x4::get(&self, index: usize) -> i32
+requires
+    self.length > index;
+    index < self.items.len
+{
+    let slots: &[i32] = self.items.as_slice();
+    slots[index]
+}
+
+data Main {
+    console: Console;
+    vec: FixedVecI32x4;
+}
+
+machine Main::main(&mut self) {
+    self.vec.clear();
+    self.vec.push(7);
+    let first: i32 = self.vec.get(0);
+    let popped: i32 = self.vec.pop();
+    self.vec.clear();
+    self.vec.push(9);
+    let second: i32 = self.vec.get(0);
+
+    transition first == 7 {
+        true -> check_popped(popped, second)
+        false -> bad_first()
+    }
+
+    state check_popped(&mut self, popped: i32, second: i32) {
+        transition popped == 7 {
+            true -> check_second(second)
+            false -> bad_popped()
+        }
+    }
+
+    state check_second(&mut self, second: i32) {
+        transition second == 9 {
+            true -> check_length()
+            false -> bad_second()
+        }
+    }
+
+    state check_length(&mut self) {
+        transition self.vec.length == 1 {
+            true -> good()
+            false -> bad_length()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_first(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_popped(&mut self) {
+        self.console.exit_process(72);
+    }
+
+    state bad_second(&mut self) {
+        self.console.exit_process(73);
+    }
+
+    state bad_length(&mut self) {
+        self.console.exit_process(74);
+    }
+}

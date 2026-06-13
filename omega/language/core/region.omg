@@ -1,0 +1,30 @@
+// Core Region surface — ALLOCATOR STORY STAGE 1 (contract only).
+//
+// `Region` is the allocator boundary: allocation is an explicit CAPABILITY,
+// never ambient state — no Omega program allocates without holding a Region
+// (the name follows Cathedral's resource model; a region frees its memory in
+// bulk on its own drop, while element cleanup stays a chapter 16 drops
+// concern of the values themselves).
+//
+// STAGE 1 declares only this contract surface: the trait exists so code and
+// designs can NAME the boundary, and so the `alloc`/`dealloc` effects
+// (chapter 18 effect names) attach to the machines that will carry them. No
+// provider is bound, no runtime exists, and nothing in core requires a
+// Region yet — stage 1 containers (core/fixed_vec.omg) are deliberately
+// allocator-free. Stage 2 binds Region implementations through the reserved
+// `Allocation` boundary-provider category (host malloc vs Cathedral arena
+// per target) and introduces `Vec<'r, T>` borrowing a region.
+//
+// The machines speak raw extents (`size`/`align` in bytes, addresses as
+// `usize`): the typed-container story sits ABOVE this boundary; the boundary
+// itself is exactly what a kernel arena or host malloc can honor.
+
+boundary trait Region {
+    machine allocate(size: usize, align: usize) -> usize
+    effects
+        alloc;
+
+    machine deallocate(address: usize, size: usize, align: usize)
+    effects
+        dealloc;
+}
