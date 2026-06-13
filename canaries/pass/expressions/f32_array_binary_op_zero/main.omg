@@ -1,0 +1,35 @@
+// PASS CANARY -- float f32 array element binary arithmetic.
+//
+// `self.vals[0] + self.vals[1]` where both operands are fixed-array elements of
+// type f32 should produce the correct float sum (3.0f32 + 4.0f32 = 7.0f32).
+//
+// Root cause (fixed): same as float_array_binary_op_zero (f64 variant).
+// `classify_scalar_value_type_in_table` returned None for `self.vals[0]`
+// because `resolve_machine_owned_collection_in_table` returned the array
+// type descriptor `[f32; 2]` instead of the element type `f32`, so
+// `binary_value_operands_are_float` returned `false` and emitted integer
+// add instead of addss.  Fixed together with the f64 variant.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    vals: [f32; 2];
+}
+
+machine Main::main(&mut self) {
+    self.vals[0] = 3.0;
+    self.vals[1] = 4.0;
+
+    // arr[0] + arr[1] should be 7.0f32
+    let s: f32 = self.vals[0] + self.vals[1];
+    transition s > 6.0 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
