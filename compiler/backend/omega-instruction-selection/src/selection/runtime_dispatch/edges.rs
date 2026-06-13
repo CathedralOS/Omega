@@ -439,6 +439,42 @@ fn select_dispatch_guard_instructions(
             edge.order,
         );
         if !clauses.is_empty() {
+            // A descriptor-sized clause is a `String == String` place compare
+            // (scalar clauses are at most 8 bytes; enum compares clamp to the
+            // 4-byte tag): the raw place-vs-place compare below would load 16
+            // bytes, which no encoder accepts. Re-select the conjunction from
+            // its EXPRESSION instead, where operand types are visible and the
+            // String clause lowers through the value-position `TextEquals`
+            // content compare. Only adopted when EVERY conjunct selects (one
+            // guard per clause), so a partial selection can never silently
+            // weaken the guard; otherwise fall through to the loud
+            // cannot-encode diagnostic.
+            let string_descriptor_size = input.runtime_abi.string_descriptor_size();
+            if edge.guard_has_expression
+                && clauses
+                    .iter()
+                    .any(|clause| clause.byte_size == string_descriptor_size)
+            {
+                let guards = select_runtime_dispatch_expression_guard_conjuncts_in_table(
+                    input,
+                    source_dispatch_index,
+                    source_key,
+                    edge.statement_index,
+                    &input.state_guards.expressions,
+                    edge.guard_expression,
+                    runtime_value_operands,
+                );
+                if guards.len() == clauses.iter().count() {
+                    for kind in guards {
+                        selected_instructions.push(SelectedInstruction {
+                            kind,
+                            source_key,
+                            source_statement: edge.statement_index,
+                        });
+                    }
+                    return;
+                }
+            }
             let unsigned = guard_comparison_operands_unsigned(
                 input,
                 source_dispatch_index,

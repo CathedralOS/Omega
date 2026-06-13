@@ -370,7 +370,7 @@ pub(super) fn resolve_runtime_value_operand_in_table(
 /// per-field `!=` compares, so the String term reaches selection as a direct
 /// `String != String` binary -- it lowers as `text_equals(..) == 0`.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::selection::runtime_dispatch::writes) fn resolve_runtime_text_equals_operand_in_table(
+pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operand_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,

@@ -63,6 +63,7 @@ use operators::{
     builtin_runtime_call_operator, runtime_binary_operator, supports_scalar_integer_write,
 };
 pub(super) use static_writes::select_runtime_static_mutation_write_in_table;
+pub(in crate::selection::runtime_dispatch) use value_operands::resolve_runtime_text_equals_operand_in_table;
 use value_operands::resolve_runtime_value_operand;
 
 fn resolve_runtime_call_result_source_place(
