@@ -10257,4 +10257,24 @@ struct PendingCanary {
 //   runtime_const_array_length_bare_call_arm_exit (parenthesized lone-call
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    // STATE-ARGUMENT MATERIALIZATION miscompiles (found 2026-06-12 by sample
+    // authoring -- bank_ledger and particle_sim). Both: a value forwarded
+    // through a transition arm `-> state(arg)` arrives WRONG in the callee
+    // state. They COMPILE (CurrentlyAccepts) but run wrong (native vs
+    // interpreter divergence). Promote to pass RUN canaries when state-arg
+    // materialization is fixed.
+    // (10) an i32 `let`-local passed to a nested state arg gets the wrong
+    // value on repeated calls (native 72, interpreter 70).
+    PendingCanary {
+        path: "calls/let_local_passed_to_nested_state_arg_wrong",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    // (11) an f64 value passed as a state arg arrives with wrong bits
+    // (8-byte-wide state-arg materialization; i32 works) (native 72,
+    // interpreter 70).
+    PendingCanary {
+        path: "expressions/f64_param_guard_wrong",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+];
