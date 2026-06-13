@@ -1,6 +1,14 @@
 // RUN canary (ch17 "Atomics" / concurrency stage 1, M4): AtomicU32
 // compare_exchange.
 //
+// !!! STAGE-1 INTERIM, NOT YET ATOMIC !!! compare_exchange currently lowers
+// as a PARSER DESUGAR into a non-atomic read-modify-write integer sequence
+// (`prior + (prior == expected) * (new - prior)`). It is VALUE-correct and
+// unobservably non-atomic today (no scheduler / true parallelism exists in
+// stage 1). It MUST be replaced with a real `LOCK CMPXCHG` RMW op-kind
+// (mirroring fetch_add's M3 path) BEFORE real concurrency lands, or it is a
+// silent data race. Tracked as a follow-up; see TASKS.md / the review note.
+//
 // `let prior: T = place.compare_exchange(expected, new_val, succ_ord, fail_ord);`
 // returns the PRIOR value and conditionally swaps:
 //   - SUCCESS path: if *place == expected  -> *place becomes new_val

@@ -51,6 +51,17 @@ irreversible; flag any you dislike.
    and I did NOT add atomics, Mutex, scopes, cancellation, or select — those
    wait for C2–C5 sign-off and a real scheduler.
 
+## 1b. LANDMINE to fix before real concurrency (flagged, not yet fixed)
+
+Atomics stage 1 landed (types + load/store/fetch_add as real x86 atomics;
+M1–M4). BUT `compare_exchange` (M4) is currently a PARSER DESUGAR into a
+non-atomic integer read-modify-write — value-correct, and unobservably
+non-atomic in stage 1 (no scheduler/threads yet), but a silent data race the
+moment true parallelism exists. fetch_add (M3) is a real `LOCK`-prefixed RMW;
+CAS must match it (`LOCK CMPXCHG`) before the scheduler arc. Flagged in the
+canary header + a tracked task chip. Do NOT ship concurrency with the desugar
+CAS.
+
 ## 2. Blocking decisions — only you (still open in TASKS.md register)
 
 - **C2–C5** (concurrency): task unit = spawned machine; structured Join
