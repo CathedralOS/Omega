@@ -2703,6 +2703,81 @@ fn runtime_float_local_arithmetic_exit_canary_runs() {
 }
 
 #[test]
+fn float_array_binary_op_zero_exit_canary_runs() {
+    // Float binary arithmetic where BOTH operands are fixed-array elements of
+    // type f64 (`self.vals[0] + self.vals[1]`) must emit an SSE addsd, not an
+    // integer add.  Root cause: `resolve_machine_owned_collection_in_table`
+    // returned the array type `[f64; 2]` instead of the element type `f64`,
+    // so `binary_value_operands_are_float` returned false.  Fixed to apply the
+    // element index from the root-field member_index when the suffix is empty.
+    let canary = pass_canary("expressions/float_array_binary_op_zero");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-float-array-binary-op-zero-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float_array_binary_op_zero canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float_array_binary_op_zero canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f64 array element binary op to yield 7.0 and exit 70, got {:?} (71 = integer add over float bits)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn f32_array_binary_op_zero_exit_canary_runs() {
+    // Same as float_array_binary_op_zero but for f32 array elements.
+    // Both operands `self.vals[0]` and `self.vals[1]` are f32; their sum
+    // 3.0f32 + 4.0f32 = 7.0f32 must use addss and exit 70.
+    let canary = pass_canary("expressions/f32_array_binary_op_zero");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-f32-array-binary-op-zero-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32_array_binary_op_zero canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32_array_binary_op_zero canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32 array element binary op to yield 7.0f32 and exit 70, got {:?} (71 = integer add over float bits)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_literal_source_cast_exit_canary_runs() {
     // A numeric `as` cast whose source folds to a literal (`10.0 as i32`) must
     // still emit a convert. The selector used to bail (no place type for a
@@ -9977,6 +10052,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "errors/fallible_result_data_shape",
     "errors/host_failure_boundary_machine",
     "errors/trap_unrecoverable_statement",
+    "expressions/float_array_binary_op_zero",
+    "expressions/f32_array_binary_op_zero",
     "expressions/float_literal_suffix",
     "expressions/integer_literal_suffix",
     "generics/const_data_param",
@@ -10351,14 +10428,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // interpreter 70). Cluster: float binary ops whose operands are
     // fixed-array elements yield zero; deep f32 binary chains; f32->local
     // casts. Promote to pass RUN canaries as the float lowering is fixed.
-    PendingCanary {
-        path: "expressions/float_array_binary_op_zero",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "expressions/f32_array_binary_op_zero",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
     PendingCanary {
         path: "expressions/f32_deep_chain_binary_wrong",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
