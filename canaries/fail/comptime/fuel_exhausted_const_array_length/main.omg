@@ -1,0 +1,43 @@
+// COMPTIME STAGE 1, FUEL BACKSTOP: a const-position callee that is legal by
+// the termination discipline (tail self-loop with a decreases measure) but
+// takes ten million steps must hit the step-budget defense-in-depth limit
+// and produce an ERROR -- the compiler must never hang inside const
+// evaluation. (M3: termination is the language's existing discipline; fuel
+// exists only as a backstop, and this pins that the backstop actually
+// fires -- observed at ~0.07s, no hang.)
+//
+// NOTE the `(burn(...) + 0)` spelling: a parenthesized BARE call in arm
+// position fails const-eval resolution today (see
+// pending/comptime/const_array_length_bare_call_arm); the arithmetic
+// wrapper keeps this canary pointed at the fuel limit, not that gap.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    slots: [i64; table_size()];
+}
+
+machine burn(remaining: usize, acc: usize)
+terminates {
+    decreases remaining;
+}
+-> usize
+{
+    transition remaining > 0 {
+        true -> burn(remaining - 1, acc + 1)
+        false -> acc
+    }
+}
+
+machine table_size() -> usize {
+    transition {
+        _ -> (burn(10000000, 16) + 0)
+    }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}

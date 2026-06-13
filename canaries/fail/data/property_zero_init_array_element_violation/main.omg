@@ -1,0 +1,20 @@
+// `[zero_init]` through a FIXED ARRAY field rejects when the ELEMENT type
+// does not itself declare `[zero_init]`: an array of `Inner` is only
+// zero-means-empty if a zeroed `Inner` is the empty value, which `Inner`
+// never promised. Pins that the FixedArray walk does not silently accept
+// undeclared element types.
+
+data Inner {
+    value: i32;
+}
+
+data Grid [zero_init] {
+    cells: [Inner; 4];
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

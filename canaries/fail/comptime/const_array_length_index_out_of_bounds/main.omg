@@ -1,0 +1,26 @@
+// COMPTIME STAGE 1, the const value must REACH THE PROOF OBLIGATIONS: a
+// fixed-array length spelled `[i64; table_size()]` const-evaluates to 16, so
+// indexing element 16 is out of bounds and must be rejected exactly as
+// `[i64; 16]` would reject it. Pins that substitution happens BEFORE the
+// index range checker, not just before layout (a layout-only substitution
+// would size the field right but let the write through).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    slots: [i64; table_size()];
+}
+
+machine table_size() -> usize {
+    transition {
+        _ -> (12 + 4)
+    }
+}
+
+machine Main::main(&mut self) {
+    self.slots[16] = 1;
+    self.console.exit_process(70);
+}

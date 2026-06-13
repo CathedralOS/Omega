@@ -1,0 +1,25 @@
+// Declared `[send]` (frozen decision 8): structural like `copy` -- every
+// stored field (including CASE PAYLOAD fields) must be a primitive or a data
+// type that itself declares `[send]`. `Packet` qualifies through scalar
+// payloads; `Envelope` qualifies only because `Packet` declares the property
+// itself. Until the concurrency model lands, `send` shares the `copy`
+// structural walk -- this canary pins that the spelling verifies and has no
+// runtime surface.
+
+data Packet [send] {
+    id: i32;
+    case Empty;
+    case Burst(count: i32, priority: u8);
+}
+
+data Envelope [send] {
+    inner: Packet;
+    stamp: i64;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

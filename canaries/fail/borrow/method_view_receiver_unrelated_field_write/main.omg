@@ -1,0 +1,41 @@
+// FAIL canary (lifetimes stage 1, the `&self -> self` elision rule): a view
+// returned from a `&mut self` METHOD borrows the WHOLE receiver, so writing
+// an UNRELATED field of the same receiver while the view is live is rejected
+// -- the Rust model adopted by frozen decision 15 makes the receiver-wide
+// loan deliberate (field-precise method borrows would need explicit lifetime
+// or view declarations, not elision). Characterized 2026-06-12: the checker
+// rejects exactly like Rust would.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    value: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+    other: i32;
+}
+
+machine Bag::pick(&mut self) -> &mut Cell {
+    let slots: &mut [Cell] = self.cells.as_mut_slice();
+    transition {
+        _ -> &mut slots[2]
+    }
+}
+
+data Main {
+    console: Console;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) {
+    let cell: &mut Cell = self.bag.pick();
+    // `cell` keeps ALL of `self.bag` loaned (receiver-wide elision), so even
+    // the disjoint `other` field is off limits while it lives.
+    self.bag.other = 5;
+    cell.value = 7;
+    self.console.exit_process(70);
+}

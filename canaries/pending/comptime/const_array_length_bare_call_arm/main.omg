@@ -1,0 +1,54 @@
+// PENDING (CurrentlyRejects) -- CONST-EVAL RESOLUTION GAP, misleading error.
+//
+// A const-position callee whose value arm is a PARENTHESIZED BARE CALL
+// (`_ -> (burn(4, 12))`) fails const evaluation with "transition target
+// `burn` not found in current machine" -- the bare-call arm desugars to a
+// dispatched call whose target the const evaluator cannot resolve to the
+// free machine. The SAME call wrapped in arithmetic (`_ -> (burn(4, 12) +
+// 0)`) const-evaluates fine, recursion and all (see
+// fail/comptime/fuel_exhausted_const_array_length and
+// pass/comptime/runtime_const_array_length_transitive_exit), so this is a
+// spelling-shaped hole, not a recursion limitation. burn(4, 12) = 16; when
+// the bare-call arm resolves, this should compile with a 16-slot array --
+// promote to pass/ (the index-15 write below typechecks only at length 16).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    slots: [i64; table_size()];
+}
+
+machine burn(remaining: usize, acc: usize)
+terminates {
+    decreases remaining;
+}
+-> usize
+{
+    transition remaining > 0 {
+        true -> (burn(remaining - 1, acc + 1))
+        false -> acc
+    }
+}
+
+machine table_size() -> usize {
+    transition {
+        _ -> (burn(4, 12))
+    }
+}
+
+machine Main::main(&mut self) {
+    self.slots[15] = 63;
+    transition self.slots[15] == 63 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
