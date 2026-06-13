@@ -1,0 +1,55 @@
+// A `&mut self` machine that takes a BY-VALUE CASE-BEARING parameter must
+// persist writes to `self.<field>` made in a dispatched substate: after
+// `self.apply(Event::Insert { cents: 50 })`, `self.register.balance` must
+// equal 50.  Exits 70 on success.
+//
+// Regression canary for the 2026-06 fix: InlineBranching argument
+// materialization now handles StructLiteral arguments, writing the case tag
+// and each payload field into the target parameter slot so the transition
+// guard sees the correct variant and the substate write-back reaches the
+// caller.
+
+use omega::language::std::console;
+
+data Event {
+    case Idle;
+    case Insert(cents: i32);
+}
+
+data Register [copy, zero_init] {
+    balance: i32;
+}
+
+data Main {
+    console: Console;
+    register: Register;
+}
+
+machine Main::main(&mut self) {
+    self.apply(Event::Insert { cents: 50 });
+    transition self.register.balance == 50 {
+        true -> report(70)
+        _ -> not_fifty()
+    }
+    state not_fifty(&mut self) {
+        transition self.register.balance == 0 {
+            true -> report(80)
+            _ -> report(81)
+        }
+    }
+    state report(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}
+
+machine Main::apply(&mut self, event: Event) {
+    transition event {
+        Event::Insert { cents } -> add_balance(cents)
+        _ -> idle()
+    }
+    state add_balance(&mut self, cents: i32) {
+        self.register.balance = self.register.balance + cents;
+    }
+    state idle(&mut self) {
+    }
+}

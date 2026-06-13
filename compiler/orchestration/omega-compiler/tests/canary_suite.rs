@@ -802,6 +802,46 @@ fn runtime_free_machine_struct_arg_exit_canary_runs() {
 }
 
 #[test]
+fn by_value_case_param_self_write_exit_canary_runs() {
+    // A `&mut self` machine taking a BY-VALUE CASE-BEARING parameter must
+    // persist writes to `self.<field>` made in a dispatched substate.
+    // Root cause: InlineBranching argument materialization had no handler for
+    // StructLiteral arguments -- `Event::Insert { cents: 50 }` was never
+    // written to the parameter slot, so the case tag stayed 0 (Idle), the
+    // dispatch guard failed, the substate was never entered, and
+    // `self.register.balance` stayed 0. Exits 70 when the write-back lands.
+    let canary = pass_canary("calls/by_value_case_param_self_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-by-value-case-param-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("by-value case param self-write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("by-value case param self-write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a by-value case-bearing arg to persist the self write-back (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_attached_machine_struct_arg_exit_canary_runs() {
     // The attached (data-scoped, receiverless `Worker::run`) spelling of the
     // by-value struct argument shape: the same leaf expansion path lowers it
@@ -9529,6 +9569,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/mutable_output_host_call",
     "calls/nested_machine_continuation",
     "calls/runtime_attached_machine_struct_arg_exit",
+    "calls/by_value_case_param_self_write_exit",
     "calls/runtime_explicit_discard_executes_exit",
     "calls/runtime_free_machine_struct_arg_exit",
     "calls/runtime_free_machine_struct_return_exit",
@@ -10168,15 +10209,6 @@ struct PendingCanary {
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "generics/machine_bound_value_call_unchecked",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    // Native miscompile (found 2026-06-12 by samples/vending_machine): a
-    // `&mut self` machine taking a by-value CASE-bearing parameter loses
-    // self.<field> writes made in a dispatched substate. It COMPILES (hence
-    // CurrentlyAccepts) but runs wrong (exit 80, should be 70); promote to a
-    // pass RUN canary when the write-back lands.
-    PendingCanary {
-        path: "calls/by_value_case_param_self_write_lost",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
 ];
