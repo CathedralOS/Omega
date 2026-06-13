@@ -1,0 +1,78 @@
+// A BY-VALUE STRUCT argument to a FREE machine must deliver the caller's
+// field values. Three stacked selection bugs dropped the call's result-slot
+// write, so the callee computed from a stale 0 (exit 71/72 instead of 70)
+// while a scalar arg through a GUARDED callee worked and the interpreter got
+// everything right:
+//   1. a same-named caller arg (`work(job)` into `machine work(job: Job)`)
+//      was rejected as a no-op SELF-BINDING by the name-only fallback
+//      (caller argument expressions arrive symbol-less through control flow,
+//      so the symbol comparison never ran);
+//   2. caller-local initializer substitution had no Member arm, so `job.id`
+//      with slot-less `job` never folded through the struct literal
+//      `Job { id: self.v }` to `self.v`;
+//   3. the leaf terminal value write resolved the substituted CALLER-context
+//      value in the CALLEE's context (`self.v` does not exist in `work`).
+// Rung 1 exercises the same-name 1-field shape (exit 71 on miss); rung 2 a
+// 2-field struct passed with the explicit `move` spelling (exit 72). Fields
+// come from runtime machine state so nothing folds statically. Exits 70 only
+// when both callees saw the real field values.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Job {
+    id: i32;
+}
+
+machine work(job: Job) -> i32 {
+    job.id + 1
+}
+
+data Pair {
+    a: i32;
+    b: i32;
+}
+
+machine combine(pair: Pair) -> i32 {
+    pair.a + pair.b
+}
+
+data Main {
+    console: Console;
+    v: i32;
+}
+
+machine Main::main(&mut self) {
+    self.v = 60;
+    self.v = self.v + 9; // runtime 69
+    let job: Job = Job { id: self.v };
+    let n: i32 = work(job); // 69 + 1 = 70
+
+    let pair: Pair = Pair { a: self.v, b: 131 };
+    let m: i32 = combine(move pair); // 69 + 131 = 200
+
+    transition n == 70 {
+        true -> check_pair(m)
+        _ -> bad_single()
+    }
+
+    state check_pair(&mut self, m: i32) {
+        transition m == 200 {
+            true -> good()
+            _ -> bad_pair()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_single(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_pair(&mut self) {
+        self.console.exit_process(72);
+    }
+}
