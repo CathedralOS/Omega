@@ -9443,6 +9443,51 @@ fn runtime_f64_state_arg_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_let_local_nested_state_arg_exit_canary_runs() {
+    // Verifies that a `let`-bound local whose initializer is a pure place read
+    // (e.g. `let slot: i32 = self.s.count`) is forwarded correctly through a
+    // nested state argument chain across repeated calls.  Previously argument
+    // materialization folded the Name expression back to its initializer
+    // (re-evaluating `self.s.count`) instead of reading the LocalStorage frame
+    // slot that captured the pre-mutation value.  On the second call the
+    // already-incremented count was substituted, causing `try1` to take the
+    // wrong dispatch arm.  Bug 10 (2026-06-12): fixed in
+    // argument_materialization.rs by blocking the fold when the local has a
+    // LocalStorage slot and its initializer is a pure place expression.  exit
+    // 72 = wrong arm (set2 taken instead of set1); exit 70 = correct.
+    let canary = pass_canary("calls/runtime_let_local_nested_state_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-let-local-nested-state-arg-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("let-local nested state arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("let-local nested state arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected arr[0]==500 and arr[1]==200 after two `put` calls (exit 70); \
+         exit 72 = set2 arm wrongly taken (slot re-read post-increment), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn pending_canaries_reproduce_known_gaps() {
     for canary in ACTIVE_PENDING_CANARIES {
         let canary_dir = pending_canary(canary.path);
@@ -10300,16 +10345,4 @@ struct PendingCanary {
 //   runtime_const_array_length_bare_call_arm_exit (parenthesized lone-call
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    // Bug 10: STATE-ARGUMENT MATERIALIZATION miscompile: a `let`-bound local
-    // whose initializer is a pure place read (e.g. `let slot: i32 =
-    // self.s.count`) is folded back to its initializer on transition arm
-    // expansion, bypassing the LocalStorage frame slot that captured the
-    // pre-mutation value. On repeated calls where the source field is mutated
-    // between the declaration and the transition arm, the fold re-reads the
-    // post-mutation value instead. Promote to pass when fixed.
-    PendingCanary {
-        path: "calls/let_local_passed_to_nested_state_arg_wrong",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];

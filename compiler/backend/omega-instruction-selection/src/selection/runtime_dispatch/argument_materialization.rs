@@ -1059,6 +1059,47 @@ fn resolve_prior_local_initializers_in_table(
             if initial_value_blocks_inline_fold(input, initial_value) {
                 return expression;
             }
+            // A `let`-bound local whose initializer is a plain place read
+            // (e.g. `let slot: i32 = self.s.count`) gets its OWN `LocalStorage`
+            // frame slot that is written with the field's value at the declaration
+            // point. Folding the Name back to its initializer expression bypasses
+            // that slot and re-reads the source field directly -- if the field was
+            // mutated between the declaration and the transition arm (e.g.
+            // `self.s.count = self.s.count + 1`), the fold reads the
+            // post-mutation value instead of the captured pre-mutation value.
+            //
+            // Block the fold when BOTH conditions hold:
+            // 1. The local has a `LocalStorage` frame slot (slot was materialized).
+            // 2. The initializer is a pure place expression (Name/Member/Indexed
+            //    chain, no arithmetic). For pure place reads, the slot is written
+            //    with the live value from the field at declaration time, so the slot
+            //    always holds the correct captured value. For binary/complex
+            //    initializers (e.g. `self.base * 10`) the frame-slot write may use
+            //    a stale static value for field operands, so in that case we let the
+            //    fold proceed: it re-evaluates the expression at transition time with
+            //    the current machine-field values.
+            if local_initializer_is_pure_place(initial_value, &input.program.expression_table) {
+                if let Some((local_symbol, local_name)) =
+                    local_root_identity(expressions, expression)
+                {
+                    let has_local_storage_slot = input.runtime_storage.frame_slots.iter().any(
+                        |(_, slot)| {
+                            state_key_matches_statement_source(slot.source_key, source_key)
+                                && matches!(
+                                    slot.kind,
+                                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                                )
+                                && ((slot.symbol.is_valid()
+                                    && local_symbol.is_valid()
+                                    && slot.symbol == local_symbol)
+                                    || slot.name == local_name)
+                        },
+                    );
+                    if has_local_storage_slot {
+                        return expression;
+                    }
+                }
+            }
             let copied = expressions.copy_from(&input.program.expression_table, initial_value);
             resolve_prior_local_initializers_in_table(
                 input,
@@ -1219,6 +1260,36 @@ fn local_root_identity(
         ExpressionNode::Indexed(indexed) => local_root_identity(expressions, indexed.collection),
         ExpressionNode::Mutable(inner) => local_root_identity(expressions, *inner),
         _ => None,
+    }
+}
+
+/// True when `initial_value` is a "pure place" expression -- a Name, Member
+/// chain, or indexed read, with no arithmetic or calls. Such an initializer is
+/// always written to the `LocalStorage` frame slot with the live field value at
+/// declaration time, so the slot reliably holds the captured value. Binary or
+/// call initializers may be written with stale static values for field operands
+/// (a known limitation of the static-value tracking layer), so for those the
+/// caller should NOT block the fold: it re-evaluates at transition time instead.
+fn local_initializer_is_pure_place(
+    initial_value: ExpressionHandle,
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+) -> bool {
+    match expressions.expression(initial_value) {
+        ExpressionNode::Name(_) => true,
+        ExpressionNode::Member(member) => {
+            local_initializer_is_pure_place(member.receiver, expressions)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            local_initializer_is_pure_place(indexed.collection, expressions)
+                && local_initializer_is_pure_place(indexed.index, expressions)
+        }
+        ExpressionNode::Mutable(inner) => local_initializer_is_pure_place(*inner, expressions),
+        // Integers/booleans are compile-time constants; perfectly safe to
+        // capture (they never become stale). Float literals likewise.
+        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => true,
+        // Binary expressions, calls, casts, arrays, and struct literals may
+        // involve stale static values for machine-field operands.
+        _ => false,
     }
 }
 
