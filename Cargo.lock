@@ -618,14 +618,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-names"
-version = "0.1.0"
-dependencies = [
- "omega-core",
- "omega-syntax-trees",
-]
-
-[[package]]
 name = "omega-object-file"
 version = "0.1.0"
 dependencies = [

@@ -24,7 +24,7 @@ pub(crate) fn lower_item(
             lowerer.symbol_resolved_trees.data_definitions.push(lowered);
             // Historical version shapes follow their parent immediately so the
             // positional Data-kind symbol assignment stays aligned with the
-            // root symbols seeded by omega-names.
+            // root symbols seeded by this crate's positional symbol assignment.
             let version_names = version_shapes
                 .iter()
                 .filter_map(|shape| {

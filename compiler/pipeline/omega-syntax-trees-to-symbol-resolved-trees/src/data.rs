@@ -47,7 +47,7 @@ pub(crate) fn lower_data_definition(
 /// historical-shape data definition named `Data::vN`. The synthesized
 /// definitions must be pushed immediately after their parent (in member
 /// order): the positional symbol-assignment pass pairs them with the root
-/// symbols omega-names seeds at the same relative positions.
+/// symbols seeded at the same relative positions.
 ///
 /// Declared-history contradictions caught here:
 /// - a version name that is not a `v<number>` selector,

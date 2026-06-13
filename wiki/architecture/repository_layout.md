@@ -42,7 +42,6 @@ Omega/
 |   |   `-- [CRATE] omega-core/                         # Shared primitives, ids, arenas, handles, spans, diagnostics.
 |   |
 |   |-- semantics/
-|   |   |-- [CRATE] omega-names/                        # Definitions, scopes, imports, symbol resolution.
 |   |   |-- [CRATE] omega-types/                        # Type checking, inference, coercions, layout preconditions.
 |   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and graph-facing semantic facts.
 |   |   |-- [CRATE] omega-validation/                   # Cross-semantic program validation and diagnostics.

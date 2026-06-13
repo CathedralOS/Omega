@@ -10,7 +10,6 @@ members = [
     "compiler/representations/omega-syntax-trees",
     "compiler/pipeline/omega-source-files-to-tokens",
     "compiler/pipeline/omega-tokens-to-syntax-trees",
-    "compiler/semantics/omega-names",
     "compiler/semantics/omega-types",
     "compiler/semantics/omega-graph",
     "compiler/representations/omega-facts",
