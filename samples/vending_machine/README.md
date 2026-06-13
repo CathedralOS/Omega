@@ -7,21 +7,16 @@ members with named payloads, type properties on plain data, payload binding
 in transition arms, and value-position machine calls — and reports the final
 state as an exit code (expected: 70).
 
-## Status: blocked on a known native miscompile
+## Status: working — exits 70
 
-This sample currently exits **72**, not 70. It surfaced a real backend bug,
-captured minimally as `canaries/pending/calls/by_value_case_param_self_write_lost`:
+The native miscompile that previously caused this to exit 72 has been fixed
+(2026-06-12). The bug was in `InlineBranching` argument materialization: a
+`StructLiteral` argument (`Event::Insert { cents: 50 }`) was never written
+into the callee's parameter slot, so the case tag stayed 0 (Idle), the
+dispatch guard failed, and `self.register.balance` was never updated.
 
-> A `&mut self` machine that takes a **by-value case-bearing parameter** and
-> writes `self.<field>` in a dispatched substate loses the write — the caller
-> observes the pre-call value. (`Main::apply(self, event: Event)` writing
-> `self.register.balance` is dropped.) The identical shape with a scalar
-> argument persists the write correctly, so this is the `&mut self`
-> write-back leg of the by-value aggregate-parameter family.
-
-Once that pending canary is fixed and promoted, this sample runs to exit 70
-and becomes a clean end-to-end showcase. It is committed now as the
-aspirational target + a human-readable companion to the regression canary.
+The fix and a minimal regression canary are in
+`canaries/pass/calls/by_value_case_param_self_write_exit`.
 
 ## Build
 
