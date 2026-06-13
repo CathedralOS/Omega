@@ -26,6 +26,30 @@ pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
     );
 }
 
+/// Seeds the end-window fact for `bound <= coll.len`: an exclusive subslice
+/// end is valid exactly when it is at most the collection length, so the
+/// at-most-len comparison IS the `[..bound]` range-bound obligation. This is
+/// the `<=` counterpart of the strict `bound < coll.len` seeding in
+/// `seed_less_than_len_fact` (which additionally proves `bound` as an index).
+pub(in crate::checks::ranges::guards) fn seed_at_most_len_range_bound_fact(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &mut RangeFacts<'_>,
+    bound: ExpressionHandle,
+    upper_bound: ExpressionHandle,
+) {
+    let ExpressionNode::Member(member) = program.expression_table.expression(upper_bound) else {
+        return;
+    };
+    if member.member.as_str() != "len" {
+        return;
+    }
+
+    facts.prove_range_bound(
+        program.expression_table.display_name(member.receiver),
+        program.expression_table.display_name(bound),
+    );
+}
+
 pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(
     program: &omega_typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,

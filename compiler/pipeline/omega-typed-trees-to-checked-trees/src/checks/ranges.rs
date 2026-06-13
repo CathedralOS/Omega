@@ -12,6 +12,7 @@ mod statements;
 mod types;
 
 use arrays::fixed_array_field_lengths;
+pub(in crate::checks) use arrays::fixed_array_type_length;
 use facts::RangeFacts;
 use initializers::seed_field_integer_facts;
 use omega_core::diagnostics::Diagnostic;
