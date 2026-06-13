@@ -1,0 +1,66 @@
+// PENDING CANARY -- currently miscompiles on native (exits 71 instead of 70).
+//
+// Bug: f64 values passed as state arguments (transition arm args) are received
+// with wrong bits in the callee state. The root issue is in state-arg
+// materialization for 8-byte-wide (f64) args -- i32 state args work correctly.
+//
+// Two symptoms arise from the same root cause:
+// 1. `transition x > 15.0` where x is an f64 param -- guard reads wrong bits.
+// 2. `state store(&mut self, x: f64) { self.result = x; }` -- stores garbage.
+//
+// Both are triggered whenever a machine passes an f64 to a dispatch sub-state
+// via a transition arm: `transition { _ -> some_state(my_f64_val) }`.
+//
+// What WORKS (f64 is NOT in a state arg):
+// - `self.result = x * 2.0` (f64 param used in arithmetic at machine root)
+// - `self.saved = x` (store at machine root, no state dispatch)
+// - `self.field > 5.0` guard on an f64 FIELD (not a param/local)
+//
+// Interpreter: exits 70 (store_int gets x=42 OK; store_flt gets x=3.14 OK).
+// Native x64:  exits 72 (store_int correct; store_flt gets wrong bits -> result~0).
+//
+// Not registered in canary_suite.rs -- add to the registry when fixing.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    int_result: i32;
+    flt_result: f64;
+}
+
+machine Main::main(&mut self) {
+    self.put_int(42);
+    self.put_flt(3.14);
+
+    transition self.int_result == 42 {
+        true -> check_flt()
+        _ -> bad_int()
+    }
+
+    state check_flt(&mut self) {
+        // flt_result should be 3.14 > 3.0.
+        transition self.flt_result > 3.0 {
+            true -> good()
+            _ -> bad_flt()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad_int(&mut self) { self.console.exit_process(71); }
+    state bad_flt(&mut self) { self.console.exit_process(72); }
+}
+
+machine Main::put_int(&mut self, x: i32) {
+    // i32 state-arg: works correctly.
+    transition { _ -> store_int(x) }
+    state store_int(&mut self, x: i32) { self.int_result = x; }
+}
+
+machine Main::put_flt(&mut self, x: f64) {
+    // f64 state-arg: BUG -- store_flt receives wrong bits for x.
+    transition { _ -> store_flt(x) }
+    state store_flt(&mut self, x: f64) { self.flt_result = x; }
+}
