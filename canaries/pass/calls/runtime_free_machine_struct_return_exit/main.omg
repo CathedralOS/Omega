@@ -1,0 +1,52 @@
+// A FREE machine RETURNING a struct BY VALUE (`let lit: Pair = make(seed)`)
+// must deliver both field values into the caller's local. Two leaf
+// terminal-value resolution gaps dropped every per-field result-slot write
+// natively (the local read ZII zeroes): the caller-local initializer
+// substitution had no StructLiteral arm (folded caller locals like `seed`
+// never substituted inside field values), and a local backed by a CALL's
+// result slot (`let bumped: i32 = bump(30)`) was substituted with the call
+// expression itself, which no write strategy can lower. Rung 1 = struct from
+// a folded literal seed; rung 2 = struct from a chained call-result seed.
+// Exits 70 only when all four returned fields are correct
+// (34+35+34+35 == 138); any dropped write reads 0 and falls to 71.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Pair {
+    a: i32;
+    b: i32;
+}
+
+machine bump(n: i32) -> i32 {
+    n + 4
+}
+
+machine make(x: i32) -> Pair {
+    Pair { a: x, b: x + 1 }
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let seed: i32 = 34;
+    let lit: Pair = make(seed);
+    let bumped: i32 = bump(30);
+    let chained: Pair = make(bumped);
+
+    transition lit.a + lit.b + chained.a + chained.b == 138 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

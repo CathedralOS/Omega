@@ -841,6 +841,49 @@ fn runtime_attached_machine_struct_arg_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_free_machine_struct_return_exit_canary_runs() {
+    // A FREE machine RETURNING a struct BY VALUE (`let lit: Pair = make(seed)`)
+    // must deliver both field values into the caller's local. Two leaf
+    // terminal-value resolution gaps dropped every per-field result-slot write
+    // (the local read ZII zeroes): the caller-local initializer substitution
+    // had no StructLiteral arm (folded caller locals never substituted inside
+    // field values), and a local backed by a CALL's result slot (`let bumped =
+    // bump(30)`) was substituted with the unloweable call expression instead
+    // of keeping its name resolving against the result slot. Rung 1 = struct
+    // from a folded literal seed, rung 2 = struct from a chained call-result
+    // seed. Exits 70 only when all four returned fields are correct.
+    let canary = pass_canary("calls/runtime_free_machine_struct_return_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-free-machine-struct-return-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("free-machine struct return canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("free-machine struct return canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected by-value struct returns from free machines to deliver both field values (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_free_machine_value_call_mut_arg_exit_canary_runs() {
     // A free-machine value call carrying a `&mut` tally argument alongside the
     // returned value: the callee increments the caller's field through the
@@ -2261,6 +2304,47 @@ fn runtime_spawn_interleaved_join_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected the late join to deliver the spawned result with interleaved work intact (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_spawn_struct_result_exit_canary_runs() {
+    // Promoted from pending/concurrency/spawn_struct_result_miscompiled when
+    // by-value struct RETURNS landed natively. `spawn { Worker::make(move
+    // seed) }` joins a machine returning a STRUCT by value; under the
+    // synchronous-spawn desugar the joined `pair` must read back both fields
+    // ({ a: 34, b: 35 }, a + b == 69 -> exit 70). The struct-typed terminal
+    // value's per-field result-slot writes used to drop silently (ZII zeroes,
+    // exit 71). The direct no-spawn spelling is pinned by
+    // calls/runtime_free_machine_struct_return_exit.
+    let canary = pass_canary("concurrency/runtime_spawn_struct_result_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-spawn-struct-result-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("spawn struct result canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("spawn struct result canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the joined by-value struct result to deliver both field values (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -9248,6 +9332,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "comptime/runtime_const_array_length_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
+    "concurrency/runtime_spawn_struct_result_exit",
     "concurrency/spawn_fire_and_forget",
     "concurrency/spawn_join_handle",
     "data/case_payload_declaration",
@@ -9331,6 +9416,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_attached_machine_struct_arg_exit",
     "calls/runtime_explicit_discard_executes_exit",
     "calls/runtime_free_machine_struct_arg_exit",
+    "calls/runtime_free_machine_struct_return_exit",
     "storage/runtime_alias_integer_write",
     "storage/runtime_alias_field_integer",
     "storage/runtime_alias_field_binary",
@@ -9941,10 +10027,12 @@ struct PendingCanary {
 // - comptime/const_array_length_bare_call_arm: a parenthesized BARE call as
 //   the const callee's value arm fails const-eval resolution ("transition
 //   target not found"); the same call wrapped in arithmetic evaluates fine.
-// - concurrency/spawn_struct_result_miscompiled: NATIVE MISCOMPILE -- a
-//   spawned machine returning a struct by value joins garbage (native 71,
-//   interpreter 70); reproduces WITHOUT spawn too (plain by-value struct
-//   return), same family as the by-value-struct-arg gap.
+//
+// spawn_struct_result_miscompiled was promoted to
+// pass/concurrency/runtime_spawn_struct_result_exit when by-value struct
+// RETURNS landed natively (leaf terminal-value StructLiteral substitution +
+// call-result-backed locals keeping their name); the direct no-spawn spelling
+// is pinned by calls/runtime_free_machine_struct_return_exit.
 #[allow(dead_code)]
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
@@ -9970,9 +10058,5 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "transition target `burn` not found in current machine",
         },
-    },
-    PendingCanary {
-        path: "concurrency/spawn_struct_result_miscompiled",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
 ];

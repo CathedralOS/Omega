@@ -1,0 +1,50 @@
+// Promoted from pending/concurrency/spawn_struct_result_miscompiled when
+// by-value struct RETURNS landed natively (leaf terminal-value StructLiteral
+// substitution + call-result-backed locals keeping their name; the direct
+// no-spawn spelling is pinned by calls/runtime_free_machine_struct_return_exit).
+//
+// `spawn { Worker::make(move seed) }` joins a machine returning a STRUCT by
+// value; under the synchronous-spawn desugar the joined `pair` must read back
+// { a: 34, b: 35 } (a + b == 69 -> exit 70). Natively the struct-typed
+// terminal value's per-field result-slot writes used to drop silently, so the
+// local read ZII zeroes and exited 71. Exits 70 only when both joined fields
+// are correct.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Pair {
+    a: i32;
+    b: i32;
+}
+
+data Worker {
+}
+
+machine Worker::make(x: i32) -> Pair {
+    Pair { a: x, b: x + 1 }
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let seed: i32 = 34;
+    let handle: Join<Pair> = spawn { Worker::make(move seed) };
+    let pair: Pair = handle.join();
+
+    transition pair.a + pair.b == 69 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
