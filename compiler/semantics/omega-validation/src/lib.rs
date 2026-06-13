@@ -22,7 +22,7 @@ mod transitions;
 mod type_references;
 mod wire;
 
-use crate::calls::validate_call_node;
+use crate::calls::{validate_call_node, validate_value_position_calls};
 use crate::contract_entailment::validate_machine_contract_entailment;
 use crate::data::validate_data_field_types;
 use crate::domains::validate_domain_definitions;
@@ -107,6 +107,20 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     &mut diagnostics,
                 );
             }
+
+            // VALUE-position calls inside expression trees (LocalData
+            // initializers, transition arguments, guard subjects, etc.)
+            // are not reached by `validate_state_statement_node`; run the
+            // bound check for them separately.
+            validate_value_position_calls(
+                program,
+                machine,
+                state,
+                &machine_symbols,
+                &symbols,
+                &writable_roots,
+                &mut diagnostics,
+            );
         }
     }
 
