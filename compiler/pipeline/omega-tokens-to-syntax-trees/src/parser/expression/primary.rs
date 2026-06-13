@@ -226,6 +226,19 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
         ));
     }
 
+    // CONCURRENCY STAGE 1: `spawn { call }` in value position yields the
+    // spawned call's COMPLETED result (the synchronous-spawn desugar; see
+    // `expression/spawn.rs`). `spawn` is contextual: it is only spawn syntax
+    // when followed by `{`, and only where a struct literal would also be
+    // legal -- so `transition spawn { ... }` over a local named `spawn` keeps
+    // parsing as an identifier, exactly like the struct-literal rule.
+    if context.allows_struct_literal() && input.at_contextual("spawn") {
+        let after_spawn = input.take_contextual("spawn")?;
+        if after_spawn.at_punctuation(PunctuationKind::LeftBrace) {
+            return super::parse_spawn_block_call_handle(syntax_trees, after_spawn);
+        }
+    }
+
     if input.at_name_like() {
         let (path, input) = parse_path_handle_span(input, |member| {
             syntax_trees

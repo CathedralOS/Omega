@@ -1,4 +1,4 @@
-use crate::parser::expression::parse_expression_handle;
+use crate::parser::expression::{parse_expression_handle, parse_spawn_block_call_handle};
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::transition::parse_transition_block_target_handle;
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
@@ -35,8 +35,17 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
         return parse_asm_statement_handle(syntax_trees, input);
     }
 
+    // CONCURRENCY STAGE 1: a statement-position `spawn { call; }` is the
+    // fire-and-forget form. Under the synchronous-spawn desugar (see
+    // `expression/spawn.rs`) the call simply RUNS HERE as an ordinary call
+    // statement; frozen decision 9's strict-result rule still governs a
+    // discarded non-unit result. `spawn` stays contextual: without a `{` it
+    // falls through and parses as a plain identifier.
     if input.at_contextual("spawn") {
-        return Err(input.error_here("spawn statements are not implemented yet"));
+        let after_spawn = input.take_contextual("spawn")?;
+        if after_spawn.at_punctuation(PunctuationKind::LeftBrace) {
+            return parse_spawn_statement_handle(syntax_trees, after_spawn);
+        }
     }
 
     if input.at_contextual("_") {
@@ -146,6 +155,35 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
             input,
         ))
     }
+}
+
+/// CONCURRENCY STAGE 1 fire-and-forget: `spawn { call(); }` as a statement
+/// desugars to the call statement itself (synchronous execution -- see
+/// `expression/spawn.rs` for the full desugar contract). The optional
+/// trailing `;` after the closing brace is accepted but not required,
+/// matching the chapter-17 spelling.
+fn parse_spawn_statement_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, StatementHandle> {
+    let (expression, input) = parse_spawn_block_call_handle(syntax_trees, input)?;
+    let input = if input.at_punctuation(PunctuationKind::Semicolon) {
+        input.take_punctuation(PunctuationKind::Semicolon, ";")?
+    } else {
+        input
+    };
+
+    // The spawn body is guaranteed to be a call expression; statement-call
+    // conversion only fails for call shapes (e.g. indexed receivers) that the
+    // ordinary call-statement path also leaves as expression statements.
+    let statement = if let Some(call) = expression_handle_to_statement_call(syntax_trees, expression)
+    {
+        StatementNode::Call(call)
+    } else {
+        StatementNode::Expression(expression)
+    };
+
+    Ok((syntax_trees.statements.insert(statement), input))
 }
 
 /// `_ = call();` -- an explicit-discard statement. The call executes and its

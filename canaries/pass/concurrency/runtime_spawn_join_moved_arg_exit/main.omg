@@ -1,0 +1,63 @@
+// CONCURRENCY STAGE 1 RUN canary (ch17 "Joined Work"): `spawn { call }`
+// yields a `Join<T>` handle and `handle.join()` returns the spawned call's
+// result. Stage 1 lowers spawn to a BLOCKING call (the synchronous-spawn
+// desugar in the parser): the worker runs to completion at the spawn site,
+// `Join<i32>` erases to `i32`, and `.join()` is the identity on the handle.
+// Nothing can observe interleaving yet (no scheduler, no atomics), so the
+// semantics are exactly the concurrent ones.
+//
+// The worker arg uses the explicit `move` spelling (a scalar: by-value
+// STRUCT args to free machines are a separate pre-existing native gap,
+// independent of spawn). Guard ladder: the moved-arg computation must come
+// back through join (rung 1, exit 71 on miss), and a second independent
+// spawn+join must not disturb or be disturbed by the first (rung 2, exit 72
+// on miss). Exits 70 only when both joined results are correct.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Worker {
+}
+
+machine Worker::run(x: i32) -> i32 {
+    x * 2
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let payload: i32 = 17;
+    let handle: Join<i32> = spawn { Worker::run(move payload) };
+    let n: i32 = handle.join();
+
+    let second: i32 = 4;
+    let late: Join<i32> = spawn { Worker::run(move second) };
+    let m: i32 = late.join();
+
+    transition n == 34 {
+        true -> check_second(m)
+        _ -> bad_first()
+    }
+
+    state check_second(&mut self, m: i32) {
+        transition m == 8 {
+            true -> good()
+            _ -> bad_second()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_first(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_second(&mut self) {
+        self.console.exit_process(72);
+    }
+}
