@@ -2780,6 +2780,44 @@ fn equatable_string_not_equals_exit_canary_runs() {
 }
 
 #[test]
+fn equatable_string_equality_guard_exit_canary_runs() {
+    // Equatable structural `==` over a String-bearing record DIRECTLY in
+    // GUARD position: the conjunction's String clause routes through the
+    // value-position TextEquals content compare (the raw 16-byte descriptor
+    // place compare cannot encode), the scalar clause stays a place compare.
+    // Equal contents take the `true` arm (exit 70).
+    let canary = pass_canary("traits/equatable_string_equality_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-equatable-string-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("equatable string guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("equatable string guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected guard-position structural `==` on `Tag` to compare String content (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_data_properties_exit_canary_runs() {
     let canary = pass_canary("data/runtime_data_properties_exit");
     let main_path = canary.join("main.omg");
@@ -9477,6 +9515,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/equatable_mixed_shape_equality_exit",
     "traits/equatable_string_field_equality_exit",
     "traits/equatable_string_not_equals_exit",
+    "traits/equatable_string_equality_guard_exit",
     "traits/equatable_sum_payload_equality_exit",
     "termination/default_order_nat_countdown_compile",
     "termination/default_order_slice_length_compile",
@@ -9888,9 +9927,6 @@ struct PendingCanary {
 //   EXHAUSTIVENESS is unchecked (a match handling only v1 compiles; ordinary
 //   case matches reject the analogous shape). Unobservable at runtime only
 //   because ZII era 0 is the sole construction path until stage-4 decoders.
-// - traits/equatable_string_equality_guard_unlowered: guard-position
-//   structural `==` with a String field rejects (16-byte runtime operand)
-//   instead of reusing the value-position text-equals lowering.
 // - comptime/const_array_length_bare_call_arm: a parenthesized BARE call as
 //   the const callee's value arm fails const-eval resolution ("transition
 //   target not found"); the same call wrapped in arithmetic evaluates fine.
@@ -9907,12 +9943,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "versioning/versioned_match_missing_current_arm",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "traits/equatable_string_equality_guard_unlowered",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "cannot load 16-byte runtime operands",
-        },
     },
     PendingCanary {
         path: "comptime/const_array_length_bare_call_arm",
