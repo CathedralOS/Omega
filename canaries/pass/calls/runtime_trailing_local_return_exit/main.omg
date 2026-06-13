@@ -1,0 +1,87 @@
+use platform::console;
+
+// A machine whose TRAILING TERMINAL EXPRESSION IS A BARE LOCAL NAME must
+// return that local's value -- captured at its declaration, exactly like the
+// interpreter. Before the fix the storage planner gave such a local no frame
+// slot (a trailing `expression` statement was not counted as a reference that
+// requires storage), so the bare name could not resolve as a place at
+// selection and the call-result write was SILENTLY DROPPED: every
+// `let r = f()` where f ends in a bare local left r at 0.
+//
+// Three shapes, all through `let r = <call>`:
+//  * take: local captured from a field BEFORE a field mutation -- must
+//    deliver the CAPTURED value (40), not the post-mutation re-read (1).
+//    This also pins the ordering: the local's slot write runs before the
+//    callee's mutations, and the deferred result write reads the slot.
+//  * offset: local computed from a parameter and a field (post-mutation
+//    self.n == 1, so offset(4) == 5).
+//  * fixed: FREE machine, local folded from a literal (25).
+//
+// Exits 70 only when all three land; 71/72/73 name the failing shape.
+
+data Box1 {
+    n: i32;
+}
+
+machine Box1::take(&mut self) -> i32 {
+    let value: i32 = self.n;
+    self.n = 1;
+    value
+}
+
+machine Box1::offset(&self, amount: i32) -> i32 {
+    let total: i32 = self.n + amount;
+    total
+}
+
+machine fixed() -> i32 {
+    let answer: i32 = 25;
+    answer
+}
+
+data Main {
+    console: Console;
+    b: Box1;
+}
+
+machine Main::main(&mut self) {
+    self.b.n = 40;
+    let taken: i32 = self.b.take();
+    let off: i32 = self.b.offset(4);
+    let fix: i32 = fixed();
+
+    transition taken == 40 {
+        true -> check_off(off, fix)
+        false -> bad_taken()
+    }
+
+    state check_off(&mut self, off: i32, fix: i32) {
+        transition off == 5 {
+            true -> check_fix(fix)
+            false -> bad_off()
+        }
+    }
+
+    state check_fix(&mut self, fix: i32) {
+        transition fix == 25 {
+            true -> good()
+            false -> bad_fix()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_taken(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_off(&mut self) {
+        self.console.exit_process(72);
+    }
+
+    state bad_fix(&mut self) {
+        self.console.exit_process(73);
+    }
+}

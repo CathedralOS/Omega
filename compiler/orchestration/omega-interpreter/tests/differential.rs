@@ -116,6 +116,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         "calls/runtime_string_call_result_through_reference_field_exit",
         186,
     ),
+    ("calls/runtime_trailing_local_return_exit", 70),
     (
         "calls/runtime_transition_subject_call_single_evaluation_exit",
         70,
