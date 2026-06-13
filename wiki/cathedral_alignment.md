@@ -115,6 +115,44 @@ implementation work. Each one gets more expensive to retrofit every month.
    (interim: `==` against a payload-bearing case is a compile error). See
    chapter 1 + TASKS.md frozen decisions 7/8.
 
+## IPC + scheduler alignment (2026-06-13)
+
+Cathedral's `part_3/00_ipc_and_service_invocation` and
+`part_2/01_scheduler_and_resources` lean directly on the concurrency model;
+reconciliation against the amended chapter 17 + the atomics work:
+
+VALIDATED (the ch17 await-amendment + atomics serve these docs):
+- The scheduler doc restates ch17's SINGLE-LEVEL carry-set + N-derived-from-
+  the-parked-on-resource almost verbatim — the amendment was made to support
+  it. The no-select ONE-MAILBOX model is cited as the blessed `many_to_one`
+  actor shape; awaiting-is-calling + no-coloring is what lets Cathedral have
+  "no userspace async runtime, just stdlib channels". All consistent.
+
+CRITICAL-PATH SHARPENING:
+- The IPC `many_to_one` mailbox REQUIRES atomic claim-a-slot (`fetch_add`
+  index bump + `compare_exchange` claim + a per-slot publish release-store).
+  So the stage-1 atomic RMW ops being non-atomic DESUGARS (fetch_add,
+  compare_exchange — see TASKS / review §1b) makes the MPSC mailbox UNSOUND,
+  not just theoretically racy. The "make RMW ops real LOCK instructions"
+  task gates IPC; it is not optional polish. (load/store are fine — plain
+  aligned mov is atomic on x86; the producer's release-store on the index is
+  covered.)
+
+NEW GAPS these docs surface (design TBDs, no clear implementation action yet):
+- **Wake-reason sum.** Park must return `Signaled | PeerDied | Revoked |
+  Timeout`, not just ready-or-cancelled. ch17's cancellation-as-value is a
+  SUBSET; it must generalize to a wake-reason sum, with `PeerDied`/`Revoked`
+  sourced from the OS grant arena (the one liveness fact only the kernel
+  has). Fold into ch17's cancellation section when the scheduler arc starts.
+- **`SharedRegion<Untrusted>` — a THIRD memory category** ch18 does not name:
+  adversarially-mutable (neither proved nor boundary-accepted), reads return
+  raw/unproven values, snapshot-then-validate to close the TOCTOU hole
+  (a shared-mutable re-read after a check is unsound). ch18 currently knows
+  only proved and boundary-accepted memory.
+- **`protocol <Name> version vN { call ...; stream ...; }`** — a typed RPC
+  surface over `wire data` (the IPC doc's typed-layer example). No language
+  construct yet; rides the wire-stage-2 + capabilities-as-values work.
+
 ## Tier 2 — note now, design later (TBD register)
 
 Flagged by Cathedral as "what Omega must grow," or absent from both wikis.
