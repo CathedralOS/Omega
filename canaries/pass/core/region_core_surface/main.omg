@@ -1,0 +1,14 @@
+use omega::language::core::region;
+
+// Confirms the ALLOCATOR STORY STAGE 1 Region surface is browsable: the core
+// `region` module declares the contract-only allocator boundary trait
+// (allocation as an explicit capability — `allocate`/`deallocate` machines
+// carrying the chapter 18 `alloc`/`dealloc` effect names), with no provider
+// binding and no runtime. Importing it must type-check cleanly; nothing in
+// stage 1 consumes it.
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

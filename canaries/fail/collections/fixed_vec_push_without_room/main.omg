@@ -1,0 +1,29 @@
+// ALLOCATOR STORY STAGE 1: `push` onto a fixed-capacity vec carries the
+// proof obligation `length < items.len` (spare room), and a call site with
+// NO established fact about the length must be rejected — there is no
+// growth path and no runtime trap to fall back to. Here `main` pushes onto
+// the ZII vector without any prior contract guarantee (no clear/push chain),
+// so the capacity obligation cannot be discharged.
+
+data FixedVecI32x4 {
+    items: [i32; 4];
+    length: usize;
+}
+
+machine FixedVecI32x4::push(&mut self, value: i32)
+requires
+    self.length < self.items.len
+{
+    let slots: &mut [i32] = self.items.as_mut_slice();
+    let index: usize = self.length;
+    slots[index] = value;
+    self.length = self.length + 1;
+}
+
+data Main {
+    vec: FixedVecI32x4;
+}
+
+machine Main::main(&mut self) {
+    self.vec.push(7);
+}

@@ -1,0 +1,83 @@
+// Core FixedVec surface — ALLOCATOR STORY STAGE 1 (heap-free).
+//
+// `FixedVec<T, const N: usize>` is the fixed-capacity vector: a value type
+// whose backing store is an inline fixed array `[T; N]` plus a `usize` length.
+// There is NO heap and NO allocator anywhere in this type — capacity is part
+// of the type, storage lives wherever the value lives, and running out of
+// room is a PROOF failure at compile time, never a runtime reallocation or
+// trap (allocator story stage 1: every operation that needs room carries a
+// `requires` obligation the caller must discharge). The `alloc`/`dealloc`
+// effects and the `Region` boundary (core/region.omg) are untouched by this
+// type; they only enter the story at stage 2 (`Vec<'r, T>` borrowing a
+// Region).
+//
+// GENERIC INSTANTIATION FRONTIER (measured 2026-06-12): the generic `data`
+// declaration below compiles structurally (chapter 12 const value
+// parameters), and so do the boundary-operator contracts. What does NOT
+// compile yet is ATTACHING A MACHINE to a generic data whose layout depends
+// on `T`: even `machine FixedVec::clear<T, const N: usize>(&mut self)` with
+// no `T` in its own signature fails layout with "unknown layout-bearing type
+// `T`" because the receiver's `[T; N]` field has no concrete extent. The
+// machine-shaped implementation pattern (real bodies, real proofs, real
+// runtime) is therefore pinned CONCRETELY in
+// canaries/pass/collections/runtime_fixed_vec_round_trip_exit (i32, N = 4):
+// a hand instantiation of exactly the contracts declared here. When generic
+// machine instantiation lands, those machine bodies move into this file
+// verbatim (modulo `i32` -> `T`, `4` -> `N`).
+//
+// Contract vocabulary notes (why the obligations are spelled as they are):
+//
+//   * `push` requires provable spare room (`length < items.len`, where
+//     `items.len` folds to the static `N` at concrete instantiations).
+//   * `pop` requires a provably non-empty vector. In the concrete machine
+//     pattern it additionally spells the predecessor-index bound
+//     (`length - 1 < items.len`): with `length <= N` as a maintained data
+//     invariant that bound would be derivable from `length > 0`, but stage 1
+//     has no data-invariant vocabulary, so the obligation surfaces at the
+//     boundary and is discharged by `push`'s guarantees.
+//   * `get` requires the index be within the LIVE length, not merely within
+//     capacity.
+//   * `as_slice` lends the first `length` elements — the view length is the
+//     vector length, not the capacity — so it carries the window obligation
+//     `length <= items.len`.
+
+data FixedVec<T, const N: usize> {
+    items: [T; N];
+    length: usize;
+}
+
+// Operation contracts, vec.omg-style boundary-operator surface. These carry
+// the proof-facing requires/ensures; the machine-shaped implementations are
+// blocked on the generic-machine frontier above and live concretely in the
+// runtime canary until instantiation lands.
+
+// Length in LIVE elements (`length`, not the static capacity `N`). Cheap
+// O(1) measure for `requires`/`ensures`.
+boundary operator FixedVec::Length<T, const N: usize>(items: &FixedVec<T, N>) -> usize;
+
+// Append a value. Requires provable spare room — there is no growth path and
+// no trap; a call without a discharged capacity fact is a compile error.
+boundary operator FixedVec::push<T, const N: usize>(items: &mut FixedVec<T, N>, value: T) -> ()
+requires
+    items.length < items.items.len;
+
+// Remove and return the last element of a provably non-empty vector. The
+// zero-case is a proof failure at the call site, not a runtime Option: stage
+// 1 follows the String::push_str precedent (obligation, not fallback) — a
+// `try_pop -> Option<T>` belongs to the dynamic-failure stage-2 vocabulary.
+boundary operator FixedVec::pop<T, const N: usize>(items: &mut FixedVec<T, N>) -> T
+requires
+    items.length > 0;
+
+// Read the element at `index`, which must be provably within the live length.
+boundary operator FixedVec::get<T, const N: usize>(items: &FixedVec<T, N>, index: usize) -> T
+requires
+    index < items.length;
+
+// Borrow the LIVE elements as a slice view; the view length matches the
+// vector length, not the capacity.
+boundary operator FixedVec::as_slice<T, const N: usize>(items: &FixedVec<T, N>) -> &[T]
+requires
+    items.length <= items.items.len
+ensures
+    result.len == items.length;
