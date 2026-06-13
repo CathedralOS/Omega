@@ -1,0 +1,86 @@
+// RUN canary (ch17 "Atomics" / concurrency stage 1, M4): AtomicU32
+// compare_exchange.
+//
+// `let prior: T = place.compare_exchange(expected, new_val, succ_ord, fail_ord);`
+// returns the PRIOR value and conditionally swaps:
+//   - SUCCESS path: if *place == expected  -> *place becomes new_val
+//   - FAILURE path: if *place != expected  -> *place is unchanged
+//
+// Return shape: the prior value (before the potential swap).  Callers check
+// success by comparing `prior == expected`.  This mirrors x86 CMPXCHG's RAX
+// contract.
+//
+// Stage-1 desugar:
+//   `let prior = place.compare_exchange(expected, new, s, f);`
+//   expands to:
+//     `let prior = place;`
+//     `place = prior + (prior == expected) * (new - prior);`
+//
+// Guard ladder (exits 70..76):
+//   -- SUCCESS path --
+//   - prior_s == 10  (captured prior before success-path CAS)  exit 71 on miss
+//   - counter == 99  (new value after successful swap)          exit 72 on miss
+//   -- FAILURE path --
+//   - prior_f == 99  (captured prior before failure-path CAS)  exit 73 on miss
+//   - counter == 99  (cell unchanged after failed swap)         exit 74 on miss
+//   -- exit 70 = all four assertions pass --
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    counter: AtomicU32;
+}
+
+machine Main::main(&mut self) {
+    // ---- SUCCESS PATH ----
+    // Store 10 into the cell, then CAS(expected=10, new=99).
+    self.counter.store(10, Relaxed);
+
+    let prior_s: u32 = self.counter.compare_exchange(10, 99, AcqRel, Acquire);
+
+    transition prior_s == 10 {
+        true -> check_swap()
+        false -> bad_prior_s()
+    }
+    state check_swap(&mut self) {
+        transition self.counter == 99 {
+            true -> failure_path()
+            false -> bad_after_swap()
+        }
+    }
+
+    // ---- FAILURE PATH ----
+    // counter is now 99; CAS(expected=10, new=42) must FAIL.
+    state failure_path(&mut self) {
+        let prior_f: u32 = self.counter.compare_exchange(10, 42, AcqRel, Acquire);
+        transition prior_f == 99 {
+            true -> check_unchanged()
+            false -> bad_prior_f()
+        }
+    }
+    state check_unchanged(&mut self) {
+        transition self.counter == 99 {
+            true -> good()
+            false -> bad_after_fail()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad_prior_s(&mut self) {
+        self.console.exit_process(71);
+    }
+    state bad_after_swap(&mut self) {
+        self.console.exit_process(72);
+    }
+    state bad_prior_f(&mut self) {
+        self.console.exit_process(73);
+    }
+    state bad_after_fail(&mut self) {
+        self.console.exit_process(74);
+    }
+}

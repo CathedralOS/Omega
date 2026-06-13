@@ -424,6 +424,150 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
 /// The returned span covers exactly two statement entries that are already
 /// appended to `syntax_trees.items`; callers must advance their span
 /// accounting by 2.
+/// ATOMICS STAGE 1 (ch17, M4): Try to parse and expand
+/// `let name: type = place.compare_exchange(expected, new_val, succ_ord, fail_ord);`
+/// as TWO statements:
+///   1. `let name: type = place;`
+///      -- captures the PRIOR value (returned regardless of success/failure,
+///         matching Rust's `Err` branch shape and x86 CMPXCHG register contract)
+///   2. `place = prior + (prior == expected) * (new_val - prior);`
+///      -- arithmetically conditional swap: when `prior == expected` evaluates
+///         to 1 this simplifies to `place = new_val`; when 0, `place = prior`
+///         (no-op). Under stage-1 single-threaded execution this is semantically
+///         equivalent to a single `LOCK cmpxchg` instruction.
+///
+/// Return-shape choice: the PRIOR value (before the potential swap), not a
+/// bool.  This mirrors x86 CMPXCHG's RAX contract and lets callers check
+/// success with `prior == expected`.  A future pass will lower to a single
+/// `LOCK cmpxchg` RMW instruction.
+///
+/// Returns `None` if the input does not match the form (wrong name or arity),
+/// leaving the caller to fall back to `parse_statement_handle`.
+/// The returned span covers exactly two statement entries already appended to
+/// `syntax_trees.items`; callers must advance their span accounting by 2.
+pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Option<(HandleSpan<omega_syntax_trees::statement::StatementHandle>, Input<'tokens, 'source>)>
+{
+    // Must start with `let`.
+    if !input.at_keyword(KeywordKind::Let) {
+        return None;
+    }
+    let after_let = input.take_keyword(KeywordKind::Let, "let").ok()?;
+    let (name, after_name) = after_let.take_identifier().ok()?;
+    let after_colon = after_name
+        .take_punctuation(PunctuationKind::Colon, ":")
+        .ok()?;
+    let (type_reference, after_type) =
+        parse_type_reference_handle_allowing_borrow(syntax_trees, after_colon).ok()?;
+    let after_eq = after_type
+        .take_punctuation(PunctuationKind::Equal, "=")
+        .ok()?;
+
+    // Parse the right-hand expression.
+    let (rhs, after_rhs) = parse_expression_handle(syntax_trees, after_eq).ok()?;
+    let after_semi = after_rhs
+        .take_punctuation(PunctuationKind::Semicolon, ";")
+        .ok()?;
+
+    // Check: is rhs a Call with target "compare_exchange" and exactly 4 args?
+    let (place_expr, expected_expr, new_val_expr) = {
+        let ExpressionNode::Call(ref call) = *syntax_trees.expressions.expression(rhs) else {
+            return None;
+        };
+        if call.target.as_str() != "compare_exchange" {
+            return None;
+        }
+        let arg_handles = syntax_trees
+            .tables
+            .expressions
+            .expression_handles(call.arguments)
+            .to_vec();
+        if arg_handles.len() != 4 {
+            return None;
+        }
+        let place = call.receiver;
+        if !place.is_valid() {
+            return None;
+        }
+        // arg 0 = expected, arg 1 = new_val, arg 2 = success_ord, arg 3 = fail_ord
+        (place, arg_handles[0], arg_handles[1])
+    };
+
+    // Statement 1: `let name: type = place;`
+    let local_stmt = syntax_trees
+        .statements
+        .insert(StatementNode::LocalData(TableLocalData {
+            name: name.clone(),
+            type_reference,
+            initial_value: place_expr,
+        }));
+    let first_handle = syntax_trees.items.append_statement_handle(local_stmt);
+
+    // Build a Name expression referring to the freshly-bound local `name`.
+    // This appears twice in the RHS arithmetic so we build it twice.
+    let make_prior_name = |syntax_trees: &mut SyntaxTrees| {
+        let id = omega_syntax_trees::identifier::Identifier::generated(name.as_str());
+        let member = syntax_trees.expressions.append_identifier_path_member(id);
+        let path = HandleSpan::from_parts(member, 1);
+        syntax_trees.expressions.insert(ExpressionNode::Name(path))
+    };
+
+    // Statement 2: `place = prior + (prior == expected) * (new_val - prior);`
+    //
+    //  sub_expr  = new_val - prior
+    //  eq_expr   = prior == expected
+    //  mul_expr  = eq_expr * sub_expr
+    //  add_expr  = prior + mul_expr
+    let prior_for_sub = make_prior_name(syntax_trees);
+    let sub_expr = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: new_val_expr,
+            operator: BinaryOperator::Subtract,
+            right: prior_for_sub,
+        }));
+
+    let prior_for_eq = make_prior_name(syntax_trees);
+    let eq_expr = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: prior_for_eq,
+            operator: BinaryOperator::Equal,
+            right: expected_expr,
+        }));
+
+    let mul_expr = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: eq_expr,
+            operator: BinaryOperator::Multiply,
+            right: sub_expr,
+        }));
+
+    let prior_for_add = make_prior_name(syntax_trees);
+    let add_expr = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: prior_for_add,
+            operator: BinaryOperator::Add,
+            right: mul_expr,
+        }));
+
+    let place_for_assign = copy_expression_as_place(syntax_trees, place_expr)?;
+    let assign_stmt = syntax_trees
+        .statements
+        .insert(StatementNode::Assignment(TableAssignment {
+            target: place_for_assign,
+            value: add_expr,
+        }));
+    syntax_trees.items.append_statement_handle(assign_stmt);
+
+    let span = HandleSpan::from_parts(first_handle, 2);
+    Some((span, after_semi))
+}
+
 pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,

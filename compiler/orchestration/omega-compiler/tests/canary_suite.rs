@@ -10137,6 +10137,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "atomics/atomic_field_declared",
     "atomics/runtime_atomic_load_store_exit",
     "atomics/runtime_atomic_fetch_add_exit",
+    "atomics/runtime_atomic_compare_exchange_exit",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -10518,6 +10519,47 @@ fn runtime_atomic_fetch_add_exit_canary_runs() {
         Some(70),
         "expected fetch_add(5) old=10/new=15, fetch_add(8) old=15/new=23 (exit 70); \
          exit 71=bad old1, 72=bad after first, 73=bad old2, 74=bad after second; \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+/// M4 -- AtomicU32 compare_exchange: returns PRIOR value; swaps only when
+/// *place == expected.
+/// Stage-1 desugar: `let prior = place.compare_exchange(expected, new, s, f)`
+/// → `let prior = place; place = prior + (prior == expected) * (new - prior);`
+/// Success path: CAS(10, 99) when counter==10 → prior==10, counter becomes 99.
+/// Failure path: CAS(10, 42) when counter==99 → prior==99, counter stays 99.
+#[test]
+fn runtime_atomic_compare_exchange_exit_canary_runs() {
+    let canary = pass_canary("atomics/runtime_atomic_compare_exchange_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-atomic-cmpxchg-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("atomic compare_exchange canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("atomic compare_exchange canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected compare_exchange success(10→99, prior=10) + failure(10 vs 99, prior=99, cell=99) \
+         (exit 70); exit 71=bad prior_s, 72=bad after swap, 73=bad prior_f, 74=bad after fail; \
          got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
