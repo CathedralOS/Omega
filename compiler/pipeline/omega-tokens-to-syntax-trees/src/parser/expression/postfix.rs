@@ -76,8 +76,28 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
         }
 
         if input.at_punctuation(PunctuationKind::Dot) {
-            input = input.take_punctuation(PunctuationKind::Dot, ".")?;
-            let (member, rest) = input.take_identifier()?;
+            let after_dot = input.take_punctuation(PunctuationKind::Dot, ".")?;
+            let (member, rest) = after_dot.take_identifier()?;
+
+            // CONCURRENCY STAGE 1: `handle.join()` is the IDENTITY on the
+            // handle. Under the synchronous-spawn desugar (see
+            // `expression/spawn.rs`) the spawned call already ran to
+            // completion at the spawn site and `Join<T>` erased to `T`, so
+            // the handle IS the result. `join` is a reserved machine/state
+            // name (rejected at definition sites), so this rewrite can never
+            // capture a user method. Only the exact zero-argument call form
+            // rewrites; `x.join` stays an ordinary member read.
+            if member.as_str() == "join" && rest.at_punctuation(PunctuationKind::LeftParen) {
+                let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                if after_open.at_punctuation(PunctuationKind::RightParen) {
+                    input = after_open.take_punctuation(PunctuationKind::RightParen, ")")?;
+                    continue;
+                }
+                return Err(after_open.error_here(
+                    "`join` takes no arguments: it returns the spawned call's completed result",
+                ));
+            }
+
             input = rest;
             expression =
                 syntax_trees

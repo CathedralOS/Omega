@@ -1,0 +1,28 @@
+// PASS canary (ch17 "Fire And Forget" / concurrency stage 1): a
+// statement-position `spawn { call; }` is fire-and-forget. Under the stage-1
+// synchronous-spawn desugar it lowers to an ordinary call statement that runs
+// at the spawn site; the spawned call returns unit, so frozen decision 9's
+// strict-result rule has nothing to discard. Promoted from fail/ when spawn
+// parsing landed (it used to capture the "spawn statements are not
+// implemented yet" diagnostic).
+
+data Logger {
+}
+
+machine Logger::write(line: String) {
+}
+
+data App {
+}
+
+machine App::run(&mut self, message: String) {
+    spawn {
+        Logger::write(move message);
+    }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -1,0 +1,28 @@
+// FAIL canary (ch17 "Scoped Spawns" / concurrency stage 1): a spawn may
+// borrow parent locals ONLY under the scoped-spawn loan rules (the lexical
+// block is the scope; drop-of-Join joins), which are stage-3 work. Stage 1
+// rejects every borrow into a spawn block outright -- captured values must
+// be moved or copied -- rather than silently treating the borrow as a copy.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Tally {
+}
+
+machine Tally::bump(total: &mut i32) {
+    total = total + 1;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let total: i32 = 0;
+    spawn {
+        Tally::bump(&mut total);
+    }
+    self.console.exit_process(total);
+}
