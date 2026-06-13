@@ -70,6 +70,25 @@ irreversible; flag any you dislike.
   Needs value-position calls to gain argument validation — a real frontend
   gap, not just a missing check.
 
+## 2b. NEW bug found by end-to-end sample authoring (NOT yet fixed)
+
+Authoring `samples/vending_machine` (an event-driven case-payload state
+machine) surfaced an 8th native miscompile, distinct from the seven below:
+
+> A `&mut self` machine taking a **by-value case-bearing parameter** loses
+> writes to `self.<field>` made in a dispatched substate — the caller
+> observes the pre-call value.
+
+Narrowed by probes: scalar args persist the write correctly, so it's the
+`&mut self` WRITE-BACK leg of the by-value aggregate-parameter family (the
+arg/return-value legs were fixed today in c8519251 / 04bf00d9). Captured as
+`canaries/pending/calls/by_value_case_param_self_write_lost` (exit 80 = lost,
+should be 70) + a tracked task chip. NOT registered in canary_suite yet
+(deferred past the in-flight registry refactor). The sample documents it as
+its blocking issue. This is the headline reason end-to-end samples matter:
+single-feature canaries each passed, but their COMBINATION (aggregate param
++ &mut self + dispatched write) was untested and broken.
+
 ## 3. Bugs found and FIXED this session (no action needed, FYI)
 
 Seven native miscompiles surfaced by the new features + the canary sweep,
