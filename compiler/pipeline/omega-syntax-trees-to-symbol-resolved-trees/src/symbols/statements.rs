@@ -26,7 +26,7 @@ pub(super) fn assign_statement_reference_symbols(
     let machine_state_handles = &tables.declarations.machine_state_handles;
     let machine_states = &mut tables.declarations.machine_states;
     let state_parameters = &tables.declarations.state_parameters;
-    let statement_path_members = &tables.declarations.statement_path_members;
+    let statement_path_members = &mut tables.declarations.statement_path_members;
     let expression_table = &mut tables.bodies.expressions;
     let state_statements = &mut tables.declarations.state_statements;
     let child_type_references = &mut tables.declarations.child_type_references;

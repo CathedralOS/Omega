@@ -35,7 +35,16 @@ pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     bindings: Option<&DestructureBindings>,
 ) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
-    let (expression, rest) = if input.at_keyword(KeywordKind::SelfValue) || input.at_name_like() {
+    // A target-shaped arm body (a bare path or `self`, optionally called) can
+    // name a transition target; anything else -- including an arm body the
+    // author EXPLICITLY parenthesized -- is a value expression. `-> burn(n)`
+    // is a transition target; `-> (burn(n))` is the value of the call (the
+    // parens are the author's value-expression spelling, same as
+    // `-> (burn(n) + 0)`). A parenthesized call that names a sibling state is
+    // re-classified back into a state transition once states are known
+    // (symbol assignment), so existing target spellings keep their meaning.
+    let target_shaped = input.at_keyword(KeywordKind::SelfValue) || input.at_name_like();
+    let (expression, rest) = if target_shaped {
         parse_transition_target_expression_handle(syntax_trees, input)?
     } else {
         parse_expression_handle(syntax_trees, input)?
@@ -52,7 +61,7 @@ pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
     };
 
     Ok((
-        classify_transition_target_handle(syntax_trees, expression)?,
+        classify_transition_target_handle(syntax_trees, expression, target_shaped)?,
         rest,
     ))
 }
@@ -60,10 +69,13 @@ pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
 fn classify_transition_target_handle(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
+    target_shaped: bool,
 ) -> Result<TransitionTargetHandle, ParseError> {
     let node = syntax_trees.expressions.expression(expression).clone();
     let target = match node {
-        ExpressionNode::Call(call) => classify_call_target_handle(syntax_trees, call)?,
+        ExpressionNode::Call(call) if target_shaped => {
+            classify_call_target_handle(syntax_trees, call)?
+        }
         ExpressionNode::SelfValue => TransitionTargetNode::SelfTarget,
         ExpressionNode::Name(_) => TransitionTargetNode::Value(expression),
         _ => TransitionTargetNode::Value(expression),

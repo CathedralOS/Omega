@@ -17,7 +17,7 @@ pub(super) fn assign_statement_symbols(
     child_type_references: &mut omega_core::arena::Arena<
         omega_symbol_resolved_trees::types::TypeReference,
     >,
-    statement_path_members: &Arena<omega_symbol_resolved_trees::name::DiagnosticName>,
+    statement_path_members: &mut Arena<omega_symbol_resolved_trees::name::DiagnosticName>,
     statement: &mut omega_symbol_resolved_trees::statement::Statement,
     symbols: &SymbolTable,
 ) {

@@ -1399,6 +1399,44 @@ fn runtime_const_array_length_transitive_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_const_array_length_bare_call_arm_exit_canary_runs() {
+    // Comptime: the const-position callee's value arm is a PARENTHESIZED
+    // BARE CALL (`_ -> (burn(4, 12))`). The parenthesized lone call is a
+    // value expression (not a transition target), so const evaluation
+    // resolves the free machine `burn` like the arithmetic-wrapped spelling
+    // does: 16 slots, both the write and the index-15 typecheck land.
+    let canary = pass_canary("comptime/runtime_const_array_length_bare_call_arm_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-const-length-bare-call-arm-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bare-call-arm const length canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bare-call-arm const length canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the bare-call-arm const length (burn(4, 12) = 16) to size the array (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_method_view_write_after_last_use_exit_canary_runs() {
     // Lifetimes stage 1, NLL complement of
     // fail/borrow/method_view_receiver_unrelated_field_write: the
@@ -9581,6 +9619,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_encode_repeated_then_string_exit",
     "wire/runtime_wire_roundtrip_nested_and_repeated_exit",
     "comptime/runtime_const_array_length_transitive_exit",
+    "comptime/runtime_const_array_length_bare_call_arm_exit",
     "data/property_send_declared",
     "data/property_zero_init_nested_array",
     "data/runtime_case_membership_mixed_shape_exit",
@@ -9850,6 +9889,11 @@ struct PendingCanary {
 // version-match exhaustiveness counting landed (the decidable arm set of a
 // `Versioned<T>` subject is {each declared era vN} + {current};
 // crate::exhaustiveness in omega-symbol-resolved-trees-to-typed-trees).
+// const_array_length_bare_call_arm was promoted to
+// pass/comptime/runtime_const_array_length_bare_call_arm_exit when the
+// parenthesized-lone-call arm body became a VALUE expression (the parser
+// defers; symbol assignment re-classifies back into a state transition only
+// for sibling-state and self-recursion callees).
 // 2026-06-12 canary coverage sweep additions:
 // - traits/equatable_string_not_equals_value: NATIVE MISCOMPILE -- `!=` over
 //   an Equatable record with a String field drops the String term (native
@@ -9858,9 +9902,6 @@ struct PendingCanary {
 // - traits/equatable_string_equality_guard_unlowered: guard-position
 //   structural `==` with a String field rejects (16-byte runtime operand)
 //   instead of reusing the value-position text-equals lowering.
-// - comptime/const_array_length_bare_call_arm: a parenthesized BARE call as
-//   the const callee's value arm fails const-eval resolution ("transition
-//   target not found"); the same call wrapped in arithmetic evaluates fine.
 // - concurrency/spawn_struct_result_miscompiled: NATIVE MISCOMPILE -- a
 //   spawned machine returning a struct by value joins garbage (native 71,
 //   interpreter 70); reproduces WITHOUT spawn too (plain by-value struct
@@ -9879,12 +9920,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "traits/equatable_string_equality_guard_unlowered",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "cannot load 16-byte runtime operands",
-        },
-    },
-    PendingCanary {
-        path: "comptime/const_array_length_bare_call_arm",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "transition target `burn` not found in current machine",
         },
     },
     PendingCanary {
