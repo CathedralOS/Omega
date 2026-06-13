@@ -410,6 +410,143 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
 /// (the value to write and the ordering identifier) -- and desugar it into an
 /// Assignment of the receiver place to the first argument. Returns `None` for
 /// any other expression, leaving it to the normal statement paths.
+/// ATOMICS STAGE 1 (ch17, M3): Try to parse and expand
+/// `let name: type = place.fetch_add(delta, ordering);` as TWO statements:
+///   1. `let name: type = place;`       -- captures the PRIOR value
+///   2. `place = place + delta;`        -- increments the place
+///
+/// On x86_64 both desugar steps lower to ordinary reads/writes in stage 1;
+/// a future pass will replace them with a single `LOCK xadd` RMW instruction
+/// when the threading scheduler lands.  Returns `None` if the input does not
+/// match the `let ... = ...fetch_add(...)` form, leaving the caller to fall
+/// back to `parse_statement_handle`.
+///
+/// The returned span covers exactly two statement entries that are already
+/// appended to `syntax_trees.items`; callers must advance their span
+/// accounting by 2.
+pub(super) fn try_parse_atomic_fetch_add_let<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Option<(HandleSpan<omega_syntax_trees::statement::StatementHandle>, Input<'tokens, 'source>)>
+{
+    // Must start with `let`.
+    if !input.at_keyword(KeywordKind::Let) {
+        return None;
+    }
+    let after_let = input.take_keyword(KeywordKind::Let, "let").ok()?;
+    let (name, after_name) = after_let.take_identifier().ok()?;
+    let after_colon = after_name
+        .take_punctuation(PunctuationKind::Colon, ":")
+        .ok()?;
+    let (type_reference, after_type) =
+        parse_type_reference_handle_allowing_borrow(syntax_trees, after_colon).ok()?;
+    let after_eq = after_type
+        .take_punctuation(PunctuationKind::Equal, "=")
+        .ok()?;
+
+    // Parse the right-hand expression.
+    let (rhs, after_rhs) = parse_expression_handle(syntax_trees, after_eq).ok()?;
+    let after_semi = after_rhs
+        .take_punctuation(PunctuationKind::Semicolon, ";")
+        .ok()?;
+
+    // Check: is rhs a Call with target "fetch_add" and exactly 2 args?
+    let (place_expr, delta_expr) = {
+        let ExpressionNode::Call(ref call) = *syntax_trees.expressions.expression(rhs) else {
+            return None;
+        };
+        if call.target.as_str() != "fetch_add" {
+            return None;
+        }
+        let arg_handles = syntax_trees
+            .tables
+            .expressions
+            .expression_handles(call.arguments)
+            .to_vec();
+        if arg_handles.len() != 2 {
+            return None;
+        }
+        let place = call.receiver;
+        if !place.is_valid() {
+            return None;
+        }
+        (place, arg_handles[0])
+    };
+
+    // Duplicate the place expression (needed for `place = place + delta`).
+    let place_copy = copy_expression_as_place(syntax_trees, place_expr)?;
+
+    // Statement 1: `let name: type = place;`
+    let local_stmt = syntax_trees
+        .statements
+        .insert(StatementNode::LocalData(TableLocalData {
+            name,
+            type_reference,
+            initial_value: place_expr,
+        }));
+    let first_handle = syntax_trees.items.append_statement_handle(local_stmt);
+
+    // Statement 2: `place = place + delta;`
+    let add_expr = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: place_copy,
+            operator: BinaryOperator::Add,
+            right: delta_expr,
+        }));
+    let place_for_assign = copy_expression_as_place(syntax_trees, place_expr)?;
+    let assign_stmt = syntax_trees
+        .statements
+        .insert(StatementNode::Assignment(TableAssignment {
+            target: place_for_assign,
+            value: add_expr,
+        }));
+    syntax_trees.items.append_statement_handle(assign_stmt);
+
+    let span = HandleSpan::from_parts(first_handle, 2);
+    Some((span, after_semi))
+}
+
+/// Deep-copy an expression that is a valid place (member / name / indexed /
+/// self), returning a fresh handle with the same structure.  Returns `None`
+/// for non-place expression shapes (binary, call, etc.) since those cannot
+/// appear on the left-hand side of an assignment.
+fn copy_expression_as_place(
+    syntax_trees: &mut SyntaxTrees,
+    expr: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let node = syntax_trees.expressions.expression(expr).clone();
+    let copied = match node {
+        ExpressionNode::SelfValue => ExpressionNode::SelfValue,
+        ExpressionNode::Member(m) => {
+            let recv = copy_expression_as_place(syntax_trees, m.receiver)?;
+            ExpressionNode::Member(TableMemberExpression {
+                receiver: recv,
+                member: m.member,
+            })
+        }
+        ExpressionNode::Name(path) => {
+            let new_path = syntax_trees
+                .expressions
+                .copy_identifier_path_prefix(path, path.len());
+            ExpressionNode::Name(new_path)
+        }
+        ExpressionNode::Indexed(idx) => {
+            let coll = copy_expression_as_place(syntax_trees, idx.collection)?;
+            ExpressionNode::Indexed(TableIndexedExpression {
+                collection: coll,
+                index: idx.index,
+            })
+        }
+        ExpressionNode::Mutable(inner) => {
+            let inner_copy = copy_expression_as_place(syntax_trees, inner)?;
+            ExpressionNode::Mutable(inner_copy)
+        }
+        _ => return None,
+    };
+    Some(syntax_trees.expressions.insert(copied))
+}
+
 fn try_desugar_atomic_store(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,

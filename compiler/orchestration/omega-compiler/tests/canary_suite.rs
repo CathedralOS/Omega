@@ -10059,6 +10059,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     // --- ch17 atomics (concurrency stage 1) ---
     "atomics/atomic_field_declared",
     "atomics/runtime_atomic_load_store_exit",
+    "atomics/runtime_atomic_fetch_add_exit",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -10410,6 +10411,45 @@ fn runtime_atomic_load_store_exit_canary_runs() {
         Some(70),
         "expected atomic store(42)+load to read back 42 and exit 70; \
          exit 71 = value mismatch; got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+/// M3 -- AtomicU32 fetch_add: returns PRIOR value, increments cell.
+/// Stage-1 desugar: `let old = place.fetch_add(n, ord)` → `let old = place;
+/// place = place + n;`.  Two successive fetch_add calls; guard ladder checks
+/// both prior values AND the post-add cell values.
+#[test]
+fn runtime_atomic_fetch_add_exit_canary_runs() {
+    let canary = pass_canary("atomics/runtime_atomic_fetch_add_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-atomic-fetch-add-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("atomic fetch_add canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("atomic fetch_add canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected fetch_add(5) old=10/new=15, fetch_add(8) old=15/new=23 (exit 70); \
+         exit 71=bad old1, 72=bad after first, 73=bad old2, 74=bad after second; \
+         got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
