@@ -132,6 +132,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ),
     ("calls/runtime_value_position_branching_call_exit", 70),
     ("calls/runtime_value_transition_unsigned_guard_exit", 70),
+    ("collections/runtime_fixed_vec_round_trip_exit", 70),
     ("comptime/runtime_const_array_length_exit", 70),
     ("concurrency/runtime_spawn_interleaved_join_exit", 70),
     ("concurrency/runtime_spawn_join_moved_arg_exit", 70),
