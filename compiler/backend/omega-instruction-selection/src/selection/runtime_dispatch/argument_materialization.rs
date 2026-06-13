@@ -404,6 +404,39 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
+        // Float literal state argument (`transition { _ -> state(3.14) }`):
+        // write the IEEE-754 bit pattern directly into the parameter slot. The
+        // `static_runtime_argument_value` path above handles integers and booleans
+        // but skips Float nodes, so f64/f32 literals would fall through to
+        // `select_runtime_frame_slot_value_write_in_table_with_source_anchor`
+        // which also does not have a direct float-literal path (it reaches the
+        // binary-write family which requires a Binary or Call expression). The
+        // bit pattern is stable at compile time, so WriteRuntimeStorageInteger
+        // with the reinterpreted bits is the correct and simplest lowering.
+        if let ExpressionNode::Float(float_literal) = expressions.expression(argument) {
+            let bits = float_literal.value().to_bits();
+            let value = if slot.byte_size == 4 {
+                // f32 slot: narrow the f64 bit pattern to f32 bits
+                (float_literal.value() as f32).to_bits() as i64
+            } else {
+                // f64 slot (8 bytes): use the full f64 bit pattern
+                bits as i64
+            };
+            if matches!(slot.byte_size, 4 | 8) {
+                selected_instructions.push(SelectedInstruction {
+                    kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                        target_region: RuntimeStorageRegion::RuntimeFrame,
+                        byte_offset: slot.byte_offset,
+                        byte_size: slot.byte_size,
+                        value,
+                    },
+                    source_key,
+                    source_statement: statement_index,
+                });
+            }
+            continue;
+        }
+
         // A case-bearing struct literal argument (`Event::Insert { cents: 50 }`):
         // write the enum tag and each payload field directly into the parameter
         // slot. This path fires for InlineBranching calls where the argument is a
