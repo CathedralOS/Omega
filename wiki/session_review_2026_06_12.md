@@ -70,7 +70,19 @@ irreversible; flag any you dislike.
   Needs value-position calls to gain argument validation — a real frontend
   gap, not just a missing check.
 
-## 2b. NEW bug found by end-to-end sample authoring (NOT yet fixed)
+## 2b. NEW bug found by end-to-end sample authoring (FIXED)
+
+> RESOLVED 2026-06-12 (commit a2b961f8). Root cause was narrower than the
+> "write-back" framing below: `InlineBranching` argument materialization had
+> no `StructLiteral` handler, so the by-value case ARGUMENT was never written
+> into the callee's parameter slot at all — the case tag stayed 0, dispatch
+> always took the zero-case arm, and the self-write simply never ran. Same
+> family as the struct-arg/return fixes but a distinct code path (argument
+> materialization, not the leaf terminal path). Pending canary promoted to
+> `pass/calls/by_value_case_param_self_write_exit` (RUN, exit 70);
+> vending_machine now runs to 70 end to end. The narration below is kept for
+> the method record.
+
 
 Authoring `samples/vending_machine` (an event-driven case-payload state
 machine) surfaced an 8th native miscompile, distinct from the seven below:
