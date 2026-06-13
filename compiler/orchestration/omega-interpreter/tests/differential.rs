@@ -136,6 +136,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_fixed_vec_round_trip_exit", 70),
     ("comptime/runtime_const_array_length_exit", 70),
     ("comptime/runtime_const_array_length_transitive_exit", 70),
+    ("comptime/runtime_const_array_length_bare_call_arm_exit", 70),
     ("borrow/runtime_view_of_view_chain_exit", 70),
     ("borrow/runtime_method_view_write_after_last_use_exit", 70),
     ("concurrency/runtime_spawn_interleaved_join_exit", 70),
