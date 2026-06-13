@@ -194,7 +194,13 @@ The spelling leaves room for trait bounds without collision
 copy/zero_init/send; whether evolution-contract facts join the same surface
 (`[open]` was ruled OUT for sums -- unknown-case handling is a wire decode
 policy, frozen decision 10; `must_use` was ruled out by strict result use,
-frozen decision 9).
+frozen decision 9). A `[max_size = N]` property is a candidate for this
+surface: an opt-in hard bound on a type's total in-memory size, checked
+against the layout report (chapter 19). The language does not impose it --
+sizing a sum's cases is the author's call (a fat case can be shrunk with an
+out-of-line handle if they choose) -- but the property lets an author pin a
+guarantee where it matters, such as bounding an actor's continuation field so
+a fat in-flight flow does not inflate every parked instance (chapter 17).
 
 This chapter is intentionally narrow:
 
