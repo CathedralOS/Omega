@@ -1,0 +1,22 @@
+// Frozen decision 13 residue: machine-call type-parameter bounds are now
+// enforced for VALUE-position calls (`let r = self.pick(&self.h)`), not only
+// statement-position calls. `pick<T [copy]>` demands a `[copy]` argument;
+// `Heavy` owns a String, declares no properties, and is rejected.
+
+data Heavy {
+    note: String;
+}
+
+data Main {
+    h: Heavy;
+    n: i32;
+}
+
+machine Main::pick<T [copy]>(&self, x: &T) -> i32 {
+    7
+}
+
+machine Main::main(&mut self) {
+    let r: i32 = self.pick(&self.h);
+    self.n = r;
+}

@@ -10,11 +10,14 @@ use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::type_references::type_reference_label;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use omega_typed_trees::machine::Machine;
+use omega_typed_trees::name::Identifier;
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::state::State;
-use omega_typed_trees::statement::TableCall;
+use omega_typed_trees::statement::{
+    StatementNode, TableCall, TransitionGuardNode, TransitionTargetNode,
+};
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_call_node(
@@ -295,9 +298,11 @@ fn free_machine_entry_state<'program>(
 /// FRONTIER (stands down silently, like the wire argument checks): arguments
 /// the declared-place scope cannot type (call results, indexed elements,
 /// literals, nested member chains), parameters whose type buries `T` inside a
-/// generic (`Box<T>`) or slice (`&[T]`), and VALUE-position calls
-/// (`let n = self.pick(...)`), which never reach `validate_call_node` --
-/// pinned by pending canary generics/machine_bound_value_call_unchecked.
+/// generic (`Box<T>`) or slice (`&[T]`).
+///
+/// Both STATEMENT-position calls (via `validate_call_node`) and VALUE-position
+/// calls (via `validate_value_position_calls` + `scan_expression_calls`) now
+/// reach this function.
 #[allow(clippy::too_many_arguments)]
 fn validate_machine_call_type_parameter_bounds(
     program: &TypedTrees,
@@ -440,4 +445,498 @@ pub(crate) fn validate_call_arguments_handles(
     }
 
     let _ = (writable_roots, diagnostics);
+}
+
+/// FROZEN DECISION 13 residue (value-position complement of `validate_call_node`).
+///
+/// Walk every expression in every statement of `state` and enforce
+/// machine-call type-parameter bounds for VALUE-position calls
+/// (`let r = self.pick(&self.h)`).  These never reach `validate_call_node`
+/// because they appear as `ExpressionNode::Call` inside expression trees,
+/// not as top-level `StatementNode::Call` nodes.
+///
+/// Scope: covers all expression positions that feed into statements
+/// (LocalData initializers, assignment values/targets, guard expressions,
+/// transition arguments, terminal expressions) and recurses into nested
+/// call arguments.  Only the BOUND check (type-parameter property
+/// satisfaction) is enforced here; full argument count/type checking for
+/// value-position calls is a documented frontier -- see
+/// `validate_call_arguments_handles`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_value_position_calls(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    writable_roots: &WritableRoots<'_, '_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        match statement {
+            StatementNode::Assignment(assignment) => {
+                scan_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    machine_symbols,
+                    symbols,
+                    writable_roots,
+                    assignment.value,
+                    diagnostics,
+                );
+                // target is a place (Name/Member/Indexed), no calls to validate
+            }
+            StatementNode::Call(call) => {
+                // Statement-position call arguments may themselves be value calls.
+                for argument in program.statement_table.expression_handles(call.arguments) {
+                    scan_expression_calls(
+                        program,
+                        machine,
+                        state,
+                        machine_symbols,
+                        symbols,
+                        writable_roots,
+                        *argument,
+                        diagnostics,
+                    );
+                }
+            }
+            StatementNode::Expression(expression) => {
+                scan_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    machine_symbols,
+                    symbols,
+                    writable_roots,
+                    *expression,
+                    diagnostics,
+                );
+            }
+            StatementNode::LocalData(local_data) => {
+                scan_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    machine_symbols,
+                    symbols,
+                    writable_roots,
+                    local_data.initial_value,
+                    diagnostics,
+                );
+            }
+            StatementNode::Transition(transition) => {
+                if let TransitionGuardNode::When(guard) = transition.guard {
+                    scan_expression_calls(
+                        program,
+                        machine,
+                        state,
+                        machine_symbols,
+                        symbols,
+                        writable_roots,
+                        guard,
+                        diagnostics,
+                    );
+                }
+                for target_handle in [transition.target, transition.continuation] {
+                    if !target_handle.is_valid() {
+                        continue;
+                    }
+                    let target = program.statement_table.transition_target(target_handle);
+                    match target {
+                        TransitionTargetNode::Named { arguments, .. } => {
+                            for argument in program.statement_table.expression_handles(*arguments) {
+                                scan_expression_calls(
+                                    program,
+                                    machine,
+                                    state,
+                                    machine_symbols,
+                                    symbols,
+                                    writable_roots,
+                                    *argument,
+                                    diagnostics,
+                                );
+                            }
+                        }
+                        TransitionTargetNode::Value(expression) => {
+                            scan_expression_calls(
+                                program,
+                                machine,
+                                state,
+                                machine_symbols,
+                                symbols,
+                                writable_roots,
+                                *expression,
+                                diagnostics,
+                            );
+                        }
+                        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Recursively scan `expression` for `ExpressionNode::Call` nodes and
+/// validate machine-call type-parameter bounds for each one found.
+#[allow(clippy::too_many_arguments)]
+fn scan_expression_calls(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    writable_roots: &WritableRoots<'_, '_>,
+    expression: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            let call = call.clone();
+            validate_expression_call_bounds(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                &call,
+                diagnostics,
+            );
+            // Recurse into the receiver and arguments (nested calls).
+            if call.receiver.is_valid() {
+                scan_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    machine_symbols,
+                    symbols,
+                    writable_roots,
+                    call.receiver,
+                    diagnostics,
+                );
+            }
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                scan_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    machine_symbols,
+                    symbols,
+                    writable_roots,
+                    *argument,
+                    diagnostics,
+                );
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                binary.left,
+                diagnostics,
+            );
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                binary.right,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Cast(cast) => {
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                cast.value,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Indexed(indexed) => {
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                indexed.collection,
+                diagnostics,
+            );
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                indexed.index,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Member(member) => {
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                member.receiver,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Mutable(inner) => {
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                *inner,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Unary(unary) => {
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                unary.operand,
+                diagnostics,
+            );
+        }
+        ExpressionNode::ArrayLiteral(elements) => {
+            let elements = *elements;
+            for element in program.expression_table.expression_handles(elements) {
+                scan_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    machine_symbols,
+                    symbols,
+                    writable_roots,
+                    *element,
+                    diagnostics,
+                );
+            }
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            let fields = literal.fields;
+            for field in program.expression_table.struct_fields(fields) {
+                scan_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    machine_symbols,
+                    symbols,
+                    writable_roots,
+                    field.value,
+                    diagnostics,
+                );
+            }
+        }
+        ExpressionNode::Range(range) => {
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                range.start,
+                diagnostics,
+            );
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                range.end,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => {}
+    }
+}
+
+/// Enforce machine-call type-parameter bounds for a single VALUE-position
+/// `ExpressionNode::Call`.  The receiver name path is extracted from the
+/// receiver expression (must be a `Name` node with identifier segments).
+/// Other receiver shapes (member chains, indexed, etc.) are beyond this
+/// scope and stand down silently, consistent with the statement-path's
+/// handling of unrecognised receivers.
+#[allow(clippy::too_many_arguments)]
+fn validate_expression_call_bounds(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: &State,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    writable_roots: &WritableRoots<'_, '_>,
+    call: &TableCallExpression,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Extract receiver name-path members from the receiver expression.
+    // A self-call has no receiver (`call.receiver` is invalid) or an
+    // explicit `self` Name; an external-receiver call has a Name whose
+    // members name the receiver object.
+    let receiver_members: &[Identifier] = if !call.receiver.is_valid() {
+        &[]
+    } else {
+        match program.expression_table.expression(call.receiver) {
+            ExpressionNode::Name(path) => {
+                program.expression_table.name_path_members(path.members)
+            }
+            _ => &[],
+        }
+    };
+
+    let arguments = program.expression_table.expression_handles(call.arguments);
+
+    // Self-call or `self`-prefixed call: the callee is a state of the
+    // current machine, an attached-data sibling machine, or a free machine.
+    // Mirrors the same three-way fallback in `validate_call_node`.
+    if receiver_members.is_empty()
+        || matches!(receiver_members, [r] if r.as_str() == "self")
+    {
+        if let Some(callee_state) = machine_symbols.state(call.target.as_str()) {
+            validate_machine_call_type_parameter_bounds(
+                program,
+                symbols,
+                current_machine,
+                callee_state,
+                callee_state.name.as_str(),
+                arguments,
+                current_machine,
+                Some(current_state),
+                diagnostics,
+            );
+            return;
+        }
+
+        // A self-call can also target a SIBLING machine that shares the same
+        // attached data (`machine Main::pick<T [copy]>` called from
+        // `machine Main::main`). The statement-position path uses
+        // `symbols.attached_machine_state(program, attached_data, call.target)`.
+        let attached_state = current_machine
+            .attached_data
+            .as_ref()
+            .and_then(|attached_data| {
+                symbols.attached_machine_state(
+                    program,
+                    attached_data.as_str(),
+                    call.target.as_str(),
+                )
+            });
+
+        if let Some((callee_machine, callee_state)) = attached_state {
+            validate_machine_call_type_parameter_bounds(
+                program,
+                symbols,
+                callee_machine,
+                callee_state,
+                call.target.as_str(),
+                arguments,
+                current_machine,
+                Some(current_state),
+                diagnostics,
+            );
+            return;
+        }
+
+        // Free machine call (`compute(item)` -- no `self.`, no receiver).
+        if let Some((callee_machine, callee_state)) =
+            free_machine_entry_state(program, symbols, call.target.as_str())
+        {
+            validate_machine_call_type_parameter_bounds(
+                program,
+                symbols,
+                callee_machine,
+                callee_state,
+                call.target.as_str(),
+                arguments,
+                current_machine,
+                Some(current_state),
+                diagnostics,
+            );
+        }
+        return;
+    }
+
+    let receiver_name = receiver_members
+        .last()
+        .map(|m| m.as_str())
+        .unwrap_or_default();
+    let receiver_type = machine_symbols.contained_type(receiver_name);
+
+    // External machine receiver.
+    if let Some(callee_machine) = receiver_type
+        .and_then(|type_name| symbols.machine(type_name))
+        .or_else(|| symbols.machine(receiver_name))
+    {
+        if let Some(callee_state) = program
+            .machine_states(callee_machine)
+            .iter()
+            .find(|s| s.name == call.target)
+        {
+            validate_machine_call_type_parameter_bounds(
+                program,
+                symbols,
+                callee_machine,
+                callee_state,
+                callee_state.name.as_str(),
+                arguments,
+                current_machine,
+                Some(current_state),
+                diagnostics,
+            );
+        }
+        return;
+    }
+
+    // Attached-data machine receiver.
+    if let Some((callee_machine, callee_state)) = receiver_type.and_then(|type_name| {
+        symbols.attached_machine_state(program, type_name, call.target.as_str())
+    }) {
+        validate_machine_call_type_parameter_bounds(
+            program,
+            symbols,
+            callee_machine,
+            callee_state,
+            callee_state.name.as_str(),
+            arguments,
+            current_machine,
+            Some(current_state),
+            diagnostics,
+        );
+    }
+
+    let _ = writable_roots;
 }
