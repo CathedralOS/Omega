@@ -314,15 +314,32 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     operation.kind,
                     RuntimeDispatchBodyOperationKind::LocalStorage { .. }
                 ) {
-                    // A deferred call-result selection lands HERE, after the
-                    // callee's spliced effect operations and before its local
-                    // initializer copy reads the call-result slot.
-                    if let Some(deferred_index) =
-                        deferred_leaf_operations.iter().position(|deferred| {
-                            deferred.source_key == operation.source_key
-                                && deferred.statement_index == operation.statement_index
-                        })
-                    {
+                    // A deferred call-result selection lands HERE, timed so the
+                    // callee's terminal-value slot is live when the copy fires.
+                    //
+                    // Case A (caller-owned LocalStorage): the statement's own
+                    // `LocalStorage { source_key=caller, stmt=N }` arrives.
+                    // The deferred op fires BEFORE the local initializer write,
+                    // so the expansion writes into the call-result slot BEFORE
+                    // the local-initializer copy reads it.
+                    //
+                    // Case B (callee-body LocalStorage, last one): the callee's
+                    // spliced `LocalStorage { source_key=callee_target_key }` is
+                    // the last such op for this call.  The deferred op fires
+                    // AFTER the local initializer write so the callee-frame slot
+                    // (e.g. `rr`) is written before the expansion reads it.
+                    let is_case_a = deferred_leaf_operations.iter().any(|deferred| {
+                        deferred.source_key == operation.source_key
+                            && deferred.statement_index == operation.statement_index
+                    });
+                    if is_case_a {
+                        let deferred_index = deferred_leaf_operations
+                            .iter()
+                            .position(|deferred| {
+                                deferred.source_key == operation.source_key
+                                    && deferred.statement_index == operation.statement_index
+                            })
+                            .unwrap();
                         let deferred = deferred_leaf_operations.remove(deferred_index);
                         select_runtime_leaf_branch_expansions_for_operation(
                             input,
@@ -334,6 +351,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             selected_instructions,
                         );
                     }
+
                     select_runtime_dispatch_local_initializer_write(
                         input,
                         dispatch_case.dispatch_index,
@@ -348,6 +366,50 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         runtime_value_operands,
                         selected_instructions,
                     );
+
+                    // Case B: fire AFTER the local initializer write so the
+                    // callee's frame slot is populated before the expansion reads it.
+                    {
+                        let deferred_indices_to_fire: Vec<usize> = deferred_leaf_operations
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(deferred_index, deferred)| {
+                                let target_key = state_call_target_key(deferred)?;
+                                if target_key != operation.source_key {
+                                    return None;
+                                }
+                                // Only fire if no more callee-body locals follow for
+                                // this same callee (target_key).
+                                let has_more = operations
+                                    .iter()
+                                    .skip(operation_index + 1)
+                                    .any(|later| {
+                                        matches!(
+                                            later.kind,
+                                            RuntimeDispatchBodyOperationKind::LocalStorage {
+                                                ..
+                                            }
+                                        ) && later.source_key == target_key
+                                    });
+                                if has_more { None } else { Some(deferred_index) }
+                            })
+                            .collect();
+                        // Fire in reverse-index order so removal doesn't shift
+                        // earlier indices (rare: typically 0 or 1 match).
+                        for deferred_index in deferred_indices_to_fire.into_iter().rev() {
+                            let deferred = deferred_leaf_operations.remove(deferred_index);
+                            select_runtime_leaf_branch_expansions_for_operation(
+                                input,
+                                dispatch_case.dispatch_index,
+                                &deferred,
+                                &mut leaf_expansion_cursor,
+                                &mut leaf_selection_scratch,
+                                runtime_value_operands,
+                                selected_instructions,
+                            );
+                        }
+                    }
+
                     continue;
                 }
 
@@ -387,20 +449,44 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 // [StateCall, ...callee effect ops..., LocalStorage], so the
                 // call-result value selection emitted at the StateCall would
                 // read the callee's PRE-mutation state. When the statement's
-                // only leaf role is AssignmentValue and its LocalStorage
-                // operation follows in this body, defer the selection to that
-                // operation (the interpreter delivers the post-mutation value).
+                // only leaf role is AssignmentValue and a LocalStorage
+                // operation follows in this body (either the caller's own
+                // LocalStorage for this statement, OR the callee's spliced
+                // LocalStorage ops from an inlined callee that has internal
+                // `let` bindings), defer the selection to after those ops.
                 let defers_to_local_initializer = leaf_expansions_defer_to_local_initializer(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
-                ) && operations.iter().skip(operation_index + 1).any(|later| {
-                    matches!(
-                        later.kind,
-                        RuntimeDispatchBodyOperationKind::LocalStorage { .. }
-                    ) && later.source_key == operation.source_key
-                        && later.statement_index == operation.statement_index
-                });
+                ) && {
+                    // Case A: the caller's own LocalStorage for this statement.
+                    let has_caller_local = operations
+                        .iter()
+                        .skip(operation_index + 1)
+                        .any(|later| {
+                            matches!(
+                                later.kind,
+                                RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+                            ) && later.source_key == operation.source_key
+                                && later.statement_index == operation.statement_index
+                        });
+                    // Case B: callee-body LocalStorage ops spliced in from the
+                    // inlined callee (source_key == target_key of this StateCall).
+                    let has_callee_local = state_call_target_key(operation).is_some_and(
+                        |target_key| {
+                            operations
+                                .iter()
+                                .skip(operation_index + 1)
+                                .any(|later| {
+                                    matches!(
+                                        later.kind,
+                                        RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+                                    ) && later.source_key == target_key
+                                })
+                        },
+                    );
+                    has_caller_local || has_callee_local
+                };
                 if defers_to_local_initializer {
                     deferred_leaf_operations.push(operation.clone());
                 } else {
@@ -721,4 +807,19 @@ fn local_initializer_handle(
         .initial_value
         .is_valid()
         .then(|| table.copy_from(&input.program.expression_table, local_data.initial_value))
+}
+
+/// Extract the callee `target_key` from a StateCall-family operation, or
+/// `None` if the operation is not a state call.
+fn state_call_target_key(
+    operation: &RuntimeDispatchBodyOperation,
+) -> Option<StateKey> {
+    match operation.kind {
+        RuntimeDispatchBodyOperationKind::StateCall { target_key, .. }
+        | RuntimeDispatchBodyOperationKind::InlineStateCall { target_key, .. }
+        | RuntimeDispatchBodyOperationKind::InlineLeafStateCall { target_key, .. } => {
+            Some(target_key)
+        }
+        _ => None,
+    }
 }

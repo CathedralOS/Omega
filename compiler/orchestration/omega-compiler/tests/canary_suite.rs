@@ -9353,6 +9353,53 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 }
 
 #[test]
+fn value_call_sequential_result_slots_exit_canary_runs() {
+    // Two sequential value-position calls where callee 1 (`f`) has an internal
+    // `let rr = r * r` binding and callee 2 (`g`) takes MORE arguments.
+    //
+    // Root cause: the leaf branch expansion for `f` fired at the StateCall op,
+    // emitting a copy from frame[rr] to frame[a1_result] BEFORE the callee's
+    // spliced LocalStorage op wrote `rr = r*r = 9` into frame[rr].  The stale
+    // read (rr == 0 at that point) set a1_result = 0, so `a1 + 61` yielded 61
+    // and the program exited 71.
+    //
+    // After the fix: the deferral condition detects callee-body LocalStorage
+    // ops after the StateCall and defers the leaf expansion to after the LAST
+    // such op, so `rr` is written before the copy fires.
+    let canary = pass_canary("calls/value_call_sequential_result_slots_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-sequential-result-slots-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sequential result slots canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sequential result slots canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a1 = f(3) = 9, a2 = g(5,8) = 40, self.v = a1 + 61 = 70 (exit 70); \
+         exit 71 = a1 was 0 (stale read: leaf expansion fired before rr was written), \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn pending_canaries_reproduce_known_gaps() {
     for canary in ACTIVE_PENDING_CANARIES {
         let canary_dir = pending_canary(canary.path);
@@ -9795,6 +9842,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_position_branching_call_exit",
     "calls/runtime_value_transition_unsigned_guard_exit",
     "calls/runtime_exit_code_exit",
+    "calls/value_call_sequential_result_slots_exit",
     "operators/integer_literal_suffix_exit",
     "operators/runtime_shift_operators_exit",
     "calls/free_standing_machine_helper_compile",
@@ -10209,16 +10257,4 @@ struct PendingCanary {
 //   runtime_const_array_length_bare_call_arm_exit (parenthesized lone-call
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    // Native miscompile (found 2026-06-12 by samples/shapes_area authoring):
-    // two value-position calls in sequence where callee 1 has an internal
-    // `let` and callee 2 takes MORE arguments -- callee 2's parameter
-    // materialization clobbers callee 1's result slot. Compiles (hence
-    // CurrentlyAccepts) but runs wrong (native exit 71, interpreter 70).
-    // Promote to a pass RUN canary when the frame-slot allocator accounts for
-    // a dispatched callee's internal locals.
-    PendingCanary {
-        path: "calls/value_call_internal_let_slot_clobbers_prior_result",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
