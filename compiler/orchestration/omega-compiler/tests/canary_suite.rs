@@ -10345,4 +10345,30 @@ struct PendingCanary {
 //   runtime_const_array_length_bare_call_arm_exit (parenthesized lone-call
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    // FLOAT-CODEGEN miscompiles (found 2026-06-12 by the float-breadth bug
+    // hunt). All compile (CurrentlyAccepts) but run wrong (native 71,
+    // interpreter 70). Cluster: float binary ops whose operands are
+    // fixed-array elements yield zero; deep f32 binary chains; f32->local
+    // casts. Promote to pass RUN canaries as the float lowering is fixed.
+    PendingCanary {
+        path: "expressions/float_array_binary_op_zero",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "expressions/f32_array_binary_op_zero",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "expressions/f32_deep_chain_binary_wrong",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "expressions/f32_field_binary_to_local_cast_wrong",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "expressions/f32_to_f64_local_cast_wrong",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+];

@@ -1,0 +1,60 @@
+// PENDING CANARY -- currently miscompiles on native (exits 71 instead of 70).
+//
+// Bug: `f32 field + f32 field` written to a local variable `c: f32`, then
+// `c as i32` gives the wrong result (non-4 instead of 4). The FLOAT comparison
+// (`c == 4.0`) PASSES — so the value IS correct in the XMM register — but the
+// integer cast reads the wrong bits from the frame slot.
+//
+// Root cause hypothesis: the f32 binary arithmetic result is written to the
+// local frame slot with a wrong width (e.g., 8-byte movsd instead of 4-byte
+// movss), or the frame slot is allocated at the wrong size (8 bytes for f64
+// instructions instead of 4 bytes for f32), causing cvttss2si to read garbage.
+//
+// The distinguishing factor vs the PASSING canary `runtime_f32_local_arithmetic_exit`:
+//   - Passing: operands are const locals (let a: f32 = 2.5; let b: f32 = 1.5)
+//     → likely constant-folded, no real addss needed
+//   - Failing: operands are STRUCT FIELDS (self.a + self.b)
+//     → requires actual movss loads + addss, then f32 integer cast from slot
+//
+// What WORKS:
+//   - `f32 field as i32` directly (no intermediate local): cvttss2si from field
+//   - `f32 local as i32` when the local was written from a CONST literal
+//   - `f32 field + f32 field` in a GUARD COMPARISON (the float comparison is correct)
+//
+// What FAILS:
+//   - `let c: f32 = self.a + self.b; let n: i32 = c as i32`
+//     → the frame slot for c has wrong bits for cvttss2si
+//   - Also: `((f32+f32)+f32)+f32` left-chain (depth >= 4) fails even the float guard
+//     (related, but possibly the same root cause at different depth)
+//
+// Interpreter: exits 70 (a=2.5, b=1.5, c=4.0, n=4, n==4 -> good).
+// Native x64:  exits 71 (n != 4).
+//
+// Not registered in canary_suite.rs -- add to the registry when fixing.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: f32;
+    b: f32;
+}
+
+machine Main::main(&mut self) {
+    self.a = 2.5;
+    self.b = 1.5;
+
+    // f32 field binary -> local, then cast to i32
+    let c: f32 = self.a + self.b;  // 4.0 via struct fields
+    let n: i32 = c as i32;          // Should be 4
+
+    transition n == 4 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
