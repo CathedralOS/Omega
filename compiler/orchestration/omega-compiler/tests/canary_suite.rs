@@ -10209,4 +10209,16 @@ struct PendingCanary {
 //   runtime_const_array_length_bare_call_arm_exit (parenthesized lone-call
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    // Native miscompile (found 2026-06-12 by samples/shapes_area authoring):
+    // two value-position calls in sequence where callee 1 has an internal
+    // `let` and callee 2 takes MORE arguments -- callee 2's parameter
+    // materialization clobbers callee 1's result slot. Compiles (hence
+    // CurrentlyAccepts) but runs wrong (native exit 71, interpreter 70).
+    // Promote to a pass RUN canary when the frame-slot allocator accounts for
+    // a dispatched callee's internal locals.
+    PendingCanary {
+        path: "calls/value_call_internal_let_slot_clobbers_prior_result",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+];
