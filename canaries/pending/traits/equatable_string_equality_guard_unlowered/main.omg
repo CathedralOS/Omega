@@ -1,0 +1,54 @@
+// PENDING (CurrentlyRejects) -- NATIVE LOWERING GAP, loud error.
+//
+// Structural `==` over an Equatable record with a String field works in
+// VALUE position (pass/traits/equatable_string_field_equality_exit) but in
+// GUARD position (`transition self.left == self.right { ... }`) the
+// dispatch-guard path tries to load the 16-byte String descriptor as a raw
+// runtime operand and rejects with "X86_64 MVP encoder cannot load 16-byte
+// runtime operands yet" -- the guard expansion does not reuse the
+// value-position text-equals operand. The interpreter runs this program
+// fine (exit 70).
+//
+// When guard-position structural equality lowers the String compare,
+// promote this to a RUN canary asserting exit 70 (suite + differential).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Tag {
+    name: String;
+    id: i32;
+}
+
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+Tag satisfies Equatable;
+
+data Main {
+    console: Console;
+    left: Tag;
+    right: Tag;
+}
+
+machine Main::main(&mut self) {
+    self.left.name = "gold";
+    self.left.id = 5;
+    self.right.name = "gold";
+    self.right.id = 5;
+
+    transition self.left == self.right {
+        false -> bad()
+        true -> good()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

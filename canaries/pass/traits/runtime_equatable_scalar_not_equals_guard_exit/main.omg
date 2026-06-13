@@ -1,0 +1,77 @@
+// Equatable `!=` NEGATION in GUARD position over a scalar record: the
+// synthesized structural equality must drive the negated operator, and both
+// spellings must work as a DIRECT transition guard subject (the other
+// equatable canaries route every compare through a `let` first). Scalar-only
+// fields on purpose: the String-bearing variants are pinned as pending
+// canaries (equatable_string_not_equals_value drops the String term under
+// negation natively; equatable_string_equality_guard_unlowered rejects with
+// the 16-byte operand error).
+//
+// Ladder: differing scalars must compare `!=` true (rung 1, exit 71); after
+// aligning them the same subject must compare `!=` false (rung 2, exit 72);
+// `==` in guard position must then hit (rung 3, exit 73). Exits 70 only when
+// all three guard-position compares are right.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Pair {
+    a: i32;
+    b: i32;
+}
+
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+Pair satisfies Equatable;
+
+data Main {
+    console: Console;
+    left: Pair;
+    right: Pair;
+}
+
+machine Main::main(&mut self) {
+    self.left.a = 1;
+    self.left.b = 2;
+    self.right.a = 1;
+    self.right.b = 3;
+
+    transition self.left != self.right {
+        false -> bad_first()
+        true -> align()
+    }
+
+    state align(&mut self) {
+        self.right.b = 2;
+        transition self.left != self.right {
+            true -> bad_second()
+            false -> check_equals_guard()
+        }
+    }
+
+    state check_equals_guard(&mut self) {
+        transition self.left == self.right {
+            false -> bad_third()
+            true -> good()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad_first(&mut self) {
+        self.console.exit_process(71);
+    }
+
+    state bad_second(&mut self) {
+        self.console.exit_process(72);
+    }
+
+    state bad_third(&mut self) {
+        self.console.exit_process(73);
+    }
+}

@@ -1,0 +1,16 @@
+// `[send]` walks CASE PAYLOAD fields, not just record fields: a String
+// payload owns text storage, so crossing a task boundary would move buffer
+// ownership -- the structural verifier must reject it with the case-payload
+// place in the message (the same carve-out `[copy]` applies to String).
+
+data Message [send] {
+    case Empty;
+    case Label(text: String);
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}

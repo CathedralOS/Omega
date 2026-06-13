@@ -1,0 +1,56 @@
+// Chapter 21 stage 3 (frozen decision 14): version match arms over a THREE
+// era chain (v1, v2, current -- decision-10 numbering: v1 = era 0, v2 = era
+// 1, current = era 2). The ZII container carries era 0, so the `Counter::v1`
+// arm must be selected even though BOTH newer arms are written first --
+// pinning that era-tag dispatch scales past the two-arm case (a tag/boolean
+// confusion or a first-arm fallthrough would take the current or v2 arm).
+// The bound v1 payload is the ZII shape (counter == 0), driving exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    version v2 {
+        counter: i64;
+        flags: i32;
+    }
+
+    count: i32;
+    timestamp: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    transition self.raw {
+        Counter(current) -> new_era(current.count)
+        Counter::v2(mid) -> mid_era(mid.flags)
+        Counter::v1(old) -> old_era(old.counter)
+    }
+    state old_era(&mut self, counter: i32) {
+        transition counter == 0 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state mid_era(&mut self, flags: i32) {
+        self.console.exit_process(73);
+    }
+    state new_era(&mut self, count: i32) {
+        self.console.exit_process(72);
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

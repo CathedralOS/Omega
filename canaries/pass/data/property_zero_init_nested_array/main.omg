@@ -1,0 +1,21 @@
+// `[zero_init]` through a FIXED ARRAY field: the verifier walks the array's
+// ELEMENT type (a `[Point; 4]` field is zero-means-empty exactly when `Point`
+// is). `Point` declares `[zero_init]`, so the aggregate qualifies. Pins the
+// FixedArray arm of the zero-init walk, which has no other canary.
+
+data Point [zero_init] {
+    x: i32;
+    y: i32;
+}
+
+data Grid [zero_init] {
+    points: [Point; 4];
+    count: i32;
+}
+
+data Main {
+    value: i32 = 0;
+}
+
+machine Main::main(&mut self) {
+}
