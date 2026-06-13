@@ -536,6 +536,13 @@ impl PrimitiveType {
             "u32" => Some(Self::U32),
             "u64" => Some(Self::U64),
             "usize" => Some(Self::Usize),
+            // Atomic types: same layout as their underlying primitives (C11
+            // atomics; alignment is the same because we use plain aligned
+            // load/store on x86_64 for Relaxed/Acquire/Release/AcqRel).
+            "AtomicBool" => Some(Self::Bool),
+            "AtomicU32" => Some(Self::U32),
+            "AtomicU64" => Some(Self::U64),
+            "AtomicUsize" => Some(Self::Usize),
             _ => None,
         }
     }

@@ -10056,6 +10056,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/runtime_equatable_scalar_not_equals_guard_exit",
     "borrow/runtime_view_of_view_chain_exit",
     "borrow/runtime_method_view_write_after_last_use_exit",
+    // --- ch17 atomics (concurrency stage 1) ---
+    "atomics/atomic_field_declared",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
