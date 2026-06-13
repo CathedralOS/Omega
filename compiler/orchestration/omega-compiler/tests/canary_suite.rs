@@ -10058,6 +10058,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "borrow/runtime_method_view_write_after_last_use_exit",
     // --- ch17 atomics (concurrency stage 1) ---
     "atomics/atomic_field_declared",
+    "atomics/runtime_atomic_load_store_exit",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -10374,3 +10375,44 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
 ];
+
+// =============================================================================
+// ch17 Atomics (concurrency stage 1) RUN canaries
+// =============================================================================
+
+/// M2 -- AtomicU32 load/store round-trip.  `store(42, Relaxed)` writes then
+/// `load(Relaxed)` reads back.  On x86_64 both lower to plain aligned `mov`
+/// (TSO gives acquire-release for free; SeqCst store frontier documented).
+#[test]
+fn runtime_atomic_load_store_exit_canary_runs() {
+    let canary = pass_canary("atomics/runtime_atomic_load_store_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-atomic-load-store-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("atomic load/store canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("atomic load/store canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected atomic store(42)+load to read back 42 and exit 70; \
+         exit 71 = value mismatch; got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
