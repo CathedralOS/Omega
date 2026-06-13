@@ -53,14 +53,19 @@ irreversible; flag any you dislike.
 
 ## 1b. LANDMINE to fix before real concurrency (flagged, not yet fixed)
 
-Atomics stage 1 landed (types + load/store/fetch_add as real x86 atomics;
-M1–M4). BUT `compare_exchange` (M4) is currently a PARSER DESUGAR into a
-non-atomic integer read-modify-write — value-correct, and unobservably
-non-atomic in stage 1 (no scheduler/threads yet), but a silent data race the
-moment true parallelism exists. fetch_add (M3) is a real `LOCK`-prefixed RMW;
-CAS must match it (`LOCK CMPXCHG`) before the scheduler arc. Flagged in the
-canary header + a tracked task chip. Do NOT ship concurrency with the desugar
-CAS.
+Atomics stage 1 landed (M1 types + M2 load/store + M3 fetch_add + M4
+compare_exchange). CORRECTION (verified from the canary headers): BOTH RMW
+ops — fetch_add AND compare_exchange — are currently PARSER DESUGARS into
+non-atomic integer read-modify-write sequences, NOT real `LOCK`-prefixed
+instructions. (An earlier note here wrongly said fetch_add was a real atomic
+RMW; it is not.) They are value-correct and unobservably non-atomic in stage
+1 (no scheduler/threads), but each is a silent data race the moment true
+parallelism exists. load/store (M2) are genuinely fine — a plain aligned
+`mov` IS atomic on x86; only the RMW ops need `LOCK`. BEFORE the scheduler
+arc, every atomic RMW (fetch_add, compare_exchange, and any later
+swap/fetch_sub/and/or) must become a real `LOCK`-prefixed instruction
+(`LOCK xadd` / `LOCK cmpxchg`). Flagged in the canary headers + a tracked
+task chip. Do NOT ship concurrency on the desugar RMWs.
 
 ## 2. Blocking decisions — only you (still open in TASKS.md register)
 

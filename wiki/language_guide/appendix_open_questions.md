@@ -178,20 +178,24 @@ This page tracks design pressure that is not fully nailed down yet.
   parameters (verbose ambiguity), Mojo bracket origins (collide with
   slice/property/invariant brackets). House style: descriptive names
   (`'buf`), never `'a`.
-- Suspension (frozen decision 16): typed state clusters CAN suspend across
-  ticks, with no await, no async coloring, and no suspension keyword.
-  Waiting originates only at boundary wait primitives (a futex-shaped
-  `Scheduler` boundary trait: wait-on-word / wake-N -- the ONLY wait
-  mechanism, ever); `suspend` is an inferred transitive effect; awaiting =
-  calling (parked task = state + planned frame storage, no Future
-  reification); borrows may not span suspend-effect call sites; effect
-  ceilings forbid suspension in ISR-like contexts; scoped spawns borrow
-  with no scope keyword (drop of `Join<T>` joins); task storage is exact
-  per-machine pools (no stack sizes; no general recursion); cancellation
-  is a value returned at the wait (zero case `Cancelled`, no unwinding),
-  riding chapter 15's recoverable channel; there is NO select -- producers
-  post into one mailbox carrying a case-bearing sum (Erlang's model). See
-  chapter 17 + wiki/design_briefs/concurrency_atomics.md.
+- Suspension (decision 16, AMENDED 2026-06-13 in chapter 17): typed state
+  clusters CAN suspend across ticks; no `async` coloring, no `Future`.
+  Waiting is an ordinary CALL to a boundary wait primitive (a futex-shaped
+  `Scheduler` trait: wait-on-word / wake-N -- the ONLY wait mechanism,
+  ever), MARKED with `await` at the call site; the compiler requires
+  `await` on any call carrying the `suspend` effect (call-site visibility
+  marker, NOT signature coloring). HARD RULE: suspend-in-call is forbidden
+  -- a `suspend` machine can be SPAWNED but not CALLED, so suspension never
+  nests through a call chain and a parked task's carry-set is single-level
+  (M = max over its own await points; N derived from the resource parked
+  on, so `M x N` is a model-checked bound). Borrows may not live across an
+  `await`; effect ceilings forbid `suspend` in ISR-like contexts; scoped
+  spawns borrow with no scope keyword (drop of `Join<T>` joins);
+  cancellation is a value at the wait (zero case, no unwinding, rides
+  chapter 15's recoverable channel); there is NO select -- producers post
+  into one mailbox carrying a case-bearing sum (Erlang's model). The
+  earlier no-keyword form is superseded. See chapter 17 +
+  wiki/design_briefs/concurrency_atomics.md.
 - Ranking views (decided 2026-06-12): the use-site subtraction
   (`decreases limit - index`) is rejected as permanent surface; the
   argumented tuple form `decreases (index, limit) -> Nat::BoundedDistance`
