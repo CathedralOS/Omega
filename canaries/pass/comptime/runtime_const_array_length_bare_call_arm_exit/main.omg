@@ -1,0 +1,51 @@
+// COMPTIME: a const-position callee whose value arm is a PARENTHESIZED BARE
+// CALL (`_ -> (burn(4, 12))`). The parser leaves a parenthesized lone call in
+// arm position as a VALUE expression (the parens are the value spelling, same
+// as `(burn(4, 12) + 0)`); symbol assignment re-classifies it into a state
+// transition only when the callee names a sibling state or the machine's own
+// self-recursion. Here `burn` is a FREE machine from `table_size`'s point of
+// view, so the arm is a value call the const evaluator resolves like any
+// other -- recursion and all (burn(4, 12) = 16). Runtime ladder: the
+// index-15 write below typechecks only at length 16, and exits 70 only when
+// the value lands.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    slots: [i64; table_size()];
+}
+
+machine burn(remaining: usize, acc: usize)
+terminates {
+    decreases remaining;
+}
+-> usize
+{
+    transition remaining > 0 {
+        true -> (burn(remaining - 1, acc + 1))
+        false -> acc
+    }
+}
+
+machine table_size() -> usize {
+    transition {
+        _ -> (burn(4, 12))
+    }
+}
+
+machine Main::main(&mut self) {
+    self.slots[15] = 63;
+    transition self.slots[15] == 63 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

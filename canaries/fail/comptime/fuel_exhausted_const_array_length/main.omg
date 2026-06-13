@@ -6,10 +6,10 @@
 // exists only as a backstop, and this pins that the backstop actually
 // fires -- observed at ~0.07s, no hang.)
 //
-// NOTE the `(burn(...) + 0)` spelling: a parenthesized BARE call in arm
-// position fails const-eval resolution today (see
-// pending/comptime/const_array_length_bare_call_arm); the arithmetic
-// wrapper keeps this canary pointed at the fuel limit, not that gap.
+// NOTE the `(burn(...) + 0)` spelling: kept as the arithmetic-wrapped form
+// so this canary stays pointed at the fuel limit alone. The parenthesized
+// BARE-call arm spelling is covered separately by
+// pass/comptime/runtime_const_array_length_bare_call_arm_exit.
 
 boundary trait Console {
     machine exit_process(return_code: i32);

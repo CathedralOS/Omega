@@ -1,0 +1,33 @@
+// EXHAUSTIVENESS over version match arms (frozen decision 14 + decision 7's
+// counting discipline): a boundary can mint a container at ANY declared era
+// including current, so the decidable arm set of a `Versioned<Counter>`
+// subject is {each declared era vN} + {current}. This match handles only the
+// historical v1 shape -- no current arm, no `_` -- so the current era is
+// uncovered and the error names it, mirroring how ordinary case matches
+// reject the analogous gap (fail/data/match_nonexhaustive_cases).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    count: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    transition self.raw {
+        Counter::v1(old) -> old_era(old.counter)
+    }
+    state old_era(&mut self, counter: i32) {
+        self.console.exit_process(70);
+    }
+}
