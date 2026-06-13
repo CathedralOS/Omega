@@ -112,13 +112,15 @@ CONCURRENCY (briefs/concurrency_atomics.md):
     model; already Cathedral's IPC-ring shape). Deferred work shrinks to a
     core MPSC event-queue library on the wait primitive. DECIDED.
 - C2 Unit of concurrency: spawned machine = one task, per-task frame
-  discipline now (separate-compilation-ready). REC: yes.
+  discipline now (separate-compilation-ready). ACCEPTED 2026-06-12.
 - C3 Cancellation: structured Join SCOPES (scope drop cancels children,
-  deadlines attach to scopes). REC: yes.
+  deadlines attach to scopes). ACCEPTED 2026-06-12.
 - C4 Sharing: atomics-only at language level; `Mutex<T>` is a core-library
-  type over atomic spin-locks, never a primitive. REC: yes.
+  type over atomic spin-locks, never a primitive. ACCEPTED 2026-06-12.
 - C5 Atomics + model: compiler intrinsics, five C11 orderings, C11 memory
-  model wholesale. REC: yes.
+  model wholesale. ACCEPTED 2026-06-12. Concurrency is the chosen next arc
+  (unblocks the most: wait primitive, Mutex, scheduler, IPC ring all build
+  on atomics). First slice = atomics foundation (see Next Up).
 
 SEPARATE COMPILATION (briefs/separate_compilation.md):
 - S1 Component = PACKAGE; artifact = sealed IR + boundary manifest +
