@@ -10170,4 +10170,13 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "generics/machine_bound_value_call_unchecked",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
+    // Native miscompile (found 2026-06-12 by samples/vending_machine): a
+    // `&mut self` machine taking a by-value CASE-bearing parameter loses
+    // self.<field> writes made in a dispatched substate. It COMPILES (hence
+    // CurrentlyAccepts) but runs wrong (exit 80, should be 70); promote to a
+    // pass RUN canary when the write-back lands.
+    PendingCanary {
+        path: "calls/by_value_case_param_self_write_lost",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
 ];
