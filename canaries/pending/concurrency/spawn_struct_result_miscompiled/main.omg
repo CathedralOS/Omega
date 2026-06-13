@@ -1,0 +1,52 @@
+// PENDING (CurrentlyAccepts) -- NATIVE MISCOMPILE, interpreter divergence.
+//
+// `spawn { Worker::make(move seed) }` joins a machine returning a STRUCT by
+// value; the joined `pair` must read back { a: 34, b: 35 } (a + b == 69 ->
+// exit 70). The reference interpreter gets 70; the NATIVE binary exits 71 --
+// the by-value struct result never reaches the local's fields.
+//
+// NOT spawn-specific: the same machine called DIRECTLY
+// (`let pair: Pair = Worker::make(seed);`, no spawn/join) also exits 71
+// natively, so the root cause is the by-value STRUCT RETURN from an attached
+// machine -- the same family as the known by-value-struct-ARG miscompile
+// being fixed in a concurrent lane. When struct returns land natively,
+// promote this to a RUN canary asserting exit 70 (suite + differential).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Pair {
+    a: i32;
+    b: i32;
+}
+
+data Worker {
+}
+
+machine Worker::make(x: i32) -> Pair {
+    Pair { a: x, b: x + 1 }
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let seed: i32 = 34;
+    let handle: Join<Pair> = spawn { Worker::make(move seed) };
+    let pair: Pair = handle.join();
+
+    transition pair.a + pair.b == 69 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,83 @@
+// Wire REPEATED + STRING-LAST in ONE message: a packed repeated field
+// (runtime-sized payload via the count companion) followed by the String
+// field carrying the highest field number (the String must encode last --
+// fail/wire/encode_string_field_not_last pins the rejection). Two
+// runtime-sized appends in sequence is the edge: the String's cursor must
+// start wherever the packed payload actually ended, not at a
+// statically-precomputed offset. Encode-only: String DECODE has not landed
+// (the wire stage-2 String work is encode-only by design).
+//
+// Encoded bytes for { samples: [150, -2], samples_count: 2, label: "hi" }:
+//   era 0          -> 0x00        (no version blocks)
+//   tag 0          -> 0x00        (samples)
+//   length 3       -> 0x03        (packed elements below)
+//     150          -> 0xAC 0x02   (zigzag(150) = 300)
+//     -2           -> 0x03        (zigzag(-2) = 3)
+//   tag 1          -> 0x01        (label)
+//   len 2          -> 0x02        ("hi" is two UTF-8 bytes)
+//   'h'            -> 0x68 (104)
+//   'i'            -> 0x69 (105)
+// written = 10.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Report {
+    0: samples: [i32; 4];
+    1: label: String;
+}
+
+data ReportValue {
+    samples: [i32; 4];
+    samples_count: usize;
+    label: String;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    // Field-assignment form for the String (struct-literal String fields and
+    // assignments both lower; assignment keeps parity with the other
+    // encode-String canary).
+    let msg: ReportValue;
+    msg.samples = [150, 0 - 2, 0, 0];
+    msg.samples_count = 2;
+    msg.label = "hi";
+
+    Report::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    transition self.written == 10 {
+        true -> check_bytes()
+        false -> bad()
+    }
+
+    state check_bytes(&mut self) {
+        let ok: bool = self.buffer[0] == 0
+            && self.buffer[1] == 0
+            && self.buffer[2] == 3
+            && self.buffer[3] == 172
+            && self.buffer[4] == 2
+            && self.buffer[5] == 3
+            && self.buffer[6] == 1
+            && self.buffer[7] == 2
+            && self.buffer[8] == 104
+            && self.buffer[9] == 105;
+        transition ok {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

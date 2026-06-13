@@ -1,0 +1,75 @@
+// Wire REPEATED fields, DEGENERATE MAXIMUM `max = 1`: the unrolled guarded
+// element ops collapse to a single self-guarded op, the count companion still
+// rules how many elements are live, and the packed framing is unchanged. A
+// max-derived off-by-one (open vs closed bound on the unroll) shows up here
+// first.
+//
+// Encoded bytes for { code: [9], code_count: 1, flag: true }, hand-computed:
+//   era 0          -> 0x00        (no version blocks)
+//   tag 0          -> 0x00        (code)
+//   length 1       -> 0x01        (one packed element byte)
+//     9            -> 0x09        (u32: plain varint, no zigzag)
+//   tag 1          -> 0x01        (flag)
+//   flag true      -> 0x01
+// written = 6; the decoder consumes the same 6 bytes (read = 6, ok = true),
+// decodes the single element, and writes code_count = 1.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Ping {
+    0: code: [u32; 1];
+    1: flag: bool;
+}
+
+data PingValue {
+    code: [u32; 1];
+    code_count: usize;
+    flag: bool;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 32];
+    written: usize;
+    read: usize;
+    ok: bool;
+}
+
+machine Main::main(&mut self) {
+    let msg: PingValue = PingValue {
+        code: [9],
+        code_count: 1,
+        flag: true
+    };
+
+    Ping::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    let decoded: PingValue = PingValue {
+        code: [0],
+        code_count: 0,
+        flag: false
+    };
+
+    Ping::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+
+    let matches: bool = self.ok
+        && self.written == 6
+        && self.read == 6
+        && decoded.code[0] == 9
+        && decoded.code_count == 1
+        && decoded.flag;
+    transition matches {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

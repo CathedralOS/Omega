@@ -1107,6 +1107,369 @@ fn runtime_versioned_match_zii_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_versioned_era_guard_exit_canary_runs() {
+    // Chapter 21 stage 3 (frozen decision 14): `era` is read-only
+    // source-queryable DIRECTLY as a transition guard subject (the era-query
+    // canary reads it through a local first; this pins the guard-position
+    // read). ZII container carries era 0 -> the `== 0` arm exits 70.
+    let canary = pass_canary("versioning/runtime_versioned_era_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-versioned-era-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("versioned era guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("versioned era guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the ZII `Versioned<Counter>` era to read 0 in guard position (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_versioned_three_era_match_zii_exit_canary_runs() {
+    // Chapter 21 stage 3: version match arms over a THREE era chain (v1 = era
+    // 0, v2 = era 1, current = era 2). The ZII container is era 0, and both
+    // newer arms are written first, so selecting the v1 arm pins that era-tag
+    // dispatch scales past two arms (no first-arm fallthrough, no
+    // tag/boolean confusion). The bound v1 payload reads 0 -> 70.
+    let canary = pass_canary("versioning/runtime_versioned_three_era_match_zii_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-versioned-three-era-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("three-era versioned match canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("three-era versioned match canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the era-0 (v1) arm among three eras to be selected (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_equatable_scalar_not_equals_guard_exit_canary_runs() {
+    // Equatable `!=` negation + `==` of a scalar record DIRECTLY in guard
+    // position (the other equatable canaries route compares through a `let`).
+    // String-bearing variants are pending: the negated String term miscompiles
+    // (pending/traits/equatable_string_not_equals_value) and guard-position
+    // String equality rejects (pending/traits/
+    // equatable_string_equality_guard_unlowered).
+    let canary = pass_canary("traits/runtime_equatable_scalar_not_equals_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-equatable-scalar-neq-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("equatable scalar != guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("equatable scalar != guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected !=/== in guard position over a scalar Equatable record to drive all three rungs (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_case_membership_mixed_shape_exit_canary_runs() {
+    // Decision 11 `in` membership over a MIXED shape (decision 7): common
+    // fields live between the tag and the payload overlay, so the membership
+    // test must stay tag-only -- and survive a common-field write.
+    let canary = pass_canary("data/runtime_case_membership_mixed_shape_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-membership-mixed-shape-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mixed-shape membership canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mixed-shape membership canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected tag-only membership over a mixed shape across all three rungs (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_roundtrip_repeated_max_one_exit_canary_runs() {
+    // Wire repeated field with the DEGENERATE maximum `[u32; 1]`: the
+    // unrolled guarded element ops collapse to one, the count companion
+    // still rules, and the packed framing round-trips (written = read = 6).
+    let canary = pass_canary("wire/runtime_wire_roundtrip_repeated_max_one_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-repeated-max-one-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("repeated max-one wire canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("repeated max-one wire canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the max=1 repeated field to round-trip (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_encode_repeated_then_string_exit_canary_runs() {
+    // Wire repeated + String-last in one message: two runtime-sized appends
+    // in sequence -- the String's cursor must start where the packed payload
+    // actually ended. Encode-only (String decode has not landed); the exact
+    // 10 bytes are asserted in-program.
+    let canary = pass_canary("wire/runtime_wire_encode_repeated_then_string_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-repeated-string-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("repeated-then-string wire canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("repeated-then-string wire canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the packed repeated payload then the String field to encode the asserted 10 bytes (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_roundtrip_nested_and_repeated_exit_canary_runs() {
+    // Wire nested message + repeated field in ONE message: both stage
+    // runtime-sized payloads, so the composition pins cursor handoff between
+    // them on both the encode and decode sides (written = read = 13).
+    let canary = pass_canary("wire/runtime_wire_roundtrip_nested_and_repeated_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-wire-nested-repeated-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-and-repeated wire canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-and-repeated wire canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the nested sub-message and the packed repeated field to round-trip together (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_const_array_length_transitive_exit_canary_runs() {
+    // Comptime stage 1, transitive purity: the const-position callee CALLS
+    // another effect-free machine (base() * 3 + 1 = 16), pinning that const
+    // evaluation runs the call machinery, not just expression folding.
+    let canary = pass_canary("comptime/runtime_const_array_length_transitive_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-const-length-transitive-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("transitive const length canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("transitive const length canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the transitively-evaluated 16-slot array to hold both end values (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_method_view_write_after_last_use_exit_canary_runs() {
+    // Lifetimes stage 1, NLL complement of
+    // fail/borrow/method_view_receiver_unrelated_field_write: the
+    // receiver-wide loan of a method-returned view ends at the view's LAST
+    // USE, so a later write to another field of the same receiver compiles
+    // and both writes land (7 + 63 = 70).
+    let canary = pass_canary("borrow/runtime_method_view_write_after_last_use_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-method-view-after-last-use-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("method-view write-after-last-use canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("method-view write-after-last-use canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the view write then the post-loan field write to both land (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_view_of_view_chain_exit_canary_runs() {
+    // Lifetimes stage 1: CHAINED view-of-view through two free machines
+    // (pick -> &mut Cell, narrow -> &mut i32). The elision linkage composes
+    // and the two-hop write lands in the root machine-owned storage.
+    let canary = pass_canary("borrow/runtime_view_of_view_chain_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-view-of-view-chain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("view-of-view chain canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("view-of-view chain canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the write through the chained leaf view to reach the root array element (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Chapter 21 stage 3b (frozen decision 14): migration-chain completeness
 // along the declared version chain is a REPORT VERDICT in the wire protocol
 // artifact, never a compile error -- an arm may handle an old era manually.
@@ -1147,6 +1510,50 @@ fn version_chain_report_renders_missing_migration_verdict() {
             "era v2 declared but no `Counter::from_v2` exists; `Versioned<Counter>` consumers must handle `Counter::v2` arms manually"
         ),
         "report should record the missing migration as a chain-completeness verdict\n{}",
+        report
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The COMPLETE side of the chain-completeness verdict: both `Counter::from_v1`
+// and `Counter::from_v2` exist, so the report must list both hops and emit NO
+// missing-migration verdict ("missing:\n  none") -- no off-by-one flagging the
+// newest era despite its migration being written.
+#[test]
+fn version_chain_report_renders_complete_chain() {
+    let canary = pass_canary("versioning/version_chain_report_complete");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-version-chain-report-complete-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("complete migration chain canary should compile");
+
+    let report = fs::read_to_string(build_dir.join("04_wire_protocols.txt"))
+        .expect("wire protocol report should be written");
+    assert!(
+        report.contains("## data Counter") && report.contains("versions: v1, v2, current"),
+        "report should list the declared data version chain\n{}",
+        report
+    );
+    assert!(
+        report.contains("v1 -> current via `Counter::from_v1`")
+            && report.contains("v2 -> current via `Counter::from_v2`"),
+        "report should record both present migration machines\n{}",
+        report
+    );
+    assert!(
+        report.contains("missing:\n  none"),
+        "a complete chain should report no missing migrations\n{}",
         report
     );
 
@@ -9054,8 +9461,11 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "versioning/migration_machine_from_v1",
     "versioning/runtime_version_migration_exit",
     "versioning/runtime_versioned_era_query_exit",
+    "versioning/runtime_versioned_era_guard_exit",
     "versioning/runtime_versioned_match_zii_exit",
+    "versioning/runtime_versioned_three_era_match_zii_exit",
     "versioning/version_chain_report",
+    "versioning/version_chain_report_complete",
     "wire/wire_generic_trait",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",
@@ -9074,6 +9484,17 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_encode_string_exit",
     "wire/runtime_wire_roundtrip_repeated_exit",
     "wire/runtime_wire_decode_rejects_repeated_overflow_exit",
+    // --- 2026-06-12 canary coverage sweep (feature-edge additions) ---
+    "wire/runtime_wire_roundtrip_repeated_max_one_exit",
+    "wire/runtime_wire_encode_repeated_then_string_exit",
+    "wire/runtime_wire_roundtrip_nested_and_repeated_exit",
+    "comptime/runtime_const_array_length_transitive_exit",
+    "data/property_send_declared",
+    "data/property_zero_init_nested_array",
+    "data/runtime_case_membership_mixed_shape_exit",
+    "traits/runtime_equatable_scalar_not_equals_guard_exit",
+    "borrow/runtime_view_of_view_chain_exit",
+    "borrow/runtime_method_view_write_after_last_use_exit",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
@@ -9286,6 +9707,14 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "versioning/versioned_era_write",
     "versioning/versioned_container_unversioned_payload",
     "versioning/versioned_redeclared",
+    // --- 2026-06-12 canary coverage sweep (feature-edge additions) ---
+    "versioning/versioned_match_wrong_type_arm",
+    "data/property_send_case_payload_string",
+    "data/property_zero_init_array_element_violation",
+    "comptime/const_array_length_index_out_of_bounds",
+    "comptime/fuel_exhausted_const_array_length",
+    "borrow/method_view_receiver_unrelated_field_write",
+    "concurrency/spawn_join_result_discarded",
 ];
 
 #[derive(Clone, Copy)]
@@ -9322,8 +9751,53 @@ struct PendingCanary {
 // a VALUE-position call (`let r = self.pick(&self.h)`) bypasses argument
 // validation entirely, so its `[copy]` bound is not enforced yet. Promote to
 // fail/generics/ when value-position calls gain argument validation.
+// 2026-06-12 canary coverage sweep additions:
+// - versioning/versioned_match_missing_current_arm: version-match
+//   EXHAUSTIVENESS is unchecked (a match handling only v1 compiles; ordinary
+//   case matches reject the analogous shape). Unobservable at runtime only
+//   because ZII era 0 is the sole construction path until stage-4 decoders.
+// - traits/equatable_string_not_equals_value: NATIVE MISCOMPILE -- `!=` over
+//   an Equatable record with a String field drops the String term (native
+//   exits 71 where the interpreter exits 70). `==` is right; scalar `!=` is
+//   right.
+// - traits/equatable_string_equality_guard_unlowered: guard-position
+//   structural `==` with a String field rejects (16-byte runtime operand)
+//   instead of reusing the value-position text-equals lowering.
+// - comptime/const_array_length_bare_call_arm: a parenthesized BARE call as
+//   the const callee's value arm fails const-eval resolution ("transition
+//   target not found"); the same call wrapped in arithmetic evaluates fine.
+// - concurrency/spawn_struct_result_miscompiled: NATIVE MISCOMPILE -- a
+//   spawned machine returning a struct by value joins garbage (native 71,
+//   interpreter 70); reproduces WITHOUT spawn too (plain by-value struct
+//   return), same family as the by-value-struct-arg gap.
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[PendingCanary {
-    path: "generics/machine_bound_value_call_unchecked",
-    expectation: PendingCanaryExpectation::CurrentlyAccepts,
-}];
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    PendingCanary {
+        path: "generics/machine_bound_value_call_unchecked",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "versioning/versioned_match_missing_current_arm",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "traits/equatable_string_not_equals_value",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "traits/equatable_string_equality_guard_unlowered",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "cannot load 16-byte runtime operands",
+        },
+    },
+    PendingCanary {
+        path: "comptime/const_array_length_bare_call_arm",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "transition target `burn` not found in current machine",
+        },
+    },
+    PendingCanary {
+        path: "concurrency/spawn_struct_result_miscompiled",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+];
