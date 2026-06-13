@@ -98,6 +98,43 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                 ));
             }
 
+            // ATOMICS STAGE 1 (ch17, M2): `atomic_place.load(ordering)` is the
+            // IDENTITY on the place (reads the value). On x86_64, Relaxed/
+            // Acquire/Release/AcqRel loads are plain aligned `mov` -- the
+            // ordering argument is accepted syntactically but collapsed here.
+            // SeqCst load is also a plain mov on x86_64 (only SeqCst STORE
+            // requires mfence/xchg). `load` is not reserved at data/machine
+            // definition sites so this rewrite only fires for the exact
+            // one-argument call form; `x.load` stays an ordinary member read.
+            if member.as_str() == "load" && rest.at_punctuation(PunctuationKind::LeftParen) {
+                let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
+                if !after_open.at_punctuation(PunctuationKind::RightParen) {
+                    // Consume the single ordering argument (an identifier like
+                    // `Relaxed`, `Acquire`, etc.) -- we only validate the
+                    // argument count here; the identifier itself is not
+                    // type-checked (it is dropped).
+                    let (_, after_ord) = parse_expression_handle(syntax_trees, after_open)?;
+                    if after_ord.at_punctuation(PunctuationKind::RightParen) {
+                        input = after_ord.take_punctuation(PunctuationKind::RightParen, ")")?;
+                        // `expression` stays unchanged -- load() is the identity.
+                        continue;
+                    }
+                }
+                return Err(after_open.error_here(
+                    "`load` takes exactly one ordering argument: e.g. `self.counter.load(Relaxed)`",
+                ));
+            }
+
+            // ATOMICS STAGE 1 (ch17, M2): `atomic_place.store(value, ordering)`
+            // is a write to the place.  The ordering argument is consumed and
+            // dropped.  On x86_64 Relaxed/Acquire/Release/AcqRel stores are
+            // plain aligned `mov`; SeqCst store uses `xchg` or `mfence+mov`
+            // (not yet differentiated here -- all orderings lower to plain mov
+            // in stage 1). The Call node with target "store" is preserved so
+            // the statement parser can recognise it and convert it into an
+            // Assignment statement (`place = value`).
+            // `x.store` without a following `(` stays an ordinary member read.
+
             input = rest;
             expression =
                 syntax_trees

@@ -1,0 +1,34 @@
+// RUN canary (ch17 "Atomics" / concurrency stage 1, M2): AtomicU32 store then
+// load round-trips correctly. `store(value, Relaxed)` writes the value;
+// `load(Relaxed)` reads it back. On x86_64 all orderings up to AcqRel lower
+// to a plain aligned `mov` -- the C11 memory model allows this because x86
+// Total Store Order already provides acquire-release without extra fences.
+// SeqCst store would require `xchg` or `mfence+mov` (documented frontier).
+//
+// Guard ladder: load result matches stored value (exit 70), or exits 71
+// on mismatch (should never fire on a correct implementation).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    counter: AtomicU32;
+}
+
+machine Main::main(&mut self) {
+    self.counter.store(42, Relaxed);
+    let v: u32 = self.counter.load(Relaxed);
+
+    transition v == 42 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

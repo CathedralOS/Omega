@@ -79,6 +79,21 @@ pub(super) fn parse_statement_handle<'tokens, 'source>(
 
     let (expression, input) = parse_expression_handle(syntax_trees, input)?;
 
+    // ATOMICS STAGE 1 (ch17, M2): `atomic_place.store(value, ordering);` is
+    // desugared here into `atomic_place = value;`. The postfix parser keeps
+    // the Call node intact (target="store", 2 arguments) so we can detect it.
+    // On x86_64 all orderings currently lower to a plain aligned `mov` -- see
+    // the postfix.rs comment for the SeqCst / mfence frontier.
+    if let Some(assignment) = try_desugar_atomic_store(syntax_trees, expression) {
+        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        return Ok((
+            syntax_trees
+                .statements
+                .insert(StatementNode::Assignment(assignment)),
+            input,
+        ));
+    }
+
     if input.at_punctuation(PunctuationKind::Equal) {
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
         let (value, input) = parse_expression_handle(syntax_trees, input)?;
@@ -388,6 +403,49 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
             })),
         input,
     ))
+}
+
+/// ATOMICS STAGE 1 (ch17, M2): Recognise `atomic_place.store(value, ordering)`
+/// -- a Call expression with target name `"store"` and exactly two arguments
+/// (the value to write and the ordering identifier) -- and desugar it into an
+/// Assignment of the receiver place to the first argument. Returns `None` for
+/// any other expression, leaving it to the normal statement paths.
+fn try_desugar_atomic_store(
+    syntax_trees: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+) -> Option<TableAssignment> {
+    let ExpressionNode::Call(ref call) = *syntax_trees.expressions.expression(expression) else {
+        return None;
+    };
+    if call.target.as_str() != "store" {
+        return None;
+    }
+    let argument_count = syntax_trees
+        .tables
+        .expressions
+        .expression_handles(call.arguments)
+        .len();
+    if argument_count != 2 {
+        // Not the atomic store shape (wrong arity); fall through to normal
+        // call-statement or error path.
+        return None;
+    }
+    // The first argument is the value to store; the second is the ordering
+    // (accepted syntactically, ignored in codegen for now).
+    let value = syntax_trees
+        .tables
+        .expressions
+        .expression_handles(call.arguments)[0];
+    let receiver = call.receiver;
+    // receiver must be a valid place expression (member/indexed path). If it
+    // is not, `None` lets the statement parser continue normally.
+    if !receiver.is_valid() {
+        return None;
+    }
+    Some(TableAssignment {
+        target: receiver,
+        value,
+    })
 }
 
 fn expression_handle_to_statement_call(
