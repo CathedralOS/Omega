@@ -4,7 +4,9 @@ use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::state::{
     parse_optional_return_type, parse_optional_state_parameters, parse_state,
 };
-use crate::parser::statement::{parse_statement_handle, try_parse_atomic_fetch_add_let};
+use crate::parser::statement::{
+    parse_statement_handle, try_parse_atomic_compare_exchange_let, try_parse_atomic_fetch_add_let,
+};
 use crate::parser::transition::parse_transition_block_handles;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
@@ -219,6 +221,18 @@ fn parse_implicit_entry_statements<'tokens, 'source>(
         // expands to two statements (capture prior + increment).
         } else if let Some((new_statements, rest)) =
             try_parse_atomic_fetch_add_let(syntax_trees, input)
+        {
+            if statement_count == 0 {
+                statement_start = new_statements.start();
+            }
+            statement_count = statement_count
+                .checked_add(new_statements.count())
+                .expect("state statement span count overflow");
+            input = rest;
+        // ATOMICS STAGE 1 (ch17, M4): `let name: T = place.compare_exchange(expected, new_val, succ_ord, fail_ord);`
+        // expands to two statements (capture prior + conditional swap).
+        } else if let Some((new_statements, rest)) =
+            try_parse_atomic_compare_exchange_let(syntax_trees, input)
         {
             if statement_count == 0 {
                 statement_start = new_statements.start();
