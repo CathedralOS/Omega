@@ -1,0 +1,45 @@
+// Version-match EXHAUSTIVENESS, counted side: the decidable arm set of a
+// `Versioned<Counter>` subject is {each declared era vN} + {current}. One
+// arm per declared era PLUS the current arm is a complete era set, so the
+// dispatch compiles WITHOUT `_` -- the version analogue of
+// pass/data/match_exhaustive_by_cases.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    version v1 {
+        counter: i32;
+    }
+
+    version v2 {
+        counter: i64;
+        flags: i32;
+    }
+
+    count: i32;
+    timestamp: i32;
+}
+
+data Main {
+    console: Console;
+    raw: Versioned<Counter>;
+}
+
+machine Main::main(&mut self) {
+    transition self.raw {
+        Counter::v1(old) -> old_era(old.counter)
+        Counter::v2(mid) -> mid_era(mid.flags)
+        Counter(current) -> new_era(current.count)
+    }
+    state old_era(&mut self, counter: i32) {
+        self.console.exit_process(70);
+    }
+    state mid_era(&mut self, flags: i32) {
+        self.console.exit_process(71);
+    }
+    state new_era(&mut self, count: i32) {
+        self.console.exit_process(72);
+    }
+}

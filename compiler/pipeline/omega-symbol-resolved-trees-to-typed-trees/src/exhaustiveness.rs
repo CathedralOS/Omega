@@ -75,6 +75,11 @@ enum ArmShape {
     Default,
     /// A classification over a case-bearing subject.
     Claim(CaseClaim),
+    /// A version match arm over a `Versioned<T>` subject (frozen decision
+    /// 14): the parser desugars `Counter::v1(old)` / `Counter(current)` into
+    /// a marker membership, so the era an arm covers is still recognizable
+    /// here.
+    Version(VersionClaim),
     /// No case-domain content (boolean guards, value compares, domains over
     /// record types). Contributes nothing and decides nothing by itself.
     Opaque,
@@ -89,6 +94,19 @@ struct CaseClaim {
     /// `None` when the arm touches the sum but cannot be counted (predicate
     /// domain, `if`-guarded pattern, mixed-subject conjunction).
     covered: Option<Vec<usize>>,
+}
+
+struct VersionClaim {
+    /// The payload data type the arm names (`Counter` of a
+    /// `Counter::v1(old)` / `Counter(current)` arm).
+    type_name: String,
+    /// The matched subject expression (each arm holds a parser copy).
+    subject: ExpressionHandle,
+    /// The era index the arm covers (decision-10 numbering: `vN` = zero-based
+    /// declaration index, current = the number of declared blocks), or `None`
+    /// when the arm names an unknown era or a type without version blocks --
+    /// the typed lowering owns those diagnostics, so the run is not counted.
+    era: Option<usize>,
 }
 
 /// What one membership LEAF (`subject in Path`) contributes.
@@ -115,6 +133,7 @@ fn check_dispatch_run(
     }
 
     let mut claims: Vec<CaseClaim> = Vec::new();
+    let mut version_claims: Vec<VersionClaim> = Vec::new();
     let mut has_opaque_arm = false;
 
     for guard in run {
@@ -123,9 +142,12 @@ fn check_dispatch_run(
             // matter what the other arms rely on.
             ArmShape::Default => return Ok(()),
             ArmShape::Claim(claim) => claims.push(claim),
+            ArmShape::Version(claim) => version_claims.push(claim),
             ArmShape::Opaque => has_opaque_arm = true,
         }
     }
+
+    check_version_dispatch_coverage(program, &version_claims, has_opaque_arm)?;
 
     // Check coverage per claimed sum type (one dispatch normally classifies
     // one subject; tuple dispatches can touch several).
@@ -184,6 +206,177 @@ fn check_dispatch_run(
     Ok(())
 }
 
+/// Exhaustiveness over VERSION match arms: the decidable arm set of a
+/// `Versioned<T>` subject is {each declared era `vN`} + {current}, so a run
+/// of version arms with no `_` must cover every era. Diagnostics the typed
+/// lowering owns (unknown eras, mixed container types, plain subjects) make
+/// the run uncountable here and stand the check down.
+fn check_version_dispatch_coverage(
+    program: &SymbolResolvedTrees,
+    claims: &[VersionClaim],
+    has_opaque_arm: bool,
+) -> Result<(), Diagnostic> {
+    if claims.is_empty() {
+        return Ok(());
+    }
+
+    // Any arm whose era cannot be resolved (unknown era name, type without
+    // version blocks) defers to the typed lowering's own error.
+    if claims.iter().any(|claim| claim.era.is_none()) {
+        return Ok(());
+    }
+
+    // Two version arms naming DIFFERENT types over one subject is a
+    // wrong-container error the typed lowering names precisely; counting
+    // either type's eras here would bury it under a coverage message.
+    for (index, claim) in claims.iter().enumerate() {
+        for other in &claims[index + 1..] {
+            if claim.type_name != other.type_name
+                && expressions_structurally_equal(program, claim.subject, other.subject)
+            {
+                return Ok(());
+            }
+        }
+    }
+
+    let mut checked: Vec<&str> = Vec::new();
+    for claim in claims {
+        if checked.contains(&claim.type_name.as_str()) {
+            continue;
+        }
+        checked.push(claim.type_name.as_str());
+
+        // A subject with a DETERMINABLE non-container type is the typed
+        // lowering's chapter-21 legality error, not a coverage gap.
+        let container_name = omega_core::versioning::versioned_container_name(&claim.type_name);
+        if let Some(subject_type) = crate::expression::version_membership::subject_declared_type_name(
+            program,
+            &program.tables.bodies.expressions,
+            claim.subject,
+        ) && subject_type != container_name
+        {
+            continue;
+        }
+
+        let declared_versions = declared_versions(program, &claim.type_name);
+        // Eras: one per declared `version vN` block, plus the CURRENT shape.
+        let mut covered = vec![false; declared_versions.len() + 1];
+        let mut has_uncounted_arm = false;
+
+        for other in claims {
+            if other.type_name != claim.type_name {
+                continue;
+            }
+            // All counted arms must classify the SAME subject; a second
+            // subject of the same container type cannot pool coverage.
+            if !expressions_structurally_equal(program, claim.subject, other.subject) {
+                has_uncounted_arm = true;
+                continue;
+            }
+            if let Some(era) = other.era
+                && era < covered.len()
+            {
+                covered[era] = true;
+            }
+        }
+
+        let uncovered: Vec<usize> = (0..covered.len())
+            .filter(|era| !covered[*era])
+            .collect();
+        if uncovered.is_empty() {
+            continue;
+        }
+
+        let type_name = claim.type_name.as_str();
+        if has_uncounted_arm || has_opaque_arm {
+            return Err(Diagnostic::error(format!(
+                "match over `Versioned<{type_name}>` is not exhaustive: it relies on arms the compiler cannot count (predicate domains, guarded patterns, or value compares); add a `_` arm"
+            )));
+        }
+
+        let described = uncovered
+            .iter()
+            .map(|era| match declared_versions.get(*era) {
+                Some(version) => format!("era `{version}`"),
+                None => "the current era".to_owned(),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let suggested_arm = match declared_versions.get(uncovered[0]) {
+            Some(version) => format!("{type_name}::{version}(value)"),
+            None => format!("{type_name}(value)"),
+        };
+        return Err(Diagnostic::error(format!(
+            "match over `Versioned<{type_name}>` does not cover {described}; add a `{suggested_arm}` arm or `_`"
+        )));
+    }
+
+    Ok(())
+}
+
+/// Classify a version arm's marker membership: which payload type it names
+/// and which era it covers. Unknown eras and types without version blocks
+/// yield `era: None` (uncountable -- the typed lowering owns the error).
+fn classify_version_arm(
+    program: &SymbolResolvedTrees,
+    membership: &resolved::expression::TableMembershipExpression,
+) -> VersionClaim {
+    let members = program
+        .tables
+        .bodies
+        .expressions
+        .name_path_members(membership.domain);
+    let (type_name, version_name) = match members {
+        [type_name, _marker] => (type_name.as_str(), None),
+        [type_name, version, _marker] => (type_name.as_str(), Some(version.as_str())),
+        _ => {
+            return VersionClaim {
+                type_name: String::new(),
+                subject: membership.value,
+                era: None,
+            };
+        }
+    };
+
+    let declared_versions = declared_versions(program, type_name);
+    // Decision-10 era assignment, mirroring the executable lowering
+    // (`crate::expression::version_membership`): vN = zero-based declaration
+    // index; the current shape = the number of declared blocks.
+    let era = if declared_versions.is_empty() {
+        None
+    } else {
+        match version_name {
+            Some(version) => declared_versions
+                .iter()
+                .position(|declared| *declared == version),
+            None => Some(declared_versions.len()),
+        }
+    };
+
+    VersionClaim {
+        type_name: type_name.to_owned(),
+        subject: membership.value,
+        era,
+    }
+}
+
+/// The declared eras of `type_name`, in declaration order (the historical
+/// version shapes are data definitions named `Type::vN`).
+fn declared_versions<'program>(
+    program: &'program SymbolResolvedTrees,
+    type_name: &str,
+) -> Vec<&'program str> {
+    program
+        .data_definitions
+        .iter()
+        .filter_map(|definition| {
+            omega_core::versioning::split_version_shape_name(definition.name.as_str())
+                .filter(|(data_name, _)| *data_name == type_name)
+                .map(|(_, version)| version)
+        })
+        .collect()
+}
+
 fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> ArmShape {
     let TransitionGuardNode::When(expression) = guard else {
         return ArmShape::Default;
@@ -193,6 +386,18 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
     flatten_binary(program, *expression, BinaryOperator::And, &mut conjuncts);
 
     if let [conjunct] = conjuncts[..] {
+        // A version match arm is always the WHOLE pattern (the parser rejects
+        // any other embedding), so the marker membership can only appear as
+        // the lone conjunct.
+        if let ExpressionNode::Membership(membership) =
+            program.tables.bodies.expressions.expression(conjunct)
+            && crate::expression::version_membership::is_version_arm_domain(
+                &program.tables.bodies.expressions,
+                membership.domain,
+            )
+        {
+            return ArmShape::Version(classify_version_arm(program, membership));
+        }
         return match classify_membership_union(program, conjunct) {
             Some(claim) => ArmShape::Claim(claim),
             None => ArmShape::Opaque,
