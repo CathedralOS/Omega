@@ -10,6 +10,108 @@ The Theseus-style goal is direct: if a component can be safely replaced without
 rebooting the world, Omega should have language concepts for expressing and
 checking that replacement.
 
+## The Decided Model
+
+This section is the settled design; the sections below it are the earlier
+exploration that led here and are superseded where they conflict. Syntax is
+provisional; the obligations are the point.
+
+Two concerns stay separate:
+
+- **Wire data ([chapter 20](chapter_20_wire_protocols.md))** owns persisted and
+  external data — save files, protocols, on-disk snapshots, anything that may be
+  found many versions old. It is self-versioning (stable field numbers, a
+  reserved version id, reader tolerance). A five-versions-stale persisted value
+  is wire data's problem, not this chapter's.
+- **Versioned data (this chapter)** owns *live in-memory state* across a hot
+  swap. A live component is always at the last-installed version, so a runtime
+  upgrade is **single-step**: `prev -> current`. No migration chain, no
+  multi-version dispatch, no runtime graph-completeness check — skipped releases
+  for a live component are applied as sequential single-steps, or refused. (The
+  chain and coexistence sketches below were solving wire data's multi-version
+  problem and do not apply to live state.)
+
+### Shape identity and freeze
+
+A historical shape's identity is the **content hash of its canonical layout**,
+not a linear `vN`. The hash is recorded in a build lockfile, never written in
+source; a human label is provenance only. Editing a shape that has shipped drifts
+its recorded hash and is a **compile error** — past shapes are immutable; you
+append a new one. (Avro fingerprints / Unison / Flyway checksums, fired at
+compile time.)
+
+### One upgrade trait, context optional
+
+```omega
+trait Upgradable<Old, New, Context = Nothing> {
+    machine upgrade(old: Old, ctx: Context, out: &mut New)
+        requires exclusive(old)
+        ensures  out in New::Valid;     // generic over New: monomorphizes to prove
+                                        // each concrete output type's invariants
+}
+```
+
+`migrate(old, out)` is the context-free special case (`Context = Nothing`).
+Resolution is by the `(Old, New[, Context])` TYPE, never a magic name — the
+`from_v1`-style name and the `migrates` clause below are retired. `New::Valid` is
+the output type's author-declared invariant domain ([chapter 8](chapter_8_domains.md));
+because the trait carries `ensures out in New::Valid`, every impl is forced to
+discharge that specific type's invariants with no per-impl boilerplate.
+Context-free migrations are co-located in the data's TU; contextual upgrades are
+co-located with the context's owner or the replacement plan.
+
+### Context: IO becomes data before the upgrade
+
+When old state alone is not enough — a driver needs the device's current queue
+heads, an editor import needs runtime/project facts — the missing data is
+captured *first*, as a typed value, by an effectful **capture** machine. The
+upgrade itself stays pure over `(Old, Context)`.
+
+```omega
+sealed data IrqCtx { route: IrqRoute; rx_head: u32; pending_dma: Vec<DmaDescriptor> }
+// sealed: ONLY capture can construct an IrqCtx. Holding one is proof it was
+// captured -- provenance by construction, not by a forgeable value-predicate.
+
+machine capture_irq(old: &NetState.prev, dev: &mut Nic, sched: &Scheduler) -> IrqCtx
+    requires old in NetState::Quiescent
+    effects  device_io, sync_wait, alloc;   // IO lives HERE, declared, fallible
+
+machine upgrade_net(old: NetState.prev, ctx: IrqCtx, out: &mut NetState)
+    satisfies Upgradable<NetState.prev, NetState, IrqCtx>
+    requires exclusive(old)
+    effects  alloc                          // pure over (old, ctx): no device_io here
+    ensures  out in NetState::Valid { ... }
+```
+
+Because `upgrade_net` requires an `IrqCtx` and only `capture_irq` can mint one,
+**capture is not skippable** — there is no fabricable context to pass. IO never
+happens invisibly inside the upgrade; it is a declared-effect capture phase whose
+output is data.
+
+### Replacement is an owned, checked plan
+
+A swap is not a freeform machine; it is a closed plan the compiler verifies and
+the OS gates on an upgrade capability:
+
+```omega
+replace NetDriver.prev with NetDriver
+    quiesce                 // ensures old in NetState::Quiescent
+    capture capture_irq     // requires Quiescent [from quiesce]; mints the IrqCtx
+    upgrade upgrade_net      // requires the IrqCtx + exclusive(old); ensures Valid
+    // install requires Valid [from upgrade]
+```
+
+The compiler checks each phase's `requires` is discharged by a prior phase's
+`ensures` (quiesce -> capture -> upgrade -> install); a reordered, incomplete, or
+context-skipping plan does not compile. `capture` is the only fallible point and
+aborts before `old` is mutated, so rollback is "did nothing." The context-free
+case auto-derives its plan (`quiesce -> upgrade -> install`); you hand-write the
+plan only when there is a `capture` to place — that is what "own the pipeline"
+means, and it loses no static check. The runtime swap itself (rebinding the code
+image) is privileged and performed only for a verified plan held under the
+upgrade capability; there is no unguarded swap path. The swap-safety obligations
+listed further below are exactly what the plan discharges.
+
 ## Machines As Swap Points
 
 Machines are the natural hot-swap boundary because they are stable behavior
