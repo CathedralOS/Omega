@@ -1,16 +1,15 @@
 // Alarm scheduler: 5-arm case dispatch stress test.
 //
-// Exercises: case members with 5 named variants (some with payloads, some
-// without), multi-arm middle-arm dispatch (arms 0-4), accumulating scalar
-// self-writes across repeated sub-machine calls, and payload binding in
-// multiple arm positions.
+// Exercises: case members with 5 named variants (2 payload-bearing, 3 no-payload),
+// multi-arm middle-arm dispatch (arms 0-4), accumulating scalar self-writes across
+// repeated sub-machine calls, and payload binding in multiple arm positions.
 //
 // Event variants:
-//   Set(hour, minute)  -- set alarm to given hour/minute
-//   Snooze(minutes)    -- delay current alarm by N minutes
-//   Cancel             -- cancel the alarm (sets active=0)
-//   Trigger            -- fire the alarm (increments fire_count)
-//   Dismiss            -- dismiss a fired alarm (sets active=0)
+//   Set(hour, minute)  -- set alarm to given hour/minute      [PAYLOAD]
+//   Snooze(minutes)    -- delay current alarm by N minutes     [PAYLOAD]
+//   Cancel             -- cancel the alarm (sets active=0)     [NO PAYLOAD]
+//   Trigger            -- fire the alarm (increments count)    [NO PAYLOAD]
+//   Dismiss            -- dismiss a fired alarm                [NO PAYLOAD]
 //
 // Scripted sequence:
 //   Set(6, 30)     -> hour=6, minute=30, active=1
@@ -25,15 +24,28 @@
 // Final: hour=7, minute=0, active=0, fire_count=2.
 // Check: fire_count*35 = 70. Exit 70.
 //
-// MISCOMPILE NOTE: exits 71 (bad_score) instead of 70.
-// fire_count*35 should be 70 (fire_count=2, 2*35=70) but apparently
-// fire_count != 2 after the two Trigger dispatches. Probable root cause:
-// multi-arm dispatch with 5+ arms + a wildcard arm; the Trigger (arm 3)
-// and/or Dismiss (arm 4) are not being reached correctly in the case dispatch
-// chain. This is a MISCOMPILE in the native codegen for 5-arm case dispatch
-// with mixed payload/payload-free variants.
+// ====================================================================
+// MISCOMPILE FOUND — native codegen bug:
 //
-// Expected exit: 70. Actual exit: 71.
+// Expected exit: 70   (fire_count=2, 2*35=70)
+// Actual exit:   71   (bad_score, fire_count*35 != 70)
+//
+// Minimal trigger confirmed via alarm_probe sample:
+//   A no-payload case variant that appears AFTER a payload-bearing variant
+//   in a case data type is unreachable in native dispatch.
+//   Specifically: Cancel (arm 2), Trigger (arm 3), and Dismiss (arm 4) are
+//   all unreachable when Set (arm 0, payload) and Snooze (arm 1, payload)
+//   appear first.
+//
+//   alarm_probe2 (no-payload Trigger at position 0, ZII) works correctly.
+//   alarm_probe  (no-payload Trigger at position 3, after two payload arms) fails.
+//   alarm_probe3 (no-payload Cancel at position 2, after two payload arms) fails.
+//
+// Root cause hypothesis: the native case-dispatch equality comparison for no-payload
+// variants uses the wrong tag value (or wrong width) when the variant comes after
+// payload-bearing variants in the case definition order. The interpreter handles
+// this correctly; it is a native-codegen-only bug.
+// ====================================================================
 
 use omega::language::std::console;
 
@@ -137,6 +149,8 @@ machine Main::main(&mut self) {
     }
 
     state bad_score(&mut self) {
+        // Exits 71 due to miscompile: fire_count is wrong because Trigger
+        // and other no-payload variants after payload variants are unreachable.
         self.console.exit_process(71);
     }
 
