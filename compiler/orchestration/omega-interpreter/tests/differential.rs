@@ -805,6 +805,39 @@ fn interpreter_matches_native_on_game_of_life_sample() {
     assert_eq!(native_code, 70, "game_of_life should exit 70 (block is a still-life)");
 }
 
+/// Bouncing ball: 1D integer-position ball in [0,9], starting at pos=0 vel=3, 8 steps.
+/// Bounces off upper wall (pos=18-new, vel flips) and lower wall (pos=-new, vel flips).
+/// After 8 steps: pos=6, exit=6+64=70. Exercises inequality guards and vel sign flip.
+#[test]
+fn interpreter_matches_native_on_bouncing_ball_sample() {
+    let main_path = repo_root()
+        .join("samples")
+        .join("bouncing_ball")
+        .join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "bouncing_ball compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "bouncing_ball should be fully supported by the interpreter, got: {:?}",
+        outcome.error
+    );
+
+    let (native_code, _native_stdout, _native_stderr) =
+        compile_and_run_native("bouncing_ball", &main_path);
+    assert_eq!(
+        outcome.exit_code, native_code,
+        "bouncing_ball exit code: interp {} != native {native_code}",
+        outcome.exit_code
+    );
+    assert_eq!(native_code, 70, "bouncing_ball should exit 70");
+}
+
 /// The dungeon script the canary suite's PE test could use to visit R00..R04: four `north`
 /// moves walk the main hall chain, then `quit`.
 const DUNGEON_SCRIPT: &[u8] = b"north\r\nnorth\r\nnorth\r\nnorth\r\nquit\r\n";
