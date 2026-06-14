@@ -1052,8 +1052,37 @@ fn initial_value_blocks_inline_fold(
     initial_value: ExpressionHandle,
 ) -> bool {
     match input.program.expression_table.expression(initial_value) {
-        ExpressionNode::Call(call) => !matches!(call.target.as_str(), "as_slice" | "as_mut_slice"),
         ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_) => true,
+        // A result-producing call ANYWHERE in the initializer (the whole call, or
+        // one nested inside a binary/cast like `let r = base + f(6) * 3`) owns a
+        // computed frame slot. Folding such a local back into its initializer and
+        // re-materializing it in the TARGET state would re-evaluate the call --
+        // whose result scratch lives in the SOURCE state's frame and is not
+        // reproducible there -- so the argument silently fails to land. Keep the
+        // local as a place so its slot is COPIED instead. (`as_slice`/`as_mut_slice`
+        // views must still fold so the slice materialization sees the receiver.)
+        _ => expression_contains_result_call(&input.program.expression_table, initial_value),
+    }
+}
+
+/// Whether an expression tree contains a result-producing call (any call except
+/// the `as_slice`/`as_mut_slice` view builders). Used to decide a let-binding
+/// must not be inline-folded during argument resolution.
+fn expression_contains_result_call(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
+    match table.expression(expression) {
+        ExpressionNode::Call(call) => !matches!(call.target.as_str(), "as_slice" | "as_mut_slice"),
+        ExpressionNode::Binary(binary) => {
+            expression_contains_result_call(table, binary.left)
+                || expression_contains_result_call(table, binary.right)
+        }
+        ExpressionNode::Cast(cast) => expression_contains_result_call(table, cast.value),
+        ExpressionNode::Unary(unary) => expression_contains_result_call(table, unary.operand),
+        ExpressionNode::Mutable(inner) => expression_contains_result_call(table, *inner),
+        ExpressionNode::Indexed(indexed) => {
+            expression_contains_result_call(table, indexed.collection)
+                || expression_contains_result_call(table, indexed.index)
+        }
+        ExpressionNode::Member(member) => expression_contains_result_call(table, member.receiver),
         _ => false,
     }
 }

@@ -1,0 +1,47 @@
+// RUN CANARY (exit 70). A local whose initializer CONTAINS a value call
+// (`let r1 = self.base + self.calc.double_val(6) * 3`) passed as a TRANSITION
+// ARGUMENT to another state must copy the local's slot, not be folded back into
+// its initializer and re-materialized in the target state.
+//
+// Regression guard: argument resolution folded such a local into its
+// initializer and tried to re-evaluate it in the TARGET state -- but the
+// embedded call's result scratch lives in the SOURCE state's frame and is not
+// reproducible there, so the target's parameter slot was never written (it held
+// garbage) and the program miscompiled (native exit 73). Only a TOP-LEVEL call
+// blocked the fold; a call nested in a binary did not. Fixed by blocking the
+// inline fold whenever the initializer contains a result-producing call, so the
+// local stays a place and its slot is copied into the parameter.
+// See wiki/architecture/value_call_in_binary_slot_collision.md.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Calc {}
+
+data Main {
+    console: Console;
+    base: i32;
+    calc: Calc;
+}
+
+machine Calc::double_val(&mut self, n: i32) -> i32 {
+    transition {
+        _ -> (n * 2)
+    }
+}
+
+machine Main::main(&mut self) {
+    self.base = 10;
+    let r1: i32 = self.base + self.calc.double_val(6) * 3;  // 46
+    transition r1 == 46 {
+        true -> step2(r1)
+        _ -> bad()
+    }
+    state step2(&mut self, r1: i32) {
+        transition r1 == 46 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
