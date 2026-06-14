@@ -1,0 +1,65 @@
+# Native miscompile: value-call result as a binary operand (slot-name collision)
+
+Found 2026-06-14 by the end-to-end sample lane. Repros (committed, with headers):
+`samples/value_call_in_expr` (exit 72), `samples/dual_accumulator_recursion`
+(exit 73). NOT yet fixed — root-caused precisely; the obvious fix regresses, so
+it is left for a targeted change.
+
+## Symptom
+
+A value-call result used as an operand of a BINARY expression computes the wrong
+value, even though the call's result is correct in isolation:
+
+```
+let dv6 = self.calc.double_val(6);              // 12  -- correct alone
+let r1  = self.base + self.calc.double_val(6) * 3;  // should be 46, reads wrong
+```
+
+## Root cause (verified from slots.txt + the emission)
+
+A `let` binding whose initializer **contains a call but is not solely the call**
+gets TWO frame slots that BOTH carry the binding's name/symbol:
+
+- a `StateCallResult` scratch slot — the embedded call's result (e.g. `12`), and
+- a `LocalStorage` slot — where the full binary expression's value is written
+  (e.g. `46`).
+
+Every place that resolves the binding by name (the dispatch GUARD via
+`omega-state-guards/operands/layout.rs`, and the TRANSITION-ARGUMENT read via
+`omega-instruction-selection ... storage_places.rs::find_runtime_frame_slot_for_path`)
+does a first-match `find_map` over `frame_slots` and lands on the
+`StateCallResult` scratch slot — which holds only the partial (call) value — not
+the `LocalStorage` slot that holds the real value. So `r1` reads `12`, not `46`.
+
+A BARE-call binding (`let dv6 = double_val(6)`) is immune because its call result
+is copied into the local slot, so both slots hold the same value.
+
+## Why the obvious fix is wrong
+
+Making the two name-based resolvers "prefer `LocalStorage`" fixes
+`value_call_in_expr` (→ exit 70) but **regresses 16 canaries** (including the
+dungeon crawler): some call-result bindings populate ONLY the `StateCallResult`
+slot (the value is never copied into the `LocalStorage` slot), so preferring
+`LocalStorage` reads an uninitialized local. The slot-population invariant is
+inconsistent across binding shapes, so a blanket read-preference is unsafe.
+(The `omega-state-guards` half alone is regression-free but, on its own, only
+moves `value_call_in_expr` from exit 72 to 73 — the transition-arg read is the
+other half — so it is not worth landing without the matching selection fix.)
+
+## Correct fix direction (targeted, not yet done)
+
+Do NOT change the read-preference. Instead, at slot ALLOCATION, an embedded
+call's `StateCallResult` scratch slot should NOT inherit the binding's
+name/symbol when the initializer is a larger expression (only a bare-call
+binding's call-result slot legitimately *is* the binding). The scratch slot is
+referenced for WRITING by position (`call_result_slot_by_ordinal`,
+`statement_index`), not by name, so dropping its name breaks nothing — and then
+every name-based read resolves unambiguously to the real `LocalStorage` slot.
+Alternatively, guarantee the call result is always copied into the binding's
+`LocalStorage` slot (making the invariant consistent) and then prefer
+`LocalStorage`. Either way it is a slot-planner change, with the f32/variant
+canaries as the regression guard.
+
+`dual_accumulator_recursion` (two bare-call results summed: `sum + sum_sq`) may
+be a SEPARATE facet — both operands are bare-call locals, so the name-collision
+analysis above does not obviously apply; investigate independently when fixing.
