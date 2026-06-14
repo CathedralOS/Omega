@@ -15,18 +15,20 @@
 //
 // MISCOMPILE FOUND (2026-06-14):
 //   Expected exit: 70  (sum == 50)
-//   Actual exit:   71  (wrong sum)
+//   Actual exit:   71  (sum_result != 50)
 //
 // Minimal trigger: a recursive value-returning machine that passes `acc + s[0]`
 // as the accumulator in the tail-call `sum(s[1..], acc + s[0])`. The accumulator
-// does not accumulate correctly at native runtime -- the sum reads as something
-// other than 50 despite the dataset being [5, 10, 15, 20].
+// does not reach the correct value on native x64 -- sum over [5,10,15,20] reads
+// as something other than 50.
 //
-// The interpreter (differential oracle) presumably produces 50. The miscompile
-// is in native x64 code generation for the binary `acc + s[0]` argument in
-// a tail-recursive value-returning dispatch.
+// The interpreter presumably produces 50 (differential oracle would confirm this).
+// The miscompile is in native x64 code generation: the binary expression
+// `acc + s[0]` as an argument in a tail-recursive value-returning dispatch
+// is miscompiled. The separate `count` call (which only uses `acc + 1`) also
+// fails, exiting 71 before reaching the count check.
 //
-// Expected exit: 70 (ACTUAL: 71 -- miscompile).
+// Expected exit: 70 (ACTUAL: 71 -- confirmed miscompile).
 
 use omega::language::std::console;
 
