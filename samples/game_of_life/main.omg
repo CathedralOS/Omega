@@ -1,0 +1,77 @@
+// Conway's Game of Life on a 4x4 flat grid ([i32; 16], row-major).
+//
+// Seed pattern: 2x2 Block (still-life) at rows 1-2, cols 1-2:
+//
+//   . . . .      index layout:  0  1  2  3
+//   . X X .                     4  5  6  7
+//   . X X .                     8  9 10 11
+//   . . . .                    12 13 14 15
+//
+// Alive cells: board[5]=1, board[6]=1, board[9]=1, board[10]=1.
+// All others: 0.
+//
+// Rules: alive survives with 2 or 3 neighbors; dead born with exactly 3.
+//
+// The 2x2 block is a still-life: after any number of generations the board
+// is identical to the seed. After 1 generation, the same 4 cells are alive.
+//
+// Checksum = sum of all 16 cells = 4.
+// Exit code = checksum + 66 = 70.
+//
+// Step 1 (this commit): initialize board, compute checksum, exit.
+//   No generation step yet -- verifies array init and sum.
+//
+// Expected exit: 70.
+
+use omega::language::std::console;
+
+data Grid [copy, zero_init] {
+    board: [i32; 16];
+    next: [i32; 16];
+    offset: i32;
+}
+
+data Main {
+    console: Console;
+    g: Grid;
+}
+
+// Initialize the board with the 2x2 block still-life at positions 5,6,9,10.
+machine Main::init_board(&mut self) {
+    self.g.board[5] = 1;
+    self.g.board[6] = 1;
+    self.g.board[9] = 1;
+    self.g.board[10] = 1;
+    self.g.offset = 66;
+}
+
+// Compute sum of all 16 board cells.
+machine Main::checksum(&mut self) -> i32 {
+    transition {
+        _ -> (
+            self.g.board[0] + self.g.board[1] + self.g.board[2] + self.g.board[3] +
+            self.g.board[4] + self.g.board[5] + self.g.board[6] + self.g.board[7] +
+            self.g.board[8] + self.g.board[9] + self.g.board[10] + self.g.board[11] +
+            self.g.board[12] + self.g.board[13] + self.g.board[14] + self.g.board[15]
+        )
+    }
+}
+
+machine Main::main(&mut self) {
+    self.init_board();
+    let sum: i32 = self.checksum();
+    let code: i32 = sum + self.g.offset;
+
+    transition code == 70 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
