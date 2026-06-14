@@ -90,9 +90,33 @@ Neither is a one-turn change (operand-representation change spans the builder,
 the trait, and both ISAs), but it is the difference between fixing f32 bugs
 one canary at a time forever and removing the soil they grow in.
 
+## A second face of the same smell: stale static-value fold across calls
+
+Found 2026-06-14 (`calls/sequential_self_field_rmw_stale_fold`): a sub-machine
+that does `self.s.total = self.s.total + 1`, called N times sequentially,
+re-reads the entry/ZII value of `total` each call instead of the prior call's
+write (accumulator stuck at 1). The within-one-body version of this was fixed
+earlier (`invalidate_runtime_static_value` on a binary write — the
+`v=v+5; v=v-3` case), but the per-call-context static-value state RESETS to
+entry/ZII across a call boundary, so the fold re-derives a field's value from
+entry state rather than reading live storage. Same root as above: a value is
+RE-DERIVED (here from entry static state) instead of THREADED from the
+authoritative live location. The static-value-fold optimization is itself a
+re-derivation that must be invalidated wherever live storage diverges from the
+entry snapshot — and call boundaries are one such place it currently misses.
+
+This is why one-off patches don't hold for this class: each site that
+re-derives (width, type, slot, static-fold value) is a separate place the
+same mistake can recur. The remediation below addresses the width/type axis;
+the static-fold axis wants the analogous treatment (a single "is this place's
+entry snapshot still valid here?" authority, invalidated at every divergence
+point including call boundaries) rather than per-site invalidation patches.
+
 ## Status
 
-Not yet implemented. The f32 canaries (`expressions/f32_*`,
-`float_array_binary_op_zero`) remain pending and are the concrete acceptance
-tests for remediation level 1: when scalar width is threaded, they should all
-pass together. See session_review_2026_06_12.md §1c for the per-canary roots.
+Not yet implemented. Acceptance tests for remediation:
+- width/type axis: the f32 canaries (`expressions/f32_*`,
+  `float_array_binary_op_zero`) pass together when scalar width is threaded.
+- static-fold axis: `calls/sequential_self_field_rmw_stale_fold` passes when
+  the entry-snapshot fold is invalidated across call boundaries.
+See session_review_2026_06_12.md §1c for the per-canary roots.
