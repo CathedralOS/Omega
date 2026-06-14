@@ -67,6 +67,29 @@ swap/fetch_sub/and/or) must become a real `LOCK`-prefixed instruction
 (`LOCK xadd` / `LOCK cmpxchg`). Flagged in the canary headers + a tracked
 task chip. Do NOT ship concurrency on the desugar RMWs.
 
+TURNKEY RECIPE (do this WITH the scheduler, when atomicity is testable against
+real interleaving — not before; there is no observable difference single-threaded):
+1. STOP desugaring at parse. `try_parse_atomic_fetch_add_let` /
+   `try_parse_atomic_compare_exchange_let` (omega-tokens-to-syntax-trees
+   parser/statement.rs) expand into ordinary statement pairs today. Instead emit
+   a dedicated atomic-RMW node that survives lowering, carrying {place,
+   delta-or-(expected,new), ordering, returns-old}.
+2. Add an atomic-RMW storage op-kind and thread it abstract -> target ->
+   assigned -> machine-instructions, exactly like the float
+   `WriteRuntimeStorageConvert` op-kind was added: a new storage-write op-kind
+   must ALSO be added to BOTH emission-planning blocker lists (storage_blockers
+   + runtime_text_blockers) or it errors "needs lowering" despite emitting.
+3. x86_64 emission: `LOCK XADD r/m,r` (F0 0F C1 /r) for fetch_add; `LOCK
+   CMPXCHG r/m,r` (F0 0F B1 /r, rax = expected, ZF/result handling) for
+   compare_exchange. Add the width fn + relocation record (reloc offset fns live
+   in BOTH omega-instruction-selection widths.rs AND omega-relocations/offsets —
+   keep in lockstep).
+4. aarch64: `LDADD`/`CAS` (ARMv8.1-LSE) or an LL/SC `LDXR`/`STXR` loop, or a loud
+   "not implemented" error if no canary needs it yet.
+5. Interpreter: model the op (single-threaded, value semantics already match the
+   old desugar — keep returning the prior value). Register a RUN canary in
+   canary_suite.rs AND differential.rs (drift guard).
+
 ## 1c. Float-codegen pending canaries — investigation 2026-06-14
 
 In-session diagnosis of the three open f32 pending canaries (the env's
