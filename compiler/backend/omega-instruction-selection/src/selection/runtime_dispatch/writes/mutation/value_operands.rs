@@ -8,7 +8,8 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
-    classify_scalar_value_type_in_table, resolve_runtime_pointee_slot_offset_in_table,
+    classify_scalar_value_type_in_table, combine_binary_operand_scalar_types,
+    resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_primitive_type_in_table,
 };
@@ -54,6 +55,29 @@ pub(super) fn binary_value_operands_are_float(
         )
         .is_some_and(|primitive| primitive.accepts_float_literal())
     })
+}
+
+/// The resolved scalar byte width of a binary value operand's result, computed
+/// ONCE here from the operands' scalar types and threaded onto
+/// `RuntimeValueOperand::Binary` so the float emission picks `addss` (4) vs
+/// `addsd` (8) instead of hardcoding a width at the ISA. Defaults to 8 when the
+/// operand types do not resolve (the prior behavior; the integer arm ignores
+/// this and keeps its own operand-derived width).
+pub(super) fn binary_value_operand_byte_width(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> usize {
+    let left_type =
+        classify_scalar_value_type_in_table(input, dispatch_index, source_key, expressions, left);
+    let right_type =
+        classify_scalar_value_type_in_table(input, dispatch_index, source_key, expressions, right);
+    combine_binary_operand_scalar_types(left_type, right_type)
+        .and_then(convert_scalar_byte_size)
+        .unwrap_or(8)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -148,6 +172,14 @@ pub(super) fn resolve_runtime_value_operand_in_table(
             left_expr,
             right_expr,
         );
+        let byte_width = binary_value_operand_byte_width(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            left_expr,
+            right_expr,
+        );
         // A case-name equality (the lowered form of `in`) compares the TAG
         // only; the place operand must not read payload bytes.
         clamp_runtime_case_comparison_operands_in_table(
@@ -165,6 +197,7 @@ pub(super) fn resolve_runtime_value_operand_in_table(
             operator,
             right,
             is_float,
+            byte_width,
         }));
     }
 
@@ -249,11 +282,20 @@ pub(super) fn resolve_runtime_value_operand_in_table(
                 left_expr,
                 right_expr,
             );
+            let byte_width = binary_value_operand_byte_width(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                left_expr,
+                right_expr,
+            );
             return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
                 left,
                 operator,
                 right,
                 is_float,
+                byte_width,
             }));
         }
 
@@ -435,6 +477,8 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
         operator: omega_abstract_operations::StateGuardOperator::Equal,
         right: zero,
         is_float: false,
+        // Integer 0/1 bool compare; width is unread by the integer emission arm.
+        byte_width: 1,
     }))
 }
 
@@ -572,6 +616,8 @@ pub(super) fn resolve_runtime_value_operand(
             // Non-table value-operand path: float detection not wired here yet;
             // float arithmetic via this fallback stays a known gap.
             is_float: false,
+            // Integer arm derives its own width; default 8 matches prior behavior.
+            byte_width: 8,
         }));
     }
 
@@ -624,6 +670,8 @@ pub(super) fn resolve_runtime_value_operand(
             // Non-table value-operand path: float detection not wired here yet;
             // float arithmetic via this fallback stays a known gap.
             is_float: false,
+            // Integer arm derives its own width; default 8 matches prior behavior.
+            byte_width: 8,
         }));
     }
 

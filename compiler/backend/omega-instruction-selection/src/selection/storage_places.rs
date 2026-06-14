@@ -665,28 +665,34 @@ pub(super) fn classify_scalar_value_type_in_table(
                 expressions,
                 binary.right,
             );
-            // Prefer a place-resolved operand (its width is exact) over a bare
-            // literal (which defaults to the widest f64/i64); a float on either side
-            // makes the result float.
-            match (left, right) {
-                (Some(l), Some(r)) if l.accepts_float_literal() && !r.accepts_float_literal() => {
-                    Some(l)
-                }
-                (Some(l), Some(r)) if r.accepts_float_literal() && !l.accepts_float_literal() => {
-                    Some(r)
-                }
-                (Some(l), Some(r)) => {
-                    // Same float-ness: take the narrower (place-resolved) width.
-                    if scalar_primitive_rank(r) < scalar_primitive_rank(l) {
-                        Some(r)
-                    } else {
-                        Some(l)
-                    }
-                }
-                (l, r) => l.or(r),
-            }
+            combine_binary_operand_scalar_types(left, right)
         }
         _ => None,
+    }
+}
+
+/// Combine two operands' classified scalar types into the binary's result type.
+/// Prefer a place-resolved operand (its width is exact) over a bare literal
+/// (which defaults to the widest f64/i64); a float on either side makes the
+/// result float. Shared by `classify_scalar_value_type_in_table`'s `Binary`
+/// arm and the value-operand width helper so they agree on ONE answer (the
+/// scalar-width-rederivation smell — see wiki/architecture).
+pub(super) fn combine_binary_operand_scalar_types(
+    left: Option<PrimitiveType>,
+    right: Option<PrimitiveType>,
+) -> Option<PrimitiveType> {
+    match (left, right) {
+        (Some(l), Some(r)) if l.accepts_float_literal() && !r.accepts_float_literal() => Some(l),
+        (Some(l), Some(r)) if r.accepts_float_literal() && !l.accepts_float_literal() => Some(r),
+        (Some(l), Some(r)) => {
+            // Same float-ness: take the narrower (place-resolved) width.
+            if scalar_primitive_rank(r) < scalar_primitive_rank(l) {
+                Some(r)
+            } else {
+                Some(l)
+            }
+        }
+        (l, r) => l.or(r),
     }
 }
 

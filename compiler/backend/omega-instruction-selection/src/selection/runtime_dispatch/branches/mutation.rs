@@ -1160,6 +1160,8 @@ fn resolve_runtime_value_operand_in_table(
                 right,
                 // Branch-arm value operand: float detection not wired on this path yet.
                 is_float: false,
+                // Integer arm derives its own width; default 8 matches prior behavior.
+                byte_width: 8,
             }));
         }
         ExpressionNode::Call(call) => {
@@ -1196,6 +1198,8 @@ fn resolve_runtime_value_operand_in_table(
                 right,
                 // Branch-arm value operand: float detection not wired on this path yet.
                 is_float: false,
+                // Integer arm derives its own width; default 8 matches prior behavior.
+                byte_width: 8,
             }));
         }
         _ => {}

@@ -44,6 +44,11 @@ pub trait RuntimeValueOperandSource {
     /// Returns false for non-binary operands. Kept separate from `binary()` so the
     /// existing tuple accessor (and its many callers) stays unchanged.
     fn binary_is_float(&self, handle: RuntimeValueOperandHandle) -> bool;
+    /// The resolved scalar byte width of a `Binary` operand's result, threaded
+    /// from build time so the float emission picks single (`addss`) vs double
+    /// (`addsd`) precision instead of re-deriving/hardcoding it. `None` for
+    /// non-binary operands; callers default to 8 (the historical width).
+    fn binary_byte_width(&self, handle: RuntimeValueOperandHandle) -> Option<usize>;
     /// A `Convert` (numeric cast) operand: `(source, source_byte_size,
     /// target_byte_size, source_is_float, target_is_float, source_signed)`.
     fn convert(
@@ -189,6 +194,13 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
             self.get(handle),
             RuntimeValueOperand::Binary { is_float: true, .. }
         )
+    }
+
+    fn binary_byte_width(&self, handle: RuntimeValueOperandHandle) -> Option<usize> {
+        match self.get(handle) {
+            RuntimeValueOperand::Binary { byte_width, .. } => Some(*byte_width),
+            _ => None,
+        }
     }
 
     fn text_equals(

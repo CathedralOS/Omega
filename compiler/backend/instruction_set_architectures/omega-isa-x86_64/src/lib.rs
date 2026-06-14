@@ -4292,10 +4292,14 @@ fn append_runtime_value_operand(
         append_pop_r10(bytes); // restore left -> r10
         if runtime_value_operands.binary_is_float(operand) {
             // Float operands carry their IEEE bits in r10/r11; do the SSE op on the
-            // bits (addsd/...) rather than an integer add over them. Default f64
-            // width (8); f32 value-operand arithmetic is a further gap. MUST match
-            // runtime_float_binary_operation_width() used in the width fn above.
-            append_runtime_float_binary_operation(bytes, operator, 8)?;
+            // bits (addss/addsd/...) rather than an integer add over them. The width
+            // is threaded from build time (set once from the operands' scalar type),
+            // so f32 picks `addss`/`movss` (4) and f64 picks `addsd`/`movsd` (8) —
+            // no longer hardcoded. The encoded length is identical for both widths
+            // (runtime_float_binary_operation_width() == 19), so relocation offsets
+            // are unaffected.
+            let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
+            append_runtime_float_binary_operation(bytes, operator, byte_width)?;
         } else {
             // Comparisons use the operand width; other nested binaries do not carry
             // their result width, so assume 64-bit (matches runtime_value_operand_

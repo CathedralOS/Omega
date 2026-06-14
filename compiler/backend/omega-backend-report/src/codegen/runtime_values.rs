@@ -98,8 +98,9 @@ pub(super) fn runtime_value_operand_name(
             operator,
             right,
             is_float,
+            byte_width,
         } => format!(
-            "({} {operator:?}{} {})",
+            "({} {operator:?}{}/{byte_width} {})",
             runtime_value_operand_name(backend_plan, *left),
             if *is_float { " f" } else { "" },
             runtime_value_operand_name(backend_plan, *right),

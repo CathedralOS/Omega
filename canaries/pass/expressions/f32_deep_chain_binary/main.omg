@@ -1,0 +1,39 @@
+// RUN CANARY (exit 70). Guards the scalar-width-rederivation fix at depth: a
+// left-associative f32 chain `a + b + c + d` (parsed `((a+b)+c)+d`) used in a
+// guard comparison `s > 9.5`. Each nested binary now threads its resolved
+// 4-byte width, so every level emits single-precision `addss` instead of the
+// old hardcoded `addsd` over f32 bit patterns. Depth 3 was the level at which
+// the re-derivation stopped agreeing (depth 2 happened to work before).
+//
+// Before the fix: native exited 71 (wrong XMM result, the guard failed); the
+// interpreter always exited 70. See
+// wiki/architecture/scalar_width_rederivation_smell.md.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: f32;
+    b: f32;
+    c: f32;
+    d: f32;
+}
+
+machine Main::main(&mut self) {
+    self.a = 1.0;
+    self.b = 2.0;
+    self.c = 3.0;
+    self.d = 4.0;
+
+    // Left-chain: ((a+b)+c)+d = 10.0
+    let s: f32 = self.a + self.b + self.c + self.d;
+    transition s > 9.5 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
