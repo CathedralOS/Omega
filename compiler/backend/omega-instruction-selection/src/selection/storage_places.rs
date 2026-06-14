@@ -667,6 +667,16 @@ pub(super) fn classify_scalar_value_type_in_table(
             );
             combine_binary_operand_scalar_types(left, right)
         }
+        // A nested cast (`(self.src as f64) as i32` after `wide` is folded into
+        // the outer cast) has the type of its TARGET. Without this, the outer
+        // cast's source-width re-derivation returned None and the entire write
+        // was silently dropped (the f32->f64-local->i32 miscompile). The
+        // `as`-value resolves via its own Convert selection; here we only need
+        // its result type so a CONSUMING cast can size its source.
+        ExpressionNode::Cast(cast) => expressions
+            .name_path_members(cast.target_type)
+            .last()
+            .and_then(|name| PrimitiveType::from_name(name.as_str())),
         _ => None,
     }
 }
