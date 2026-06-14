@@ -20,7 +20,13 @@
 //   Exit 76 = standalone double_val(6) check (passes = 12 is correct alone).
 //
 // Expected exit: 70.
-// Actual exit:   72 (r1 miscompile)
+// UPDATE 2026-06-14: the CORE slot-name-collision bug (r1's guard reading the
+// embedded call's scratch slot) is FIXED in the slot planner; r1 now passes.
+// This 6-state stress chain now exits 73 on a SEPARATE facet: passing `r1` as a
+// transition ARGUMENT into the next state (its param slot is not materialized).
+// Tracked in wiki/architecture/value_call_in_binary_slot_collision.md; the
+// isolated core fix is guarded by calls/value_call_embedded_in_binary_exit.
+// Actual exit (was 72): 73 (cross-state arg-materialization facet)
 
 use omega::language::std::console;
 

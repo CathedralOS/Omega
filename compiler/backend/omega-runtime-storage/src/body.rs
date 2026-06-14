@@ -1,6 +1,6 @@
 use super::{RuntimeFrameSlot, RuntimeStorageContext, RuntimeStoragePlan};
 use crate::model::RuntimeFrameSlotKind;
-use omega_checked_trees::expression::ExpressionTableCapacity;
+use omega_checked_trees::expression::{ExpressionNode, ExpressionTable, ExpressionTableCapacity};
 use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::StatementNode;
 use omega_checked_trees::types::{FixedArrayLength, TypeReferenceHandle};
@@ -979,7 +979,46 @@ fn call_result_slot_symbol_and_name(
         return None;
     };
 
+    // Only a BARE-call binding (`let dv6 = self.f(6)`) may name its call-result
+    // slot after the binding: there the binding's value IS the call result.
+    // When the call is EMBEDDED in a larger initializer (`let r1 = self.base +
+    // self.f(6) * 3`), the binding's value lives in its own LocalStorage slot
+    // (where the full expression is written); the call-result slot is only
+    // scratch for the embedded call. Naming that scratch after the binding made
+    // every name-based read of `r1` (guards, transition arguments) resolve to
+    // the scratch slot -- which holds the partial (call) value -- instead of the
+    // local. Leave the scratch anonymous (the caller falls back to a generated
+    // `__call_result` name); the call result is written by POSITION
+    // (call_result_slot_by_ordinal), never by this name, so nothing else breaks.
+    // See wiki/architecture/value_call_in_binary_slot_collision.md.
+    if !local_data.initial_value.is_valid() {
+        return None;
+    }
+    let initializer = strip_mutable_expression_node(
+        context
+            .program
+            .expression_table
+            .expression(local_data.initial_value),
+        &context.program.expression_table,
+    );
+    if !matches!(initializer, ExpressionNode::Call(_)) {
+        return None;
+    }
+
     Some((local_data.symbol, local_data.name.clone()))
+}
+
+/// Peel `Mutable` wrappers so a `let x = self.f()` whose initializer is parsed as
+/// `Mutable(Call)` is still recognised as a bare call.
+fn strip_mutable_expression_node<'tree>(
+    node: &'tree ExpressionNode,
+    table: &'tree ExpressionTable,
+) -> &'tree ExpressionNode {
+    let mut node = node;
+    while let ExpressionNode::Mutable(inner) = node {
+        node = table.expression(*inner);
+    }
+    node
 }
 
 fn local_slot_exists(
