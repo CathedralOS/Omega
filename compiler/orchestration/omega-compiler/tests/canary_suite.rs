@@ -10428,6 +10428,20 @@ struct PendingCanary {
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    // Stale-static-fold across sequential sub-machine calls (found 2026-06-14
+    // by the integer/case sample lane via dice_roller). A sub-machine that
+    // reads a self field, adds a constant, and writes the SAME field
+    // (`self.s.total = self.s.total + 1`), called N times sequentially,
+    // re-reads the entry/ZII value each call instead of the prior call's
+    // write -- the per-call-context static-value fold resets to entry state
+    // across the call boundary. Same FAMILY as the scalar-width-rederivation
+    // smell (wiki/architecture/scalar_width_rederivation_smell.md): a value
+    // re-derived from entry static state instead of threaded from live
+    // storage. Compiles; runs wrong (native 72, interpreter 70).
+    PendingCanary {
+        path: "calls/sequential_self_field_rmw_stale_fold",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
     // FLOAT-CODEGEN miscompiles (found 2026-06-12 by the float-breadth bug
     // hunt). All compile (CurrentlyAccepts) but run wrong (native 71,
     // interpreter 70). Cluster: float binary ops whose operands are
