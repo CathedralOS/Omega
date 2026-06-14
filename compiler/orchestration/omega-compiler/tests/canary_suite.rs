@@ -10574,14 +10574,19 @@ struct PendingCanary {
 //   runtime_const_array_length_bare_call_arm_exit (parenthesized lone-call
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
-// No active pending canaries: every tracked native miscompile has been fixed
-// and promoted to a pass RUN canary. The f32 scalar-width family
-// (f32_field_binary_to_local_cast, f32_deep_chain_binary, f32_to_f64_local_cast)
-// closed 2026-06-14 by threading the resolved scalar width / classifying casts;
-// the sequential self-field RMW stale-fold was verified already fixed and
-// promoted to calls/sequential_self_field_rmw_exit. Add new known-but-unfixed
-// miscompiles here (CurrentlyAccepts) so the suite tracks them honestly.
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
+// The f32 scalar-width family + the sequential self-field RMW stale-fold all
+// closed 2026-06-14 and are now pass RUN canaries. The one remaining pending
+// entry is a native/interpreter DIVERGENCE (not a one-sided miscompile) whose
+// fix is gated on a maintainer SEMANTICS decision about i32 overflow in a
+// nested value operand -- see the canary header. Tracked as CurrentlyAccepts
+// (it compiles); deliberately NOT a RUN canary until the semantics is settled,
+// so the differential oracle is not asked to adjudicate an undecided question.
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    PendingCanary {
+        path: "expressions/nested_i32_mul_overflow_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+];
 
 // =============================================================================
 // ch17 Atomics (concurrency stage 1) RUN canaries
