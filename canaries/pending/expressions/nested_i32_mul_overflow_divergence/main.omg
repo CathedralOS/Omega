@@ -1,0 +1,54 @@
+// PENDING CANARY -- native/interpreter DIVERGENCE on i32 overflow in a nested
+// value operand. Found 2026-06-14 probing the "integer-arm nested-binary width"
+// re-derivation site named in wiki/architecture/scalar_width_rederivation_smell.md.
+//
+// `(self.a * self.b) % 7` with a = b = 100000, so a*b = 10_000_000_000, which
+// overflows i32 (max ~2.1e9). The multiply is a NESTED value operand feeding
+// the `%`, never stored to an i32 slot in between, so the two backends treat
+// the intermediate width differently:
+//   - NATIVE x64: wraps the nested i32 multiply to 32 bits (1410065408), then
+//     1410065408 % 7 = 3  -> exits 73.
+//   - INTERPRETER: computes the multiply at full width (10e9), then
+//     10e9 % 7 = 4        -> exits 74.
+//
+// This is NOT auto-caught by the differential oracle because the canary is not
+// registered as a RUN canary (and must not be until the semantics is decided).
+// A STORED intermediate (`let p: i32 = a*b; let r = p % 7;`) does NOT diverge:
+// the interpreter wraps on write to `p`, so both give 3. Only the unstored
+// nested intermediate differs.
+//
+// RESOLUTION IS A SEMANTICS DECISION (maintainer): which of
+//   1. i32 arithmetic wraps at every op (Rust/C fixed-width) -> NATIVE is
+//      correct; the interpreter must wrap intermediate arithmetic to the
+//      operand width, not only on write (an interpreter fix). Consistent with
+//      the existing "wrap-on-write" choice.
+//   2. intermediates widen to a wider accumulator -> the interpreter is
+//      correct and native must stop truncating the nested multiply.
+//   3. integer overflow is a PROOF OBLIGATION (Omega is proof-heavy) -> this
+//      program is ill-formed and should be REJECTED at compile time; the gap is
+//      in the prover, and neither runtime result is "correct".
+//
+// Until decided, this is tracked as a CurrentlyAccepts pending canary (it
+// compiles). Exit codes are diagnostic (73 = native's wrapped 3, 74 =
+// interpreter's full-width 4, 75 = neither).
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: i32; b: i32; }
+machine Main::main(&mut self) {
+    self.a = 100000;
+    self.b = 100000;
+    let r: i32 = (self.a * self.b) % 7;
+    transition r == 3 {
+        true -> three()
+        _ -> not_three()
+    }
+    state three(&mut self) { self.console.exit_process(73); }
+    state not_three(&mut self) {
+        transition r == 4 {
+            true -> four()
+            _ -> other()
+        }
+    }
+    state four(&mut self) { self.console.exit_process(74); }
+    state other(&mut self) { self.console.exit_process(75); }
+}

@@ -137,8 +137,20 @@ RESOLVED 2026-06-14. Both axes are closed and guarded by pass RUN canaries;
 
 The general lesson stands for future codegen work: thread a resolved property
 on the value representation (set once, read everywhere) rather than
-re-deriving it per site. The remaining re-derivation sites the doc names
-(storage descriptors, the integer-arm operand width) have not bitten yet and
-were left unchanged — fix them the same way if a canary surfaces one.
+re-deriving it per site.
+
+**Integer-arm operand width — PROBED 2026-06-14, it bites, but the fix is
+gated on a semantics decision.** `(self.a * self.b) % 7` with an i32 multiply
+that overflows 32 bits diverges: native wraps the nested multiply to 32 bits
+(result 3), the interpreter computes the intermediate at full width (result 4).
+Unlike the f32 family this is NOT a one-sided miscompile against a known-correct
+oracle — it surfaces an undecided language question (does i32 arithmetic wrap at
+every op, widen intermediates, or is overflow a proof obligation?). Tracked as
+the pending canary `expressions/nested_i32_mul_overflow_divergence` (compiles;
+NOT a RUN canary until the semantics is settled). When decided, the wrap option
+is the same threading fix (carry/apply the operand width on the integer arm too)
+plus an interpreter change to wrap intermediates; the proof-obligation option is
+a prover gap, not a codegen fix. The storage-descriptor re-derivation site
+remains unprobed.
 
 Original per-canary roots: session_review_2026_06_12.md §1c.
