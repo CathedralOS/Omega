@@ -1,0 +1,208 @@
+// stack_vm: tiny stack-based bytecode evaluator.
+//
+// Opcodes (case type):
+//   Push(value: i32)  -- push a constant onto the stack
+//   Add               -- pop two, push sum
+//   Sub               -- pop two, push difference (second - top)
+//   Mul               -- pop two, push product
+//   Dup               -- duplicate top of stack
+//   Pop               -- discard top of stack
+//
+// VM state: fixed [i32; 8] operand stack + sp (stack pointer, -1 = empty).
+//
+// Program (hand-verified, computes (3 + 4) * 2 - 1 = 13):
+//   step 0: Push(3)  -> stack[0]=3,  sp=0
+//   step 1: Push(4)  -> stack[1]=4,  sp=1
+//   step 2: Add      -> pop 4,3; push 7; stack[0]=7, sp=0
+//   step 3: Push(2)  -> stack[1]=2,  sp=1
+//   step 4: Mul      -> pop 2,7; push 14; stack[0]=14, sp=0
+//   step 5: Push(1)  -> stack[1]=1,  sp=1
+//   step 6: Sub      -> pop 1,14; push 13; stack[0]=13, sp=0
+//   step 7: Dup      -> stack[1]=13, sp=1
+//   step 8: Pop      -> sp=0
+//
+// Final: sp=0, stack[0]=13. Exit = 13 + 57 = 70.
+//
+// MISCOMPILE DISCOVERED:
+//   interpreter=70, native=71 (result wrong in native)
+//   Minimal trigger under investigation: multi-arm case dispatch combined with
+//   sequential value-returning calls (pop_val -> top) that each read self.vm.sp
+//   and write self.vm.stack[i] via dispatch chains.
+//   The key combination: case-dispatch extracts `value` payload -> calls push(value)
+//   which does sequential sp write then dispatched stack write. The native backend
+//   appears to produce a wrong final top-of-stack after the full 9-step sequence.
+//
+// Expected exit: 70. Actual native exit: 71.
+
+use omega::language::std::console;
+
+data Opcode {
+    case Push(value: i32);
+    case Add;
+    case Sub;
+    case Mul;
+    case Dup;
+    case Pop;
+}
+
+data Vm [copy, zero_init] {
+    stack: [i32; 8];
+    sp: i32;
+}
+
+data Main {
+    console: Console;
+    vm: Vm;
+}
+
+// Initialize VM: sp = -1 (empty stack).
+machine Main::init(&mut self) {
+    self.vm.sp = 0 - 1;
+}
+
+// Push a value onto the stack.
+machine Main::push(&mut self, value: i32) {
+    let new_sp: i32 = self.vm.sp + 1;
+    self.vm.sp = new_sp;
+    transition new_sp == 0 {
+        true -> push0(value)
+        _ -> try_push1(new_sp, value)
+    }
+    state push0(&mut self, value: i32) { self.vm.stack[0] = value; }
+    state try_push1(&mut self, new_sp: i32, value: i32) {
+        transition new_sp == 1 {
+            true -> push1(value)
+            _ -> try_push2(new_sp, value)
+        }
+    }
+    state push1(&mut self, value: i32) { self.vm.stack[1] = value; }
+    state try_push2(&mut self, new_sp: i32, value: i32) {
+        transition new_sp == 2 {
+            true -> push2(value)
+            _ -> try_push3(new_sp, value)
+        }
+    }
+    state push2(&mut self, value: i32) { self.vm.stack[2] = value; }
+    state try_push3(&mut self, new_sp: i32, value: i32) {
+        transition new_sp == 3 {
+            true -> push3(value)
+            _ -> push4(value)
+        }
+    }
+    state push3(&mut self, value: i32) { self.vm.stack[3] = value; }
+    state push4(&mut self, value: i32) { self.vm.stack[4] = value; }
+}
+
+// Read top of stack (sp slot) as a value-returning machine.
+machine Main::top(&mut self) -> i32 {
+    let sp: i32 = self.vm.sp;
+    transition sp == 0 {
+        true -> (self.vm.stack[0])
+        _ -> try1(sp)
+    }
+    state try1(&mut self, sp: i32) {
+        transition sp == 1 {
+            true -> (self.vm.stack[1])
+            _ -> try2(sp)
+        }
+    }
+    state try2(&mut self, sp: i32) {
+        transition sp == 2 {
+            true -> (self.vm.stack[2])
+            _ -> try3(sp)
+        }
+    }
+    state try3(&mut self, sp: i32) {
+        transition sp == 3 {
+            true -> (self.vm.stack[3])
+            _ -> (self.vm.stack[4])
+        }
+    }
+}
+
+// Pop the top value off the stack (decrements sp, returns old top).
+machine Main::pop_val(&mut self) -> i32 {
+    let v: i32 = self.top();
+    self.vm.sp = self.vm.sp - 1;
+    transition {
+        _ -> (v)
+    }
+}
+
+// Execute one opcode: multi-arm case dispatch.
+machine Main::step(&mut self, op: Opcode) {
+    transition op {
+        Opcode::Push { value } -> do_push(value)
+        Opcode::Add -> do_add()
+        Opcode::Sub -> do_sub()
+        Opcode::Mul -> do_mul()
+        Opcode::Dup -> do_dup()
+        Opcode::Pop -> do_pop()
+        _ -> done()
+    }
+
+    state do_push(&mut self, value: i32) {
+        self.push(value);
+    }
+
+    state do_add(&mut self) {
+        let b: i32 = self.pop_val();
+        let a: i32 = self.pop_val();
+        let result: i32 = a + b;
+        self.push(result);
+    }
+
+    state do_sub(&mut self) {
+        // Sub: second - top (i.e. a - b where b was pushed last).
+        let b: i32 = self.pop_val();
+        let a: i32 = self.pop_val();
+        let result: i32 = a - b;
+        self.push(result);
+    }
+
+    state do_mul(&mut self) {
+        let b: i32 = self.pop_val();
+        let a: i32 = self.pop_val();
+        let result: i32 = a * b;
+        self.push(result);
+    }
+
+    state do_dup(&mut self) {
+        let v: i32 = self.top();
+        self.push(v);
+    }
+
+    state do_pop(&mut self) {
+        self.vm.sp = self.vm.sp - 1;
+    }
+
+    state done(&mut self) {}
+}
+
+machine Main::main(&mut self) {
+    // Initialize VM.
+    self.init();
+
+    // Run program: (3 + 4) * 2 - 1 = 13.
+    self.step(Opcode::Push { value: 3 });
+    self.step(Opcode::Push { value: 4 });
+    self.step(Opcode::Add);
+    self.step(Opcode::Push { value: 2 });
+    self.step(Opcode::Mul);
+    self.step(Opcode::Push { value: 1 });
+    self.step(Opcode::Sub);
+    self.step(Opcode::Dup);
+    self.step(Opcode::Pop);
+
+    // Read top-of-stack: should be 13.
+    let result: i32 = self.top();
+    let code: i32 = result + 57;
+
+    transition code == 70 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
