@@ -1,0 +1,64 @@
+// PENDING CANARY -- currently miscompiles on native (exits 72 instead of 70).
+//
+// Bug: when a machine performs a READ-MODIFY-WRITE on a self field
+// (reads the field, computes a new value, writes back to the SAME field),
+// and is called multiple times in sequence from the same caller, subsequent
+// calls see the INITIAL (pre-first-call) value of the field rather than the
+// value written by the prior call.
+//
+// Shape: `self.s.total = self.s.total + 1` inside `accum()`.
+// Called 5 times from main; the stale-static fold keeps total==0 for all
+// reads inside `accum()`, so each call computes 0+1=1 and the final total
+// is 1, not 5.
+//
+// Reproduced during sample authoring (dice_roller sample v1, 2026-06-14).
+// Workaround: inline the accumulation into chained `let`-bindings in the
+// caller body rather than delegating to sequential sub-machine calls.
+//
+// NOTE: this bug does NOT trigger when the sub-machine writes DIFFERENT fields
+// on each call (that pattern works correctly; see score_tracker sample), NOR
+// when the CALLER reads the field across calls (e.g. number_guess step() works
+// because it reads lo/hi at the top, not from a prior write by the same sub-
+// machine frame). The bug requires the SAME sub-machine to read AND write the
+// SAME field in the same dispatch scope.
+//
+// Interpreter: exits 70 (correct -- total == 5 after 5 increments).
+// Native x64: exits 72 (total != 5; stale fold gives total == 1).
+//
+// Not registered in canary_suite.rs -- add to the registry when fixing.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data S [copy, zero_init] {
+    total: i32;
+}
+
+data Main {
+    console: Console;
+    s: S;
+}
+
+// Increment self.s.total by 1. When called N times sequentially,
+// self.s.total should equal N. On native the stale-fold bug gives total==1.
+machine Main::accum(&mut self) {
+    self.s.total = self.s.total + 1;
+}
+
+machine Main::main(&mut self) {
+    self.accum();
+    self.accum();
+    self.accum();
+    self.accum();
+    self.accum();
+
+    // Correct: total == 5.
+    transition self.s.total == 5 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(72); }
+}
