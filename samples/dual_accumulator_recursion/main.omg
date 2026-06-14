@@ -1,0 +1,139 @@
+// Dual-accumulator recursion: exercises TWO independent tail-recursive
+// value-returning machines with different accumulator arithmetic,
+// both called sequentially and their results combined in an expression.
+//
+// MISCOMPILE FOUND 2026-06-14:
+//   `sum_result + sum_sq_result` in `do_total` exits 73 (wrong) even though
+//   both individual guard checks (sum==15, sum_sq==55) pass, and re-checks in
+//   `compute_final` and `check_sq_in_final` also pass. The binary ADD of the
+//   two locally-bound value-call results computes the wrong value at the
+//   machine-code level even though each slot reads correctly in isolation.
+//
+//   Expected exit: 70 (sum=15, sum_sq=55, sum+sum_sq=70)
+//   Actual exit:   73 (do_total guard total==70 fails)
+//
+// Minimal trigger: two sequential value-returning recursive calls stored into
+//   `sum_result` and `sum_sq_result`, both verified individually as correct
+//   (in guard transitions they read back correctly), but `sum_result +
+//   sum_sq_result` used in a binary arithmetic expression produces the wrong
+//   answer at runtime.
+//
+// Fresh combination:
+//   - Two sequential recursive value-returning calls with different accumulator
+//     arithmetic shapes (linear: acc+s[0] vs quadratic: acc+s[0]*s[0]).
+//   - Both results combined in a final arithmetic expression.
+//
+// Dataset: [1, 2, 3, 4, 5]
+//   sum(s, 0)    = 1+2+3+4+5 = 15
+//   sum_sq(s, 0) = 1+4+9+16+25 = 55
+//
+// Expected exit: 70.
+// Exit 71 = sum wrong (=15 check failed)
+// Exit 72 = sum_sq wrong (=55 check failed)
+// Exit 74 = sum_result wrong in compute_final (stale slot / misread)
+// Exit 75 = sum_sq_result wrong in check_sq_in_final (stale slot / misread)
+// Exit 73 = total != 70 in do_total (binary arith miscompile -- both guards passed but sum wrong)
+
+use omega::language::std::console;
+
+data Recursor {}
+
+data Main {
+    console: Console;
+    data: [i32; 5];
+    r: Recursor;
+}
+
+// Recursive: sum all elements (linear accumulator: acc + s[0]).
+machine Recursor::sum(&mut self, s: &[i32], acc: i32) -> i32
+terminates {
+    decreases s -> Slice::Length;
+}
+{
+    transition s.len > 0 {
+        true -> sum(s[1..], acc + s[0])
+        false -> acc
+    }
+}
+
+// Recursive: sum of squares (quadratic accumulator: acc + s[0]*s[0]).
+machine Recursor::sum_sq(&mut self, s: &[i32], acc: i32) -> i32
+terminates {
+    decreases s -> Slice::Length;
+}
+{
+    transition s.len > 0 {
+        true -> sum_sq(s[1..], acc + s[0] * s[0])
+        false -> acc
+    }
+}
+
+machine Main::main(&mut self) {
+    // Populate the array: [1, 2, 3, 4, 5]
+    self.data[0] = 1;
+    self.data[1] = 2;
+    self.data[2] = 3;
+    self.data[3] = 4;
+    self.data[4] = 5;
+
+    // First recursive value-returning call: compute sum.
+    let s: &[i32] = self.data.as_slice();
+    let sum_result: i32 = self.r.sum(s, 0);
+
+    // Second recursive value-returning call: compute sum of squares.
+    let s2: &[i32] = self.data.as_slice();
+    let sum_sq_result: i32 = self.r.sum_sq(s2, 0);
+
+    // Verify sum = 15.
+    transition sum_result == 15 {
+        true -> check_sum_sq()
+        _ -> bad_sum()
+    }
+
+    state bad_sum(&mut self) { self.console.exit_process(71); }
+
+    state check_sum_sq(&mut self) {
+        // Verify sum_sq = 55.
+        transition sum_sq_result == 55 {
+            true -> compute_final()
+            _ -> bad_sum_sq()
+        }
+    }
+
+    state bad_sum_sq(&mut self) { self.console.exit_process(72); }
+
+    state compute_final(&mut self) {
+        // Re-check sum_result is still 15 in this state.
+        transition sum_result == 15 {
+            true -> check_sq_in_final()
+            _ -> bad_final_sum()
+        }
+    }
+
+    state bad_final_sum(&mut self) { self.console.exit_process(74); }
+
+    state check_sq_in_final(&mut self) {
+        // Re-check sum_sq_result is still 55 in this state.
+        transition sum_sq_result == 55 {
+            true -> do_total()
+            _ -> bad_final_sq()
+        }
+    }
+
+    state bad_final_sq(&mut self) { self.console.exit_process(75); }
+
+    state do_total(&mut self) {
+        // total = sum_result + sum_sq_result = 15 + 55 = 70.
+        // MISCOMPILE: both values pass individual guards above yet their
+        // binary sum yields the wrong result here.
+        let total: i32 = sum_result + sum_sq_result;
+        transition total == 70 {
+            true -> good()
+            _ -> bad_final()
+        }
+    }
+
+    state bad_final(&mut self) { self.console.exit_process(73); }
+
+    state good(&mut self) { self.console.exit_process(70); }
+}
