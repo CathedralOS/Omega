@@ -67,6 +67,36 @@ swap/fetch_sub/and/or) must become a real `LOCK`-prefixed instruction
 (`LOCK xadd` / `LOCK cmpxchg`). Flagged in the canary headers + a tracked
 task chip. Do NOT ship concurrency on the desugar RMWs.
 
+## 1c. Float-codegen pending canaries — investigation 2026-06-14
+
+In-session diagnosis of the three open f32 pending canaries (the env's
+agent-death cycle made agent fixes unviable; investigated directly). Findings
+sharpen the roots but no fix landed — recorded so the next attempt is targeted:
+
+- The three do NOT share a root, and NONE is the nested-operand-width gap I
+  first suspected. A speculative fix for that gap (deriving f32 width in
+  `append_runtime_value_operand`'s nested float-binary arm instead of the
+  hardcoded `8` at isa-x86_64 lib.rs ~4298) fixed ZERO of them and was
+  reverted (no dead code).
+- `f32_field_binary_to_local_cast_wrong` (`let c: f32 = self.a + self.b`):
+  a TOP-LEVEL f32 storage-binary-write whose target is a LOCAL slot. f32
+  writes to a FIELD target work (runtime_f32_arithmetic passes), so the root
+  is in the f32 storage-binary-write LOCAL-target path
+  (encode_runtime_storage_binary_write / its target-place resolution), not
+  the operand path.
+- `f32_to_f64_local_cast_wrong` (`f32 as f64` to a local): the cast-to-local
+  width/convert path; likely shares the local-target machinery with the
+  above.
+- `f32_deep_chain_binary_wrong` (`a+b+c+d`, depth 3): a DISTINCT root —
+  depth-2 works, depth-3 fails, f64 depth-4 works, and the GUARD compare is
+  wrong (so the XMM/r10 result is wrong, not just the store). Not width
+  (the width fix didn't touch it). Suspect the push/pop r10 nesting or an
+  xmm clobber that only manifests at 3+ nested levels.
+- SEPARATELY CONFIRMED latent gap (code-comment-acknowledged at isa-x86_64
+  lib.rs ~4298): nested float binary operands hardcode f64 width (`addsd`)
+  regardless of f32. No current canary exercises it (the 3 above hit other
+  paths); worth its own canary + the width-derivation fix when touched.
+
 ## 2. Blocking decisions — only you (still open in TASKS.md register)
 
 - **C2–C5** (concurrency): task unit = spawned machine; structured Join
