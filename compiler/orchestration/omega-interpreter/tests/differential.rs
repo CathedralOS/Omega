@@ -838,6 +838,42 @@ fn interpreter_matches_native_on_bouncing_ball_sample() {
     assert_eq!(native_code, 70, "bouncing_ball should exit 70");
 }
 
+/// Two sequential tail-recursive value-returning calls bound to locals
+/// (`sum_result`, `sum_sq_result`) that are read only in a later sub-state and
+/// combined in a binary (`sum_result + sum_sq_result`). Pins the fix for the
+/// state-storage bug where the SECOND value-call-result local got no frame slot
+/// (it was used only in a transition target state, which the liveness scan did
+/// not traverse) -- the binary then read garbage. Exit 70.
+#[test]
+fn interpreter_matches_native_on_dual_accumulator_sample() {
+    let main_path = repo_root()
+        .join("samples")
+        .join("dual_accumulator_recursion")
+        .join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "dual_accumulator_recursion compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "dual_accumulator_recursion should be supported by the interpreter, got: {:?}",
+        outcome.error
+    );
+
+    let (native_code, _native_stdout, _native_stderr) =
+        compile_and_run_native("dual_accumulator_recursion", &main_path);
+    assert_eq!(
+        outcome.exit_code, native_code,
+        "dual_accumulator exit code: interp {} != native {native_code}",
+        outcome.exit_code
+    );
+    assert_eq!(native_code, 70, "dual_accumulator should exit 70 (15 + 55)");
+}
+
 /// The dungeon script the canary suite's PE test could use to visit R00..R04: four `north`
 /// moves walk the main hall chain, then `quit`.
 const DUNGEON_SCRIPT: &[u8] = b"north\r\nnorth\r\nnorth\r\nnorth\r\nquit\r\n";

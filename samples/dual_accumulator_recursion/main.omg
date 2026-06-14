@@ -2,21 +2,20 @@
 // value-returning machines with different accumulator arithmetic,
 // both called sequentially and their results combined in an expression.
 //
-// MISCOMPILE FOUND 2026-06-14:
-//   `sum_result + sum_sq_result` in `do_total` exits 73 (wrong) even though
-//   both individual guard checks (sum==15, sum_sq==55) pass, and re-checks in
-//   `compute_final` and `check_sq_in_final` also pass. The binary ADD of the
-//   two locally-bound value-call results computes the wrong value at the
-//   machine-code level even though each slot reads correctly in isolation.
+// MISCOMPILE FOUND AND FIXED 2026-06-14 -- now exits 70.
+//   `sum_result + sum_sq_result` in `do_total` exited 73: the SECOND sequential
+//   recursive value-call result local (`sum_sq_result`) was never allocated a
+//   frame slot, so the binary read it as garbage. The individual guards passed
+//   only because their values are constant-foldable.
 //
-//   Expected exit: 70 (sum=15, sum_sq=55, sum+sum_sq=70)
-//   Actual exit:   73 (do_total guard total==70 fails)
-//
-// Minimal trigger: two sequential value-returning recursive calls stored into
-//   `sum_result` and `sum_sq_result`, both verified individually as correct
-//   (in guard transitions they read back correctly), but `sum_result +
-//   sum_sq_result` used in a binary arithmetic expression produces the wrong
-//   answer at runtime.
+//   ROOT CAUSE (omega-state-storage): `local_data_requires_storage` elided a
+//   local unless a LATER STATEMENT IN THE SAME STATE referenced it -- but
+//   `sum_sq_result` is read only in a transition TARGET state (do_total, which
+//   shares main's frame), which the scan didn't traverse. FIX: also keep
+//   storage when any OTHER state of the machine references the local
+//   (`local_referenced_in_other_machine_states`). General soundness fix: any
+//   local used only in a sibling state was silently miscompiled.
+//   Guarded by interpreter_matches_native_on_dual_accumulator_sample.
 //
 // Fresh combination:
 //   - Two sequential recursive value-returning calls with different accumulator
