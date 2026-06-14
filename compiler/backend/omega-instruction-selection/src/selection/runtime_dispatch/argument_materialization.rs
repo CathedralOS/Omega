@@ -9,7 +9,8 @@ use crate::selection::bindings::{
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::{
-    resolve_fixed_array_length_in_table, resolve_runtime_call_argument_call_result_place,
+    enum_variant_value_in_table, resolve_fixed_array_length_in_table,
+    resolve_runtime_call_argument_call_result_place,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_transition_argument_call_result_place,
@@ -151,6 +152,28 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             resolved_argument.expression,
         );
         let expressions = &resolved_argument_expressions;
+
+        // A NO-PAYLOAD case variant used as a value (`AlarmEvent::Trigger`) is a
+        // bare `Name` path, not a `StructLiteral`, so it never reached the
+        // case-construction branch below -- it fell through to the place-copy
+        // path and read an uninitialized/zero slot. That only "worked" when the
+        // variant's ordinal happened to be 0 (the ZII tag). Construct it here:
+        // write the variant's tag ordinal into the parameter's tag word. (Payload
+        // variants arrive as `StructLiteral` and are handled below; a `Name` that
+        // resolves to a variant is necessarily the no-payload form.)
+        if let Some(tag_value) = enum_variant_value_in_table(&input.layouts, expressions, argument) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                    target_region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: slot.byte_offset,
+                    byte_size: ENUM_TAG_BYTES,
+                    value: tag_value,
+                },
+                source_key,
+                source_statement: statement_index,
+            });
+            continue;
+        }
 
         if emit_runtime_detached_frame_slice_argument_materialization(
             input,
