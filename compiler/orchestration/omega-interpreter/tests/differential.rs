@@ -57,6 +57,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ),
     ("calls/runtime_attached_machine_struct_arg_exit", 70),
     ("calls/by_value_case_param_self_write_exit", 70),
+    ("calls/sequential_self_field_rmw_exit", 70),
     ("calls/runtime_called_machine_loop_search_exit", 70),
     ("calls/runtime_dispatch_binary_call_argument_exit", 70),
     ("calls/runtime_exit_code_exit", 70),

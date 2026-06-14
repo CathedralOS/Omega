@@ -2884,6 +2884,43 @@ fn f32_deep_chain_binary_exit_canary_runs() {
 }
 
 #[test]
+fn sequential_self_field_rmw_exit_canary_runs() {
+    // Sequential read-modify-write on a self field across 5 sub-machine calls
+    // (`self.s.total = self.s.total + 1` in accum, called 5x) must accumulate
+    // to 5. Guards against the stale-static-fold regression (the read folding
+    // to the ZII entry value, emitting a constant store of 1 every call).
+    let canary = pass_canary("calls/sequential_self_field_rmw_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sequential-self-field-rmw-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sequential_self_field_rmw canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sequential_self_field_rmw canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected 5 sequential RMW increments to total 5 and exit 70, got {:?} (72 = stale fold left total at 1)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_literal_source_cast_exit_canary_runs() {
     // A numeric `as` cast whose source folds to a literal (`10.0 as i32`) must
     // still emit a convert. The selector used to bail (no place type for a
@@ -9889,6 +9926,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_explicit_discard_executes_exit",
     "calls/runtime_free_machine_struct_arg_exit",
     "calls/runtime_free_machine_struct_return_exit",
+    "calls/sequential_self_field_rmw_exit",
     "storage/runtime_alias_integer_write",
     "storage/runtime_alias_field_integer",
     "storage/runtime_alias_field_binary",
@@ -10536,22 +10574,14 @@ struct PendingCanary {
 //   runtime_const_array_length_bare_call_arm_exit (parenthesized lone-call
 //   arm bodies are value expressions; sibling-state callees re-classify).
 #[allow(dead_code)]
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    // Stale-static-fold across sequential sub-machine calls (found 2026-06-14
-    // by the integer/case sample lane via dice_roller). A sub-machine that
-    // reads a self field, adds a constant, and writes the SAME field
-    // (`self.s.total = self.s.total + 1`), called N times sequentially,
-    // re-reads the entry/ZII value each call instead of the prior call's
-    // write -- the per-call-context static-value fold resets to entry state
-    // across the call boundary. Same FAMILY as the scalar-width-rederivation
-    // smell (wiki/architecture/scalar_width_rederivation_smell.md): a value
-    // re-derived from entry static state instead of threaded from live
-    // storage. Compiles; runs wrong (native 72, interpreter 70).
-    PendingCanary {
-        path: "calls/sequential_self_field_rmw_stale_fold",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-];
+// No active pending canaries: every tracked native miscompile has been fixed
+// and promoted to a pass RUN canary. The f32 scalar-width family
+// (f32_field_binary_to_local_cast, f32_deep_chain_binary, f32_to_f64_local_cast)
+// closed 2026-06-14 by threading the resolved scalar width / classifying casts;
+// the sequential self-field RMW stale-fold was verified already fixed and
+// promoted to calls/sequential_self_field_rmw_exit. Add new known-but-unfixed
+// miscompiles here (CurrentlyAccepts) so the suite tracks them honestly.
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
 
 // =============================================================================
 // ch17 Atomics (concurrency stage 1) RUN canaries
