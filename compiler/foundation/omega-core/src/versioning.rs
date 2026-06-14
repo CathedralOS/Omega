@@ -1,6 +1,14 @@
 //! Shared naming scheme for the builtin `Versioned<T>` container (frozen
 //! decision 14, chapter 21 "Version Matching").
 //!
+//! RECONCILIATION (2026-06-14): chapter 21's new "Decided Model" repositions
+//! this container. Live-state hot-swap is now single-step `Upgradable<Old,
+//! New>` + an owned `replace` plan (NOT this era-union container); the
+//! multi-era coexistence this container implements is reassigned to WIRE DATA
+//! (chapter 20). `Versioned<T>` is best understood as the wire-decode era
+//! matcher -- do NOT extend it into the live-state upgrade path. Full analysis
+//! + stage-4 guidance: wiki/architecture/versioned_data_stage3_reconciliation.md.
+//!
 //! `Versioned<T>` is the only value shape that carries an era tag:
 //! `{ era: u32, payload: union-of-eras }`. It exists for every `data` type
 //! that declares `version vN { ... }` blocks, is constructed only by boundary
