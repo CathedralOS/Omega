@@ -54,6 +54,19 @@ roughly by leverage.
 
 **Open remaining work:**
 
+- **Exact-arithmetic overflow proof-check (prover gap).** Maintainer ruling
+  2026-06-14: integer overflow/wrap on a primitive is a COMPILE ERROR by
+  default (exact/proven arithmetic, ch5); `wrapping`/`saturating` are explicit
+  opt-ins. Today unprovable overflow (`100000 * 100000` as i32) compiles and
+  runs, and native vs interpreter even diverge on the nested intermediate
+  (native wraps to 32 bits, interpreter is full-width). The checker that
+  rejects unproven overflow does not exist yet. Tracked by the pending canary
+  `expressions/nested_i32_mul_overflow_divergence` (becomes a FAIL canary once
+  the checker lands). FRONTIER: ch5 spells the opt-in as arithmetic *policies*
+  (exact/wrapping/saturating/trap/checked); the maintainer described *domains*
+  (`u32 in Wrapping`) — spelling not yet settled. If wrapping/saturating is
+  later chosen for an operand, the integer arm also needs the f32-style width
+  threading + interpreter intermediate-wrap so the backends agree.
 - **Atomic RMW must become real LOCK instructions** (`fetch_add` -> `LOCK XADD`,
   `compare_exchange` -> `LOCK CMPXCHG`). DEFERRED to the scheduler arc: both are
   value-correct non-atomic parse desugars today, and real LOCK ops have no

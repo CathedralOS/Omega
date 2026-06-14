@@ -17,20 +17,26 @@
 // the interpreter wraps on write to `p`, so both give 3. Only the unstored
 // nested intermediate differs.
 //
-// RESOLUTION IS A SEMANTICS DECISION (maintainer): which of
-//   1. i32 arithmetic wraps at every op (Rust/C fixed-width) -> NATIVE is
-//      correct; the interpreter must wrap intermediate arithmetic to the
-//      operand width, not only on write (an interpreter fix). Consistent with
-//      the existing "wrap-on-write" choice.
-//   2. intermediates widen to a wider accumulator -> the interpreter is
-//      correct and native must stop truncating the nested multiply.
-//   3. integer overflow is a PROOF OBLIGATION (Omega is proof-heavy) -> this
-//      program is ill-formed and should be REJECTED at compile time; the gap is
-//      in the prover, and neither runtime result is "correct".
+// MAINTAINER RULING (2026-06-14): integer overflow/wrap on a primitive is a
+// COMPILE ERROR by default -- arithmetic is "exact/proven" (chapter 5
+// "The likely default is exact/proven arithmetic"; wrapping/saturating are
+// explicit opt-ins). So THIS PROGRAM IS ILL-FORMED: `100000 * 100000` cannot be
+// proven in-range for i32 and must be REJECTED at compile time. Neither runtime
+// result (3 or 4) is "correct"; the divergence is a SYMPTOM of accepting an
+// unprovable operation. The real gap is the missing overflow proof-check (the
+// exact-arithmetic obligation is not yet enforced).
 //
-// Until decided, this is tracked as a CurrentlyAccepts pending canary (it
-// compiles). Exit codes are diagnostic (73 = native's wrapped 3, 74 =
-// interpreter's full-width 4, 75 = neither).
+// When that checker lands this becomes a FAIL canary (expected compile error).
+// To get a DEFINED runtime result you opt the operands into wrapping/saturating
+// arithmetic explicitly; both backends must then agree on that defined behavior
+// (today they would still diverge -- see the integer-arm width note in the
+// smell doc). NOTE (not yet settled): chapter 5 spells the opt-in as arithmetic
+// *policies* (exact / wrapping / saturating / trap / checked); the maintainer
+// described it as *domains* (`u32 in Wrapping`). The spelling is a frontier.
+//
+// Until the overflow checker exists, tracked as a CurrentlyAccepts pending
+// canary (it still compiles). Exit codes are diagnostic only (73 = native's
+// wrapped 3, 74 = interpreter's full-width 4, 75 = neither).
 
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; a: i32; b: i32; }
