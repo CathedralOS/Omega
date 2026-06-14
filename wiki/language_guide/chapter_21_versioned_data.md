@@ -68,9 +68,12 @@ captured *first*, as a typed value, by an effectful **capture** machine. The
 upgrade itself stays pure over `(Old, Context)`.
 
 ```omega
-sealed data IrqCtx { route: IrqRoute; rx_head: u32; pending_dma: Vec<DmaDescriptor> }
-// sealed: ONLY capture can construct an IrqCtx. Holding one is proof it was
-// captured -- provenance by construction, not by a forgeable value-predicate.
+// IrqCtx is NOT pub, so by ch14 visibility it is private to this replacement
+// module -- nothing outside can construct one. The module declares exactly one
+// minter, capture_irq, so holding an IrqCtx is proof it came from capture.
+// Provenance by a private constructor (like Rust's private fields), NOT a
+// forgeable value-predicate -- which is precisely why a domain cannot express it.
+data IrqCtx { route: IrqRoute; rx_head: u32; pending_dma: Vec<DmaDescriptor> }
 
 machine capture_irq(old: &NetState.prev, dev: &mut Nic, sched: &Scheduler) -> IrqCtx
     requires old in NetState::Quiescent
@@ -83,10 +86,10 @@ machine upgrade_net(old: NetState.prev, ctx: IrqCtx, out: &mut NetState)
     ensures  out in NetState::Valid { ... }
 ```
 
-Because `upgrade_net` requires an `IrqCtx` and only `capture_irq` can mint one,
-**capture is not skippable** — there is no fabricable context to pass. IO never
-happens invisibly inside the upgrade; it is a declared-effect capture phase whose
-output is data.
+Because `upgrade_net` requires an `IrqCtx`, and `IrqCtx` is private to this
+module (ch14) with `capture_irq` as its only minter, **capture is not skippable**
+— no outside caller can fabricate a context to pass. IO never happens invisibly
+inside the upgrade; it is a declared-effect capture phase whose output is data.
 
 ### Replacement is an owned, checked plan
 
