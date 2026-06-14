@@ -1,0 +1,54 @@
+// RUN CANARY (exit 70). A NO-PAYLOAD case variant declared AFTER payload-bearing
+// variants must be reachable when dispatched. Regression guard for the native
+// miscompile where `AlarmEvent::Trigger` (a bare variant path, ordinal 3) was
+// materialized as a place-copy instead of a tag-writing construction, so the
+// argument slot held ZII 0 and only ever matched the ordinal-0 variant. Native
+// exited 71 (the Trigger arm never ran, fire_count stayed 0); the interpreter
+// was always correct. Fixed by constructing a bare-variant call argument:
+// argument materialization now writes the variant's tag ordinal when the
+// argument resolves to a case variant (see argument_materialization.rs).
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data AlarmEvent {
+    case Set(hour: i32, minute: i32);
+    case Snooze(minutes: i32);
+    case Cancel;
+    case Trigger;
+    case Dismiss;
+}
+
+data Main {
+    console: Console;
+    fire_count: i32;
+}
+
+machine Main::dispatch(&mut self, event: AlarmEvent) {
+    transition event {
+        AlarmEvent::Set { hour, minute } -> do_set(hour, minute)
+        AlarmEvent::Snooze { minutes } -> do_snooze(minutes)
+        AlarmEvent::Cancel -> do_cancel()
+        AlarmEvent::Trigger -> do_trigger()
+        AlarmEvent::Dismiss -> do_dismiss()
+        _ -> done()
+    }
+
+    state do_set(&mut self, hour: i32, minute: i32) {}
+    state do_snooze(&mut self, minutes: i32) {}
+    state do_cancel(&mut self) {}
+    state do_trigger(&mut self) { self.fire_count = self.fire_count + 1; }
+    state do_dismiss(&mut self) {}
+    state done(&mut self) {}
+}
+
+machine Main::main(&mut self) {
+    self.dispatch(AlarmEvent::Trigger);
+    self.dispatch(AlarmEvent::Trigger);
+
+    transition self.fire_count == 2 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

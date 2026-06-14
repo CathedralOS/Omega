@@ -2884,6 +2884,43 @@ fn f32_deep_chain_binary_exit_canary_runs() {
 }
 
 #[test]
+fn no_payload_case_variant_after_payload_dispatch_exit_canary_runs() {
+    // A no-payload case variant declared AFTER payload-bearing variants
+    // (`AlarmEvent::Trigger`, ordinal 3) must be reachable when dispatched.
+    // Was a native miscompile (bare-variant arg materialized as a place-copy,
+    // not a tag write -> slot held ZII 0 -> only ordinal-0 matched -> exit 71).
+    let canary = pass_canary("control_flow/no_payload_case_variant_after_payload_dispatch_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-no-payload-variant-dispatch-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("no_payload_case_variant_after_payload_dispatch canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("no_payload_case_variant_after_payload_dispatch canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the Trigger arm (ordinal 3) to run twice and exit 70, got {:?} (71 = bare variant materialized as place, tag stayed 0)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn sequential_self_field_rmw_exit_canary_runs() {
     // Sequential read-modify-write on a self field across 5 sub-machine calls
     // (`self.s.total = self.s.total + 1` in accum, called 5x) must accumulate
@@ -9874,6 +9911,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/call_requires_domain_membership_preserved_across_disjoint_literal_element_mutation",
     "control_flow/composite_field_guard_dispatch",
     "control_flow/composite_range_guard_dispatch",
+    "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",
