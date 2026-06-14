@@ -13,22 +13,19 @@
 // We use the call results directly in transition guards (NOT stored to fields)
 // to stay within the working native lowering surface.
 //
-// MISCOMPILE FOUND (2026-06-14):
-//   Expected exit: 70  (sum == 50)
-//   Actual exit:   71  (sum_result != 50)
+// MISCOMPILE FOUND AND FIXED (2026-06-14). Now exits 70.
 //
-// Minimal trigger: a recursive value-returning machine that passes `acc + s[0]`
-// as the accumulator in the tail-call `sum(s[1..], acc + s[0])`. The accumulator
-// does not reach the correct value on native x64 -- sum over [5,10,15,20] reads
-// as something other than 50.
+// `sum(s[1..], acc + s[0])`: argument materialization advanced the `s`
+// descriptor (to s[1..]) BEFORE reading `s[0]` for the accumulator, so every
+// step summed the next window's head -- an off-by-one that made [5,10,15,20]
+// read as != 50 (native exit 71). `acc + 1` (count) was immune (no slice read).
 //
-// The interpreter presumably produces 50 (differential oracle would confirm this).
-// The miscompile is in native x64 code generation: the binary expression
-// `acc + s[0]` as an argument in a tail-recursive value-returning dispatch
-// is miscompiled. The separate `count` call (which only uses `acc + 1`) also
-// fails, exiting 71 before reaching the count check.
-//
-// Expected exit: 70 (ACTUAL: 71 -- confirmed miscompile).
+// ROOT CAUSE: the argument-overlap detector's source-range probe did not look
+// inside a binary accumulator, so it missed that `acc + s[0]` reads the `s`
+// slot and never staged the call. FIX: argument_source_frame_range now recurses
+// through binary/cast operands to report a nested slice-element read's
+// descriptor slot, forcing staging. Guarded by the RUN canary
+// slices/recursive_subslice_element_accumulator_exit (oracle-matched).
 
 use omega::language::std::console;
 
