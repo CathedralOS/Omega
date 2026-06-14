@@ -167,6 +167,12 @@ fn build_machine_state_storage_plan(
                         &local_data.name,
                         local_data.initial_value,
                         uses_runtime_flow || required,
+                    ) && !local_referenced_in_other_machine_states(
+                        program,
+                        machine,
+                        state.symbol,
+                        local_data.symbol,
+                        &local_data.name,
                     ) {
                         continue;
                     }
@@ -324,42 +330,93 @@ fn local_data_requires_storage(
         .iter()
         .skip(local_statement_index + 1)
         .any(|statement| {
-            (uses_runtime_flow
-                && statement_references_symbol_in_transition(
-                    expressions,
-                    statement_table,
-                    statement,
-                    local_symbol,
-                    local_name,
-                ))
-                || statement_expression_references_symbol(
-                    expressions,
-                    statement,
-                    local_symbol,
-                    local_name,
-                )
-                || assignment_target_references_symbol(
-                    expressions,
-                    statement,
-                    local_symbol,
-                    local_name,
-                )
-                || assignment_targets_symbol(expressions, statement, local_symbol, local_name)
-                || statement_call_references_symbol(
-                    expressions,
-                    statement_table,
-                    statement,
-                    local_symbol,
-                    local_name,
-                )
-                || statement_uses_symbol_mutably(
-                    expressions,
-                    statement_table,
-                    statement,
-                    local_symbol,
-                    local_name,
-                )
+            statement_references_local(
+                expressions,
+                statement_table,
+                statement,
+                local_symbol,
+                local_name,
+                uses_runtime_flow,
+            )
         })
+}
+
+/// Whether a single statement references the local (in a transition, an
+/// expression, an assignment target/value, a call argument, or a mutable use).
+/// Factored so both the same-state liveness scan and the cross-state scan
+/// (`local_referenced_in_other_machine_states`) agree on what "uses the local"
+/// means.
+fn statement_references_local(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    statement: &StatementNode,
+    local_symbol: SymbolHandle,
+    local_name: &Identifier,
+    uses_runtime_flow: bool,
+) -> bool {
+    (uses_runtime_flow
+        && statement_references_symbol_in_transition(
+            expressions,
+            statement_table,
+            statement,
+            local_symbol,
+            local_name,
+        ))
+        || statement_expression_references_symbol(expressions, statement, local_symbol, local_name)
+        || assignment_target_references_symbol(expressions, statement, local_symbol, local_name)
+        || assignment_targets_symbol(expressions, statement, local_symbol, local_name)
+        || statement_call_references_symbol(
+            expressions,
+            statement_table,
+            statement,
+            local_symbol,
+            local_name,
+        )
+        || statement_uses_symbol_mutably(
+            expressions,
+            statement_table,
+            statement,
+            local_symbol,
+            local_name,
+        )
+}
+
+/// Whether any state of the machine OTHER than the declaring state references
+/// the local. A machine's sub-states share its frame region, so a local
+/// declared in one state (e.g. `main`) and read only in a later state (e.g.
+/// `let sum = self.r.sum(s,0)` used in a `do_total` sub-state, NOT passed as an
+/// argument) is live across the transition. The per-state liveness scan only
+/// sees the declaring state's own statements, so without this it would wrongly
+/// elide the local's slot and the sub-state would read garbage (a silent
+/// miscompile). Matching is symbol-precise, so an unrelated local that happens
+/// to share a name in another state does not keep this one alive. Additive:
+/// it can only keep MORE locals, never drop one.
+fn local_referenced_in_other_machine_states(
+    program: &CheckedTrees,
+    machine: &Machine,
+    declaring_state_symbol: SymbolHandle,
+    local_symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    program.machine_states(machine).iter().any(|state| {
+        if state.symbol == declaring_state_symbol {
+            return false;
+        }
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                statement_references_local(
+                    &program.expression_table,
+                    &program.statement_table,
+                    statement,
+                    local_symbol,
+                    local_name,
+                    true,
+                )
+            })
+    })
 }
 
 /// Whether the expression contains a MUTATING call -- a call passing a `&mut`

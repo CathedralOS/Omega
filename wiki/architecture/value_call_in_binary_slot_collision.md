@@ -26,7 +26,20 @@ inline fold whenever the initializer CONTAINS a result-producing call
 copied. `samples/value_call_in_expr` now exits 70. Guarded by
 `calls/transition_arg_local_from_embedded_call_exit`.
 
-## STILL OPEN: dual_accumulator_recursion (root-caused, deferred — upstream)
+## dual_accumulator_recursion: FIXED 2026-06-14 (state-storage liveness)
+
+The SECOND sequential recursive value-call result local got no frame slot
+because `local_data_requires_storage` (omega-state-storage/collection.rs) elided
+a local unless a LATER STATEMENT IN THE SAME STATE referenced it -- but
+`sum_sq_result` is read only in a transition TARGET state (`do_total`, which
+shares main's frame), which the scan never traversed. Fixed by also keeping
+storage when any OTHER state of the machine references the local
+(`local_referenced_in_other_machine_states`, additive/sound). General soundness
+fix: ANY local used only in a sibling state was silently miscompiled (read as
+`Place Unknown`). `samples/dual_accumulator_recursion` now exits 70; guarded by
+`interpreter_matches_native_on_dual_accumulator_sample`. Original analysis:
+
+## (historical) dual_accumulator_recursion root-cause notes
 
 `samples/dual_accumulator_recursion` (exit 73): two sequential recursive
 value-returning calls bound to locals (`let sum_result = self.r.sum(s,0); let
