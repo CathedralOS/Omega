@@ -12,13 +12,14 @@
 //
 // MISCOMPILE FOUND (2026-06-14):
 //   Expected exit: 70  (sum [3,7,12,18,5,25] == 70)
-//   Actual exit:   71  (wrong sum)
+//   Actual exit:   71  (wrong sum on native x64)
 //
-// This is the same miscompile shape as recursive_sum: `acc + s[0]` as an
-// argument in a value-returning tail-recursive machine call. The binary
-// expression `acc + s[0]` is miscompiled on the native x64 path.
+// Same miscompile shape as recursive_sum: `acc + s[0]` as the accumulator
+// argument in a tail-recursive value-returning machine call is miscompiled.
+// `walk(s[1..], acc + s[0])` -- the binary `acc + s[0]` doesn't accumulate
+// correctly on the native backend.
 //
-// Expected exit: 70 (ACTUAL: 71 -- miscompile).
+// Expected exit: 70 (ACTUAL: 71 -- confirmed miscompile).
 
 use omega::language::std::console;
 
