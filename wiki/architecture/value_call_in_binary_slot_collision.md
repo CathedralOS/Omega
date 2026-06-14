@@ -1,9 +1,30 @@
 # Native miscompile: value-call result as a binary operand (slot-name collision)
 
-Found 2026-06-14 by the end-to-end sample lane. Repros (committed, with headers):
-`samples/value_call_in_expr` (exit 72), `samples/dual_accumulator_recursion`
-(exit 73). NOT yet fixed — root-caused precisely; the obvious fix regresses, so
-it is left for a targeted change.
+Found 2026-06-14 by the end-to-end sample lane.
+
+## CORE BUG: FIXED 2026-06-14 (slot planner)
+
+The core slot-name collision is fixed. `call_result_slot_symbol_and_name`
+(omega-runtime-storage/body.rs) now names an AssignmentValue call-result slot
+after the binding ONLY when the binding's initializer is a BARE call; when the
+call is embedded in a larger initializer the scratch slot stays anonymous
+(`__call_result`), so name-based reads resolve to the real LocalStorage slot.
+Regression-free (full suite 271 → 272). Guarded by the RUN canary
+`calls/value_call_embedded_in_binary_exit` (the isolated single-state repro).
+
+## STILL OPEN (separate facets, NOT the core collision)
+
+- `samples/value_call_in_expr` (exit 73): a 6-state STRESS chain that passes
+  `r1`/`r2`/`r3` as transition arguments between states sharing those names.
+  After the core fix the first check (`r1`) passes; it now fails passing `r1`
+  as a TRANSITION ARGUMENT into the next state — that param slot is never
+  materialized (no copy into it). A distinct cross-state arg-materialization bug
+  (likely a same-name source/target dedup), not the slot-collision above.
+- `samples/dual_accumulator_recursion` (exit 73): `sum_result + sum_sq_result`
+  where BOTH operands are bare-call locals (no embedded call in the binary), so
+  the collision analysis does not apply. Investigate independently.
+
+The original analysis below is retained for context.
 
 ## Symptom
 

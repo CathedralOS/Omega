@@ -1,0 +1,40 @@
+// RUN CANARY (exit 70). A value-returning call EMBEDDED in a binary expression
+// bound to a local: `let r = self.base + self.calc.double_val(6) * 3`. The
+// binding's value (46) lives in its own local slot; the call's result (12) is
+// scratch for the embedded call. A read of `r` (here the guard `r == 46`) must
+// resolve to the LOCAL, not the call-result scratch.
+//
+// Regression guard for the slot-name-collision miscompile: a let-binding whose
+// initializer CONTAINS a call used to give its embedded-call scratch slot the
+// binding's name, so name-based reads landed on the scratch (holding the partial
+// value 12) and the guard compared the wrong slot -> native exit 71. Fixed in
+// the slot planner: only a BARE-call binding names its call-result slot after
+// the binding; an embedded call's scratch stays anonymous (__call_result).
+// See wiki/architecture/value_call_in_binary_slot_collision.md.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Calc {}
+
+data Main {
+    console: Console;
+    base: i32;
+    calc: Calc;
+}
+
+machine Calc::double_val(&mut self, n: i32) -> i32 {
+    transition {
+        _ -> (n * 2)
+    }
+}
+
+machine Main::main(&mut self) {
+    self.base = 10;
+    let r: i32 = self.base + self.calc.double_val(6) * 3;  // 10 + 12 * 3 = 46
+    transition r == 46 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

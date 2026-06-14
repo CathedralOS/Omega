@@ -2921,6 +2921,43 @@ fn no_payload_case_variant_after_payload_dispatch_exit_canary_runs() {
 }
 
 #[test]
+fn value_call_embedded_in_binary_exit_canary_runs() {
+    // `let r = self.base + self.calc.double_val(6) * 3`: a value call embedded in
+    // a binary. A read of `r` must resolve to its local slot (46), not the
+    // embedded call's scratch result slot (12). Was a slot-name collision that
+    // made the guard read the scratch -> native exit 71.
+    let canary = pass_canary("calls/value_call_embedded_in_binary_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-embedded-binary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value_call_embedded_in_binary canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value_call_embedded_in_binary canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected base + double_val(6)*3 == 46 and exit 70, got {:?} (71 = read the embedded call's scratch slot)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn sequential_self_field_rmw_exit_canary_runs() {
     // Sequential read-modify-write on a self field across 5 sub-machine calls
     // (`self.s.total = self.s.total + 1` in accum, called 5x) must accumulate
@@ -10001,6 +10038,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_free_machine_struct_arg_exit",
     "calls/runtime_free_machine_struct_return_exit",
     "calls/sequential_self_field_rmw_exit",
+    "calls/value_call_embedded_in_binary_exit",
     "storage/runtime_alias_integer_write",
     "storage/runtime_alias_field_integer",
     "storage/runtime_alias_field_binary",
