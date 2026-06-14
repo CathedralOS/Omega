@@ -27,8 +27,44 @@ representation machinery behind a deliberate boundary.
 
 ## Outstanding (pick up next)
 
-Snapshot after the 2026-06-10 wave (decisions 8/9/10 implemented; suite
-179/179, oracle fully matched). Ordered roughly by leverage.
+Snapshot refreshed 2026-06-14. Decisions 8-16 all implemented (stage 1+);
+harness suite 265, differential oracle fully matched, tree clean. Ordered
+roughly by leverage.
+
+**Open after the 2026-06-14 wave (real remaining work):**
+
+- **Scalar-width re-derivation remediation** (the architectural fix, not
+  whack-a-mole). Instruction selection re-derives scalar type/width at >=4
+  disagreeing sites -> silent miscompiles. Full diagnosis + remediation path
+  + acceptance tests in
+  [wiki/architecture/scalar_width_rederivation_smell.md](wiki/architecture/scalar_width_rederivation_smell.md).
+  Fix = thread resolved `PrimitiveType`/width on `RuntimeValueOperand` (set
+  once at build, read by both ISAs). Single non-incrementable change; wants a
+  stable window. Acceptance: the 4 pending canaries below pass together.
+- **Open pending canaries (all instances of that smell):**
+  `expressions/f32_deep_chain_binary_wrong`,
+  `expressions/f32_field_binary_to_local_cast_wrong`,
+  `expressions/f32_to_f64_local_cast_wrong` (width/type axis), and
+  `calls/sequential_self_field_rmw_stale_fold` (static-fold axis). Registered
+  in ACTIVE_PENDING_CANARIES (CurrentlyAccepts).
+- **Atomic RMW must become real LOCK instructions** before any scheduler/IPC
+  work (see decision 16 above; task chip task_b176af85).
+- **Reconcile Versioned<T> stage-3 impl against ch21's "Decided Model"**
+  (`Upgradable<Old,New,Context>`, single-step upgrade, owned replace-plan).
+  Chapter 21 is authority and PARTIALLY supersedes the shipped stage-3
+  surface; needs a reconciliation pass before stage 4 (the boundary decoder /
+  true union layout).
+- **Decision 11 residue:** value-position machine calls still bypass argument
+  validation for `[copy]`-style bounds (pending canary
+  `generics/machine_bound_value_call_unchecked`).
+
+Long-view sign-offs still open (only the maintainer): S1-S6 (separate
+compilation -- the big backend revamp, untouched), M1-M6 beyond comptime
+stage 1, A1-A5 beyond allocator stage 1.
+
+---
+
+Earlier snapshot (2026-06-10 wave, decisions 8/9/10; suite 179).
 
 **Decisions needed (sign-off register, 2026-06-12).** Every vertical slice
 below is complete; what remains is gated on these maintainer calls. Each
@@ -994,9 +1030,12 @@ Implementation slices below build against these. Minor/easily-reversible details
     (optionally `[max_size=N]`-pinned), not a paused stack. Everything else
     below still holds (boundary wait primitive, no-select one-mailbox,
     cancellation-as-value, scopeless scoped spawns). C2-C5 ACCEPTED; atomics
-    stage 1 LANDED (load/store/fetch_add real; compare_exchange is an
-    interim non-atomic desugar -- must become LOCK CMPXCHG before real
-    parallelism).
+    stage 1 LANDED (load/store are real -- a plain aligned mov is atomic on
+    x86). BOTH RMW ops are interim NON-ATOMIC parser desugars: fetch_add AND
+    compare_exchange -- each must become a real LOCK-prefixed instruction
+    (LOCK XADD / LOCK CMPXCHG) before any real parallelism. IPC-critical: the
+    Cathedral many_to_one mailbox is unsound on the desugars. Tracked task
+    chip task_b176af85.
     --- ORIGINAL (superseded) ---
     Typed state clusters CAN suspend across ticks. Waiting originates only
     at a futex-shaped `Scheduler` boundary trait (wait-on-word / wake-N --
