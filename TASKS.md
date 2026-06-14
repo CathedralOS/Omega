@@ -31,32 +31,41 @@ Snapshot refreshed 2026-06-14. Decisions 8-16 all implemented (stage 1+);
 harness suite 265, differential oracle fully matched, tree clean. Ordered
 roughly by leverage.
 
-**Open after the 2026-06-14 wave (real remaining work):**
+**Closed in the 2026-06-14 wave:**
 
-- **Scalar-width re-derivation remediation** (the architectural fix, not
-  whack-a-mole). Instruction selection re-derives scalar type/width at >=4
-  disagreeing sites -> silent miscompiles. Full diagnosis + remediation path
-  + acceptance tests in
+- **Scalar-width re-derivation remediation — DONE.** `RuntimeValueOperand::Binary`
+  now threads a resolved `byte_width` (set once at build, read by the x86_64
+  float emission); `classify_scalar_value_type_in_table` now types a `Cast` as
+  its target so nested casts resolve. Closed the whole f32 miscompile family
+  (3 pending canaries promoted to pass RUN canaries) + the sequential self-field
+  RMW stale-fold (verified already fixed, promoted). `ACTIVE_PENDING_CANARIES`
+  is now EMPTY. Remaining named re-derivation sites are unbitten; fix the same
+  way if a canary surfaces one.
   [wiki/architecture/scalar_width_rederivation_smell.md](wiki/architecture/scalar_width_rederivation_smell.md).
-  Fix = thread resolved `PrimitiveType`/width on `RuntimeValueOperand` (set
-  once at build, read by both ISAs). Single non-incrementable change; wants a
-  stable window. Acceptance: the 4 pending canaries below pass together.
-- **Open pending canaries (all instances of that smell):**
-  `expressions/f32_deep_chain_binary_wrong`,
-  `expressions/f32_field_binary_to_local_cast_wrong`,
-  `expressions/f32_to_f64_local_cast_wrong` (width/type axis), and
-  `calls/sequential_self_field_rmw_stale_fold` (static-fold axis). Registered
-  in ACTIVE_PENDING_CANARIES (CurrentlyAccepts).
-- **Atomic RMW must become real LOCK instructions** before any scheduler/IPC
-  work (see decision 16 above; task chip task_b176af85).
-- **Reconcile Versioned<T> stage-3 impl against ch21's "Decided Model"**
-  (`Upgradable<Old,New,Context>`, single-step upgrade, owned replace-plan).
-  Chapter 21 is authority and PARTIALLY supersedes the shipped stage-3
-  surface; needs a reconciliation pass before stage 4 (the boundary decoder /
-  true union layout).
-- **Decision 11 residue:** value-position machine calls still bypass argument
-  validation for `[copy]`-style bounds (pending canary
-  `generics/machine_bound_value_call_unchecked`).
+- **Decision 11 residue — DONE** (was already fixed @5d6464cf; canary promoted
+  to `fail/generics/machine_bound_value_call_unchecked` + a satisfied pass
+  companion).
+- **Versioned<T> / ch21 reconciliation — DONE** (analysis only):
+  [wiki/architecture/versioned_data_stage3_reconciliation.md](wiki/architecture/versioned_data_stage3_reconciliation.md).
+  The Decided Model repositions `Versioned<T>` to the WIRE-DATA era matcher;
+  live-state hot-swap is net-new `Upgradable<Old,New>` + a `replace` plan (do
+  NOT extend the era container into it). decision 14's text below still wants a
+  maintainer reconciliation pass.
+
+**Open remaining work:**
+
+- **Atomic RMW must become real LOCK instructions** (`fetch_add` -> `LOCK XADD`,
+  `compare_exchange` -> `LOCK CMPXCHG`). DEFERRED to the scheduler arc: both are
+  value-correct non-atomic parse desugars today, and real LOCK ops have no
+  observable/testable effect until real threads exist (no canary can observe
+  atomicity without interleaving). Implement WITH the scheduler so it is
+  testable. Needs a dedicated atomic-RMW op threaded abstract->target->assigned
+  ->machine-instructions + x86 encoders + relocations + BOTH emission-planning
+  blocker lists + interpreter. See decision 16 above; task chip task_b176af85;
+  recipe in session_review_2026_06_12.md.
+- **Versioned decision 14 maintainer reconciliation:** update decision 14's
+  frozen text + versioning.rs provenance to the wire-data role once ch21
+  settles (chapter is the authority; it is being actively edited).
 
 Long-view sign-offs still open (only the maintainer): S1-S6 (separate
 compilation -- the big backend revamp, untouched), M1-M6 beyond comptime

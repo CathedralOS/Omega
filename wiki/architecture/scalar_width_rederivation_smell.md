@@ -114,9 +114,31 @@ point including call boundaries) rather than per-site invalidation patches.
 
 ## Status
 
-Not yet implemented. Acceptance tests for remediation:
-- width/type axis: the f32 canaries (`expressions/f32_*`,
-  `float_array_binary_op_zero`) pass together when scalar width is threaded.
-- static-fold axis: `calls/sequential_self_field_rmw_stale_fold` passes when
-  the entry-snapshot fold is invalidated across call boundaries.
-See session_review_2026_06_12.md §1c for the per-canary roots.
+RESOLVED 2026-06-14. Both axes are closed and guarded by pass RUN canaries;
+`ACTIVE_PENDING_CANARIES` is now empty.
+
+- **width/type axis — DONE.** `RuntimeValueOperand::Binary` now carries a
+  `byte_width` set once at build time (`combine_binary_operand_scalar_types`,
+  shared with `classify_scalar_value_type_in_table`) and read by the x86_64
+  float emission instead of the hardcoded 8 (commit threading the width). A
+  second, related re-derivation was also closed: `classify` returned `None`
+  for a `Cast` source, so a nested cast `(self.src as f64) as i32` could not
+  size its source and the whole write was silently dropped — `classify` now
+  types a `Cast` as its target. The three f32 miscompiles are pass RUN
+  canaries: `expressions/f32_field_binary_to_local_cast`,
+  `f32_deep_chain_binary`, `f32_to_f64_local_cast` (the array ones
+  `float_array_binary_op_zero` / `f32_array_binary_op_zero` were already
+  passing).
+- **static-fold axis — VERIFIED FIXED (was stale).**
+  `calls/sequential_self_field_rmw_stale_fold` already emitted a real
+  load-add-store per call (not a constant fold of the ZII entry value) and
+  exited 70; the binary-write static-value invalidation had closed it. Promoted
+  to the pass RUN canary `calls/sequential_self_field_rmw_exit`.
+
+The general lesson stands for future codegen work: thread a resolved property
+on the value representation (set once, read everywhere) rather than
+re-deriving it per site. The remaining re-derivation sites the doc names
+(storage descriptors, the integer-arm operand width) have not bitten yet and
+were left unchanged — fix them the same way if a canary surfaces one.
+
+Original per-canary roots: session_review_2026_06_12.md §1c.
