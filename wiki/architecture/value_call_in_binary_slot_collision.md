@@ -12,17 +12,25 @@ call is embedded in a larger initializer the scratch slot stays anonymous
 Regression-free (full suite 271 → 272). Guarded by the RUN canary
 `calls/value_call_embedded_in_binary_exit` (the isolated single-state repro).
 
-## STILL OPEN (separate facets, NOT the core collision)
+## SECOND FACET: also FIXED 2026-06-14 (argument fold)
 
-- `samples/value_call_in_expr` (exit 73): a 6-state STRESS chain that passes
-  `r1`/`r2`/`r3` as transition arguments between states sharing those names.
-  After the core fix the first check (`r1`) passes; it now fails passing `r1`
-  as a TRANSITION ARGUMENT into the next state — that param slot is never
-  materialized (no copy into it). A distinct cross-state arg-materialization bug
-  (likely a same-name source/target dedup), not the slot-collision above.
+Passing a local whose initializer contains a call (`step2(r1)` where
+`r1 = base + f(6)*3`) as a TRANSITION ARGUMENT folded the local back into its
+initializer and re-materialized it in the TARGET state -- re-evaluating the
+embedded call, whose result scratch lives in the SOURCE state's frame and is
+unreachable there -- so the target's parameter slot was never written (native
+exit 73). `initial_value_blocks_inline_fold` blocked the fold only for a
+TOP-LEVEL call; a call nested in a binary slipped through. Fixed: block the
+inline fold whenever the initializer CONTAINS a result-producing call
+(`expression_contains_result_call`), so the local stays a place and its slot is
+copied. `samples/value_call_in_expr` now exits 70. Guarded by
+`calls/transition_arg_local_from_embedded_call_exit`.
+
+## STILL OPEN
+
 - `samples/dual_accumulator_recursion` (exit 73): `sum_result + sum_sq_result`
   where BOTH operands are bare-call locals (no embedded call in the binary), so
-  the collision analysis does not apply. Investigate independently.
+  neither fix above applies. A separate facet -- investigate independently.
 
 The original analysis below is retained for context.
 
