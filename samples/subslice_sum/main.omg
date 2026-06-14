@@ -10,16 +10,13 @@
 // The helper machine Adder::walk shrinks the slice on each call:
 //   walk(s, acc) loops until s is empty, accumulating acc + s[0] each time.
 //
-// MISCOMPILE FOUND (2026-06-14):
-//   Expected exit: 70  (sum [3,7,12,18,5,25] == 70)
-//   Actual exit:   71  (wrong sum on native x64)
+// MISCOMPILE FOUND AND FIXED (2026-06-14). Now exits 70.
 //
-// Same miscompile shape as recursive_sum: `acc + s[0]` as the accumulator
-// argument in a tail-recursive value-returning machine call is miscompiled.
-// `walk(s[1..], acc + s[0])` -- the binary `acc + s[0]` doesn't accumulate
-// correctly on the native backend.
-//
-// Expected exit: 70 (ACTUAL: 71 -- confirmed miscompile).
+// Same shape as recursive_sum: `walk(s[1..], acc + s[0])` advanced the `s`
+// descriptor before reading `s[0]` (off-by-one). FIXED by making the
+// argument-overlap detector see slice-element reads nested in a binary
+// accumulator and stage the call. Guarded by the RUN canary
+// slices/recursive_subslice_element_accumulator_exit.
 
 use omega::language::std::console;
 

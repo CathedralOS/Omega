@@ -310,6 +310,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("slices/runtime_subslice_bounded_range_len_exit", 215),
     ("slices/runtime_subslice_dynamic_index_exit", 207),
     ("slices/runtime_subslice_end_dynamic_index_exit", 211),
+    ("slices/recursive_subslice_element_accumulator_exit", 70),
     ("slices/runtime_subslice_of_slice_param_exit", 70),
     ("slices/runtime_subslice_param_bounded_range_exit", 70),
     ("slices/runtime_subslice_param_end_only_exit", 70),

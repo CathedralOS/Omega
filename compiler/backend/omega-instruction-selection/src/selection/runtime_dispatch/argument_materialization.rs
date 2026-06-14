@@ -806,17 +806,62 @@ fn argument_source_frame_range(
     // RETARGETS that descriptor (`self.accumulate(items[1..], items[0].value)`)
     // sees the overlap and stages: an unstaged in-place descriptor update would
     // shrink the window BEFORE the element read, fetching the next window's head.
-    let indexed = resolve_runtime_frame_fixed_indexed_target_in_table(
+    //
+    // The element read may be NESTED inside a binary accumulator
+    // (`self.sum(s[1..], acc + s[0])`), so recurse through binary/cast operands
+    // to find it -- otherwise the whole-argument resolution fails, the overlap
+    // is missed, the descriptor is advanced before `s[0]` is read, and the
+    // recursion sums the wrong elements (off-by-one). Returns the FIRST element
+    // read's descriptor slot; that is the source that overlaps a retargeted
+    // slice parameter, which is all the overlap detector needs to force staging.
+    frame_indexed_descriptor_source_in_table(
         input,
         source_dispatch_index,
         argument_source_key,
         &scratch,
         argument,
-    )?;
-    Some((
-        indexed.descriptor_offset,
-        indexed.descriptor_offset + input.runtime_abi.pointer_size,
-    ))
+    )
+}
+
+/// Find the slice descriptor slot read by a constant-index element access
+/// (`s[0]`), including when it is NESTED inside a binary/cast accumulator
+/// argument (`acc + s[0]`). Returns the descriptor slot's frame range so the
+/// argument-overlap detector stages the call instead of advancing the
+/// descriptor in place before the element is read.
+fn frame_indexed_descriptor_source_in_table(
+    input: &InstructionSelectionInput<'_>,
+    source_dispatch_index: u32,
+    argument_source_key: StateKey,
+    scratch: &ExpressionTable,
+    argument: ExpressionHandle,
+) -> Option<(usize, usize)> {
+    if let Some(indexed) = resolve_runtime_frame_fixed_indexed_target_in_table(
+        input,
+        source_dispatch_index,
+        argument_source_key,
+        scratch,
+        argument,
+    ) {
+        return Some((
+            indexed.descriptor_offset,
+            indexed.descriptor_offset + input.runtime_abi.pointer_size,
+        ));
+    }
+    let recurse = |handle| {
+        frame_indexed_descriptor_source_in_table(
+            input,
+            source_dispatch_index,
+            argument_source_key,
+            scratch,
+            handle,
+        )
+    };
+    match scratch.expression(argument) {
+        ExpressionNode::Binary(binary) => recurse(binary.left).or_else(|| recurse(binary.right)),
+        ExpressionNode::Cast(cast) => recurse(cast.value),
+        ExpressionNode::Mutable(inner) => recurse(*inner),
+        _ => None,
+    }
 }
 
 fn ranges_overlap(a: (usize, usize), b: (usize, usize)) -> bool {

@@ -1,0 +1,48 @@
+// RUN CANARY (exit 70). A tail-recursive value-returning machine whose
+// accumulator argument READS a slice element of the SAME slice it subslices:
+// `sum(s[1..], acc + s[0])`. The element `s[0]` must be read BEFORE the `s`
+// parameter's descriptor is retargeted to `s[1..]`.
+//
+// Regression guard: argument materialization advanced the descriptor in place
+// (s[1..]) and THEN read s[0] through it, so every step summed the NEXT
+// window's head -- an off-by-one that made [5,10,15,20] sum wrong (native exit
+// 71). `acc + 1` was immune (no slice read), so this slipped past the existing
+// recursive-value canary. Fixed by reporting the element read's descriptor slot
+// as a frame source even when nested inside a binary accumulator, so the
+// argument-overlap detector stages the call. Interpreter was always correct.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Summer {}
+
+data Main {
+    console: Console;
+    arr: [i32; 4];
+    summer: Summer;
+}
+
+machine Summer::sum(&mut self, s: &[i32], acc: i32) -> i32
+terminates {
+    decreases s -> Slice::Length;
+}
+{
+    transition s.len > 0 {
+        true -> sum(s[1..], acc + s[0])
+        false -> acc
+    }
+}
+
+machine Main::main(&mut self) {
+    self.arr[0] = 5;
+    self.arr[1] = 10;
+    self.arr[2] = 15;
+    self.arr[3] = 20;
+    let s: &[i32] = self.arr.as_slice();
+    let total: i32 = self.summer.sum(s, 0);
+    transition total == 50 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
