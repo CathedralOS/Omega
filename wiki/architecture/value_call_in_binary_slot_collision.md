@@ -26,11 +26,25 @@ inline fold whenever the initializer CONTAINS a result-producing call
 copied. `samples/value_call_in_expr` now exits 70. Guarded by
 `calls/transition_arg_local_from_embedded_call_exit`.
 
-## STILL OPEN
+## STILL OPEN: dual_accumulator_recursion (root-caused, deferred — upstream)
 
-- `samples/dual_accumulator_recursion` (exit 73): `sum_result + sum_sq_result`
-  where BOTH operands are bare-call locals (no embedded call in the binary), so
-  neither fix above applies. A separate facet -- investigate independently.
+`samples/dual_accumulator_recursion` (exit 73): two sequential recursive
+value-returning calls bound to locals (`let sum_result = self.r.sum(s,0); let
+sum_sq_result = self.r.sum_sq(s2,0)`), then `total = sum_result + sum_sq_result`.
+Each local reads correctly in its own guard (those guards constant-fold, since
+the inputs are constant), but the binary `sum_result + sum_sq_result` reads
+`sum_sq_result` as `Place Unknown offset 0 bytes 0` -> garbage.
+
+ROOT (from slots.txt): the SECOND sequential recursive value-call result local
+(`sum_sq_result`) gets NO frame slot at all — only `sum_result` (the first) and
+`total` are allocated. `append_branch_local_slot` faithfully allocates every
+entry in `context.state_storage.locals`, so `sum_sq_result` is missing from
+`state_storage.locals` UPSTREAM, in the omega-state-storage planning phase
+(not the frame-slot allocator). The value-return keystone delivers the first
+recursive call's terminal value to its local but the second's local is never
+planned. Fixing it means tracing why state-storage drops the second
+value-call-result local — a separate, deeper phase, deferred rather than
+rabbit-holed. Repro: `samples/dual_accumulator_recursion`.
 
 The original analysis below is retained for context.
 

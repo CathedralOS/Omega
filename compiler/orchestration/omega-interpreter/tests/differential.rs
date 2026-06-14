@@ -774,6 +774,37 @@ fn interpreter_matches_native_on_cli_mvp_sample() {
     );
 }
 
+/// Conway's Game of Life on a 4x4 grid, one generation from a 2x2 block
+/// still-life, checksummed to exit 70. A larger differential sample than the
+/// canaries: 16 per-cell sub-machines + neighbor sums + a value-returning
+/// checksum, so it pins interpreter==native agreement on a deep dispatch tree.
+#[test]
+fn interpreter_matches_native_on_game_of_life_sample() {
+    let main_path = repo_root().join("samples").join("game_of_life").join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "game_of_life compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "game_of_life should be fully supported by the interpreter, got: {:?}",
+        outcome.error
+    );
+
+    let (native_code, _native_stdout, _native_stderr) =
+        compile_and_run_native("game_of_life", &main_path);
+    assert_eq!(
+        outcome.exit_code, native_code,
+        "game_of_life exit code: interp {} != native {native_code}",
+        outcome.exit_code
+    );
+    assert_eq!(native_code, 70, "game_of_life should exit 70 (block is a still-life)");
+}
+
 /// The dungeon script the canary suite's PE test could use to visit R00..R04: four `north`
 /// moves walk the main hall chain, then `quit`.
 const DUNGEON_SCRIPT: &[u8] = b"north\r\nnorth\r\nnorth\r\nnorth\r\nquit\r\n";
