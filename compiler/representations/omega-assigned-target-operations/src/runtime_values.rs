@@ -134,6 +134,16 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
         })
     }
 
+    fn binary_byte_width(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<usize> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::Binary { byte_width, .. } => Some(*byte_width),
+            _ => None,
+        }
+    }
+
     fn text_equals(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,

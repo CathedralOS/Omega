@@ -1,0 +1,37 @@
+// RUN CANARY (exit 70). Guards the scalar-width-rederivation fix: a folded
+// f32 binary (`self.a + self.b`) feeding an `as i32` cast must compute in
+// single precision (`addss`), not the old hardcoded double width (`addsd` over
+// f32 bit patterns). The binary value operand now threads its resolved byte
+// width from build time (RuntimeValueOperand::Binary.byte_width), so the
+// producer (addss → 4-byte result) and the convert consumer (cvttss2si → low 4
+// bytes) agree on the width.
+//
+// Before the fix: native exited 71 (the cast read garbage); the interpreter
+// always exited 70. See wiki/architecture/scalar_width_rederivation_smell.md.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: f32;
+    b: f32;
+}
+
+machine Main::main(&mut self) {
+    self.a = 2.5;
+    self.b = 1.5;
+
+    // f32 field binary -> local, then cast to i32
+    let c: f32 = self.a + self.b;  // 4.0 via struct fields
+    let n: i32 = c as i32;          // Should be 4
+
+    transition n == 4 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

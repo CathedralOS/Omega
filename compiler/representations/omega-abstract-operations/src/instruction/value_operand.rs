@@ -55,6 +55,15 @@ pub enum ValueOperand {
         /// True when the operands are floating-point: the operation must use the
         /// SSE unit (addsd/subsd/...), not an integer add over the IEEE bits.
         is_float: bool,
+        /// The resolved scalar byte width of the operation's result (4 for
+        /// f32/i32, 8 for f64/i64, ...), computed ONCE at build time from the
+        /// operands' scalar type. The float emission reads this to pick single
+        /// (`addss`/`movss`) vs double (`addsd`/`movsd`) precision instead of
+        /// re-deriving or hardcoding a width at the ISA — the
+        /// scalar-width-rederivation smell. Today only the float arm consumes
+        /// it; the integer arm keeps its operator/operand-derived width, so a
+        /// width that cannot be resolved defaults to 8 (the prior behavior).
+        byte_width: usize,
     },
     /// Runtime text CONTENT equality in VALUE position (Equatable synthesis
     /// over `String` fields, chapter 13): both sides are `{ptr @ +0, len @ +8}`
@@ -124,11 +133,13 @@ impl ValueOperand {
                 operator,
                 right,
                 is_float,
+                byte_width,
             } => Self::Binary {
                 left: remap(*left),
                 operator: *operator,
                 right: remap(*right),
                 is_float: *is_float,
+                byte_width: *byte_width,
             },
             Self::TextEqualsLiteral { place, literal } => Self::TextEqualsLiteral {
                 place: remap(*place),

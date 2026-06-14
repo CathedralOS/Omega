@@ -1542,6 +1542,8 @@ fn resolve_runtime_value_operand_in_table(
             // Guard comparison operands; float comparisons lower via ucomisd
             // elsewhere, so the integer value-operand path stays as-is here.
             is_float: false,
+            // Integer arm derives its own width; default 8 matches prior behavior.
+            byte_width: 8,
         }));
     }
 

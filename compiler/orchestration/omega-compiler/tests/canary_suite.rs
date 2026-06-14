@@ -2778,6 +2778,78 @@ fn f32_array_binary_op_zero_exit_canary_runs() {
 }
 
 #[test]
+fn f32_field_binary_to_local_cast_exit_canary_runs() {
+    // Scalar-width-rederivation fix: a folded f32 binary (`self.a + self.b`)
+    // feeding `as i32` must compute single-precision (`addss`), not the old
+    // hardcoded `addsd` over f32 bits. The binary operand threads its resolved
+    // 4-byte width so producer (addss) and convert consumer (cvttss2si) agree.
+    let canary = pass_canary("expressions/f32_field_binary_to_local_cast");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-f32-field-binary-local-cast-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32_field_binary_to_local_cast canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32_field_binary_to_local_cast canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32 field-binary-to-local-cast to yield 4 and exit 70, got {:?} (71 = addsd over f32 bits)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn f32_deep_chain_binary_exit_canary_runs() {
+    // Scalar-width-rederivation fix at depth: a left-chain f32 `a + b + c + d`
+    // in a guard `s > 9.5`. Each nested binary threads its 4-byte width so
+    // every level emits `addss`, not `addsd`. Depth 3 was where the old
+    // re-derivation stopped agreeing.
+    let canary = pass_canary("expressions/f32_deep_chain_binary");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f32-deep-chain-binary-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32_deep_chain_binary canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32_deep_chain_binary canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32 depth-3 chain to sum to 10.0 (> 9.5) and exit 70, got {:?} (71 = wrong XMM result)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_literal_source_cast_exit_canary_runs() {
     // A numeric `as` cast whose source folds to a literal (`10.0 as i32`) must
     // still emit a convert. The selector used to bail (no place type for a
@@ -10054,6 +10126,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "errors/trap_unrecoverable_statement",
     "expressions/float_array_binary_op_zero",
     "expressions/f32_array_binary_op_zero",
+    "expressions/f32_field_binary_to_local_cast",
+    "expressions/f32_deep_chain_binary",
     "expressions/float_literal_suffix",
     "expressions/integer_literal_suffix",
     "generics/const_data_param",
@@ -10442,19 +10516,16 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         path: "calls/sequential_self_field_rmw_stale_fold",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
-    // FLOAT-CODEGEN miscompiles (found 2026-06-12 by the float-breadth bug
-    // hunt). All compile (CurrentlyAccepts) but run wrong (native 71,
-    // interpreter 70). Cluster: float binary ops whose operands are
-    // fixed-array elements yield zero; deep f32 binary chains; f32->local
-    // casts. Promote to pass RUN canaries as the float lowering is fixed.
-    PendingCanary {
-        path: "expressions/f32_deep_chain_binary_wrong",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "expressions/f32_field_binary_to_local_cast_wrong",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
+    // FLOAT-CODEGEN miscompile (found 2026-06-12 by the float-breadth bug
+    // hunt). Compiles (CurrentlyAccepts) but runs wrong (native 71,
+    // interpreter 70). The sibling f32 binary/deep-chain miscompiles were
+    // FIXED 2026-06-14 by threading the resolved scalar width onto the binary
+    // value operand (promoted to pass RUN canaries
+    // expressions/f32_field_binary_to_local_cast + f32_deep_chain_binary).
+    // This one is a DISTINCT root on the same width axis: a cast-result f64
+    // LOCAL (`let wide: f64 = self.src as f64`) feeding a second cast reads
+    // garbage -- the local's slot/convert-write width, not the binary operand.
+    // See wiki/architecture/scalar_width_rederivation_smell.md.
     PendingCanary {
         path: "expressions/f32_to_f64_local_cast_wrong",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,

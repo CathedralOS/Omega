@@ -272,6 +272,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/runtime_float_local_arithmetic_exit", 70),
     ("expressions/float_array_binary_op_zero", 70),
     ("expressions/f32_array_binary_op_zero", 70),
+    ("expressions/f32_field_binary_to_local_cast", 70),
+    ("expressions/f32_deep_chain_binary", 70),
     ("expressions/runtime_float_place_comparison_exit", 70),
     ("expressions/runtime_literal_source_cast_exit", 70),
     ("expressions/runtime_match_value_exit", 70),
