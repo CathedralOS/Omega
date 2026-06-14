@@ -139,18 +139,21 @@ The general lesson stands for future codegen work: thread a resolved property
 on the value representation (set once, read everywhere) rather than
 re-deriving it per site.
 
-**Integer-arm operand width — PROBED 2026-06-14, it bites, but the fix is
-gated on a semantics decision.** `(self.a * self.b) % 7` with an i32 multiply
-that overflows 32 bits diverges: native wraps the nested multiply to 32 bits
-(result 3), the interpreter computes the intermediate at full width (result 4).
-Unlike the f32 family this is NOT a one-sided miscompile against a known-correct
-oracle — it surfaces an undecided language question (does i32 arithmetic wrap at
-every op, widen intermediates, or is overflow a proof obligation?). Tracked as
-the pending canary `expressions/nested_i32_mul_overflow_divergence` (compiles;
-NOT a RUN canary until the semantics is settled). When decided, the wrap option
-is the same threading fix (carry/apply the operand width on the integer arm too)
-plus an interpreter change to wrap intermediates; the proof-obligation option is
-a prover gap, not a codegen fix. The storage-descriptor re-derivation site
-remains unprobed.
+**Integer-arm operand width — PROBED 2026-06-14, it bites, but the resolution
+is a PROVER gap, not a codegen fix.** `(self.a * self.b) % 7` with an i32
+multiply that overflows 32 bits diverges: native wraps the nested multiply to
+32 bits (result 3), the interpreter computes the intermediate at full width
+(result 4). The maintainer ruled (2026-06-14) that integer overflow on a
+primitive is a COMPILE ERROR by default (exact/proven arithmetic; ch5), so this
+program is ILL-FORMED and the divergence is a symptom of accepting an
+unprovable op — neither runtime result is "correct". The real fix is the
+missing exact-arithmetic overflow proof-check (a prover/checker gap), which
+turns this into a compile rejection. Only if the operands explicitly opt into
+wrapping/saturating does a defined runtime result exist, and THEN the integer
+arm would need the same width threading the f32 family got (plus an interpreter
+that wraps intermediates) so both backends agree. Tracked as the pending canary
+`expressions/nested_i32_mul_overflow_divergence` (compiles today; becomes a FAIL
+canary when the overflow checker lands). The storage-descriptor re-derivation
+site remains unprobed.
 
 Original per-canary roots: session_review_2026_06_12.md §1c.
