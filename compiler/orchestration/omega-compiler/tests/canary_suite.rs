@@ -2815,6 +2815,40 @@ fn f32_field_binary_to_local_cast_exit_canary_runs() {
 }
 
 #[test]
+fn f32_to_f64_local_cast_exit_canary_runs() {
+    // Nested-cast width fix: `(self.src as f64) as i32` (a cast whose source is
+    // a folded cast). classify now types a Cast as its target, so the convert
+    // chain (cvtss2sd -> cvttsd2si) builds instead of the write being dropped.
+    let canary = pass_canary("expressions/f32_to_f64_local_cast");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f32-to-f64-local-cast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32_to_f64_local_cast canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32_to_f64_local_cast canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32->f64-local->i32 cast chain to yield 7 and exit 70, got {:?} (71 = write dropped, n stayed 0)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn f32_deep_chain_binary_exit_canary_runs() {
     // Scalar-width-rederivation fix at depth: a left-chain f32 `a + b + c + d`
     // in a guard `s > 9.5`. Each nested binary threads its 4-byte width so
@@ -10128,6 +10162,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/f32_array_binary_op_zero",
     "expressions/f32_field_binary_to_local_cast",
     "expressions/f32_deep_chain_binary",
+    "expressions/f32_to_f64_local_cast",
     "expressions/float_literal_suffix",
     "expressions/integer_literal_suffix",
     "generics/const_data_param",
@@ -10514,20 +10549,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // storage. Compiles; runs wrong (native 72, interpreter 70).
     PendingCanary {
         path: "calls/sequential_self_field_rmw_stale_fold",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    // FLOAT-CODEGEN miscompile (found 2026-06-12 by the float-breadth bug
-    // hunt). Compiles (CurrentlyAccepts) but runs wrong (native 71,
-    // interpreter 70). The sibling f32 binary/deep-chain miscompiles were
-    // FIXED 2026-06-14 by threading the resolved scalar width onto the binary
-    // value operand (promoted to pass RUN canaries
-    // expressions/f32_field_binary_to_local_cast + f32_deep_chain_binary).
-    // This one is a DISTINCT root on the same width axis: a cast-result f64
-    // LOCAL (`let wide: f64 = self.src as f64`) feeding a second cast reads
-    // garbage -- the local's slot/convert-write width, not the binary operand.
-    // See wiki/architecture/scalar_width_rederivation_smell.md.
-    PendingCanary {
-        path: "expressions/f32_to_f64_local_cast_wrong",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
 ];
