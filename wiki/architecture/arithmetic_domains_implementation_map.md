@@ -66,12 +66,30 @@ Arithmetic emission entry (x86_64): `append_runtime_binary_operation`
 Interpreter: model all three domains (wrap mask / clamp / trap) so the
 differential oracle covers them.
 
-## S2: `as` domain casts + mixed-domain rejection
+## S2: `as` domain casts + mixed-domain rejection — DONE (2026-06-15)
 
-`as` already exists for numeric casts (Cast node + Convert operand). Extend it
-to cross arithmetic domains (`x as Wrapping<u32>` / `x as u32` exact). Add a
-typecheck rule: a binary whose operands disagree on arithmetic domain is a hard
-error (no mixed-domain), with a diagnostic pointing at the `as` fix.
+Domains are **OPERAND-driven** (decision 17): the domain lives on each value's
+type, NOT the assignment target. A binary op's domain = combine(left, right)
+where `Exact` is neutral (a literal/exact value adopts the other operand's
+domain) and a non-exact domain wins. Implemented:
+
+- **Re-key (S2a, 8ec5a447)**: all four binary-write selection sites resolve the
+  domain from the OPERAND expressions (`ArithmeticDomain::combine`), not the
+  target. Canaries use operand-domained fields (`a: u8 in Saturating`).
+- **Mixed-domain rejection (S2c, 43c9b66e)**: omega-validation/arithmetic_domains.rs
+  `domain_of` walks value expressions (LocalData init, assignment, terminal) and
+  rejects a binary whose two operands carry DIFFERENT explicit domains (recursive,
+  so nested mixes are caught). Reads the RAW place type via `declared_place_type_raw`
+  (the unwrapping variant stripped the Constrained domain). FAIL canary
+  expressions/arithmetic_domain_mixed ("mixed arithmetic domains").
+- **`as` domain casts (S2b, 8e7b791c)**: `x as u8 in Saturating` re-tags the
+  domain (escape hatch). `domain` field threaded through all four Cast nodes +
+  conversions; parser parses the `in <Domain>` suffix; backend + validation read
+  the cast's domain. RUN canary expressions/arithmetic_domain_cast_exit.
+
+Interpreter remains local-domain-driven (agrees with operand-driven native when
+the local's domain matches the operands' — every canary). operand!=local in the
+interpreter is still a documented gap.
 
 ## S3: exact enforcement (the big breaking slice)
 

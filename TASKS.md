@@ -1114,8 +1114,12 @@ Implementation slices below build against these. Minor/easily-reversible details
       100+100 -> 127 (signed sat); in-range trapping runs. Gaps (deferred):
       aarch64 (errors), `*`/`/` (errors), interpreter field-targets + u64/usize.
       See wiki/architecture/arithmetic_domains_implementation_map.md "S1b DONE".
-    - S2: `as` DOMAIN CASTS (exact<->Wrapping/Saturating/Trapping) + reject
-      mixed-domain arithmetic with a clear diagnostic.
+    - S2: DONE (2026-06-15). Domains are OPERAND-driven (the domain lives on each
+      value's type, combined per binary; literals are neutral). A binary mixing
+      two different explicit domains is rejected (omega-validation/
+      arithmetic_domains.rs; FAIL canary arithmetic_domain_mixed). `as` DOMAIN
+      CASTS (`x as u8 in Saturating`) are the escape hatch (RUN canary
+      arithmetic_domain_cast_exit). Codegen + interpreter re-keyed to operands.
     - S3: EXACT-by-default ENFORCEMENT -- the range/entailment prover
       (omega-validation) rejects any exact arithmetic not provably in-range;
       unprovable = error directing the user to widen (`as`) or pick a domain.
