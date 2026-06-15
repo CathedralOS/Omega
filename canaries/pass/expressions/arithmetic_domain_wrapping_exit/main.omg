@@ -11,13 +11,14 @@ boundary trait Console { machine exit_process(return_code: i32); }
 
 data Main {
     console: Console;
-    a: u8;
-    b: u8;
+    a: u8 in Wrapping;
+    b: u8 in Wrapping;
 }
 
 machine Main::main(&mut self) {
     self.a = 200;
     self.b = 100;
+    // Operand-driven (decision 17): the Wrapping domain lives on a/b's types.
     let c: u8 in Wrapping = self.a + self.b;   // 300 wraps to 44 (u8)
     transition c == 44 {
         true -> good()

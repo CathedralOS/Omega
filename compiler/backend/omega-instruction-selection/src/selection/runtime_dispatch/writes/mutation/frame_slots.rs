@@ -243,13 +243,8 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         return Some(kind);
     }
 
-    // Decision 17: the destination slot's declared type carries the arithmetic
-    // domain (`T in Saturating/Trapping`) and signedness; thread them to the write.
-    let domain = slot.type_descriptor.arithmetic_domain();
-    let target_signed =
-        crate::selection::storage_places::descriptor_primitive_type(&slot.type_descriptor)
-            .is_some_and(|primitive| primitive.is_signed_integer());
-
+    // Decision 17 (operand-driven): the write resolves its arithmetic domain from
+    // the OPERANDS' types internally, not from the destination slot.
     super::select_runtime_storage_binary_write_in_table(
         input,
         dispatch_index,
@@ -259,8 +254,6 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         RuntimeStorageRegion::RuntimeFrame,
         slot.byte_offset,
         slot.byte_size,
-        domain,
-        target_signed,
         value,
         static_values,
         runtime_value_operands,

@@ -10,13 +10,14 @@ boundary trait Console { machine exit_process(return_code: i32); }
 
 data Main {
     console: Console;
-    a: i8;
-    b: i8;
+    a: i8 in Saturating;
+    b: i8 in Saturating;
 }
 
 machine Main::main(&mut self) {
     self.a = 100;
     self.b = 100;
+    // Operand-driven: a/b carry the Saturating domain, so the add saturates.
     let c: i8 in Saturating = self.a + self.b;   // 200 saturates to 127 (i8)
     transition c == 127 {
         true -> good()

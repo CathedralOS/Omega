@@ -11,13 +11,14 @@ boundary trait Console { machine exit_process(return_code: i32); }
 
 data Main {
     console: Console;
-    a: u8;
-    b: u8;
+    a: u8 in Trapping;
+    b: u8 in Trapping;
 }
 
 machine Main::main(&mut self) {
     self.a = 100;
     self.b = 50;
+    // Operand-driven: a/b carry the Trapping domain.
     let c: u8 in Trapping = self.a + self.b;   // 150 fits in u8, no trap
     transition c == 150 {
         true -> good()

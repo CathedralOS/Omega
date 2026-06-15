@@ -12,13 +12,14 @@ boundary trait Console { machine exit_process(return_code: i32); }
 
 data Main {
     console: Console;
-    a: u8;
-    b: u8;
+    a: u8 in Trapping;
+    b: u8 in Trapping;
 }
 
 machine Main::main(&mut self) {
     self.a = 200;
     self.b = 100;
+    // Operand-driven: a/b carry the Trapping domain, so the add traps on overflow.
     let c: u8 in Trapping = self.a + self.b;   // 300 overflows u8 -> trap (ud2)
     transition c == 44 {
         true -> good()
