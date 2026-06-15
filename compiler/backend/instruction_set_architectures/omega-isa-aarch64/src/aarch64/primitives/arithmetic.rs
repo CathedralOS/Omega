@@ -312,6 +312,31 @@ pub(in crate::aarch64) fn encode_sign_extend_word_to_x(
     )
 }
 
+/// `SXTB Xd, Wn` — sign-extend the low byte of `source_register` into the full
+/// 64-bit `destination_register` (`SBFM Xd, Xn, #0, #7`). Used to widen a signed
+/// 8-bit operand to 64 bits before a saturating/trapping wide-width op so the
+/// sign bit is honored (the operand was loaded zero-extended).
+pub(in crate::aarch64) fn encode_sign_extend_byte_to_x(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9340_1C00 | (u32::from(source_register) << 5) | u32::from(destination_register),
+    )
+}
+
+/// `SXTH Xd, Wn` — sign-extend the low halfword of `source_register` into the
+/// full 64-bit `destination_register` (`SBFM Xd, Xn, #0, #15`). Used to widen a
+/// signed 16-bit operand to 64 bits before a saturating/trapping wide-width op.
+pub(in crate::aarch64) fn encode_sign_extend_halfword_to_x(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9340_3C00 | (u32::from(source_register) << 5) | u32::from(destination_register),
+    )
+}
+
 pub(in crate::aarch64) fn encode_subs_x_immediate(
     destination_register: u8,
     source_register: u8,

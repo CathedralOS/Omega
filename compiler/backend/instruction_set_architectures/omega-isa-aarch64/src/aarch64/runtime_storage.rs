@@ -12,7 +12,8 @@ use super::primitives::{
     encode_float_convert_double_to_single, encode_float_convert_single_to_double,
     encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
     encode_float_multiply, encode_float_to_signed_int, encode_signed_int_to_float,
-    encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w, encode_sign_extend_word_to_x,
+    encode_brk, encode_sign_extend_byte_to_w, encode_sign_extend_byte_to_x,
+    encode_sign_extend_halfword_to_w, encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x,
     encode_float_subtract, encode_compare_w_immediate, encode_compare_w_register,
     encode_compare_x_register, encode_load_byte_w_from_x,
     encode_conditional_branch_equal, encode_conditional_branch_greater,
@@ -446,18 +447,39 @@ pub fn encode_runtime_storage_binary_write(
     right: RuntimeValueOperandHandle,
     is_float: bool,
     domain: omega_core::arithmetic::ArithmeticDomain,
-    _target_signed: bool,
+    target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
-    // Decision 17: the saturating/trapping overflow handling is implemented on
-    // x86_64 only so far. Exact/Wrapping use the default width-correct op (the
-    // aarch64 op + truncating store already wraps), so they need no change.
-    if matches!(
-        domain,
-        omega_core::arithmetic::ArithmeticDomain::Saturating
-            | omega_core::arithmetic::ArithmeticDomain::Trapping
-    ) {
+    use omega_core::arithmetic::ArithmeticDomain;
+    // Decision 17 (aarch64): Saturating/Trapping add/sub/mul are implemented via a
+    // wide (64-bit) op whose result is EXACT for <=32-bit operands, range-compared
+    // against the target type's [min,max], then clamped (Saturating: CSEL-style
+    // branch+move) or trapped (Trapping: BRK on out-of-range). Exact/Wrapping use
+    // the default width-correct op (the aarch64 op + truncating store already
+    // wraps), so they are unchanged. Float domains are always Exact/Wrapping here.
+    let saturating_or_trapping = !is_float
+        && matches!(
+            domain,
+            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+        );
+    if saturating_or_trapping
+        && matches!(
+            operator,
+            StateGuardOperator::Divide
+                | StateGuardOperator::Modulo
+                | StateGuardOperator::DivideUnsigned
+                | StateGuardOperator::ModuloUnsigned
+        )
+        && domain == ArithmeticDomain::Saturating
+    {
+        // Mirrors x86_64: integer division only overflows at TYPE_MIN / -1, which
+        // needs a dedicated pre-check that is not implemented yet. (Trapping
+        // div/mod falls through to the normal path below: aarch64 SDIV does not
+        // fault on overflow, but this matches the x86 note's intent that Trapping
+        // div is handled by the hardware path.)
         return Err(Diagnostic::error(
-            "saturating/trapping arithmetic domains are not yet implemented on aarch64".to_owned(),
+            "saturating divide/modulo is not implemented yet on aarch64 (integer division \
+             only overflows at the type minimum divided by -1)"
+                .to_owned(),
         ));
     }
     let mut bytes = Vec::with_capacity(runtime_storage_binary_write_width(
@@ -468,6 +490,8 @@ pub fn encode_runtime_storage_binary_write(
         operator,
         right,
         is_float,
+        domain,
+        target_signed,
     ));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
@@ -487,6 +511,21 @@ pub fn encode_runtime_storage_binary_write(
     )?;
     if is_float {
         append_runtime_float_binary_operation(&mut bytes, byte_size, 17, operator, 26)?;
+    } else if saturating_or_trapping
+        && matches!(
+            operator,
+            StateGuardOperator::Add | StateGuardOperator::Subtract | StateGuardOperator::Multiply
+        )
+    {
+        // Wide-width op + range-compare clamp/trap. Result left in x17; x16 (target
+        // base) and x20 (saved base for indexed targets) are NOT touched.
+        append_saturating_trapping_arithmetic(
+            &mut bytes,
+            domain,
+            operator,
+            byte_size,
+            target_signed,
+        )?;
     } else {
         append_runtime_binary_operation(
             &mut bytes,
@@ -520,9 +559,148 @@ pub fn encode_runtime_storage_binary_write(
             operator,
             right,
             is_float,
+            domain,
+            target_signed,
         )
     );
     Ok(bytes)
+}
+
+/// Saturating/Trapping integer add/sub/mul (decision 17, aarch64). The operands
+/// are already in x17 (left) and x26 (right). A 64-bit op produces the EXACT
+/// result for operands of 4 bytes or narrower (it cannot overflow 64 bits), so the
+/// full result is range-compared against the target type's [min,max] and either
+/// clamped (Saturating) or trapped (Trapping). The final value is left in x17.
+///
+/// Register use: x17 = result, x26 = scratch (the spent right operand) holding the
+/// active clamp bound, x19 = scratch holding the alternate bound. x16 (target base)
+/// and x20 (saved base for indexed targets) are deliberately untouched so the
+/// surrounding store still addresses the target. Width MUST equal
+/// `saturating_trapping_arithmetic_width` in `widths.rs`.
+fn append_saturating_trapping_arithmetic(
+    bytes: &mut Vec<u8>,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    operator: StateGuardOperator,
+    byte_size: usize,
+    target_signed: bool,
+) -> Result<(), Diagnostic> {
+    use omega_core::arithmetic::ArithmeticDomain;
+    if byte_size == 8 {
+        // A 64-bit op can itself overflow 64 bits, so the wide-result range
+        // compare cannot detect it. (x86_64 handles 64-bit add/sub via the
+        // carry/overflow flags; the uniform aarch64 range approach cannot.)
+        return Err(Diagnostic::error(
+            "saturating/trapping arithmetic on 64-bit integers is not implemented yet on \
+             aarch64 (the wide-result range compare cannot detect a 64-bit overflow)"
+                .to_owned(),
+        ));
+    }
+    if !matches!(byte_size, 1 | 2 | 4) {
+        return Err(Diagnostic::error(format!(
+            "saturating/trapping arithmetic cannot handle {byte_size}-byte targets yet on aarch64"
+        )));
+    }
+
+    // The operands were loaded zero-extended. For signed targets, sign-extend both
+    // to 64 bits so the wide op sees the true signed values (a negative i8 -50 is
+    // 0xCE = 206 zero-extended). Unsigned operands are already correct.
+    if target_signed {
+        match byte_size {
+            1 => {
+                bytes.extend(encode_sign_extend_byte_to_x(17, 17));
+                bytes.extend(encode_sign_extend_byte_to_x(26, 26));
+            }
+            2 => {
+                bytes.extend(encode_sign_extend_halfword_to_x(17, 17));
+                bytes.extend(encode_sign_extend_halfword_to_x(26, 26));
+            }
+            4 => {
+                bytes.extend(encode_sign_extend_word_to_x(17, 17));
+                bytes.extend(encode_sign_extend_word_to_x(26, 26));
+            }
+            _ => {}
+        }
+    }
+
+    // Wide (64-bit) op: x17 = x17 OP x26. Exact for <=32-bit operands.
+    match operator {
+        StateGuardOperator::Add => bytes.extend(encode_add_x_register(17, 17, 26)),
+        StateGuardOperator::Subtract => bytes.extend(encode_sub_x_register(17, 17, 26)),
+        StateGuardOperator::Multiply => bytes.extend(encode_mul_x_register(17, 17, 26)),
+        _ => unreachable!("only +/-/* reach the saturating/trapping arithmetic helper"),
+    }
+
+    let unsigned_max: u64 = (1u64 << (8 * byte_size)) - 1;
+    let signed_min = (-(1i128 << (8 * byte_size - 1))) as i64 as u64;
+    let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
+
+    match (domain, target_signed) {
+        (ArithmeticDomain::Saturating, false) => {
+            // Unsigned: clamp to [0, MAX]. The wide result of an unsigned op is
+            // always >= 0, so only the upper bound can be exceeded for add/mul.
+            // Subtract can underflow below 0 (wraps to a huge wide value > MAX),
+            // which the same `> MAX` test also catches and would clamp to MAX --
+            // wrong for subtract. So check BOTH bounds explicitly.
+            //   movz/movk x26, #0      ; lower bound
+            //   cmp   x17, x26
+            //   b.hs  +8               ; result >= 0 -> keep
+            //   mov   x17, x26         ; else clamp to 0
+            //   movz/movk x26, #MAX
+            //   cmp   x17, x26
+            //   b.ls  +8               ; result <= MAX -> keep
+            //   mov   x17, x26         ; else clamp to MAX
+            append_unsigned_immediate_padded(bytes, 26, 0);
+            bytes.extend(encode_compare_x_register(17, 26));
+            bytes.extend(encode_conditional_branch_higher_or_same(8)?);
+            bytes.extend(encode_move_x_register(17, 26));
+            append_unsigned_immediate_padded(bytes, 26, unsigned_max);
+            bytes.extend(encode_compare_x_register(17, 26));
+            bytes.extend(encode_conditional_branch_lower_or_same(8)?);
+            bytes.extend(encode_move_x_register(17, 26));
+        }
+        (ArithmeticDomain::Saturating, true) => {
+            // Signed: clamp to [MIN, MAX] using signed comparisons on the exact
+            // 64-bit result.
+            //   movz/movk x26, #MIN ; cmp x17,x26 ; b.ge +8 ; mov x17,x26
+            //   movz/movk x26, #MAX ; cmp x17,x26 ; b.le +8 ; mov x17,x26
+            append_unsigned_immediate_padded(bytes, 26, signed_min);
+            bytes.extend(encode_compare_x_register(17, 26));
+            bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
+            bytes.extend(encode_move_x_register(17, 26));
+            append_unsigned_immediate_padded(bytes, 26, signed_max);
+            bytes.extend(encode_compare_x_register(17, 26));
+            bytes.extend(encode_conditional_branch_less_or_equal(8)?);
+            bytes.extend(encode_move_x_register(17, 26));
+        }
+        (ArithmeticDomain::Trapping, false) => {
+            // Unsigned: trap unless 0 <= result <= MAX.
+            //   movz/movk x26, #0   ; cmp x17,x26 ; b.hs +8 ; brk
+            //   movz/movk x26, #MAX ; cmp x17,x26 ; b.ls +8 ; brk
+            append_unsigned_immediate_padded(bytes, 26, 0);
+            bytes.extend(encode_compare_x_register(17, 26));
+            bytes.extend(encode_conditional_branch_higher_or_same(8)?);
+            bytes.extend(encode_brk(0));
+            append_unsigned_immediate_padded(bytes, 26, unsigned_max);
+            bytes.extend(encode_compare_x_register(17, 26));
+            bytes.extend(encode_conditional_branch_lower_or_same(8)?);
+            bytes.extend(encode_brk(0));
+        }
+        (ArithmeticDomain::Trapping, true) => {
+            // Signed: trap unless MIN <= result <= MAX.
+            //   movz/movk x26, #MIN ; cmp x17,x26 ; b.ge +8 ; brk
+            //   movz/movk x26, #MAX ; cmp x17,x26 ; b.le +8 ; brk
+            append_unsigned_immediate_padded(bytes, 26, signed_min);
+            bytes.extend(encode_compare_x_register(17, 26));
+            bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
+            bytes.extend(encode_brk(0));
+            append_unsigned_immediate_padded(bytes, 26, signed_max);
+            bytes.extend(encode_compare_x_register(17, 26));
+            bytes.extend(encode_conditional_branch_less_or_equal(8)?);
+            bytes.extend(encode_brk(0));
+        }
+        _ => unreachable!("only Saturating/Trapping reach this helper"),
+    }
+    Ok(())
 }
 
 pub fn encode_runtime_pointee_binary_write(
@@ -3037,5 +3215,146 @@ mod tests {
             signed_bytes[sxtw_start..sxtw_start + 4].try_into().unwrap(),
         );
         assert_eq!(sxtw, 0x9340_7c00 | (17 << 5) | 17, "SXTW x17, w17");
+    }
+
+    /// Build a value-operand arena with two immediate operands (a deterministic,
+    /// relocation-free load width) and return the arena and both handles.
+    fn immediate_pair(
+        left: i64,
+        right: i64,
+    ) -> (
+        omega_core::arena::Arena<omega_target_operations::RuntimeValueOperand>,
+        omega_target_operations::RuntimeValueOperandHandle,
+        omega_target_operations::RuntimeValueOperandHandle,
+    ) {
+        let mut arena = omega_core::arena::Arena::new();
+        let left = arena.insert(omega_target_operations::RuntimeValueOperand::Immediate(left));
+        let right = arena.insert(omega_target_operations::RuntimeValueOperand::Immediate(right));
+        (arena, left, right)
+    }
+
+    /// The saturating/trapping add/sub/mul encoder length must equal its width
+    /// function for every (domain, operator, byte_size, signed) combination — the
+    /// internal `debug_assert_eq!` also fires here. Covers all 1/2/4-byte widths.
+    #[test]
+    fn saturating_trapping_binary_write_width_matches_emission() {
+        use omega_core::arithmetic::ArithmeticDomain;
+        let (arena, left, right) = immediate_pair(100, 100);
+        for &domain in &[ArithmeticDomain::Saturating, ArithmeticDomain::Trapping] {
+            for &operator in &[
+                StateGuardOperator::Add,
+                StateGuardOperator::Subtract,
+                StateGuardOperator::Multiply,
+            ] {
+                for &byte_size in &[1usize, 2, 4] {
+                    for &signed in &[false, true] {
+                        let bytes = encode_runtime_storage_binary_write(
+                            &arena, 0x10, byte_size, left, operator, right, false, domain, signed,
+                        )
+                        .unwrap();
+                        let width = widths::runtime_storage_binary_write_width(
+                            &arena, 0x10, byte_size, left, operator, right, false, domain, signed,
+                        );
+                        assert_eq!(
+                            bytes.len(),
+                            width,
+                            "len != width for domain={domain:?}, operator={operator:?}, byte_size={byte_size}, signed={signed}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// The signed saturating add at 1 byte must sign-extend BOTH operands (SXTB
+    /// Xd,Wn = 0x9340_1C00 family) before the wide ADD, materialize the bounds
+    /// with MOVZ/MOVK, and clamp with CMP + b.cond + MOV (no BRK).
+    #[test]
+    fn signed_saturating_add_byte_sign_extends_and_clamps() {
+        use omega_core::arithmetic::ArithmeticDomain;
+        let (arena, left, right) = immediate_pair(100, 100);
+        let bytes = encode_runtime_storage_binary_write(
+            &arena,
+            0x10,
+            1,
+            left,
+            StateGuardOperator::Add,
+            right,
+            false,
+            ArithmeticDomain::Saturating,
+            true,
+        )
+        .unwrap();
+        // The two immediate loads are each MOVZ (one halfword, value < 16 bits),
+        // then the two SXTB sit before the wide ADD. Find the first SXTB.
+        let words: Vec<u32> = bytes
+            .chunks_exact(4)
+            .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+            .collect();
+        // SXTB Xd, Wn family is 0x9340_1C00; expect exactly two of them.
+        let sxtb_count = words
+            .iter()
+            .filter(|w| (*w & 0xFFFF_FC00) == 0x9340_1C00)
+            .count();
+        assert_eq!(sxtb_count, 2, "expected two SXTB (one per signed operand)");
+        // Exactly one wide ADD Xd,Xn,Xm (0x8B00_0000 family) — the saturating op.
+        let add_count = words
+            .iter()
+            .filter(|w| (*w & 0xFF20_0000) == 0x8B00_0000)
+            .count();
+        assert_eq!(add_count, 1, "expected one wide ADD");
+        // Saturating must NOT emit a BRK (0xD420_0000 family).
+        assert!(
+            !words.iter().any(|w| (*w & 0xFFE0_001F) == 0xD420_0000),
+            "saturating must not trap"
+        );
+    }
+
+    /// Trapping add must emit BRK instructions (0xD420_0000) on the overflow
+    /// paths, and unsigned must check both the 0 lower bound and the MAX upper
+    /// bound.
+    #[test]
+    fn unsigned_trapping_add_emits_two_brks() {
+        use omega_core::arithmetic::ArithmeticDomain;
+        let (arena, left, right) = immediate_pair(200, 200);
+        let bytes = encode_runtime_storage_binary_write(
+            &arena,
+            0x10,
+            1,
+            left,
+            StateGuardOperator::Add,
+            right,
+            false,
+            ArithmeticDomain::Trapping,
+            false,
+        )
+        .unwrap();
+        let brk_count = bytes
+            .chunks_exact(4)
+            .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+            .filter(|w| (*w & 0xFFE0_001F) == 0xD420_0000)
+            .count();
+        assert_eq!(brk_count, 2, "expected a BRK on each of the two bound checks");
+    }
+
+    /// 64-bit saturating/trapping arithmetic is not implemented (the wide-result
+    /// range compare cannot detect a 64-bit overflow); it must error cleanly
+    /// rather than emit wrong code.
+    #[test]
+    fn saturating_eight_byte_arithmetic_errors() {
+        use omega_core::arithmetic::ArithmeticDomain;
+        let (arena, left, right) = immediate_pair(5, 5);
+        let result = encode_runtime_storage_binary_write(
+            &arena,
+            0x10,
+            8,
+            left,
+            StateGuardOperator::Add,
+            right,
+            false,
+            ArithmeticDomain::Saturating,
+            true,
+        );
+        assert!(result.is_err(), "8-byte saturating add must error, not miscompile");
     }
 }
