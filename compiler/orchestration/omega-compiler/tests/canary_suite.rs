@@ -2843,6 +2843,85 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
 }
 
 #[test]
+fn arithmetic_domain_trapping_exit_canary_runs() {
+    // Decision 17 S1b: `u8 in Trapping` runs normally when in range (100+50=150).
+    let canary = pass_canary("expressions/arithmetic_domain_trapping_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-arith-domain-trapping-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_trapping canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_trapping canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected u8 in Trapping (100+50=150, in range) to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn arithmetic_domain_trapping_overflow_aborts() {
+    // Decision 17 S1b: `u8 in Trapping` ABORTS on overflow (200+100=300). The
+    // native backend emits `ud2`, so the process never reaches the transition and
+    // never exits 70/71 -- it terminates abnormally. (Named without the
+    // `_canary_runs` suffix so the differential drift guard does not treat it as a
+    // clean-exit run canary.)
+    let canary = pass_canary("expressions/arithmetic_domain_trapping_overflow");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-arith-domain-trapping-of-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_trapping_overflow canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_trapping_overflow canary should run");
+
+    assert_ne!(
+        output.status.code(),
+        Some(70),
+        "expected u8 in Trapping overflow (200+100) to trap (abnormal exit), but it exited 70 \
+         as if no overflow occurred\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_ne!(
+        output.status.code(),
+        Some(71),
+        "expected u8 in Trapping overflow to trap BEFORE the transition, but it reached the \
+         bad() arm (exit 71)\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !output.status.success(),
+        "expected u8 in Trapping overflow to terminate abnormally, but it exited successfully"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn f32_field_binary_to_local_cast_exit_canary_runs() {
     // Scalar-width-rederivation fix: a folded f32 binary (`self.a + self.b`)
     // feeding `as i32` must compute single-precision (`addss`), not the old
@@ -10415,6 +10494,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/f32_array_binary_op_zero",
     "expressions/arithmetic_domain_wrapping_exit",
     "expressions/arithmetic_domain_saturating_exit",
+    "expressions/arithmetic_domain_trapping_exit",
+    "expressions/arithmetic_domain_trapping_overflow",
     "expressions/f32_field_binary_to_local_cast",
     "expressions/f32_deep_chain_binary",
     "expressions/f32_to_f64_local_cast",
