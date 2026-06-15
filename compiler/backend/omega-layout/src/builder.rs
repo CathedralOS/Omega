@@ -10,7 +10,7 @@ use omega_checked_trees::machine::Machine;
 use omega_checked_trees::platform::Platform;
 use omega_checked_trees::trait_definition::TraitDefinition;
 use omega_checked_trees::types::{
-    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+    FixedArrayLength, PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -763,8 +763,21 @@ impl<'program> LayoutBuilder<'program> {
                 referee: Box::new(self.type_descriptor(*referee)),
                 is_mutable: *is_mutable,
             },
-            TypeReferenceNode::Constrained { base_type, .. } => TypeLayoutDescriptor::Constrained {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => TypeLayoutDescriptor::Constrained {
                 base_type: Box::new(self.type_descriptor(*base_type)),
+                domain: self
+                    .program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .find_map(|constraint| match constraint {
+                        TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
+                        _ => None,
+                    })
+                    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
             },
             TypeReferenceNode::FixedArray {
                 element_type,

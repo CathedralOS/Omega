@@ -277,7 +277,7 @@ fn is_slice_descriptor(descriptor: &TypeLayoutDescriptor) -> bool {
         TypeLayoutDescriptor::Reference { referee, .. } => {
             matches!(referee.as_ref(), TypeLayoutDescriptor::Slice { .. })
         }
-        TypeLayoutDescriptor::Constrained { base_type } => is_slice_descriptor(base_type),
+        TypeLayoutDescriptor::Constrained { base_type, .. } => is_slice_descriptor(base_type),
         _ => false,
     }
 }

@@ -805,7 +805,7 @@ fn descriptor_primitive_is_signed(descriptor: &TypeLayoutDescriptor) -> Option<b
 pub(super) fn descriptor_primitive_type(descriptor: &TypeLayoutDescriptor) -> Option<PrimitiveType> {
     match descriptor {
         TypeLayoutDescriptor::Named { name, .. } => PrimitiveType::from_name(name),
-        TypeLayoutDescriptor::Constrained { base_type } => descriptor_primitive_type(base_type),
+        TypeLayoutDescriptor::Constrained { base_type, .. } => descriptor_primitive_type(base_type),
         _ => None,
     }
 }
@@ -1980,7 +1980,7 @@ fn descriptor_layout(
                 alignment: input.runtime_abi.pointer_alignment,
             };
         }
-        TypeLayoutDescriptor::Constrained { base_type } => {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
             return descriptor_layout(input, base_type);
         }
         TypeLayoutDescriptor::FixedArray {
@@ -2049,7 +2049,7 @@ fn inline_fixed_array_element_type(
     descriptor: &TypeLayoutDescriptor,
 ) -> Option<&TypeLayoutDescriptor> {
     match descriptor {
-        TypeLayoutDescriptor::Constrained { base_type } => {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
             inline_fixed_array_element_type(base_type)
         }
         TypeLayoutDescriptor::FixedArray { element_type, .. } => Some(element_type),
