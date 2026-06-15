@@ -1081,6 +1081,40 @@ Implementation slices below build against these. Minor/easily-reversible details
     wiki/design_briefs/concurrency_atomics.md. (C2-C5 of the scout
     register -- task unit, Join scopes, atomics-only sharing, C11
     intrinsics -- remain open for sign-off.)
+17. **Arithmetic is EXACT by default; overflow is a proof obligation; weaker
+    behavior is an explicit DOMAIN.** DECIDED 2026-06-14. Default integer
+    arithmetic must be PROVEN not to overflow/underflow (and no div-by-zero /
+    invalid shift); if the compiler cannot prove safety, it is a COMPILE ERROR
+    (the strict model -- both provable-overflow AND the unprovable middle must
+    be resolved; "no unexpected arithmetic"). To do arithmetic that can
+    overflow, the value/type lives in an explicit primitive DOMAIN:
+    `Wrapping` (wrap mod 2^width), `Saturating` (clamp to min/max), or
+    `Trapping` (runtime check, trap on overflow -- the escape hatch when you
+    cannot prove it and do not want wrap/saturate). Reuses the ch8 domain
+    concept (these are arithmetic-behaviour domains on primitives).
+    NO MAGIC WIDENING: `u8 + u8` is always `u8` (must be proven to fit, else
+    error); widen by an explicit `as` cast (`a as u16 + b as u16`). NO MIXED
+    DOMAIN: `(x in Wrapping) + (y exact)` is illegal; cross domains with an
+    explicit `as` cast. Explicit always wins. Lineage: Ada/SPARK (range types +
+    prove-no-overflow), cleaner than Rust's invisible debug/release mode or
+    C's UB; fits Omega's proof-first, Cathedral-assurance identity. Breaking
+    existing samples/canaries is ACCEPTED (that is what they are for) and is a
+    forcing function for the range prover. Supersedes ch5's exploratory
+    "Possible policies / likely default" text.
+    IMPLEMENTATION PLAN (incremental, canary-driven):
+    - S1: the three domains as OPT-IN behaviour (additive, non-breaking) --
+      parse the domain on a primitive type/value, thread it, and emit wrapping
+      (mask), saturating (cmp+cmov clamp), trapping (overflow-flag check +
+      trap) arithmetic per width. Canaries: 200+100 in u8 -> 44 (wrap) / 255
+      (sat) / trap. Escape hatches exist before enforcement bites.
+    - S2: `as` DOMAIN CASTS (exact<->Wrapping/Saturating/Trapping) + reject
+      mixed-domain arithmetic with a clear diagnostic.
+    - S3: EXACT-by-default ENFORCEMENT -- the range/entailment prover
+      (omega-validation) rejects any exact arithmetic not provably in-range;
+      unprovable = error directing the user to widen (`as`) or pick a domain.
+      This is the big breaking slice; migrate samples/canaries as fallout.
+    - S4: range-inference ergonomics (discharge common bounded cases so the
+      enforcement is not annotation-hell) + literal const-fold range checks.
 
 ## Next Up (highest leverage)
 
