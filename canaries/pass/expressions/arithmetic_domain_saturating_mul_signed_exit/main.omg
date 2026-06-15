@@ -1,0 +1,32 @@
+// RUN CANARY (exit 70). Decision 17: SIGNED saturating multiply, both clamp
+// directions. 50*50 = 2500 -> clamps to the i8 max 127 (cmovg); 50*-50 = -2500
+// -> clamps to the i8 min -128 (cmovl). hi == 127 AND lo == -128 -> exit 70.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    a: i8 in Saturating;
+    b: i8 in Saturating;
+    neg: i8 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    self.a = 50;
+    self.b = 50;
+    self.neg = 0 - 50;
+    let hi: i8 in Saturating = self.a * self.b;    // 2500 -> 127
+    let lo: i8 in Saturating = self.a * self.neg;  // -2500 -> -128
+    transition hi == 127 {
+        true -> check_lo(lo)
+        _ -> bad()
+    }
+    state check_lo(&mut self, lo: i8 in Saturating) {
+        transition lo == 0 - 128 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

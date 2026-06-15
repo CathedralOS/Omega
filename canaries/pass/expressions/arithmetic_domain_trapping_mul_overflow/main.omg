@@ -1,0 +1,24 @@
+// Decision 17: Trapping multiply OVERFLOW aborts. 100*100 = 10000 overflows u8,
+// so `u8 in Trapping` traps (ud2) -- the process terminates abnormally and never
+// exits 70/71. Asserted by the native-only test
+// arithmetic_domain_trapping_mul_overflow_aborts.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    a: u8 in Trapping;
+    b: u8 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 100;
+    self.b = 100;
+    let c: u8 in Trapping = self.a * self.b;   // 10000 overflows u8 -> trap
+    transition c == 16 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
