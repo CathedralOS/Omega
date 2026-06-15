@@ -278,6 +278,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/f32_array_binary_op_zero", 70),
     ("expressions/arithmetic_domain_wrapping_exit", 70),
     ("expressions/arithmetic_domain_saturating_exit", 70),
+    ("expressions/arithmetic_domain_trapping_exit", 70),
     ("expressions/f32_field_binary_to_local_cast", 70),
     ("expressions/f32_deep_chain_binary", 70),
     ("expressions/f32_to_f64_local_cast", 70),
