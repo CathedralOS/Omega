@@ -2907,6 +2907,37 @@ fn arithmetic_domain_saturating_mul_signed_exit_canary_runs() {
 }
 
 #[test]
+fn arithmetic_domain_trapping_div_exit_canary_runs() {
+    // Decision 17: Trapping divide routes to the normal idiv (which traps on
+    // overflow / div-by-zero); in range 140/2 = 70.
+    let canary = pass_canary("expressions/arithmetic_domain_trapping_div_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-arith-domain-trap-div-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_trapping_div canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_trapping_div canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Trapping div (140/2=70) to exit 70, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn arithmetic_domain_trapping_mul_exit_canary_runs() {
     // Decision 17: in-range Trapping multiply (10*10=100) does not trap.
     let canary = pass_canary("expressions/arithmetic_domain_trapping_mul_exit");
@@ -10753,6 +10784,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_saturating_mul_exit",
     "expressions/arithmetic_domain_saturating_mul_signed_exit",
     "expressions/arithmetic_domain_trapping_mul_exit",
+    "expressions/arithmetic_domain_trapping_div_exit",
     "expressions/arithmetic_domain_trapping_mul_overflow",
     "expressions/arithmetic_domain_saturating_signed_exit",
     "expressions/arithmetic_domain_trapping_exit",

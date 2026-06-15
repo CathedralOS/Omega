@@ -3372,10 +3372,17 @@ pub fn runtime_storage_binary_write_width(
         );
     let operation_width = if saturating_or_trapping && operator == StateGuardOperator::Multiply {
         saturating_trapping_multiply_width(domain, byte_size, target_signed)
-    } else if saturating_or_trapping {
+    } else if saturating_or_trapping
+        && matches!(
+            operator,
+            StateGuardOperator::Add | StateGuardOperator::Subtract
+        )
+    {
         width_integer_add_sub_width(byte_size)
             + arithmetic_domain_clamp_width(domain, operator, byte_size, target_signed)
     } else {
+        // Trapping div/mod (and all Exact/Wrapping ops) use the normal op width;
+        // Saturating div/mod errors in emission, so its width is irrelevant.
         runtime_binary_operation_or_float_width(operator, byte_size, is_float)
     };
     // 10 (mov r14,imm64) + left + push r10 (2) + right + mov r11,r10 (3)
@@ -3455,13 +3462,37 @@ pub fn encode_runtime_storage_binary_write(
         // for <=32-bit operands (it cannot exceed 64 bits), so compare the full
         // product against the target type's range and clamp / trap.
         append_saturating_trapping_multiply(&mut bytes, domain, byte_size, target_signed)?;
-    } else if saturating_or_trapping {
+    } else if saturating_or_trapping
+        && matches!(
+            operator,
+            StateGuardOperator::Add | StateGuardOperator::Subtract
+        )
+    {
         // Decision 17: the default integer path does a 64-bit op and lets the
         // store truncate (== Wrapping). Saturating/Trapping instead need the
         // overflow flags to reflect the TARGET width, so emit a width-correct
         // add/sub here and then clamp (Saturating) or trap (Trapping).
         append_width_integer_add_sub(&mut bytes, operator, byte_size)?;
         append_arithmetic_domain_clamp(&mut bytes, domain, operator, byte_size, target_signed)?;
+    } else if domain == ArithmeticDomain::Saturating
+        && matches!(
+            operator,
+            StateGuardOperator::Divide
+                | StateGuardOperator::Modulo
+                | StateGuardOperator::DivideUnsigned
+                | StateGuardOperator::ModuloUnsigned
+        )
+    {
+        // Saturating divide/modulo: integer division only overflows at
+        // TYPE_MIN / -1 (a corner the hardware `idiv` traps on); clamping that to
+        // TYPE_MAX needs a dedicated pre-check, not implemented yet. (Trapping
+        // div/mod falls through to the normal path below, where `idiv` already
+        // traps on overflow and divide-by-zero -- exactly Trapping semantics.)
+        return Err(Diagnostic::error(
+            "saturating divide/modulo is not implemented yet (integer division only \
+             overflows at the type minimum divided by -1)"
+                .to_owned(),
+        ));
     } else {
         append_runtime_binary_operation(
             &mut bytes,
