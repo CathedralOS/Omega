@@ -1082,7 +1082,9 @@ Implementation slices below build against these. Minor/easily-reversible details
     register -- task unit, Join scopes, atomics-only sharing, C11
     intrinsics -- remain open for sign-off.)
 17. **Arithmetic is EXACT by default; overflow is a proof obligation; weaker
-    behavior is an explicit DOMAIN.** DECIDED 2026-06-14. Default integer
+    behavior is an explicit DOMAIN.** DECIDED 2026-06-14. SPELLING DECIDED:
+    `<primitive> in <Domain>` (e.g. `count: u32 in Wrapping`), reusing the `in`
+    domain keyword. Default integer
     arithmetic must be PROVEN not to overflow/underflow (and no div-by-zero /
     invalid shift); if the compiler cannot prove safety, it is a COMPILE ERROR
     (the strict model -- both provable-overflow AND the unprovable middle must
