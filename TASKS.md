@@ -1120,12 +1120,18 @@ Implementation slices below build against these. Minor/easily-reversible details
       arithmetic_domains.rs; FAIL canary arithmetic_domain_mixed). `as` DOMAIN
       CASTS (`x as u8 in Saturating`) are the escape hatch (RUN canary
       arithmetic_domain_cast_exit). Codegen + interpreter re-keyed to operands.
-    - S3: EXACT-by-default ENFORCEMENT -- the range/entailment prover
-      (omega-validation) rejects any exact arithmetic not provably in-range;
-      unprovable = error directing the user to widen (`as`) or pick a domain.
-      This is the big breaking slice; migrate samples/canaries as fallout.
-    - S4: range-inference ergonomics (discharge common bounded cases so the
-      enforcement is not annotation-hell) + literal const-fold range checks.
+    - S3: DONE (2026-06-15). EXACT-by-default ENFORCEMENT: an exact (undomained)
+      integer `+`/`-`/`*` not provably in range is a compile error (omega-validation/
+      arithmetic_domains.rs interval prover over type bounds + literals); the fix is
+      `as`-widen, a range, or a domain. Atomic types resolve as Wrapping.
+      nested_i32_mul_overflow is now a FAIL canary. The corpus (5 differential
+      samples + ~37 canaries + 1 flow-test fixture) was migrated to `Wrapping`
+      (behaviour-identical). Full workspace green.
+    - S4: PARTIAL (2026-06-15). Flow-sensitive value tracking (a per-state-body
+      interval environment) discharges const-init + read-modify-write arithmetic,
+      cutting the S3 blast radius 44->30 pass canaries. STILL TODO: range-constraint
+      narrowing (`x: i32 [0..100]`), loop/`decreases` bounds, and contract `requires`
+      facts -- so cross-state / param / call-result operands need not be domained.
 
 ## Next Up (highest leverage)
 
