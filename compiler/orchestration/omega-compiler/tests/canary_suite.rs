@@ -2875,6 +2875,39 @@ fn arithmetic_domain_saturating_signed_exit_canary_runs() {
 }
 
 #[test]
+fn arithmetic_domain_cast_exit_canary_runs() {
+    // Decision 17 S2: a domain `as` cast crosses domains -- `(a as u8 in
+    // Saturating) + b` lets an exact `a` join saturating arithmetic; 200+100->255.
+    let canary = pass_canary("expressions/arithmetic_domain_cast_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-arith-domain-cast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_cast canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_cast canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `(a as u8 in Saturating) + b` (200+100) to clamp to 255 and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn arithmetic_domain_trapping_exit_canary_runs() {
     // Decision 17 S1b: `u8 in Trapping` runs normally when in range (100+50=150).
     let canary = pass_canary("expressions/arithmetic_domain_trapping_exit");
@@ -10529,6 +10562,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_saturating_signed_exit",
     "expressions/arithmetic_domain_trapping_exit",
     "expressions/arithmetic_domain_trapping_overflow",
+    "expressions/arithmetic_domain_cast_exit",
     "expressions/f32_field_binary_to_local_cast",
     "expressions/f32_deep_chain_binary",
     "expressions/f32_to_f64_local_cast",

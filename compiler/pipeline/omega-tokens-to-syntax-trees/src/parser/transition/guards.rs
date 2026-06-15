@@ -573,6 +573,7 @@ pub(super) fn rewrite_destructure_guard_expression(
         ExpressionNode::Cast(cast) => ExpressionNode::Cast(TableCastExpression {
             value: rewrite_destructure_guard_expression(syntax_trees, cast.value, subject, fields),
             target_type: cast.target_type,
+            domain: cast.domain,
         }),
         ExpressionNode::Indexed(indexed) => ExpressionNode::Indexed(TableIndexedExpression {
             collection: rewrite_destructure_guard_expression(

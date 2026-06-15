@@ -196,6 +196,7 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
+                    domain: cast.domain,
                 }))
             }
             ExpressionNode::Call(call) => {
@@ -568,6 +569,7 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
+                    domain: cast.domain,
                 }))
             }
             ExpressionNode::Call(call) => {
@@ -877,6 +879,8 @@ pub struct TableUnaryExpression {
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
     pub target_type: HandleSpan<DiagnosticName>,
+    /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
+    pub domain: omega_core::arithmetic::ArithmeticDomain,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

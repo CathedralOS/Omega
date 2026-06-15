@@ -154,12 +154,31 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                     .append_identifier_path_member(member)
             })?;
             input = rest;
+            // Optional arithmetic DOMAIN cast suffix (`x as u8 in Saturating`),
+            // decision 17 S2: re-tags the value's arithmetic domain so it can
+            // legally take part in domained arithmetic (the escape hatch for the
+            // mixed-domain rejection). `in` is the contextual membership keyword.
+            let mut domain = omega_core::arithmetic::ArithmeticDomain::Exact;
+            if input.at_contextual("in") {
+                let after_in = input.take_contextual("in")?;
+                let (domain_name, rest) = after_in.take_identifier()?;
+                let Some(parsed) =
+                    omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str())
+                else {
+                    return Err(rest.error_here(
+                        "unknown arithmetic domain; expected `Wrapping`, `Saturating`, or `Trapping`",
+                    ));
+                };
+                domain = parsed;
+                input = rest;
+            }
             expression =
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Cast(TableCastExpression {
                         value: expression,
                         target_type,
+                        domain,
                     }));
             continue;
         }

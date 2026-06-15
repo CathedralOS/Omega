@@ -92,6 +92,14 @@ fn domain_of(
                 (None, None) => None,
             }
         }
+        // A domain `as` cast (`x as T in D`) re-tags the value's domain. Recurse
+        // into the operand to check ITS nested binaries, but the result domain is
+        // the cast's declared domain (the escape hatch for crossing domains).
+        ExpressionNode::Cast(cast) => {
+            let domain = cast.domain;
+            let _ = domain_of(program, machine, state, cast.value, owner, diagnostics);
+            Some(domain)
+        }
         // Literals are domain-neutral (polymorphic): they adopt the operand they
         // are combined with.
         ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => None,
