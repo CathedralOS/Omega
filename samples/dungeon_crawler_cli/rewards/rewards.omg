@@ -9,6 +9,6 @@ data RewardKind {
 
 data Reward {
     kind: RewardKind;
-    gold: u32;
+    gold: u32 in Wrapping;
     item: ItemKind;
 }

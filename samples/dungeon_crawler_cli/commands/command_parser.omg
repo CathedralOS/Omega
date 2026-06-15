@@ -83,9 +83,9 @@ machine CommandParser::find_exit(
 machine CommandParser::find_exit_at(
     &mut self,
     exits: &[Exit],
-    exit_count: usize,
+    exit_count: usize in Wrapping,
     command: &String,
-    index: usize
+    index: usize in Wrapping
     ) -> Navigation {
     transition index < exits.len {
         true -> inspect_exit(exits, exit_count, command, index)
@@ -96,12 +96,12 @@ machine CommandParser::find_exit_at(
     state inspect_exit(
         &mut self,
         exits: &[Exit],
-        exit_count: usize,
+        exit_count: usize in Wrapping,
         command: &String,
-        index: usize
+        index: usize in Wrapping
     ) {
         let found: bool = self.direction_matches(exits[index].direction, command);
-        let next_index: usize = index + 1;
+        let next_index: usize in Wrapping = index + 1;
         let has_next: bool = next_index < exit_count && next_index < exits.len;
 
         transition {

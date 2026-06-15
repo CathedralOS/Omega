@@ -5,7 +5,7 @@ data Random {
 
 machine Random::seed(
     &mut self,
-    value: u64,
+    value: u64 in Wrapping,
     state: &mut RandomState
 ) {
     state.seed = value;
@@ -27,9 +27,9 @@ machine Random::next_u32(
 machine Random::range(
     &mut self,
     state: &mut RandomState,
-    exclusive_max: u32
+    exclusive_max: u32 in Wrapping
     ) -> u32 {
-    let raw: u32 = self.next_u32(state);
+    let raw: u32 in Wrapping = self.next_u32(state);
 
     transition {
         _ -> (raw % exclusive_max)
@@ -39,10 +39,10 @@ machine Random::range(
 machine Random::chance(
     &mut self,
     state: &mut RandomState,
-    numerator: u32,
-    denominator: u32
+    numerator: u32 in Wrapping,
+    denominator: u32 in Wrapping
     ) -> bool {
-    let roll: u32 = self.range(state, denominator);
+    let roll: u32 in Wrapping = self.range(state, denominator);
 
     transition {
         _ -> (roll < numerator)
@@ -53,7 +53,7 @@ machine Random::unit_real(
     &mut self,
     state: &mut RandomState
     ) -> Real {
-    let raw: u32 = self.next_u32(state);
+    let raw: u32 in Wrapping = self.next_u32(state);
 
     transition {
         _ -> (Real::from(raw) / Real::from(u32::MAX))

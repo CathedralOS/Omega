@@ -208,7 +208,7 @@ machine Dungeon::game_over(&mut self) {
 
 machine Dungeon::initialize(
     &mut self,
-    seed: u64
+    seed: u64 in Wrapping
 ) {
     self.player_system.create("Wanderer", &mut self.player);
     self.rng.seed(seed, &mut self.random);

@@ -20,22 +20,22 @@ use platform::console;
 // Exits 70 only when all three land; 71/72/73 name the failing shape.
 
 data Box1 {
-    n: i32;
+    n: i32 in Wrapping;
 }
 
 machine Box1::take(&mut self) -> i32 {
-    let value: i32 = self.n;
+    let value: i32 in Wrapping = self.n;
     self.n = 1;
     value
 }
 
-machine Box1::offset(&self, amount: i32) -> i32 {
-    let total: i32 = self.n + amount;
+machine Box1::offset(&self, amount: i32 in Wrapping) -> i32 {
+    let total: i32 in Wrapping = self.n + amount;
     total
 }
 
 machine fixed() -> i32 {
-    let answer: i32 = 25;
+    let answer: i32 in Wrapping = 25;
     answer
 }
 
@@ -46,23 +46,23 @@ data Main {
 
 machine Main::main(&mut self) {
     self.b.n = 40;
-    let taken: i32 = self.b.take();
-    let off: i32 = self.b.offset(4);
-    let fix: i32 = fixed();
+    let taken: i32 in Wrapping = self.b.take();
+    let off: i32 in Wrapping = self.b.offset(4);
+    let fix: i32 in Wrapping = fixed();
 
     transition taken == 40 {
         true -> check_off(off, fix)
         false -> bad_taken()
     }
 
-    state check_off(&mut self, off: i32, fix: i32) {
+    state check_off(&mut self, off: i32 in Wrapping, fix: i32 in Wrapping) {
         transition off == 5 {
             true -> check_fix(fix)
             false -> bad_off()
         }
     }
 
-    state check_fix(&mut self, fix: i32) {
+    state check_fix(&mut self, fix: i32 in Wrapping) {
         transition fix == 25 {
             true -> good()
             false -> bad_fix()

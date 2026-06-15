@@ -2,7 +2,7 @@
 // helper; the entry machine returns its result as the terminal value.
 data Main {}
 
-machine add_i32(left: i32, right: i32) -> i32 {
+machine add_i32(left: i32 in Wrapping, right: i32 in Wrapping) -> i32 {
     left + right
 }
 

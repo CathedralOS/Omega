@@ -10,9 +10,9 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    a: u16;
-    b: u16;
-    c: u16;
+    a: u16 in Wrapping;
+    b: u16 in Wrapping;
+    c: u16 in Wrapping;
 }
 
 machine Main::main(&mut self) {

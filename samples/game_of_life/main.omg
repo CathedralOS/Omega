@@ -32,7 +32,7 @@ use omega::language::std::console;
 data Grid [copy, zero_init] {
     board: [i32; 16];
     next: [i32; 16];
-    offset: i32;
+    offset: i32 in Wrapping;
 }
 
 data Main {
@@ -51,20 +51,20 @@ machine Main::init_board(&mut self) {
 
 // Cell 0 (0,0): neighbors = cells[1]+cells[4]+cells[5]
 machine Main::compute_cell_0(&mut self) {
-    let n: i32 = self.g.board[1] + self.g.board[4] + self.g.board[5];
-    let cur: i32 = self.g.board[0];
+    let n: i32 in Wrapping = self.g.board[1] + self.g.board[4] + self.g.board[5];
+    let cur: i32 in Wrapping = self.g.board[0];
     transition n == 3 {
         true -> live_0()
         _ -> check_cur_0(cur, n)
     }
     state live_0(&mut self) { self.g.next[0] = 1; }
-    state check_cur_0(&mut self, cur: i32, n: i32) {
+    state check_cur_0(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_0(n)
             _ -> die_0()
         }
     }
-    state check_two_0(&mut self, n: i32) {
+    state check_two_0(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_0()
             _ -> die_0()
@@ -76,20 +76,20 @@ machine Main::compute_cell_0(&mut self) {
 
 // Cell 1 (0,1): neighbors = cells[0]+cells[2]+cells[4]+cells[5]+cells[6]
 machine Main::compute_cell_1(&mut self) {
-    let n: i32 = self.g.board[0] + self.g.board[2] + self.g.board[4] + self.g.board[5] + self.g.board[6];
-    let cur: i32 = self.g.board[1];
+    let n: i32 in Wrapping = self.g.board[0] + self.g.board[2] + self.g.board[4] + self.g.board[5] + self.g.board[6];
+    let cur: i32 in Wrapping = self.g.board[1];
     transition n == 3 {
         true -> live_1()
         _ -> check_cur_1(cur, n)
     }
     state live_1(&mut self) { self.g.next[1] = 1; }
-    state check_cur_1(&mut self, cur: i32, n: i32) {
+    state check_cur_1(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_1(n)
             _ -> die_1()
         }
     }
-    state check_two_1(&mut self, n: i32) {
+    state check_two_1(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_1()
             _ -> die_1()
@@ -101,20 +101,20 @@ machine Main::compute_cell_1(&mut self) {
 
 // Cell 2 (0,2): neighbors = cells[1]+cells[3]+cells[5]+cells[6]+cells[7]
 machine Main::compute_cell_2(&mut self) {
-    let n: i32 = self.g.board[1] + self.g.board[3] + self.g.board[5] + self.g.board[6] + self.g.board[7];
-    let cur: i32 = self.g.board[2];
+    let n: i32 in Wrapping = self.g.board[1] + self.g.board[3] + self.g.board[5] + self.g.board[6] + self.g.board[7];
+    let cur: i32 in Wrapping = self.g.board[2];
     transition n == 3 {
         true -> live_2()
         _ -> check_cur_2(cur, n)
     }
     state live_2(&mut self) { self.g.next[2] = 1; }
-    state check_cur_2(&mut self, cur: i32, n: i32) {
+    state check_cur_2(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_2(n)
             _ -> die_2()
         }
     }
-    state check_two_2(&mut self, n: i32) {
+    state check_two_2(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_2()
             _ -> die_2()
@@ -126,20 +126,20 @@ machine Main::compute_cell_2(&mut self) {
 
 // Cell 3 (0,3): neighbors = cells[2]+cells[6]+cells[7]
 machine Main::compute_cell_3(&mut self) {
-    let n: i32 = self.g.board[2] + self.g.board[6] + self.g.board[7];
-    let cur: i32 = self.g.board[3];
+    let n: i32 in Wrapping = self.g.board[2] + self.g.board[6] + self.g.board[7];
+    let cur: i32 in Wrapping = self.g.board[3];
     transition n == 3 {
         true -> live_3()
         _ -> check_cur_3(cur, n)
     }
     state live_3(&mut self) { self.g.next[3] = 1; }
-    state check_cur_3(&mut self, cur: i32, n: i32) {
+    state check_cur_3(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_3(n)
             _ -> die_3()
         }
     }
-    state check_two_3(&mut self, n: i32) {
+    state check_two_3(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_3()
             _ -> die_3()
@@ -151,20 +151,20 @@ machine Main::compute_cell_3(&mut self) {
 
 // Cell 4 (1,0): neighbors = cells[0]+cells[1]+cells[5]+cells[8]+cells[9]
 machine Main::compute_cell_4(&mut self) {
-    let n: i32 = self.g.board[0] + self.g.board[1] + self.g.board[5] + self.g.board[8] + self.g.board[9];
-    let cur: i32 = self.g.board[4];
+    let n: i32 in Wrapping = self.g.board[0] + self.g.board[1] + self.g.board[5] + self.g.board[8] + self.g.board[9];
+    let cur: i32 in Wrapping = self.g.board[4];
     transition n == 3 {
         true -> live_4()
         _ -> check_cur_4(cur, n)
     }
     state live_4(&mut self) { self.g.next[4] = 1; }
-    state check_cur_4(&mut self, cur: i32, n: i32) {
+    state check_cur_4(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_4(n)
             _ -> die_4()
         }
     }
-    state check_two_4(&mut self, n: i32) {
+    state check_two_4(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_4()
             _ -> die_4()
@@ -177,21 +177,21 @@ machine Main::compute_cell_4(&mut self) {
 // Cell 5 (1,1): neighbors = cells[0]+cells[1]+cells[2]+cells[4]+cells[6]+cells[8]+cells[9]+cells[10]
 // n=3 -> alive (survives)
 machine Main::compute_cell_5(&mut self) {
-    let n: i32 = self.g.board[0] + self.g.board[1] + self.g.board[2] + self.g.board[4]
+    let n: i32 in Wrapping = self.g.board[0] + self.g.board[1] + self.g.board[2] + self.g.board[4]
                + self.g.board[6] + self.g.board[8] + self.g.board[9] + self.g.board[10];
-    let cur: i32 = self.g.board[5];
+    let cur: i32 in Wrapping = self.g.board[5];
     transition n == 3 {
         true -> live_5()
         _ -> check_cur_5(cur, n)
     }
     state live_5(&mut self) { self.g.next[5] = 1; }
-    state check_cur_5(&mut self, cur: i32, n: i32) {
+    state check_cur_5(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_5(n)
             _ -> die_5()
         }
     }
-    state check_two_5(&mut self, n: i32) {
+    state check_two_5(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_5()
             _ -> die_5()
@@ -204,21 +204,21 @@ machine Main::compute_cell_5(&mut self) {
 // Cell 6 (1,2): neighbors = cells[1]+cells[2]+cells[3]+cells[5]+cells[7]+cells[9]+cells[10]+cells[11]
 // n=3 -> alive (survives)
 machine Main::compute_cell_6(&mut self) {
-    let n: i32 = self.g.board[1] + self.g.board[2] + self.g.board[3] + self.g.board[5]
+    let n: i32 in Wrapping = self.g.board[1] + self.g.board[2] + self.g.board[3] + self.g.board[5]
                + self.g.board[7] + self.g.board[9] + self.g.board[10] + self.g.board[11];
-    let cur: i32 = self.g.board[6];
+    let cur: i32 in Wrapping = self.g.board[6];
     transition n == 3 {
         true -> live_6()
         _ -> check_cur_6(cur, n)
     }
     state live_6(&mut self) { self.g.next[6] = 1; }
-    state check_cur_6(&mut self, cur: i32, n: i32) {
+    state check_cur_6(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_6(n)
             _ -> die_6()
         }
     }
-    state check_two_6(&mut self, n: i32) {
+    state check_two_6(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_6()
             _ -> die_6()
@@ -230,20 +230,20 @@ machine Main::compute_cell_6(&mut self) {
 
 // Cell 7 (1,3): neighbors = cells[2]+cells[3]+cells[6]+cells[10]+cells[11]
 machine Main::compute_cell_7(&mut self) {
-    let n: i32 = self.g.board[2] + self.g.board[3] + self.g.board[6] + self.g.board[10] + self.g.board[11];
-    let cur: i32 = self.g.board[7];
+    let n: i32 in Wrapping = self.g.board[2] + self.g.board[3] + self.g.board[6] + self.g.board[10] + self.g.board[11];
+    let cur: i32 in Wrapping = self.g.board[7];
     transition n == 3 {
         true -> live_7()
         _ -> check_cur_7(cur, n)
     }
     state live_7(&mut self) { self.g.next[7] = 1; }
-    state check_cur_7(&mut self, cur: i32, n: i32) {
+    state check_cur_7(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_7(n)
             _ -> die_7()
         }
     }
-    state check_two_7(&mut self, n: i32) {
+    state check_two_7(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_7()
             _ -> die_7()
@@ -255,20 +255,20 @@ machine Main::compute_cell_7(&mut self) {
 
 // Cell 8 (2,0): neighbors = cells[4]+cells[5]+cells[9]+cells[12]+cells[13]
 machine Main::compute_cell_8(&mut self) {
-    let n: i32 = self.g.board[4] + self.g.board[5] + self.g.board[9] + self.g.board[12] + self.g.board[13];
-    let cur: i32 = self.g.board[8];
+    let n: i32 in Wrapping = self.g.board[4] + self.g.board[5] + self.g.board[9] + self.g.board[12] + self.g.board[13];
+    let cur: i32 in Wrapping = self.g.board[8];
     transition n == 3 {
         true -> live_8()
         _ -> check_cur_8(cur, n)
     }
     state live_8(&mut self) { self.g.next[8] = 1; }
-    state check_cur_8(&mut self, cur: i32, n: i32) {
+    state check_cur_8(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_8(n)
             _ -> die_8()
         }
     }
-    state check_two_8(&mut self, n: i32) {
+    state check_two_8(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_8()
             _ -> die_8()
@@ -281,21 +281,21 @@ machine Main::compute_cell_8(&mut self) {
 // Cell 9 (2,1): neighbors = cells[4]+cells[5]+cells[6]+cells[8]+cells[10]+cells[12]+cells[13]+cells[14]
 // n=3 -> alive (survives)
 machine Main::compute_cell_9(&mut self) {
-    let n: i32 = self.g.board[4] + self.g.board[5] + self.g.board[6] + self.g.board[8]
+    let n: i32 in Wrapping = self.g.board[4] + self.g.board[5] + self.g.board[6] + self.g.board[8]
                + self.g.board[10] + self.g.board[12] + self.g.board[13] + self.g.board[14];
-    let cur: i32 = self.g.board[9];
+    let cur: i32 in Wrapping = self.g.board[9];
     transition n == 3 {
         true -> live_9()
         _ -> check_cur_9(cur, n)
     }
     state live_9(&mut self) { self.g.next[9] = 1; }
-    state check_cur_9(&mut self, cur: i32, n: i32) {
+    state check_cur_9(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_9(n)
             _ -> die_9()
         }
     }
-    state check_two_9(&mut self, n: i32) {
+    state check_two_9(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_9()
             _ -> die_9()
@@ -308,21 +308,21 @@ machine Main::compute_cell_9(&mut self) {
 // Cell 10 (2,2): neighbors = cells[5]+cells[6]+cells[7]+cells[9]+cells[11]+cells[13]+cells[14]+cells[15]
 // n=3 -> alive (survives)
 machine Main::compute_cell_10(&mut self) {
-    let n: i32 = self.g.board[5] + self.g.board[6] + self.g.board[7] + self.g.board[9]
+    let n: i32 in Wrapping = self.g.board[5] + self.g.board[6] + self.g.board[7] + self.g.board[9]
                + self.g.board[11] + self.g.board[13] + self.g.board[14] + self.g.board[15];
-    let cur: i32 = self.g.board[10];
+    let cur: i32 in Wrapping = self.g.board[10];
     transition n == 3 {
         true -> live_10()
         _ -> check_cur_10(cur, n)
     }
     state live_10(&mut self) { self.g.next[10] = 1; }
-    state check_cur_10(&mut self, cur: i32, n: i32) {
+    state check_cur_10(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_10(n)
             _ -> die_10()
         }
     }
-    state check_two_10(&mut self, n: i32) {
+    state check_two_10(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_10()
             _ -> die_10()
@@ -334,20 +334,20 @@ machine Main::compute_cell_10(&mut self) {
 
 // Cell 11 (2,3): neighbors = cells[6]+cells[7]+cells[10]+cells[14]+cells[15]
 machine Main::compute_cell_11(&mut self) {
-    let n: i32 = self.g.board[6] + self.g.board[7] + self.g.board[10] + self.g.board[14] + self.g.board[15];
-    let cur: i32 = self.g.board[11];
+    let n: i32 in Wrapping = self.g.board[6] + self.g.board[7] + self.g.board[10] + self.g.board[14] + self.g.board[15];
+    let cur: i32 in Wrapping = self.g.board[11];
     transition n == 3 {
         true -> live_11()
         _ -> check_cur_11(cur, n)
     }
     state live_11(&mut self) { self.g.next[11] = 1; }
-    state check_cur_11(&mut self, cur: i32, n: i32) {
+    state check_cur_11(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_11(n)
             _ -> die_11()
         }
     }
-    state check_two_11(&mut self, n: i32) {
+    state check_two_11(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_11()
             _ -> die_11()
@@ -359,20 +359,20 @@ machine Main::compute_cell_11(&mut self) {
 
 // Cell 12 (3,0): neighbors = cells[8]+cells[9]+cells[13]
 machine Main::compute_cell_12(&mut self) {
-    let n: i32 = self.g.board[8] + self.g.board[9] + self.g.board[13];
-    let cur: i32 = self.g.board[12];
+    let n: i32 in Wrapping = self.g.board[8] + self.g.board[9] + self.g.board[13];
+    let cur: i32 in Wrapping = self.g.board[12];
     transition n == 3 {
         true -> live_12()
         _ -> check_cur_12(cur, n)
     }
     state live_12(&mut self) { self.g.next[12] = 1; }
-    state check_cur_12(&mut self, cur: i32, n: i32) {
+    state check_cur_12(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_12(n)
             _ -> die_12()
         }
     }
-    state check_two_12(&mut self, n: i32) {
+    state check_two_12(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_12()
             _ -> die_12()
@@ -384,20 +384,20 @@ machine Main::compute_cell_12(&mut self) {
 
 // Cell 13 (3,1): neighbors = cells[8]+cells[9]+cells[10]+cells[12]+cells[14]
 machine Main::compute_cell_13(&mut self) {
-    let n: i32 = self.g.board[8] + self.g.board[9] + self.g.board[10] + self.g.board[12] + self.g.board[14];
-    let cur: i32 = self.g.board[13];
+    let n: i32 in Wrapping = self.g.board[8] + self.g.board[9] + self.g.board[10] + self.g.board[12] + self.g.board[14];
+    let cur: i32 in Wrapping = self.g.board[13];
     transition n == 3 {
         true -> live_13()
         _ -> check_cur_13(cur, n)
     }
     state live_13(&mut self) { self.g.next[13] = 1; }
-    state check_cur_13(&mut self, cur: i32, n: i32) {
+    state check_cur_13(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_13(n)
             _ -> die_13()
         }
     }
-    state check_two_13(&mut self, n: i32) {
+    state check_two_13(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_13()
             _ -> die_13()
@@ -409,20 +409,20 @@ machine Main::compute_cell_13(&mut self) {
 
 // Cell 14 (3,2): neighbors = cells[9]+cells[10]+cells[11]+cells[13]+cells[15]
 machine Main::compute_cell_14(&mut self) {
-    let n: i32 = self.g.board[9] + self.g.board[10] + self.g.board[11] + self.g.board[13] + self.g.board[15];
-    let cur: i32 = self.g.board[14];
+    let n: i32 in Wrapping = self.g.board[9] + self.g.board[10] + self.g.board[11] + self.g.board[13] + self.g.board[15];
+    let cur: i32 in Wrapping = self.g.board[14];
     transition n == 3 {
         true -> live_14()
         _ -> check_cur_14(cur, n)
     }
     state live_14(&mut self) { self.g.next[14] = 1; }
-    state check_cur_14(&mut self, cur: i32, n: i32) {
+    state check_cur_14(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_14(n)
             _ -> die_14()
         }
     }
-    state check_two_14(&mut self, n: i32) {
+    state check_two_14(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_14()
             _ -> die_14()
@@ -434,20 +434,20 @@ machine Main::compute_cell_14(&mut self) {
 
 // Cell 15 (3,3): neighbors = cells[10]+cells[11]+cells[14]
 machine Main::compute_cell_15(&mut self) {
-    let n: i32 = self.g.board[10] + self.g.board[11] + self.g.board[14];
-    let cur: i32 = self.g.board[15];
+    let n: i32 in Wrapping = self.g.board[10] + self.g.board[11] + self.g.board[14];
+    let cur: i32 in Wrapping = self.g.board[15];
     transition n == 3 {
         true -> live_15()
         _ -> check_cur_15(cur, n)
     }
     state live_15(&mut self) { self.g.next[15] = 1; }
-    state check_cur_15(&mut self, cur: i32, n: i32) {
+    state check_cur_15(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_15(n)
             _ -> die_15()
         }
     }
-    state check_two_15(&mut self, n: i32) {
+    state check_two_15(&mut self, n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_15()
             _ -> die_15()
@@ -497,8 +497,8 @@ machine Main::main(&mut self) {
     self.step();
 
     // Checksum the next board: should be 4 (4 alive cells).
-    let sum: i32 = self.checksum();
-    let code: i32 = sum + self.g.offset;
+    let sum: i32 in Wrapping = self.checksum();
+    let code: i32 in Wrapping = sum + self.g.offset;
 
     transition code == 70 {
         true -> good()

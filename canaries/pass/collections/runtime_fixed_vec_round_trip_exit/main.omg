@@ -30,7 +30,7 @@ use platform::console;
 
 data FixedVecI32x4 {
     items: [i32; 4];
-    length: usize;
+    length: usize in Wrapping;
 }
 
 // Empty the vector and ESTABLISH the has-room fact for the next push. The
@@ -43,7 +43,7 @@ ensures
     self.length = 0;
 }
 
-machine FixedVecI32x4::push(&mut self, value: i32)
+machine FixedVecI32x4::push(&mut self, value: i32 in Wrapping)
 requires
     self.length < self.items.len
 ensures
@@ -51,7 +51,7 @@ ensures
     self.length - 1 < self.items.len
 {
     let slots: &mut [i32] = self.items.as_mut_slice();
-    let index: usize = self.length;
+    let index: usize in Wrapping = self.length;
     slots[index] = value;
     self.length = self.length + 1;
 }
@@ -67,13 +67,13 @@ requires
     self.length - 1 < self.items.len
 {
     let slots: &[i32] = self.items.as_slice();
-    let index: usize = self.length - 1;
-    let value: i32 = slots[index];
+    let index: usize in Wrapping = self.length - 1;
+    let value: i32 in Wrapping = slots[index];
     self.length = index;
     value
 }
 
-machine FixedVecI32x4::get(&self, index: usize) -> i32
+machine FixedVecI32x4::get(&self, index: usize in Wrapping) -> i32
 requires
     self.length > index;
     index < self.items.len
@@ -90,25 +90,25 @@ data Main {
 machine Main::main(&mut self) {
     self.vec.clear();
     self.vec.push(7);
-    let first: i32 = self.vec.get(0);
-    let popped: i32 = self.vec.pop();
+    let first: i32 in Wrapping = self.vec.get(0);
+    let popped: i32 in Wrapping = self.vec.pop();
     self.vec.clear();
     self.vec.push(9);
-    let second: i32 = self.vec.get(0);
+    let second: i32 in Wrapping = self.vec.get(0);
 
     transition first == 7 {
         true -> check_popped(popped, second)
         false -> bad_first()
     }
 
-    state check_popped(&mut self, popped: i32, second: i32) {
+    state check_popped(&mut self, popped: i32 in Wrapping, second: i32 in Wrapping) {
         transition popped == 7 {
             true -> check_second(second)
             false -> bad_popped()
         }
     }
 
-    state check_second(&mut self, second: i32) {
+    state check_second(&mut self, second: i32 in Wrapping) {
         transition second == 9 {
             true -> check_length()
             false -> bad_second()

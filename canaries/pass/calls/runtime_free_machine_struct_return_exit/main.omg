@@ -15,15 +15,15 @@ boundary trait Console {
 }
 
 data Pair {
-    a: i32;
-    b: i32;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
 }
 
-machine bump(n: i32) -> i32 {
+machine bump(n: i32 in Wrapping) -> i32 {
     n + 4
 }
 
-machine make(x: i32) -> Pair {
+machine make(x: i32 in Wrapping) -> Pair {
     Pair { a: x, b: x + 1 }
 }
 
@@ -32,9 +32,9 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let seed: i32 = 34;
+    let seed: i32 in Wrapping = 34;
     let lit: Pair = make(seed);
-    let bumped: i32 = bump(30);
+    let bumped: i32 in Wrapping = bump(30);
     let chained: Pair = make(bumped);
 
     transition lit.a + lit.b + chained.a + chained.b == 138 {

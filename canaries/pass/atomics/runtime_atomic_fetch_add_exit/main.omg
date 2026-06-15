@@ -23,7 +23,7 @@ data Main {
 machine Main::main(&mut self) {
     self.counter.store(10, Relaxed);
 
-    let old1: u32 = self.counter.fetch_add(5, Relaxed);
+    let old1: u32 in Wrapping = self.counter.fetch_add(5, Relaxed);
 
     transition old1 == 10 {
         true -> check_after_first()
@@ -36,7 +36,7 @@ machine Main::main(&mut self) {
         }
     }
     state do_second_add(&mut self) {
-        let old2: u32 = self.counter.fetch_add(8, Relaxed);
+        let old2: u32 in Wrapping = self.counter.fetch_add(8, Relaxed);
         transition old2 == 15 {
             true -> check_after_second()
             false -> bad_old2()

@@ -5,11 +5,11 @@
 
 data Counter {
     version v1 {
-        counter: i32;
+        counter: i32 in Wrapping;
     }
 
-    count: i32;
-    timestamp: i32;
+    count: i32 in Wrapping;
+    timestamp: i32 in Wrapping;
 }
 
 data Main {

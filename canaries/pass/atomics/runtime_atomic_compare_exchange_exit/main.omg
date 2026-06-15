@@ -47,7 +47,7 @@ machine Main::main(&mut self) {
     // Store 10 into the cell, then CAS(expected=10, new=99).
     self.counter.store(10, Relaxed);
 
-    let prior_s: u32 = self.counter.compare_exchange(10, 99, AcqRel, Acquire);
+    let prior_s: u32 in Wrapping = self.counter.compare_exchange(10, 99, AcqRel, Acquire);
 
     transition prior_s == 10 {
         true -> check_swap()
@@ -63,7 +63,7 @@ machine Main::main(&mut self) {
     // ---- FAILURE PATH ----
     // counter is now 99; CAS(expected=10, new=42) must FAIL.
     state failure_path(&mut self) {
-        let prior_f: u32 = self.counter.compare_exchange(10, 42, AcqRel, Acquire);
+        let prior_f: u32 in Wrapping = self.counter.compare_exchange(10, 42, AcqRel, Acquire);
         transition prior_f == 99 {
             true -> check_unchanged()
             false -> bad_prior_f()

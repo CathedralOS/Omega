@@ -9,19 +9,19 @@ data Exit {
 
 data Room {
     cell: CellId;
-    depth: u32;
-    branch: u32;
+    depth: u32 in Wrapping;
+    branch: u32 in Wrapping;
     label: String;
     description: String;
     exits: [Exit; 4];
-    exit_count: usize;
+    exit_count: usize in Wrapping;
     event: RoomEvent;
     discovered: bool;
 }
 
 data Level {
     rooms: [Room; 16];
-    room_count: usize;
+    room_count: usize in Wrapping;
     start_cell: CellId;
-    deepest_depth: u32;
+    deepest_depth: u32 in Wrapping;
 }

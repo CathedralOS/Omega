@@ -1,5 +1,5 @@
 data RandomState {
-    seed: u64;
+    seed: u64 in Wrapping;
     calls: UInt;
 }
 
@@ -12,8 +12,8 @@ machine Random::next_u32(&mut self, state: &mut RandomState) -> u32 {
     ((state.seed >> 32) as u32)
 }
 
-machine Random::range(&mut self, state: &mut RandomState, exclusive_max: u32) -> u32 {
-    let raw: u32 = self.next_u32(state);
+machine Random::range(&mut self, state: &mut RandomState, exclusive_max: u32 in Wrapping) -> u32 {
+    let raw: u32 in Wrapping = self.next_u32(state);
     raw % exclusive_max
 }
 
@@ -31,7 +31,7 @@ data RewardKind {
 
 data Reward {
     kind: RewardKind;
-    gold: u32;
+    gold: u32 in Wrapping;
     item: ItemKind;
 }
 
@@ -41,7 +41,7 @@ data Main {
 
 machine Main::main(
     &mut self,
-    depth: u32,
+    depth: u32 in Wrapping,
     random: &mut RandomState,
     reward: &mut Reward
 ) {
@@ -53,10 +53,10 @@ machine Main::main(
 
 machine Main::pick(
     &mut self,
-    depth: u32,
+    depth: u32 in Wrapping,
     random: &mut RandomState
     ) -> ItemKind {
-    let roll: u32 = self.rng.range(random, 100);
+    let roll: u32 in Wrapping = self.rng.range(random, 100);
     let is_early_dagger: bool = depth <= 2 && roll < 50;
     let is_early_buckler: bool = depth <= 3 && roll < 75;
     let is_healing_charm: bool = roll < 85;

@@ -1,5 +1,5 @@
 data Counter {
-    value: i32;
+    value: i32 in Wrapping;
 }
 
 trait BoundedCounter {

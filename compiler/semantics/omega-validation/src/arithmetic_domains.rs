@@ -23,7 +23,7 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
-use omega_typed_trees::types::PrimitiveType;
+use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use crate::places::declared_place_type_raw;
 
@@ -362,14 +362,34 @@ fn analyze(
                 let interval = place_path(program, expression)
                     .and_then(|path| env.get(&path))
                     .unwrap_or(type_range);
+                // Atomic integer types (AtomicU32, ...) have hardware wrap-around
+                // semantics, so their arithmetic is Wrapping, not Exact -- a
+                // `fetch_add` never raises an overflow proof obligation.
+                let domain = if is_atomic_type(program, handle) {
+                    ArithmeticDomain::Wrapping
+                } else {
+                    program.arithmetic_domain_for_type_reference(handle)
+                };
                 Analysis {
-                    domain: Some(program.arithmetic_domain_for_type_reference(handle)),
+                    domain: Some(domain),
                     interval,
                     primitive,
                 }
             }
             None => NEUTRAL,
         },
+    }
+}
+
+/// Whether a place's declared type is an atomic integer (`AtomicU32`, ...),
+/// whose arithmetic wraps by hardware semantics, through reference/constraint
+/// shells.
+fn is_atomic_type(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Named { name, .. } => name.as_str().starts_with("Atomic"),
+        TypeReferenceNode::Reference { referee, .. } => is_atomic_type(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => is_atomic_type(program, *base_type),
+        _ => false,
     }
 }
 

@@ -19,13 +19,13 @@ boundary trait Console {
 data Acc {
 }
 
-machine Acc::sum_to(n: i32) -> i32 {
+machine Acc::sum_to(n: i32 in Wrapping) -> i32 {
     n * (n + 1) / 2
 }
 
 data Main {
     console: Console;
-    base: i32;
+    base: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {
@@ -34,23 +34,23 @@ machine Main::main(&mut self) {
     let handle: Join<i32> = spawn { Acc::sum_to(7) };
 
     self.base = self.base + 1;
-    let other: i32 = self.base * 10;
+    let other: i32 in Wrapping = self.base * 10;
 
-    let n: i32 = handle.join();
+    let n: i32 in Wrapping = handle.join();
 
     transition n == 28 {
         true -> check_base(other)
         _ -> bad_join()
     }
 
-    state check_base(&mut self, other: i32) {
+    state check_base(&mut self, other: i32 in Wrapping) {
         transition self.base == 6 {
             true -> check_other(other)
             _ -> bad_base()
         }
     }
 
-    state check_other(&mut self, other: i32) {
+    state check_other(&mut self, other: i32 in Wrapping) {
         transition other == 60 {
             true -> good()
             _ -> bad_other()

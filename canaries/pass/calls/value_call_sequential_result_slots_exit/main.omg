@@ -19,12 +19,12 @@ use omega::language::std::console;
 
 data Main {
     console: Console;
-    v: i32;
+    v: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {
-    let a1: i32 = self.f(3);
-    let a2: i32 = self.g(5, 8);
+    let a1: i32 in Wrapping = self.f(3);
+    let a2: i32 in Wrapping = self.g(5, 8);
     // a1 should be 9 (f returns rr = 3*3); a1 + 61 should be 70.
     // a2 is 40 (5*8) -- included to verify g does not clobber a1's slot.
     self.v = a1 + 61;
@@ -45,8 +45,8 @@ machine Main::main(&mut self) {
 
 // f has an internal let binding: rr = r * r.
 // NeedsBranchPrelude lowering: splices LocalStorage(rr) into the caller body.
-machine Main::f(&mut self, r: i32) -> i32 {
-    let rr: i32 = r * r;
+machine Main::f(&mut self, r: i32 in Wrapping) -> i32 {
+    let rr: i32 in Wrapping = r * r;
     transition {
         _ -> rr
     }
@@ -54,7 +54,7 @@ machine Main::f(&mut self, r: i32) -> i32 {
 
 // g has two parameters (more than f's one), exercising the slot ordering
 // that previously caused the clobber.
-machine Main::g(&mut self, w: i32, h: i32) -> i32 {
+machine Main::g(&mut self, w: i32 in Wrapping, h: i32 in Wrapping) -> i32 {
     transition {
         _ -> (w * h)
     }

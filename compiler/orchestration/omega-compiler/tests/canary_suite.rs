@@ -10654,6 +10654,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_mixed",
+    "expressions/nested_i32_mul_overflow",
     "collections/fixed_vec_push_without_room",
     "collections/fixed_vec_get_past_length",
     "wire/duplicate_field_number",
@@ -10947,12 +10948,11 @@ struct PendingCanary {
 // nested value operand -- see the canary header. Tracked as CurrentlyAccepts
 // (it compiles); deliberately NOT a RUN canary until the semantics is settled,
 // so the differential oracle is not asked to adjudicate an undecided question.
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
-    PendingCanary {
-        path: "expressions/nested_i32_mul_overflow_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-];
+// Empty: nested_i32_mul_overflow_divergence was promoted to a FAIL canary
+// (expressions/nested_i32_mul_overflow) once decision 17 S3 made the unprovable
+// i32 multiply a compile error -- the divergence was a symptom of accepting an
+// unprovable overflow, now rejected.
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
 
 // =============================================================================
 // ch17 Atomics (concurrency stage 1) RUN canaries

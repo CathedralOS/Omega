@@ -18,11 +18,11 @@ data Calc {}
 
 data Main {
     console: Console;
-    base: i32;
+    base: i32 in Wrapping;
     calc: Calc;
 }
 
-machine Calc::double_val(&mut self, n: i32) -> i32 {
+machine Calc::double_val(&mut self, n: i32 in Wrapping) -> i32 {
     transition {
         _ -> (n * 2)
     }
@@ -30,7 +30,7 @@ machine Calc::double_val(&mut self, n: i32) -> i32 {
 
 machine Main::main(&mut self) {
     self.base = 10;
-    let r: i32 = self.base + self.calc.double_val(6) * 3;  // 10 + 12 * 3 = 46
+    let r: i32 in Wrapping = self.base + self.calc.double_val(6) * 3;  // 10 + 12 * 3 = 46
     transition r == 46 {
         true -> good()
         _ -> bad()

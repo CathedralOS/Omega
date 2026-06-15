@@ -77,103 +77,103 @@
 use omega::language::std::console;
 
 data Transaction {
-    case Deposit(amount: i32);
-    case Withdraw(amount: i32);
-    case Transfer(to: i32, amount: i32);
+    case Deposit(amount: i32 in Wrapping);
+    case Withdraw(amount: i32 in Wrapping);
+    case Transfer(to: i32 in Wrapping, amount: i32 in Wrapping);
     case Freeze;
     case Unfreeze;
     case Query;
 }
 
 data Account [copy, zero_init] {
-    balance: i32;
-    frozen: i32;
+    balance: i32 in Wrapping;
+    frozen: i32 in Wrapping;
 }
 
 data Main {
     console: Console;
     accounts: [Account; 4];
-    query_count: i32;
+    query_count: i32 in Wrapping;
 }
 
 // ── write helpers: deposit/withdraw per const index ────────────────────────────
 
-machine Main::do_deposit(&mut self, idx: i32, amount: i32) {
+machine Main::do_deposit(&mut self, idx: i32 in Wrapping, amount: i32 in Wrapping) {
     transition idx == 0 {
         true -> dep0(amount)
         _ -> dep_try1(idx, amount)
     }
-    state dep0(&mut self, amount: i32) {
+    state dep0(&mut self, amount: i32 in Wrapping) {
         self.accounts[0].balance = self.accounts[0].balance + amount;
     }
-    state dep_try1(&mut self, idx: i32, amount: i32) {
+    state dep_try1(&mut self, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         transition idx == 1 {
             true -> dep1(amount)
             _ -> dep_try2(idx, amount)
         }
     }
-    state dep1(&mut self, amount: i32) {
+    state dep1(&mut self, amount: i32 in Wrapping) {
         self.accounts[1].balance = self.accounts[1].balance + amount;
     }
-    state dep_try2(&mut self, idx: i32, amount: i32) {
+    state dep_try2(&mut self, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         transition idx == 2 {
             true -> dep2(amount)
             _ -> dep3(amount)
         }
     }
-    state dep2(&mut self, amount: i32) {
+    state dep2(&mut self, amount: i32 in Wrapping) {
         self.accounts[2].balance = self.accounts[2].balance + amount;
     }
-    state dep3(&mut self, amount: i32) {
+    state dep3(&mut self, amount: i32 in Wrapping) {
         self.accounts[3].balance = self.accounts[3].balance + amount;
     }
 }
 
-machine Main::do_withdraw(&mut self, idx: i32, amount: i32) {
+machine Main::do_withdraw(&mut self, idx: i32 in Wrapping, amount: i32 in Wrapping) {
     transition idx == 0 {
         true -> wd0(amount)
         _ -> wd_try1(idx, amount)
     }
-    state wd0(&mut self, amount: i32) {
+    state wd0(&mut self, amount: i32 in Wrapping) {
         self.accounts[0].balance = self.accounts[0].balance - amount;
     }
-    state wd_try1(&mut self, idx: i32, amount: i32) {
+    state wd_try1(&mut self, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         transition idx == 1 {
             true -> wd1(amount)
             _ -> wd_try2(idx, amount)
         }
     }
-    state wd1(&mut self, amount: i32) {
+    state wd1(&mut self, amount: i32 in Wrapping) {
         self.accounts[1].balance = self.accounts[1].balance - amount;
     }
-    state wd_try2(&mut self, idx: i32, amount: i32) {
+    state wd_try2(&mut self, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         transition idx == 2 {
             true -> wd2(amount)
             _ -> wd3(amount)
         }
     }
-    state wd2(&mut self, amount: i32) {
+    state wd2(&mut self, amount: i32 in Wrapping) {
         self.accounts[2].balance = self.accounts[2].balance - amount;
     }
-    state wd3(&mut self, amount: i32) {
+    state wd3(&mut self, amount: i32 in Wrapping) {
         self.accounts[3].balance = self.accounts[3].balance - amount;
     }
 }
 
-machine Main::do_freeze(&mut self, idx: i32) {
+machine Main::do_freeze(&mut self, idx: i32 in Wrapping) {
     transition idx == 0 {
         true -> fr0()
         _ -> fr_try1(idx)
     }
     state fr0(&mut self) { self.accounts[0].frozen = 1; }
-    state fr_try1(&mut self, idx: i32) {
+    state fr_try1(&mut self, idx: i32 in Wrapping) {
         transition idx == 1 {
             true -> fr1()
             _ -> fr_try2(idx)
         }
     }
     state fr1(&mut self) { self.accounts[1].frozen = 1; }
-    state fr_try2(&mut self, idx: i32) {
+    state fr_try2(&mut self, idx: i32 in Wrapping) {
         transition idx == 2 {
             true -> fr2()
             _ -> fr3()
@@ -183,20 +183,20 @@ machine Main::do_freeze(&mut self, idx: i32) {
     state fr3(&mut self) { self.accounts[3].frozen = 1; }
 }
 
-machine Main::do_unfreeze(&mut self, idx: i32) {
+machine Main::do_unfreeze(&mut self, idx: i32 in Wrapping) {
     transition idx == 0 {
         true -> uf0()
         _ -> uf_try1(idx)
     }
     state uf0(&mut self) { self.accounts[0].frozen = 0; }
-    state uf_try1(&mut self, idx: i32) {
+    state uf_try1(&mut self, idx: i32 in Wrapping) {
         transition idx == 1 {
             true -> uf1()
             _ -> uf_try2(idx)
         }
     }
     state uf1(&mut self) { self.accounts[1].frozen = 0; }
-    state uf_try2(&mut self, idx: i32) {
+    state uf_try2(&mut self, idx: i32 in Wrapping) {
         transition idx == 2 {
             true -> uf2()
             _ -> uf3()
@@ -207,18 +207,18 @@ machine Main::do_unfreeze(&mut self, idx: i32) {
 }
 
 // Read frozen flag (value-returning).
-machine Main::is_frozen(&mut self, idx: i32) -> i32 {
+machine Main::is_frozen(&mut self, idx: i32 in Wrapping) -> i32 {
     transition idx == 0 {
         true -> (self.accounts[0].frozen)
         _ -> try_f1(idx)
     }
-    state try_f1(&mut self, idx: i32) {
+    state try_f1(&mut self, idx: i32 in Wrapping) {
         transition idx == 1 {
             true -> (self.accounts[1].frozen)
             _ -> try_f2(idx)
         }
     }
-    state try_f2(&mut self, idx: i32) {
+    state try_f2(&mut self, idx: i32 in Wrapping) {
         transition idx == 2 {
             true -> (self.accounts[2].frozen)
             _ -> (self.accounts[3].frozen)
@@ -229,40 +229,40 @@ machine Main::is_frozen(&mut self, idx: i32) -> i32 {
 // ── value-returning: balance_of (capture+mutate self+return) ──────────────────
 // Each readN: (1) capture balance into local b, (2) mutate self.query_count,
 // (3) return b. Replicates the stack_vm miscompile surface.
-machine Main::balance_of(&mut self, idx: i32) -> i32 {
+machine Main::balance_of(&mut self, idx: i32 in Wrapping) -> i32 {
     transition idx == 0 {
         true -> read0()
         _ -> try1(idx)
     }
     state read0(&mut self) {
-        let b: i32 = self.accounts[0].balance;
+        let b: i32 in Wrapping = self.accounts[0].balance;
         self.query_count = self.query_count + 1;
         transition { _ -> (b) }
     }
-    state try1(&mut self, idx: i32) {
+    state try1(&mut self, idx: i32 in Wrapping) {
         transition idx == 1 {
             true -> read1()
             _ -> try2(idx)
         }
     }
     state read1(&mut self) {
-        let b: i32 = self.accounts[1].balance;
+        let b: i32 in Wrapping = self.accounts[1].balance;
         self.query_count = self.query_count + 1;
         transition { _ -> (b) }
     }
-    state try2(&mut self, idx: i32) {
+    state try2(&mut self, idx: i32 in Wrapping) {
         transition idx == 2 {
             true -> read2()
             _ -> read3()
         }
     }
     state read2(&mut self) {
-        let b: i32 = self.accounts[2].balance;
+        let b: i32 in Wrapping = self.accounts[2].balance;
         self.query_count = self.query_count + 1;
         transition { _ -> (b) }
     }
     state read3(&mut self) {
-        let b: i32 = self.accounts[3].balance;
+        let b: i32 in Wrapping = self.accounts[3].balance;
         self.query_count = self.query_count + 1;
         transition { _ -> (b) }
     }
@@ -270,7 +270,7 @@ machine Main::balance_of(&mut self, idx: i32) -> i32 {
 
 // ── value-returning: sum all four balances ────────────────────────────────────
 machine Main::total(&mut self) -> i32 {
-    let t: i32 = self.accounts[0].balance
+    let t: i32 in Wrapping = self.accounts[0].balance
                + self.accounts[1].balance
                + self.accounts[2].balance
                + self.accounts[3].balance;
@@ -278,7 +278,7 @@ machine Main::total(&mut self) -> i32 {
 }
 
 // ── case dispatcher: apply a transaction to an account index ──────────────────
-machine Main::apply(&mut self, idx: i32, tx: Transaction) {
+machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) {
     transition tx {
         Transaction::Deposit { amount } -> check_frozen_dep(idx, amount)
         Transaction::Withdraw { amount } -> check_frozen_wd(idx, amount)
@@ -289,33 +289,33 @@ machine Main::apply(&mut self, idx: i32, tx: Transaction) {
         _ -> done()
     }
 
-    state check_frozen_dep(&mut self, idx: i32, amount: i32) {
-        let frozen: i32 = self.is_frozen(idx);
+    state check_frozen_dep(&mut self, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+        let frozen: i32 in Wrapping = self.is_frozen(idx);
         transition frozen == 0 {
             true -> exec_dep(idx, amount)
             _ -> done()
         }
     }
 
-    state exec_dep(&mut self, idx: i32, amount: i32) {
+    state exec_dep(&mut self, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         self.do_deposit(idx, amount);
     }
 
-    state check_frozen_wd(&mut self, idx: i32, amount: i32) {
-        let frozen: i32 = self.is_frozen(idx);
+    state check_frozen_wd(&mut self, idx: i32 in Wrapping, amount: i32 in Wrapping) {
+        let frozen: i32 in Wrapping = self.is_frozen(idx);
         transition frozen == 0 {
             true -> exec_wd(idx, amount)
             _ -> done()
         }
     }
 
-    state exec_wd(&mut self, idx: i32, amount: i32) {
+    state exec_wd(&mut self, idx: i32 in Wrapping, amount: i32 in Wrapping) {
         self.do_withdraw(idx, amount);
     }
 
     // Transfer path: probe the extracted payload fields.
     // In native: `amount` receives the value of `to` (the first payload field).
-    state check_xfer(&mut self, idx: i32, to: i32, amount: i32) {
+    state check_xfer(&mut self, idx: i32 in Wrapping, to: i32 in Wrapping, amount: i32 in Wrapping) {
         // Guard chain to expose the miscompile:
         // src (=idx) should be 0 for our apply(0, Transfer{...}) call.
         transition idx == 0 {
@@ -326,7 +326,7 @@ machine Main::apply(&mut self, idx: i32, tx: Transaction) {
 
     state xfer_bad_idx(&mut self) { self.console.exit_process(91); }
 
-    state xfer_check_to(&mut self, to: i32, amount: i32) {
+    state xfer_check_to(&mut self, to: i32 in Wrapping, amount: i32 in Wrapping) {
         // to should be 3.
         transition to == 3 {
             true -> xfer_check_amount(to, amount)
@@ -336,7 +336,7 @@ machine Main::apply(&mut self, idx: i32, tx: Transaction) {
 
     state xfer_bad_to(&mut self) { self.console.exit_process(92); }
 
-    state xfer_check_amount(&mut self, to: i32, amount: i32) {
+    state xfer_check_amount(&mut self, to: i32 in Wrapping, amount: i32 in Wrapping) {
         // amount should be 40. In native: amount==3 (same as `to`).
         // MISCOMPILE: this arm fires in native (exit 93).
         transition amount == 40 {
@@ -347,16 +347,16 @@ machine Main::apply(&mut self, idx: i32, tx: Transaction) {
 
     state xfer_bad_amount(&mut self) { self.console.exit_process(93); }
 
-    state xfer_do(&mut self, to: i32, amount: i32) {
+    state xfer_do(&mut self, to: i32 in Wrapping, amount: i32 in Wrapping) {
         self.do_withdraw(0, amount);
         self.do_deposit(to, amount);
     }
 
-    state do_freeze_now(&mut self, idx: i32) {
+    state do_freeze_now(&mut self, idx: i32 in Wrapping) {
         self.do_freeze(idx);
     }
 
-    state do_unfreeze_now(&mut self, idx: i32) {
+    state do_unfreeze_now(&mut self, idx: i32 in Wrapping) {
         self.do_unfreeze(idx);
     }
 
@@ -418,7 +418,7 @@ machine Main::main(&mut self) {
 
     // Layer 2: value-call reads (balance_of captures+mutates+returns).
     state vcall_check_b0(&mut self) {
-        let b0: i32 = self.balance_of(0);
+        let b0: i32 in Wrapping = self.balance_of(0);
         transition b0 == 40 {
             true -> vcall_check_b2(b0)
             _ -> bad_vcall0()
@@ -427,8 +427,8 @@ machine Main::main(&mut self) {
 
     state bad_vcall0(&mut self) { self.console.exit_process(75); }
 
-    state vcall_check_b2(&mut self, b0: i32) {
-        let b2: i32 = self.balance_of(2);
+    state vcall_check_b2(&mut self, b0: i32 in Wrapping) {
+        let b2: i32 in Wrapping = self.balance_of(2);
         transition b2 == 30 {
             true -> vcall_check_sum(b0, b2)
             _ -> bad_vcall2()
@@ -441,8 +441,8 @@ machine Main::main(&mut self) {
     // balance_of(0) + balance_of(2) = 40 + 30 = 70 (the key checksum).
     // If layers 1-2 pass but this fires, it's a value-call arithmetic miscompile
     // (the stack_vm-style bug -- distinct from the payload-extraction bug above).
-    state vcall_check_sum(&mut self, b0: i32, b2: i32) {
-        let checksum: i32 = b0 + b2;
+    state vcall_check_sum(&mut self, b0: i32 in Wrapping, b2: i32 in Wrapping) {
+        let checksum: i32 in Wrapping = b0 + b2;
         transition checksum == 70 {
             true -> check_total()
             _ -> bad_sum()
@@ -453,7 +453,7 @@ machine Main::main(&mut self) {
 
     // Layer 4: total() value-call.
     state check_total(&mut self) {
-        let t: i32 = self.total();
+        let t: i32 in Wrapping = self.total();
         transition t == 230 {
             true -> good()
             _ -> bad_total()

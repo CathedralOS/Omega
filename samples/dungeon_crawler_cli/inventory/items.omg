@@ -8,11 +8,11 @@ data ItemKind {
 
 data InventoryItem {
     kind: ItemKind;
-    count: u32;
+    count: u32 in Wrapping;
 }
 
 data Inventory {
     items: [InventoryItem; 32];
-    item_count: usize;
-    gold: u32;
+    item_count: usize in Wrapping;
+    gold: u32 in Wrapping;
 }
