@@ -487,8 +487,9 @@ pub fn runtime_storage_binary_write_width(
     target_signed: bool,
 ) -> usize {
     match architecture {
-        // aarch64 does not implement the saturating/trapping domains yet (the
-        // emitter errors); its width is unaffected by the domain.
+        // aarch64 implements the saturating/trapping domains for add/sub/mul, so
+        // the domain and target signedness change the emitted width (the clamp/
+        // trap sequence). They must be threaded through for the relocation layout.
         Architecture::Aarch64 => aarch64::runtime_storage_binary_write_width(
             runtime_value_operands,
             target_offset,
@@ -497,6 +498,8 @@ pub fn runtime_storage_binary_write_width(
             operator,
             right,
             is_float,
+            domain,
+            target_signed,
         ),
         Architecture::X86_64 => x86_64::runtime_storage_binary_write_width(
             runtime_value_operands,

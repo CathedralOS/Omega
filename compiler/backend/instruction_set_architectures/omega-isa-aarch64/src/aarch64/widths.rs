@@ -315,6 +315,7 @@ fn runtime_convert_operation_width(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
@@ -323,7 +324,10 @@ pub fn runtime_storage_binary_write_width(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
 ) -> usize {
+    use omega_core::arithmetic::ArithmeticDomain;
     let indexed_operand_restore_width = if runtime_value_operands.frame_indexed(left).is_some()
         || runtime_value_operands.frame_indexed(right).is_some()
         || runtime_value_operands.frame_base_indexed(left).is_some()
@@ -334,8 +338,21 @@ pub fn runtime_storage_binary_write_width(
         0
     };
 
+    let saturating_or_trapping = !is_float
+        && matches!(
+            domain,
+            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+        );
+
     let operation_width = if is_float {
         runtime_float_binary_operation_width()
+    } else if saturating_or_trapping
+        && matches!(
+            operator,
+            StateGuardOperator::Add | StateGuardOperator::Subtract | StateGuardOperator::Multiply
+        )
+    {
+        saturating_trapping_arithmetic_width(byte_size, target_signed)
     } else {
         runtime_binary_operation_width(operator)
     };
@@ -345,6 +362,24 @@ pub fn runtime_storage_binary_write_width(
         + operation_width
         + indexed_operand_restore_width
         + runtime_result_write_width(target_offset, byte_size)
+}
+
+/// Byte count of [`super::runtime_storage::append_saturating_trapping_arithmetic`]
+/// — the wide op + two range-checked clamp/trap blocks. MUST stay in lockstep.
+fn saturating_trapping_arithmetic_width(byte_size: usize, target_signed: bool) -> usize {
+    if !matches!(byte_size, 1 | 2 | 4) {
+        // 8-byte / unsupported widths error during emission; the wide op (4) is a
+        // harmless placeholder for the pre-error `Vec::with_capacity`.
+        return 4;
+    }
+    // Two SXTB/SXTH/SXTW sign-extends (4 bytes each) for signed targets only.
+    let sign_extend = if target_signed { 8 } else { 0 };
+    // Wide op: ADD/SUB/MUL Xd,Xn,Xm.
+    let wide_op = 4;
+    // Each of the two bound checks: MOVZ+MOVK*3 bound (16) + CMP (4) + b.cond (4)
+    // + (MOV clamp OR BRK trap) (4) = 28 bytes.
+    let clamp_or_trap = 2 * 28;
+    sign_extend + wide_op + clamp_or_trap
 }
 
 /// Width of the float binary-operation sequence: two `FMOV` from GPR (4 bytes

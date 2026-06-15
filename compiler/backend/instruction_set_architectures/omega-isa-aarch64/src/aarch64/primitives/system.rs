@@ -7,3 +7,10 @@ pub(in crate::aarch64) fn encode_branch_link_placeholder() -> [u8; 4] {
 pub(in crate::aarch64) fn encode_svc(immediate: u16) -> [u8; 4] {
     encode_instruction(0xD4000001 | (u32::from(immediate) << 5))
 }
+
+/// `BRK #imm16` — software breakpoint. Generates a synchronous exception that the
+/// OS reports as a fatal signal (SIGTRAP), aborting the process. This is the
+/// aarch64 counterpart of the x86_64 `ud2` used for Trapping-domain overflow.
+pub(in crate::aarch64) fn encode_brk(immediate: u16) -> [u8; 4] {
+    encode_instruction(0xD4200000 | (u32::from(immediate) << 5))
+}
