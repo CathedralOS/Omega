@@ -96,6 +96,12 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 parameters: program.state_parameters(state),
             };
 
+            // S4: a per-state-body value environment tracks each place's proven
+            // interval along the straight-line prefix, so the exact-overflow proof
+            // can use actual values (`self.v = 10; self.v += 5`) instead of the
+            // full type range. Statements are validated in order so the env is
+            // current at each use.
+            let mut value_env = arithmetic_domains::ValueEnv::new();
             for statement in program.statement_table.statements(state.statement_nodes) {
                 validate_state_statement_node(
                     program,
@@ -105,6 +111,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     &symbols,
                     &writable_roots,
                     statement,
+                    &mut value_env,
                     &mut diagnostics,
                 );
             }
@@ -132,6 +139,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_state_statement_node(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
@@ -140,6 +148,7 @@ fn validate_state_statement_node(
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     statement: &StatementNode,
+    value_env: &mut arithmetic_domains::ValueEnv,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
@@ -152,25 +161,37 @@ fn validate_state_statement_node(
                 machine.name.as_str(),
                 state_name,
             );
-            arithmetic_domains::validate_arithmetic_domains(
+            let interval = arithmetic_domains::validate_arithmetic_domains(
                 program,
                 machine,
                 machine_symbols.state(state_name),
                 assignment.value,
+                value_env,
                 &format!("machine `{}` state `{state_name}` assignment", machine.name),
                 diagnostics,
             );
+            arithmetic_domains::record_assignment(
+                value_env,
+                arithmetic_domains::place_path(program, assignment.target),
+                interval,
+            );
         }
-        StatementNode::Call(call) => validate_call_node(
-            program,
-            call,
-            machine,
-            state_name,
-            machine_symbols,
-            symbols,
-            writable_roots,
-            diagnostics,
-        ),
+        StatementNode::Call(call) => {
+            validate_call_node(
+                program,
+                call,
+                machine,
+                state_name,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                diagnostics,
+            );
+            // A call may mutate fields through `&mut`, so the linear value
+            // environment is no longer trustworthy -- drop it (sound: subsequent
+            // places fall back to their type bounds).
+            value_env.clear();
+        }
         StatementNode::Expression(expression) => {
             let Some(state) = machine_symbols.state(state_name) else {
                 return;
@@ -199,6 +220,7 @@ fn validate_state_statement_node(
                 machine,
                 Some(state),
                 *expression,
+                value_env,
                 &format!(
                     "machine `{}` state `{state_name}` terminal expression",
                     machine.name
@@ -219,11 +241,12 @@ fn validate_state_statement_node(
                     generic_depth: 0,
                 },
             );
-            arithmetic_domains::validate_arithmetic_domains(
+            let interval = arithmetic_domains::validate_arithmetic_domains(
                 program,
                 machine,
                 machine_symbols.state(state_name),
                 local_data.initial_value,
+                value_env,
                 &format!(
                     "machine `{}` state `{state_name}` local `{}`",
                     machine.name,
@@ -231,6 +254,13 @@ fn validate_state_statement_node(
                 ),
                 diagnostics,
             );
+            if local_data.initial_value.is_valid() {
+                arithmetic_domains::record_assignment(
+                    value_env,
+                    Some(local_data.name.as_str().to_owned()),
+                    interval,
+                );
+            }
         }
         StatementNode::Transition(transition) => {
             validate_transition_target_node(

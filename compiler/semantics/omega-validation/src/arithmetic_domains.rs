@@ -15,6 +15,8 @@
 //! loop-bound narrowing -- the ergonomics that keep this from being annotation-
 //! hell -- are S4.)
 
+use std::collections::BTreeMap;
+
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
@@ -25,27 +27,94 @@ use omega_typed_trees::types::PrimitiveType;
 
 use crate::places::declared_place_type_raw;
 
-/// Walk a value expression and apply the domain + overflow rules to every nested
-/// arithmetic binary. `owner` describes the site for diagnostics.
+/// S4 flow-sensitive value environment: the proven interval of each place
+/// (`self.field`, local) along the straight-line prefix of a state body. Lets the
+/// overflow proof discharge `self.v = 10; self.v += 5` (v is known to be 10, so
+/// 15 fits) instead of falling back to the full type range. Conservative: an
+/// entry is only present when its value is definitely established on the linear
+/// path; on anything we cannot model (a call that may mutate, a branch) the
+/// relevant entries are dropped and the place falls back to its type bounds.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct ValueEnv {
+    intervals: BTreeMap<String, Interval>,
+}
+
+impl ValueEnv {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    /// Drop all tracked values (after an opaque effect like a call that may
+    /// mutate fields through `&mut`, or when leaving the linear prefix).
+    pub(crate) fn clear(&mut self) {
+        self.intervals.clear();
+    }
+
+    fn get(&self, path: &str) -> Option<Interval> {
+        self.intervals.get(path).copied()
+    }
+
+    fn set(&mut self, path: String, interval: Interval) {
+        self.intervals.insert(path, interval);
+    }
+}
+
+/// Walk a value expression, apply the domain + overflow rules to every nested
+/// arithmetic binary, and return the expression's proven interval (so the caller
+/// can record it for the assigned place). `owner` describes the site.
 pub(crate) fn validate_arithmetic_domains(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
+    env: &ValueEnv,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> Interval {
     if !expression.is_valid() {
-        return;
+        return Interval::UNBOUNDED;
     }
-    let _ = analyze(program, machine, state, expression, owner, diagnostics);
+    analyze(program, machine, state, expression, env, owner, diagnostics).interval
+}
+
+/// The straight-line place path an expression denotes (`self.v`, `count`), for
+/// the value environment. `None` for non-place expressions.
+pub(crate) fn place_path(program: &TypedTrees, expression: ExpressionHandle) -> Option<String> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            if members.is_empty() {
+                return None;
+            }
+            Some(
+                members
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("."),
+            )
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = place_path(program, member.receiver)?;
+            Some(format!("{receiver}.{}", member.member.as_str()))
+        }
+        _ => None,
+    }
+}
+
+/// Record an assignment's proven interval into the environment (decision 17 S4).
+/// A place whose path cannot be formed (a complex lvalue) just is not tracked.
+pub(crate) fn record_assignment(env: &mut ValueEnv, path: Option<String>, interval: Interval) {
+    if let Some(path) = path {
+        env.set(path, interval);
+    }
 }
 
 /// An integer value range with optional (= unbounded) ends; all arithmetic is
 /// checked, so an overflowing corner becomes `None` (unbounded) -- which fails
 /// the containment test and so is reported as a possible overflow.
 #[derive(Debug, Clone, Copy)]
-struct Interval {
+pub(crate) struct Interval {
     low: Option<i64>,
     high: Option<i64>,
 }
@@ -180,14 +249,15 @@ fn analyze(
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
+    env: &ValueEnv,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Analysis {
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
             let operator = binary.operator;
-            let left = analyze(program, machine, state, binary.left, owner, diagnostics);
-            let right = analyze(program, machine, state, binary.right, owner, diagnostics);
+            let left = analyze(program, machine, state, binary.left, env, owner, diagnostics);
+            let right = analyze(program, machine, state, binary.right, env, owner, diagnostics);
             if !is_arithmetic(operator) {
                 // Comparison / logical `and`/`or`: a `bool`, no arithmetic domain.
                 return NEUTRAL;
@@ -257,7 +327,7 @@ fn analyze(
             }
         }
         ExpressionNode::Cast(cast) => {
-            let _ = analyze(program, machine, state, cast.value, owner, diagnostics);
+            let _ = analyze(program, machine, state, cast.value, env, owner, diagnostics);
             let primitive = program
                 .expression_table
                 .name_path_members(cast.target_type)
@@ -280,16 +350,21 @@ fn analyze(
             primitive: None,
         },
         ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => NEUTRAL,
-        // A place (`x`, `self.field`): its declared type gives the domain, the
-        // integer primitive, and (via the primitive) the value range.
+        // A place (`x`, `self.field`): its declared type gives the domain and the
+        // integer primitive. The value range is the FLOW-tracked interval (S4) if
+        // we have proven one on this linear path, else the primitive's full range.
         _ => match declared_place_type_raw(program, machine, state, expression) {
             Some(handle) => {
                 let primitive = program.primitive_type_reference(handle);
+                let type_range = primitive
+                    .and_then(primitive_range)
+                    .unwrap_or(Interval::UNBOUNDED);
+                let interval = place_path(program, expression)
+                    .and_then(|path| env.get(&path))
+                    .unwrap_or(type_range);
                 Analysis {
                     domain: Some(program.arithmetic_domain_for_type_reference(handle)),
-                    interval: primitive
-                        .and_then(primitive_range)
-                        .unwrap_or(Interval::UNBOUNDED),
+                    interval,
                     primitive,
                 }
             }
