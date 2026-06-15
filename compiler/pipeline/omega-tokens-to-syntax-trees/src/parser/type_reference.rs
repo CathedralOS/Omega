@@ -195,33 +195,40 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
 
     // Arithmetic DOMAIN suffix (frozen decision 17): `u32 in Wrapping` /
     // `Saturating` / `Trapping` opts a primitive into defined overflow behavior;
-    // bare arithmetic stays exact (a proof obligation). STAGE S1a: `Wrapping`
-    // parses and is TRANSPARENT -- the current integer codegen already wraps at
-    // the operand width, so `T in Wrapping` is exactly today's behavior. The
-    // distinct-codegen domains (Saturating/Trapping) and exact-overflow
-    // enforcement land in later stages; reject them now with a clear diagnostic
-    // rather than silently treating them as wrapping. (`in` is the contextual
-    // membership keyword; in TYPE position nothing else consumes a trailing
-    // `in`, so this suffix is additive.)
+    // bare arithmetic stays exact (a proof obligation). The domain rides as a
+    // `TypeConstraintNode::ArithmeticDomain` on a `Constrained` type-reference --
+    // the same carrier as `range<..>` -- so layout/codegen see through to the
+    // base primitive. `Wrapping` matches today's width-wrapping codegen.
+    // Saturating/Trapping parse but are rejected until their distinct codegen
+    // lands (a later stage) -- accepting them now would silently wrap. (`in` is
+    // the contextual membership keyword; in TYPE position nothing else consumes
+    // a trailing `in`, so this suffix is additive.)
     if input.at_contextual("in") {
         let after_in = input.take_contextual("in")?;
         let (domain_name, rest) = after_in.take_identifier()?;
-        match domain_name.as_str() {
-            "Wrapping" => {
-                input = rest;
-            }
-            "Saturating" | "Trapping" => {
-                return Err(rest.error_here(
-                    "arithmetic domain is not implemented yet; only `Wrapping` is supported so far \
-                     (exact-by-default arithmetic and Saturating/Trapping land in a later stage)",
-                ));
-            }
-            _ => {
-                return Err(rest.error_here(
-                    "unknown arithmetic domain; expected `Wrapping`, `Saturating`, or `Trapping`",
-                ));
-            }
+        let Some(domain) =
+            omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str())
+        else {
+            return Err(rest.error_here(
+                "unknown arithmetic domain; expected `Wrapping`, `Saturating`, or `Trapping`",
+            ));
+        };
+        if !matches!(domain, omega_core::arithmetic::ArithmeticDomain::Wrapping) {
+            return Err(rest.error_here(
+                "arithmetic domain is not implemented yet; only `Wrapping` is supported so far \
+                 (exact-by-default arithmetic and Saturating/Trapping land in a later stage)",
+            ));
         }
+        let constraint = syntax_trees
+            .type_references
+            .append_constraint(TypeConstraintNode::ArithmeticDomain(domain));
+        type_reference = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Constrained {
+                base_type: type_reference,
+                constraints: HandleSpan::from_parts(constraint, 1),
+            });
+        input = rest;
     }
 
     Ok((type_reference, input))
