@@ -10226,6 +10226,37 @@ fn value_call_sequential_result_slots_exit_canary_runs() {
 }
 
 #[test]
+fn arithmetic_domain_saturating_const_fold_exit_canary_runs() {
+    // Decision 17 / task #39: const*const Saturating overflow must clamp, not wrap.
+    let canary = pass_canary("expressions/arithmetic_domain_saturating_const_fold_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-sat-const-fold-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating const-fold canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating const-fold canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected u8 Saturating 100*100 to clamp to 255 (exit 70); exit 71 = wrapped to 16          (const-fold dropped the domain). got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn value_call_sequential_self_capture_exit_canary_runs() {
     // Regression coverage for sequential value-position calls whose terminal
     // value is a SELF-CAPTURED local (`let s = self.seed; transition { _ -> s }`)
@@ -10858,6 +10889,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_wrapping_exit",
     "expressions/arithmetic_domain_saturating_exit",
     "expressions/arithmetic_domain_saturating_mul_exit",
+    "expressions/arithmetic_domain_saturating_const_fold_exit",
     "expressions/arithmetic_domain_saturating_mul_signed_exit",
     "expressions/arithmetic_domain_trapping_mul_exit",
     "expressions/arithmetic_domain_trapping_div_exit",

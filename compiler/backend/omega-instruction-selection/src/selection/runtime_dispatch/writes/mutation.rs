@@ -1424,6 +1424,13 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         );
         return;
     };
+    // Decision 17: a constant stored into a Saturating-domain target clamps to
+    // the target type's range. The const-fold that produced this value already
+    // dropped the operand domains (`self.v: u8 in Saturating = a * b`, a,b folded
+    // to 100), so the target's declared domain is the authoritative signal -- the
+    // store must write 255, not the wrapped low byte. See task #39.
+    let value =
+        clamp_constant_to_target_domain(input, dispatch_index, target_source_key, resolved_target, value);
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
         input,
         dispatch_index,
@@ -1738,6 +1745,63 @@ fn select_runtime_binary_mutation_write(
         domain,
         target_signed,
     })
+}
+
+/// Decision 17 (task #39): clamp a compile-time-constant store to a
+/// Saturating-domain target's representable range. Constant folding collapses a
+/// domained arithmetic expression (`a * b`, a,b `u8 in Saturating`) into a bare
+/// literal that has lost its operands' domain, then this constant reaches the
+/// store. The target field's declared domain is the surviving authoritative
+/// signal, so a Saturating target clamps the value to its type range (matching
+/// the runtime Saturating op). Exact (in-range by validation), Wrapping (the
+/// truncating store wraps), and Trapping (constant overflow rejected upstream in
+/// validation) are returned unchanged.
+fn clamp_constant_to_target_domain(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    resolved_target: &Expression,
+    value: i64,
+) -> i64 {
+    if resolve_runtime_storage_arithmetic_domain(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) != omega_core::arithmetic::ArithmeticDomain::Saturating
+    {
+        return value;
+    }
+    let Some((low, high)) = resolve_runtime_storage_primitive_type(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    )
+    .and_then(saturating_integer_bounds) else {
+        return value;
+    };
+    value.max(low).min(high)
+}
+
+/// Inclusive [min, max] of an integer primitive as `i64` (u64/usize high end
+/// capped at `i64::MAX`, which is sufficient for clamping a folded `i64`
+/// constant). `None` for non-integer primitives.
+fn saturating_integer_bounds(primitive: PrimitiveType) -> Option<(i64, i64)> {
+    match primitive {
+        PrimitiveType::I8 => Some((i8::MIN as i64, i8::MAX as i64)),
+        PrimitiveType::U8 => Some((0, u8::MAX as i64)),
+        PrimitiveType::I16 => Some((i16::MIN as i64, i16::MAX as i64)),
+        PrimitiveType::U16 => Some((0, u16::MAX as i64)),
+        PrimitiveType::I32 => Some((i32::MIN as i64, i32::MAX as i64)),
+        PrimitiveType::U32 => Some((0, u32::MAX as i64)),
+        PrimitiveType::I64 | PrimitiveType::Isize => Some((i64::MIN, i64::MAX)),
+        PrimitiveType::U64 | PrimitiveType::Usize => Some((0, i64::MAX)),
+        PrimitiveType::Bool
+        | PrimitiveType::F32
+        | PrimitiveType::F64
+        | PrimitiveType::String => None,
+    }
 }
 
 /// Fold an all-literal `+` tree to the single string it denotes; `None` when
