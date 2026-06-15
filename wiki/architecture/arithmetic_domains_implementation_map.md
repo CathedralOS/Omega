@@ -88,9 +88,34 @@ Discharge common bounded cases (literal const-fold range checks, field/param
 ranges from contracts/domains, loop bounds from `decreases`) so S3 is not
 annotation-hell.
 
-## Suggested first commit (S1a)
+## PROGRESS
 
-Introduce `ArithmeticDomain` + thread it to the binary value operand with
-`Exact` everywhere (no behaviour change, full suite stays green) — the plumbing
-skeleton. THEN add the parse spelling + Saturating/Trapping emission + canaries
-(200+100 in u8 -> 44 wrap / 255 sat / trap), each its own green commit.
+- **S1a DONE** (commit dafcbd8a): the parser accepts `<primitive> in Wrapping`
+  (contextual `in` suffix in the named-type path of `parse_type_reference_handle`).
+  `Wrapping` is TRANSPARENT (returns the base type) -- correct because the
+  integer codegen already wraps at width. `Saturating`/`Trapping` parse but are
+  rejected with a clear "not implemented yet" diagnostic; unknown domains error.
+  RUN canary `expressions/arithmetic_domain_wrapping_exit` (200+100 u8 -> 44).
+  Regression-free, suite 274.
+
+## S1b NEXT: represent the domain + Saturating/Trapping codegen
+
+`Wrapping` works transparently, but `Saturating`/`Trapping` need the domain
+REPRESENTED (not discarded) so the backend can branch. Decided representation:
+ride it as a `TypeConstraintNode` variant (e.g. `ArithmeticDomain(kind)`) in the
+EXISTING `TypeReferenceNode::Constrained { base_type, constraints }` -- only ~20
+TypeConstraintNode match sites vs 59 for a new TypeReferenceNode variant. Steps:
+1. Add `enum ArithmeticDomain { Wrapping, Saturating, Trapping }` + a
+   `TypeConstraintNode::ArithmeticDomain(ArithmeticDomain)` variant in all THREE
+   type layers (syntax / symbol-resolved / typed) + their conversions.
+2. Parser: stop rejecting Saturating/Trapping; emit the Constrained type with the
+   arithmetic-domain constraint (Wrapping too, so it stops being transparent).
+3. Thread the result type's domain to the arithmetic emission (mirror how
+   `is_float`/`byte_width` reach `RuntimeValueOperand::Binary` /
+   `WriteRuntimeStorageBinary`): the WRITE's target type carries the domain.
+4. x86_64 emission: Saturating = op then OF(signed)/CF(unsigned) check + `cmov`
+   to TYPE_MIN/TYPE_MAX; Trapping = op then `jo`/`jc` to a trap. Per width +
+   signedness. (A new storage-write op-kind must go in BOTH emission-planning
+   blocker lists.) Interpreter: model wrap/clamp/trap. Canaries: 200+100 in u8
+   -> 255 (sat), -> trap (trapping). This is the multi-crate slice; do it in a
+   focused pass and keep each layer green.
