@@ -916,6 +916,15 @@ impl TypedTrees {
         self.type_reference_table.primitive_type(type_reference)
     }
 
+    /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17)
+    /// declared on a type reference; `Exact` when unconstrained.
+    pub fn arithmetic_domain_for_type_reference(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> omega_core::arithmetic::ArithmeticDomain {
+        self.type_reference_table.arithmetic_domain(type_reference)
+    }
+
     pub fn type_reference_symbol(
         &self,
         type_reference: types::TypeReferenceHandle,

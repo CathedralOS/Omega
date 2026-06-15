@@ -202,6 +202,8 @@ pub(super) fn encode_machine_instruction_bytes(
             operator,
             right,
             is_float,
+            domain,
+            target_signed,
             ..
         } => runtime_storage::encode_runtime_storage_binary_write(
             input,
@@ -211,6 +213,8 @@ pub(super) fn encode_machine_instruction_bytes(
             *operator,
             *right,
             *is_float,
+            *domain,
+            *target_signed,
         ),
         SelectedInstructionKind::WriteRuntimeStorageConvert {
             target_offset,

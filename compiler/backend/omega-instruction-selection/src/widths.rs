@@ -473,6 +473,7 @@ pub fn runtime_binary_right_operand_gap(architecture: Architecture) -> usize {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_binary_write_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
@@ -482,8 +483,12 @@ pub fn runtime_storage_binary_write_width(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
 ) -> usize {
     match architecture {
+        // aarch64 does not implement the saturating/trapping domains yet (the
+        // emitter errors); its width is unaffected by the domain.
         Architecture::Aarch64 => aarch64::runtime_storage_binary_write_width(
             runtime_value_operands,
             target_offset,
@@ -500,6 +505,8 @@ pub fn runtime_storage_binary_write_width(
             operator,
             right,
             is_float,
+            domain,
+            target_signed,
         ),
     }
 }

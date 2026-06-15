@@ -238,6 +238,7 @@ pub(super) fn encode_runtime_pointee_integer_write(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn encode_runtime_storage_binary_write(
     input: MachineEmissionContext<'_>,
     target_offset: usize,
@@ -246,6 +247,8 @@ pub(super) fn encode_runtime_storage_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     validate_runtime_value_home(input, left)?;
     validate_runtime_value_home(input, right)?;
@@ -258,6 +261,8 @@ pub(super) fn encode_runtime_storage_binary_write(
         operator,
         right,
         is_float,
+        domain,
+        target_signed,
     )
 }
 

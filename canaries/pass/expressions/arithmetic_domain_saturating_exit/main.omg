@@ -1,0 +1,29 @@
+// RUN CANARY (exit 70). Frozen decision 17, stage S1b: the `Saturating` arithmetic
+// domain CLAMPS to the target type's bounds on overflow instead of wrapping.
+//
+// 200 + 100 = 300, which overflows u8. With `u8 in Saturating` the result is
+// clamped to the u8 maximum (255), NOT wrapped to 44 (which is what `Wrapping`
+// would give). The native x86_64 backend emits a width-correct add then a
+// carry-flag check + `cmov` to the unsigned max; the interpreter clamps to the
+// same range so the differential oracle agrees. See
+// wiki/architecture/arithmetic_domains_implementation_map.md.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    a: u8;
+    b: u8;
+}
+
+machine Main::main(&mut self) {
+    self.a = 200;
+    self.b = 100;
+    let c: u8 in Saturating = self.a + self.b;   // 300 saturates to 255 (u8)
+    transition c == 255 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

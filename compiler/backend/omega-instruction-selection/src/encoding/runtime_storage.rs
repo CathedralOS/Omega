@@ -129,6 +129,7 @@ pub fn encode_runtime_pointee_integer_write(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_binary_write(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
@@ -138,6 +139,8 @@ pub fn encode_runtime_storage_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_storage_binary_write(
@@ -148,6 +151,8 @@ pub fn encode_runtime_storage_binary_write(
             operator,
             right,
             is_float,
+            domain,
+            target_signed,
         ),
         Architecture::X86_64 => x86_64::encode_runtime_storage_binary_write(
             runtime_value_operands,
@@ -157,6 +162,8 @@ pub fn encode_runtime_storage_binary_write(
             operator,
             right,
             is_float,
+            domain,
+            target_signed,
         ),
     }
 }

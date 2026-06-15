@@ -318,6 +318,8 @@ fn machine_instruction_width(
             operator,
             right,
             is_float,
+            domain,
+            target_signed,
             ..
         } => runtime_storage_binary_write_width(
             input.target.architecture,
@@ -328,6 +330,8 @@ fn machine_instruction_width(
             *operator,
             *right,
             *is_float,
+            *domain,
+            *target_signed,
         ),
         SelectedInstructionKind::WriteRuntimeStorageConvert {
             target_offset,

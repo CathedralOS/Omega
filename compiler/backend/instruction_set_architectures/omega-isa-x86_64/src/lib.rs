@@ -1,4 +1,5 @@
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
+use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::{
     InstructionOperandLike, RuntimeValueOperandHandle, RuntimeValueOperandSource,
@@ -3351,6 +3352,7 @@ pub fn encode_runtime_storage_address_to_runtime_frame_write(
 /// this to the right operand's start offset.
 pub const BINARY_RIGHT_OPERAND_PUSH_WIDTH: usize = 2;
 
+#[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     byte_size: usize,
@@ -3358,7 +3360,21 @@ pub fn runtime_storage_binary_write_width(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
+    domain: ArithmeticDomain,
+    target_signed: bool,
 ) -> usize {
+    // The integer op is normally the default 64-bit op; Saturating/Trapping
+    // instead emit a width-correct add/sub followed by the clamp/trap sequence.
+    let operation_width = if !is_float
+        && matches!(
+            domain,
+            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+        ) {
+        width_integer_add_sub_width(byte_size)
+            + arithmetic_domain_clamp_width(domain, operator, byte_size, target_signed)
+    } else {
+        runtime_binary_operation_or_float_width(operator, byte_size, is_float)
+    };
     // 10 (mov r14,imm64) + left + push r10 (2) + right + mov r11,r10 (3)
     // + pop r10 (2) + operation + store.
     10 + runtime_value_operand_width(runtime_value_operands, left)
@@ -3366,8 +3382,13 @@ pub fn runtime_storage_binary_write_width(
         + runtime_value_operand_width(runtime_value_operands, right)
         + 3
         + 2
-        + runtime_binary_operation_or_float_width(operator, byte_size, is_float)
+        + operation_width
         + 7.max(store_width(byte_size))
+}
+
+/// Bytes of [`append_width_integer_add_sub`]: 4 for 16-bit (0x66 prefix), else 3.
+fn width_integer_add_sub_width(byte_size: usize) -> usize {
+    if byte_size == 2 { 4 } else { 3 }
 }
 
 /// Width of the in-register operation step, dispatching to the SSE float op when
@@ -3384,6 +3405,7 @@ fn runtime_binary_operation_or_float_width(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_binary_write(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
@@ -3392,6 +3414,8 @@ pub fn encode_runtime_storage_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
+    domain: ArithmeticDomain,
+    target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_storage_binary_write_width(
         runtime_value_operands,
@@ -3400,6 +3424,8 @@ pub fn encode_runtime_storage_binary_write(
         operator,
         right,
         is_float,
+        domain,
+        target_signed,
     ));
     // Hold the target base in r14, not r15: evaluating the operands below
     // reloads r15 with each source base, which would otherwise clobber the
@@ -3414,8 +3440,20 @@ pub fn encode_runtime_storage_binary_write(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
     append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
     append_pop_r10(&mut bytes); // restore left -> r10
+    let saturating_or_trapping = !is_float
+        && matches!(
+            domain,
+            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+        );
     if is_float {
         append_runtime_float_binary_operation(&mut bytes, operator, byte_size)?;
+    } else if saturating_or_trapping {
+        // Decision 17: the default integer path does a 64-bit op and lets the
+        // store truncate (== Wrapping). Saturating/Trapping instead need the
+        // overflow flags to reflect the TARGET width, so emit a width-correct
+        // add/sub here and then clamp (Saturating) or trap (Trapping).
+        append_width_integer_add_sub(&mut bytes, operator, byte_size)?;
+        append_arithmetic_domain_clamp(&mut bytes, domain, operator, byte_size, target_signed)?;
     } else {
         append_runtime_binary_operation(
             &mut bytes,
@@ -3431,6 +3469,123 @@ pub fn encode_runtime_storage_binary_write(
     }
     append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
     Ok(bytes)
+}
+
+/// Width-correct integer `add`/`sub` of `r10 (op)= r11` so the carry/overflow
+/// flags reflect the TARGET byte width (the default binary op is always 64-bit
+/// and relies on the truncating store). Only `+`/`-` are supported for the
+/// saturating/trapping domains today; other operators error.
+fn append_width_integer_add_sub(
+    bytes: &mut Vec<u8>,
+    operator: StateGuardOperator,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    // ADD r/m,r = 0x00 (8-bit) / 0x01 (wider); SUB = 0x28 / 0x29. ModRM 0xDA is
+    // (r/m = r10, reg = r11); the REX prefix selects the width and extends both.
+    let (op8, opw) = match operator {
+        StateGuardOperator::Add => (0x00u8, 0x01u8),
+        StateGuardOperator::Subtract => (0x28u8, 0x29u8),
+        _ => {
+            return Err(Diagnostic::error(
+                "saturating/trapping arithmetic is only implemented for + and - so far".to_owned(),
+            ));
+        }
+    };
+    match byte_size {
+        1 => bytes.extend([0x45, op8, 0xda]),
+        2 => bytes.extend([0x66, 0x45, opw, 0xda]),
+        4 => bytes.extend([0x45, opw, 0xda]),
+        8 => bytes.extend([0x4d, opw, 0xda]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "saturating/trapping arithmetic cannot handle {byte_size}-byte targets yet"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Bytes of [`append_arithmetic_domain_clamp`], for the relocation layout. MUST
+/// equal what that function emits.
+fn arithmetic_domain_clamp_width(
+    domain: ArithmeticDomain,
+    _operator: StateGuardOperator,
+    _byte_size: usize,
+    target_signed: bool,
+) -> usize {
+    match domain {
+        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => 0,
+        // jno/jnc rel8 (2) + ud2 (2)
+        ArithmeticDomain::Trapping => 4,
+        ArithmeticDomain::Saturating => {
+            if target_signed {
+                // mov r11,imm64 (10) + mov r9,imm64 (10) + cmovs r11,r9 (4) + cmovo r10,r11 (4)
+                28
+            } else {
+                // mov r11,imm64 (10) + cmovc r10,r11 (4)
+                14
+            }
+        }
+    }
+}
+
+/// Clamp (Saturating) or trap (Trapping) the width-correct op's result in r10,
+/// reading the flags it set. Unsigned overflow is the carry flag (add: clamp to
+/// the unsigned max; sub: clamp to 0); signed overflow is the overflow flag
+/// (clamp to the signed min/max, chosen by the result's sign bit). r11 (the
+/// spent right operand) and r9 are used as scratch.
+fn append_arithmetic_domain_clamp(
+    bytes: &mut Vec<u8>,
+    domain: ArithmeticDomain,
+    operator: StateGuardOperator,
+    byte_size: usize,
+    target_signed: bool,
+) -> Result<(), Diagnostic> {
+    match domain {
+        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => {}
+        ArithmeticDomain::Trapping => {
+            // Skip the 2-byte ud2 when there was NO overflow: unsigned watches the
+            // carry flag (jnc/jae), signed watches the overflow flag (jno).
+            let skip_when_ok = if target_signed { 0x71u8 } else { 0x73u8 };
+            bytes.extend([skip_when_ok, 0x02, 0x0f, 0x0b]);
+        }
+        ArithmeticDomain::Saturating if target_signed => {
+            let imin = (-(1i128 << (8 * byte_size - 1))) as i64 as u64;
+            let imax = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
+            bytes.push(0x49);
+            bytes.push(0xbb);
+            bytes.extend(imin.to_le_bytes()); // mov r11, IMIN
+            bytes.push(0x49);
+            bytes.push(0xb9);
+            bytes.extend(imax.to_le_bytes()); // mov r9, IMAX
+            // On signed overflow the stored result's sign is inverted, so a
+            // negative result means the true value overflowed POSITIVE -> IMAX.
+            bytes.extend([0x4d, 0x0f, 0x48, 0xd9]); // cmovs r11, r9
+            bytes.extend([0x4d, 0x0f, 0x40, 0xd3]); // cmovo r10, r11
+        }
+        ArithmeticDomain::Saturating => {
+            let clamp_value: u64 = match operator {
+                StateGuardOperator::Add => {
+                    if byte_size >= 8 {
+                        u64::MAX
+                    } else {
+                        (1u64 << (8 * byte_size)) - 1
+                    }
+                }
+                StateGuardOperator::Subtract => 0,
+                _ => {
+                    return Err(Diagnostic::error(
+                        "saturating arithmetic is only implemented for + and - so far".to_owned(),
+                    ));
+                }
+            };
+            bytes.push(0x49);
+            bytes.push(0xbb);
+            bytes.extend(clamp_value.to_le_bytes()); // mov r11, clamp
+            bytes.extend([0x4d, 0x0f, 0x42, 0xd3]); // cmovc r10, r11
+        }
+    }
+    Ok(())
 }
 
 /// Bytes of the in-register conversion step for a numeric `as` cast (the source
