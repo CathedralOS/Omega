@@ -120,6 +120,7 @@ fn simplify_expression_with_bindings(
                     preserve_call_locals,
                 ),
                 target_type: cast.target_type.clone(),
+                domain: cast.domain,
             }))
         }
         Expression::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {

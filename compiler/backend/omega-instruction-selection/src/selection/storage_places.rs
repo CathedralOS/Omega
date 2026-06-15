@@ -629,6 +629,11 @@ pub(super) fn resolve_runtime_storage_arithmetic_domain_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> omega_core::arithmetic::ArithmeticDomain {
+    // A domain `as` cast (`x as u8 in Saturating`, decision 17 S2) re-tags the
+    // value's domain explicitly, overriding the operand's own type.
+    if let ExpressionNode::Cast(cast) = expressions.expression(expression) {
+        return cast.domain;
+    }
     resolve_runtime_storage_leaf_descriptor_in_table(
         input,
         dispatch_index,

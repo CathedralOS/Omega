@@ -1,0 +1,25 @@
+// RUN CANARY (exit 70). Frozen decision 17, stage S2: a domain `as` cast is the
+// escape hatch for crossing domains. `a` is a plain (exact) u8; casting it
+// `as u8 in Saturating` lets it legally take part in saturating arithmetic with
+// the saturating field `b` -- without the cast this would be a mixed-domain
+// compile error. 200 + 100 saturates to the u8 max 255.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    a: u8;
+    b: u8 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    self.a = 200;
+    self.b = 100;
+    let c: u8 in Saturating = (self.a as u8 in Saturating) + self.b;
+    transition c == 255 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

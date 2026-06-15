@@ -1348,6 +1348,7 @@ fn resolve_leaf_call_expression_handle(
                 omega_checked_trees::expression::TableCastExpression {
                     value,
                     target_type: cast.target_type,
+                    domain: cast.domain,
                 },
             ))
         }

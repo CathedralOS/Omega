@@ -268,6 +268,7 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
+                    domain: cast.domain,
                 }))
             }
             ExpressionNode::Call(call) => {
@@ -1020,6 +1021,7 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
+                    domain: cast.domain,
                 }))
             }
             ExpressionNode::Call(call) => {
@@ -1191,6 +1193,7 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
+                    domain: cast.domain,
                 }))
             }
             Expression::Call(call) => {
@@ -1294,6 +1297,7 @@ impl ExpressionTable {
                 target_type: NamePath::unresolved_from_iter(
                     self.name_path_members(cast.target_type).iter().cloned(),
                 ),
+                domain: cast.domain,
             })),
             ExpressionNode::Call(call) => Expression::Call(Box::new(CallExpression {
                 receiver: call
@@ -1500,6 +1504,8 @@ pub struct TableUnaryExpression {
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
     pub target_type: HandleSpan<Identifier>,
+    /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
+    pub domain: omega_core::arithmetic::ArithmeticDomain,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1864,6 +1870,8 @@ pub enum UnaryOperator {
 pub struct CastExpression {
     pub value: Expression,
     pub target_type: NamePath,
+    /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2.
+    pub domain: omega_core::arithmetic::ArithmeticDomain,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -75,6 +75,7 @@ fn lower_expression_node_into_table(
                 expressions.insert(ExpressionNode::Cast(TableCastExpression {
                     value,
                     target_type,
+                    domain: cast.domain,
                 })),
             )
         }

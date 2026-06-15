@@ -156,6 +156,9 @@ pub struct TableUnaryExpression {
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
     pub target_type: HandleSpan<Identifier>,
+    /// Arithmetic domain cast (`x as u8 in Saturating`), decision 17 S2. `Exact`
+    /// when the cast has no `in <Domain>` suffix.
+    pub domain: omega_core::arithmetic::ArithmeticDomain,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
