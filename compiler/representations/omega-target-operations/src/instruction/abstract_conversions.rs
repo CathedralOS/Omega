@@ -482,6 +482,8 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 operator,
                 right,
                 is_float,
+                domain,
+                target_signed,
             } => Self::WriteRuntimeStorageBinary {
                 target_region: *target_region,
                 target_offset: *target_offset,
@@ -490,6 +492,8 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 operator: *operator,
                 right: remap_runtime_value_handle(*right),
                 is_float: *is_float,
+                domain: *domain,
+                target_signed: *target_signed,
             },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeStorageConvert {
                 target_region,

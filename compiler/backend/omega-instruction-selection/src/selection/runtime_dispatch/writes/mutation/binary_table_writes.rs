@@ -4,7 +4,8 @@ use crate::selection::storage_places::{
     classify_scalar_value_type_in_table, descriptor_primitive_type,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
+    resolve_runtime_pointee_slot_offset_in_table,
+    resolve_runtime_storage_arithmetic_domain_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
 };
 use omega_checked_trees::types::PrimitiveType;
@@ -118,6 +119,8 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
             operator: StateGuardOperator::Or,
             right: zero,
             is_float: false,
+            domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+            target_signed: false,
         });
     }
 
@@ -281,6 +284,25 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         }
     }
 
+    // Decision 17: the write's arithmetic domain + target signedness drive the
+    // ISA's overflow handling (Exact/Wrapping wrap; Saturating clamps; Trapping
+    // aborts). Both read from the TARGET's declared type, not the operands.
+    let domain = resolve_runtime_storage_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    );
+    let target_signed = resolve_runtime_storage_is_signed_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    )
+    .unwrap_or(false);
+
     let target_place = target_place?;
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region: target_place.region,
@@ -290,6 +312,8 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
         operator,
         right,
         is_float,
+        domain,
+        target_signed,
     })
 }
 
@@ -448,6 +472,11 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
     target_region: RuntimeStorageRegion,
     target_offset: usize,
     byte_size: usize,
+    // Decision 17: this entry has a PRE-RESOLVED place (no target expression), so
+    // the caller passes the target's arithmetic domain + signedness derived from
+    // the slot/field descriptor.
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    target_signed: bool,
     value: ExpressionHandle,
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
@@ -551,6 +580,8 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
         operator,
         right,
         is_float,
+        domain,
+        target_signed,
     })
 }
 

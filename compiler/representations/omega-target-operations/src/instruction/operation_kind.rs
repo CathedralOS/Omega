@@ -282,6 +282,12 @@ pub enum TargetOperationKind {
         operator: StateGuardOperator,
         right: TargetValueOperandHandle,
         is_float: bool,
+        /// Arithmetic domain of the write's target type (decision 17). See the
+        /// abstract-layer variant for semantics.
+        domain: omega_core::arithmetic::ArithmeticDomain,
+        /// Whether the target integer type is signed (overflow-flag + clamp-bound
+        /// selection for `Saturating`/`Trapping`).
+        target_signed: bool,
     },
     WriteRuntimeStorageConvert {
         target_region: RuntimeStorageRegion,
