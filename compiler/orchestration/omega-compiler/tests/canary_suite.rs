@@ -2843,6 +2843,131 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
 }
 
 #[test]
+fn arithmetic_domain_saturating_mul_exit_canary_runs() {
+    // Decision 17: `u8 in Saturating` multiply clamps 100*100=10000 to 255 (a
+    // 64-bit imul gives the exact product, then range-compare + cmov to the max).
+    let canary = pass_canary("expressions/arithmetic_domain_saturating_mul_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-arith-domain-sat-mul-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_saturating_mul canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_saturating_mul canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected u8 in Saturating (100*100) to clamp to 255 and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn arithmetic_domain_saturating_mul_signed_exit_canary_runs() {
+    // Decision 17: signed saturating multiply clamps both ways (2500->127 cmovg,
+    // -2500->-128 cmovl).
+    let canary = pass_canary("expressions/arithmetic_domain_saturating_mul_signed_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-sat-mul-signed-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_saturating_mul_signed canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_saturating_mul_signed canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed sat mul (2500->127, -2500->-128) to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn arithmetic_domain_trapping_mul_exit_canary_runs() {
+    // Decision 17: in-range Trapping multiply (10*10=100) does not trap.
+    let canary = pass_canary("expressions/arithmetic_domain_trapping_mul_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-arith-domain-trap-mul-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_trapping_mul canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_trapping_mul canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected in-range Trapping mul (10*10=100) to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn arithmetic_domain_trapping_mul_overflow_aborts() {
+    // Decision 17: Trapping multiply overflow (100*100) aborts via ud2 -- never
+    // reaches the transition. (No `_canary_runs` suffix so the differential drift
+    // guard skips it.)
+    let canary = pass_canary("expressions/arithmetic_domain_trapping_mul_overflow");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-trap-mul-of-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_trapping_mul_overflow canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_trapping_mul_overflow canary should run");
+    assert!(
+        !output.status.success()
+            && output.status.code() != Some(70)
+            && output.status.code() != Some(71),
+        "expected Trapping mul overflow (100*100) to abort, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn arithmetic_domain_saturating_signed_exit_canary_runs() {
     // Decision 17 S1b: signed `i8 in Saturating` clamps 100+100=200 to 127.
     let canary = pass_canary("expressions/arithmetic_domain_saturating_signed_exit");
@@ -10625,6 +10750,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/f32_array_binary_op_zero",
     "expressions/arithmetic_domain_wrapping_exit",
     "expressions/arithmetic_domain_saturating_exit",
+    "expressions/arithmetic_domain_saturating_mul_exit",
+    "expressions/arithmetic_domain_saturating_mul_signed_exit",
+    "expressions/arithmetic_domain_trapping_mul_exit",
+    "expressions/arithmetic_domain_trapping_mul_overflow",
     "expressions/arithmetic_domain_saturating_signed_exit",
     "expressions/arithmetic_domain_trapping_exit",
     "expressions/arithmetic_domain_trapping_overflow",

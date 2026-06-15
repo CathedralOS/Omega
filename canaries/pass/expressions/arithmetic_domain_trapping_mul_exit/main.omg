@@ -1,0 +1,23 @@
+// RUN CANARY (exit 70). Decision 17: Trapping multiply, IN RANGE. 10*10 = 100
+// fits u8, so `u8 in Trapping` produces 100 and does NOT trap (exercises the
+// no-overflow path of the trapping-multiply check). c == 100 -> exit 70.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    a: u8 in Trapping;
+    b: u8 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 10;
+    self.b = 10;
+    let c: u8 in Trapping = self.a * self.b;   // 100 fits u8, no trap
+    transition c == 100 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

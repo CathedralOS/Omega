@@ -3365,11 +3365,14 @@ pub fn runtime_storage_binary_write_width(
 ) -> usize {
     // The integer op is normally the default 64-bit op; Saturating/Trapping
     // instead emit a width-correct add/sub followed by the clamp/trap sequence.
-    let operation_width = if !is_float
+    let saturating_or_trapping = !is_float
         && matches!(
             domain,
             ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
-        ) {
+        );
+    let operation_width = if saturating_or_trapping && operator == StateGuardOperator::Multiply {
+        saturating_trapping_multiply_width(domain, byte_size, target_signed)
+    } else if saturating_or_trapping {
         width_integer_add_sub_width(byte_size)
             + arithmetic_domain_clamp_width(domain, operator, byte_size, target_signed)
     } else {
@@ -3447,6 +3450,11 @@ pub fn encode_runtime_storage_binary_write(
         );
     if is_float {
         append_runtime_float_binary_operation(&mut bytes, operator, byte_size)?;
+    } else if saturating_or_trapping && operator == StateGuardOperator::Multiply {
+        // Saturating/Trapping multiply: a 64-bit `imul` yields the EXACT product
+        // for <=32-bit operands (it cannot exceed 64 bits), so compare the full
+        // product against the target type's range and clamp / trap.
+        append_saturating_trapping_multiply(&mut bytes, domain, byte_size, target_signed)?;
     } else if saturating_or_trapping {
         // Decision 17: the default integer path does a 64-bit op and lets the
         // store truncate (== Wrapping). Saturating/Trapping instead need the
@@ -3469,6 +3477,126 @@ pub fn encode_runtime_storage_binary_write(
     }
     append_store_r10_to_r14(&mut bytes, target_offset, byte_size)?;
     Ok(bytes)
+}
+
+/// Bytes of [`append_saturating_trapping_multiply`], for the relocation layout.
+/// MUST equal what that function emits.
+fn saturating_trapping_multiply_width(
+    domain: ArithmeticDomain,
+    byte_size: usize,
+    target_signed: bool,
+) -> usize {
+    let imul = 4; // imul r10, r11
+    if !matches!(byte_size, 1 | 2 | 4) {
+        return imul; // emission errors; width is irrelevant then
+    }
+    // Two sign-extension instructions for signed narrow operands (see emission):
+    // movsx is 4 bytes (8/16-bit), movsxd is 3 bytes (32-bit).
+    let sign_extend = if target_signed {
+        if byte_size == 4 { 6 } else { 8 }
+    } else {
+        0
+    };
+    let clamp = match (domain, target_signed) {
+        // mov r11,imm64 (10) + cmp r10,r11 (3) + cmova r10,r11 (4)
+        (ArithmeticDomain::Saturating, false) => 17,
+        // (mov + cmp + cmovg) + (mov + cmp + cmovl)
+        (ArithmeticDomain::Saturating, true) => 34,
+        // mov (10) + cmp (3) + jbe rel8 (2) + ud2 (2)
+        (ArithmeticDomain::Trapping, false) => 17,
+        // mov (10) + cmp (3) + jg (2) + mov (10) + cmp (3) + jge (2) + ud2 (2)
+        (ArithmeticDomain::Trapping, true) => 32,
+        _ => 0,
+    };
+    imul + sign_extend + clamp
+}
+
+/// Saturating/Trapping multiply (decision 17). A 64-bit `imul r10, r11` produces
+/// the EXACT product for <=32-bit operands (the product cannot exceed 64 bits),
+/// so the full result is range-compared against the target type and clamped
+/// (Saturating) or trapped (Trapping). 64-bit targets are not handled (the
+/// product can exceed 64 bits -- needs the 128-bit `mul`/`imul` form). r11 (the
+/// spent right operand) is the clamp-constant scratch.
+fn append_saturating_trapping_multiply(
+    bytes: &mut Vec<u8>,
+    domain: ArithmeticDomain,
+    byte_size: usize,
+    target_signed: bool,
+) -> Result<(), Diagnostic> {
+    if byte_size == 8 {
+        return Err(Diagnostic::error(
+            "saturating/trapping multiply on 64-bit integers is not implemented yet \
+             (the product can exceed 64 bits, which needs the 128-bit multiply form)"
+                .to_owned(),
+        ));
+    }
+    if !matches!(byte_size, 1 | 2 | 4) {
+        return Err(Diagnostic::error(format!(
+            "saturating/trapping multiply cannot handle {byte_size}-byte targets yet"
+        )));
+    }
+    // The 64-bit `imul` needs full-width-correct operands. Narrow operands are
+    // loaded ZERO-extended, so a SIGNED negative value (e.g. i8 -50 -> 0xCE = 206)
+    // would multiply wrong. Sign-extend r10/r11 from the target width to 64 bits
+    // first. (Unsigned operands are already correct zero-extended.)
+    if target_signed {
+        match byte_size {
+            1 => {
+                bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]); // movsx r10, r10b
+                bytes.extend([0x4d, 0x0f, 0xbe, 0xdb]); // movsx r11, r11b
+            }
+            2 => {
+                bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]); // movsx r10, r10w
+                bytes.extend([0x4d, 0x0f, 0xbf, 0xdb]); // movsx r11, r11w
+            }
+            4 => {
+                bytes.extend([0x4d, 0x63, 0xd2]); // movsxd r10, r10d
+                bytes.extend([0x4d, 0x63, 0xdb]); // movsxd r11, r11d
+            }
+            _ => {}
+        }
+    }
+    bytes.extend([0x4d, 0x0f, 0xaf, 0xd3]); // imul r10, r11 (64-bit)
+    let unsigned_max: u64 = (1u64 << (8 * byte_size)) - 1;
+    let signed_min = (-(1i128 << (8 * byte_size - 1))) as i64 as u64;
+    let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
+    fn mov_r11(bytes: &mut Vec<u8>, value: u64) {
+        bytes.push(0x49);
+        bytes.push(0xbb);
+        bytes.extend(value.to_le_bytes());
+    }
+    match (domain, target_signed) {
+        (ArithmeticDomain::Saturating, false) => {
+            mov_r11(bytes, unsigned_max);
+            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+            bytes.extend([0x4d, 0x0f, 0x47, 0xd3]); // cmova r10, r11 (r10 >u max -> max)
+        }
+        (ArithmeticDomain::Saturating, true) => {
+            mov_r11(bytes, signed_max);
+            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+            bytes.extend([0x4d, 0x0f, 0x4f, 0xd3]); // cmovg r10, r11 (> imax -> imax)
+            mov_r11(bytes, signed_min);
+            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+            bytes.extend([0x4d, 0x0f, 0x4c, 0xd3]); // cmovl r10, r11 (< imin -> imin)
+        }
+        (ArithmeticDomain::Trapping, false) => {
+            mov_r11(bytes, unsigned_max);
+            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+            bytes.extend([0x76, 0x02]); // jbe +2 (<= max: ok)
+            bytes.extend([0x0f, 0x0b]); // ud2
+        }
+        (ArithmeticDomain::Trapping, true) => {
+            mov_r11(bytes, signed_max);
+            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+            bytes.extend([0x7f, 0x0f]); // jg +15 -> ud2 (skip mov+cmp+jge)
+            mov_r11(bytes, signed_min);
+            bytes.extend([0x4d, 0x39, 0xda]); // cmp r10, r11
+            bytes.extend([0x7d, 0x02]); // jge +2 (>= imin: ok)
+            bytes.extend([0x0f, 0x0b]); // ud2
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// Width-correct integer `add`/`sub` of `r10 (op)= r11` so the carry/overflow

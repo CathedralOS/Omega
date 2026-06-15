@@ -1,0 +1,25 @@
+// RUN CANARY (exit 70). Frozen decision 17: SATURATING multiply. 100 * 100 =
+// 10000 overflows u8, so `u8 in Saturating` clamps the product to the u8 maximum
+// 255 (not the wrapped 16). Native does a 64-bit `imul` (exact product for an
+// 8-bit target), then range-compares against 255 and `cmov`s to the max; the
+// interpreter clamps to the same bound.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    a: u8 in Saturating;
+    b: u8 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    self.a = 100;
+    self.b = 100;
+    let c: u8 in Saturating = self.a * self.b;   // 10000 saturates to 255 (u8)
+    transition c == 255 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
