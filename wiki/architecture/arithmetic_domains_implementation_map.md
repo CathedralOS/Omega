@@ -98,7 +98,35 @@ annotation-hell.
   RUN canary `expressions/arithmetic_domain_wrapping_exit` (200+100 u8 -> 44).
   Regression-free, suite 274.
 
-## S1b NEXT: represent the domain + Saturating/Trapping codegen
+## PROGRESS (S1b)
+
+- **Representation DONE + LIVE** (commits 8fb86b17, e2137582): `ArithmeticDomain`
+  in omega-core; `TypeConstraintNode::ArithmeticDomain` threaded through all 3
+  type layers + every conversion/consumer; the parser emits `T in Wrapping` as
+  `Constrained { base, [ArithmeticDomain(Wrapping)] }`. Validated end-to-end:
+  `arithmetic_domain_wrapping_exit` is 70 on interp AND native, so a Constrained
+  domain local flows to the backend and resolves to its base primitive. Sat/Trap
+  still parse-and-reject until codegen.
+
+## S1b REMAINING: Saturating/Trapping codegen
+
+Wrapping works (== base codegen). Saturating/Trapping need distinct emission.
+OPEN QUESTION to resolve FIRST: is the target's arithmetic domain available at
+the binary-WRITE emission site? `byte_width`/`is_float` come from the resolved
+primitive descriptor; the domain is an extra CONSTRAINT on the type-reference.
+Check whether the type-reference (with constraints) reaches
+`resolve_runtime_storage_*` / the WriteRuntimeStorageBinary build, or whether the
+domain must be carried onto the frame slot / storage descriptor (like
+byte_width). Likely the latter: add an `arithmetic_domain` to the slot/descriptor
+when the declared type is `Constrained` with an ArithmeticDomain, then:
+1. Thread the domain onto the binary op (RuntimeValueOperand::Binary /
+   WriteRuntimeStorageBinary) -- the SAME pattern as the byte_width threading
+   (abstract/target/assigned + accessor), set once at build, read by the ISA.
+2. x86_64: Saturating = op then check OF (signed) / CF (unsigned) + `cmov` to
+   TYPE_MIN/TYPE_MAX; Trapping = op then `jo`/`jc` to a trap. Per width+signedness.
+3. Interpreter: clamp / trap to match.
+4. Parser: stop rejecting Saturating/Trapping. Canaries: 200+100 in u8 -> 255
+   (sat), -> trap (trapping).
 
 `Wrapping` works transparently, but `Saturating`/`Trapping` need the domain
 REPRESENTED (not discarded) so the backend can branch. Decided representation:
