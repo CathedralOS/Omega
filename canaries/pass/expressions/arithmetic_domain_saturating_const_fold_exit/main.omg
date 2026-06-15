@@ -1,0 +1,29 @@
+// RUN CANARY (exit 70). Decision 17 / task #39: a Saturating arithmetic op whose
+// BOTH operands are compile-time constants must still clamp on overflow. The
+// operands fold to bare literals (which carry no domain), and the whole
+// expression collapses to a constant store -- so the runtime clamp in the binary
+// write encoder is never reached. The fix clamps the folded constant to the
+// Saturating target's range at the store (mutation.rs clamp_constant_to_target_domain).
+//
+// Before the fix `a * b` stored the wrapped low byte (10000 mod 256 = 16) and the
+// program exited 71; now it clamps to u8 max (255) and the guard takes `good`.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    v: u8 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    let a: u8 in Saturating = 100;
+    let b: u8 in Saturating = 100;
+    self.v = a * b;   // 100*100 = 10000, clamps to u8 max 255 (not wrapped 16)
+
+    transition self.v == 255 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

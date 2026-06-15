@@ -632,12 +632,25 @@ impl<'program> Evaluator<'program> {
         match statement {
             StatementNode::Assignment(assignment) => {
                 let value = self.eval_expression(assignment.value, frame)?;
-                // Match the native backend's truncating store: an integer written to a
-                // narrower-than-64-bit field keeps only the field's low bytes (a u16
-                // field assigned 70000 reads back 4464).
+                // Apply the target field's declared width AND arithmetic domain
+                // (decision 17), matching the native store: Exact/Wrapping truncate
+                // to the field's low bytes (a u16 field assigned 70000 reads back
+                // 4464), Saturating clamps to the type range (a u8 Saturating field
+                // assigned a folded 10000 reads back 255, not the wrapped 16), and
+                // Trapping halts on overflow. Mirrors the LocalData store below.
                 let value = if let Value::Int(raw) = value {
-                    match self.assignment_target_primitive(assignment.target, frame) {
-                        Some(primitive) => Value::Int(wrap_to_width(raw, primitive)),
+                    match self.assignment_target_type_reference(assignment.target, frame) {
+                        Some(type_reference) => {
+                            match self.program.primitive_type_reference(type_reference) {
+                                Some(primitive) => {
+                                    let domain = self
+                                        .program
+                                        .arithmetic_domain_for_type_reference(type_reference);
+                                    Value::Int(apply_arithmetic_domain(raw, primitive, domain)?)
+                                }
+                                None => value,
+                            }
+                        }
                         None => value,
                     }
                 } else {
@@ -2178,11 +2191,11 @@ impl<'program> Evaluator<'program> {
     /// name path). Used to wrap an assigned integer to the field's declared width,
     /// matching the native backend's truncating store. Returns `None` for bare locals
     /// (whose cells carry no declared type) and non-field places.
-    fn assignment_target_primitive(
+    fn assignment_target_type_reference(
         &mut self,
         handle: ExpressionHandle,
         frame: &Frame,
-    ) -> Option<PrimitiveType> {
+    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
         let (receiver, field_name) = match self.program.expression_table.expression(handle).clone()
         {
             ExpressionNode::Member(member) => {
@@ -2230,25 +2243,26 @@ impl<'program> Evaluator<'program> {
             Value::Struct { type_symbol, .. } => *type_symbol,
             _ => return None,
         };
-        self.field_primitive_type(type_symbol, &field_name)
+        self.field_type_reference(type_symbol, &field_name)
     }
 
-    /// Declared primitive type of `field_name` on the data record or machine
+    /// Declared type reference of `field_name` on the data record or machine
     /// identified by `type_symbol`. A machine instance's struct carries the
     /// MACHINE's symbol while its fields come from the attached data (plus the
-    /// machine-owned cells), so both field sources are searched.
-    fn field_primitive_type(
+    /// machine-owned cells), so both field sources are searched. The caller
+    /// derives the primitive type and arithmetic domain from the reference.
+    fn field_type_reference(
         &self,
         type_symbol: SymbolHandle,
         field_name: &str,
-    ) -> Option<PrimitiveType> {
+    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
         if let Some(data) = self
             .program
             .data_definitions()
             .iter()
             .find(|data| data.symbol == type_symbol)
         {
-            return self.data_field_primitive_type(data, field_name);
+            return self.data_field_type_reference(data, field_name);
         }
         if let Some(machine) = self
             .program
@@ -2260,29 +2274,29 @@ impl<'program> Evaluator<'program> {
                 .attached_data
                 .as_ref()
                 .and_then(|name| self.find_data_by_name(name.as_str()))
-                && let Some(primitive) = self.data_field_primitive_type(data, field_name)
+                && let Some(type_reference) = self.data_field_type_reference(data, field_name)
             {
-                return Some(primitive);
+                return Some(type_reference);
             }
             for owned in self.program.machine_owned_data(machine) {
                 if owned.name.as_str() == field_name {
-                    return self.program.primitive_type_reference(owned.type_reference);
+                    return Some(owned.type_reference);
                 }
             }
         }
         None
     }
 
-    fn data_field_primitive_type(
+    fn data_field_type_reference(
         &self,
         data: &DataDefinition,
         field_name: &str,
-    ) -> Option<PrimitiveType> {
+    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
         for member in self.program.data_members(data) {
             if let DataMember::Field(field) = member
                 && field.name.as_str() == field_name
             {
-                return self.program.primitive_type_reference(field.type_reference);
+                return Some(field.type_reference);
             }
         }
         None
