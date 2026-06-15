@@ -198,11 +198,11 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
     // bare arithmetic stays exact (a proof obligation). The domain rides as a
     // `TypeConstraintNode::ArithmeticDomain` on a `Constrained` type-reference --
     // the same carrier as `range<..>` -- so layout/codegen see through to the
-    // base primitive. `Wrapping` matches today's width-wrapping codegen.
-    // Saturating/Trapping parse but are rejected until their distinct codegen
-    // lands (a later stage) -- accepting them now would silently wrap. (`in` is
-    // the contextual membership keyword; in TYPE position nothing else consumes
-    // a trailing `in`, so this suffix is additive.)
+    // base primitive. `Wrapping` matches today's width-wrapping codegen;
+    // `Saturating`/`Trapping` emit a width-correct op plus a clamp/trap on
+    // overflow (x86_64; aarch64 errors until implemented). (`in` is the
+    // contextual membership keyword; in TYPE position nothing else consumes a
+    // trailing `in`, so this suffix is additive.)
     if input.at_contextual("in") {
         let after_in = input.take_contextual("in")?;
         let (domain_name, rest) = after_in.take_identifier()?;
@@ -213,12 +213,6 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
                 "unknown arithmetic domain; expected `Wrapping`, `Saturating`, or `Trapping`",
             ));
         };
-        if !matches!(domain, omega_core::arithmetic::ArithmeticDomain::Wrapping) {
-            return Err(rest.error_here(
-                "arithmetic domain is not implemented yet; only `Wrapping` is supported so far \
-                 (exact-by-default arithmetic and Saturating/Trapping land in a later stage)",
-            ));
-        }
         let constraint = syntax_trees
             .type_references
             .append_constraint(TypeConstraintNode::ArithmeticDomain(domain));

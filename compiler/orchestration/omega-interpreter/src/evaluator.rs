@@ -1,5 +1,6 @@
 use crate::InterpretOutcome;
 use crate::value::{Cell, Value};
+use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
@@ -656,14 +657,19 @@ impl<'program> Evaluator<'program> {
                 } else {
                     self.default_value_for_type(local.type_reference)?
                 };
-                // Wrap an integer initializer to the local's declared width (the native
-                // frame-slot store truncates the same way).
+                // Apply the local's declared width AND arithmetic domain (decision
+                // 17): Wrapping/Exact truncate like the native truncating store,
+                // Saturating clamps, Trapping halts on overflow -- matching the
+                // native clamp/trap emission.
                 let value = match (
                     &value,
                     self.program.primitive_type_reference(local.type_reference),
                 ) {
                     (Value::Int(raw), Some(primitive)) => {
-                        Value::Int(wrap_to_width(*raw, primitive))
+                        let domain = self
+                            .program
+                            .arithmetic_domain_for_type_reference(local.type_reference);
+                        Value::Int(apply_arithmetic_domain(*raw, primitive, domain)?)
                     }
                     _ => value,
                 };
@@ -2849,6 +2855,42 @@ fn zigzag64(value: i64) -> u64 {
 /// shift/mask/xor.
 fn unzigzag64(value: u64) -> i64 {
     ((value >> 1) ^ (value & 1).wrapping_neg()) as i64
+}
+
+/// Inclusive [min, max] of an integer primitive as i64. `None` for widths whose
+/// range cannot be represented in i64 (u64/usize) -- their saturating/trapping
+/// behaviour is not modelled by the interpreter yet (they fall back to wrap).
+fn integer_bounds(ty: PrimitiveType) -> Option<(i64, i64)> {
+    match ty {
+        PrimitiveType::I8 => Some((i8::MIN as i64, i8::MAX as i64)),
+        PrimitiveType::U8 => Some((0, u8::MAX as i64)),
+        PrimitiveType::I16 => Some((i16::MIN as i64, i16::MAX as i64)),
+        PrimitiveType::U16 => Some((0, u16::MAX as i64)),
+        PrimitiveType::I32 => Some((i32::MIN as i64, i32::MAX as i64)),
+        PrimitiveType::U32 => Some((0, u32::MAX as i64)),
+        PrimitiveType::I64 | PrimitiveType::Isize => Some((i64::MIN, i64::MAX)),
+        _ => None,
+    }
+}
+
+/// Apply a write target's arithmetic domain (decision 17) to a raw i64 result,
+/// mirroring the native backend so the differential oracle agrees:
+/// Exact/Wrapping truncate to width; Saturating clamps to [min, max]; Trapping
+/// halts (overflow trap) when the value is out of range.
+fn apply_arithmetic_domain(raw: i64, ty: PrimitiveType, domain: ArithmeticDomain) -> EvalResult<i64> {
+    match domain {
+        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => Ok(wrap_to_width(raw, ty)),
+        ArithmeticDomain::Saturating => match integer_bounds(ty) {
+            Some((min, max)) => Ok(raw.clamp(min, max)),
+            None => Ok(wrap_to_width(raw, ty)),
+        },
+        ArithmeticDomain::Trapping => match integer_bounds(ty) {
+            Some((min, max)) if raw < min || raw > max => trap(format!(
+                "arithmetic overflow in Trapping domain: {raw} is out of range for {ty:?}"
+            )),
+            _ => Ok(wrap_to_width(raw, ty)),
+        },
+    }
 }
 
 fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {

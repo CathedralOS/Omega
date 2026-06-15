@@ -182,6 +182,16 @@ impl TypeReferenceTable {
         self.type_reference(handle).primitive_type(self)
     }
 
+    /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17)
+    /// declared on this type, looking through a leading reference / nested
+    /// constraints. `Exact` when none is declared.
+    pub fn arithmetic_domain(
+        &self,
+        handle: TypeReferenceHandle,
+    ) -> omega_core::arithmetic::ArithmeticDomain {
+        self.type_reference(handle).arithmetic_domain(self)
+    }
+
     pub fn type_symbol(&self, handle: TypeReferenceHandle) -> SymbolHandle {
         self.type_reference(handle).type_symbol(self)
     }
@@ -437,6 +447,27 @@ impl TypeReferenceNode {
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Unit => None,
+        }
+    }
+
+    pub fn arithmetic_domain(
+        &self,
+        table: &TypeReferenceTable,
+    ) -> omega_core::arithmetic::ArithmeticDomain {
+        match self {
+            TypeReferenceNode::Reference { referee, .. } => table.arithmetic_domain(*referee),
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => table
+                .constraints(*constraints)
+                .iter()
+                .find_map(|constraint| match constraint {
+                    TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
+                    _ => None,
+                })
+                .unwrap_or_else(|| table.arithmetic_domain(*base_type)),
+            _ => omega_core::arithmetic::ArithmeticDomain::Exact,
         }
     }
 

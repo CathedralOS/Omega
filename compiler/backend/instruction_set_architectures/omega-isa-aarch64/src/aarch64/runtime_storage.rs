@@ -436,6 +436,7 @@ pub fn encode_runtime_pointee_integer_write(
     Ok(bytes)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_binary_write(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
@@ -444,7 +445,21 @@ pub fn encode_runtime_storage_binary_write(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
     is_float: bool,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    _target_signed: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
+    // Decision 17: the saturating/trapping overflow handling is implemented on
+    // x86_64 only so far. Exact/Wrapping use the default width-correct op (the
+    // aarch64 op + truncating store already wraps), so they need no change.
+    if matches!(
+        domain,
+        omega_core::arithmetic::ArithmeticDomain::Saturating
+            | omega_core::arithmetic::ArithmeticDomain::Trapping
+    ) {
+        return Err(Diagnostic::error(
+            "saturating/trapping arithmetic domains are not yet implemented on aarch64".to_owned(),
+        ));
+    }
     let mut bytes = Vec::with_capacity(runtime_storage_binary_write_width(
         runtime_value_operands,
         target_offset,
