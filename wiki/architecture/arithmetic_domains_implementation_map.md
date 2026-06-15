@@ -105,10 +105,58 @@ annotation-hell.
   type layers + every conversion/consumer; the parser emits `T in Wrapping` as
   `Constrained { base, [ArithmeticDomain(Wrapping)] }`. Validated end-to-end:
   `arithmetic_domain_wrapping_exit` is 70 on interp AND native, so a Constrained
-  domain local flows to the backend and resolves to its base primitive. Sat/Trap
-  still parse-and-reject until codegen.
+  domain local flows to the backend and resolves to its base primitive.
+  (Sat/Trap codegen now LANDED — see "S1b DONE" below.)
 
-## S1b REMAINING: Saturating/Trapping codegen
+## S1b DONE: Saturating/Trapping codegen (2026-06-14)
+
+**Saturating + Trapping are implemented end-to-end on x86_64**, with interpreter
+modelling and a differential oracle. Commits 9e583e6f, e6b6fdf9, 87e90e95,
+fac0a4ae, e50c3998. Suite 279 green.
+
+How it threads (the byte_width pattern):
+- `TypeLayoutDescriptor::Constrained` carries a `domain: ArithmeticDomain`,
+  extracted from the type-reference's constraints at the two descriptor-build
+  sites (omega-layout/builder.rs, omega-runtime-storage/body.rs).
+  `TypeLayoutDescriptor::arithmetic_domain()` reads it (through a leading ref).
+- `WriteRuntimeStorageBinary` (abstract + target/assigned op-kind layers) gained
+  `domain` + `target_signed`, set at selection from the WRITE TARGET's type
+  (`resolve_runtime_storage_arithmetic_domain[_in_table]` + the is_signed
+  resolver; the pre-resolved frame-slot path derives from `slot.type_descriptor`).
+- x86_64 (`encode_runtime_storage_binary_write`): Exact/Wrapping keep the 64-bit
+  op + truncating store; Saturating/Trapping emit a WIDTH-CORRECT add/sub (so
+  CF/OF reflect the target width) then a clamp (`append_arithmetic_domain_clamp`:
+  unsigned cmovc to UMAX/0; signed mov IMIN + mov IMAX + cmovs + cmovo) or a trap
+  (`jno/jnc` over `ud2`). Widths mirrored in `runtime_storage_binary_write_width`
+  (+ `arithmetic_domain_clamp_width`, `width_integer_add_sub_width`) for the
+  relocation layout; everything rides AFTER the operands so the target reloc
+  offset is unchanged.
+- Interpreter (`apply_arithmetic_domain` in evaluator.rs): clamp (Saturating) /
+  halt (Trapping) at the local write, mirroring native; differential agrees.
+- Parser accepts all three domains.
+
+Canaries (canaries/pass/expressions/): `arithmetic_domain_wrapping_exit` (44),
+`arithmetic_domain_saturating_exit` (u8 255), `arithmetic_domain_saturating_signed_exit`
+(i8 127), `arithmetic_domain_trapping_exit` (in-range 150), and
+`arithmetic_domain_trapping_overflow` (native-only abort test
+`arithmetic_domain_trapping_overflow_aborts`).
+
+### S1b remaining gaps (deferred, not blocking)
+- **aarch64**: Saturating/Trapping emit a clear "not yet implemented" Diagnostic
+  (x86_64 only). Wrapping/Exact work on aarch64 (default path).
+- **Operators**: only `+`/`-` have Saturating/Trapping codegen; `*`/`/`/etc with a
+  non-Exact domain error clearly. Mul overflow detection (CF/OF on imul/mul) and
+  div are follow-ups.
+- **Field/param targets in the INTERPRETER**: only the LocalData write path applies
+  the domain (the canaries use local targets, which the differential covers).
+  Native handles any target via the descriptor domain; the interpreter's
+  field-write path would need the data member's type-reference domain to match —
+  add before differential-testing a field-target saturating program.
+- **u64/usize Saturating/Trapping in the interpreter**: `integer_bounds` returns
+  None for those (can't represent u64::MAX in i64), so they fall back to wrap.
+  Native is correct (uses CF). Don't differential a u64-domain overflow yet.
+
+## (historical) S1b REMAINING: Saturating/Trapping codegen
 
 Wrapping works (== base codegen). Saturating/Trapping need distinct emission.
 OPEN QUESTION to resolve FIRST: is the target's arithmetic domain available at
