@@ -25,8 +25,8 @@
 use omega::language::std::console;
 
 data Sim [copy, zero_init] {
-    pos: i32;
-    vel: i32;
+    pos: i32 in Wrapping;
+    vel: i32 in Wrapping;
 }
 
 data Main {
@@ -37,34 +37,34 @@ data Main {
 // Perform one step of the simulation.
 // Computes new_pos = pos + vel, then applies bounce rules.
 machine Main::step(&mut self) {
-    let new_pos: i32 = self.s.pos + self.s.vel;
+    let new_pos: i32 in Wrapping = self.s.pos + self.s.vel;
     transition new_pos > 9 {
         true -> upper_bounce(new_pos)
         _ -> check_lower(new_pos)
     }
 
-    state upper_bounce(&mut self, new_pos: i32) {
+    state upper_bounce(&mut self, new_pos: i32 in Wrapping) {
         // Reflect off upper wall: pos = 18 - new_pos, vel = -vel.
         self.s.pos = 18 - new_pos;
-        let old_vel: i32 = self.s.vel;
+        let old_vel: i32 in Wrapping = self.s.vel;
         self.s.vel = 0 - old_vel;
     }
 
-    state check_lower(&mut self, new_pos: i32) {
+    state check_lower(&mut self, new_pos: i32 in Wrapping) {
         transition new_pos < 0 {
             true -> lower_bounce(new_pos)
             _ -> move_normal(new_pos)
         }
     }
 
-    state lower_bounce(&mut self, new_pos: i32) {
+    state lower_bounce(&mut self, new_pos: i32 in Wrapping) {
         // Reflect off lower wall: pos = -new_pos, vel = -vel.
         self.s.pos = 0 - new_pos;
-        let old_vel: i32 = self.s.vel;
+        let old_vel: i32 in Wrapping = self.s.vel;
         self.s.vel = 0 - old_vel;
     }
 
-    state move_normal(&mut self, new_pos: i32) {
+    state move_normal(&mut self, new_pos: i32 in Wrapping) {
         self.s.pos = new_pos;
     }
 }
@@ -86,7 +86,7 @@ machine Main::main(&mut self) {
 
     // After 8 steps: pos=6, vel=3.
     // Exit code = pos + 64 = 70.
-    let code: i32 = self.s.pos + 64;
+    let code: i32 in Wrapping = self.s.pos + 64;
 
     transition code == 70 {
         true -> good()
