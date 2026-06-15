@@ -1,0 +1,28 @@
+// RUN CANARY (exit 70). Frozen decision 17, stage S1a: the `Wrapping` arithmetic
+// domain parses (`u8 in Wrapping`) and wraps modulo the operand width.
+//
+// 200 + 100 = 300, which wraps to 300 - 256 = 44 in u8. The current integer
+// codegen already wraps at the operand width, so `T in Wrapping` is transparent
+// at this stage (it documents intent and reserves the surface); the distinct
+// `Saturating`/`Trapping` codegen and exact-by-default overflow ENFORCEMENT land
+// in later stages. See wiki/architecture/arithmetic_domains_implementation_map.md.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    a: u8;
+    b: u8;
+}
+
+machine Main::main(&mut self) {
+    self.a = 200;
+    self.b = 100;
+    let c: u8 in Wrapping = self.a + self.b;   // 300 wraps to 44 (u8)
+    transition c == 44 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

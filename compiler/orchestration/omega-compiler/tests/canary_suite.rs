@@ -2778,6 +2778,38 @@ fn f32_array_binary_op_zero_exit_canary_runs() {
 }
 
 #[test]
+fn arithmetic_domain_wrapping_exit_canary_runs() {
+    // Decision 17 S1a: `u8 in Wrapping` parses and wraps (200+100 -> 44).
+    let canary = pass_canary("expressions/arithmetic_domain_wrapping_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-arith-domain-wrapping-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_wrapping canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_wrapping canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected u8 in Wrapping (200+100) to wrap to 44 and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn f32_field_binary_to_local_cast_exit_canary_runs() {
     // Scalar-width-rederivation fix: a folded f32 binary (`self.a + self.b`)
     // feeding `as i32` must compute single-precision (`addss`), not the old
@@ -10348,6 +10380,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "errors/trap_unrecoverable_statement",
     "expressions/float_array_binary_op_zero",
     "expressions/f32_array_binary_op_zero",
+    "expressions/arithmetic_domain_wrapping_exit",
     "expressions/f32_field_binary_to_local_cast",
     "expressions/f32_deep_chain_binary",
     "expressions/f32_to_f64_local_cast",

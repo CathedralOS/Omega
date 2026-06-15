@@ -193,6 +193,37 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
             });
     }
 
+    // Arithmetic DOMAIN suffix (frozen decision 17): `u32 in Wrapping` /
+    // `Saturating` / `Trapping` opts a primitive into defined overflow behavior;
+    // bare arithmetic stays exact (a proof obligation). STAGE S1a: `Wrapping`
+    // parses and is TRANSPARENT -- the current integer codegen already wraps at
+    // the operand width, so `T in Wrapping` is exactly today's behavior. The
+    // distinct-codegen domains (Saturating/Trapping) and exact-overflow
+    // enforcement land in later stages; reject them now with a clear diagnostic
+    // rather than silently treating them as wrapping. (`in` is the contextual
+    // membership keyword; in TYPE position nothing else consumes a trailing
+    // `in`, so this suffix is additive.)
+    if input.at_contextual("in") {
+        let after_in = input.take_contextual("in")?;
+        let (domain_name, rest) = after_in.take_identifier()?;
+        match domain_name.as_str() {
+            "Wrapping" => {
+                input = rest;
+            }
+            "Saturating" | "Trapping" => {
+                return Err(rest.error_here(
+                    "arithmetic domain is not implemented yet; only `Wrapping` is supported so far \
+                     (exact-by-default arithmetic and Saturating/Trapping land in a later stage)",
+                ));
+            }
+            _ => {
+                return Err(rest.error_here(
+                    "unknown arithmetic domain; expected `Wrapping`, `Saturating`, or `Trapping`",
+                ));
+            }
+        }
+    }
+
     Ok((type_reference, input))
 }
 
