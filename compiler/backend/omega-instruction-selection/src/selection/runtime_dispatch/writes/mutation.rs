@@ -21,6 +21,7 @@ use super::super::super::bindings::{
     resolve_runtime_alias_binding_handle, strip_mutable_expression,
 };
 use super::super::super::storage_places::{
+    resolve_runtime_storage_arithmetic_domain, resolve_runtime_storage_is_signed,
     resolve_runtime_storage_place, resolve_runtime_storage_primitive_type,
 };
 use omega_checked_trees::types::PrimitiveType;
@@ -1700,6 +1701,18 @@ fn select_runtime_binary_mutation_write(
         Some(PrimitiveType::F64 | PrimitiveType::F32)
     );
 
+    // Decision 17: arithmetic domain + signedness of the write target drive the
+    // ISA overflow handling (Exact/Wrapping wrap; Saturating clamps; Trapping aborts).
+    let domain = resolve_runtime_storage_arithmetic_domain(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    );
+    let target_signed =
+        resolve_runtime_storage_is_signed(input, dispatch_index, target_source_key, resolved_target)
+            .unwrap_or(false);
+
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
@@ -1708,6 +1721,8 @@ fn select_runtime_binary_mutation_write(
         operator,
         right,
         is_float,
+        domain,
+        target_signed,
     })
 }
 

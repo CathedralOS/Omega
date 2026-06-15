@@ -354,6 +354,16 @@ pub enum AbstractOperationKind {
         /// is performed on the SSE/XMM unit (`movq`+`addsd`/...) instead of the
         /// integer ALU.
         is_float: bool,
+        /// Arithmetic domain of the WRITE's target type (`T in <Domain>`), frozen
+        /// decision 17. `Exact`/`Wrapping` use the plain width-correct op (x86
+        /// add/sub/mul already wrap modulo 2^width); `Saturating` clamps to the
+        /// target min/max on overflow; `Trapping` aborts on overflow. Set from
+        /// the target's declared type at selection.
+        domain: omega_core::arithmetic::ArithmeticDomain,
+        /// Whether the target integer type is signed. Selects OF (signed) vs CF
+        /// (unsigned) overflow detection and the saturating clamp bounds.
+        /// Irrelevant for `Exact`/`Wrapping`.
+        target_signed: bool,
     },
     /// A numeric `as` cast: load `source` into a register, convert it between
     /// integer and floating-point representations (`cvttsd2si`/`cvtsi2sd`/

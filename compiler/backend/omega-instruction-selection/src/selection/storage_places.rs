@@ -617,6 +617,29 @@ pub(super) fn resolve_runtime_storage_primitive_type_in_table(
     descriptor_primitive_type(&descriptor)
 }
 
+/// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17) of a
+/// storage PLACE — read from the `Constrained` wrapper the layout builder records
+/// on the slot/field descriptor. Used at the binary-write site to decide whether
+/// the target wants the plain wrapping op (Exact/Wrapping) or saturating/trapping
+/// overflow handling. Defaults to `Exact` for unconstrained or unresolved places.
+pub(super) fn resolve_runtime_storage_arithmetic_domain_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> omega_core::arithmetic::ArithmeticDomain {
+    resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )
+    .map(|descriptor| descriptor.arithmetic_domain())
+    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact)
+}
+
 /// The scalar primitive type of a VALUE/source expression, for codegen
 /// classification (float-vs-integer, byte width). The single funnel every
 /// binary-write / convert producer should use so they all agree: a storage PLACE
@@ -739,6 +762,45 @@ pub(super) fn resolve_runtime_storage_primitive_type(
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
     resolve_runtime_storage_primitive_type_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+}
+
+/// Non-table sibling of [`resolve_runtime_storage_arithmetic_domain_in_table`]
+/// (decision 17): the arithmetic domain of a storage target reached through the
+/// older `&Expression` path.
+pub(super) fn resolve_runtime_storage_arithmetic_domain(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> omega_core::arithmetic::ArithmeticDomain {
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_storage_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
+}
+
+/// Non-table sibling of [`resolve_runtime_storage_is_signed_in_table`]: the
+/// signedness of a storage target reached through the `&Expression` path.
+pub(super) fn resolve_runtime_storage_is_signed(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<bool> {
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_storage_is_signed_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 /// Walk a runtime storage target (frame slot or machine-owned `data` field, plus

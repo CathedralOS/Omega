@@ -18,7 +18,9 @@ use super::super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
+    resolve_runtime_pointee_slot_offset_in_table,
+    resolve_runtime_storage_arithmetic_domain_in_table,
+    resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_primitive_type_in_table, static_integer_value_in_table,
 };
 use omega_checked_trees::types::PrimitiveType;
@@ -1089,6 +1091,22 @@ fn select_runtime_binary_mutation_write_in_table(
         ),
         Some(PrimitiveType::F64 | PrimitiveType::F32)
     );
+    // Decision 17: arithmetic domain + signedness of the write target.
+    let domain = resolve_runtime_storage_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    );
+    let target_signed = resolve_runtime_storage_is_signed_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    )
+    .unwrap_or(false);
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
@@ -1097,6 +1115,8 @@ fn select_runtime_binary_mutation_write_in_table(
         operator,
         right,
         is_float,
+        domain,
+        target_signed,
     })
 }
 
