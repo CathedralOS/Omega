@@ -138,6 +138,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_call_single_execution_exit", 70),
     ("calls/runtime_value_call_slice_len_guard_exit", 70),
     ("calls/value_call_sequential_result_slots_exit", 70),
+    ("calls/value_call_sequential_self_capture_exit", 70),
     (
         "calls/runtime_value_call_through_alias_in_dispatch_exit",
         70,
