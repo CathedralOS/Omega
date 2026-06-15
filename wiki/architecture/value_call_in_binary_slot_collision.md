@@ -163,3 +163,40 @@ canaries as the regression guard.
 `dual_accumulator_recursion` (two bare-call results summed: `sum + sum_sq`) may
 be a SEPARATE facet — both operands are bare-call locals, so the name-collision
 analysis above does not obviously apply; investigate independently when fixing.
+
+## OPEN: case-payload field NAME COLLISION across variants (account_ledger)
+
+Found 2026-06-14 (samples/account_ledger; guarded by
+interpreter_matches_native_on_account_ledger_sample, which pins native==93).
+Minimal repro (interp 70, native 93): a `case` with multiple variants sharing a
+field NAME at different offsets:
+
+```
+case Deposit(amount: i32);             // amount @ rel offset 4
+case Withdraw(amount: i32);            // amount @ rel offset 4
+case Transfer(to: i32, amount: i32);   // to @4, amount @8
+// ... 6 variants total (3 no-payload after)
+transition tx { Tx::Transfer { to, amount } -> check(idx, to, amount) ... }
+self.apply(0, Tx::Transfer { to: 3, amount: 40 });   // native: amount reads 3 (=to)
+```
+
+ROOT (from emission): CONSTRUCTION is correct (writes amount@rel8 via the
+StructLiteral's case_name -> Transfer variant). EXTRACTION is wrong: the
+destructure rewrite (parser transition/guards.rs rewrite_destructure_guard_expression)
+turns `amount` into a PLAIN member access `tx.amount`, LOSING the Transfer
+variant context. The offset resolver
+(storage_places/nested_fields.rs resolve_nested_field_layout_step, Enum arm)
+then searches ALL variants by name and returns the FIRST variant with an
+`amount` field -- Deposit (amount@4) -- so `tx.amount` reads Deposit's offset
+(@4 -> tx-relative @8, = `to`'s value). My 3-variant repro with UNIQUE field
+names (p/q) worked; the collision needs >=2 variants sharing a field name.
+
+A localized backend fix (symbol-exact pass across variants before the name
+fallback in nested_fields) did NOT work: confirmed the member access's
+field_symbol is NOT Transfer.amount (invalid or the wrong variant), so the wrong
+resolution is UPSTREAM. FIX (multi-layer, deferred): symbol resolution must
+resolve a destructure-bound payload field to its ARM's variant field symbol
+(Transfer.amount), using the destructure pattern's known variant -- THEN the
+nested_fields symbol-exact-across-variants pass picks the right offset. Until
+then, avoid same-named payload fields across variants, or pass them through
+without relying on the destructure binding. Guarded; bug pinned at native==93.
