@@ -20,7 +20,7 @@ boundary trait Console {
 data Worker {
 }
 
-machine Worker::run(x: i32) -> i32 {
+machine Worker::run(x: i32 in Wrapping) -> i32 {
     x * 2
 }
 
@@ -29,20 +29,20 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let payload: i32 = 17;
+    let payload: i32 in Wrapping = 17;
     let handle: Join<i32> = spawn { Worker::run(move payload) };
-    let n: i32 = handle.join();
+    let n: i32 in Wrapping = handle.join();
 
-    let second: i32 = 4;
+    let second: i32 in Wrapping = 4;
     let late: Join<i32> = spawn { Worker::run(move second) };
-    let m: i32 = late.join();
+    let m: i32 in Wrapping = late.join();
 
     transition n == 34 {
         true -> check_second(m)
         _ -> bad_first()
     }
 
-    state check_second(&mut self, m: i32) {
+    state check_second(&mut self, m: i32 in Wrapping) {
         transition m == 8 {
             true -> good()
             _ -> bad_second()

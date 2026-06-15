@@ -18,13 +18,13 @@ boundary trait Console {
 }
 
 data Entry {
-    value: u32;
+    value: u32 in Wrapping;
 }
 
 data Main {
     console: Console;
     entries: [Entry; 4];
-    total: u32;
+    total: u32 in Wrapping;
 }
 
 machine Main::main(&mut self) {
@@ -40,7 +40,7 @@ machine Main::main(&mut self) {
     }
 }
 
-machine Main::accumulate(&mut self, items: &[Entry], take: u32)
+machine Main::accumulate(&mut self, items: &[Entry], take: u32 in Wrapping)
 terminates {
     decreases items -> Slice::Length;
 }

@@ -15,7 +15,7 @@ data Game {
 
 machine Game::initialize(
     &mut self,
-    seed: u64
+    seed: u64 in Wrapping
 ) {
     self.dungeon.initialize(seed);
     self.input = "";

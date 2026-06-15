@@ -1,11 +1,11 @@
 // Chapter 2: copy values. `depth` copies the `u32` field; the original field
 // remains usable and `depth` is consumed in further arithmetic.
 data Main {
-    level_depth: u32;
+    level_depth: u32 in Wrapping;
 }
 
 machine Main::main(&mut self) -> u32 {
-    let depth: u32 = self.level_depth;
-    let next_depth: u32 = depth + 1;
+    let depth: u32 in Wrapping = self.level_depth;
+    let next_depth: u32 in Wrapping = depth + 1;
     next_depth
 }

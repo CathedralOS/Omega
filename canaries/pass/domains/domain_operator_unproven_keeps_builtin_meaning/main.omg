@@ -13,8 +13,8 @@ domain i32::Degrees {
 data Main {
 }
 
-machine Main::rotate(&self, value: i32, delta: i32) {
-    let sum: i32 = value + delta;
+machine Main::rotate(&self, value: i32 in Wrapping, delta: i32 in Wrapping) {
+    let sum: i32 in Wrapping = value + delta;
 }
 
 machine Main::main(&mut self) {

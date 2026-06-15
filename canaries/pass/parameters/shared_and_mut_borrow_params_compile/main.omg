@@ -2,11 +2,11 @@
 // borrow (`defender`), and a value parameter (`damage`). Field arithmetic mixes
 // reads from both borrows.
 data Player {
-    health: i32;
-    armor: i32;
+    health: i32 in Wrapping;
+    armor: i32 in Wrapping;
 }
 
-machine Combat::strike(attacker: &Player, defender: &mut Player, damage: i32) {
+machine Combat::strike(attacker: &Player, defender: &mut Player, damage: i32 in Wrapping) {
     defender.health = defender.health - damage + attacker.armor;
 }
 

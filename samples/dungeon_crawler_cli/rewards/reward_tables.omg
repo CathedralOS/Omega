@@ -10,7 +10,7 @@ data RewardTables {
 
 machine RewardTables::roll_room_treasure(
     &mut self,
-    depth: u32,
+    depth: u32 in Wrapping,
     random: &mut RandomState,
     reward: &mut Reward
 ) {
@@ -21,7 +21,7 @@ machine RewardTables::roll_room_treasure(
 
 machine RewardTables::roll_gold_cache(
     &mut self,
-    depth: u32,
+    depth: u32 in Wrapping,
     random: &mut RandomState,
     reward: &mut Reward
 ) {
@@ -67,10 +67,10 @@ machine RewardTables::roll_enemy_reward(
 
 machine RewardTables::roll_item(
     &mut self,
-    depth: u32,
+    depth: u32 in Wrapping,
     random: &mut RandomState
     ) -> ItemKind {
-    let roll: u32 = self.rng.range(random, 100);
+    let roll: u32 in Wrapping = self.rng.range(random, 100);
 
     let is_early_dagger: bool = depth <= 2 && roll < 50;
     let is_early_buckler: bool = depth <= 3 && roll < 75;

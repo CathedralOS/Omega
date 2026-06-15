@@ -1,7 +1,7 @@
 use platform::console;
 
 data Entry {
-    value: i32;
+    value: i32 in Wrapping;
 }
 
 data Main {
@@ -20,12 +20,12 @@ machine Main::main(&mut self) {
     state sum_entries(
         &mut self,
         entries: &[Entry],
-        index: usize,
-        total: i32
+        index: usize in Wrapping,
+        total: i32 in Wrapping
     ) {
         let current: Entry = entries[index];
-        let next_total: i32 = total + 1;
-        let next_index: usize = index + 1;
+        let next_total: i32 in Wrapping = total + 1;
+        let next_index: usize in Wrapping = index + 1;
         let has_next: bool = next_index < entries.len;
 
         transition has_next {
@@ -34,7 +34,7 @@ machine Main::main(&mut self) {
         }
     }
 
-    state check_total(&mut self, total: i32) {
+    state check_total(&mut self, total: i32 in Wrapping) {
         transition total == 4 {
             true -> good()
             false -> bad()

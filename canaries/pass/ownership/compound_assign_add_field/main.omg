@@ -2,10 +2,10 @@
 // (`self.health += amount;`), which lowers to an ordinary assignment with an
 // additive read of the same place.
 data Player {
-    health: i32;
+    health: i32 in Wrapping;
 }
 
-machine Player::heal(&mut self, amount: i32) {
+machine Player::heal(&mut self, amount: i32 in Wrapping) {
     self.health += amount;
 }
 

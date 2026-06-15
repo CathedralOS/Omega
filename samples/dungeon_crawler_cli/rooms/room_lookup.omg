@@ -21,13 +21,13 @@ machine RoomLookup::find_room(
     state find_room_at(
         &mut self,
         rooms: &[Room],
-        room_count: usize,
+        room_count: usize in Wrapping,
         cell: CellId,
         out_room: &mut Room,
-        index: usize
+        index: usize in Wrapping
     ) {
         let found: bool = rooms[index].cell == cell;
-        let next_index: usize = index + 1;
+        let next_index: usize in Wrapping = index + 1;
         let has_next: bool = next_index < room_count;
 
         transition {
@@ -79,12 +79,12 @@ machine RoomLookup::find_room_mut(
     state find_room_mut_at(
         &mut self,
         rooms: &mut [Room],
-        room_count: usize,
+        room_count: usize in Wrapping,
         cell: CellId,
-        index: usize
+        index: usize in Wrapping
     ) {
         let found: bool = rooms[index].cell == cell;
-        let next_index: usize = index + 1;
+        let next_index: usize in Wrapping = index + 1;
         let has_next: bool = next_index < room_count;
 
         transition {

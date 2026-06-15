@@ -13,11 +13,11 @@ use omega::language::std::console;
 
 data Event {
     case Idle;
-    case Insert(cents: i32);
+    case Insert(cents: i32 in Wrapping);
 }
 
 data Register [copy, zero_init] {
-    balance: i32;
+    balance: i32 in Wrapping;
 }
 
 data Main {
@@ -37,7 +37,7 @@ machine Main::main(&mut self) {
             _ -> report(81)
         }
     }
-    state report(&mut self, code: i32) {
+    state report(&mut self, code: i32 in Wrapping) {
         self.console.exit_process(code);
     }
 }
@@ -47,7 +47,7 @@ machine Main::apply(&mut self, event: Event) {
         Event::Insert { cents } -> add_balance(cents)
         _ -> idle()
     }
-    state add_balance(&mut self, cents: i32) {
+    state add_balance(&mut self, cents: i32 in Wrapping) {
         self.register.balance = self.register.balance + cents;
     }
     state idle(&mut self) {

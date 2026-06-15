@@ -8,7 +8,7 @@ data EnemyTables {
 
 machine EnemyTables::roll_enemy(
     &mut self,
-    depth: u32,
+    depth: u32 in Wrapping,
     random: &mut RandomState,
     enemy: &mut Enemy
 ) {
@@ -18,7 +18,7 @@ machine EnemyTables::roll_enemy(
 
 machine EnemyTables::tier_for_depth(
     &mut self,
-    depth: u32
+    depth: u32 in Wrapping
     ) -> EnemyTier {
     let is_bat_depth: bool = depth <= 1;
     let is_spider_depth: bool = depth <= 2;
@@ -38,7 +38,7 @@ machine EnemyTables::tier_for_depth(
 
 machine EnemyTables::roll_enemy_kind(
     &mut self,
-    depth: u32,
+    depth: u32 in Wrapping,
     random: &mut RandomState,
     enemy: &mut Enemy
 ) {

@@ -15,8 +15,8 @@ boundary trait Console {
 }
 
 data Rng {
-    seed: u64;
-    pad: u64;
+    seed: u64 in Wrapping;
+    pad: u64 in Wrapping;
 }
 
 data Main {
@@ -38,8 +38,8 @@ machine Main::next_seed(
 machine Main::main(&mut self) -> i32 {
     self.rng.seed = 41;
     self.rng.pad = 0;
-    let seed: u64 = self.next_seed(&mut self.rng);
-    let doubled: u64 = seed * 2;
+    let seed: u64 in Wrapping = self.next_seed(&mut self.rng);
+    let doubled: u64 in Wrapping = seed * 2;
 
     transition {
         doubled == 84 -> exit_post()

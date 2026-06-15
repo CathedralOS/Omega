@@ -19,10 +19,10 @@ data EnemyTier {
 data Enemy {
     kind: EnemyKind;
     name: String;
-    max_health: i32;
-    health: i32;
-    attack: i32;
-    defense: i32;
-    xp_reward: u32;
-    depth: u32;
+    max_health: i32 in Wrapping;
+    health: i32 in Wrapping;
+    attack: i32 in Wrapping;
+    defense: i32 in Wrapping;
+    xp_reward: u32 in Wrapping;
+    depth: u32 in Wrapping;
 }
