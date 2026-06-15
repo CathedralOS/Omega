@@ -119,18 +119,25 @@ DONE:
   operand interval. So `x: i32 [range<0, 100>]` proves `x + y` in [0, 200] -> exact,
   no domain. Place-arm precedence: flow value > range constraint > type bounds.
   Canary expressions/arithmetic_domain_range_proven_exact_exit.
+- **Literal-target folding** — a bounded bare-literal computation is range-checked
+  against its destination type (`let c: u8 = 200 + 100` rejected); the target type
+  is a fallback primitive used ONLY when the result interval is bounded (so
+  unknown operands -- call results -- stay unchecked). Comparison operands carry
+  interval [0,1] (not unbounded) so they don't poison enclosing arithmetic. FAIL
+  canary arithmetic_domain_literal_target_overflow.
+- **Contract `requires` narrowing** — `requires_value_env` reads a machine's
+  `requires` comparisons (`amount <= 100`) into the ENTRY state's value env, so a
+  bounded param stays exact (`amount + amount` in [0,200]). Canary
+  arithmetic_domain_requires_proven_exact_exit.
 
 STILL TODO:
-- **Loop / `decreases` bounds** and **contract `requires` facts**: so a param or
-  cross-state value with a declared bound need not be tagged `Wrapping` (the 30
-  migrated operands -- params/call-results/cross-state -- are mostly these; they
-  could be range-constrained instead, but that is its own annotation).
-- **Literal-target folding**: `let c: u8 = 200 + 100` (bare-literal operands, no
-  primitive) is not range-checked -- the target type isn't propagated to operands.
+- **Loop / `decreases` bounds**: a loop counter bounded by `decreases` could stay
+  exact. (The corpus's remaining `Wrapping` operands are mostly call-results /
+  cross-state values; those need return-range / inter-state inference, a bigger
+  lift -- they read fine as `Wrapping`.)
 - **Range-respecting assignment check**: assigning out-of-`[range<>]` is not yet
-  rejected (so a narrowed interval trusts the declared range without proving
-  writes honour it -- fine for overflow soundness as an over-approximation, but a
-  separate obligation).
+  rejected (the narrowed interval trusts the declared range without proving writes
+  honour it -- sound as an overflow over-approximation, but a separate obligation).
 
 ## PROGRESS
 
