@@ -2,6 +2,50 @@
 
 Found 2026-06-14 by the end-to-end sample lane.
 
+## OPEN: sequential value-calls returning a self-captured local reuse the result (stack_vm)
+
+Found 2026-06-14 (samples/stack_vm; guarded by
+`interpreter_matches_native_on_stack_vm_sample`). Minimal repro (interp 70,
+native 72):
+
+```
+machine Main::pop_sp(&mut self) -> i32 {       // captures self.field, mutates, returns the capture
+    let v: i32 = self.vm.sp;
+    self.vm.sp = self.vm.sp - 1;
+    transition { _ -> (v) }
+}
+machine Main::main(&mut self) {
+    self.vm.sp = 5;
+    let b: i32 = self.pop_sp();                 // expect 5
+    let a: i32 = self.pop_sp();                 // expect 4
+    let s: i32 = b + a;                          // expect 9; native gets 8
+    ...
+}
+```
+
+ROOT (from the emission): both inline `pop_sp` expansions SHARE the callee local
+`v` (one slot @4). The splice/leaf scheduler batches the work as: [call#1
+capture v=5; call#1 mutate; call#2 capture v=4; **deliver a = v@4; deliver
+b = v@4**; call#2 mutate]. Both result deliveries run at the END, reading the
+shared `v@4` which by then holds call#2's value (4) — so `b` reads 4 instead of
+5 (`a` is coincidentally correct). The first call's result delivery is ordered
+AFTER the second call's body overwrites the shared callee-local slot.
+
+This is the SAME family as the other value-call-result-slot bugs but a distinct
+facet: not slot NAMING (fixed above) and not state-storage LIVENESS (the
+dual_accumulator fix) — it is the ORDERING of leaf result-delivery vs the next
+inline expansion when the returned value is a callee LOCAL reused across
+expansions. Fix direction (needs care — load-bearing splice/leaf scheduling, do
+NOT hack hastily): either (a) deliver each call's result into its result slot
+BEFORE the next statement's inline expansion runs, or (b) give each inline
+expansion of the callee its OWN local slots (per-call-context, so `v` is not
+shared). Triggers only when the result is used straight-line AFTER both calls
+(if `b` is consumed in a substate before the 2nd call, its delivery is ordered
+early and it is correct). See leaf.rs (terminal-value delivery) + the prelude/
+splice scheduling. The recurring value-call-result-slot cluster (naming,
+liveness, ordering, the f32/binary-operand cases) suggests the value-call result
+representation is an architectural stress point worth a unified pass eventually.
+
 ## CORE BUG: FIXED 2026-06-14 (slot planner)
 
 The core slot-name collision is fixed. `call_result_slot_symbol_and_name`
