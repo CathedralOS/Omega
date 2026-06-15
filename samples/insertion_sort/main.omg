@@ -1,0 +1,156 @@
+// Bubble sort on a fixed [i32; 4] array via compare-and-swap dispatch chains.
+//
+// Exercises: fixed-array element SWAPS + multi-pass adjacent comparison +
+// nested dispatch chains (each compare-and-swap is a sub-machine with a
+// transition that conditionally writes two const-indexed array slots).
+//
+// Input array: [5, 2, 8, 1]
+//
+// Bubble sort passes (hand-verified):
+//   Pass 1: cmp(0,1): 5>2 -> swap -> [2,5,8,1]
+//           cmp(1,2): 5<8 -> no swap   -> [2,5,8,1]
+//           cmp(2,3): 8>1 -> swap -> [2,5,1,8]
+//   Pass 2: cmp(0,1): 2<5 -> no swap   -> [2,5,1,8]
+//           cmp(1,2): 5>1 -> swap -> [2,1,5,8]
+//           cmp(2,3): 5<8 -> no swap   -> [2,1,5,8]
+//   Pass 3: cmp(0,1): 2>1 -> swap -> [1,2,5,8]
+//           cmp(1,2): 2<5 -> no swap   -> [1,2,5,8]
+//   Pass 4: cmp(0,1): 1<2 -> no swap   -> [1,2,5,8]
+//
+// Final array: [1, 2, 5, 8]
+// Checks: arr[0]==1, arr[1]==2, arr[2]==5, arr[3]==8 -> exit 70
+// Exit 71 = arr[0] wrong
+// Exit 72 = arr[1] wrong
+// Exit 73 = arr[2] wrong
+// Exit 74 = arr[3] wrong
+//
+// Expected exit: 70.
+
+use omega::language::std::console;
+
+data Sorter [copy, zero_init] {
+    arr: [i32; 4];
+}
+
+data Main {
+    console: Console;
+    s: Sorter;
+}
+
+// Compare arr[0] and arr[1]; swap if arr[0] > arr[1].
+machine Main::cmp_swap_01(&mut self) {
+    let a: i32 = self.s.arr[0];
+    let b: i32 = self.s.arr[1];
+    transition a > b {
+        true -> do_swap_01(a, b)
+        _ -> done_01()
+    }
+    state do_swap_01(&mut self, a: i32, b: i32) {
+        self.s.arr[0] = b;
+        self.s.arr[1] = a;
+    }
+    state done_01(&mut self) {}
+}
+
+// Compare arr[1] and arr[2]; swap if arr[1] > arr[2].
+machine Main::cmp_swap_12(&mut self) {
+    let a: i32 = self.s.arr[1];
+    let b: i32 = self.s.arr[2];
+    transition a > b {
+        true -> do_swap_12(a, b)
+        _ -> done_12()
+    }
+    state do_swap_12(&mut self, a: i32, b: i32) {
+        self.s.arr[1] = b;
+        self.s.arr[2] = a;
+    }
+    state done_12(&mut self) {}
+}
+
+// Compare arr[2] and arr[3]; swap if arr[2] > arr[3].
+machine Main::cmp_swap_23(&mut self) {
+    let a: i32 = self.s.arr[2];
+    let b: i32 = self.s.arr[3];
+    transition a > b {
+        true -> do_swap_23(a, b)
+        _ -> done_23()
+    }
+    state do_swap_23(&mut self, a: i32, b: i32) {
+        self.s.arr[2] = b;
+        self.s.arr[3] = a;
+    }
+    state done_23(&mut self) {}
+}
+
+// One full bubble pass over positions 0..n-1 (adjacent swaps).
+// Pass 1: all three adjacent pairs.
+machine Main::pass1(&mut self) {
+    self.cmp_swap_01();
+    self.cmp_swap_12();
+    self.cmp_swap_23();
+}
+
+// Pass 2: pairs (0,1) and (1,2); position 3 is already settled.
+machine Main::pass2(&mut self) {
+    self.cmp_swap_01();
+    self.cmp_swap_12();
+}
+
+// Pass 3: pair (0,1); positions 2 and 3 settled.
+machine Main::pass3(&mut self) {
+    self.cmp_swap_01();
+}
+
+machine Main::main(&mut self) {
+    // Initialize array: [5, 2, 8, 1].
+    self.s.arr[0] = 5;
+    self.s.arr[1] = 2;
+    self.s.arr[2] = 8;
+    self.s.arr[3] = 1;
+
+    // Bubble sort: 3 passes (n-1 passes for n=4).
+    self.pass1();
+    self.pass2();
+    self.pass3();
+
+    // Verify sorted order: [1, 2, 5, 8].
+    let v0: i32 = self.s.arr[0];
+    transition v0 == 1 {
+        true -> check1()
+        _ -> bad0()
+    }
+
+    state bad0(&mut self) { self.console.exit_process(71); }
+
+    state check1(&mut self) {
+        let v1: i32 = self.s.arr[1];
+        transition v1 == 2 {
+            true -> check2()
+            _ -> bad1()
+        }
+    }
+
+    state bad1(&mut self) { self.console.exit_process(72); }
+
+    state check2(&mut self) {
+        let v2: i32 = self.s.arr[2];
+        transition v2 == 5 {
+            true -> check3()
+            _ -> bad2()
+        }
+    }
+
+    state bad2(&mut self) { self.console.exit_process(73); }
+
+    state check3(&mut self) {
+        let v3: i32 = self.s.arr[3];
+        transition v3 == 8 {
+            true -> good()
+            _ -> bad3()
+        }
+    }
+
+    state bad3(&mut self) { self.console.exit_process(74); }
+
+    state good(&mut self) { self.console.exit_process(70); }
+}
