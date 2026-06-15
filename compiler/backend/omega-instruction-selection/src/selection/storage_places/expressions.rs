@@ -101,6 +101,10 @@ impl<'table> StorageNamePath<'table> {
         storage_path_member_index(self.table, self.expression, index)
     }
 
+    pub(in crate::selection) fn member_case_variant(&self, index: usize) -> Option<&Identifier> {
+        storage_path_member_case_variant(self.table, self.expression, index)
+    }
+
     pub(in crate::selection) fn suffix(&self, start: usize) -> StoragePathSuffix<'_, 'table> {
         StoragePathSuffix { path: self, start }
     }
@@ -192,6 +196,39 @@ fn storage_path_member_symbol(
             index,
         ),
         _ => SymbolHandle::invalid(),
+    }
+}
+
+/// The case variant a destructure-bound payload member came from, if any. Walks
+/// the Member chain like `storage_path_member_symbol` and returns the variant
+/// recorded on the Member node at `index` (so the layout resolver can pick THAT
+/// variant's field when several variants share a payload field name).
+fn storage_path_member_case_variant(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    index: usize,
+) -> Option<&Identifier> {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => {
+            storage_path_member_case_variant(table, *target, index)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            storage_path_member_case_variant(table, indexed.collection, index)
+        }
+        ExpressionNode::Call(call) => storage_path_member_case_variant(
+            table,
+            slice_view_call_receiver_handle(call)?,
+            index,
+        ),
+        ExpressionNode::Member(member) => {
+            let receiver_len = storage_path_len(table, member.receiver)?;
+            if index == receiver_len {
+                member.case_variant.as_ref()
+            } else {
+                storage_path_member_case_variant(table, member.receiver, index)
+            }
+        }
+        _ => None,
     }
 }
 
@@ -296,13 +333,19 @@ pub(in crate::selection) struct StoragePathSuffixIter<'path, 'table> {
 }
 
 impl<'path, 'table> Iterator for StoragePathSuffixIter<'path, 'table> {
-    type Item = (&'path Identifier, SymbolHandle, Option<usize>);
+    type Item = (
+        &'path Identifier,
+        SymbolHandle,
+        Option<usize>,
+        Option<&'path Identifier>,
+    );
 
     fn next(&mut self) -> Option<Self::Item> {
         let member = self.path.member(self.index)?;
         let symbol = self.path.member_symbol(self.index);
         let field_index = self.path.member_index(self.index);
+        let case_variant = self.path.member_case_variant(self.index);
         self.index += 1;
-        Some((member, symbol, field_index))
+        Some((member, symbol, field_index, case_variant))
     }
 }

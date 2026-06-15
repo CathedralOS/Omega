@@ -886,6 +886,7 @@ fn resolve_leaf_caller_local_initializer_names(
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),
+                    case_variant: member.case_variant.clone(),
                 },
             ))
         }

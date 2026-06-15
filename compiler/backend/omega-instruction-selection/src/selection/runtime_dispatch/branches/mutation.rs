@@ -168,6 +168,7 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
                 receiver: resolved_target,
                 member_symbol: SymbolHandle::invalid(),
                 member: field.name.clone(),
+                case_variant: None,
             }));
             let field_emitted = select_runtime_resolved_mutation_write_in_mutable_table(
                 input,

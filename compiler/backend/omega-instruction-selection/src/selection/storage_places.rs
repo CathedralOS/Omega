@@ -283,7 +283,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
             input,
             slot.byte_offset,
             slot.byte_size,
-            suffix.iter().next().map(|(name, _, _)| name.as_str()),
+            suffix.iter().next().map(|(name, _, _, _)| name.as_str()),
             suffix.iter().count(),
         ) {
             return Some(place);
@@ -427,13 +427,14 @@ fn fixed_array_length_of_receiver_in_table(
             },
         };
         let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
-        for (field_name, field_symbol, field_index) in path.suffix(1).iter() {
+        for (field_name, field_symbol, field_index, case_variant) in path.suffix(1).iter() {
             cursor = resolve_nested_field_layout_step(
                 &input.layouts,
                 cursor,
                 field_name,
                 field_symbol,
                 field_index,
+                case_variant,
             )?;
         }
         return cursor
@@ -858,9 +859,15 @@ fn resolve_runtime_storage_leaf_descriptor_in_table(
     };
 
     let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
-    for (field_name, field_symbol, field_index) in suffix.iter() {
-        cursor =
-            resolve_nested_field_layout_step(&input.layouts, cursor, field_name, field_symbol, field_index)?;
+    for (field_name, field_symbol, field_index, case_variant) in suffix.iter() {
+        cursor = resolve_nested_field_layout_step(
+            &input.layouts,
+            cursor,
+            field_name,
+            field_symbol,
+            field_index,
+            case_variant,
+        )?;
     }
     Some(cursor.type_descriptor().clone())
 }
@@ -910,13 +917,14 @@ pub(super) fn resolve_fixed_array_length_in_table(
                 },
             };
             let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
-            for (field_name, field_symbol, field_index) in path.suffix(1).iter() {
+            for (field_name, field_symbol, field_index, case_variant) in path.suffix(1).iter() {
                 cursor = resolve_nested_field_layout_step(
                     &input.layouts,
                     cursor,
                     field_name,
                     field_symbol,
                     field_index,
+                    case_variant,
                 )?;
             }
             let (_, length) = cursor.type_descriptor().fixed_array()?;
@@ -1203,7 +1211,7 @@ fn resolve_runtime_storage_place_near_frame_offset_in_table(
         input,
         slot.byte_offset,
         slot.byte_size,
-        suffix.iter().next().map(|(name, _, _)| name.as_str()),
+        suffix.iter().next().map(|(name, _, _, _)| name.as_str()),
         suffix.iter().count(),
     ) {
         return Some(place);
@@ -2008,6 +2016,7 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
                 &member.member,
                 member.member_symbol,
                 None,
+                member.case_variant.as_ref(),
             )
         }
         _ => None,

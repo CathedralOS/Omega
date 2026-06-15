@@ -1,0 +1,41 @@
+// RUN CANARY (exit 70). Regression for the case-payload field-name collision:
+// two variants share the field NAME `amount` at DIFFERENT offsets --
+// Deposit.amount @ rel 4, Transfer.amount @ rel 8 (after `to`). Destructuring
+// `Tx::Transfer { to, amount }` and reading `amount` must resolve to Transfer's
+// field (40), not the FIRST variant's same-named field (which would read `to`=3).
+//
+// The destructure rewrite tags the bound payload field with its variant, so
+// symbol resolution binds the member to Transfer.amount (not Deposit.amount).
+// Before the fix native read amount==3 (=to) and exited 93.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Tx {
+    case Deposit(amount: i32);
+    case Transfer(to: i32, amount: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    self.apply(Tx::Transfer { to: 3, amount: 40 });
+}
+
+machine Main::apply(&mut self, tx: Tx) {
+    transition tx {
+        Tx::Transfer { to, amount } -> check(to, amount)
+        _ -> bad()
+    }
+    state check(&mut self, to: i32, amount: i32) {
+        // `amount` must be 40 (Transfer's second payload field), not 3 (`to`).
+        transition amount == 40 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state wrong(&mut self) { self.console.exit_process(93); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

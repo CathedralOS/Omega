@@ -122,6 +122,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             receiver,
                             member_symbol: member.member_symbol,
                             member: lower_name(&member.member),
+                            case_variant: member.case_variant.as_ref().map(lower_name),
                         },
                     )))
             }

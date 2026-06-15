@@ -15,14 +15,21 @@ pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
         suffix
             .iter()
             .enumerate()
-            .map(|(index, field_name)| (field_name, suffix_symbol(index), None)),
+            .map(|(index, field_name)| (field_name, suffix_symbol(index), None, None)),
     )
 }
 
 pub(in crate::selection) fn resolve_nested_field_layout_with_pairs<'suffix>(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: impl IntoIterator<Item = (&'suffix Identifier, SymbolHandle, Option<usize>)>,
+    suffix: impl IntoIterator<
+        Item = (
+            &'suffix Identifier,
+            SymbolHandle,
+            Option<usize>,
+            Option<&'suffix Identifier>,
+        ),
+    >,
 ) -> Option<(usize, TypeLayout)> {
     resolve_nested_field_layout(layouts, root_field, suffix)
 }
@@ -81,6 +88,7 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
     field_name: &Identifier,
     field_symbol: SymbolHandle,
     field_index: Option<usize>,
+    case_variant: Option<&Identifier>,
 ) -> Option<NestedFieldLayoutCursor<'layout>> {
     let field_segment = parse_field_segment(field_name, field_index)?;
     let data_layout = data_layout(layouts, cursor.type_descriptor.storage_symbol())?;
@@ -97,21 +105,57 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
         DataShape::Enum {
             common_fields,
             variants,
-        } => field_layout_by_symbol_or_name(layouts, *common_fields, field_symbol, field_name)
-            .or_else(|| {
-                layouts
-                    .variants
-                    .span_or_empty(*variants)
-                    .iter()
-                    .find_map(|variant| {
-                        field_layout_by_symbol_or_name(
-                            layouts,
-                            variant.fields,
-                            field_symbol,
-                            field_name,
-                        )
+        } => {
+            // A destructure binding records the CASE VARIANT its payload field
+            // came from (`Tx::Transfer { amount }` -> variant `Transfer`).
+            // Resolve within THAT variant so a same-named payload field in an
+            // earlier variant (`Tx::Deposit { amount }`, at a different offset)
+            // is not picked instead. Common fields stay name-resolvable.
+            let by_case_variant = case_variant.and_then(|variant_name| {
+                field_layout_by_name(layouts, *common_fields, field_name).or_else(|| {
+                    layouts
+                        .variants
+                        .span_or_empty(*variants)
+                        .iter()
+                        .find(|variant| variant.name.as_str() == variant_name.as_str())
+                        .and_then(|variant| {
+                            field_layout_by_name(layouts, variant.fields, field_name)
+                        })
+                })
+            });
+            // When the member resolved to a specific field SYMBOL (e.g. a
+            // destructured case-payload field bound to its variant), match that
+            // symbol EXACTLY across the common fields + every variant. This must
+            // not name-fall-back, or a same-named field in an EARLIER variant (at
+            // a different offset) would be picked instead of the intended one.
+            let by_symbol = field_symbol.is_valid().then(|| {
+                field_layout_by_symbol(layouts, *common_fields, field_symbol).or_else(|| {
+                    layouts
+                        .variants
+                        .span_or_empty(*variants)
+                        .iter()
+                        .find_map(|variant| {
+                            field_layout_by_symbol(layouts, variant.fields, field_symbol)
+                        })
+                })
+            });
+            // Variant-disambiguated match wins; then a resolved symbol; then,
+            // with neither (or no match), fall back to the first field with the
+            // name, common-fields-first then variant order.
+            by_case_variant
+                .or_else(|| by_symbol.flatten())
+                .or_else(|| {
+                    field_layout_by_name(layouts, *common_fields, field_name).or_else(|| {
+                        layouts
+                            .variants
+                            .span_or_empty(*variants)
+                            .iter()
+                            .find_map(|variant| {
+                                field_layout_by_name(layouts, variant.fields, field_name)
+                            })
                     })
-            })?,
+                })?
+        }
     };
     let mut next = NestedFieldLayoutCursor {
         byte_offset: cursor.byte_offset + field.offset,
@@ -143,17 +187,25 @@ pub(in crate::selection) fn resolve_nested_field_layout_step<'layout>(
 fn resolve_nested_field_layout<'suffix>(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: impl IntoIterator<Item = (&'suffix Identifier, SymbolHandle, Option<usize>)>,
+    suffix: impl IntoIterator<
+        Item = (
+            &'suffix Identifier,
+            SymbolHandle,
+            Option<usize>,
+            Option<&'suffix Identifier>,
+        ),
+    >,
 ) -> Option<(usize, TypeLayout)> {
     let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
 
-    for (field_name, field_symbol, field_index) in suffix {
+    for (field_name, field_symbol, field_index, case_variant) in suffix {
         cursor = resolve_nested_field_layout_step(
             layouts,
             cursor,
             field_name,
             field_symbol,
             field_index,
+            case_variant,
         )?;
     }
 
@@ -181,14 +233,38 @@ fn field_layout_by_symbol_or_name<'plan>(
     field_symbol: SymbolHandle,
     field_name: &Identifier,
 ) -> Option<&'plan FieldLayout> {
-    let fields = layouts.fields.span(fields)?;
-    fields
+    field_layout_by_symbol(layouts, fields, field_symbol)
+        .or_else(|| field_layout_by_name(layouts, fields, field_name))
+}
+
+/// Match a field by SYMBOL only (no name fallback). `None` for an invalid symbol.
+fn field_layout_by_symbol<'plan>(
+    layouts: &'plan LayoutPlan,
+    fields: HandleSpan<FieldLayout>,
+    field_symbol: SymbolHandle,
+) -> Option<&'plan FieldLayout> {
+    if !field_symbol.is_valid() {
+        return None;
+    }
+    layouts
+        .fields
+        .span(fields)?
         .iter()
-        .find(|field| field_symbol.is_valid() && field.symbol == field_symbol)
-        .or_else(|| {
-            let name = field_name_without_index(field_name);
-            fields.iter().find(|field| field.name.as_str() == name)
-        })
+        .find(|field| field.symbol == field_symbol)
+}
+
+/// Match a field by NAME (ignoring any `[index]` suffix).
+fn field_layout_by_name<'plan>(
+    layouts: &'plan LayoutPlan,
+    fields: HandleSpan<FieldLayout>,
+    field_name: &Identifier,
+) -> Option<&'plan FieldLayout> {
+    let name = field_name_without_index(field_name);
+    layouts
+        .fields
+        .span(fields)?
+        .iter()
+        .find(|field| field.name.as_str() == name)
 }
 
 fn field_name_without_index(field_name: &str) -> &str {

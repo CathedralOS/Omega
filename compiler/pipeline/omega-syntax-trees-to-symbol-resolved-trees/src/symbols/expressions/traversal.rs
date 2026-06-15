@@ -198,6 +198,8 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
             }
         }
         omega_symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+            let receiver = member.receiver;
+            let member_name = member.member.clone();
             assign_expression_table_symbols(
                 symbols,
                 machine,
@@ -205,15 +207,15 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
                 state_symbol,
                 expression_table,
                 child_type_references,
-                member.receiver,
+                receiver,
             );
             assign_member_symbol(
                 symbols,
                 machine.symbol,
                 state_symbol,
                 expression_table,
-                member.receiver,
-                &member.member,
+                receiver,
+                &member_name,
                 expression,
             );
         }

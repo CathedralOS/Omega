@@ -374,6 +374,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                         receiver: target,
                         member_symbol: SymbolHandle::invalid(),
                         member: field_name,
+                        case_variant: None,
                     }));
                 emitted |= select_runtime_storage_resolved_mutation_write_in_mutable_table(
                     input,
@@ -401,6 +402,7 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 receiver: target,
                 member_symbol: SymbolHandle::invalid(),
                 member: field.name,
+                case_variant: None,
             }));
             emitted |= select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 input,

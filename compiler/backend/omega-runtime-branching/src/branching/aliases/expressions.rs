@@ -48,6 +48,7 @@ pub(crate) fn resolve_branch_expression_handle(
                 receiver,
                 member_symbol: member.member_symbol,
                 member: member.member,
+                case_variant: member.case_variant,
             }))
         }
         ExpressionNode::Name(path) => branch_bindings

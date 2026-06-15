@@ -188,6 +188,7 @@ fn simple_local_binding_value_from_table(
                 receiver,
                 member_symbol: member.member_symbol,
                 member: member.member.clone(),
+                case_variant: member.case_variant.clone(),
             })))
         }
         ExpressionNode::ArrayLiteral(_)
@@ -207,6 +208,7 @@ pub(super) fn append_name_suffix(
             receiver: expression,
             member_symbol: SymbolHandle::invalid(),
             member: member.clone(),
+            case_variant: None,
         }));
     }
 

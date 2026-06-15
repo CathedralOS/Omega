@@ -22,13 +22,19 @@ use omega_tokens::{KeywordKind, PunctuationKind};
 pub(super) struct DestructureBinding {
     pub(super) binding: Identifier,
     pub(super) member: Identifier,
+    /// The case variant this field is bound from (`Some("Transfer")` for a
+    /// `Type::Case { .. }` pattern), so the rewritten `subject.member` access
+    /// resolves to THAT variant's field even when a same-named field exists in
+    /// another variant. `None` for a plain `Type { .. }` data destructure.
+    pub(super) case_variant: Option<Identifier>,
 }
 
 impl DestructureBinding {
-    fn field(name: Identifier) -> Self {
+    fn field(name: Identifier, case_variant: Option<Identifier>) -> Self {
         Self {
             member: name.clone(),
             binding: name,
+            case_variant,
         }
     }
 }
@@ -329,9 +335,12 @@ fn parse_version_pattern_arm(
     ));
 
     let fields = match binding {
+        // A version arm binds the whole historical payload (`__payload_vN`), not
+        // a case variant -- no variant qualification.
         Some(binding) => vec![DestructureBinding {
             binding,
             member: payload_member,
+            case_variant: None,
         }],
         None => Vec::new(),
     };
@@ -426,9 +435,21 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     }
 
     let (fields, pattern_rest) = parse_data_destructure_pattern_fields(syntax_trees, after_path)?;
+    // A `Type::Case { .. }` pattern (two-member path) binds payload fields of that
+    // specific CASE, so tag each binding with the variant -- the rewritten field
+    // access must resolve to this variant's field, not a same-named field at a
+    // different offset in another variant.
+    let case_variant: Option<Identifier> = {
+        let members = syntax_trees.expressions.identifier_path_members(path);
+        if members.len() == 2 {
+            members.last().cloned()
+        } else {
+            None
+        }
+    };
     let fields = fields
         .into_iter()
-        .map(DestructureBinding::field)
+        .map(|name| DestructureBinding::field(name, case_variant.clone()))
         .collect::<Vec<_>>();
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected data destructure pattern"));
@@ -608,15 +629,19 @@ pub(super) fn rewrite_destructure_guard_expression(
                 fields,
             ),
             member: member.member,
+            case_variant: member.case_variant,
         }),
         ExpressionNode::Mutable(inner) => ExpressionNode::Mutable(
             rewrite_destructure_guard_expression(syntax_trees, inner, subject, fields),
         ),
         ExpressionNode::Name(path) => {
-            if let Some(field) = single_destructured_field_name(syntax_trees, path, fields) {
+            if let Some((field, case_variant)) =
+                single_destructured_field_name(syntax_trees, path, fields)
+            {
                 ExpressionNode::Member(TableMemberExpression {
                     receiver: subject,
                     member: field,
+                    case_variant,
                 })
             } else {
                 ExpressionNode::Name(path)
@@ -703,11 +728,14 @@ fn rewrite_expression_span(
         .insert_expression_handles(expressions)
 }
 
+/// The `(field member name, case variant)` a single-name reference resolves to
+/// when it names a destructure binding -- so the rewritten `subject.member`
+/// access carries the variant for correct payload-field offset resolution.
 fn single_destructured_field_name(
     syntax_trees: &SyntaxTrees,
     path: HandleSpan<Identifier>,
     fields: &[DestructureBinding],
-) -> Option<Identifier> {
+) -> Option<(Identifier, Option<Identifier>)> {
     let members = syntax_trees.expressions.identifier_path_members(path);
     let [member] = members else {
         return None;
@@ -715,7 +743,7 @@ fn single_destructured_field_name(
     fields
         .iter()
         .find(|field| &field.binding == member)
-        .map(|field| field.member.clone())
+        .map(|field| (field.member.clone(), field.case_variant.clone()))
 }
 
 trait FromTransitionMatchComponent {

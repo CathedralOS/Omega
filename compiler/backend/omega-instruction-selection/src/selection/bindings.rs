@@ -286,6 +286,7 @@ pub(super) fn resolve_runtime_alias_binding(
                         receiver: receiver.expression,
                         member_symbol: member.member_symbol,
                         member: member.member.clone(),
+                        case_variant: member.case_variant.clone(),
                     },
                 )),
             }
@@ -506,6 +507,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                         receiver: receiver.expression,
                         member_symbol: member.member_symbol,
                         member: member.member.clone(),
+                        case_variant: member.case_variant.clone(),
                     },
                 )),
             }
@@ -684,6 +686,7 @@ pub(super) fn resolve_leaf_binding_expression_handle(
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),
+                    case_variant: member.case_variant.clone(),
                 },
             ))
         }
@@ -891,6 +894,7 @@ pub(super) fn resolve_straight_line_binding_expression_handle(
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),
+                    case_variant: member.case_variant.clone(),
                 },
             ))
         }
