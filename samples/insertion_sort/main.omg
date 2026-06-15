@@ -1,35 +1,54 @@
-// Bubble sort on a fixed [i32; 4] array via compare-and-swap dispatch chains.
+// Bubble sort on a fixed [i32; 6] array via compare-and-swap dispatch chains.
 //
-// Exercises: fixed-array element SWAPS + multi-pass adjacent comparison +
-// nested dispatch chains (each compare-and-swap is a sub-machine with a
-// transition that conditionally writes two const-indexed array slots).
+// Exercises: fixed-array element SWAPS (reading one slot, writing two slots) +
+// multi-pass adjacent comparison chains + per-pair sub-machines that use
+// const-indexed dispatch states for the conditional write-back.
 //
-// Input array: [5, 2, 8, 1]
+// This is a DETERMINISTIC sort: the input is fully hardcoded, every swap
+// decision is a compile-time-known branch that exercises the runtime
+// array-write path for each const index 0..5.
+//
+// Input array: [5, 2, 8, 1, 3, 7]
 //
 // Bubble sort passes (hand-verified):
-//   Pass 1: cmp(0,1): 5>2 -> swap -> [2,5,8,1]
-//           cmp(1,2): 5<8 -> no swap   -> [2,5,8,1]
-//           cmp(2,3): 8>1 -> swap -> [2,5,1,8]
-//   Pass 2: cmp(0,1): 2<5 -> no swap   -> [2,5,1,8]
-//           cmp(1,2): 5>1 -> swap -> [2,1,5,8]
-//           cmp(2,3): 5<8 -> no swap   -> [2,1,5,8]
-//   Pass 3: cmp(0,1): 2>1 -> swap -> [1,2,5,8]
-//           cmp(1,2): 2<5 -> no swap   -> [1,2,5,8]
-//   Pass 4: cmp(0,1): 1<2 -> no swap   -> [1,2,5,8]
+//   Pass 1 (5 adjacent compares):
+//     cmp(0,1): 5>2 -> swap -> [2,5,8,1,3,7]
+//     cmp(1,2): 5<8 -> no swap
+//     cmp(2,3): 8>1 -> swap -> [2,5,1,8,3,7]
+//     cmp(3,4): 8>3 -> swap -> [2,5,1,3,8,7]
+//     cmp(4,5): 8>7 -> swap -> [2,5,1,3,7,8]
+//   Pass 2 (4 compares; pos 5 settled):
+//     cmp(0,1): 2<5 -> no swap
+//     cmp(1,2): 5>1 -> swap -> [2,1,5,3,7,8]
+//     cmp(2,3): 5>3 -> swap -> [2,1,3,5,7,8]
+//     cmp(3,4): 5<7 -> no swap
+//   Pass 3 (3 compares; pos 4,5 settled):
+//     cmp(0,1): 2>1 -> swap -> [1,2,3,5,7,8]
+//     cmp(1,2): 2<3 -> no swap
+//     cmp(2,3): 3<5 -> no swap
+//   Pass 4 (2 compares; pos 3,4,5 settled):
+//     cmp(0,1): 1<2 -> no swap
+//     cmp(1,2): 2<3 -> no swap
+//   Pass 5 (1 compare; pos 2,3,4,5 settled):
+//     cmp(0,1): 1<2 -> no swap
 //
-// Final array: [1, 2, 5, 8]
-// Checks: arr[0]==1, arr[1]==2, arr[2]==5, arr[3]==8 -> exit 70
-// Exit 71 = arr[0] wrong
-// Exit 72 = arr[1] wrong
-// Exit 73 = arr[2] wrong
-// Exit 74 = arr[3] wrong
+// Final array: [1, 2, 3, 5, 7, 8]
+//
+// Verification: check each position matches expected value.
+// Exit 70  = all correct (sorted)
+// Exit 71  = arr[0] != 1
+// Exit 72  = arr[1] != 2
+// Exit 73  = arr[2] != 3
+// Exit 74  = arr[3] != 5
+// Exit 75  = arr[4] != 7
+// Exit 76  = arr[5] != 8
 //
 // Expected exit: 70.
 
 use omega::language::std::console;
 
 data Sorter [copy, zero_init] {
-    arr: [i32; 4];
+    arr: [i32; 6];
 }
 
 data Main {
@@ -37,7 +56,9 @@ data Main {
     s: Sorter;
 }
 
-// Compare arr[0] and arr[1]; swap if arr[0] > arr[1].
+// ---- Per-pair compare-and-swap machines ----
+// Each reads arr[i] and arr[i+1]; if arr[i] > arr[i+1], writes them swapped.
+
 machine Main::cmp_swap_01(&mut self) {
     let a: i32 = self.s.arr[0];
     let b: i32 = self.s.arr[1];
@@ -52,7 +73,6 @@ machine Main::cmp_swap_01(&mut self) {
     state done_01(&mut self) {}
 }
 
-// Compare arr[1] and arr[2]; swap if arr[1] > arr[2].
 machine Main::cmp_swap_12(&mut self) {
     let a: i32 = self.s.arr[1];
     let b: i32 = self.s.arr[2];
@@ -67,7 +87,6 @@ machine Main::cmp_swap_12(&mut self) {
     state done_12(&mut self) {}
 }
 
-// Compare arr[2] and arr[3]; swap if arr[2] > arr[3].
 machine Main::cmp_swap_23(&mut self) {
     let a: i32 = self.s.arr[2];
     let b: i32 = self.s.arr[3];
@@ -82,38 +101,87 @@ machine Main::cmp_swap_23(&mut self) {
     state done_23(&mut self) {}
 }
 
-// One full bubble pass over positions 0..n-1 (adjacent swaps).
-// Pass 1: all three adjacent pairs.
+machine Main::cmp_swap_34(&mut self) {
+    let a: i32 = self.s.arr[3];
+    let b: i32 = self.s.arr[4];
+    transition a > b {
+        true -> do_swap_34(a, b)
+        _ -> done_34()
+    }
+    state do_swap_34(&mut self, a: i32, b: i32) {
+        self.s.arr[3] = b;
+        self.s.arr[4] = a;
+    }
+    state done_34(&mut self) {}
+}
+
+machine Main::cmp_swap_45(&mut self) {
+    let a: i32 = self.s.arr[4];
+    let b: i32 = self.s.arr[5];
+    transition a > b {
+        true -> do_swap_45(a, b)
+        _ -> done_45()
+    }
+    state do_swap_45(&mut self, a: i32, b: i32) {
+        self.s.arr[4] = b;
+        self.s.arr[5] = a;
+    }
+    state done_45(&mut self) {}
+}
+
+// ---- Bubble sort passes ----
+// Pass 1: all 5 adjacent pairs; the largest element bubbles to position 5.
 machine Main::pass1(&mut self) {
+    self.cmp_swap_01();
+    self.cmp_swap_12();
+    self.cmp_swap_23();
+    self.cmp_swap_34();
+    self.cmp_swap_45();
+}
+
+// Pass 2: pairs 0..3; position 5 already settled.
+machine Main::pass2(&mut self) {
+    self.cmp_swap_01();
+    self.cmp_swap_12();
+    self.cmp_swap_23();
+    self.cmp_swap_34();
+}
+
+// Pass 3: pairs 0..2; positions 4,5 settled.
+machine Main::pass3(&mut self) {
     self.cmp_swap_01();
     self.cmp_swap_12();
     self.cmp_swap_23();
 }
 
-// Pass 2: pairs (0,1) and (1,2); position 3 is already settled.
-machine Main::pass2(&mut self) {
+// Pass 4: pairs 0..1; positions 3,4,5 settled.
+machine Main::pass4(&mut self) {
     self.cmp_swap_01();
     self.cmp_swap_12();
 }
 
-// Pass 3: pair (0,1); positions 2 and 3 settled.
-machine Main::pass3(&mut self) {
+// Pass 5: pair 0; positions 2,3,4,5 settled.
+machine Main::pass5(&mut self) {
     self.cmp_swap_01();
 }
 
 machine Main::main(&mut self) {
-    // Initialize array: [5, 2, 8, 1].
+    // Initialize array: [5, 2, 8, 1, 3, 7].
     self.s.arr[0] = 5;
     self.s.arr[1] = 2;
     self.s.arr[2] = 8;
     self.s.arr[3] = 1;
+    self.s.arr[4] = 3;
+    self.s.arr[5] = 7;
 
-    // Bubble sort: 3 passes (n-1 passes for n=4).
+    // Bubble sort: 5 passes for n=6.
     self.pass1();
     self.pass2();
     self.pass3();
+    self.pass4();
+    self.pass5();
 
-    // Verify sorted order: [1, 2, 5, 8].
+    // Verify sorted order: [1, 2, 3, 5, 7, 8].
     let v0: i32 = self.s.arr[0];
     transition v0 == 1 {
         true -> check1()
@@ -134,7 +202,7 @@ machine Main::main(&mut self) {
 
     state check2(&mut self) {
         let v2: i32 = self.s.arr[2];
-        transition v2 == 5 {
+        transition v2 == 3 {
             true -> check3()
             _ -> bad2()
         }
@@ -144,13 +212,33 @@ machine Main::main(&mut self) {
 
     state check3(&mut self) {
         let v3: i32 = self.s.arr[3];
-        transition v3 == 8 {
-            true -> good()
+        transition v3 == 5 {
+            true -> check4()
             _ -> bad3()
         }
     }
 
     state bad3(&mut self) { self.console.exit_process(74); }
+
+    state check4(&mut self) {
+        let v4: i32 = self.s.arr[4];
+        transition v4 == 7 {
+            true -> check5()
+            _ -> bad4()
+        }
+    }
+
+    state bad4(&mut self) { self.console.exit_process(75); }
+
+    state check5(&mut self) {
+        let v5: i32 = self.s.arr[5];
+        transition v5 == 8 {
+            true -> good()
+            _ -> bad5()
+        }
+    }
+
+    state bad5(&mut self) { self.console.exit_process(76); }
 
     state good(&mut self) { self.console.exit_process(70); }
 }
