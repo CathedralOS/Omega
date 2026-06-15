@@ -942,6 +942,49 @@ fn interpreter_matches_native_on_stack_vm_sample() {
     // the interpreter is correct even if native is wrong.
 }
 
+/// Bubble sort on a fixed [i32; 6] array via compare-and-swap sub-machines.
+///
+/// Input: [5, 2, 8, 1, 3, 7].  After 5 bubble passes (5+4+3+2+1 = 15
+/// adjacent-pair compare-and-swap calls), the array is [1, 2, 3, 5, 7, 8].
+/// Each position is then checked in a chained sub-state; exit 70 = all correct.
+///
+/// This exercises: const-indexed array READS then conditional WRITES (two slots
+/// per swap), 5 distinct per-pair sub-machines (cmp_swap_01 .. cmp_swap_45),
+/// and a multi-state verification chain.  A miscompile in array-write aliasing
+/// shows up as exit 71..76 (wrong slot written) rather than the correct exit 70.
+#[test]
+fn interpreter_matches_native_on_insertion_sort_sample() {
+    let main_path = repo_root()
+        .join("samples")
+        .join("insertion_sort")
+        .join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "insertion_sort compile failed:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "insertion_sort should be fully supported by the interpreter, got: {:?}",
+        outcome.error
+    );
+
+    let (native_code, _native_stdout, _native_stderr) =
+        compile_and_run_native("insertion_sort", &main_path);
+    assert_eq!(
+        outcome.exit_code, native_code,
+        "insertion_sort exit code: interp {} != native {native_code}",
+        outcome.exit_code
+    );
+    assert_eq!(
+        native_code, 70,
+        "insertion_sort should exit 70 (array [5,2,8,1,3,7] sorted to [1,2,3,5,7,8])"
+    );
+}
+
 /// The dungeon script the canary suite's PE test could use to visit R00..R04: four `north`
 /// moves walk the main hall chain, then `quit`.
 const DUNGEON_SCRIPT: &[u8] = b"north\r\nnorth\r\nnorth\r\nnorth\r\nquit\r\n";
