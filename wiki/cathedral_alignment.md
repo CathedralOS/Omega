@@ -208,6 +208,22 @@ None block current compiler development; all should stay visible.
   it canon once Omega is self-hosted in Omega.** Novel as a default-canon
   stance; earned here because the compiler is Cathedral's security kernel.
 
+- **TBD: information-flow / secrecy labels.** Cathedral wants a *propagating*
+  secrecy label on values (a `Secret<T>` taint — NOT a content-domain and NOT a
+  `[property]` bracket; secrecy is about provenance/policy and must FLOW through
+  operations: `hash(secret)` is secret). It would *derive* a component's
+  side-channel isolation level and its constant-time obligation automatically
+  instead of hand-passing them. This is real information-flow typing (label
+  creep, declassification, covert channels) — a genuine new feature, farthest-out
+  tier.
+- **TBD: constant-time verification.** Given the secrecy labels above, the
+  checker CAN prove the constant-time *discipline* (no secret-dependent branch or
+  memory index) and codegen CAN restrict secret-touching code to
+  data-independent-timing instructions. What it CANNOT prove is constant
+  wall-clock — that is a hardware fact (ARM DIT / Intel DOITM) and lands in the
+  {hardware} TCB. So constant-time = provable discipline on one named hardware
+  assumption; depends on the label feature above.
+
 ## What is already aligned (no action)
 
 - Machines/states/transitions as inspectable graphs — implemented, and the
