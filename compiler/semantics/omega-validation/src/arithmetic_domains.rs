@@ -64,19 +64,36 @@ impl ValueEnv {
 /// Walk a value expression, apply the domain + overflow rules to every nested
 /// arithmetic binary, and return the expression's proven interval (so the caller
 /// can record it for the assigned place). `owner` describes the site.
+/// `target_primitive` is the declared integer type of the value's destination
+/// (the local/field/return type). It is the FALLBACK integer type for an
+/// otherwise-untyped operand tree -- so a bare-literal computation like
+/// `let c: u8 = 200 + 100` is range-checked against `u8` (and rejected) instead
+/// of slipping through with no primitive.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_arithmetic_domains(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
     env: &ValueEnv,
+    target_primitive: Option<PrimitiveType>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Interval {
     if !expression.is_valid() {
         return Interval::UNBOUNDED;
     }
-    analyze(program, machine, state, expression, env, owner, diagnostics).interval
+    analyze(
+        program,
+        machine,
+        state,
+        expression,
+        env,
+        target_primitive,
+        owner,
+        diagnostics,
+    )
+    .interval
 }
 
 /// The straight-line place path an expression denotes (`self.v`, `count`), for
@@ -252,17 +269,46 @@ fn analyze(
     state: Option<&State>,
     expression: ExpressionHandle,
     env: &ValueEnv,
+    target_primitive: Option<PrimitiveType>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Analysis {
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
             let operator = binary.operator;
-            let left = analyze(program, machine, state, binary.left, env, owner, diagnostics);
-            let right = analyze(program, machine, state, binary.right, env, owner, diagnostics);
+            let left = analyze(
+                program,
+                machine,
+                state,
+                binary.left,
+                env,
+                target_primitive,
+                owner,
+                diagnostics,
+            );
+            let right = analyze(
+                program,
+                machine,
+                state,
+                binary.right,
+                env,
+                target_primitive,
+                owner,
+                diagnostics,
+            );
             if !is_arithmetic(operator) {
-                // Comparison / logical `and`/`or`: a `bool`, no arithmetic domain.
-                return NEUTRAL;
+                // Comparison / logical `and`/`or`: a `bool` whose integer value is
+                // 0 or 1. Its interval is [0, 1] (NOT unbounded) so it does not
+                // poison an enclosing arithmetic op -- e.g. the match desugar
+                // `d + (s == p) * (v - d)` stays bounded. No arithmetic domain.
+                return Analysis {
+                    domain: None,
+                    interval: Interval {
+                        low: Some(0),
+                        high: Some(1),
+                    },
+                    primitive: None,
+                };
             }
 
             // S2: a binary mixing two different explicit domains is illegal.
@@ -289,7 +335,6 @@ fn analyze(
                 (Some(domain), None) | (None, Some(domain)) => Some(domain),
                 (None, None) => None,
             };
-            let primitive = left.primitive.or(right.primitive);
             let interval = match operator {
                 BinaryOperator::Add => left.interval.add(right.interval),
                 BinaryOperator::Subtract => left.interval.subtract(right.interval),
@@ -300,6 +345,19 @@ fn analyze(
                 // to be a safe over-approximation for any ENCLOSING op.
                 _ => Interval::UNBOUNDED,
             };
+            // Operand primitives win. The destination type is a fallback ONLY when
+            // the result is a BOUNDED constant (a bare-literal computation like
+            // `let c: u8 = 200 + 100`), so it is range-checked against `c`. An
+            // UNbounded result (an unknown operand -- a call result, a param) keeps
+            // no primitive and stays unchecked, as before -- the target fallback
+            // must not turn "unknown" into a spurious overflow.
+            let primitive = left.primitive.or(right.primitive).or_else(|| {
+                if interval.low.is_some() && interval.high.is_some() {
+                    target_primitive
+                } else {
+                    None
+                }
+            });
 
             // S3: an EXACT (undomained) `+`/`-`/`*` must be provably in range.
             let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
@@ -329,7 +387,8 @@ fn analyze(
             }
         }
         ExpressionNode::Cast(cast) => {
-            let _ = analyze(program, machine, state, cast.value, env, owner, diagnostics);
+            // A cast re-types its operand, so the outer target does not flow in.
+            let _ = analyze(program, machine, state, cast.value, env, None, owner, diagnostics);
             let primitive = program
                 .expression_table
                 .name_path_members(cast.target_type)
