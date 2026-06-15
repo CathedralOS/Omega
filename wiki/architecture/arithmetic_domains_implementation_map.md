@@ -36,13 +36,19 @@ behaviour qualifiers). Candidate homes:
   the ISA can branch on it (mirror how `is_float`/`byte_width` were threaded —
   see wiki/architecture/scalar_width_rederivation_smell.md for that pattern).
 
-## Parse surface (S1) — DECIDE THE SPELLING WITH MAINTAINER
+## Parse surface (S1) — SPELLING DECIDED 2026-06-14: `u32 in Wrapping`
 
-Not yet specified in docs. Options: `count: u32 in Wrapping` (reuses `in`),
-`count: Wrapping<u32>` (container-style), or `count: u32 wrapping`. The decision
-doc says "the value/type lives in a domain" — lean `in Wrapping`. Parser entry:
-the type-reference parser (where `: u32` is parsed). Confirm spelling before
-building — this is the one open sub-decision.
+Maintainer chose `<primitive> in <ArithmeticDomain>` (reuses the existing `in`
+domain spelling). e.g. `count: u32 in Wrapping`, `total: i32 in Saturating`;
+domain cast `x as u32 in Wrapping`. Parser entry: the named-type path of
+`parse_type_reference_handle` (omega-tokens-to-syntax-trees/parser/type_reference.rs)
+— attach an optional `in <Ident>` suffix at the SAME point the optional
+`[constraints]` suffix is parsed (~line 195), producing a new
+`TypeReferenceNode` shape (e.g. `ArithmeticDomained { base, domain }`) that
+threads through symbol-resolved → typed → checked → instruction-selection.
+(`in` is the membership keyword; in TYPE position no current grammar consumes a
+trailing `in`, so this suffix is additive.) Do NOT parse-and-discard — that is
+throwaway; represent it so S2's `as` casts and S3's enforcement can read it.
 
 ## Backend (S1)
 
