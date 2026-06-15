@@ -443,7 +443,7 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
 
         data Main {
             password: Password;
-            unrelated: i32;
+            unrelated: i32 in Wrapping;
         }
 
         machine Main::mark_valid(&mut self, password: &mut Password)
