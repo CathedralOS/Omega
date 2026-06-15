@@ -199,5 +199,8 @@ fn lower_type_constraint_handle(
             let maximum = lower_expression_into_table(syntax_trees, expressions, *maximum)?;
             Ok(TypeConstraint::Range { minimum, maximum })
         }
+        syntax::types::TypeConstraintNode::ArithmeticDomain(domain) => {
+            Ok(TypeConstraint::ArithmeticDomain(*domain))
+        }
     }
 }

@@ -136,6 +136,7 @@ impl TypeConstraintNode {
                     expressions.display_name(*maximum)
                 )
             }
+            TypeConstraintNode::ArithmeticDomain(domain) => format!("in {}", domain.name()),
         }
     }
 }

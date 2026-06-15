@@ -914,6 +914,9 @@ impl SyntaxTrees {
                     minimum: this.copy_expression_handle(other, *minimum),
                     maximum: this.copy_expression_handle(other, *maximum),
                 },
+                TypeConstraintNode::ArithmeticDomain(domain) => {
+                    TypeConstraintNode::ArithmeticDomain(*domain)
+                }
             },
             |this, constraint| this.type_references.append_constraint(constraint),
         )

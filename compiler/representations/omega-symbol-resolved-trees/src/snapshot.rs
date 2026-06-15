@@ -515,6 +515,9 @@ pub enum TypeConstraintSnapshot {
         minimum: ExpressionSnapshot,
         maximum: ExpressionSnapshot,
     },
+    ArithmeticDomain {
+        domain: String,
+    },
 }
 
 fn data_definition_snapshot(
@@ -1107,6 +1110,9 @@ fn type_constraint_snapshot(
         TypeConstraint::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
             minimum: table_expression_snapshot(program, *minimum),
             maximum: table_expression_snapshot(program, *maximum),
+        },
+        TypeConstraint::ArithmeticDomain(domain) => TypeConstraintSnapshot::ArithmeticDomain {
+            domain: domain.name().to_owned(),
         },
     }
 }

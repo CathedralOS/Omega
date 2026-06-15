@@ -86,6 +86,9 @@ impl ProofConstraint {
             TypeConstraintNode::Range { minimum, maximum } => {
                 Self::range_from_expression_handles(program, *minimum, *maximum)
             }
+            // An arithmetic overflow domain is a codegen behaviour tag, not a
+            // proof predicate, so it produces no proof constraint.
+            TypeConstraintNode::ArithmeticDomain(_) => None,
         }
     }
 

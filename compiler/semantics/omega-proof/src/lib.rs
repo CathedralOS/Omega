@@ -507,6 +507,7 @@ fn constraint_handle_name(
                     .expression(*maximum)
                     .display_name(&syntax_trees.expressions)
             ),
+            TypeConstraintNode::ArithmeticDomain(domain) => domain.name().to_owned(),
         });
     }
 

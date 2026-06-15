@@ -463,6 +463,10 @@ fn validate_type_constraints_node(
                     )));
                 }
             }
+            // An arithmetic overflow domain (`Wrapping`/`Saturating`/`Trapping`)
+            // is only meaningful on integer primitives. (Stricter integer-only
+            // validation can be added when the domains gain distinct codegen.)
+            TypeConstraintNode::ArithmeticDomain(_) => {}
         }
     }
 }

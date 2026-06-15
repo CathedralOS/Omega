@@ -477,6 +477,7 @@ pub enum TypeConstraintNode {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
     },
+    ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
 }
 
 impl TypeConstraintNode {
@@ -491,6 +492,7 @@ impl TypeConstraintNode {
                 minimum: target_expressions.copy_from(source_expressions, *minimum),
                 maximum: target_expressions.copy_from(source_expressions, *maximum),
             },
+            TypeConstraintNode::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
         }
     }
 }
