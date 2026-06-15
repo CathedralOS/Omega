@@ -221,6 +221,9 @@ pub enum TypeConstraintNode {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
     },
+    /// An arithmetic overflow domain on a primitive (`u32 in Wrapping`); decision
+    /// 17. A behaviour tag, not a value-range predicate.
+    ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
 }
 
 impl Default for TypeConstraintNode {

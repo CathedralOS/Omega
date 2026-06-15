@@ -438,6 +438,8 @@ fn collect_constraints(
                     owner,
                 );
             }
+            // An arithmetic domain is a behaviour tag, not a referenced type name.
+            TypeConstraintNode::ArithmeticDomain(_) => {}
         }
     }
 }

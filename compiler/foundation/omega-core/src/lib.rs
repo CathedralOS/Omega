@@ -1,5 +1,6 @@
 pub mod allocations;
 pub mod arena;
+pub mod arithmetic;
 pub mod diagnostics;
 pub mod operations;
 pub mod operator_spelling;

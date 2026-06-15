@@ -606,6 +606,7 @@ fn count_type_reference_handle(
                         count_expression_handle(syntax_trees, *minimum, counts);
                         count_expression_handle(syntax_trees, *maximum, counts);
                     }
+                    crate::types::TypeConstraintNode::ArithmeticDomain(_) => {}
                 }
             }
         }
@@ -665,6 +666,7 @@ fn count_type_constraint_handle(
             count_expression_handle(syntax_trees, *minimum, counts);
             count_expression_handle(syntax_trees, *maximum, counts);
         }
+        crate::types::TypeConstraintNode::ArithmeticDomain(_) => {}
     }
 }
 

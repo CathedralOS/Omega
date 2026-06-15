@@ -569,6 +569,7 @@ fn count_type_constraint(
             count_expression_handle(expression_table, *minimum, counts);
             count_expression_handle(expression_table, *maximum, counts);
         }
+        TypeConstraint::ArithmeticDomain(_) => {}
     }
 }
 

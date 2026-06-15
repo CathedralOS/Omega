@@ -421,6 +421,9 @@ pub enum TypeConstraintSnapshot {
         minimum: ExpressionSnapshot,
         maximum: ExpressionSnapshot,
     },
+    ArithmeticDomain {
+        domain: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1234,6 +1237,9 @@ fn snapshot_type_constraint(
         TypeConstraintNode::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
             minimum: snapshot_expression_handle(syntax_trees, *minimum),
             maximum: snapshot_expression_handle(syntax_trees, *maximum),
+        },
+        TypeConstraintNode::ArithmeticDomain(domain) => TypeConstraintSnapshot::ArithmeticDomain {
+            domain: domain.name().to_owned(),
         },
     }
 }
