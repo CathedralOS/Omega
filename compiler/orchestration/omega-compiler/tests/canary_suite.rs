@@ -2843,6 +2843,38 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
 }
 
 #[test]
+fn arithmetic_domain_saturating_signed_exit_canary_runs() {
+    // Decision 17 S1b: signed `i8 in Saturating` clamps 100+100=200 to 127.
+    let canary = pass_canary("expressions/arithmetic_domain_saturating_signed_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-arith-domain-sat-signed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_saturating_signed canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_saturating_signed canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i8 in Saturating (100+100) to clamp to 127 and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn arithmetic_domain_trapping_exit_canary_runs() {
     // Decision 17 S1b: `u8 in Trapping` runs normally when in range (100+50=150).
     let canary = pass_canary("expressions/arithmetic_domain_trapping_exit");
@@ -10494,6 +10526,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/f32_array_binary_op_zero",
     "expressions/arithmetic_domain_wrapping_exit",
     "expressions/arithmetic_domain_saturating_exit",
+    "expressions/arithmetic_domain_saturating_signed_exit",
     "expressions/arithmetic_domain_trapping_exit",
     "expressions/arithmetic_domain_trapping_overflow",
     "expressions/f32_field_binary_to_local_cast",
