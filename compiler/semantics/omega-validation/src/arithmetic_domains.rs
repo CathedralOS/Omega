@@ -20,14 +20,108 @@ use std::collections::BTreeMap;
 use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
+use omega_typed_trees::domain::ProofFact;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
+use omega_typed_trees::signature::SignatureContractKind;
 use omega_typed_trees::state::State;
 use omega_typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
 use crate::places::declared_place_type_raw;
+
+/// S4: build a value environment pre-seeded with the integer bounds a machine's
+/// `requires` clause places on its parameters (`requires amount <= 100`). Used to
+/// seed the ENTRY state's env so param arithmetic with a declared bound stays
+/// exact instead of being forced into a domain. Only simple `param <OP> literal`
+/// (and the flipped `literal <OP> param`) comparisons are read; anything else is
+/// ignored (sound -- a missing bound just falls back to the type width).
+pub(crate) fn requires_value_env(program: &TypedTrees, machine: &Machine) -> ValueEnv {
+    let mut bounds: BTreeMap<String, (Option<i64>, Option<i64>)> = BTreeMap::new();
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            if let Some((name, low, high)) = comparison_bound(program, *expression) {
+                let entry = bounds.entry(name).or_insert((None, None));
+                // Intersect across facts: tightest lower (max) and upper (min).
+                if let Some(low) = low {
+                    entry.0 = Some(entry.0.map_or(low, |existing| existing.max(low)));
+                }
+                if let Some(high) = high {
+                    entry.1 = Some(entry.1.map_or(high, |existing| existing.min(high)));
+                }
+            }
+        }
+    }
+    let mut env = ValueEnv::new();
+    for (name, (low, high)) in bounds {
+        env.set(name, Interval { low, high });
+    }
+    env
+}
+
+/// Read a `requires` comparison as `(param_name, lower, upper)` -- one of the
+/// bounds is `None` (open). `None` when the fact is not a simple
+/// `name <OP> literal` / `literal <OP> name` integer comparison.
+fn comparison_bound(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(String, Option<i64>, Option<i64>)> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if let (Some(name), Some(literal)) = (
+        place_path(program, binary.left),
+        literal_i64(program, binary.right),
+    ) {
+        return Some(bound_from(name, binary.operator, literal, true));
+    }
+    if let (Some(name), Some(literal)) = (
+        place_path(program, binary.right),
+        literal_i64(program, binary.left),
+    ) {
+        return Some(bound_from(name, binary.operator, literal, false));
+    }
+    None
+}
+
+/// Convert a single `name <OP> literal` (`name_on_left`) or `literal <OP> name`
+/// comparison into a one-sided (or, for `==`, two-sided) bound.
+fn bound_from(
+    name: String,
+    operator: BinaryOperator,
+    literal: i64,
+    name_on_left: bool,
+) -> (String, Option<i64>, Option<i64>) {
+    // Normalise to `name <OP> literal` by flipping the operator when the name is
+    // on the right.
+    let operator = if name_on_left {
+        operator
+    } else {
+        match operator {
+            BinaryOperator::Less => BinaryOperator::Greater,
+            BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+            BinaryOperator::Greater => BinaryOperator::Less,
+            BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+            other => other,
+        }
+    };
+    let (low, high) = match operator {
+        BinaryOperator::LessOrEqual => (None, Some(literal)),
+        BinaryOperator::Less => (None, Some(literal.saturating_sub(1))),
+        BinaryOperator::GreaterOrEqual => (Some(literal), None),
+        BinaryOperator::Greater => (Some(literal.saturating_add(1)), None),
+        BinaryOperator::Equal => (Some(literal), Some(literal)),
+        _ => (None, None),
+    };
+    (name, low, high)
+}
 
 /// S4 flow-sensitive value environment: the proven interval of each place
 /// (`self.field`, local) along the straight-line prefix of a state body. Lets the
