@@ -195,6 +195,18 @@ None block current compiler development; all should stay visible.
 - **TBD: tail calls into machines** (already in the language appendix).
 - **TBD: partition-tolerant lease semantics, remote attestation facts,
   CRDT/merge obligations** — distributed tier, farthest out.
+- **TBD: trusting-trust resistance + TCB minimization for the self-hosted
+  compiler.** Under SAS the compiler IS the isolation boundary, so the
+  toolchain's trust story is a first-class deliverable: a hand-audited
+  bootstrap seed (no Thompson trusting-trust binary in the lineage), a small
+  proof-checking kernel that re-checks artifacts, and a verified Omega→machine
+  translation (CompCert/CakeML-style). Trust bottoms out at {seed, checker,
+  specs, hardware}; Gödel caps it at small-but-nonzero, and a proof only shows
+  code-meets-spec (validation of the spec stays human). **Sequencing: SKIP in
+  the current Rust implementation** — you bootstrap *from* an existing
+  toolchain, and the differential oracle is the interim mitigation — **and make
+  it canon once Omega is self-hosted in Omega.** Novel as a default-canon
+  stance; earned here because the compiler is Cathedral's security kernel.
 
 ## What is already aligned (no action)
 
