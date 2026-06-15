@@ -91,20 +91,39 @@ Interpreter remains local-domain-driven (agrees with operand-driven native when
 the local's domain matches the operands' — every canary). operand!=local in the
 interpreter is still a documented gap.
 
-## S3: exact enforcement (the big breaking slice)
+## S3: exact enforcement — DONE (2026-06-15)
 
-The range/entailment prover (omega-validation/contract_entailment.rs — already
-does intervals + difference-bound matrices) must discharge "result in range" for
-every Exact arithmetic op; unprovable = compile error directing to widen (`as`)
-or pick a domain. Migrate samples/canaries as fallout (accepted). Acceptance:
-the existing nested_i32_mul_overflow_divergence canary becomes a FAIL canary
-(rejected at compile time).
+An exact (undomained) integer `+`/`-`/`*` that is not provably in range of its
+type is a compile error. Implemented in omega-validation/arithmetic_domains.rs
+(NOT contract_entailment.rs — a self-contained `Interval` engine: operand ranges
+from declared type bounds + literal exact values; the result interval is checked
+for containment in the result type's range). Wrapping/Saturating/Trapping ops are
+exempt (defined overflow); atomic integer types (AtomicU32, ...) resolve as
+Wrapping (hardware wrap). `lower_typed_trees` runs `validate_program`, so this
+fires for any compiled program including internal test fixtures.
 
-## S4: range-inference ergonomics
+Acceptance met: `nested_i32_mul_overflow_divergence` (pending) → FAIL canary
+`expressions/nested_i32_mul_overflow`. Corpus migrated to `Wrapping`
+(behaviour-identical, ~37 canaries + 5 differential samples + 1 flow-test fixture
++ 2 missing sample .gitignores). Full workspace green.
 
-Discharge common bounded cases (literal const-fold range checks, field/param
-ranges from contracts/domains, loop bounds from `decreases`) so S3 is not
-annotation-hell.
+## S4: range-inference ergonomics — PARTIAL (2026-06-15)
+
+DONE: flow-sensitive value tracking — a per-state-body `ValueEnv` (place ->
+proven interval along the straight-line prefix; updated on LocalData/Assignment,
+dropped on a call) discharges const-init + read-modify-write arithmetic
+(`self.v = 10; self.v += 5`). Cut the S3 blast radius 44 -> 30 pass canaries.
+
+STILL TODO (the remaining 30 had to be domained instead of proven):
+- **Range-constraint narrowing**: read a `Range { min, max }` constraint on a
+  type so `x: i32 [0..100]` narrows the interval (currently only primitive bounds).
+- **Loop / `decreases` bounds** and **contract `requires` facts**: so a param or
+  cross-state value with a declared bound need not be tagged `Wrapping`.
+- **Literal-target folding**: `let c: u8 = 200 + 100` (operands are bare literals,
+  no primitive) is not currently range-checked — the target type isn't propagated
+  to the operands.
+These would let the cross-state / param / call-result operands (the 30) stay
+exact instead of `Wrapping`.
 
 ## PROGRESS
 
