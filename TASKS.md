@@ -1104,11 +1104,16 @@ Implementation slices below build against these. Minor/easily-reversible details
     forcing function for the range prover. Supersedes ch5's exploratory
     "Possible policies / likely default" text.
     IMPLEMENTATION PLAN (incremental, canary-driven):
-    - S1: the three domains as OPT-IN behaviour (additive, non-breaking) --
-      parse the domain on a primitive type/value, thread it, and emit wrapping
-      (mask), saturating (cmp+cmov clamp), trapping (overflow-flag check +
-      trap) arithmetic per width. Canaries: 200+100 in u8 -> 44 (wrap) / 255
-      (sat) / trap. Escape hatches exist before enforcement bites.
+    - S1: DONE (2026-06-14). The three domains are OPT-IN behaviour (additive,
+      non-breaking): `T in Wrapping/Saturating/Trapping` parses, threads as a
+      Constrained constraint -> descriptor domain -> the binary-write op, and
+      x86_64 emits wrapping (default op + truncating store), saturating (width-
+      correct op + cmov clamp to min/max), trapping (overflow-flag check + ud2)
+      per width + signedness. Interpreter models all three; differential oracle
+      agrees. Canaries: 200+100 in u8 -> 44 (wrap) / 255 (sat) / trap; i8
+      100+100 -> 127 (signed sat); in-range trapping runs. Gaps (deferred):
+      aarch64 (errors), `*`/`/` (errors), interpreter field-targets + u64/usize.
+      See wiki/architecture/arithmetic_domains_implementation_map.md "S1b DONE".
     - S2: `as` DOMAIN CASTS (exact<->Wrapping/Saturating/Trapping) + reject
       mixed-domain arithmetic with a clear diagnostic.
     - S3: EXACT-by-default ENFORCEMENT -- the range/entailment prover
