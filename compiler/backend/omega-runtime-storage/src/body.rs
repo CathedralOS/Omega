@@ -1064,7 +1064,7 @@ fn type_descriptor(
     table: &omega_checked_trees::types::TypeReferenceTable,
     type_reference: TypeReferenceHandle,
 ) -> omega_layout::TypeLayoutDescriptor {
-    use omega_checked_trees::types::TypeReferenceNode;
+    use omega_checked_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
     match table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
@@ -1075,11 +1075,20 @@ fn type_descriptor(
             referee: Box::new(type_descriptor(table, *referee)),
             is_mutable: *is_mutable,
         },
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            omega_layout::TypeLayoutDescriptor::Constrained {
-                base_type: Box::new(type_descriptor(table, *base_type)),
-            }
-        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => omega_layout::TypeLayoutDescriptor::Constrained {
+            base_type: Box::new(type_descriptor(table, *base_type)),
+            domain: table
+                .constraints(*constraints)
+                .iter()
+                .find_map(|constraint| match constraint {
+                    TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
+                    _ => None,
+                })
+                .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
+        },
         TypeReferenceNode::FixedArray {
             element_type,
             length,

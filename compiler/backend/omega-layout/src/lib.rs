@@ -37,6 +37,7 @@ pub enum TypeLayoutDescriptor {
     },
     Constrained {
         base_type: Box<TypeLayoutDescriptor>,
+        domain: omega_core::arithmetic::ArithmeticDomain,
     },
     FixedArray {
         element_type: Box<TypeLayoutDescriptor>,
@@ -66,7 +67,7 @@ impl TypeLayoutDescriptor {
     pub fn storage_symbol(&self) -> SymbolHandle {
         match self {
             Self::Reference { referee, .. } => referee.storage_symbol(),
-            Self::Constrained { base_type } => base_type.storage_symbol(),
+            Self::Constrained { base_type, .. } => base_type.storage_symbol(),
             Self::FixedArray { element_type, .. } => element_type.storage_symbol(),
             Self::Slice { element_type } => element_type.storage_symbol(),
             Self::DynamicTrait { symbol, .. } => *symbol,
@@ -77,7 +78,7 @@ impl TypeLayoutDescriptor {
 
     pub fn fixed_array(&self) -> Option<(&Self, usize)> {
         match self {
-            Self::Constrained { base_type } => base_type.fixed_array(),
+            Self::Constrained { base_type, .. } => base_type.fixed_array(),
             Self::Reference { referee, .. } => referee.fixed_array(),
             Self::FixedArray {
                 element_type,
@@ -89,7 +90,7 @@ impl TypeLayoutDescriptor {
 
     pub fn reference_referee(&self) -> Option<&Self> {
         match self {
-            Self::Constrained { base_type } => base_type.reference_referee(),
+            Self::Constrained { base_type, .. } => base_type.reference_referee(),
             Self::Reference { referee, .. } => Some(referee),
             _ => None,
         }
@@ -97,12 +98,24 @@ impl TypeLayoutDescriptor {
 
     pub fn element_type(&self) -> Option<&Self> {
         match self {
-            Self::Constrained { base_type } => base_type.element_type(),
+            Self::Constrained { base_type, .. } => base_type.element_type(),
             Self::Reference { referee, .. } => referee.element_type(),
             Self::FixedArray { element_type, .. } | Self::Slice { element_type } => {
                 Some(element_type)
             }
             _ => None,
+        }
+    }
+
+    /// The arithmetic domain (Wrapping/Saturating/Trapping) declared on this
+    /// type via `T in <Domain>`. Defaults to `Exact` for unconstrained types.
+    /// Looks through a leading `&`/`&mut` reference so a `&mut (u8 in Saturating)`
+    /// target still reports its domain at the binary-write site.
+    pub fn arithmetic_domain(&self) -> omega_core::arithmetic::ArithmeticDomain {
+        match self {
+            Self::Constrained { domain, .. } => *domain,
+            Self::Reference { referee, .. } => referee.arithmetic_domain(),
+            _ => omega_core::arithmetic::ArithmeticDomain::Exact,
         }
     }
 }
