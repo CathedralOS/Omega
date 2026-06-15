@@ -161,12 +161,20 @@ fn validate_state_statement_node(
                 machine.name.as_str(),
                 state_name,
             );
+            let assignment_target_primitive = places::declared_place_type(
+                program,
+                machine,
+                machine_symbols.state(state_name),
+                assignment.target,
+            )
+            .and_then(|handle| program.primitive_type_reference(handle));
             let interval = arithmetic_domains::validate_arithmetic_domains(
                 program,
                 machine,
                 machine_symbols.state(state_name),
                 assignment.value,
                 value_env,
+                assignment_target_primitive,
                 &format!("machine `{}` state `{state_name}` assignment", machine.name),
                 diagnostics,
             );
@@ -221,6 +229,7 @@ fn validate_state_statement_node(
                 Some(state),
                 *expression,
                 value_env,
+                program.primitive_type_reference(state.return_type),
                 &format!(
                     "machine `{}` state `{state_name}` terminal expression",
                     machine.name
@@ -247,6 +256,7 @@ fn validate_state_statement_node(
                 machine_symbols.state(state_name),
                 local_data.initial_value,
                 value_env,
+                program.primitive_type_reference(local_data.type_reference),
                 &format!(
                     "machine `{}` state `{state_name}` local `{}`",
                     machine.name,

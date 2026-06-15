@@ -1,0 +1,21 @@
+// FAIL CANARY. Frozen decision 17, stage S4 (literal-target folding): a
+// bare-literal exact computation is range-checked against its DESTINATION type.
+// `200 + 100` = 300 does not fit `u8`, so `let c: u8 = 200 + 100` is rejected as
+// an exact-arithmetic overflow (it would otherwise silently wrap to 44). Opt into
+// a domain (`u8 in Wrapping`/`Saturating`) or widen for a defined result.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let c: u8 = 200 + 100;   // 300 overflows u8 -> rejected
+    transition c == 44 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
