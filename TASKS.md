@@ -1127,11 +1127,12 @@ Implementation slices below build against these. Minor/easily-reversible details
       nested_i32_mul_overflow is now a FAIL canary. The corpus (5 differential
       samples + ~37 canaries + 1 flow-test fixture) was migrated to `Wrapping`
       (behaviour-identical). Full workspace green.
-    - S4: PARTIAL (2026-06-15). Flow-sensitive value tracking (a per-state-body
-      interval environment) discharges const-init + read-modify-write arithmetic,
-      cutting the S3 blast radius 44->30 pass canaries. STILL TODO: range-constraint
-      narrowing (`x: i32 [0..100]`), loop/`decreases` bounds, and contract `requires`
-      facts -- so cross-state / param / call-result operands need not be domained.
+    - S4: PARTIAL (2026-06-15). DONE: flow-sensitive value tracking (per-state-body
+      interval env) discharges const-init + read-modify-write (blast 44->30); AND
+      range-constraint narrowing -- `x: i32 [range<0,100>]` proves `x+y` exact (no
+      domain). STILL TODO: loop/`decreases` bounds + contract `requires` facts (so
+      param / call-result / cross-state operands can stay exact); literal-target
+      fold; range-respecting assignment check.
 
 ## Next Up (highest leverage)
 

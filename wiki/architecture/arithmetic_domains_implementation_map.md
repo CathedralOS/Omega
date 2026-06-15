@@ -109,21 +109,28 @@ Acceptance met: `nested_i32_mul_overflow_divergence` (pending) → FAIL canary
 
 ## S4: range-inference ergonomics — PARTIAL (2026-06-15)
 
-DONE: flow-sensitive value tracking — a per-state-body `ValueEnv` (place ->
-proven interval along the straight-line prefix; updated on LocalData/Assignment,
-dropped on a call) discharges const-init + read-modify-write arithmetic
-(`self.v = 10; self.v += 5`). Cut the S3 blast radius 44 -> 30 pass canaries.
+DONE:
+- **Flow-sensitive value tracking** — a per-state-body `ValueEnv` (place ->
+  proven interval along the straight-line prefix; updated on LocalData/Assignment,
+  dropped on a call) discharges const-init + read-modify-write arithmetic
+  (`self.v = 10; self.v += 5`). Cut the S3 blast radius 44 -> 30 pass canaries.
+- **Range-constraint narrowing** — `range_constraint_interval` reads a
+  `[range<min, max>]` type constraint (literal bounds) and uses [min, max] as the
+  operand interval. So `x: i32 [range<0, 100>]` proves `x + y` in [0, 200] -> exact,
+  no domain. Place-arm precedence: flow value > range constraint > type bounds.
+  Canary expressions/arithmetic_domain_range_proven_exact_exit.
 
-STILL TODO (the remaining 30 had to be domained instead of proven):
-- **Range-constraint narrowing**: read a `Range { min, max }` constraint on a
-  type so `x: i32 [0..100]` narrows the interval (currently only primitive bounds).
+STILL TODO:
 - **Loop / `decreases` bounds** and **contract `requires` facts**: so a param or
-  cross-state value with a declared bound need not be tagged `Wrapping`.
-- **Literal-target folding**: `let c: u8 = 200 + 100` (operands are bare literals,
-  no primitive) is not currently range-checked — the target type isn't propagated
-  to the operands.
-These would let the cross-state / param / call-result operands (the 30) stay
-exact instead of `Wrapping`.
+  cross-state value with a declared bound need not be tagged `Wrapping` (the 30
+  migrated operands -- params/call-results/cross-state -- are mostly these; they
+  could be range-constrained instead, but that is its own annotation).
+- **Literal-target folding**: `let c: u8 = 200 + 100` (bare-literal operands, no
+  primitive) is not range-checked -- the target type isn't propagated to operands.
+- **Range-respecting assignment check**: assigning out-of-`[range<>]` is not yet
+  rejected (so a narrowed interval trusts the declared range without proving
+  writes honour it -- fine for overflow soundness as an over-approximation, but a
+  separate obligation).
 
 ## PROGRESS
 
