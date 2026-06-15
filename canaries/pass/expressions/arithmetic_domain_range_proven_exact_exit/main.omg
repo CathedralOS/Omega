@@ -1,0 +1,30 @@
+// RUN CANARY (exit 70). Frozen decision 17, stage S4: range-constraint narrowing.
+//
+// `x` and `y` each declare the range constraint `[range<0, 100>]`, so the prover
+// knows each is in [0, 100]. Their sum is therefore in [0, 200], which fits i32 --
+// so `self.x + self.y` is proven NON-overflowing and stays EXACT (no `Wrapping`
+// domain, no `as` widening needed). This is the ergonomic payoff of exact-by-
+// default: declare the bound, keep clean arithmetic. Without S4 narrowing the
+// operands would be the full i32 range and the add would be rejected.
+//
+// 40 + 30 = 70, exit 70.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    x: i32 [range<0, 100>];
+    y: i32 [range<0, 100>];
+}
+
+machine Main::main(&mut self) {
+    self.x = 40;
+    self.y = 30;
+    let z: i32 = self.x + self.y;   // proven in [0, 200] -> exact, no overflow
+    transition z == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

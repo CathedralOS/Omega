@@ -23,7 +23,9 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
-use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 use crate::places::declared_place_type_raw;
 
@@ -359,8 +361,12 @@ fn analyze(
                 let type_range = primitive
                     .and_then(primitive_range)
                     .unwrap_or(Interval::UNBOUNDED);
+                // Narrowest sound interval: a value PROVEN on this path (flow env)
+                // wins; else a declared `[min..max]` range constraint (S4); else
+                // the full type width.
                 let interval = place_path(program, expression)
                     .and_then(|path| env.get(&path))
+                    .or_else(|| range_constraint_interval(program, handle))
                     .unwrap_or(type_range);
                 // Atomic integer types (AtomicU32, ...) have hardware wrap-around
                 // semantics, so their arithmetic is Wrapping, not Exact -- a
@@ -378,6 +384,39 @@ fn analyze(
             }
             None => NEUTRAL,
         },
+    }
+}
+
+/// S4: the value range a type declares via a `Range` constraint (`x: i32 [0..N]`),
+/// so a bounded value's exact arithmetic can be proven in-range instead of using
+/// the full type width. Inclusive bounds (a sound over-approximation either way).
+/// `None` when the type has no literal range constraint. Looks through reference
+/// shells.
+fn range_constraint_interval(program: &TypedTrees, handle: TypeReferenceHandle) -> Option<Interval> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => range_constraint_interval(program, *referee),
+        TypeReferenceNode::Constrained { constraints, .. } => program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .find_map(|constraint| match constraint {
+                TypeConstraintNode::Range { minimum, maximum } => Some(Interval {
+                    low: Some(literal_i64(program, *minimum)?),
+                    high: Some(literal_i64(program, *maximum)?),
+                }),
+                _ => None,
+            }),
+        _ => None,
+    }
+}
+
+/// A type-constraint range bound as an i64, when it is a literal integer (the
+/// common case, `[0..100]`). Non-literal bounds are not narrowed (the caller
+/// falls back to the full type range -- sound).
+fn literal_i64(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => Some(*value),
+        _ => None,
     }
 }
 
