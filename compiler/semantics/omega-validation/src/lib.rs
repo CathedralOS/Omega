@@ -81,7 +81,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         validate_machine_contract_entailment(program, machine, &mut diagnostics);
         validate_machine_trait_conformances(program, machine, &mut diagnostics);
 
-        for state in program.machine_states(machine) {
+        for (state_index, state) in program.machine_states(machine).iter().enumerate() {
             validate_local_data_names(
                 program.statement_table.statements(state.statement_nodes),
                 &machine_symbols,
@@ -99,9 +99,15 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             // S4: a per-state-body value environment tracks each place's proven
             // interval along the straight-line prefix, so the exact-overflow proof
             // can use actual values (`self.v = 10; self.v += 5`) instead of the
-            // full type range. Statements are validated in order so the env is
-            // current at each use.
-            let mut value_env = arithmetic_domains::ValueEnv::new();
+            // full type range. The ENTRY state (first) is pre-seeded with the
+            // machine's `requires` bounds on its parameters (`requires amount <=
+            // 100`), so bounded param arithmetic stays exact. Statements are
+            // validated in order so the env is current at each use.
+            let mut value_env = if state_index == 0 {
+                arithmetic_domains::requires_value_env(program, machine)
+            } else {
+                arithmetic_domains::ValueEnv::new()
+            };
             for statement in program.statement_table.statements(state.statement_nodes) {
                 validate_state_statement_node(
                     program,

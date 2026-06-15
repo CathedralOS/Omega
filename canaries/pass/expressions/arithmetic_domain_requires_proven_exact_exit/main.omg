@@ -1,0 +1,32 @@
+// RUN CANARY (exit 70). Frozen decision 17, stage S4: contract `requires`
+// narrowing. `compute`'s parameter `amount` is bounded by its `requires` clause
+// to [0, 100], so `amount + amount` is proven in [0, 200] -- it fits i32 and
+// stays EXACT (no `Wrapping`, no widening). Without requires-narrowing `amount`
+// would be the full i32 range and the add would be rejected as a possible
+// overflow. `compute(35)` -> 70.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+}
+
+machine Main::compute(&mut self, amount: i32) -> i32
+requires
+    amount >= 0
+requires
+    amount <= 100
+{
+    let doubled: i32 = amount + amount;   // proven in [0, 200] -> exact
+    transition { _ -> (doubled) }
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = self.compute(35);   // 35 in [0,100]; 35 + 35 = 70
+    transition result == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
