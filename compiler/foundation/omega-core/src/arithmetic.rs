@@ -48,4 +48,18 @@ impl ArithmeticDomain {
             Self::Trapping => "Trapping",
         }
     }
+
+    /// Combine two operand domains into the binary operation's domain (decision
+    /// 17 is OPERAND-driven: the domain lives on each value's type, not on the
+    /// assignment target). `Exact` is NEUTRAL -- a literal or exact value adopts
+    /// the other operand's domain (`count + 1` where `count` is Saturating is
+    /// Saturating). A genuine conflict (two DIFFERENT non-exact domains) is a
+    /// type error rejected upstream by the semantics; this picks the left operand
+    /// as a deterministic fallback so backend codegen stays total.
+    pub fn combine(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Exact, domain) | (domain, Self::Exact) => domain,
+            (left, _) => left,
+        }
+    }
 }

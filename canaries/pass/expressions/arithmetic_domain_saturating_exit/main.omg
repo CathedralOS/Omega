@@ -12,14 +12,16 @@ boundary trait Console { machine exit_process(return_code: i32); }
 
 data Main {
     console: Console;
-    a: u8;
-    b: u8;
+    a: u8 in Saturating;
+    b: u8 in Saturating;
 }
 
 machine Main::main(&mut self) {
     self.a = 200;
     self.b = 100;
-    let c: u8 in Saturating = self.a + self.b;   // 300 saturates to 255 (u8)
+    // Decision 17 is operand-driven: the Saturating domain lives on a/b's types,
+    // so `self.a + self.b` saturates. 300 clamps to the u8 max 255.
+    let c: u8 in Saturating = self.a + self.b;
     transition c == 255 {
         true -> good()
         _ -> bad()

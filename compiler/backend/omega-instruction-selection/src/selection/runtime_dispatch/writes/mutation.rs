@@ -1701,16 +1701,30 @@ fn select_runtime_binary_mutation_write(
         Some(PrimitiveType::F64 | PrimitiveType::F32)
     );
 
-    // Decision 17: arithmetic domain + signedness of the write target drive the
-    // ISA overflow handling (Exact/Wrapping wrap; Saturating clamps; Trapping aborts).
+    // Decision 17 (operand-driven): the arithmetic domain comes from the operands'
+    // types (Exact neutral); signedness from whichever operand is an integer place.
     let domain = resolve_runtime_storage_arithmetic_domain(
         input,
         dispatch_index,
-        target_source_key,
-        resolved_target,
-    );
+        value_source_key,
+        left_expression,
+    )
+    .combine(resolve_runtime_storage_arithmetic_domain(
+        input,
+        dispatch_index,
+        value_source_key,
+        right_expression,
+    ));
     let target_signed =
-        resolve_runtime_storage_is_signed(input, dispatch_index, target_source_key, resolved_target)
+        resolve_runtime_storage_is_signed(input, dispatch_index, value_source_key, left_expression)
+            .or_else(|| {
+                resolve_runtime_storage_is_signed(
+                    input,
+                    dispatch_index,
+                    value_source_key,
+                    right_expression,
+                )
+            })
             .unwrap_or(false);
 
     Some(SelectedInstructionKind::WriteRuntimeStorageBinary {

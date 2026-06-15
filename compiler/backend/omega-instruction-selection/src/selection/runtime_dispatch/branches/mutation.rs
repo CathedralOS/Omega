@@ -1091,14 +1091,22 @@ fn select_runtime_binary_mutation_write_in_table(
         ),
         Some(PrimitiveType::F64 | PrimitiveType::F32)
     );
-    // Decision 17: arithmetic domain + signedness of the write target.
+    // Decision 17 (operand-driven): domain from the operands' types (Exact
+    // neutral); signedness from the target (== result type's width/signedness).
     let domain = resolve_runtime_storage_arithmetic_domain_in_table(
         input,
         dispatch_index,
-        target_source_key,
+        value_source_key,
         expressions,
-        target,
-    );
+        left_expression,
+    )
+    .combine(resolve_runtime_storage_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        right_expression,
+    ));
     let target_signed = resolve_runtime_storage_is_signed_in_table(
         input,
         dispatch_index,
