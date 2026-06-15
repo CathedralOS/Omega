@@ -10226,6 +10226,49 @@ fn value_call_sequential_result_slots_exit_canary_runs() {
 }
 
 #[test]
+fn value_call_sequential_self_capture_exit_canary_runs() {
+    // Regression coverage for sequential value-position calls whose terminal
+    // value is a SELF-CAPTURED local (`let s = self.seed; transition { _ -> s }`)
+    // -- a bare-local return, not arithmetic. This is the self-capture variant
+    // of the leaf-expansion stale-read family; it is already handled by the
+    // callee-body LocalStorage deferral landed for
+    // value_call_sequential_result_slots_exit (the captured-field READ is a
+    // LocalStorage op the deferral waits on). Pinned so the bare self-capture
+    // shape cannot silently regress. exit 70 = a1 = cap() = self.seed = 9,
+    // a2 = add(40) = 49, self.v = a1 + 61 = 70.
+    let canary = pass_canary("calls/value_call_sequential_self_capture_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-value-call-sequential-self-capture-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sequential self-capture canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sequential self-capture canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a1 = cap() = self.seed = 9, a2 = add(40) = 49, self.v = a1 + 61 = 70; \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_f64_state_arg_exit_canary_runs() {
     // Verifies that f64 values forwarded through a transition arm state
     // argument (`transition { _ -> store_flt(x) }`) arrive with the correct
@@ -10763,6 +10806,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_transition_unsigned_guard_exit",
     "calls/runtime_exit_code_exit",
     "calls/value_call_sequential_result_slots_exit",
+    "calls/value_call_sequential_self_capture_exit",
     "operators/integer_literal_suffix_exit",
     "operators/runtime_shift_operators_exit",
     "calls/free_standing_machine_helper_compile",

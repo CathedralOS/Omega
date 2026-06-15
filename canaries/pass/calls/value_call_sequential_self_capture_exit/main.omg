@@ -1,0 +1,42 @@
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    seed: i32 in Wrapping;
+    v: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.seed = 9;
+    let a1: i32 in Wrapping = self.cap();
+    let a2: i32 in Wrapping = self.add(40);
+    self.v = a1 + 61;
+
+    transition self.v == 70 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+// cap returns a self-captured local (terminal value = a local holding self.seed).
+machine Main::cap(&mut self) -> i32 {
+    let s: i32 in Wrapping = self.seed;
+    transition {
+        _ -> s
+    }
+}
+
+machine Main::add(&mut self, w: i32 in Wrapping) -> i32 {
+    let s: i32 in Wrapping = self.seed;
+    transition {
+        _ -> (s + w)
+    }
+}
