@@ -280,20 +280,30 @@ Proof-level numbers are useful for specifications, constraints, and generic
 numeric reasoning. Lowering to native code must erase proof-only numbers or
 replace them with proven machine representations.
 
-Machine integers also need an explicit arithmetic policy somewhere in the
-language model.
+Machine integer arithmetic is **exact by default**: every operation must be
+PROVEN free of overflow, underflow, division by zero, and invalid shifts. If
+the compiler cannot prove an operation safe, it is a **compile error** — there
+is no unexpected arithmetic and no silent wraparound. (Decided 2026-06-14; this
+is the Ada/SPARK model — range types plus a prover — not a build-mode flag.)
 
-Possible policies:
+To perform arithmetic that *can* overflow, the value lives in an explicit
+primitive **domain** that defines the behavior:
 
-- `exact`: prove overflow, underflow, division by zero, invalid shifts, and
-  similar hazards cannot happen.
-- `wrapping`: arithmetic wraps according to the fixed-width representation.
-- `trap`: runtime trap on arithmetic failure.
-- `saturating`: arithmetic clamps to the representable minimum or maximum.
-- `checked`: operations that can fail must surface failure explicitly.
+- `Wrapping`: wraps modulo the fixed-width representation.
+- `Saturating`: clamps to the representable minimum or maximum.
+- `Trapping`: checks at runtime and traps on overflow — the escape hatch when
+  safety cannot be proven and neither wrap nor saturate is wanted.
 
-The likely default is exact/proven arithmetic. Weaker behavior should be
-explicit because it changes both proof obligations and runtime behavior.
+Two rules keep it honest:
+
+- **No implicit widening.** `u8 + u8` is a `u8` and must be proven to fit a
+  `u8`; to compute in a wider type, cast explicitly (`a as u16 + b as u16`).
+- **No mixed-domain arithmetic.** An exact value and a `Wrapping` value cannot
+  be combined directly; cross domains with an explicit `as` cast. Explicit
+  always wins.
+
+Weaker behavior is therefore always visible at the value, and overflow is a
+proof obligation like any other in the language.
 
 ## Float Facts
 
