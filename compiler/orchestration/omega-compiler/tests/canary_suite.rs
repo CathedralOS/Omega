@@ -10619,6 +10619,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "expressions/arithmetic_domain_mixed",
     "collections/fixed_vec_push_without_room",
     "collections/fixed_vec_get_past_length",
     "wire/duplicate_field_number",

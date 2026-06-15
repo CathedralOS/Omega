@@ -79,6 +79,19 @@ pub(crate) fn declared_place_type(
     current_state: Option<&omega_typed_trees::state::State>,
     argument: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
+    let raw = declared_place_type_raw(program, current_machine, current_state, argument)?;
+    unwrapped_type_reference(program, raw)
+}
+
+/// Like [`declared_place_type`] but returns the place's type reference WITHOUT
+/// unwrapping the `Constrained`/`Reference` shells -- callers that need the
+/// arithmetic domain (decision 17) read it from this raw handle.
+pub(crate) fn declared_place_type_raw(
+    program: &TypedTrees,
+    current_machine: &omega_typed_trees::machine::Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    argument: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
     let mut handle = argument;
     if let ExpressionNode::Mutable(inner) = program.expression_table.expression(handle) {
         handle = *inner;
@@ -116,12 +129,15 @@ pub(crate) fn declared_place_type(
                     if let omega_typed_trees::statement::StatementNode::LocalData(local) = statement
                         && local.name.as_str() == name
                     {
-                        return unwrapped_type_reference(program, local.type_reference);
+                        return local.type_reference.is_valid().then_some(local.type_reference);
                     }
                 }
                 for parameter in program.state_parameters(state) {
                     if parameter.name.as_str() == name {
-                        return unwrapped_type_reference(program, parameter.type_reference);
+                        return parameter
+                            .type_reference
+                            .is_valid()
+                            .then_some(parameter.type_reference);
                     }
                 }
             }
@@ -144,7 +160,10 @@ pub(crate) fn declared_place_type(
                     }
                     _ => None,
                 })?;
-            unwrapped_type_reference(program, field.type_reference)
+            field
+                .type_reference
+                .is_valid()
+                .then_some(field.type_reference)
         }
         _ => None,
     }
