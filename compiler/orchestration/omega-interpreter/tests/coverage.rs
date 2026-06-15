@@ -378,9 +378,9 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let a: i32 = self.dispatch(&mut self.c);
-    let b: i32 = self.dispatch(&mut self.q);
-    let n: i32 = a * 10 + b;
+    let a: i32 in Wrapping = self.dispatch(&mut self.c);
+    let b: i32 in Wrapping = self.dispatch(&mut self.q);
+    let n: i32 in Wrapping = a * 10 + b;
     self.console.exit_process(n);
 }
 
@@ -447,9 +447,9 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let a: i32 = self.dispatch(&mut self.q);
-    let b: i32 = self.dispatch(&mut self.c);
-    let n: i32 = a * 10 + b;
+    let a: i32 in Wrapping = self.dispatch(&mut self.q);
+    let b: i32 in Wrapping = self.dispatch(&mut self.c);
+    let n: i32 in Wrapping = a * 10 + b;
     self.console.exit_process(n);
 }
 
