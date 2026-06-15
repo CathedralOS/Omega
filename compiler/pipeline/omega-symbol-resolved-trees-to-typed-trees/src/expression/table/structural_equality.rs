@@ -559,6 +559,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     receiver: place,
                     member_symbol: field.symbol,
                     member: lower_name(&field.name),
+                    case_variant: None,
                 },
             ))
     }

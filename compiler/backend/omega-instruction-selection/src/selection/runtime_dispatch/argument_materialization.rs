@@ -1319,6 +1319,7 @@ fn resolve_prior_local_initializers_in_table(
                         receiver,
                         member_symbol: member.member_symbol,
                         member: member.member,
+                        case_variant: member.case_variant,
                     },
                 ))
             }

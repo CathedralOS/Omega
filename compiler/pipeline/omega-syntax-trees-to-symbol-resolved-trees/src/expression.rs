@@ -157,6 +157,7 @@ fn lower_expression_node_into_table(
                     receiver,
                     member_symbol: SymbolHandle::invalid(),
                     member: lower_name(&member.member),
+                    case_variant: member.case_variant.as_ref().map(lower_name),
                 })),
             )
         }

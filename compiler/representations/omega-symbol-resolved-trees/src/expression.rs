@@ -238,6 +238,7 @@ impl ExpressionTable {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),
+                    case_variant: member.case_variant.clone(),
                 }))
             }
             ExpressionNode::Mutable(inner_expression) => {
@@ -611,6 +612,7 @@ impl ExpressionTable {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member,
+                    case_variant: member.case_variant,
                 }))
             }
             ExpressionNode::Mutable(inner_expression) => {
@@ -908,6 +910,10 @@ pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member_symbol: SymbolHandle,
     pub member: DiagnosticName,
+    /// The case variant a destructure-bound payload field came from, so symbol
+    /// resolution binds `member_symbol` to THAT variant's field rather than a
+    /// same-named field in another variant. `None` for ordinary field access.
+    pub case_variant: Option<DiagnosticName>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

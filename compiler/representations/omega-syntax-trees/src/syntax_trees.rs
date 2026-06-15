@@ -966,6 +966,7 @@ impl SyntaxTrees {
             ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
                 receiver: self.copy_expression_handle(other, member.receiver),
                 member: member.member.clone(),
+                case_variant: member.case_variant.clone(),
             }),
             ExpressionNode::Mutable(expression) => {
                 ExpressionNode::Mutable(self.copy_expression_handle(other, *expression))

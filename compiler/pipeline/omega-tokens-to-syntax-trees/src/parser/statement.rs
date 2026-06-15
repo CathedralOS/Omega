@@ -337,6 +337,7 @@ fn copy_compound_assignment_target(
             ExpressionNode::Member(TableMemberExpression {
                 receiver,
                 member: member.member,
+                case_variant: member.case_variant.clone(),
             })
         }
         ExpressionNode::Indexed(indexed) => {
@@ -369,6 +370,7 @@ fn copy_stable_compound_assignment_index(
             ExpressionNode::Member(TableMemberExpression {
                 receiver,
                 member: member.member,
+                case_variant: member.case_variant.clone(),
             })
         }
         _ => return None,
@@ -667,6 +669,7 @@ fn copy_expression_as_place(
             ExpressionNode::Member(TableMemberExpression {
                 receiver: recv,
                 member: m.member,
+                case_variant: m.case_variant.clone(),
             })
         }
         ExpressionNode::Name(path) => {

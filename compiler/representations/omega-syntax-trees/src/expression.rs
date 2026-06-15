@@ -184,6 +184,12 @@ pub struct TableMembershipExpression {
 pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member: Identifier,
+    /// `Some(variant)` when this access reads a CASE-PAYLOAD field bound by a
+    /// destructure pattern (`Tx::Transfer { amount }` rewrites the arm's `amount`
+    /// to `subject.amount`), naming the variant so the field resolves to THAT
+    /// variant's field even when another variant has a same-named field at a
+    /// different offset. `None` for ordinary field access.
+    pub case_variant: Option<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

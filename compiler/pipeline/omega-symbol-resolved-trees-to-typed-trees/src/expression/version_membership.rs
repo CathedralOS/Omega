@@ -137,6 +137,7 @@ pub(super) fn lower_version_membership_expression(
             receiver: value,
             member_symbol: container_era_field_symbol(program, &container_name),
             member: typed::name::Identifier::generated(versioning::VERSIONED_ERA_FIELD),
+            case_variant: None,
         },
     ));
     let era_literal = target.insert(typed::expression::ExpressionNode::Integer(era));

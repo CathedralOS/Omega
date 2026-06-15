@@ -301,6 +301,7 @@ impl ExpressionTable {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),
+                    case_variant: member.case_variant.clone(),
                 }))
             }
             ExpressionNode::Mutable(inner_expression) => {
@@ -994,6 +995,7 @@ impl ExpressionTable {
                 receiver: expression,
                 member_symbol,
                 member,
+                case_variant: None,
             }));
         }
         expression
@@ -1054,6 +1056,7 @@ impl ExpressionTable {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member,
+                    case_variant: member.case_variant,
                 }))
             }
             ExpressionNode::Mutable(inner_expression) => {
@@ -1226,6 +1229,7 @@ impl ExpressionTable {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),
+                    case_variant: member.case_variant.clone(),
                 }))
             }
             Expression::Mutable(inner_expression) => {
@@ -1322,6 +1326,7 @@ impl ExpressionTable {
                 receiver: self.to_tree(member.receiver),
                 member_symbol: member.member_symbol,
                 member: member.member.clone(),
+                case_variant: member.case_variant.clone(),
             })),
             ExpressionNode::Mutable(inner_expression) => {
                 Expression::Mutable(Box::new(self.to_tree(*inner_expression)))
@@ -1393,6 +1398,7 @@ impl ExpressionTable {
                                 receiver,
                                 member_symbol: SymbolHandle::invalid(),
                                 member,
+                                case_variant: None,
                             }))
                         })
                 }
@@ -1533,6 +1539,9 @@ pub struct MemberExpression {
     pub receiver: Expression,
     pub member_symbol: SymbolHandle,
     pub member: Identifier,
+    /// Case variant a destructure-bound payload field came from, so the backend
+    /// offset resolver picks THAT variant's field (decision 17 / case payloads).
+    pub case_variant: Option<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1540,6 +1549,9 @@ pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member_symbol: SymbolHandle,
     pub member: Identifier,
+    /// Case variant a destructure-bound payload field came from, so the backend
+    /// offset resolver picks THAT variant's field (decision 17 / case payloads).
+    pub case_variant: Option<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

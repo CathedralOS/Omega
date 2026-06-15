@@ -172,6 +172,7 @@ fn simplify_expression_with_bindings(
             ),
             member_symbol: member.member_symbol,
             member: member.member.clone(),
+            case_variant: member.case_variant.clone(),
         })),
         Expression::Mutable(inner) => {
             Expression::Mutable(Box::new(simplify_expression_with_bindings(

@@ -2843,6 +2843,37 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
 }
 
 #[test]
+fn case_payload_shared_field_name_exit_canary_runs() {
+    // Regression: destructuring `Tx::Transfer { to, amount }` must read Transfer's
+    // `amount` (40), not a same-named field in an earlier variant (would read to=3).
+    let canary = pass_canary("control_flow/case_payload_shared_field_name_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-case-payload-collision-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("case_payload_shared_field_name canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("case_payload_shared_field_name canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected destructured Transfer.amount==40 to exit 70 (93 = read `to`=3), got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn arithmetic_domain_saturating_mul_exit_canary_runs() {
     // Decision 17: `u8 in Saturating` multiply clamps 100*100=10000 to 255 (a
     // 64-bit imul gives the exact product, then range-compare + cmov to the max).
@@ -10452,6 +10483,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/composite_field_guard_dispatch",
     "control_flow/composite_range_guard_dispatch",
     "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
+    "control_flow/case_payload_shared_field_name_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",

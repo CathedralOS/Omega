@@ -242,6 +242,7 @@ fn resolve_host_call_alias_expression_handle(
                         receiver: resolved_receiver,
                         member_symbol: member.member_symbol,
                         member: member.member,
+                        case_variant: member.case_variant,
                     },
                 )),
             )

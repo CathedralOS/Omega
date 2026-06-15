@@ -414,6 +414,7 @@ fn collect_field_appends(
                 receiver,
                 member_symbol: SymbolHandle::invalid(),
                 member: field.name.clone(),
+                case_variant: None,
             },
         ));
 
@@ -443,6 +444,7 @@ fn collect_field_appends(
                     receiver,
                     member_symbol: SymbolHandle::invalid(),
                     member: count_name.as_str().into(),
+                    case_variant: None,
                 },
             ));
             let count = resolve_runtime_storage_place_in_table(

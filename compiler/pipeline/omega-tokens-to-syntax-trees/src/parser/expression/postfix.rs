@@ -142,6 +142,7 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                     .insert(ExpressionNode::Member(TableMemberExpression {
                         receiver: expression,
                         member,
+                        case_variant: None,
                     }));
             continue;
         }

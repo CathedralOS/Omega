@@ -64,13 +64,16 @@ pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
     let (machine_base_offset, root_field, suffix_start_index) =
         root_machine_field_layout_from_table_path(layouts, entry_machine, source_machine, &path)?;
     let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
-    for (field_name, field_symbol, field_index) in path.suffix(suffix_start_index).iter() {
+    for (field_name, field_symbol, field_index, case_variant) in
+        path.suffix(suffix_start_index).iter()
+    {
         cursor = resolve_nested_field_layout_step(
             layouts,
             cursor,
             field_name,
             field_symbol,
             field_index,
+            case_variant,
         )?;
     }
 
