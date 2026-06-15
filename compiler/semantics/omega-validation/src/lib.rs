@@ -1,3 +1,4 @@
+mod arithmetic_domains;
 mod calls;
 mod contract_entailment;
 mod data;
@@ -142,14 +143,24 @@ fn validate_state_statement_node(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
-        StatementNode::Assignment(assignment) => validate_assignment_target_handle(
-            program,
-            assignment.target,
-            writable_roots,
-            diagnostics,
-            machine.name.as_str(),
-            state_name,
-        ),
+        StatementNode::Assignment(assignment) => {
+            validate_assignment_target_handle(
+                program,
+                assignment.target,
+                writable_roots,
+                diagnostics,
+                machine.name.as_str(),
+                state_name,
+            );
+            arithmetic_domains::validate_arithmetic_domains(
+                program,
+                machine,
+                machine_symbols.state(state_name),
+                assignment.value,
+                &format!("machine `{}` state `{state_name}` assignment", machine.name),
+                diagnostics,
+            );
+        }
         StatementNode::Call(call) => validate_call_node(
             program,
             call,
@@ -183,19 +194,44 @@ fn validate_state_statement_node(
                     state: state_name,
                 },
             );
+            arithmetic_domains::validate_arithmetic_domains(
+                program,
+                machine,
+                Some(state),
+                *expression,
+                &format!(
+                    "machine `{}` state `{state_name}` terminal expression",
+                    machine.name
+                ),
+                diagnostics,
+            );
         }
-        StatementNode::LocalData(local_data) => validate_type_reference_handle(
-            program,
-            local_data.type_reference,
-            symbols,
-            diagnostics,
-            TypeReferenceOwner::StateLocalData {
-                machine: machine.name.as_str(),
-                state: state_name,
-                local: local_data.name.as_str(),
-                generic_depth: 0,
-            },
-        ),
+        StatementNode::LocalData(local_data) => {
+            validate_type_reference_handle(
+                program,
+                local_data.type_reference,
+                symbols,
+                diagnostics,
+                TypeReferenceOwner::StateLocalData {
+                    machine: machine.name.as_str(),
+                    state: state_name,
+                    local: local_data.name.as_str(),
+                    generic_depth: 0,
+                },
+            );
+            arithmetic_domains::validate_arithmetic_domains(
+                program,
+                machine,
+                machine_symbols.state(state_name),
+                local_data.initial_value,
+                &format!(
+                    "machine `{}` state `{state_name}` local `{}`",
+                    machine.name,
+                    local_data.name.as_str()
+                ),
+                diagnostics,
+            );
+        }
         StatementNode::Transition(transition) => {
             validate_transition_target_node(
                 program,
