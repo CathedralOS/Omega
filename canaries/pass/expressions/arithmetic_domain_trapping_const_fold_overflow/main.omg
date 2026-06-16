@@ -1,0 +1,32 @@
+// Decision 17 / task #39: a Trapping op whose operands are compile-time constants
+// must still TRAP on overflow (frozen decision: Trapping overflow aborts at
+// runtime via the native trap; it compiles cleanly). The operands fold to a bare
+// constant before the domained binary write, so the const-store path re-emits a
+// guaranteed-overflowing trapping op (max+1 at the target width) whose encoder
+// trap (x86 ud2 / aarch64 brk) fires.
+//
+// 100 * 100 = 10000 overflows u8, so the program traps at the store and never
+// reaches the transition -- it terminates abnormally (asserted by the native-only
+// test arithmetic_domain_trapping_const_fold_overflow_aborts; named without
+// `_canary_runs` so the differential drift guard skips it). Before the fix this
+// silently wrapped to 16 and exited 70.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    v: u8 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    let a: u8 in Trapping = 100;
+    let b: u8 in Trapping = 100;
+    self.v = a * b;   // 10000 overflows u8 -> trap before the transition
+
+    transition self.v == 16 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

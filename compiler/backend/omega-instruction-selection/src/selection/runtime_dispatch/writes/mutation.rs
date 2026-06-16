@@ -9,7 +9,7 @@ use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::lookups::state_parameters;
 use omega_abstract_operations::{
-    RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
+    RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator,
 };
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
@@ -1484,6 +1484,33 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
+    // Decision 17 (task #39): a constant stored into a Trapping target whose value
+    // is out of the target type's range is a guaranteed overflow -- it MUST trap at
+    // runtime (frozen decision: Trapping overflow traps at runtime and compiles
+    // cleanly, matching the field-operand path; it is NOT a compile error). The
+    // value was const-folded, losing the operands, so re-emit a guaranteed-
+    // overflowing trapping op (`max + 1` / `min - 1` at the target width) and let
+    // the binary-write encoder's existing trap (x86 ud2 / aarch64 brk) fire. No
+    // standalone trap instruction exists; this reuses WriteRuntimeStorageBinary.
+    if let Some(kind) = trapping_constant_overflow_write(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+        &target_place,
+        value,
+        runtime_value_operands,
+    ) {
+        // The program traps here, so nothing downstream observes the target; no
+        // need to record a static value for it.
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
     set_runtime_static_value(
         static_values,
         strip_mutable_expression(resolved_target.clone()),
@@ -1782,6 +1809,62 @@ fn clamp_constant_to_target_domain(
         return value;
     };
     value.max(low).min(high)
+}
+
+/// Decision 17 (task #39): when a constant stored into a Trapping target is out
+/// of the target type's range, return a guaranteed-overflowing trapping binary
+/// write (`max + 1` for an over-range value, `min - 1` for under-range) so the
+/// binary-write encoder's trap (x86 `ud2` / aarch64 `brk`) fires at runtime --
+/// matching the frozen "Trapping overflow traps at runtime" semantics. The const
+/// fold dropped the real operands, so any op that provably overflows the target
+/// width reproduces the trap. `None` when the target is not Trapping, not a known
+/// integer primitive, or the value is in range (then a normal store is correct).
+fn trapping_constant_overflow_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    resolved_target: &Expression,
+    target_place: &super::super::super::storage_places::RuntimeStoragePlace,
+    value: i64,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    if resolve_runtime_storage_arithmetic_domain(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) != omega_core::arithmetic::ArithmeticDomain::Trapping
+    {
+        return None;
+    }
+    let primitive = resolve_runtime_storage_primitive_type(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    )?;
+    let (min, max) = saturating_integer_bounds(primitive)?;
+    if value >= min && value <= max {
+        return None;
+    }
+    let (bound, operator) = if value > max {
+        (max, StateGuardOperator::Add)
+    } else {
+        (min, StateGuardOperator::Subtract)
+    };
+    let left = runtime_value_operands.insert(RuntimeValueOperand::Immediate(bound));
+    let right = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
+    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
+        target_region: target_place.region,
+        target_offset: target_place.byte_offset,
+        byte_size: target_place.byte_count,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Trapping,
+        target_signed: primitive.is_signed_integer(),
+    })
 }
 
 /// Inclusive [min, max] of an integer primitive as `i64` (u64/usize high end

@@ -3240,6 +3240,48 @@ fn arithmetic_domain_trapping_overflow_aborts() {
 }
 
 #[test]
+fn arithmetic_domain_trapping_const_fold_overflow_aborts() {
+    // Decision 17 / task #39: a Trapping op with CONST operands that overflows
+    // (u8 100*100=10000) must trap, even though the operands fold to a constant.
+    // The const-store path re-emits a guaranteed-overflowing trapping op so the
+    // encoder trap fires -- the process terminates abnormally (never 70/71).
+    // Before the fix it silently wrapped to 16 and exited 70. Named without
+    // `_canary_runs` so the differential drift guard treats it as non-clean-exit.
+    let canary = pass_canary("expressions/arithmetic_domain_trapping_const_fold_overflow");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-arith-domain-trapping-const-of-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("trapping const-fold overflow canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("trapping const-fold overflow canary should run");
+
+    assert_ne!(
+        output.status.code(),
+        Some(70),
+        "expected const u8 Trapping 100*100 to trap (abnormal exit), but it exited 70 as if no \
+         overflow occurred (silently wrapped)\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !output.status.success(),
+        "expected const Trapping overflow to terminate abnormally, but it exited successfully"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn f32_field_binary_to_local_cast_exit_canary_runs() {
     // Scalar-width-rederivation fix: a folded f32 binary (`self.a + self.b`)
     // feeding `as i32` must compute single-precision (`addss`), not the old
