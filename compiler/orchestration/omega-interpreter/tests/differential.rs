@@ -282,6 +282,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/arithmetic_domain_saturating_exit", 70),
     ("expressions/arithmetic_domain_saturating_mul_exit", 70),
     ("expressions/arithmetic_domain_saturating_const_fold_exit", 70),
+    ("expressions/arithmetic_domain_return_range_proven_exact_exit", 70),
     ("expressions/arithmetic_domain_saturating_mul_signed_exit", 70),
     ("expressions/arithmetic_domain_trapping_mul_exit", 70),
     ("expressions/arithmetic_domain_trapping_div_exit", 70),

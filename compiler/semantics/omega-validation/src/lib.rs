@@ -48,7 +48,7 @@ use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle}
 pub use effects::validate_effect_plan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::statement::StatementNode;
+use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -229,17 +229,27 @@ fn validate_state_statement_node(
                     state: state_name,
                 },
             );
-            arithmetic_domains::validate_arithmetic_domains(
+            let owner = format!(
+                "machine `{}` state `{state_name}` terminal expression",
+                machine.name
+            );
+            let return_interval = arithmetic_domains::validate_arithmetic_domains(
                 program,
                 machine,
                 Some(state),
                 *expression,
                 value_env,
                 program.primitive_type_reference(state.return_type),
-                &format!(
-                    "machine `{}` state `{state_name}` terminal expression",
-                    machine.name
-                ),
+                &owner,
+                diagnostics,
+            );
+            // S4: enforce a declared return `[range<..>]` so call-site narrowing
+            // that trusts it stays sound (the interval is already computed above).
+            arithmetic_domains::enforce_declared_return_range(
+                program,
+                state.return_type,
+                return_interval,
+                &owner,
                 diagnostics,
             );
         }
@@ -297,6 +307,37 @@ fn validate_state_statement_node(
                     writable_roots,
                     diagnostics,
                 );
+            }
+
+            // S4: a transition VALUE target (`_ -> (expr)`) is a return value. When
+            // the state's return type declares a `[range<..>]`, enforce the value
+            // is provably within it (so call-site narrowing that trusts the range
+            // is sound). Gated on the range constraint inside
+            // `validate_return_value_range`, so plain returns are unaffected.
+            if let Some(state) = machine_symbols.state(state_name)
+                && state.return_type.is_valid()
+            {
+                for target in [transition.target, transition.continuation] {
+                    if !target.is_valid() {
+                        continue;
+                    }
+                    if let TransitionTargetNode::Value(return_expression) =
+                        program.statement_table.transition_target(target)
+                    {
+                        arithmetic_domains::validate_return_value_range(
+                            program,
+                            machine,
+                            state,
+                            *return_expression,
+                            value_env,
+                            &format!(
+                                "machine `{}` state `{state_name}` return value",
+                                machine.name
+                            ),
+                            diagnostics,
+                        );
+                    }
+                }
             }
         }
     }

@@ -21,7 +21,9 @@ use omega_core::arithmetic::ArithmeticDomain;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::domain::ProofFact;
-use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use omega_typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
+};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::signature::SignatureContractKind;
 use omega_typed_trees::state::State;
@@ -499,6 +501,29 @@ fn analyze(
                 primitive,
             }
         }
+        ExpressionNode::Call(call) => {
+            // S4 return-range inference: a machine whose return type declares a
+            // literal range constraint (`-> i32 [range<0, 10>]`) is ENFORCED to
+            // return within that range (validate_return_value_range, below), so a
+            // caller doing exact arithmetic on the result can rely on the narrowed
+            // interval instead of being forced into a domain. Narrow ONLY when the
+            // return type carries a range constraint -- a plain `-> u32` stays
+            // NEUTRAL (opaque/unbounded, as before); attaching a bare type's full
+            // range + primitive to an otherwise-unbounded call result would turn a
+            // previously-unchecked expression into a spurious overflow.
+            match call_return_type(program, machine, call)
+                .and_then(|return_type| {
+                    range_constraint_interval(program, return_type)
+                        .map(|interval| (program.primitive_type_reference(return_type), interval))
+                }) {
+                Some((primitive, interval)) => Analysis {
+                    domain: None,
+                    interval,
+                    primitive,
+                },
+                None => NEUTRAL,
+            }
+        }
         ExpressionNode::Integer(value) => Analysis {
             domain: None,
             interval: Interval::constant(*value),
@@ -561,6 +586,111 @@ fn range_constraint_interval(program: &TypedTrees, handle: TypeReferenceHandle) 
             }),
         _ => None,
     }
+}
+
+/// S4 return-range inference: the DECLARED return type of a value-position call,
+/// when it resolves soundly and UNIQUELY from `program` alone. Conservative --
+/// only `self`/receiver-free calls to a sibling machine (one attached to the same
+/// data as the caller, with a state named after the call target) are resolved;
+/// an external receiver, an ambiguous match, or no match returns `None` (no
+/// narrowing). Soundness rests on uniqueness: bail rather than guess.
+fn call_return_type(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    call: &TableCallExpression,
+) -> Option<TypeReferenceHandle> {
+    let receiver_is_self = !call.receiver.is_valid()
+        || matches!(
+            program.expression_table.expression(call.receiver),
+            ExpressionNode::Name(path)
+                if matches!(
+                    program.expression_table.name_path_members(path.members),
+                    [only] if only.as_str() == "self"
+                )
+        );
+    if !receiver_is_self {
+        return None;
+    }
+    let target = call.target.as_str();
+    let attached_data = current_machine.attached_data.as_ref()?;
+    let mut returns = program
+        .machines()
+        .iter()
+        .filter(|candidate| {
+            candidate
+                .attached_data
+                .as_ref()
+                .is_some_and(|data| data.as_str() == attached_data.as_str())
+        })
+        .filter_map(|candidate| {
+            program
+                .machine_states(candidate)
+                .iter()
+                .find(|state| state.name.as_str() == target)
+        })
+        .filter(|state| state.return_type.is_valid())
+        .map(|state| state.return_type);
+    let first = returns.next()?;
+    // Unique match only -- bail on ambiguity (sound: fall back to unbounded).
+    if returns.next().is_some() {
+        return None;
+    }
+    Some(first)
+}
+
+/// S4 return-range ENFORCEMENT (companion to the call-site narrowing): when a
+/// return type declares a literal `[range<..>]`, the returned value's proven
+/// interval must fit inside it, else callers that trust the declared range are
+/// unsound. No-op when the return type carries no range constraint (so plain
+/// returns are unaffected -- range-constrained return types are a new
+/// capability). `interval` is the return expression's already-analyzed interval.
+pub(crate) fn enforce_declared_return_range(
+    program: &TypedTrees,
+    return_type: TypeReferenceHandle,
+    interval: Interval,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if let Some(range) = range_constraint_interval(program, return_type)
+        && !range.contains(interval)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} returns a value not provably within its declared range: callers rely on the \
+             declared `[range<..>]` for exact arithmetic on the result, so the returned value must \
+             be proven to honor it (decision 17). Constrain the returned value, or widen/remove the \
+             return range constraint."
+        )));
+    }
+}
+
+/// S4: analyze a transition VALUE-return expression and enforce its declared
+/// return range. Gated on the return type carrying a range constraint -- only
+/// then is the (otherwise un-validated) transition-value return analyzed, so
+/// existing plain returns are byte-for-byte unaffected.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_return_value_range(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    return_expression: ExpressionHandle,
+    env: &ValueEnv,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if range_constraint_interval(program, state.return_type).is_none() {
+        return;
+    }
+    let interval = validate_arithmetic_domains(
+        program,
+        machine,
+        Some(state),
+        return_expression,
+        env,
+        program.primitive_type_reference(state.return_type),
+        owner,
+        diagnostics,
+    );
+    enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
 }
 
 /// A type-constraint range bound as an i64, when it is a literal integer (the
