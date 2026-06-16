@@ -201,8 +201,35 @@ This page tracks design pressure that is not fully nailed down yet.
   argumented tuple form `decreases (index, limit) -> Nat::BoundedDistance`
   is the blessed spelling (the arrow's left side is uniformly the ranked
   subjects) and the subtraction form retires once it lands.
+- Concurrency scheduler strategy (decided 2026-06-15): Omega owns the
+  language MODEL (stackless spawned-machine suspend/resume, the
+  `Send`/`Shared` data-race discipline, the memory model, atomics, and the
+  `Scheduler` INTERFACE), NOT a concrete scheduler. Hosted borrows the OS
+  scheduler (1:1 threads); Cathedral provides its own. A scheduler is NOT
+  required for any SAFETY promise (data-race / deadlock / protocol freedom —
+  provable against every scheduler incl. adversarial); LIVENESS (progress /
+  no-starvation) is only ever a theorem CONDITIONAL on fairness (adversarial
+  progress is logically impossible), discharged by trusting the OS or, later,
+  an owned cooperative scheduler. Decisions: structured concurrency;
+  non-multi-copy-atomic targets (POWER) off the list; a restricted static-task
+  sub-language for the Cathedral kernel; `Sync` renamed `Shared` with a
+  gradual-loosen ladder (L0 move-only -> L1 sync-wrapper -> L2 immutable share
+  -> L3 proof-checked disjoint MUTABLE share); enforced real-time deferred. See
+  wiki/design_briefs/concurrency_atomics.md (2026-06-15 review) for the full
+  catalog, corrections, open questions, and build order.
 
 ## Still Open
+
+- Concurrency (see concurrency_atomics.md 2026-06-15 review for detail): can the
+  proof system prove L3 disjoint MUTABLE sharing (region/capability) for
+  lock-free mutable aliasing? How is a PREEMPTED task's full state represented
+  and context-switched, given the stackless await-only model cannot express a
+  mid-instruction suspension (the Cathedral kernel keystone)? What is the
+  deterministic/seeded concurrency-oracle contract? Is the `Scheduler` interface
+  (wake_one vs wake_all, fairness class, timed waits) sufficient for all three
+  backends? Are all transitions suspension points or a marked subset? Safe
+  memory reclamation without GC for lock-free structures? Exact device/volatile
+  memory type distinction?
 
 - Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?
 - How much domain classifier/checker inference should Omega attempt beyond
