@@ -1,0 +1,34 @@
+// RUN CANARY (exit 70). Decision 17 S4 return-range inference: a machine whose
+// return type declares a literal range constraint (`-> i32 [range<0, 10>]`) is
+// ENFORCED to return within that range, so a caller doing exact arithmetic on the
+// result can trust the narrowed interval instead of being forced into a domain.
+//
+// `level()` is proven to return [0,10], so `a + b + 60` is proven <= 80 (fits
+// i32) and stays Exact -- no Wrapping annotation needed. Without the narrowing the
+// call results were unbounded (full i32) and `a + b + 60` was rejected as a
+// possible overflow. The companion ENFORCEMENT (a callee that returns outside its
+// declared range is a compile error) is what makes trusting the range sound.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    v: i32;
+}
+
+machine Main::level(&mut self) -> i32 [range<0, 10>] {
+    transition { _ -> (5) }
+}
+
+machine Main::main(&mut self) {
+    let a: i32 = self.level();
+    let b: i32 = self.level();
+    self.v = a + b + 60;   // exact: a,b proven in [0,10] -> result <= 80, fits i32
+
+    transition self.v == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

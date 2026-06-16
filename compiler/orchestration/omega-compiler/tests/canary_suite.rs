@@ -3240,6 +3240,39 @@ fn arithmetic_domain_trapping_overflow_aborts() {
 }
 
 #[test]
+fn arithmetic_domain_return_range_proven_exact_exit_canary_runs() {
+    // Decision 17 S4: a range-constrained return (`-> i32 [range<0,10>]`) lets a
+    // caller's exact arithmetic on the result stay Exact (5+5+60=70). Enforcement
+    // (callee must return in range) makes trusting the range sound.
+    let canary = pass_canary("expressions/arithmetic_domain_return_range_proven_exact_exit");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-return-range-exact-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("return-range proven-exact canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("return-range proven-exact canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected return-range-narrowed exact arithmetic to exit 70; got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn arithmetic_domain_trapping_const_fold_overflow_aborts() {
     // Decision 17 / task #39: a Trapping op with CONST operands that overflows
     // (u8 100*100=10000) must trap, even though the operands fold to a constant.
@@ -10932,6 +10965,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_saturating_exit",
     "expressions/arithmetic_domain_saturating_mul_exit",
     "expressions/arithmetic_domain_saturating_const_fold_exit",
+    "expressions/arithmetic_domain_return_range_proven_exact_exit",
     "expressions/arithmetic_domain_saturating_mul_signed_exit",
     "expressions/arithmetic_domain_trapping_mul_exit",
     "expressions/arithmetic_domain_trapping_div_exit",
