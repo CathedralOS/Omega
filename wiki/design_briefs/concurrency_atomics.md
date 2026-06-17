@@ -350,6 +350,15 @@ earlier, **this wins.**
   **Full async preemption is deferred** as a possible *backstop for hard-real-time
   tasks only* (and only then do you pay the stackful register/stack-capture
   price, for those tasks). This **largely dissolves OQ2** — see below.
+  - ⚑ **REVISIT IN DEPTH (flagged 2026-06-15):** safe-point preemption's one gap
+    is *guaranteed-bounded worst-case preemption latency*, which **hard real-time**
+    requires — that is the scenario that may force the full-async
+    (interrupt-anywhere) solution and its stackful arbitrary-state capture. When
+    Cathedral's real-time story is taken up (D2), re-open this trade-off
+    explicitly: cooperative/safe-point (bounded state, soft latency) vs full-async
+    (hard latency bound, stackful capture, breaks the bounded-state guarantee for
+    those tasks). Do NOT treat safe-point as the final word for the real-time
+    path.
 
 - **Stack discipline (frames the above): RESOLVED principle.** No recursion →
   every call chain has a statically-known max depth → exact worst-case stack
