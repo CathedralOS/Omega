@@ -203,7 +203,7 @@ This page tracks design pressure that is not fully nailed down yet.
   subjects) and the subtraction form retires once it lands.
 - Concurrency scheduler strategy (decided 2026-06-15): Omega owns the
   language MODEL (stackless spawned-machine suspend/resume, the
-  `Send`/`Shared` data-race discipline, the memory model, atomics, and the
+  `Send`/`Share` data-race discipline, the memory model, atomics, and the
   `Scheduler` INTERFACE), NOT a concrete scheduler. Hosted borrows the OS
   scheduler (1:1 threads); Cathedral provides its own. A scheduler is NOT
   required for any SAFETY promise (data-race / deadlock / protocol freedom —
@@ -212,24 +212,38 @@ This page tracks design pressure that is not fully nailed down yet.
   progress is logically impossible), discharged by trusting the OS or, later,
   an owned cooperative scheduler. Decisions: structured concurrency;
   non-multi-copy-atomic targets (POWER) off the list; a restricted static-task
-  sub-language for the Cathedral kernel; `Sync` renamed `Shared` with a
+  sub-language for the Cathedral kernel; `Sync` renamed `Share` with a
   gradual-loosen ladder (L0 move-only -> L1 sync-wrapper -> L2 immutable share
   -> L3 proof-checked disjoint MUTABLE share); enforced real-time deferred. See
   wiki/design_briefs/concurrency_atomics.md (2026-06-15 review) for the full
   catalog, corrections, open questions, and build order.
+- Concurrency follow-up resolutions (2026-06-15 working session, see
+  concurrency_atomics.md "Working-session resolutions"): the share-capability is
+  named **`Share`** (symmetric verb with `Send`; `Sync` dropped). **Preemption =
+  safe-point** (compiler-inserted yield-checks at back-edges/transitions; keeps a
+  suspended task as data-at-a-known-point, preserving bounded/overflow-proof state
+  — full async preemption deferred to hard-real-time only). No recursion → WCSU
+  bounded stacks → **stack overflow impossible by construction.** Suspension lives
+  at explicit **`await` call-sites** (a state suspends by awaiting its mailbox/IO
+  machine; the high-level FSM stays coloring-free). **Device memory** is a
+  capability-gated `Mmio<T>` whose abuse-prevention is the VM mapping (grant =
+  install the PTE), with mapped (trusted, no-trap) vs mediated (sandbox/emulated)
+  lowerings and shared-ring/poll to avoid trap storms. **Reclamation** = drop/RAII
+  for owned data (GC rejected); lock-free quarantined to one channel primitive +
+  an SMR scheme. Pointers need no `unsafe` (borrow obligations already cover the
+  sequential case). Oracle = confluence + seeded scheduling.
 
 ## Still Open
 
-- Concurrency (see concurrency_atomics.md 2026-06-15 review for detail): can the
-  proof system prove L3 disjoint MUTABLE sharing (region/capability) for
-  lock-free mutable aliasing? How is a PREEMPTED task's full state represented
-  and context-switched, given the stackless await-only model cannot express a
-  mid-instruction suspension (the Cathedral kernel keystone)? What is the
-  deterministic/seeded concurrency-oracle contract? Is the `Scheduler` interface
-  (wake_one vs wake_all, fairness class, timed waits) sufficient for all three
-  backends? Are all transitions suspension points or a marked subset? Safe
-  memory reclamation without GC for lock-free structures? Exact device/volatile
-  memory type distinction?
+- Concurrency residuals (see concurrency_atomics.md): can the proof system prove
+  **L3 disjoint MUTABLE sharing** (region/capability) for lock-free mutable
+  aliasing without a runtime SMR scheme — the "safe-surface lock-free" frontier?
+  The **`Scheduler` interface** details (`wake_one` vs `wake_all` default; the
+  FAIRNESS promise — a borrowed OS futex is not fair, so liveness hypotheses built
+  on it may not hold; timed-wait placement). The exact **device-memory source
+  surface** (type spelling, ordering args). Only if hard-real-time is ever
+  promised: the full-async-preemption register/stack context-switch design
+  (otherwise dissolved by safe-point preemption).
 
 - Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?
 - How much domain classifier/checker inference should Omega attempt beyond
