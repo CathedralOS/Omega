@@ -140,7 +140,7 @@ ground-truth of the Omega codebase + a four-lens adversarial review. This is
 **design ratification + a build order, NOT a description of working code** —
 the primitives below are ~0% built today (no `suspend` effect in the closed
 effect set, atomics are name-only with NON-atomic RMW desugars, `send` is
-stubbed to alias `copy`, no `Shared`, no fences/interrupt control, no
+stubbed to alias `copy`, no `Share`, no fences/interrupt control, no
 `Scheduler` trait).
 
 ## The frame (architectural decision)
@@ -150,7 +150,7 @@ Omega owns the **language model**, not a **scheduler**:
 - The language owns: the spawned-machine **stackless suspend/resume lowering**
   (machines already ARE stackless state machines — own this natively, never via
   an LLVM-coroutine backend, the mistake that cost Zig years), the **data-race
-  type discipline** (`Send`/`Shared`), the **memory model**, the **atomics**,
+  type discipline** (`Send`/`Share`), the **memory model**, the **atomics**,
   and the **`Scheduler` interface**.
 - The language owns **no concrete scheduler**. The `Scheduler` interface is the
   injection seam (like the allocator). "Primitives-only core" means the core
@@ -190,16 +190,16 @@ scheduler; Cathedral *is* a scheduler.
   task set, no runtime creation). The full `spawn`/`Join` surface sits *above*
   the kernel. **Syntax is open; the hard open design is the context-switch /
   save-restore representation (OQ2).**
-- **D5 — `Send`/`Shared` data-race discipline: DECIDED, Rust-grade, strict.**
+- **D5 — `Send`/`Share` data-race discipline: DECIDED, Rust-grade, strict.**
   Lands alongside #27. Naming: keep **`Send`** ("value may move to another
-  task"); **rename Rust's `Sync` → `Shared`** ("a reference to me may cross
+  task"); **rename Rust's `Sync` → `Share`** ("a reference to me may cross
   tasks"; `T: Shared ⟺ &T: Send`) — more honest than `Sync` (which never meant
   "synchronized"). Strict-but-simple first, then **gradually loosen** — each
   level a strict superset, so loosening never breaks compiled code (start
   strict→loose, never loose→strict):
     - **L0 (now):** move-only into a task (= today's reject-`&`/`self` rule,
       formalized as `Send`). No sharing.
-    - **L1:** `Shared` via synchronized wrappers — `&Mutex<T>`/`&Atomic<T>` cross.
+    - **L1:** `Share` via synchronized wrappers — `&Mutex<T>`/`&Atomic<T>` cross.
     - **L2:** immutable sharing — `&T` shareable when `T` is deeply immutable.
     - **L3 (the prize, maybe far):** region/capability-proven **disjoint mutable
       sharing** — share mutable data lock-free when the type system *proves*
@@ -208,7 +208,7 @@ scheduler; Cathedral *is* a scheduler.
       the prover can admit.**
   Bare metal additionally needs a SEPARATE mechanism — an **interrupt-re-entrancy
   rule** (effect ceilings: a trait with no `suspend` IS the ISR-safety rule).
-  `Send`/`Shared` does NOT cover ISR-vs-main on one core. This needs the
+  `Send`/`Share` does NOT cover ISR-vs-main on one core. This needs the
   `suspend` effect, which does not exist yet.
 - **D6 — First-party modeled scheduler as a proof target: DECIDED yes,
   eventually, COOPERATIVE — DEFERRED additive.** A cooperative scheduler that
@@ -306,7 +306,7 @@ is the strong promise and is free.
    on the critical path for the deadlock proof's binary soundness.
 2. **Concurrency oracle contract** (OQ3) so #1 can be tested; atomic mailbox as
    the worked example (+ resolve reclamation, OQ6).
-3. **`Send`/`Shared` checker** (replace the `send`=`copy` stub) + the
+3. **`Send`/`Share` checker** (replace the `send`=`copy` stub) + the
    interrupt-re-entrancy effect rule (needs adding `suspend` to the effect set).
 4. **Deadlock model** (cyclic-wait / lock-order / missing-producer) with the
    corrected honesty above.
@@ -316,3 +316,151 @@ is the strong promise and is free.
    interrupt enable/disable + save/restore, fences, MMIO/device ordering, the
    restricted static-task subset (D4). Design before promising the kernel story.
 8. **DEFER:** the cooperative modeled scheduler (D6); enforced real-time (D2).
+
+---
+
+# 2026-06-15 (cont.) — Working-session resolutions
+
+A follow-up design conversation resolved most of the open questions above and
+added several mechanism-level decisions. Where this conflicts with anything
+earlier, **this wins.**
+
+## Decisions made / refined
+
+- **D5 naming — RESOLVED: `Send` / `Share`.** Keep `Send` ("value may move to
+  another task"); the share-capability is **`Share`** ("a reference to me may
+  cross tasks"; `T: Share ⟺ &T: Send`). Drop `Sync` (it never meant
+  "synchronized" — a plain immutable struct qualifies with zero synchronization).
+  A symmetric verb pair reads as a capability, not a state.
+
+- **D7 — Preemption model: RESOLVED = SAFE-POINT preemption (primary).** The
+  compiler inserts a cheap yield-check at known points (loop back-edges /
+  `decreases`-measure decrements / state transitions). A runaway task is
+  preempted *promptly but only at a compiler-known point where the live set is
+  known* — so a suspended task is ALWAYS "data at a known point," exactly like a
+  cooperative `await` park. Cooperative `await` and preemption thus share ONE
+  representation; the only difference is whether the yield was voluntary (await)
+  or flag-triggered (a safe-point poll observing the preempt flag). This
+  **preserves the bounded-state / provable-memory / no-overflow guarantees** that
+  full async preemption (arbitrary-instruction capture) would break. asm cost: a
+  predicted-not-taken `cmp [flag],0; jne slow` (~1-2 cyc amortized); STRIDE the
+  poll (every Nth back-edge) or use a page-fault-based poll to amortize tight
+  loops. Omega controls codegen, so it can GUARANTEE every loop carries a
+  safe-point (the thing that makes safe-point unreliable in other systems).
+  **Full async preemption is deferred** as a possible *backstop for hard-real-time
+  tasks only* (and only then do you pay the stackful register/stack-capture
+  price, for those tasks). This **largely dissolves OQ2** — see below.
+
+- **Stack discipline (frames the above): RESOLVED principle.** No recursion →
+  every call chain has a statically-known max depth → exact worst-case stack
+  usage (WCSU) per task, allocated up front → **stack overflow is impossible by
+  construction.** Preemptible tasks (if any) get a pre-sized dedicated stack, so
+  even a preemptive context switch is "save ~16 registers + swap SP between
+  coexisting bounded stacks" — bounded and overflow-proof, the same flavor as the
+  `M × N` task bound. (With safe-point preemption as primary, the stackful path is
+  rarely if ever needed.)
+
+- **Suspension granularity — RESOLVED (closes OQ5): `await` call-sites, not
+  arbitrary transitions.** A state may suspend by `await`-ing *inside its body*
+  (typically opening a waiting state with `await self.inbox()` then transitioning
+  over the received case-bearing sum). The transition itself does not implicitly
+  park. So the networked-state-machine vision is intact: the high-level protocol
+  machine stays a CLEAN finite state machine, and async is *delegated* to the
+  lower machine/primitive being awaited (socket, mailbox, timer). The only change
+  from "every transition can implicitly suspend" is that every park is a VISIBLE
+  `await` — which keeps the parked carry-set single-level (the `M × N` bound) and
+  is the "show me everywhere this can park" property. No function-coloring: the
+  FSM structure carries no `async` noise.
+
+- **Device / volatile memory — RESOLVED in mechanism (closes OQ7 shape; exact
+  surface still TBD).** A distinct capability-gated type (`Mmio<T>` /
+  `Volatile<T>`): constructible ONLY via a `map_device(phys_range, cap)` boundary
+  holding `Capability<MapDevice(range)>`; carries the `device_io` effect; explicit
+  ordered volatile read/write, no operator sugar, no coercion from `&T`.
+  **The abuse-prevention is the VIRTUAL MEMORY SYSTEM, not the type:** an MMIO
+  access is just a `mov` whose address the MMU routes to a device physical frame.
+  The grant = the kernel installing a page-table entry pointing at that frame;
+  revocation = tearing the PTE down (straggler faults). You cannot fabricate the
+  routing — an unmapped/normal address faults or hits RAM, never the device. The
+  type is the *discipline* (ordered access + effect visibility + no accidental
+  construction); the MMU is the *enforcement*.
+  **Dual lowering of the same source:** (1) MAPPED/direct for proved/trusted
+  drivers — direct fenced load/store, NO per-access trap, enforced continuously
+  and free by MMU+IOMMU (the VFIO/userspace-driver model); (2) MEDIATED for
+  sandboxed/untrusted/TEST drivers — the same `reg.write(...)` lowers to a shared
+  ring or a trap-and-emulate, so a monitor can emulate the device and the driver
+  doesn't know (hypervisor MMIO emulation; the sandbox can hand a RAM page +
+  service it over IPC).
+  **Trap-storm avoidance (the perf concern):** naive trap-per-access is fatal, so
+  the hot path uses a SHARED-MEMORY RING + doorbell (virtio: plain `mov`s, one
+  signal per batch) or POLLING (zero traps); trap ONLY for genuinely *synchronous*
+  registers (a read/write whose side effect the emulator must compute before the
+  instruction retires).
+  **OS primitives the device surface needs:** `map_device` (cap-gated), ordered
+  read/write + fences, IRQ registration, DMA-buffer alloc + IOMMU map, cache
+  flush/invalidate.
+
+- **IRQ model — RESOLVED (consistent with the scheduler doc's "interrupt =
+  message").** Vectored: the hardware (x86 IDT / ARM vector table) routes IRQ N to
+  a handler by number, saving minimal state. Top-half ISR does the MINIMUM —
+  ack/EOI, maybe read one status word, **post + wake** the registered driver task
+  (literally a `mov` into a shared word + set-ready, or nothing extra if the
+  driver POLLS) — then `iret`. Bottom-half (the driver task) does the real work
+  when scheduled. `await self.irq()` parks the driver until the top-half wakes it.
+  Interrupt enable/disable (`cli`/`sti`-class) is the critical-section primitive
+  and lives in the static-task kernel subset (the ISR-safety / effect-ceiling
+  rule). Waking a parked task is cheap (set-ready + maybe reschedule); the
+  context switch to run it is the bounded register-save.
+
+- **Reclamation — RESOLVED strategy (closes OQ6 shape).** Owned/borrowed data:
+  affine ownership + **drop (RAII)**, same as Rust — GC rejected (a runtime that
+  pauses tasks; wrong for bare-metal/real-time), refcounting is a library type,
+  regions are L3-additive, pure linear is too heavy. Lock-free shared structures:
+  **quarantine to ONE blessed channel/mailbox primitive** (built on real atomics,
+  #27) with an SMR scheme (hazard pointers / epoch / RCU) for that one primitive;
+  app code uses ownership-TRANSFER (move the message in — no shared readers, no
+  reclamation question), never hand-rolled CAS. Its scope is tiny precisely
+  because the model is message-passing.
+
+- **"Pointers with no `unsafe`" — RESOLVED framing.** Omega already achieves this
+  for the SEQUENTIAL case: using a pointer emits the obligation "target is
+  live/owned/borrowed within this pointer's lifetime," discharged by the borrow
+  analysis — that IS proof-obligations-from-usage, no `unsafe` keyword. It is
+  *sufficient for ~all code*. It is INSUFFICIENT only for lock-free reclamation,
+  where (a) the lifetime stops being lexical (safe-to-free = "last concurrent
+  reader in another task is done"), (b) aliasing is required not forbidden, and
+  (c) the hard obligation moves to the FREE, not the deref. The tractable form of
+  that extra contract is a TYPED discipline (regions / hazard-as-type / a linear
+  token off the CAS), proven sound ONCE (the RustBelt pattern), then checked
+  cheaply at use — i.e. L3. NOTE: no production language does safe-surface
+  lock-free reclamation today (Rust uses `unsafe` inside crossbeam/std, proven
+  externally); L3 aiming for locally-checkable contracts would be a genuine
+  contribution, not catch-up — which is why quarantine-now is honest, not lazy.
+
+- **Oracle contract — RESOLVED (closes OQ3): confluence + seeding.** Default on
+  CONFLUENCE (message-passing, no shared mutable state → deterministic final
+  state regardless of interleaving → interp and native agree by construction);
+  add a SEEDED/deterministic scheduler for the non-confluent cases so both sides
+  hit the same interleaving; bounded schedule enumeration is at the implementer's
+  discretion as coverage grows. (Methodology decision, not a language feature.)
+
+## Open-question status after this session
+
+- **OQ1 (L3 disjoint *mutable* sharing):** still DEFERRED; mechanism = typed
+  regions/capabilities; it is also the home of the "pointers-no-unsafe for
+  lock-free" goal above.
+- **OQ2 (context-switch keystone):** LARGELY DISSOLVED by D7 (safe-point
+  preemption keeps suspended state as data-at-a-known-point; no arbitrary
+  stackful capture). Residual: only if hard-real-time forces full async
+  preemption do you need the register/stack context-switch design (deferred).
+- **OQ3 (oracle contract):** RESOLVED above.
+- **OQ4 (`Scheduler` interface completeness):** still OPEN, parked for later.
+  Settled so far: minimal surface (`park`/`wake_one`/`wake_all`/`yield` + a timed
+  wait) returning a WAKE REASON (`Signaled`/`PeerDied`/`Revoked`/`Timeout`, per
+  the Cathedral scheduler doc). Open: `wake_one` vs `wake_all` default; the
+  FAIRNESS promise (proof-relevant — a borrowed OS futex is not FIFO/fair, so
+  liveness hypotheses built on it may not hold); timed-wait placement.
+- **OQ5 (suspension granularity):** RESOLVED above (await call-sites).
+- **OQ6 (GC-free reclamation):** RESOLVED in strategy above.
+- **OQ7 (device-memory type):** mechanism RESOLVED above; exact source surface
+  (type spelling, ordering args) still TBD.
