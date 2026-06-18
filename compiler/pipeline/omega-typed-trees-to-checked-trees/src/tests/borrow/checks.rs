@@ -64,6 +64,86 @@ fn rejects_view_return_of_body_local() {
     );
 }
 
+/// Borrow-carrying data (decision 15 stage 2): a `data` value holding a
+/// reference field may be returned when its borrow comes from an input —
+/// the constructed value's loan follows the borrowed source.
+#[test]
+fn accepts_borrow_carrying_data_returned_from_input() {
+    let source = r#"
+        data Message {
+            body: &string;
+        }
+
+        machine wrap(input: &string) -> Message {
+            let msg: Message = Message { body: input };
+            transition {
+                _ -> msg
+            }
+        }
+    "#;
+    let facts_result = check_program(source);
+    facts_result.expect("a borrow-carrying value borrowing an input should compile");
+}
+
+/// The escape companion: a borrow-carrying value whose borrow comes from a
+/// machine-body local does not outlive the call and is rejected.
+#[test]
+fn rejects_borrow_carrying_data_returned_from_local() {
+    let source = r#"
+        data Message {
+            body: &string;
+        }
+
+        machine bad(seed: &string) -> Message {
+            let owned: string = "local";
+            let msg: Message = Message { body: &owned };
+            transition {
+                _ -> msg
+            }
+        }
+    "#;
+    let diagnostics =
+        check_program(source).expect_err("a borrow-carrying value borrowing a local should reject");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("returns a view borrowing the local `msg`"),
+        "expected the escape rejection for the borrow-carrying value, got:\n{combined}"
+    );
+}
+
+/// Run a source program through the full frontend check, returning the borrow
+/// checker's verdict.
+fn check_program(source: &str) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        operators: Default::default(),
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+    check_checked_facts(&typed, &facts)
+}
+
 #[test]
 fn accepts_mutable_local_named_place_arguments() {
     let source = r#"

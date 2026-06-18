@@ -1,6 +1,8 @@
 use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
-use crate::parser::type_reference::parse_type_reference_handle;
+use crate::parser::type_reference::{
+    parse_type_reference_handle, parse_type_reference_handle_allowing_borrow,
+};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
@@ -150,7 +152,11 @@ fn parse_data_member<'tokens, 'source>(
 
     if input.at_punctuation(PunctuationKind::Colon) {
         input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-        let (type_reference, next) = parse_type_reference_handle(syntax_trees, input)?;
+        // Borrow-carrying data (decision 15 stage 2): a field may be a reference
+        // (`body: &'buf string`). The borrow checker bounds the holding value's
+        // lifetime by the borrowed source (see `checks::borrows::escape`).
+        let (type_reference, next) =
+            parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
         input = next;
         let (initial_value, next) = if input.at_punctuation(PunctuationKind::Equal) {
             let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
@@ -229,7 +235,9 @@ fn parse_case_payload_fields<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightParen) {
         let (field_name, next) = input.take_identifier()?;
         input = next.take_punctuation(PunctuationKind::Colon, ":")?;
-        let (type_reference, next) = parse_type_reference_handle(syntax_trees, input)?;
+        // Case payloads may also carry borrows (decision 15 stage 2).
+        let (type_reference, next) =
+            parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
         input = next;
 
         let handle = syntax_trees.items.append_data_payload_field(DataField {
