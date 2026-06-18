@@ -10,6 +10,60 @@ use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 use omega_tokens_to_syntax_trees::parse_syntax_trees;
 
+/// Body-level escape analysis: returning a view of a machine-body local that
+/// holds no loan is a dangling borrow and is rejected. (A local that borrows a
+/// parameter — like `cells` in `accepts_view_return_disambiguated_by_explicit_lifetime`
+/// — is fine; the loan fact distinguishes the two.)
+#[test]
+fn rejects_view_return_of_body_local() {
+    let source = r#"
+        data Cell { value: i32; }
+
+        machine leak(seed: &Cell) -> &Cell {
+            let local: Cell = Cell { value: 9 };
+            transition {
+                _ -> &local
+            }
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        operators: Default::default(),
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    let diagnostics = check_checked_facts(&typed, &facts)
+        .expect_err("returning a view of a body-local should be rejected as a dangling borrow");
+    let combined = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("returns a view borrowing the local `local`"),
+        "expected the escape rejection, got:\n{combined}"
+    );
+}
+
 #[test]
 fn accepts_mutable_local_named_place_arguments() {
     let source = r#"

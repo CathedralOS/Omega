@@ -1,5 +1,5 @@
 use crate::context::*;
-mod accesses;
+pub(crate) mod accesses;
 mod calls;
 mod last_uses;
 mod loans;
