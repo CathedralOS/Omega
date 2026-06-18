@@ -58,7 +58,7 @@ pub(crate) enum ViewReturnAmbiguity {
 
 /// Resolve the source of a state's returned view from its signature alone.
 pub(crate) fn resolve_view_return_source(program: &TypedTrees, state: &State) -> ViewReturnSource {
-    if !is_reference_type(program, state.return_type) {
+    if !returns_borrow(program, state.return_type) {
         return ViewReturnSource::NotApplicable;
     }
 
@@ -150,5 +150,53 @@ pub(crate) fn is_reference_type(
             is_reference_type(program, *base_type)
         }
         _ => false,
+    }
+}
+
+/// Whether a return TYPE carries a borrow that must be linked to an input: a
+/// bare reference, OR a borrow-carrying `data` value (a `data` type with a
+/// reference-typed field — `data Msg<'buf> { body: &'buf string }`). Both make a
+/// machine's result outlive-bounded by one of its inputs (decision 15 stage 2).
+pub(crate) fn returns_borrow(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    is_reference_type(program, type_reference)
+        || is_borrow_carrying_data(program, type_reference)
+}
+
+/// Whether a type reference names a `data` definition that has at least one
+/// reference-typed field (directly). Nested borrow-carrying fields are NOT yet
+/// counted — a first-cut limitation; no corpus relies on it.
+pub(crate) fn is_borrow_carrying_data(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let symbol = program.type_reference_symbol(type_reference);
+    if !symbol.is_valid() {
+        return false;
+    }
+    let Some(definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == symbol)
+    else {
+        return false;
+    };
+    program
+        .data_members(definition)
+        .iter()
+        .any(|member| data_member_has_reference_field(program, member))
+}
+
+fn data_member_has_reference_field(
+    program: &TypedTrees,
+    member: &omega_typed_trees::data::DataMember,
+) -> bool {
+    match member {
+        omega_typed_trees::data::DataMember::Field(field) => {
+            is_reference_type(program, field.type_reference)
+        }
+        omega_typed_trees::data::DataMember::Variant(variant) => program
+            .data_payload_fields(variant)
+            .iter()
+            .any(|field| is_reference_type(program, field.type_reference)),
     }
 }

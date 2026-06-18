@@ -25,7 +25,7 @@ use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 use crate::borrow::accesses::borrow_access_place;
-use crate::borrow::view_link::is_reference_type;
+use crate::borrow::view_link::returns_borrow;
 use omega_checked_trees::CheckFacts;
 
 pub(super) fn check_view_return_escape(
@@ -35,15 +35,16 @@ pub(super) fn check_view_return_escape(
 ) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            if !is_reference_type(program, state.return_type) {
+            if !returns_borrow(program, state.return_type) {
                 continue;
             }
 
             let statements = program.statement_table.statements(state.statement_nodes);
 
-            // Locals declared in this state, and which of them hold a loan
-            // (borrow further back). A returned borrow rooted in a local with no
-            // loan is a dangling reference.
+            // Locals declared in this state. A returned borrow rooted in a local
+            // is sound only if that local holds a loan reaching OUTSIDE the body
+            // (a parameter / `self` / a field thereof); a local with no loan, or
+            // a loan still rooted in another body-local, is a dangling borrow.
             let locals: Vec<SymbolHandle> = statements
                 .iter()
                 .filter_map(|statement| match statement {
@@ -51,7 +52,7 @@ pub(super) fn check_view_return_escape(
                     _ => None,
                 })
                 .collect();
-            let loan_owners = state_loan_owner_symbols(facts, machine.symbol, state.symbol);
+            let loans = state_loans(facts, machine.symbol, state.symbol);
 
             for (statement_index, statement) in statements.iter().enumerate() {
                 let Some(return_expression) = return_expression(program, statement) else {
@@ -68,7 +69,15 @@ pub(super) fn check_view_return_escape(
                 };
 
                 let root = place.root_symbol;
-                if !locals.contains(&root) || loan_owners.contains(&root) {
+                if !locals.contains(&root) {
+                    // Rooted in a parameter, `self`, or a field thereof — outlives the call.
+                    continue;
+                }
+                // A body-local: sound only if it holds a loan reaching outside the locals.
+                let escapes_through_loan = loans
+                    .iter()
+                    .any(|(owner, loan_root)| *owner == root && !locals.contains(loan_root));
+                if escapes_through_loan {
                     continue;
                 }
 
@@ -103,11 +112,14 @@ fn return_expression(
     }
 }
 
-fn state_loan_owner_symbols(
+/// `(owner_symbol, ultimate root_symbol)` for every loan tracked in the state.
+/// The loan's `root_symbol` is already rebased to its ultimate source (a param
+/// for `let cells = a.cells.as_mut_slice()`, or a body-local for `&owned_local`).
+fn state_loans(
     facts: &CheckFacts,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-) -> Vec<SymbolHandle> {
+) -> Vec<(SymbolHandle, SymbolHandle)> {
     facts
         .borrow
         .states
@@ -121,7 +133,7 @@ fn state_loan_owner_symbols(
                 .loans
                 .span_or_empty(state.loans)
                 .iter()
-                .map(|loan| loan.owner_symbol)
+                .map(|loan| (loan.owner_symbol, loan.root_symbol))
                 .collect()
         })
         .unwrap_or_default()
