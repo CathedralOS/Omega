@@ -162,18 +162,39 @@ fn simplify_expression_with_bindings(
                 end_inclusive: range.end_inclusive,
             }))
         }
-        Expression::Member(member) => Expression::Member(Box::new(MemberExpression {
-            receiver: simplify_expression_with_bindings(
+        Expression::Member(member) => {
+            let receiver = simplify_expression_with_bindings(
                 program,
                 machine,
                 &member.receiver,
                 bindings,
                 preserve_call_locals,
-            ),
-            member_symbol: member.member_symbol,
-            member: member.member.clone(),
-            case_variant: member.case_variant.clone(),
-        })),
+            );
+            // Struct-literal field extraction: `Holder { f: X }.f` simplifies to
+            // `X`. A local bound to a struct literal simplifies to that literal,
+            // so a field read of it must select the field's initializer rather
+            // than leave a struct-literal-rooted member access that downstream
+            // place resolution cannot place (it finds no storage and leaves the
+            // target zero). This is the single shared normalization point for
+            // every selection consumer; recursing through this arm folds nested
+            // chains too (`Msg { body: &c }.body.value` -> `(&c).value`). Decision
+            // 15 stage 2: a borrow-carrying `data` value's field read resolves to
+            // its borrowed source, including reads that dereference it further.
+            if let Expression::StructLiteral(literal) = &receiver
+                && let Some(field) = literal
+                    .fields
+                    .iter()
+                    .find(|field| field.name == member.member)
+            {
+                return field.value.clone();
+            }
+            Expression::Member(Box::new(MemberExpression {
+                receiver,
+                member_symbol: member.member_symbol,
+                member: member.member.clone(),
+                case_variant: member.case_variant.clone(),
+            }))
+        }
         Expression::Mutable(inner) => {
             Expression::Mutable(Box::new(simplify_expression_with_bindings(
                 program,
