@@ -46,7 +46,9 @@ use super::static_values::{
 use super::storage_copy::runtime_storage_copy;
 use super::storage_copy::runtime_storage_indexed_source_copy;
 use super::storage_copy::runtime_storage_indirect_copy;
-use super::subslice_copy::runtime_fixed_array_subslice_indexed_source_copy;
+use super::subslice_copy::{
+    runtime_fixed_array_subslice_descriptor_write, runtime_fixed_array_subslice_indexed_source_copy,
+};
 pub(super) use binary_table_writes::{
     select_runtime_binary_mutation_write_in_table, select_runtime_convert_mutation_write_in_table,
     select_runtime_frame_slot_convert_write_in_table, select_runtime_storage_binary_write_in_table,
@@ -927,6 +929,26 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             &value,
             selected_instructions,
         );
+        return;
+    }
+
+    // A RANGE subslice (`arr[a..b]`) into a `&[u8]` view target materializes a
+    // fat `{ptr, len}` descriptor, NOT a byte copy -- the copy paths below would
+    // splat the bytes into the 16-byte descriptor slot. (Single-element copies
+    // and array-into-array copies still fall through to the copies below.)
+    if runtime_fixed_array_subslice_descriptor_write(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_value.source_key,
+        source_machine,
+        source_state,
+        operation_source_key,
+        statement_index,
+        resolved_target,
+        &resolved_value.expression,
+        selected_instructions,
+    ) {
         return;
     }
 

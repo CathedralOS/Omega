@@ -9,7 +9,80 @@ use super::super::super::storage_places::{
     resolve_runtime_storage_place_in_table,
 };
 use super::fixed_array_slices::{FixedArraySliceSource, literal_fixed_array_slice_source_in_table};
-use omega_abstract_operations::SelectedInstructionKind;
+use crate::selection::instruction_sink::SelectedInstructionSink;
+use omega_abstract_operations::{RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind};
+
+/// Materialize a RANGE subslice of a literal fixed array (`arr[a..b]` /
+/// `arr.as_slice()[a..b]`) as a fat `{ptr, len}` descriptor written into a
+/// frame-slot target -- the missing case in the body-mutation value path,
+/// which otherwise byte-COPIES into the target (wrong for a `&[u8]` view, whose
+/// 16-byte slot must hold a descriptor, not the bytes). Fires only when the
+/// value resolves to a fixed-array subslice AND the target is a descriptor-
+/// sized frame slot; declines otherwise (element copies and array-into-array
+/// copies keep their existing lowering). Mirrors `emit_static_slice_descriptor`.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection::runtime_dispatch) fn runtime_fixed_array_subslice_descriptor_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    operation_source_key: StateKey,
+    statement_index: usize,
+    target: &Expression,
+    value: &Expression,
+    selected_instructions: &mut SelectedInstructionSink,
+) -> bool {
+    let Some(source) = literal_fixed_array_slice_source(
+        input,
+        dispatch_index,
+        value_source_key,
+        source_machine,
+        source_state,
+        value,
+    ) else {
+        return false;
+    };
+    let Some(target_place) = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        target_source_key,
+        source_machine,
+        source_state,
+        target,
+    ) else {
+        return false;
+    };
+    let descriptor = input.runtime_abi.slice_descriptor();
+    if target_place.region != RuntimeStorageRegion::RuntimeFrame
+        || target_place.byte_count != descriptor.total_size()
+    {
+        return false;
+    }
+    // ptr = address of the (windowed) source array start, into the descriptor's
+    // pointer slot; len = the subslice element count, into its length slot.
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+            source_region: source.place.region,
+            source_offset: source.place.byte_offset,
+            target_offset: target_place.byte_offset,
+        },
+        source_key: operation_source_key,
+        source_statement: statement_index,
+    });
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: target_place.byte_offset + descriptor.len_offset(),
+            byte_size: descriptor.len_size(),
+            value: source.length as i64,
+        },
+        source_key: operation_source_key,
+        source_statement: statement_index,
+    });
+    true
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection::runtime_dispatch) fn runtime_fixed_array_subslice_indexed_source_copy(
@@ -182,7 +255,22 @@ fn literal_fixed_array_slice_source(
             )?;
             fixed_array_subslice_source(source, start, end)
         }
-        _ => None,
+        // A BARE fixed array used directly as a slice base (`arr[a..b]` without
+        // an explicit `.as_slice()`). Resolves only when the value is an actual
+        // fixed array with a literal length, so non-array values still decline.
+        _ => {
+            let place = resolve_runtime_storage_place(
+                input,
+                dispatch_index,
+                value_source_key,
+                source_machine,
+                source_state,
+                value,
+            )?;
+            let length =
+                resolve_fixed_array_length(input, dispatch_index, value_source_key, value)?;
+            fixed_array_slice_source(place, length)
+        }
     }
 }
 

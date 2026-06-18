@@ -1,0 +1,62 @@
+// Wire stage 2 (#43), borrowed `&[u8]` fields: the honest zero-copy bytes/text
+// field (a fat `{ptr, len}` slice), encoded as RAW bytes -- a length varint
+// then the bytes -- distinct from a `[u8; N]` repeated field (packed
+// per-element varints). Constructing `BlobSample { bytes: self.source[0..2] }`
+// materializes a `{ptr -> &source[0], len = 2}` descriptor into the field, and
+// `encode_wire` frames it through the same text-bytes append a `String` uses.
+//
+// Encoded bytes for { bytes: [72, 105] }, hand-computed:
+//   era 0       -> 0x00   (no version blocks)
+//   tag 0       -> 0x00   (field number 0)
+//   length 2    -> 0x02
+//   'H'         -> 0x48   (72)
+//   'i'         -> 0x69   (105)
+// written = 5; the canary checks the five bytes + the written count in-language
+// and exits 70 when byte-exact.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Blob {
+    0: bytes: &[u8];
+}
+
+data BlobSample {
+    bytes: &[u8];
+}
+
+data Main {
+    console: Console;
+    source: [u8; 4];
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    self.source[0] = 72;
+    self.source[1] = 105;
+    let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
+
+    Blob::encode_wire(&sample, &mut self.buffer, &mut self.written);
+
+    let ok: bool = self.written == 5
+        && self.buffer[0] == 0
+        && self.buffer[1] == 0
+        && self.buffer[2] == 2
+        && self.buffer[3] == 72
+        && self.buffer[4] == 105;
+
+    transition ok {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
