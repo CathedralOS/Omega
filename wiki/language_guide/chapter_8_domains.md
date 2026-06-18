@@ -393,48 +393,94 @@ knowledge, not from runtime type mutation.
 
 ## Domains On Strings And Encodings
 
-One likely Omega direction is to treat text encoding and boundary requirements
-as domains on a string value rather than as a zoo of unrelated string types.
+Text is not a type in Omega. It decomposes into three things that already
+exist, and `String`/`Bytes` are not among them:
 
-Working shape:
+- a **byte container** -- `&[u8]` (a view), `[u8; N]` (fixed), or `Vec<u8>`
+  (owned). The only part with a layout.
+- an encoding's **validity**, expressed as a *domain* over the byte container.
+- an encoding's **codec** (decode/encode/boundary), expressed as
+  *domain-sensitive operators*, not a predicate.
+
+"A UTF-8 string" is therefore `[u8] in Utf8`, not a `String`:
 
 ```omega
-data String {
-    // runtime text storage
-}
+&[u8]   in Utf8           // text view, zero-copy
+Vec<u8> in Utf8           // owned text (needs the allocator)
+[u8; N] in Utf8           // fixed text buffer
 
-domain String::Utf8 {
-    // text satisfies UTF-8 validity
-}
-
-domain String::NoNul {
-    // text contains no interior NUL bytes
-}
+// Encodings are validity domains over the byte container. (`[u8]` is the
+// surface spelling of `Slice<u8>`, which is the nominal carrier the domain
+// binds to -- the same move as `domain i32::Degrees`, one generic level up.)
+domain Slice<u8>::Utf8  when valid_utf8(self)      { /* facts decode relies on */ }
+domain Slice<u8>::Ascii when all_below(self, 0x80) { self in Slice<u8>::Utf8; }
+domain Slice<u8>::NoNul when no_interior_nul(self) { }
 ```
 
-That would let host and ABI boundaries ask for the domain they actually need:
+Host and ABI boundaries then ask for the domain they actually need, with no
+bespoke type per case:
 
-- `String in String::Utf8` for APIs that require UTF-8 text
-- `String in String::NoNul` for C-style boundaries that reject interior NULs
-- intersections such as `String::Utf8 & String::NoNul` when both matter
+- `[u8] in Utf8` for APIs that require UTF-8 text,
+- `[u8] in Utf8 & NoNul` for C-style boundaries that reject interior NULs,
+- `[u8] in Utf16` (a different validity + codec) for a UTF-16 boundary.
 
-This fits Omega's existing domain model better than inventing separate
-first-class surface types such as `CString`, `OsString`, or `Utf16String` for
-every boundary case.
+`CString`, `OsString`, `Utf16String`, `Str`/`StrView` and the like all collapse
+into `[u8] in <domain>` intersections. There is no `String` type and no `Bytes`
+type: each was a nominal name for either the byte container (redundant with
+`[u8]`) or the *abstract codepoint text* -- and abstract text is a **quotient**
+(byte-sequences modulo "decode to the same codepoints"), which has no canonical
+layout and is only ever materialized as bytes-in-an-encoding, or, decoded, as a
+`[u32]` of scalar values. Naming the quotient as a type is what made `String`
+feel unrepresentable. Naming the container and carrying the encoding as a *fact*
+removes the confusion.
 
-It also fits naturally with domain-sensitive operators. If string
-concatenation is written as `left + right`, the compiler can treat `+` as
-syntax sugar for a resolved concat operation and use the participating string
-domains to decide which facts the result preserves.
+### This is not "hide the byte operations"
 
-The hard part is not the surface idea; it is proving or checking invariants
-over a large byte sequence. A full "every byte sequence chunk is valid UTF-8"
-predicate may be too expensive or too low-level for early Omega domains. The
-language may need staged support here:
+A nominal `String` is tempting as an API-curation point -- expose only
+boundary-safe operations, hide the ones that can split a codepoint. Omega does
+not need it, because the fix is to *contract* the few invariant-breaking
+operations, not to hide them. Reading one byte `s[5]: u8` off UTF-8 text is
+always fine. The only operation that can break UTF-8 is re-slicing, so the proof
+obligation lives on `slice`, in the open:
 
-- cheap classifier/checker domains at boundaries,
-- richer proof facts for boundary constructors and validated transformations,
-- and only later more expressive sequence-wide invariants.
+```omega
+operator concat(left: Slice<u8> in Utf8, right: Slice<u8> in Utf8)
+    -> Slice<u8> in Utf8 spelling +;          // concat preserves UTF-8: proven once
+
+operator slice(s: Slice<u8> in Utf8, range: Range) -> Slice<u8> in Utf8
+    requires char_boundary(s, range.start) && char_boundary(s, range.end)
+    spelling [];                              // cannot cut mid-codepoint
+```
+
+"The operation exists, its contract stops misuse" replaces "the operation is
+hidden" -- the proof-language form of encapsulation, and it needs no wrapper
+type.
+
+### Proving it without a byte-level tax
+
+The hard part is not the surface idea; it is proving sequence-wide invariants
+over runtime text, which is why this is staged rather than a single
+byte-by-byte predicate everywhere:
+
+- validate the encoding ONCE at the ingest boundary (the `when valid_utf8`
+  classifier/checker), establishing `in Utf8` as a fact;
+- carry that fact; never re-scan;
+- prove a small set of *preservation* lemmas as operator contracts (concat
+  preserves `Utf8`; boundary-`slice` preserves it) so downstream code keeps the
+  fact without re-proof;
+- richer sequence-wide invariants come later.
+
+Removing the `String` type *helps* here: with no type obligated to maintain
+validity through every operation, there is nothing to re-prove between the
+boundary and the operators.
+
+> Implementation note: the compiler today still carries `string` (a `&[u8]`
+> view) and `String` (`PrimitiveType::String`) as builtin types, and the wire
+> path already lowers `&string` to `{ptr, len}` over `u8` -- i.e. the
+> representation is *already* a byte view with the encoding left implicit. This
+> section is the decided target model; replacing the builtin `string`/`String`
+> with `[u8] in Utf8` waits on domains over `Slice<u8>`, the codec operators
+> above, and a corpus migration.
 
 ## Domains On Foreign Types
 

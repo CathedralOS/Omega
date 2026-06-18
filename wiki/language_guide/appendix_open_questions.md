@@ -22,9 +22,35 @@ This page tracks design pressure that is not fully nailed down yet.
   type-scoped invariant parameters such as `&[T, [non_empty]]`; indexing is
   valid when the current facts prove the index is inside the slice bounds.
 - Old bracketed refinement syntax is dead. Range-heavy proof vocabulary lives directly in contracts, using Rust-style ranges like `1..=100` and `min..=max`. The inclusive/exclusive forms are now resolved: `a..b` is exclusive and `a..=b` is inclusive, with `a..=b` normalizing to `a..(b+1)`. Against a length `len`, an exclusive end requires `b <= len` and an inclusive end requires `b < len` (so inclusive-end validity equals index validity); a non-empty inclusive range establishes a `non_empty` fact. These are the same `..` / `..=` forms used for subslicing.
-- Text type naming is resolved. The owned type is `String`; the borrowed window
-  is `&string` (lowercase). Casing distinguishes the owner from the window. The
-  earlier `Str` / `StrView` (and `&str`) naming is retired.
+- Text is not a type (decided; see ch8 "Domains On Strings And Encodings").
+  "A string" is `[u8] in Utf8`: a byte container (`&[u8]` view, `Vec<u8>` owned,
+  or `[u8; N]` fixed) carrying an encoding *domain* (`Slice<u8>::Utf8`,
+  `::NoNul`, ...), with the codec as domain-sensitive operators (`+` = concat,
+  `[..]` = boundary-checked slice). `String`, `Bytes`, and the earlier
+  `Str`/`StrView` are all retired: each named either the byte container
+  (redundant with `[u8]`) or the abstract codepoint text -- a quotient of
+  bytes-modulo-encoding that has no canonical layout (decoded form is `[u32]` of
+  scalar values). The builtin `string` (a `&[u8]` view) and `String`
+  (`PrimitiveType::String`) still exist in the compiler today; the wire path
+  already lowers `&string` to `{ptr, len}` over `u8`, so the representation is
+  already a byte view with the encoding implicit. Replacing them with
+  `[u8] in Utf8` waits on domains over `Slice<u8>`, the codec operators, and a
+  corpus migration.
+- Surface notation must be honest sugar (decided design law). There are two
+  kinds of surface form. TYPOGRAPHY desugars totally and bijectively to the
+  nominal core the prover already reasons over, leaving no residue: `[u8]` ->
+  `Slice<u8>`, `&T` -> `Ref<T>`, `i32`, `(A, B)`, `1..=10`, `"Hi"`. A LIE
+  introduces a type-identity or concept that does not survive desugaring -- a
+  "but what is this *really*?" remains: `String`, `Bytes`. Keep typography (it
+  is free readability and costs the prover nothing, because it evaporates before
+  proof) and reject lies (make the concept justify itself in the open as a
+  concept, or cut it). The test for any proposed sugar: desugar it; if nothing
+  is left over it is allowed, if a question remains it is a new concept wearing
+  sugar's clothing. This is the rule that keeps `[u8]` while cutting `String` --
+  and "force everyone to write the canonical `Slice<u8>`" proves too much, since
+  run consistently it also deletes `&T`, `i32`, tuples, ranges, and literals,
+  leaving the prover's raw terms; the line is "does the notation lie", not "is
+  it notation".
 - Omega should distinguish proof numbers from machine numbers. `UInt`, `Int`, and `Real` are useful as mathematical/spec types, while `i32`, `u64`, `f32`, and similar types are concrete machine representations with explicit proof obligations.
 - Machine integer arithmetic should probably default to exact/proven semantics. Weaker behavior such as `wrapping`, `trap`, `saturating`, or `checked` should be explicit because each mode changes proof obligations and runtime behavior.
 - Omega's proof vocabulary should distinguish facts, requirements, guarantees, obligations, invariants, contracts, and boundary. Values carry facts; operations have contracts; contracts create obligations; boundary names the authority for accepting unproved guarantees.
@@ -262,11 +288,18 @@ This page tracks design pressure that is not fully nailed down yet.
   subslicing, arithmetic, and string concatenation?
 - Which core semantic types should be browsable source declarations, and which
   primitive carriers should remain compiler-managed? Current direction:
-  `Array`, `Vec`, `Slice`, `String`, and `&string` are public core concepts;
-  `Ptr` and descriptor-like carriers sit at the low-level boundary.
-- How should Omega express and prove sequence-wide domains over runtime text,
-  such as `String::Utf8` or `String::NoNul`, without turning ordinary string
-  handling into a byte-level proof tax?
+  `Array`, `Vec`, and `Slice` (over `u8` and other elements) are the public core
+  containers; text is `[u8] in <encoding domain>` rather than a `String`/`&string`
+  concept of its own; `Ptr` and descriptor-like carriers sit at the low-level
+  boundary.
+- How should Omega express and prove sequence-wide domains over runtime text
+  (decided direction; see ch8 "Domains On Strings And Encodings")? Encoding
+  validity is a domain over the byte container (`Slice<u8>::Utf8`, `::NoNul`,
+  ...); the byte-level proof tax is avoided by validating once at the ingest
+  boundary (a `when valid_utf8` classifier/checker), carrying `in Utf8` as a
+  fact, and discharging a few preservation lemmas as operator contracts (concat
+  and boundary-slice preserve UTF-8) so downstream code never re-scans. Richer
+  sequence-wide invariants are staged later.
 - When domains can participate in operator resolution, what exact ambiguity
   rules should apply, and which concepts should remain ordinary value domains
   versus a separate evaluation-mode/policy system?
