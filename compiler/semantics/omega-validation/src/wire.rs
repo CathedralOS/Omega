@@ -842,12 +842,30 @@ fn validate_wire_decode_call(
             primitive.and_then(omega_typed_trees::wire::WireScalarEncoding::for_primitive);
         let nested = program.wire_field_nested_schema(field);
         if scalar.is_none() && nested.is_none() {
-            diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, bool, and a sibling wire schema (one nesting level; String fields are encode-only until the decoded descriptor's buffer-aliasing story lands)",
-                schema.name,
-                field.name,
-                program.display_type_reference(field.type_reference)
-            )));
+            // An owned `String` decode is gated on a missing PREREQUISITE, not a
+            // missing wire feature: it must copy the bytes out of the buffer into
+            // owned storage, and Omega has no runtime allocator yet. Name that
+            // dependency explicitly (and the allocator-free zero-copy path) rather
+            // than lumping String in with genuinely-unsupported field types.
+            let message = if primitive == Some(omega_typed_trees::types::PrimitiveType::String) {
+                format!(
+                    "wire data `{}` field `{}`: decoding an owned `String` is not implemented yet \
+                     -- it must copy the field's bytes out of the decode buffer into owned storage, \
+                     which requires the runtime allocator (the reclamation substrate / arena is \
+                     designed but not built). The allocator-free alternative is a borrowed \
+                     `&'buf string` field that views the decode buffer in place (zero-copy); that \
+                     wire-borrow-field path is pending. (Encoding a `String` already works.)",
+                    schema.name, field.name
+                )
+            } else {
+                format!(
+                    "wire data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, bool, and a sibling wire schema (one nesting level)",
+                    schema.name,
+                    field.name,
+                    program.display_type_reference(field.type_reference)
+                )
+            };
+            diagnostics.push(Diagnostic::error(message));
             schema_rejects = true;
             continue;
         }
