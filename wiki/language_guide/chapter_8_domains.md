@@ -474,13 +474,17 @@ Removing the `String` type *helps* here: with no type obligated to maintain
 validity through every operation, there is nothing to re-prove between the
 boundary and the operators.
 
-> Implementation note: the compiler today still carries `string` (a `&[u8]`
-> view) and `String` (`PrimitiveType::String`) as builtin types, and the wire
-> path already lowers `&string` to `{ptr, len}` over `u8` -- i.e. the
-> representation is *already* a byte view with the encoding left implicit. This
-> section is the decided target model; replacing the builtin `string`/`String`
-> with `[u8] in Utf8` waits on domains over `Slice<u8>`, the codec operators
-> above, and a corpus migration.
+> Implementation note: the compiler today still carries `string` (an unsized
+> text view) and `String` (`PrimitiveType::String`) as builtin types. A wire
+> `&string` field was prototyped (zero-copy interpreter decode + native encode)
+> and then REMOVED as a vestige once this model settled: the honest borrowed
+> bytes/text wire field is `&[u8]` (a fat slice, which is already the native
+> representation), not a `&string`. The byte view is variable-length, so it
+> rides a RAW-byte encoding (length varint + raw bytes, like protobuf `bytes`),
+> distinct from a `[u8; N]` repeated field (packed per-element varints). Wiring
+> a `&[u8]` bytes field through the wire layer, plus replacing the builtin
+> `string`/`String` with `[u8] in Utf8` wholesale, waits on domains over
+> `Slice<u8>`, the codec operators above, and a corpus migration.
 
 ## Domains On Foreign Types
 
