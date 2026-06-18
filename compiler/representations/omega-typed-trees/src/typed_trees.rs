@@ -916,6 +916,14 @@ impl TypedTrees {
         self.type_reference_table.primitive_type(type_reference)
     }
 
+    /// True when the type is a borrowed byte slice `&[u8]` -- the honest
+    /// zero-copy raw-bytes/text view (a length-prefixed buffer window), as
+    /// opposed to an owned `[u8; N]` repeated field. Replaces the retired
+    /// `&string` for borrowed wire text.
+    pub fn is_borrowed_byte_slice(&self, type_reference: types::TypeReferenceHandle) -> bool {
+        self.type_reference_table.is_borrowed_byte_slice(type_reference)
+    }
+
     /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17)
     /// declared on a type reference; `Exact` when unconstrained.
     pub fn arithmetic_domain_for_type_reference(

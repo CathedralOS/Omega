@@ -533,3 +533,82 @@ machine Main::main(&mut self) -> i32 {
     assert_eq!(outcome.error, None, "interpreter declined the program");
     assert_eq!(outcome.exit_code, 70, "terminal arithmetic must become the exit code");
 }
+
+// ---- wire zero-copy `&[u8]` borrowed-bytes field (#43) -----------------------
+
+/// A borrowed byte slice `&[u8]` wire field round-trips: `encode_wire` frames it
+/// as RAW bytes (length varint + the bytes) and `decode_wire` reads it back as a
+/// buffer VIEW. This is the honest borrowed bytes/text field that replaced the
+/// retired `&string` -- a `&[u8]` is already a fat slice, and the raw-byte
+/// encoding is distinct from a `[u8; N]` repeated field (packed per-element
+/// varints). The NATIVE backend still gates `&[u8]` wire codegen (it shows up as
+/// an "unresolved state call" emission-planning blocker), so this coverage is
+/// interpreter-only until the native byte-slice read op lands.
+///
+/// `{ bytes: [72, 105] }` encodes to 5 bytes: era 0 (0x00), tag 0 (0x00),
+/// length 2 (0x02), then `0x48 0x69`. The decoder consumes the same 5 bytes;
+/// the canary checks the framing (written/read/ok) in-language and exits 70.
+#[test]
+fn wire_borrowed_byte_slice_field_round_trips() {
+    let main_path = write_program(
+        "wire-borrowed-byte-slice-roundtrip",
+        r#"
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Blob {
+    0: bytes: &[u8];
+}
+
+data BlobSample {
+    bytes: &[u8];
+}
+
+data Main {
+    console: Console;
+    source: [u8; 4];
+    buffer: [u8; 64];
+    written: usize;
+    read: usize;
+    ok: bool;
+}
+
+machine Main::main(&mut self) {
+    self.source[0] = 72;
+    self.source[1] = 105;
+    let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
+
+    Blob::encode_wire(&sample, &mut self.buffer, &mut self.written);
+
+    let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
+    Blob::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+
+    let matches: bool = self.ok && self.written == 5 && self.read == 5;
+    transition matches {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("borrowed-byte-slice wire program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert_eq!(
+        outcome.error, None,
+        "interpreter should round-trip a borrowed `&[u8]` wire field"
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "encode+decode of a `&[u8]` field must consume 5 bytes (length + raw bytes)"
+    );
+}
