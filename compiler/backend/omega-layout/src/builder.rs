@@ -500,10 +500,23 @@ impl<'program> LayoutBuilder<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
-            TypeReferenceNode::Reference { .. } => Ok(TypeLayout {
-                size: self.target.pointer_size,
-                alignment: self.target.pointer_alignment,
-            }),
+            TypeReferenceNode::Reference { referee, .. } => {
+                // A reference to the unsized `string` text view is a FAT
+                // `{ptr, len}` window (like `&[T]`), not a thin pointer: a thin
+                // pointer cannot carry the view's length. Every other reference
+                // (`&SizedType`) stays a thin pointer.
+                if matches!(
+                    self.program.type_reference_table.type_reference(*referee),
+                    TypeReferenceNode::Named { name, .. } if name.as_str() == "string"
+                ) {
+                    Ok(fat_descriptor_layout(self.target))
+                } else {
+                    Ok(TypeLayout {
+                        size: self.target.pointer_size,
+                        alignment: self.target.pointer_alignment,
+                    })
+                }
+            }
             TypeReferenceNode::Constrained { base_type, .. } => {
                 self.layout_type_reference_handle_with_bindings(*base_type, bindings)
             }

@@ -1,0 +1,59 @@
+// Wire stage 2 (#43), borrowed `&string` fields: a `&string` schema field
+// encodes IDENTICALLY to an owned `String` -- its referenced bytes, length-
+// prefixed -- but views the bytes in place (zero-copy, no allocator) rather
+// than owning a copy. Natively, `&string` is a fat `{ptr, len}` text window
+// (the same descriptor shape a String field uses), so it lowers through the
+// same text-bytes append.
+//
+// Encoded bytes for { text: "Hi" }, hand-computed:
+//   era 0       -> 0x00   (no version blocks)
+//   tag 0       -> 0x00   (field number 0)
+//   length 2    -> 0x02   (byte count of "Hi")
+//   'H'         -> 0x48   (72)
+//   'i'         -> 0x69   (105)
+// written = 5; the canary checks the five bytes + the written count
+// in-language and exits 70 when byte-exact.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data LabelMessage {
+    0: text: &string;
+}
+
+data LabelSample {
+    text: &string;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+}
+
+machine Main::main(&mut self) {
+    let msg: LabelSample = LabelSample { text: "Hi" };
+
+    LabelMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    let ok: bool = self.written == 5
+        && self.buffer[0] == 0
+        && self.buffer[1] == 0
+        && self.buffer[2] == 2
+        && self.buffer[3] == 72
+        && self.buffer[4] == 105;
+
+    transition ok {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

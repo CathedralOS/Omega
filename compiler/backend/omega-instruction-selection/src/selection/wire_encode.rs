@@ -503,8 +503,18 @@ fn collect_field_appends(
             continue;
         }
 
-        let primitive = input.program.primitive_type_reference(field.type_reference)?;
-        let encoding = WireFieldEncoding::for_primitive(primitive)?;
+        // A borrowed `&string` field encodes exactly like an owned `String`:
+        // its referenced bytes, length-prefixed. The field is a fat `{ptr, len}`
+        // text window (same shape as a String text descriptor), so it lowers
+        // through the SAME text-bytes append. The `byte_count` check below is the
+        // safety net: a `&string` whose layout is not the text-descriptor shape
+        // makes selection decline (stays gated, no miscompile).
+        let encoding = if input.program.is_borrowed_string_view(field.type_reference) {
+            WireFieldEncoding::Text
+        } else {
+            let primitive = input.program.primitive_type_reference(field.type_reference)?;
+            WireFieldEncoding::for_primitive(primitive)?
+        };
         let place = resolve_runtime_storage_place_in_table(
             input,
             dispatch_index,
