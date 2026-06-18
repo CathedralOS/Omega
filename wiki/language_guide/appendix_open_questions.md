@@ -30,12 +30,13 @@ This page tracks design pressure that is not fully nailed down yet.
   `Str`/`StrView` are all retired: each named either the byte container
   (redundant with `[u8]`) or the abstract codepoint text -- a quotient of
   bytes-modulo-encoding that has no canonical layout (decoded form is `[u32]` of
-  scalar values). The builtin `string` (a `&[u8]` view) and `String`
-  (`PrimitiveType::String`) still exist in the compiler today; the wire path
-  already lowers `&string` to `{ptr, len}` over `u8`, so the representation is
-  already a byte view with the encoding implicit. Replacing them with
-  `[u8] in Utf8` waits on domains over `Slice<u8>`, the codec operators, and a
-  corpus migration.
+  scalar values). The builtin `string` and `String` (`PrimitiveType::String`)
+  still exist in the compiler today. A wire `&string` field was prototyped and
+  then removed as a vestige: the honest borrowed bytes/text wire field is `&[u8]`
+  (already a fat slice natively), riding a raw-byte encoding (length + raw bytes,
+  like protobuf `bytes`) distinct from a `[u8; N]` repeated field (packed
+  per-element varints). Replacing the builtins with `[u8] in Utf8` wholesale
+  waits on domains over `Slice<u8>`, the codec operators, and a corpus migration.
 - Surface notation must be honest sugar (decided design law). There are two
   kinds of surface form. TYPOGRAPHY desugars totally and bijectively to the
   nominal core the prover already reasons over, leaving no residue: `[u8]` ->
