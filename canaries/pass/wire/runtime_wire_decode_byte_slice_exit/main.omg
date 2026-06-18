@@ -1,0 +1,67 @@
+// Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode. `decode_wire` reads a
+// byte-LENGTH varint, bounds-checks it, then stores a fat `{ptr, len}`
+// descriptor VIEWING the decode buffer in place -- no allocator, no copy -- and
+// advances the cursor past the content. The decoded `&[u8]` borrows the buffer.
+//
+// This round-trips and proves the view is CONTENT-correct: encode
+// { bytes: [72, 105] } to 5 bytes, decode it back into `decoded`, then
+// RE-ENCODE `decoded` -- if its descriptor points at the right buffer bytes
+// with the right length, the re-encode reproduces the same framing (length 2,
+// then 0x48 0x69). Exits 70 when ok, read = 5, and the re-encoded content
+// matches.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Blob {
+    0: bytes: &[u8];
+}
+
+data BlobSample {
+    bytes: &[u8];
+}
+
+data Main {
+    console: Console;
+    source: [u8; 4];
+    buffer: [u8; 64];
+    buffer2: [u8; 64];
+    written: usize;
+    written2: usize;
+    read: usize;
+    ok: bool;
+}
+
+machine Main::main(&mut self) {
+    self.source[0] = 72;
+    self.source[1] = 105;
+    let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
+
+    Blob::encode_wire(&sample, &mut self.buffer, &mut self.written);
+
+    let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
+    Blob::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+
+    Blob::encode_wire(&decoded, &mut self.buffer2, &mut self.written2);
+
+    let matches: bool = self.ok
+        && self.read == 5
+        && self.written2 == 5
+        && self.buffer2[2] == 2
+        && self.buffer2[3] == 72
+        && self.buffer2[4] == 105;
+
+    transition matches {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

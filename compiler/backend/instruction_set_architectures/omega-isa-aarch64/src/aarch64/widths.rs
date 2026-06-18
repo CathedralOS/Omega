@@ -1371,6 +1371,16 @@ pub fn wire_decode_varint_target_page_offset(
         + if zigzag { wire_unzigzag_width() } else { 0 }
 }
 
+/// Placeholder offset for the gated aarch64 `&[u8]` decode -- the encoder errors
+/// before emission, so this is never used.
+pub fn wire_decode_byte_slice_target_page_offset(
+    _buffer_offset: usize,
+    _buffer_length: usize,
+    _read_offset: usize,
+) -> usize {
+    0
+}
+
 pub fn read_wire_nested_open_width(
     buffer_offset: usize,
     buffer_length: usize,

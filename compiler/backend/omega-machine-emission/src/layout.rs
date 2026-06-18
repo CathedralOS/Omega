@@ -466,6 +466,21 @@ fn machine_instruction_width(
             *byte_size,
             *zigzag,
         ),
+        SelectedInstructionKind::ReadWireByteSlice {
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            target_offset,
+            ..
+        } => omega_instruction_selection::read_wire_byte_slice_width(
+            input.target.architecture,
+            *buffer_offset,
+            *buffer_length,
+            *read_offset,
+            *ok_offset,
+            *target_offset,
+        ),
         SelectedInstructionKind::ReadWireNestedOpen {
             buffer_offset,
             buffer_length,

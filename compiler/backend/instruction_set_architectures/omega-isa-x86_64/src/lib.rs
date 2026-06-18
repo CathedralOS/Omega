@@ -2740,6 +2740,116 @@ pub fn encode_read_wire_scalar_varint(
     Ok(bytes)
 }
 
+/// compact_binary v0 borrowed `&[u8]` decode (#43): read the byte-LENGTH varint
+/// (the shared prologue + LEB128 loop leave r15 = &buffer[content start] and
+/// rax = the length), bounds-check the content against the buffer, store the fat
+/// `{ptr = r15, len = rax}` descriptor into the target, and advance the cursor
+/// past the content. A content run past the buffer clears the sticky `ok`.
+pub fn encode_read_wire_byte_slice(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    target_region: omega_target_operations::RuntimeStorageRegion,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    // The region only picks the relocation symbol; the shape is identical.
+    let _ = target_region;
+
+    let mut bytes = Vec::with_capacity(read_wire_byte_slice_width(
+        buffer_offset,
+        buffer_length,
+        read_offset,
+        ok_offset,
+        target_offset,
+    ));
+    append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
+
+    bytes.extend([0x41, 0xb9, 0x01, 0x00, 0x00, 0x00]); // mov r9d, 1 (ok)
+    bytes.extend([0x31, 0xc0]); // xor eax, eax (length)
+    bytes.extend([0x31, 0xc9]); // xor ecx, ecx (shift)
+
+    // Identical LEB128 read loop to the scalar decoder: rax = length, r15 now
+    // points at the CONTENT (just past the length varint), r10 = cursor.
+    bytes.extend([0x48, 0x83, 0xf9, 0x3f]); // cmp rcx, 63
+    bytes.extend([0x77, 0x2f]); // ja +47 -> fail
+    bytes.extend([0x49, 0x81, 0xfa]); // cmp r10, imm32
+    bytes.extend(wire_decode_length_imm32(buffer_length)?.to_le_bytes());
+    bytes.extend([0x73, 0x26]); // jae +38 -> fail
+    bytes.extend([0x45, 0x0f, 0xb6, 0x1f]); // movzx r11d, byte [r15]
+    bytes.extend([0x49, 0xff, 0xc7]); // inc r15
+    bytes.extend([0x49, 0xff, 0xc2]); // inc r10
+    bytes.extend([0x4d, 0x89, 0xd8]); // mov r8, r11
+    bytes.extend([0x49, 0x83, 0xe0, 0x7f]); // and r8, 0x7f
+    bytes.extend([0x49, 0xd3, 0xe0]); // shl r8, cl
+    bytes.extend([0x4c, 0x09, 0xc0]); // or rax, r8
+    bytes.extend([0x48, 0x83, 0xc1, 0x07]); // add rcx, 7
+    bytes.extend([0x49, 0xf7, 0xc3, 0x80, 0x00, 0x00, 0x00]); // test r11, 0x80
+    bytes.extend([0x75, 0xcd]); // jnz -51 -> loop
+    bytes.extend([0xeb, 0x03]); // jmp +3 -> done
+    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d (fail: clear ok)
+
+    // Bounds + advance (fixed 21 bytes): end = cursor + len; if end >
+    // buffer_length clear ok; cursor = end.
+    bytes.extend([0x4d, 0x89, 0xd0]); // mov r8, r10  (r8 = cursor)
+    bytes.extend([0x49, 0x01, 0xc0]); // add r8, rax  (r8 = cursor + len = end)
+    bytes.extend([0x49, 0x81, 0xf8]); // cmp r8, imm32
+    bytes.extend(wire_decode_length_imm32(buffer_length)?.to_le_bytes());
+    bytes.extend([0x76, 0x03]); // jbe +3 (skip clear when end <= length)
+    bytes.extend([0x45, 0x31, 0xc9]); // xor r9d, r9d (content overruns -> clear ok)
+    bytes.extend([0x4d, 0x89, 0xc2]); // mov r10, r8 (advance cursor to end)
+
+    // Store the descriptor: ptr = r15 (content start) @ +0, len = rax @ +8.
+    bytes.extend([0x49, 0xb8]); // mov r8, imm64(target page)
+    bytes.extend(0u64.to_le_bytes());
+    bytes.extend([0x4d, 0x89, 0xb8]); // mov [r8+disp32], r15
+    bytes.extend(disp32(target_offset)?.to_le_bytes());
+    bytes.extend([0x49, 0x89, 0x80]); // mov [r8+disp32], rax
+    bytes.extend(disp32(target_offset + 8)?.to_le_bytes());
+
+    append_wire_decode_epilogue(&mut bytes, read_offset, ok_offset)?;
+    debug_assert_eq!(
+        bytes.len(),
+        read_wire_byte_slice_width(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            target_offset
+        )
+    );
+    Ok(bytes)
+}
+
+pub fn read_wire_byte_slice_width(
+    _buffer_offset: usize,
+    _buffer_length: usize,
+    _read_offset: usize,
+    _ok_offset: usize,
+    _target_offset: usize,
+) -> usize {
+    // Prologue + success/value/shift init (10) + read loop + bounds&advance (21)
+    // + target imm64 (10) + ptr store (7) + len store (7) + epilogue.
+    wire_decode_prologue_width()
+        + 10
+        + wire_varint_read_loop_width()
+        + 21
+        + 10
+        + 7
+        + 7
+        + wire_decode_tail_width()
+}
+
+/// Byte offset of the TARGET page mov inside the byte-slice decode (the
+/// relocation planner adds the +2 imm64 offset itself).
+pub fn wire_decode_byte_slice_target_page_offset(
+    _buffer_offset: usize,
+    _buffer_length: usize,
+    _read_offset: usize,
+) -> usize {
+    wire_decode_prologue_width() + 10 + wire_varint_read_loop_width() + 21
+}
+
 /// Byte offset of the READ (cursor) page mov inside both wire decodes (the
 /// relocation planner adds the +2 imm64 offset itself).
 pub fn wire_decode_read_page_offset(_buffer_offset: usize) -> usize {

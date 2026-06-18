@@ -52,6 +52,9 @@ enum WireReadContent {
         place: RuntimeStoragePlace,
     },
     Nested { children: Vec<WireFieldRead> },
+    /// A borrowed `&[u8]` field: a byte-LENGTH varint then a fat `{ptr, len}`
+    /// descriptor viewing the buffer content, stored zero-copy into `place`.
+    ByteSlice { place: RuntimeStoragePlace },
     /// A repeated field: a byte-LENGTH varint opens a bounded sub-region,
     /// then up to `max_count` guarded element reads (each runs only while
     /// the cursor sits below the bound, bumping the count companion), and
@@ -250,6 +253,19 @@ pub(super) fn select_wire_decode_call(
         match &field.content {
             WireReadContent::Scalar { encoding, place } => {
                 push(scalar_read_kind(place, encoding));
+            }
+            WireReadContent::ByteSlice { place } => {
+                push(SelectedInstructionKind::ReadWireByteSlice {
+                    buffer_region: buffer_place.region,
+                    buffer_offset: buffer_place.byte_offset,
+                    buffer_length,
+                    read_region: read_place.region,
+                    read_offset: read_place.byte_offset,
+                    ok_region: ok_place.region,
+                    ok_offset: ok_place.byte_offset,
+                    target_region: place.region,
+                    target_offset: place.byte_offset,
+                });
             }
             WireReadContent::Nested { children } => {
                 // LENGTH varint into the end-bound slot, then OPEN turns it
@@ -481,6 +497,26 @@ fn collect_field_reads(
             fields.push(WireFieldRead {
                 number: field.number,
                 content: WireReadContent::Nested { children },
+            });
+            continue;
+        }
+
+        // A borrowed `&[u8]` field decodes ZERO-COPY into its `{ptr, len}`
+        // descriptor slot (16 bytes): the read op stores a view of the buffer.
+        if input.program.is_borrowed_byte_slice(field.type_reference) {
+            let place = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                member_handle,
+            )?;
+            if place.byte_count != input.runtime_abi.slice_descriptor_size() {
+                return None;
+            }
+            fields.push(WireFieldRead {
+                number: field.number,
+                content: WireReadContent::ByteSlice { place },
             });
             continue;
         }

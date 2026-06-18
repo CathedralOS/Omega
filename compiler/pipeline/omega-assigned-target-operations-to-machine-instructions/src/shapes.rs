@@ -83,6 +83,9 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::ReadWireScalarVarint { .. } => {
             MachineInstructionKind::WireScalarVarintRead
         }
+        SelectedInstructionKind::ReadWireByteSlice { .. } => {
+            MachineInstructionKind::WireByteSliceRead
+        }
         SelectedInstructionKind::ReadWireNestedOpen { .. } => {
             MachineInstructionKind::WireNestedOpenRead
         }
