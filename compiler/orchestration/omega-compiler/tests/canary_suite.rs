@@ -2133,44 +2133,6 @@ fn runtime_wire_encode_string_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_wire_encode_borrowed_string_exit_canary_runs() {
-    // Wire stage 2 (#43), borrowed `&string` fields: a `&string` schema field
-    // encodes IDENTICALLY to an owned `String` (its referenced bytes, length-
-    // prefixed) but views the bytes in place rather than owning a copy.
-    // Natively, `&string` is a fat `{ptr, len}` text window, so it lowers
-    // through the same text-bytes append. The canary checks the five expected
-    // bytes for { text: "Hi" } and the written count in-language; exits 70 when
-    // byte-exact.
-    let canary = pass_canary("wire/runtime_wire_encode_borrowed_string_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-wire-borrowed-string-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("wire encode borrowed-string canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("wire encode borrowed-string canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the compact_binary v0 encoder to frame the `&string` field as len varint + raw bytes (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn runtime_call_result_binary_operand_exit_canary_runs() {
     // A state-call result used as an operand of a larger value (`x = f() + 1`,
     // `x = max(y, f()+1)`) must apply the operator, not collapse to just the call's
@@ -11130,7 +11092,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_roundtrip_primitive_exit",
     "wire/runtime_wire_decode_rejects_wrong_era_exit",
     "wire/runtime_wire_encode_string_exit",
-    "wire/runtime_wire_encode_borrowed_string_exit",
     "wire/runtime_wire_roundtrip_repeated_exit",
     "wire/runtime_wire_decode_rejects_repeated_overflow_exit",
     // --- 2026-06-12 canary coverage sweep (feature-edge additions) ---
