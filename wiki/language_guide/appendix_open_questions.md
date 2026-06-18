@@ -231,7 +231,11 @@ This page tracks design pressure that is not fully nailed down yet.
   lowerings and shared-ring/poll to avoid trap storms. **Reclamation** = drop/RAII
   for owned data (GC rejected); lock-free quarantined to one channel primitive +
   an SMR scheme. Pointers need no `unsafe` (borrow obligations already cover the
-  sequential case). Oracle = confluence + seeded scheduling.
+  sequential case). Oracle = confluence + seeded scheduling. Concurrent-structure
+  substrate = **generational arena handles** (`{index, generation}`, no raw
+  pointers; deref is bounds+generation checked, fail-safe — kills allocator-UAF
+  and ABA by construction; same model as Cathedral's grant arena), **paged** for
+  unbounded growth (immovable pages, lock-free CAS-linked).
 
 ## Still Open
 
@@ -243,7 +247,13 @@ This page tracks design pressure that is not fully nailed down yet.
   on it may not hold; timed-wait placement). The exact **device-memory source
   surface** (type spelling, ordering args). Only if hard-real-time is ever
   promised: the full-async-preemption register/stack context-switch design
-  (otherwise dissolved by safe-point preemption).
+  (otherwise dissolved by safe-point preemption). And **OQ8** — whether Omega can
+  ever ADMIT "known-good" raw-pointer lock-free algorithms (true Treiber etc.) it
+  currently prunes: NOT a Gödel "true-but-unprovable" (they ARE provable, in
+  Iris-class logics) but the soundness⇄completeness tradeoff (Rice) — a sound
+  decidable checker MUST reject some safe programs, so the question is only how far
+  up the proof-power ladder we climb to shrink that set (never to zero). The
+  generational/paged-arena substrate covers the practical need meanwhile.
 
 - Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?
 - How much domain classifier/checker inference should Omega attempt beyond

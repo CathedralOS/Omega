@@ -431,6 +431,28 @@ earlier, **this wins.**
   reclamation question), never hand-rolled CAS. Its scope is tiny precisely
   because the model is message-passing.
 
+- **Concurrent-structure substrate — RESOLVED: generational arena handles, paged
+  for growth.** Where a shared structure IS needed (the channel/mailbox, OS
+  tables), the default substrate is a **generational arena**: storage is a fixed
+  pool of `Slot { generation, value }`; references are `Handle { index,
+  generation }` (plain data, NO raw pointer); a deref is a bounds-checked +
+  generation-checked arena access that **fails safe** (`None`) on a stale handle.
+  This is memory-safe BY CONSTRUCTION with no `unsafe`: it kills allocator-level
+  use-after-free (memory never leaves the arena) and **ABA** (the generation is
+  the version tag, part of the CAS word) — exactly the unprovable raw-pointer
+  hazards. It is also the SAME `{slot, generation}` model Cathedral's grant arena
+  already uses, and it fits the bounded-memory ethos (pre-sized pool, like the
+  `M × N` task bound). For UNBOUNDED growth: a **paged/segmented arena** — a
+  directory of fixed-size, IMMOVABLE pages, grown lock-free by CAS-linking a new
+  page (existing handles stay valid because old pages never move; cf. Crossbeam
+  `SegQueue`, the `sharded-slab` crate). Page allocation is dynamic-but-accounted
+  (cap max pages, or back it with a Region) — consistent with "Region-backed
+  dynamic N." RESIDUAL (small, coarser): returning memory + the slot/page-reuse-
+  vs-concurrent-reader race remain, gated by epoch/quiescence at PAGE granularity
+  (cheaper than per-node). So generational+paged arenas are the DEFAULT concurrent
+  substrate; raw-pointer lock-free is reserved for the rare case the pool model
+  can't serve (see OQ8).
+
 - **"Pointers with no `unsafe`" — RESOLVED framing.** Omega already achieves this
   for the SEQUENTIAL case: using a pointer emits the obligation "target is
   live/owned/borrowed within this pointer's lifetime," discharged by the borrow
@@ -458,6 +480,30 @@ earlier, **this wins.**
 - **OQ1 (L3 disjoint *mutable* sharing):** still DEFERRED; mechanism = typed
   regions/capabilities; it is also the home of the "pointers-no-unsafe for
   lock-free" goal above.
+- **OQ8 (NEW) — can Omega ever ADMIT "known-good" raw-pointer lock-free
+  algorithms (true Treiber/Michael-Scott/etc.) that its aggressive safety
+  currently PRUNES?** The generational+paged arena substrate covers the practical
+  need, so this is about the *frontier*, not a blocker. The framing matters and is
+  worth stating precisely:
+  - This is **NOT Gödel** (true-but-unprovable sentences). These algorithms are
+    true AND *provable* — machine-checked in concurrent separation logic (Iris,
+    RustBelt). Omega rejects them because its proof system is **deliberately
+    weaker/more local** than the proof requires (for cheap, automatic, decidable
+    checking) — *pragmatic* incompleteness, fixable by adding stronger machinery
+    (L3 regions → eventually Iris-grade proofs or proof-carrying admission).
+  - What IS fundamental is the **soundness ⇄ completeness tradeoff (Rice's
+    theorem):** any checker that is sound (never admits unsafe) AND decidable MUST
+    reject some safe programs — forever, for any checker. So "Omega says nope to
+    some valid code" is *mathematically guaranteed*; aggressiveness only moves the
+    frontier and chooses WHICH/HOW-MANY good programs are pruned, never zero.
+  - (Gödel does cameo *elsewhere*: Omega's contract logic reasons about
+    arithmetic, so there are true arithmetic facts the *prover* can't prove —
+    incompleteness of the prover, distinct from rejecting a safe algorithm.)
+  - The open question, then: how far up the proof-power ladder does Omega climb to
+    SHRINK the pruned set (per-pointer obligations → typed regions → hazard/epoch
+    as types → proof-carrying lock-free), knowing the set is never empty? Decide
+    deliberately; quarantine-now (arena substrate) is the honest interim, not a
+    permanent verdict.
 - **OQ2 (context-switch keystone):** LARGELY DISSOLVED by D7 (safe-point
   preemption keeps suspended state as data-at-a-known-point; no arbitrary
   stackful capture). Residual: only if hard-real-time forces full async
