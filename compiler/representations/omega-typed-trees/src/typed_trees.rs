@@ -916,6 +916,15 @@ impl TypedTrees {
         self.type_reference_table.primitive_type(type_reference)
     }
 
+    /// True when the type reference is a borrowed string view (`&string`) -- a
+    /// reference to the unsized `string` text-view builtin (NOT an owned
+    /// `String`). The zero-copy, allocator-free string the wire decoder views
+    /// in the decode buffer.
+    pub fn is_borrowed_string_view(&self, type_reference: types::TypeReferenceHandle) -> bool {
+        self.type_reference_table
+            .is_borrowed_string_view(type_reference)
+    }
+
     /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17)
     /// declared on a type reference; `Exact` when unconstrained.
     pub fn arithmetic_domain_for_type_reference(

@@ -533,3 +533,83 @@ machine Main::main(&mut self) -> i32 {
     assert_eq!(outcome.error, None, "interpreter declined the program");
     assert_eq!(outcome.exit_code, 70, "terminal arithmetic must become the exit code");
 }
+
+// ---- wire zero-copy `&string` decode (#43 stage 1) ---------------------------
+
+/// A borrowed `&string` wire field round-trips: `encode_wire` frames the schema
+/// (era, tag, byte-length varint, then the UTF-8 bytes) and `decode_wire` reads
+/// it back as a buffer VIEW. This is the allocator-free alternative to an owned
+/// `String` field (whose decode needs the runtime allocator and is gated). The
+/// NATIVE backend still gates `&string` wire codegen (it shows up as an
+/// "unresolved state call" emission-planning blocker), so this coverage is
+/// interpreter-only until the native `StringSlice` decode op lands (stage 2).
+///
+/// `{ text: "Hi" }` encodes to 5 bytes: era 0 (0x00), tag 0 (0x00), length 2
+/// (0x02), then `Hi` (0x48 0x69). The decoder consumes the same 5 bytes and the
+/// decoded view equals the original string.
+#[test]
+fn wire_borrowed_string_field_round_trips() {
+    let main_path = write_program(
+        "wire-borrowed-string-roundtrip",
+        r#"
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data LabelMessage {
+    0: text: &string;
+}
+
+data LabelSample {
+    text: &string;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+    read: usize;
+    ok: bool;
+}
+
+machine Main::main(&mut self) {
+    let msg: LabelSample = LabelSample { text: "Hi" };
+
+    LabelMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+
+    let decoded: LabelSample = LabelSample { text: "?" };
+
+    LabelMessage::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+
+    let matches: bool = self.ok
+        && self.written == 5
+        && self.read == 5
+        && decoded.text == "Hi";
+
+    transition matches {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("borrowed-string wire program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert_eq!(
+        outcome.error, None,
+        "interpreter should round-trip a borrowed `&string` wire field"
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "encode+decode of a `&string` field must consume 5 bytes and recover \"Hi\""
+    );
+}

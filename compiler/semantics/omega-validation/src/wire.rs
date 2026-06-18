@@ -519,6 +519,11 @@ fn validate_wire_encode_call(
     let mut repeated_fields: Vec<(&WireField, omega_typed_trees::wire::WireRepeatedEncoding)> =
         Vec::new();
     let mut text_fields: Vec<&WireField> = Vec::new();
+    // Borrowed `&string` fields encode IDENTICALLY to an owned `String` (the
+    // referenced bytes, length-prefixed); they share the runtime-sized Text
+    // constraints (at most one, must encode last) but match a `&string` value
+    // field rather than an owned one.
+    let mut string_slice_fields: Vec<&WireField> = Vec::new();
     let mut max_field_number = i64::MIN;
     let mut schema_rejects = false;
     for member in program.wire_members(schema.members) {
@@ -557,6 +562,28 @@ fn validate_wire_encode_call(
                 omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len()
                     + repeated.worst_case_payload_bytes();
             repeated_fields.push((field, repeated));
+            continue;
+        }
+        // A borrowed `&string` field encodes exactly like an owned `String`:
+        // its referenced bytes, length-prefixed. It rides the same Text
+        // constraints (runtime-sized, so at most one and it must encode last),
+        // so it joins `text_fields`; the value-type match (below) requires a
+        // `&string` value field rather than an owned `String`.
+        if program.is_borrowed_string_view(field.type_reference) {
+            if field.number < 0 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                    schema.name, field.name, field.number
+                )));
+                schema_rejects = true;
+                continue;
+            }
+            max_field_number = max_field_number.max(field.number);
+            worst_case_bytes +=
+                omega_typed_trees::wire::wire_varint_bytes(field.number as u64).len()
+                    + omega_typed_trees::wire::WIRE_TEXT_LENGTH_MAX_VARINT_LENGTH;
+            text_fields.push(field);
+            string_slice_fields.push(field);
             continue;
         }
         let primitive = program.primitive_type_reference(field.type_reference);
@@ -696,6 +723,38 @@ fn validate_wire_encode_call(
                 )));
             }
         }
+        // A `&string` schema field encodes a `&string` value field (the
+        // referenced bytes); the value's data field must match.
+        for field in &string_slice_fields {
+            let Some(value_field) = program
+                .data_members(value_data)
+                .iter()
+                .find_map(|member| match member {
+                    omega_typed_trees::data::DataMember::Field(data_field)
+                        if data_field.name == field.name =>
+                    {
+                        Some(data_field)
+                    }
+                    _ => None,
+                })
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::encode_wire` value type `{}` has no field `{}` to encode (schema field {})",
+                    schema.name, value_data.name, field.name, field.number
+                )));
+                continue;
+            };
+            if !program.is_borrowed_string_view(value_field.type_reference) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::encode_wire` value field `{}.{}` is `{}`, but the schema declares field {} as a borrowed `&string`; the value field must also be `&string`",
+                    schema.name,
+                    value_data.name,
+                    field.name,
+                    program.display_type_reference(value_field.type_reference),
+                    field.number
+                )));
+            }
+        }
         for (field, child) in &nested_fields {
             validate_nested_value_field(
                 program,
@@ -807,6 +866,9 @@ fn validate_wire_decode_call(
     let mut nested_fields: Vec<(&WireField, &WireSchema)> = Vec::new();
     let mut repeated_fields: Vec<(&WireField, omega_typed_trees::wire::WireRepeatedEncoding)> =
         Vec::new();
+    // Zero-copy borrowed-string fields (`&string`): decoded as a length-prefixed
+    // VIEW into the decode buffer (no allocator, unlike an owned `String`).
+    let mut string_slice_fields: Vec<&WireField> = Vec::new();
     let mut schema_rejects = false;
     for member in program.wire_members(schema.members) {
         let WireMember::Field(field) = member else {
@@ -835,6 +897,21 @@ fn validate_wire_decode_call(
                 continue;
             };
             repeated_fields.push((field, repeated));
+            continue;
+        }
+        // A borrowed `&string` field decodes ZERO-COPY: a length-prefixed view
+        // into the buffer, no owned copy and so no allocator. (An owned `String`
+        // field still rejects below -- it would need to copy bytes out.)
+        if program.is_borrowed_string_view(field.type_reference) {
+            if field.number < 0 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                    schema.name, field.name, field.number
+                )));
+                schema_rejects = true;
+                continue;
+            }
+            string_slice_fields.push(field);
             continue;
         }
         let primitive = program.primitive_type_reference(field.type_reference);
@@ -949,6 +1026,38 @@ fn validate_wire_decode_call(
                     program.display_type_reference(value_field.type_reference),
                     field.number,
                     program.display_type_reference(field.type_reference)
+                )));
+            }
+        }
+        // A `&string` schema field decodes into a `&string` value field (a
+        // zero-copy view of the buffer); the value's data field must match.
+        for field in &string_slice_fields {
+            let Some(value_field) = program
+                .data_members(value_data)
+                .iter()
+                .find_map(|member| match member {
+                    omega_typed_trees::data::DataMember::Field(data_field)
+                        if data_field.name == field.name =>
+                    {
+                        Some(data_field)
+                    }
+                    _ => None,
+                })
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::decode_wire` value type `{}` has no field `{}` to decode into (schema field {})",
+                    schema.name, value_data.name, field.name, field.number
+                )));
+                continue;
+            };
+            if !program.is_borrowed_string_view(value_field.type_reference) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::decode_wire` value field `{}.{}` is `{}`, but the schema declares field {} as a borrowed `&string` (zero-copy view); the value field must also be `&string`",
+                    schema.name,
+                    value_data.name,
+                    field.name,
+                    program.display_type_reference(value_field.type_reference),
+                    field.number
                 )));
             }
         }
