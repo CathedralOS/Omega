@@ -7610,6 +7610,54 @@ fn runtime_exit_code_exit_canary_runs() {
 }
 
 #[test]
+fn borrow_carrying_data_field_exit_canary_runs() {
+    // Borrow-carrying data (decision 15 stage 2/3): constructing `Msg { body:
+    // &self.cell }` and reading the reference field `message.body` extracts the
+    // borrowed `&Cell`, which is dereferenced through a `&Cell` ref parameter.
+    // Both the interpreter oracle AND the native backend must exit 70 (a 0/71
+    // exit is the pre-fix bug where a struct-literal-rooted field read resolved
+    // to no place and left the target zero).
+    let canary = pass_canary("expressions/borrow_carrying_data_field_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("borrow-carrying data canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should read the borrowed field as 70, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-borrow-carrying-data-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("borrow-carrying data canary should compile to a PE");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("borrow-carrying data canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "native backend should read the borrowed field as 70 (matching the interpreter); \
+         got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_u8_field_arith_exit_canary_runs() {
     let canary = pass_canary("types/runtime_u8_field_arith_exit");
     let main_path = canary.join("main.omg");

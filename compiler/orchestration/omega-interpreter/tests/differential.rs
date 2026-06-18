@@ -264,6 +264,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         103,
     ),
     ("dungeon/runtime_room_use_reentry_exit", 41),
+    ("expressions/borrow_carrying_data_field_exit", 70),
     ("expressions/runtime_call_result_binary_operand_exit", 70),
     ("expressions/runtime_cast_operand_exit", 70),
     ("expressions/runtime_f32_arithmetic_exit", 70),
