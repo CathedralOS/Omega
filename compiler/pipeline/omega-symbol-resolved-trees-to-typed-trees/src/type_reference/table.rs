@@ -22,6 +22,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             referee,
             is_mutable,
             is_relaxed,
+            lifetime,
         } => {
             let referee = lower_type_reference_handle_from_table_with_context(
                 source_trees,
@@ -33,6 +34,7 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
                     referee,
                     is_mutable: *is_mutable,
                     is_relaxed: *is_relaxed,
+                    lifetime: lifetime.as_ref().map(crate::name::lower_name),
                 },
             ))
         }

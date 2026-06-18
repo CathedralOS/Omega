@@ -1,1 +1,1 @@
-cannot infer which input the returned view borrows; explicit lifetime parameters are not implemented yet
+cannot infer which input the returned view borrows

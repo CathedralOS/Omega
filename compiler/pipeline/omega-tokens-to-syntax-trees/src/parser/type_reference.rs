@@ -232,9 +232,13 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    let (is_reference, is_mutable, is_relaxed, input) =
+    let (is_reference, lifetime, is_mutable, is_relaxed, input) =
         if input.at_punctuation(PunctuationKind::Ampersand) {
             let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
+            // Explicit lifetime (`&'buf T`, `&'buf mut T`); frozen decision 15
+            // stage 2. The tick precedes `mut`/`relaxed`, mirroring Rust's
+            // `&'a mut T`. A bare `&T` keeps the elided (`None`) form.
+            let (lifetime, input) = parse_optional_lifetime(input)?;
             let (is_mutable, input) = if input.at_contextual("mut") {
                 (true, input.take_contextual("mut")?)
             } else {
@@ -245,9 +249,9 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
             } else {
                 (false, input)
             };
-            (true, is_mutable, is_relaxed, input)
+            (true, lifetime, is_mutable, is_relaxed, input)
         } else {
-            (false, false, false, input)
+            (false, None, false, false, input)
         };
 
     let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
@@ -258,12 +262,27 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
                 referee: type_reference,
                 is_mutable,
                 is_relaxed,
+                lifetime,
             })
     } else {
         type_reference
     };
 
     Ok((type_reference, input))
+}
+
+/// Parse a `'name` lifetime if present, returning its identifier. The lexer
+/// emits `'` as `Apostrophe` punctuation immediately followed by the name
+/// identifier (frozen decision 15 stage 2).
+pub(super) fn parse_optional_lifetime<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Option<omega_syntax_trees::identifier::Identifier>> {
+    if !input.at_punctuation(PunctuationKind::Apostrophe) {
+        return Ok((None, input));
+    }
+    let input = input.take_punctuation(PunctuationKind::Apostrophe, "'")?;
+    let (name, input) = input.take_identifier()?;
+    Ok((Some(name), input))
 }
 
 pub(super) fn parse_type_constraint_handles<'tokens, 'source>(

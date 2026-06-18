@@ -21,11 +21,13 @@ pub(crate) fn lower_type_reference_handle(
             referee,
             is_mutable,
             is_relaxed,
+            lifetime,
         } => Ok(TypeReference::Reference(ReferenceTypeReference {
             storage: ReferenceTypeReferenceStorage {
                 referee: lower_type_reference_child(lowerer, syntax_trees, *referee)?,
                 is_mutable: *is_mutable,
                 is_relaxed: *is_relaxed,
+                lifetime: lifetime.as_ref().map(crate::name::lower_name),
             },
         })),
         syntax::types::TypeReferenceNode::Constrained {

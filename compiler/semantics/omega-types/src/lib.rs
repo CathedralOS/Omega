@@ -517,6 +517,7 @@ mod tests {
                     referee: slice_type,
                     is_mutable: false,
                     is_relaxed: false,
+                    lifetime: None,
                 });
         let index_type = syntax_trees
             .type_references

@@ -2,6 +2,7 @@
 pub enum PunctuationKind {
     Ampersand,
     AndAnd,
+    Apostrophe,
     Arrow,
     Asterisk,
     Caret,
@@ -64,6 +65,7 @@ impl PunctuationKind {
             ("/=", Self::SlashEqual),
             ("%=", Self::PercentEqual),
             ("&", Self::Ampersand),
+            ("'", Self::Apostrophe),
             ("*", Self::Asterisk),
             ("^", Self::Caret),
             (":", Self::Colon),
@@ -92,6 +94,7 @@ impl PunctuationKind {
         Some(match lexeme {
             "&" => Self::Ampersand,
             "&&" => Self::AndAnd,
+            "'" => Self::Apostrophe,
             "->" => Self::Arrow,
             "*" => Self::Asterisk,
             "^" => Self::Caret,

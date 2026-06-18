@@ -208,6 +208,7 @@ impl TypeReferenceTable {
                 referee,
                 is_mutable,
                 is_relaxed,
+                lifetime,
             } => {
                 let referee =
                     self.copy_from(source, source_expressions, target_expressions, *referee);
@@ -215,6 +216,7 @@ impl TypeReferenceTable {
                     referee,
                     is_mutable: *is_mutable,
                     is_relaxed: *is_relaxed,
+                    lifetime: lifetime.clone(),
                 })
             }
             TypeReferenceNode::Constrained {
@@ -364,6 +366,11 @@ pub enum TypeReferenceNode {
         referee: TypeReferenceHandle,
         is_mutable: bool,
         is_relaxed: bool,
+        /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. A
+        /// borrow-region tag only — no symbol, ignored by layout/codegen and by
+        /// structural type equality; consulted solely by the borrow checker
+        /// (see `checks/borrows/elision.rs`).
+        lifetime: Option<Identifier>,
     },
     Constrained {
         base_type: TypeReferenceHandle,

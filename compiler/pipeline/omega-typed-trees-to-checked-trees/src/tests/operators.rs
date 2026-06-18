@@ -286,6 +286,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
                 referee: slice_of_type_parameter,
                 is_mutable: false,
                 is_relaxed: false,
+                lifetime: None,
             });
     let slice_of_i32 = program
         .type_reference_table
@@ -299,6 +300,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
                 referee: slice_of_i32,
                 is_mutable: false,
                 is_relaxed: false,
+                lifetime: None,
             });
 
     let mut matching_operator =
@@ -456,6 +458,7 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
                 referee: slice_of_i32,
                 is_mutable: false,
                 is_relaxed: false,
+                lifetime: None,
             });
 
     let mut matching_operator =

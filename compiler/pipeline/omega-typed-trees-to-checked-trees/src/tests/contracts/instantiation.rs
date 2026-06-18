@@ -199,6 +199,7 @@ fn instantiates_call_contract_places_for_attached_data_arguments() {
             receiver: self_name,
             member_symbol: caller_player_symbol,
             member: Identifier::generated("player"),
+            case_variant: None,
         },
     ));
     let player_argument = Expression::Mutable(Box::new(player_member));
@@ -359,6 +360,7 @@ fn instantiates_call_contract_places_for_expression_statement_calls() {
             receiver: self_name,
             member_symbol: caller_player_symbol,
             member: Identifier::generated("player"),
+            case_variant: None,
         },
     ));
     let player_argument = Expression::Mutable(Box::new(player_member));

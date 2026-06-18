@@ -598,6 +598,7 @@ fn type_reference_label(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> St
             referee,
             is_mutable,
             is_relaxed,
+            lifetime,
         } => {
             let qualifier = match (*is_mutable, *is_relaxed) {
                 (true, true) => "mut relaxed ",
@@ -605,7 +606,14 @@ fn type_reference_label(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> St
                 (false, true) => "relaxed ",
                 (false, false) => "",
             };
-            format!("&{qualifier}{}", type_reference_label(syntax, *referee))
+            let lifetime = lifetime
+                .as_ref()
+                .map(|name| format!("'{} ", name.as_str()))
+                .unwrap_or_default();
+            format!(
+                "&{lifetime}{qualifier}{}",
+                type_reference_label(syntax, *referee)
+            )
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_label(syntax, *base_type)

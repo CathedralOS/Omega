@@ -1057,10 +1057,11 @@ fn accepts_unlinked_ref_input_mutation_while_free_machine_view_is_active() {
         .expect("mutating the unlinked ref input while the view is live should compile");
 }
 
-/// Lifetimes stage 1: a view-returning machine with MULTIPLE non-self ref
-/// inputs is ambiguous and rejected at the declaration (explicit lifetime
-/// parameters are not implemented yet). A `&self` method with extra ref params
-/// stays accepted (elision rule 3 links the output to self).
+/// A view-returning machine with MULTIPLE non-self ref inputs and an ELIDED
+/// output lifetime is ambiguous and rejected at the declaration: the checker
+/// cannot infer which input the view borrows, and now points at explicit
+/// lifetimes (decision 15 stage 2) as the fix. A `&self` method with extra ref
+/// params stays accepted (elision rule 3 links the output to self).
 #[test]
 fn rejects_ambiguous_view_return_with_multiple_ref_inputs() {
     let source = r#"
@@ -1122,9 +1123,69 @@ fn rejects_ambiguous_view_return_with_multiple_ref_inputs() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains(
-            "cannot infer which input the returned view borrows; explicit lifetime parameters are not implemented yet"
-        ),
+        combined.contains("cannot infer which input the returned view borrows"),
         "expected the elision ambiguity rejection, got:\n{combined}"
     );
+}
+
+/// Lifetimes stage 2 (frozen decision 15): an EXPLICIT output lifetime resolves
+/// the otherwise-ambiguous two-ref-input case by naming the input the view
+/// borrows. `pick_either<'bag>(a: &'bag mut Bag, b: &mut Bag) -> &'bag mut Cell`
+/// says the view comes from `a`, so the declaration is accepted and the loan
+/// follows `a`'s argument (here `self.first`).
+#[test]
+fn accepts_view_return_disambiguated_by_explicit_lifetime() {
+    let source = r#"
+        data Cell {
+            value: i32;
+        }
+
+        data Bag {
+            cells: [Cell; 4];
+        }
+
+        data Main {
+            first: Bag;
+            second: Bag;
+        }
+
+        machine pick_either<'bag>(a: &'bag mut Bag, b: &mut Bag) -> &'bag mut Cell {
+            let cells: &mut [Cell] = a.cells.as_mut_slice();
+            transition {
+                _ -> &mut cells[2]
+            }
+        }
+
+        machine Main::main(&mut self) {
+            let cell: &mut Cell = pick_either(&mut self.first, &mut self.second);
+            cell.value = 7;
+        }
+    "#;
+
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let proof_plan = omega_proof::obligations::build_proof_plan(&typed);
+    let effects = omega_effects::infer_effects(&typed);
+    let borrow = build_borrow_facts(&typed);
+    let proof = build_proof_facts(&typed, &proof_plan, &borrow);
+    let mut semantic = build_semantic_facts(&typed, &proof);
+    let domains = build_domain_facts(&typed, &semantic);
+    let flow = build_flow_facts(&typed, &borrow, &proof, &mut semantic, &domains, &effects);
+    let facts = omega_checked_trees::CheckFacts {
+        semantic,
+        proof,
+        values: Default::default(),
+        borrow,
+        invariants: Default::default(),
+        domains,
+        operators: Default::default(),
+        effects,
+        capabilities: Default::default(),
+        flow,
+    };
+
+    check_checked_facts(&typed, &facts)
+        .expect("an explicit output lifetime naming one input should compile");
 }

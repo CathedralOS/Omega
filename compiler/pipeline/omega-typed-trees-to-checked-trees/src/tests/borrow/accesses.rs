@@ -18,6 +18,7 @@ fn collects_mutable_attached_data_argument_access_roots() {
             receiver: self_name,
             member_symbol: player_symbol,
             member: Identifier::generated("player"),
+            case_variant: None,
         },
     ));
     let player_argument = Expression::Mutable(Box::new(player_member));
@@ -112,6 +113,7 @@ fn collects_disjoint_member_access_segments() {
             receiver: self_name,
             member_symbol: player_symbol,
             member: Identifier::generated("player"),
+            case_variant: None,
         },
     ));
     let health_member = Expression::Member(Box::new(
@@ -119,6 +121,7 @@ fn collects_disjoint_member_access_segments() {
             receiver: player_member.clone(),
             member_symbol: health_symbol,
             member: Identifier::generated("health"),
+            case_variant: None,
         },
     ));
     let stamina_member = Expression::Member(Box::new(
@@ -126,6 +129,7 @@ fn collects_disjoint_member_access_segments() {
             receiver: player_member,
             member_symbol: stamina_symbol,
             member: Identifier::generated("stamina"),
+            case_variant: None,
         },
     ));
     let health_argument = program

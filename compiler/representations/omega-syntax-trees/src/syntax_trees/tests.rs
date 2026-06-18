@@ -198,6 +198,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
         .insert(ExpressionNode::Member(TableMemberExpression {
             receiver: player,
             member: Identifier::generated("level"),
+            case_variant: None,
         }));
 
     let self_value = file.expressions.insert(ExpressionNode::SelfValue);
