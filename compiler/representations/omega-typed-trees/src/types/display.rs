@@ -8,6 +8,11 @@ impl TypeReferenceNode {
                 referee,
                 is_mutable,
                 is_relaxed,
+                // Lifetime intentionally omitted from display: this string is the
+                // structural type-equality oracle (`type_references_match`), and
+                // `&'a T` / `&'b T` / `&T` are the SAME type — regions are checked
+                // by the borrow analysis, not by type equality (decision 15).
+                lifetime: _,
             } => {
                 let qualifier = reference_qualifier(*is_mutable, *is_relaxed);
                 format!("&{qualifier}{}", table.display_name(*referee))
@@ -62,6 +67,9 @@ impl TypeReferenceNode {
                 referee,
                 is_mutable,
                 is_relaxed,
+                // Omitted from display: see `display_name` above — lifetimes do
+                // not participate in structural type equality.
+                lifetime: _,
             } => {
                 let qualifier = reference_qualifier(*is_mutable, *is_relaxed);
                 format!(

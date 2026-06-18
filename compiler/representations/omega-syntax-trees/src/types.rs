@@ -50,6 +50,22 @@ impl TypeReferenceTable {
             referee,
             is_mutable,
             is_relaxed,
+            lifetime: None,
+        })
+    }
+
+    pub fn insert_reference_with_lifetime(
+        &mut self,
+        referee: TypeReferenceHandle,
+        is_mutable: bool,
+        is_relaxed: bool,
+        lifetime: Option<Identifier>,
+    ) -> TypeReferenceHandle {
+        self.insert(TypeReferenceNode::Reference {
+            referee,
+            is_mutable,
+            is_relaxed,
+            lifetime,
         })
     }
 
@@ -154,6 +170,12 @@ pub enum TypeReferenceNode {
         referee: TypeReferenceHandle,
         is_mutable: bool,
         is_relaxed: bool,
+        /// Explicit lifetime name (`&'buf T`), frozen decision 15 stage 2. `None`
+        /// is the elided case (stage 1). A borrow-region tag only: it carries no
+        /// symbol and is ignored by layout, codegen, and structural type
+        /// equality; only the borrow checker consults it to link a returned view
+        /// to the input it borrows.
+        lifetime: Option<Identifier>,
     },
     Constrained {
         base_type: TypeReferenceHandle,

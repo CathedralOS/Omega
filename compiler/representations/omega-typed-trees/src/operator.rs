@@ -123,11 +123,14 @@ fn type_reference_matches(
                 referee: actual_referee,
                 is_mutable: actual_mutable,
                 is_relaxed: actual_relaxed,
+                // Lifetimes do not affect operator/conformance type matching.
+                lifetime: _,
             },
             TypeReferenceNode::Reference {
                 referee: expected_referee,
                 is_mutable: expected_mutable,
                 is_relaxed: expected_relaxed,
+                lifetime: _,
             },
         ) => {
             actual_mutable == expected_mutable
@@ -379,6 +382,8 @@ fn canonical_type_reference(
             referee,
             is_mutable,
             is_relaxed,
+            // Canonical form omits lifetimes (not part of type identity).
+            lifetime: _,
         } => {
             let qualifier = match (*is_mutable, *is_relaxed) {
                 (true, true) => "mut relaxed ",

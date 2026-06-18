@@ -842,10 +842,15 @@ impl SyntaxTrees {
                 referee,
                 is_mutable,
                 is_relaxed,
+                lifetime,
             } => {
                 let referee = self.copy_type_reference_handle(other, *referee);
-                self.type_references
-                    .insert_reference(referee, *is_mutable, *is_relaxed)
+                self.type_references.insert_reference_with_lifetime(
+                    referee,
+                    *is_mutable,
+                    *is_relaxed,
+                    lifetime.clone(),
+                )
             }
             TypeReferenceNode::Constrained {
                 base_type,

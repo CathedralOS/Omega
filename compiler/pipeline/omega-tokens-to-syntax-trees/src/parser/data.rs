@@ -281,6 +281,30 @@ pub(super) fn parse_type_parameters<'tokens, 'source>(
             ));
         }
 
+        // A lifetime parameter (`<'buf>`); frozen decision 15 stage 2. Accepted
+        // and consumed here. Uses are linked to it by NAME through the
+        // reference-type lifetime tag, so the declaration is not yet recorded
+        // downstream — undeclared-lifetime validation is a stage-2 hardening
+        // follow-on, not a correctness requirement for the borrow linkage.
+        if input.at_punctuation(PunctuationKind::Apostrophe) {
+            let after_tick = input.take_punctuation(PunctuationKind::Apostrophe, "'")?;
+            let (_lifetime_name, next) = after_tick.take_identifier()?;
+            input = next;
+
+            if input.at_punctuation(PunctuationKind::Comma) {
+                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+                continue;
+            }
+
+            input = input.take_punctuation(PunctuationKind::Greater, ">")?;
+            let type_parameters = if type_parameter_count == 0 {
+                HandleSpan::empty()
+            } else {
+                HandleSpan::from_parts(type_parameter_start, type_parameter_count)
+            };
+            return Ok((type_parameters, input));
+        }
+
         let (name, kind, next) = if input.at_contextual("const") {
             let input = input.take_contextual("const")?;
             let (name, input) = input.take_identifier()?;

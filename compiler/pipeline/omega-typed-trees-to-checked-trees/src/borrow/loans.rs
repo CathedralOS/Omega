@@ -1,4 +1,5 @@
 use crate::context::*;
+use crate::borrow::view_link::{ViewReturnSource, resolve_view_return_source};
 use crate::semantic_calls::find_state;
 
 use super::accesses::{self, borrow_access_place};
@@ -108,62 +109,43 @@ fn helper_call_borrow_loan_place(
         );
     }
 
-    let Some(target_state) = find_state(program, call.target_symbol) else {
-        return None;
-    };
-    if !is_reference_type(program, target_state.return_type) {
-        return None;
+    let target_state = find_state(program, call.target_symbol)?;
+
+    // The borrow source (self, a named input, or none) is resolved by the same
+    // logic the declaration check uses (`borrow::view_link`), so the loan we
+    // track here always matches what the elision check accepted. Elision rules
+    // 1/3 and stage-2 explicit lifetimes all flow through there.
+    match resolve_view_return_source(program, target_state) {
+        ViewReturnSource::NotApplicable | ViewReturnSource::Ambiguous(_) => None,
+        ViewReturnSource::SelfReceiver => {
+            // Elision rule 3: a `&self`/`&mut self` method's returned view
+            // borrows self (the call receiver).
+            if !call.receiver.is_valid() {
+                return None;
+            }
+            borrow_access_place(
+                program,
+                state_symbol,
+                statement_index,
+                call.receiver,
+                machine_symbol,
+            )
+        }
+        ViewReturnSource::Parameter { non_self_index } => {
+            // The returned view borrows one named (or single) ref input; its
+            // loan follows that argument's place. Arguments map 1:1 to non-self
+            // parameters (a `&self` receiver routes through `SelfReceiver`).
+            let arguments = program.expression_table.expression_handles(call.arguments);
+            let argument = arguments.get(non_self_index).copied()?;
+            argument_borrow_loan_place(
+                program,
+                state_symbol,
+                statement_index,
+                machine_symbol,
+                argument,
+            )
+        }
     }
-
-    let parameters = program.state_parameters(target_state);
-    let receiver_is_self = parameters.iter().any(|parameter| parameter.is_self);
-
-    if receiver_is_self {
-        // Rust's elision rule 3: a `&self`/`&mut self` method's returned view
-        // borrows self (the call receiver), even when other ref params exist.
-        if !call.receiver.is_valid() {
-            return None;
-        }
-        return borrow_access_place(
-            program,
-            state_symbol,
-            statement_index,
-            call.receiver,
-            machine_symbol,
-        );
-    }
-
-    // Elision rule 1 (lifetimes stage 1): a machine returning a view with
-    // EXACTLY ONE candidate ref input links the returned view's loan to that
-    // input's argument place. Zero candidates or multiple candidates produce
-    // no loan here; the multiple-candidate case is rejected at the machine's
-    // declaration (see `checks::borrows::elision`), and the zero-candidate
-    // case keeps the historical (conservative-free) behavior.
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    let mut linked_argument: Option<ExpressionHandle> = None;
-    let mut argument_index = 0usize;
-    for parameter in parameters {
-        if parameter.is_self {
-            continue;
-        }
-        let argument = arguments.get(argument_index).copied();
-        argument_index = argument_index.saturating_add(1);
-        if !is_reference_type(program, parameter.type_reference) {
-            continue;
-        }
-        if linked_argument.is_some() {
-            return None;
-        }
-        linked_argument = argument;
-    }
-
-    argument_borrow_loan_place(
-        program,
-        state_symbol,
-        statement_index,
-        machine_symbol,
-        linked_argument?,
-    )
 }
 
 /// The loan place for a call argument that the called machine's returned view

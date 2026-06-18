@@ -202,6 +202,7 @@ fn expression_places_preserve_roots_and_segments() {
             receiver: indexed,
             member_symbol: tail_symbol,
             member: Identifier::generated("tail"),
+            case_variant: None,
         }));
 
     let mut facts = FactPlan::default();
@@ -364,6 +365,7 @@ fn expression_places_resolve_attached_data_members() {
                 receiver: self_expression,
                 member_symbol: SymbolHandle::invalid(),
                 member: Identifier::generated("player"),
+                case_variant: None,
             }));
 
     let mut facts = FactPlan::default();

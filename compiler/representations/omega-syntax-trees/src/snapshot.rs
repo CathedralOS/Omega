@@ -1164,6 +1164,8 @@ fn snapshot_type_reference_handle(
             referee,
             is_mutable,
             is_relaxed,
+            // Lifetime omitted from the structural snapshot (borrow-region tag).
+            lifetime: _,
         } => TypeReferenceSnapshot::Reference {
             referee: Box::new(snapshot_type_reference_handle(syntax_trees, *referee)),
             is_mutable: *is_mutable,

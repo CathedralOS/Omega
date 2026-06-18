@@ -593,6 +593,7 @@ fn count_type_reference_handle(
             referee,
             is_mutable: _,
             is_relaxed: _,
+            lifetime: _,
         } => count_type_reference_handle(syntax_trees, *referee, counts),
         crate::types::TypeReferenceNode::Constrained {
             base_type,

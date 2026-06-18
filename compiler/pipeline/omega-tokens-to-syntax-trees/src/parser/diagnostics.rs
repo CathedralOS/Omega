@@ -107,6 +107,7 @@ fn render_punctuation(punctuation: PunctuationKind) -> &'static str {
     match punctuation {
         PunctuationKind::Ampersand => "&",
         PunctuationKind::AndAnd => "&&",
+        PunctuationKind::Apostrophe => "'",
         PunctuationKind::Arrow => "->",
         PunctuationKind::Asterisk => "*",
         PunctuationKind::Caret => "^",

@@ -6,6 +6,7 @@ mod loans;
 mod roots;
 mod state;
 mod tracker;
+pub(crate) mod view_link;
 
 use crate::lookup::machine_state_count;
 use roots::estimated_borrow_root_capacity;

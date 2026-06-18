@@ -18,6 +18,7 @@ fn call_mutated_places_include_mutable_attached_data_arguments() {
             receiver: self_name,
             member_symbol: player_symbol,
             member: Identifier::generated("player"),
+            case_variant: None,
         },
     ));
     let player_argument = Expression::Mutable(Box::new(player_member));

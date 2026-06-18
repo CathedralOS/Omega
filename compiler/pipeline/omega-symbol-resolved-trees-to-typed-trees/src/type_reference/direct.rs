@@ -23,6 +23,7 @@ pub(super) fn lower_type_reference_handle_with_context(
                     referee,
                     is_mutable: reference.is_mutable,
                     is_relaxed: reference.is_relaxed,
+                    lifetime: reference.lifetime.as_ref().map(crate::name::lower_name),
                 },
             ))
         }
