@@ -1,7 +1,9 @@
 // Wire stage 2b: the compact_binary v0 decoder covers primitive integer
-// scalars only (i32/i64/u32/u64/bool). A schema field outside that set --
-// here a String -- rejects the decode call with a clear diagnostic instead
-// of silently mis-decoding.
+// scalars only (i32/i64/u32/u64/bool). Decoding an OWNED `String` is gated on
+// a missing PREREQUISITE, not a missing wire feature: it must copy the bytes
+// out of the buffer into owned storage, and Omega has no runtime allocator yet.
+// The decode call rejects with a diagnostic that names that dependency (and the
+// allocator-free zero-copy `&'buf string` alternative) instead of mis-decoding.
 
 boundary trait Console {
     machine exit_process(return_code: i32);

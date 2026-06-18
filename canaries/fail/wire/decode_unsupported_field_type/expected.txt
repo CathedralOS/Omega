@@ -1,1 +1,1 @@
-wire data `LabelMessage` field `label`: `String` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, bool, and a sibling wire schema (one nesting level; String fields are encode-only until the decoded descriptor's buffer-aliasing story lands)
+decoding an owned `String` is not implemented yet -- it must copy the field's bytes out of the decode buffer into owned storage, which requires the runtime allocator
