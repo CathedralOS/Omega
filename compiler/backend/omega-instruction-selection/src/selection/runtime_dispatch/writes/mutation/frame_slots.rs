@@ -79,6 +79,15 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     source_anchor_byte_offset: usize,
 ) -> Option<SelectedInstructionKind> {
+    // Struct-literal field extraction: a local bound to a struct literal folds to
+    // that literal, so a field read of a locally-constructed aggregate
+    // (`let p = Pair { a: X }; p.a`) or a non-escaping borrow-carrying `data`
+    // value (`let m = Msg { body: &c }; m.body`) reaches here as
+    // `Pair { a: X }.a` -- a struct-literal-rooted member access no place
+    // resolver can place (it finds no slot and leaves the target zero). Select
+    // the field's initializer instead. Field extraction returns an existing
+    // handle, so this needs no table mutation. (Decision 15 stage 2.)
+    let value = strip_struct_literal_field_access(expressions, value);
     if slot.byte_size == input.runtime_abi.pointer_size
         && let Some(kind) = select_runtime_frame_slot_address_write_in_table(
             input,
@@ -458,4 +467,35 @@ fn select_runtime_frame_slot_place_address_write_in_table(
             target_offset: slot.byte_offset,
         },
     )
+}
+
+/// Fold `StructLiteral { field: X }.field` to `X`, chaining while the receiver is
+/// directly a struct literal. Returns an EXISTING expression handle (no table
+/// insertion), so it is usable where the table is borrowed immutably. A
+/// non-struct-literal receiver (e.g. a nested member access) stops the fold —
+/// the realistic shapes (`p.a`, `m.body`) have a struct-literal receiver
+/// directly, so this covers a local aggregate's field read and a non-escaping
+/// borrow-carrying `data` value's field read (decision 15 stage 2).
+fn strip_struct_literal_field_access(
+    expressions: &ExpressionTable,
+    mut value: ExpressionHandle,
+) -> ExpressionHandle {
+    loop {
+        let ExpressionNode::Member(member) = expressions.expression(value).clone() else {
+            return value;
+        };
+        let ExpressionNode::StructLiteral(literal) =
+            expressions.expression(member.receiver).clone()
+        else {
+            return value;
+        };
+        let field_value = (0..literal.fields.count()).find_map(|offset| {
+            let field = expressions.struct_field_at_offset(literal.fields, offset);
+            (field.name.as_str() == member.member.as_str()).then_some(field.value)
+        });
+        match field_value {
+            Some(next) => value = next,
+            None => return value,
+        }
+    }
 }

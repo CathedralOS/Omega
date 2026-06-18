@@ -1,0 +1,36 @@
+// RUN CANARY (exit 70). Borrow-carrying data (frozen decision 15 stage 2/3):
+// a `data` value may HOLD a borrow (`Msg { body: &Cell }`). Constructing one
+// (`Msg { body: &self.cell }`) and reading its reference field (`m.body`)
+// extracts the borrowed source -- the struct-literal field-extraction fold that
+// also fixes a plain local aggregate's field read (`let p = Pair{..}; p.a`).
+// The extracted `&Cell` is then dereferenced through a `&Cell` ref parameter.
+//
+// self.cell.value = 70 -> m.body -> read_cell derefs c.value -> 70 -> exit 70.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Cell { value: i32; }
+data Msg { body: &Cell; }
+
+data Main {
+    console: Console;
+    cell: Cell;
+}
+
+machine Main::main(&mut self) {
+    self.cell.value = 70;
+    let message: Msg = Msg { body: &self.cell };
+    let code: i32 = self.read_cell(message.body);
+    transition code == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::read_cell(&mut self, item: &Cell) -> i32 {
+    transition {
+        _ -> item.value
+    }
+}
