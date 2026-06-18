@@ -503,8 +503,15 @@ fn collect_field_appends(
             continue;
         }
 
-        let primitive = input.program.primitive_type_reference(field.type_reference)?;
-        let encoding = WireFieldEncoding::for_primitive(primitive)?;
+        // A borrowed `&[u8]` field encodes as RAW bytes (length + the bytes). It
+        // is a fat `{ptr, len}` slice -- the same descriptor shape a String text
+        // field uses -- so it lowers through the existing text-bytes append.
+        let encoding = if input.program.is_borrowed_byte_slice(field.type_reference) {
+            WireFieldEncoding::Text
+        } else {
+            let primitive = input.program.primitive_type_reference(field.type_reference)?;
+            WireFieldEncoding::for_primitive(primitive)?
+        };
         let place = resolve_runtime_storage_place_in_table(
             input,
             dispatch_index,
