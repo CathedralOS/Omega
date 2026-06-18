@@ -11,7 +11,7 @@ use crate::parser::operator::parse_operator_definition;
 use crate::parser::platform::parse_platform;
 use crate::parser::target::parse_target_definition;
 use crate::parser::trait_definition::parse_trait_definition;
-use crate::parser::type_reference::parse_type_reference_handle;
+use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use crate::parser::use_item::parse_use_item;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
@@ -311,7 +311,10 @@ fn parse_wire_data_member<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (name, input) = input.take_identifier()?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-    let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
+    // A wire field may be a borrowed view (`&[u8]`): the zero-copy raw-bytes
+    // field that decodes as a window into the buffer rather than owning a copy.
+    let (type_reference, input) =
+        parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
 
     Ok((

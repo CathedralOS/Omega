@@ -182,6 +182,29 @@ impl TypeReferenceTable {
         self.type_reference(handle).primitive_type(self)
     }
 
+    /// True when the type bottoms out in a borrowed byte slice `&[u8]` (a
+    /// `Slice` whose element is `u8`, looking through a leading reference /
+    /// constraints). This is the honest zero-copy RAW-bytes/text view -- a
+    /// length-prefixed window into a buffer -- as opposed to an owned `[u8; N]`
+    /// (a `FixedArray`, which the wire layer packs as a repeated field). It is
+    /// the spelling that replaces the retired `&string` for borrowed wire text.
+    pub fn is_borrowed_byte_slice(&self, handle: TypeReferenceHandle) -> bool {
+        let mut handle = handle;
+        loop {
+            if !handle.is_valid() {
+                return false;
+            }
+            match self.type_reference(handle) {
+                TypeReferenceNode::Reference { referee, .. } => handle = *referee,
+                TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
+                TypeReferenceNode::Slice { element_type } => {
+                    return self.primitive_type(*element_type) == Some(PrimitiveType::U8);
+                }
+                _ => return false,
+            }
+        }
+    }
+
     /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17)
     /// declared on this type, looking through a leading reference / nested
     /// constraints. `Exact` when none is declared.

@@ -1163,6 +1163,16 @@ impl<'program> Evaluator<'program> {
                 ));
                 continue;
             }
+            // A borrowed `&[u8]` field encodes as RAW bytes (length + the bytes),
+            // read from the field's element array.
+            if self.program.is_borrowed_byte_slice(field.type_reference) {
+                fields.push((
+                    field.name.as_str().to_owned(),
+                    field.number,
+                    WireInterpField::ByteSlice,
+                ));
+                continue;
+            }
             let encoding = self
                 .program
                 .primitive_type_reference(field.type_reference)
@@ -1181,7 +1191,10 @@ impl<'program> Evaluator<'program> {
         }
         fields.sort_by_key(|(_, number, _)| *number);
         let has_text_field = fields.iter().any(|(_, _, content)| {
-            matches!(content, WireInterpField::Direct(WireFieldEncoding::Text))
+            matches!(
+                content,
+                WireInterpField::Direct(WireFieldEncoding::Text) | WireInterpField::ByteSlice
+            )
         });
 
         let arguments = self
@@ -1340,6 +1353,33 @@ impl<'program> Evaluator<'program> {
                     bytes.extend(wire_varint_bytes(text.len() as u64));
                     bytes.extend(text.as_bytes());
                 }
+                WireInterpField::ByteSlice => {
+                    // Length varint (byte count) then the raw bytes, read from
+                    // the field's element array -- the same framing as Text.
+                    let elements = match &*raw.borrow() {
+                        Value::Array(elements) => elements.clone(),
+                        _ => {
+                            return Err(Halt::Trap(format!(
+                                "`{schema_name}::encode_wire` field `{field_name}` is not a byte-slice value"
+                            )));
+                        }
+                    };
+                    let mut content = Vec::with_capacity(elements.len());
+                    for element in &elements {
+                        let byte = self
+                            .deref_cell(Rc::clone(element))
+                            .borrow()
+                            .as_int()
+                            .ok_or_else(|| {
+                                Halt::Trap(format!(
+                                    "`{schema_name}::encode_wire` byte-slice field `{field_name}` element is not a byte"
+                                ))
+                            })?;
+                        content.push(byte as u8);
+                    }
+                    bytes.extend(wire_varint_bytes(content.len() as u64));
+                    bytes.extend(content);
+                }
             }
         }
 
@@ -1422,6 +1462,16 @@ impl<'program> Evaluator<'program> {
                     field.name.as_str().to_owned(),
                     field.number,
                     WireInterpScalarField::Nested(children),
+                ));
+                continue;
+            }
+            // A borrowed `&[u8]` field decodes zero-copy: length-prefixed bytes
+            // viewed in the buffer (validation requires the value field `&[u8]`).
+            if self.program.is_borrowed_byte_slice(field.type_reference) {
+                fields.push((
+                    field.name.as_str().to_owned(),
+                    field.number,
+                    WireInterpScalarField::ByteSlice,
                 ));
                 continue;
             }
@@ -1563,6 +1613,26 @@ impl<'program> Evaluator<'program> {
                 WireInterpScalarField::Scalar(encoding) => {
                     let raw = read_varint(&mut cursor, &mut ok);
                     *field_cell.borrow_mut() = wire_decoded_scalar_value(raw, *encoding)?;
+                }
+                WireInterpScalarField::ByteSlice => {
+                    // A borrowed `&[u8]`: a byte-LENGTH varint then that many
+                    // bytes, stored as an owned Array of byte values
+                    // (observationally identical to a buffer view for any read).
+                    // A length past the buffer clears ok and the cursor stops at
+                    // the buffer end -- the native byte-copy bounds-checks the
+                    // same way.
+                    let length = read_varint(&mut cursor, &mut ok) as usize;
+                    let available = buffer.len().saturating_sub(cursor);
+                    if length > available {
+                        ok = false;
+                    }
+                    let take = length.min(available);
+                    let elements: Vec<Cell> = buffer[cursor..cursor + take]
+                        .iter()
+                        .map(|byte| Value::Int(i64::from(*byte)).cell())
+                        .collect();
+                    cursor += take;
+                    *field_cell.borrow_mut() = Value::Array(elements);
                 }
                 WireInterpScalarField::Nested(children) => {
                     // LENGTH varint, then the absolute end bound -- the same
@@ -2780,15 +2850,22 @@ enum WireInterpField {
     Direct(omega_typed_trees::wire::WireFieldEncoding),
     Nested(Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>),
     Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
+    /// A borrowed byte slice `&[u8]`: encodes as RAW bytes (length varint then
+    /// the bytes), reading the field's element array.
+    ByteSlice,
 }
 
 /// One CURRENT-era field of a wire schema, as the interpreter's decoder sees
-/// it (String is encode-only, so only scalars, nested messages, and repeated
-/// fields appear).
+/// it. An owned `String` is encode-only, but a borrowed `&[u8]` byte slice
+/// decodes ZERO-COPY as a length-prefixed view of the buffer (`ByteSlice`).
 enum WireInterpScalarField {
     Scalar(omega_typed_trees::wire::WireScalarEncoding),
     Nested(Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>),
     Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
+    /// A borrowed `&[u8]` field: read a byte-length varint then that many bytes
+    /// from the buffer. Stored as an owned `Array` of byte values --
+    /// observationally identical to a zero-copy view for any read.
+    ByteSlice,
 }
 
 /// The CURRENT-era (name, number, scalar encoding) list of a nested wire
