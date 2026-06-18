@@ -182,6 +182,22 @@ impl TypeReferenceTable {
         self.type_reference(handle).primitive_type(self)
     }
 
+    /// True when the type reference is a borrowed string VIEW (`&string`): a
+    /// reference whose referee is the unsized `string` text-view builtin (a
+    /// `Named` node, NOT `PrimitiveType::String` -- that spelling is the OWNED
+    /// `String`). This is the zero-copy, allocator-free string the wire decoder
+    /// can produce as a view into the decode buffer; an owned `String` field
+    /// would instead need to copy bytes out and so needs the allocator.
+    pub fn is_borrowed_string_view(&self, handle: TypeReferenceHandle) -> bool {
+        match self.type_reference(handle) {
+            TypeReferenceNode::Reference { referee, .. } => matches!(
+                self.type_reference(*referee),
+                TypeReferenceNode::Named { name, .. } if name.as_str() == "string"
+            ),
+            _ => false,
+        }
+    }
+
     /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17)
     /// declared on this type, looking through a leading reference / nested
     /// constraints. `Exact` when none is declared.
