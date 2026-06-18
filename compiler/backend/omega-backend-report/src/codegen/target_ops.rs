@@ -420,6 +420,29 @@ fn selected_instruction_name(
                 "wire read {encoding} {target_symbol}@{target_offset} ({byte_size} bytes) <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
             )
         }
+        SelectedInstructionKind::ReadWireByteSlice {
+            buffer_region,
+            buffer_offset,
+            buffer_length,
+            read_region,
+            read_offset,
+            ok_region,
+            ok_offset,
+            target_region,
+            target_offset,
+        } => {
+            let buffer_symbol =
+                storage_region_symbol_name(*buffer_region, backend_plan.entry_machine_name());
+            let read_symbol =
+                storage_region_symbol_name(*read_region, backend_plan.entry_machine_name());
+            let ok_symbol =
+                storage_region_symbol_name(*ok_region, backend_plan.entry_machine_name());
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            format!(
+                "wire read byte-slice view {target_symbol}@{target_offset} <- {buffer_symbol}@{buffer_offset} (len {buffer_length}) + cursor {read_symbol}@{read_offset}, ok {ok_symbol}@{ok_offset}"
+            )
+        }
         SelectedInstructionKind::ReadWireNestedOpen {
             buffer_length,
             read_region,

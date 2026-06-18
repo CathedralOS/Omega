@@ -447,6 +447,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("wire/runtime_wire_encode_primitive_exit", 70),
     ("wire/runtime_wire_encode_string_exit", 70),
     ("wire/runtime_wire_encode_byte_slice_exit", 70),
+    ("wire/runtime_wire_decode_byte_slice_exit", 70),
     ("wire/runtime_wire_roundtrip_nested_exit", 70),
     ("wire/runtime_wire_roundtrip_nested_and_repeated_exit", 70),
     ("wire/runtime_wire_roundtrip_primitive_exit", 70),

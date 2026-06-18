@@ -238,6 +238,24 @@ pub enum AbstractOperationKind {
         /// Signed targets un-zigzag (`(n >> 1) ^ -(n & 1)`) after the read.
         zigzag: bool,
     },
+    /// compact_binary v0 wire decoding (#43, borrowed `&[u8]` fields): read a
+    /// byte-LENGTH varint, bounds-check it, then store a fat `{ptr, len}`
+    /// descriptor VIEWING the buffer -- `ptr = &buffer[cursor]` (the content,
+    /// just past the length varint) and `len` = the decoded length -- into the
+    /// target descriptor slot, and advance the cursor past the content. A length
+    /// running past the buffer clears the sticky `ok` flag (the cursor stops at
+    /// the buffer end). Zero-copy: the decoded `&[u8]` borrows the decode buffer.
+    ReadWireByteSlice {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+    },
     /// compact_binary v0 wire decoding (chapter 20, nested message fields):
     /// turn the sub-message LENGTH just read into the `end` slot into an
     /// ABSOLUTE end bound (`end += cursor`) and clear the sticky `ok` flag

@@ -131,6 +131,34 @@ pub fn encode_read_wire_expected_byte(
 /// arm. Signed targets un-zigzag (`(n >> 1) ^ -(n & 1)`) before the store;
 /// the store truncates to the field width.
 #[allow(clippy::too_many_arguments)]
+/// AArch64 borrowed `&[u8]` wire decode is not implemented yet (x86-first).
+/// A native aarch64 build of a `&[u8]` decode aborts cleanly here rather than
+/// emitting wrong bytes; the x86_64 encoder is the working path.
+pub fn encode_read_wire_byte_slice(
+    _buffer_offset: usize,
+    _buffer_length: usize,
+    _read_offset: usize,
+    _ok_offset: usize,
+    _target_region: RuntimeStorageRegion,
+    _target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "AArch64 wire decoder cannot decode a borrowed &[u8] field yet (x86-first)".to_owned(),
+    ))
+}
+
+/// Placeholder width for the gated aarch64 `&[u8]` decode -- the encoder above
+/// errors before emission, so this is never used for real bytes.
+pub fn read_wire_byte_slice_width(
+    _buffer_offset: usize,
+    _buffer_length: usize,
+    _read_offset: usize,
+    _ok_offset: usize,
+    _target_offset: usize,
+) -> usize {
+    0
+}
+
 pub fn encode_read_wire_scalar_varint(
     buffer_offset: usize,
     buffer_length: usize,

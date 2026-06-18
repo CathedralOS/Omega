@@ -1,5 +1,6 @@
 use super::super::offsets::{
-    wire_decode_nested_end_page_offset, wire_decode_ok_page_offset, wire_decode_read_page_offset,
+    wire_decode_byte_slice_target_page_offset, wire_decode_nested_end_page_offset,
+    wire_decode_ok_page_offset, wire_decode_read_page_offset,
     wire_decode_repeated_count_page_offset, wire_decode_repeated_target_page_offset,
     wire_decode_varint_target_page_offset,
 };
@@ -75,6 +76,42 @@ pub(super) fn collect_wire_decode_relocations(
                     *buffer_length,
                     *read_offset,
                     *zigzag,
+                ),
+                context.storage_region_symbol_handle(*target_region),
+            );
+            true
+        }
+        SelectedInstructionKind::ReadWireByteSlice {
+            buffer_region,
+            buffer_offset,
+            buffer_length,
+            read_region,
+            read_offset,
+            ok_region,
+            target_region,
+            ..
+        } => {
+            context.insert_data_address_at_instruction_start(
+                context.storage_region_symbol_handle(*buffer_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_read_page_offset(context.input.target.architecture, *buffer_offset),
+                context.storage_region_symbol_handle(*read_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_ok_page_offset(
+                    context.input.target.architecture,
+                    *buffer_offset,
+                    *read_offset,
+                ),
+                context.storage_region_symbol_handle(*ok_region),
+            );
+            context.insert_data_address_at_relative_offset(
+                wire_decode_byte_slice_target_page_offset(
+                    context.input.target.architecture,
+                    *buffer_offset,
+                    *buffer_length,
+                    *read_offset,
                 ),
                 context.storage_region_symbol_handle(*target_region),
             );

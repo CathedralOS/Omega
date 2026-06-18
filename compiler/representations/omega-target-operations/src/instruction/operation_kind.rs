@@ -206,6 +206,20 @@ pub enum TargetOperationKind {
         byte_size: usize,
         zigzag: bool,
     },
+    /// compact_binary v0 borrowed `&[u8]` decode (#43): read a byte-length
+    /// varint, bounds-check it, store `{ptr = &buffer[cursor], len}` into the
+    /// target descriptor, advance the cursor past the content.
+    ReadWireByteSlice {
+        buffer_region: RuntimeStorageRegion,
+        buffer_offset: usize,
+        buffer_length: usize,
+        read_region: RuntimeStorageRegion,
+        read_offset: usize,
+        ok_region: RuntimeStorageRegion,
+        ok_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+    },
     ReadWireNestedOpen {
         buffer_region: RuntimeStorageRegion,
         buffer_offset: usize,

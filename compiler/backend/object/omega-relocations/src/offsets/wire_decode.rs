@@ -35,6 +35,20 @@ pub(crate) fn wire_decode_varint_target_page_offset(
     )
 }
 
+pub(crate) fn wire_decode_byte_slice_target_page_offset(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+) -> usize {
+    omega_instruction_selection::wire_decode_byte_slice_target_page_offset(
+        architecture,
+        buffer_offset,
+        buffer_length,
+        read_offset,
+    )
+}
+
 pub(crate) fn wire_decode_nested_end_page_offset(
     architecture: Architecture,
     buffer_offset: usize,

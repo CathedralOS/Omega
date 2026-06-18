@@ -68,6 +68,36 @@ pub fn encode_read_wire_scalar_varint(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_read_wire_byte_slice(
+    architecture: Architecture,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_read_wire_byte_slice(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            target_region,
+            target_offset,
+        ),
+        Architecture::X86_64 => x86_64::encode_read_wire_byte_slice(
+            buffer_offset,
+            buffer_length,
+            read_offset,
+            ok_offset,
+            target_region,
+            target_offset,
+        ),
+    }
+}
+
 pub fn encode_read_wire_nested_open(
     architecture: Architecture,
     buffer_offset: usize,

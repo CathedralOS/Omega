@@ -63,6 +63,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::AppendWireTextBytes { .. }
             | Self::ReadWireExpectedByte { .. }
             | Self::ReadWireScalarVarint { .. }
+            | Self::ReadWireByteSlice { .. }
             | Self::ReadWireNestedOpen { .. }
             | Self::ReadWireNestedClose { .. }
             | Self::AppendWireRepeatedScalarVarint { .. }

@@ -6,8 +6,9 @@ mod wire_decode;
 mod wire_encode;
 
 pub use wire_decode::{
-    encode_read_wire_expected_byte, encode_read_wire_nested_close, encode_read_wire_nested_open,
-    encode_read_wire_repeated_scalar_varint, encode_read_wire_scalar_varint,
+    encode_read_wire_byte_slice, encode_read_wire_expected_byte, encode_read_wire_nested_close,
+    encode_read_wire_nested_open, encode_read_wire_repeated_scalar_varint,
+    encode_read_wire_scalar_varint,
 };
 pub use wire_encode::{
     encode_append_wire_literal_byte, encode_append_wire_repeated_scalar_varint,
