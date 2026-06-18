@@ -1163,17 +1163,6 @@ impl<'program> Evaluator<'program> {
                 ));
                 continue;
             }
-            // A borrowed `&string` field encodes like an owned `String`: the
-            // referenced bytes, length-prefixed. The Text arm reads the field
-            // after a deref, so the underlying `Str` is what it sees.
-            if self.program.is_borrowed_string_view(field.type_reference) {
-                fields.push((
-                    field.name.as_str().to_owned(),
-                    field.number,
-                    WireInterpField::Direct(WireFieldEncoding::Text),
-                ));
-                continue;
-            }
             let encoding = self
                 .program
                 .primitive_type_reference(field.type_reference)
@@ -1436,17 +1425,6 @@ impl<'program> Evaluator<'program> {
                 ));
                 continue;
             }
-            // A borrowed `&string` field decodes zero-copy: length-prefixed
-            // bytes viewed in the buffer (validation has already required the
-            // value's field to be `&string` too).
-            if self.program.is_borrowed_string_view(field.type_reference) {
-                fields.push((
-                    field.name.as_str().to_owned(),
-                    field.number,
-                    WireInterpScalarField::StringSlice,
-                ));
-                continue;
-            }
             let encoding = self
                 .program
                 .primitive_type_reference(field.type_reference)
@@ -1585,24 +1563,6 @@ impl<'program> Evaluator<'program> {
                 WireInterpScalarField::Scalar(encoding) => {
                     let raw = read_varint(&mut cursor, &mut ok);
                     *field_cell.borrow_mut() = wire_decoded_scalar_value(raw, *encoding)?;
-                }
-                WireInterpScalarField::StringSlice => {
-                    // A borrowed `&string`: a byte-LENGTH varint then that many
-                    // bytes -- the same framing the Text encoder emits. The
-                    // bytes are stored as an owned `Str`; a length that runs
-                    // past the buffer clears ok and the cursor stops at the
-                    // buffer end (the native byte-copy is bounds-checked the
-                    // same way). UTF-8-lossy keeps a malformed wire payload
-                    // from trapping the interpreter (ok already reflects it).
-                    let length = read_varint(&mut cursor, &mut ok) as usize;
-                    let available = buffer.len().saturating_sub(cursor);
-                    if length > available {
-                        ok = false;
-                    }
-                    let take = length.min(available);
-                    let text = String::from_utf8_lossy(&buffer[cursor..cursor + take]).into_owned();
-                    cursor += take;
-                    *field_cell.borrow_mut() = Value::str(text);
                 }
                 WireInterpScalarField::Nested(children) => {
                     // LENGTH varint, then the absolute end bound -- the same
@@ -2823,19 +2783,12 @@ enum WireInterpField {
 }
 
 /// One CURRENT-era field of a wire schema, as the interpreter's decoder sees
-/// it. An OWNED `String` is encode-only (decoding it needs the allocator), but
-/// a borrowed `&string` decodes ZERO-COPY as a length-prefixed view of the
-/// buffer (`StringSlice`).
+/// it (String is encode-only, so only scalars, nested messages, and repeated
+/// fields appear).
 enum WireInterpScalarField {
     Scalar(omega_typed_trees::wire::WireScalarEncoding),
     Nested(Vec<(String, i64, omega_typed_trees::wire::WireScalarEncoding)>),
     Repeated(omega_typed_trees::wire::WireRepeatedEncoding),
-    /// A borrowed `&string` field: read a byte-length varint, then that many
-    /// bytes from the buffer. The interpreter stores the decoded bytes as an
-    /// owned `Str` value -- observationally identical to a zero-copy buffer
-    /// view for any READ (the only thing the differential oracle observes),
-    /// and the borrow checker forbids the aliasing that would tell them apart.
-    StringSlice,
 }
 
 /// The CURRENT-era (name, number, scalar encoding) list of a nested wire
