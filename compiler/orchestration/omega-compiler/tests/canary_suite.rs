@@ -94,6 +94,68 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Atomics end-to-end across architectures. The host (windows_x64) RUNS the
+// program (fetch_add + compare_exchange, exit 70). aarch64 cannot execute on
+// this box, so the linux_arm64 build is verified by the emitted ELF carrying the
+// real LSE atomic instructions: LDADDAL (fetch_add) and CASAL (compare_exchange).
+#[test]
+fn atomics_cross_platform_emits_real_atomics() {
+    let sample = repo_root().join("samples").join("atomics_cross");
+    let main_path = sample.join("main.omg");
+
+    // --- windows_x64: compile + run ---
+    let win_dir = std::env::temp_dir().join(format!("omega-atomics-win-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&win_dir);
+    compile(CompileOptions {
+        root_path: main_path.clone(),
+        build_dir: Some(win_dir.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("atomics_cross should compile for windows_x64");
+    let output = Command::new(win_dir.join("omega-program.exe"))
+        .output()
+        .expect("windows_x64 atomics_cross should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected fetch_add(5) old==10/counter==15 then compare_exchange(15,99) \
+         prior==15/counter==99 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&win_dir);
+
+    // --- linux_arm64: cross-emit + disassemble-by-bytes ---
+    let arm_dir = std::env::temp_dir().join(format!("omega-atomics-arm-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&arm_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(arm_dir.clone()),
+        target_name: Some("linux_arm64".to_owned()),
+        write_output: true,
+    })
+    .expect("atomics_cross should compile for linux_arm64");
+    let elf = fs::read(arm_dir.join("omega-program")).expect("linux_arm64 ELF should be emitted");
+
+    assert_eq!(
+        u16::from_le_bytes([elf[18], elf[19]]),
+        183,
+        "e_machine should be EM_AARCH64"
+    );
+    // LDADDAL w17, wzr, [x16] = 0xB8F1021F (fetch_add; prior discarded into WZR).
+    assert!(
+        elf.windows(4).any(|w| w == [0x1f, 0x02, 0xf1, 0xb8]),
+        "linux_arm64 ELF should contain LDADDAL w17,wzr,[x16] for fetch_add"
+    );
+    // CASAL w26, w17, [x16] = 0x88FAFE11 (compare_exchange).
+    assert!(
+        elf.windows(4).any(|w| w == [0x11, 0xfe, 0xfa, 0x88]),
+        "linux_arm64 ELF should contain CASAL w26,w17,[x16] for compare_exchange"
+    );
+    let _ = fs::remove_dir_all(&arm_dir);
+}
+
 // Cross-compile the dungeon crawler (the richest non-visual sample) to a linux_x64
 // ELF. Unlike cli_mvp this drives runtime-storage syscall arguments: the room
 // descriptions are String descriptors in statically-allocated state regions, so the
