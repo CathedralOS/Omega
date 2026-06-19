@@ -1,0 +1,60 @@
+// Reading `.len` of a `&[u8]` that lives as a struct FIELD must resolve to the
+// descriptor's runtime length slot -- not silently fail to resolve (which left
+// the read uninitialized) nor read the descriptor's pointer bytes.
+//
+// The length here is genuinely RUNTIME: `decode_wire` reads a byte-length
+// varint and stores a fat `{ptr, len}` descriptor viewing the buffer, so
+// `decoded.bytes.len` can only be correct if the read targets the len slot
+// (offset + len_offset) of the field descriptor. The motivating bug: the place
+// resolver dropped a `<struct>.<descriptor-field>.len` path because the `.len`
+// step had no data layout to resolve against, so `let n = decoded.bytes.len`
+// emitted no write and `n` held uninitialized garbage. Exits 70 when n == 2.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Blob {
+    0: bytes: &[u8];
+}
+
+data BlobSample {
+    bytes: &[u8];
+}
+
+data Main {
+    console: Console;
+    source: [u8; 4];
+    buffer: [u8; 64];
+    written: usize;
+    read: usize;
+    ok: bool;
+}
+
+machine Main::main(&mut self) {
+    self.source[0] = 72;
+    self.source[1] = 105;
+    let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
+
+    Blob::encode_wire(&sample, &mut self.buffer, &mut self.written);
+
+    let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
+    Blob::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+
+    let n: usize = decoded.bytes.len;
+
+    let matches: bool = self.ok && self.read == 5 && n == 2;
+
+    transition matches {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

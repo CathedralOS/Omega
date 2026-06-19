@@ -21,7 +21,7 @@ pub(super) use static_values::{
 };
 
 use crate::InstructionSelectionInput;
-use expressions::{StorageNamePath, normalized_storage_name_path_in_table};
+use expressions::{StorageNamePath, StoragePathSuffix, normalized_storage_name_path_in_table};
 use nested_fields::{
     NestedFieldLayoutCursor, resolve_nested_field_layout_step,
     resolve_nested_field_layout_with_pairs,
@@ -60,6 +60,69 @@ fn runtime_slice_descriptor_member_place(
         }),
         _ => None,
     }
+}
+
+/// Whether a type descriptor is a FAT slice descriptor -- a `&[T]`/`&string`
+/// view or a bare slice -- the only shapes that carry a runtime `len` slot. A
+/// fixed array's `.len` is a layout constant (folded elsewhere), and an
+/// arbitrary 16-byte aggregate must NOT be misread as a descriptor, so this is
+/// type-driven rather than size-driven. Mirrors the fat-pointer classification
+/// in omega-layout's reference layout.
+fn descriptor_is_fat_slice(descriptor: &TypeLayoutDescriptor) -> bool {
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => descriptor_is_fat_slice(base_type),
+        TypeLayoutDescriptor::Reference { referee, .. } => match referee.as_ref() {
+            TypeLayoutDescriptor::Slice { .. } => true,
+            TypeLayoutDescriptor::Named { name, .. } => name.as_str() == "string",
+            _ => false,
+        },
+        TypeLayoutDescriptor::Slice { .. } => true,
+        _ => false,
+    }
+}
+
+/// Resolve `<struct>.<descriptor-field>.len` (a `.len` read on a slice/`&[u8]`
+/// descriptor held as a FIELD, not the root slot) to the descriptor's runtime
+/// `len` slot. Walks the suffix up to -- but not including -- the trailing
+/// `len`; returns `None` unless that lands on a fat slice descriptor of exactly
+/// descriptor size. The root-slot-IS-descriptor case (`s.len` where `s` is a
+/// `&[u8]` local) is handled by `runtime_slice_descriptor_member_place`.
+fn runtime_nested_slice_descriptor_len_place(
+    input: &InstructionSelectionInput<'_>,
+    root_field: &FieldLayout,
+    suffix: StoragePathSuffix<'_, '_>,
+) -> Option<RuntimeStoragePlace> {
+    let segments: Vec<_> = suffix.iter().collect();
+    let (last_name, _, _, _) = segments.last()?;
+    // Must END in `len` with a non-empty descriptor-field prefix.
+    if last_name.as_str() != "len" || segments.len() < 2 {
+        return None;
+    }
+
+    let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
+    for &(field_name, field_symbol, field_index, case_variant) in &segments[..segments.len() - 1] {
+        cursor = resolve_nested_field_layout_step(
+            &input.layouts,
+            cursor,
+            field_name,
+            field_symbol,
+            field_index,
+            case_variant,
+        )?;
+    }
+
+    if !descriptor_is_fat_slice(cursor.type_descriptor()) {
+        return None;
+    }
+    let descriptor = input.runtime_abi.slice_descriptor();
+    if cursor.layout().size != descriptor.total_size() {
+        return None;
+    }
+    Some(RuntimeStoragePlace {
+        region: RuntimeStorageRegion::RuntimeFrame,
+        byte_offset: cursor.byte_offset().checked_add(descriptor.len_offset())?,
+        byte_count: descriptor.len_size(),
+    })
 }
 
 pub(super) fn resolve_runtime_storage_place(
@@ -301,6 +364,19 @@ pub(super) fn resolve_runtime_storage_place_in_table(
                 alignment: slot.alignment,
             },
         };
+        // `<struct>.<descriptor-field>.len` -- a `.len` read on a slice/`&[u8]`
+        // descriptor that lives as a FIELD (so the descriptor is not the root
+        // slot, which the count==1 path above handles). Walk the suffix up to
+        // (but not including) the trailing `len`; if it lands on a fat slice
+        // descriptor, the length is its runtime len slot. Without this the `.len`
+        // step has no data layout to resolve against, the whole place silently
+        // fails to resolve, and the read yields uninitialized garbage.
+        if let Some(place) =
+            runtime_nested_slice_descriptor_len_place(input, &root_field, suffix)
+        {
+            return Some(place);
+        }
+
         let (byte_offset, layout) =
             resolve_nested_field_layout_with_pairs(&input.layouts, &root_field, suffix.iter())?;
 
