@@ -1,0 +1,33 @@
+// RUN canary: a value-call (min/max builtin) result bound to a local, then used
+// in ARITHMETIC. Regression guard for a native miscompile where the min-result
+// local was elided as dead -- the liveness scan did not look inside a later
+// LocalData INITIALIZER, so `let s = bounded + 70` did not count as using
+// `bounded`. The min result was then never materialized and `s`'s binary write
+// silently dropped its unresolved operand, leaving s = ZII 0 (native exited 71;
+// the interpreter was correct). Fixed by keeping the slot for any call-result
+// initializer.
+//
+// seed ZII (0): min(0, 60) = 0, +70 -> 70 -> exit 70.  `in Wrapping` only so it
+// compiles without the (separate) S4 min/max narrowing.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    seed: i32;
+}
+
+machine Main::main(&mut self) {
+    let bounded: i32 in Wrapping = min(self.seed, 60);
+    let s: i32 in Wrapping = bounded + 70;
+
+    transition s == 70 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

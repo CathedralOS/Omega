@@ -4694,6 +4694,38 @@ fn runtime_local_string_field_copy_through_mut_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Regression guard: a value-call (min/max builtin) result bound to a local and
+/// then used in ARITHMETIC. The min-result local was elided as dead (the
+/// liveness scan ignored later LocalData initializers), so `s = bounded + 70`
+/// dropped its unresolved operand and s stayed ZII 0 (native exited 71). Fixed
+/// by keeping the slot for any call-result initializer.
+#[test]
+fn runtime_min_call_result_arithmetic_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_min_call_result_arithmetic_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-min-call-result-arith-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("min-call-result arithmetic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("min-call-result arithmetic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected min(seed,60)+70 to materialize and equal 70 (exit 70); 71 = the \
+         write was dropped (s stayed 0); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_direct_boolean_conjunction_exit_canary_runs() {
     let canary = pass_canary("dungeon/runtime_direct_boolean_conjunction_exit");
@@ -11255,6 +11287,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "termination/runtime_shrinking_slice_recursion_exit",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/runtime_local_string_field_copy_through_mut_exit",
+    "calls/runtime_min_call_result_arithmetic_exit",
     "text/runtime_machine_string_append_in_place_exit",
     "text/runtime_string_concat_two_fields_exit",
     "text/runtime_chained_string_append_exit",
