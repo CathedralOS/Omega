@@ -1,0 +1,33 @@
+// RUN canary (decision 17 S4 narrowing): min/max clamp narrowing lets a clamped
+// value feed EXACT arithmetic. `self.seed` is a full-range i32 (opaque). `max(_, 0)`
+// lower-bounds it at 0, `min(_, 60)` upper-bounds it at 60, so `bounded` is in
+// [0, 60] and `+ 70` is provably within i32 and stays EXACT (no `Wrapping`).
+// Without min/max result narrowing both clamps are unbounded and `+ 70` is a
+// decision-17 overflow error -- so this only COMPILES because the narrowing
+// proves the bound. (Runs correctly because the value-call-result-into-arithmetic
+// materialization bug is fixed; see calls/runtime_min_call_result_arithmetic_exit.)
+//
+// seed ZII (0): max(0,0)=0, min(0,60)=0, +70 -> 70 -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    seed: i32;
+}
+
+machine Main::main(&mut self) {
+    let lo: i32 = max(self.seed, 0);   // [0, i32::MAX]   (max lower-bounds)
+    let bounded: i32 = min(lo, 60);    // [0, 60]         (min upper-bounds)
+    let s: i32 = bounded + 70;         // [70, 130] in i32 -> EXACT only because bounded
+
+    transition s == 70 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

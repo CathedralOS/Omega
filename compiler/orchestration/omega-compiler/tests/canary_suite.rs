@@ -3206,6 +3206,38 @@ fn arithmetic_domain_trapping_mul_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Decision 17 S4: min/max clamp narrowing. `max(self.seed, 0)` lower-bounds at
+/// 0 and `min(_, 60)` upper-bounds at 60, so `+ 70` stays EXACT. Without the
+/// narrowing both clamps are unbounded and `+ 70` is a decision-17 overflow
+/// error — so the program only COMPILES because the narrowing proves the bound
+/// (and runs because the value-call-result materialization bug is fixed).
+#[test]
+fn runtime_min_max_clamp_narrowing_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_min_max_clamp_narrowing_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-min-max-clamp-narrowing-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("min/max clamp narrowing canary should compile (narrowing proves the bound)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("min/max clamp narrowing canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected max(seed,0) then min(_,60) + 70 == 70 with seed=0, proven Exact by S4 \
+         min/max narrowing (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// Decision 17 S4: modulo + division result-interval narrowing. `self.seed %
 /// 100` bounds the remainder ([-99,99]) and `/ 2` keeps it bounded, so `+ 70`
 /// stays EXACT. Without the narrowing both `%` and `/` are unbounded and the
@@ -11164,6 +11196,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_dispatch_mutable_slice_element_write_exit",
     "arithmetic/runtime_modulo_value",
     "arithmetic/runtime_modulo_div_narrowing_exit",
+    "arithmetic/runtime_min_max_clamp_narrowing_exit",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_boolean_or_guard_exit",
     "control_flow/runtime_negated_boolean_place_guard_exit",
