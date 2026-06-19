@@ -550,6 +550,25 @@ pub(super) fn resolve_runtime_value_operand(
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<RuntimeValueOperandHandle> {
+    // `(arr[a..b]).len` of a literal-bounded fixed-array subslice is the window
+    // length `b - a` -- a compile-time constant. (Such a subslice is often bound
+    // to a `&[u8]` local that gets inlined to this expression and never
+    // materialized, so a place read has no descriptor slot and would yield
+    // garbage; fold it directly.)
+    if let Expression::Member(member) = expression
+        && member.member.as_str() == "len"
+        && let Some(length) = super::super::subslice_copy::fixed_array_subslice_length(
+            input,
+            dispatch_index,
+            source_key,
+            source_machine,
+            source_state,
+            &member.receiver,
+        )
+        && let Ok(length) = i64::try_from(length)
+    {
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Immediate(length)));
+    }
     if let Some(value) = resolve_runtime_static_integer_value(
         input,
         source_key,
