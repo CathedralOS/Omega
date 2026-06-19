@@ -214,6 +214,30 @@ fn literal_fixed_array_subslice_index_source_in_table(
     fixed_array_index_source_place(source, element_index)
 }
 
+/// The element count of a literal-bounded fixed-array subslice expression
+/// (`arr[a..b]` / `arr.as_slice()[a..b]` / a bare fixed array) -- i.e. the
+/// compile-time value of its `.len`. `None` when the value is not such a
+/// subslice (runtime bounds, a non-array source, etc.).
+#[allow(clippy::too_many_arguments)]
+pub(in crate::selection::runtime_dispatch) fn fixed_array_subslice_length(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    value: &Expression,
+) -> Option<usize> {
+    literal_fixed_array_slice_source(
+        input,
+        dispatch_index,
+        value_source_key,
+        source_machine,
+        source_state,
+        value,
+    )
+    .map(|source| source.length)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn literal_fixed_array_slice_source(
     input: &InstructionSelectionInput<'_>,

@@ -1,0 +1,36 @@
+// A borrowed `&[u8]` bound to a literal-bounded fixed-array subslice
+// (`self.source[0..2]`) has a `.len` equal to the window width (`b - a`). When
+// the local is used only for `.len`, it is inlined to `(self.source[0..2]).len`
+// and never materialized, so the length must FOLD to the literal `b - a`
+// (2) -- not fall through to a place read with no descriptor slot. Exits 70
+// when `s.len == 2`.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    source: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+    self.source[0] = 72;
+    self.source[1] = 105;
+
+    let s: &[u8] = self.source[0..2];
+
+    let matches: bool = s.len == 2;
+    transition matches {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
