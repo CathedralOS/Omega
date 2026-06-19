@@ -541,9 +541,10 @@ machine Main::main(&mut self) -> i32 {
 /// buffer VIEW. This is the honest borrowed bytes/text field that replaced the
 /// retired `&string` -- a `&[u8]` is already a fat slice, and the raw-byte
 /// encoding is distinct from a `[u8; N]` repeated field (packed per-element
-/// varints). The NATIVE backend still gates `&[u8]` wire codegen (it shows up as
-/// an "unresolved state call" emission-planning blocker), so this coverage is
-/// interpreter-only until the native byte-slice read op lands.
+/// varints). Native byte-slice wire decode landed (#46/#47, `ReadWireByteSlice`
+/// on both x86_64 and aarch64), so the round trip now also runs natively
+/// (canaries/pass/wire/runtime_wire_decode_byte_slice_exit, oracle-matched);
+/// this interpreter coverage pins the reference semantics.
 ///
 /// `{ bytes: [72, 105] }` encodes to 5 bytes: era 0 (0x00), tag 0 (0x00),
 /// length 2 (0x02), then `0x48 0x69`. The decoder consumes the same 5 bytes;
