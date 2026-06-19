@@ -1371,14 +1371,39 @@ pub fn wire_decode_varint_target_page_offset(
         + if zigzag { wire_unzigzag_width() } else { 0 }
 }
 
-/// Placeholder offset for the gated aarch64 `&[u8]` decode -- the encoder errors
-/// before emission, so this is never used.
-pub fn wire_decode_byte_slice_target_page_offset(
-    _buffer_offset: usize,
-    _buffer_length: usize,
-    _read_offset: usize,
+pub fn read_wire_byte_slice_width(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    target_offset: usize,
 ) -> usize {
-    0
+    // Prologue + buffer-length materialization + success/value/shift movz triple
+    // + read loop + bounds&advance (6 instrs, 24) + target page pair (8) + ptr
+    // store + len store + epilogue.
+    wire_decode_prologue_width(buffer_offset, read_offset)
+        + unsigned_immediate_width(buffer_length as u64)
+        + 12
+        + wire_varint_read_loop_width()
+        + 24
+        + 8
+        + store_data_offset_width(target_offset, 8)
+        + store_data_offset_width(target_offset + 8, 8)
+        + wire_decode_tail_width(read_offset, ok_offset)
+}
+
+/// Byte offset of the TARGET page adrp pair inside the byte-slice decode (after
+/// the prologue, length init, read loop, and the bounds&advance block).
+pub fn wire_decode_byte_slice_target_page_offset(
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+) -> usize {
+    wire_decode_prologue_width(buffer_offset, read_offset)
+        + unsigned_immediate_width(buffer_length as u64)
+        + 12
+        + wire_varint_read_loop_width()
+        + 24
 }
 
 pub fn read_wire_nested_open_width(

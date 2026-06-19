@@ -38,9 +38,9 @@ use super::primitives::{
     encode_movz, encode_orr_x_register, encode_unconditional_branch,
 };
 use super::widths::{
-    read_wire_expected_byte_width, read_wire_nested_close_width, read_wire_nested_open_width,
-    read_wire_repeated_scalar_varint_width, read_wire_scalar_varint_width, wire_unzigzag_width,
-    wire_varint_read_loop_width,
+    read_wire_byte_slice_width, read_wire_expected_byte_width, read_wire_nested_close_width,
+    read_wire_nested_open_width, read_wire_repeated_scalar_varint_width,
+    read_wire_scalar_varint_width, wire_unzigzag_width, wire_varint_read_loop_width,
 };
 
 /// Shared prologue: x16 = buffer base + buffer offset + cursor, x17 = cursor,
@@ -130,33 +130,102 @@ pub fn encode_read_wire_expected_byte(
 /// continuation past shift 63, i.e. more than ten groups) branch to the fail
 /// arm. Signed targets un-zigzag (`(n >> 1) ^ -(n & 1)`) before the store;
 /// the store truncates to the field width.
+/// Borrowed `&[u8]` ZERO-COPY decode: LEB128-read a byte LENGTH at the cursor,
+/// bounds-check the content against the buffer's compile-time length, store a
+/// fat `{ptr, len}` descriptor VIEWING the buffer in place (ptr = the content's
+/// address, len = the decoded length), and advance the cursor past the content.
+/// Mirrors the x86_64 encoder; the length read reuses the shared LEB128 loop
+/// (after it x26 = length, x16 = content pointer, x17 = cursor).
 #[allow(clippy::too_many_arguments)]
-/// AArch64 borrowed `&[u8]` wire decode is not implemented yet (x86-first).
-/// A native aarch64 build of a `&[u8]` decode aborts cleanly here rather than
-/// emitting wrong bytes; the x86_64 encoder is the working path.
 pub fn encode_read_wire_byte_slice(
-    _buffer_offset: usize,
-    _buffer_length: usize,
-    _read_offset: usize,
-    _ok_offset: usize,
-    _target_region: RuntimeStorageRegion,
-    _target_offset: usize,
+    buffer_offset: usize,
+    buffer_length: usize,
+    read_offset: usize,
+    ok_offset: usize,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    Err(Diagnostic::error(
-        "AArch64 wire decoder cannot decode a borrowed &[u8] field yet (x86-first)".to_owned(),
-    ))
-}
+    // The region only picks the relocation symbol; the encoded shape is identical.
+    let _ = target_region;
 
-/// Placeholder width for the gated aarch64 `&[u8]` decode -- the encoder above
-/// errors before emission, so this is never used for real bytes.
-pub fn read_wire_byte_slice_width(
-    _buffer_offset: usize,
-    _buffer_length: usize,
-    _read_offset: usize,
-    _ok_offset: usize,
-    _target_offset: usize,
-) -> usize {
-    0
+    let mut bytes = Vec::with_capacity(read_wire_byte_slice_width(
+        buffer_offset,
+        buffer_length,
+        read_offset,
+        ok_offset,
+        target_offset,
+    ));
+    append_wire_decode_prologue(&mut bytes, buffer_offset, read_offset)?;
+    append_unsigned_immediate(&mut bytes, 24, buffer_length as u64);
+    bytes.extend(encode_movz(23, 1)); // ok success bit
+    bytes.extend(encode_movz(26, 0)); // value (length) accumulator
+    bytes.extend(encode_movz(22, 0)); // shift
+
+    // Shared LEB128 read loop (the same fixed 56-byte block as the scalar
+    // varint decode): reads the length varint into x26, leaving x16 pointing at
+    // the CONTENT (just past the varint) and x17 = the post-varint cursor.
+    bytes.extend(encode_compare_x_register(17, 24));
+    bytes.extend(encode_conditional_branch_higher_or_same(48)?);
+    bytes.extend(encode_compare_w_immediate(22, 63)?);
+    bytes.extend(encode_conditional_branch_higher(40)?);
+    bytes.extend(encode_load_byte_w_post_increment(19, 16, 1)?);
+    bytes.extend(encode_add_x_immediate(17, 17, 1)?);
+    bytes.extend(encode_and_x_immediate_low_seven(25, 19));
+    bytes.extend(encode_lslv_x_register(25, 25, 22));
+    bytes.extend(encode_orr_x_register(26, 26, 25));
+    bytes.extend(encode_add_x_immediate(22, 22, 7)?);
+    bytes.extend(encode_lsr_x_immediate(19, 19, 7));
+    bytes.extend(encode_cbnz_x(19, -44)?);
+    bytes.extend(encode_unconditional_branch(8)?);
+    bytes.extend(encode_movz(23, 0));
+    debug_assert_eq!(
+        wire_varint_read_loop_width(),
+        56,
+        "the read loop above is fourteen fixed instructions"
+    );
+
+    // Bounds + advance (fixed 24 bytes): end = cursor + len; if end >
+    // buffer_length clear ok; cursor = end (matches the x86_64 `jbe`/clear
+    // shape). x16 (content pointer) is preserved for the descriptor store.
+    //   add  x19, x17, x26       ; end = cursor + len
+    //   cmp  x19, x24            ; end vs buffer_length
+    //   b.hi clear (+8)          ; out of bounds -> clear ok
+    //   b    advance (+8)        ; in bounds -> skip the clear
+    //   clear: movz x23, #0
+    //   advance: add x17, x19, #0  (x17 = end)
+    bytes.extend(encode_add_x_register(19, 17, 26));
+    bytes.extend(encode_compare_x_register(19, 24));
+    bytes.extend(encode_conditional_branch_higher(8)?);
+    bytes.extend(encode_unconditional_branch(8)?);
+    bytes.extend(encode_movz(23, 0));
+    bytes.extend(encode_add_x_immediate(17, 19, 0)?);
+
+    // Store the descriptor: ptr = x16 (content start) @ +0, len = x26 @ +8.
+    bytes.extend(encode_adrp_placeholder(25));
+    bytes.extend(encode_add_page_offset_placeholder(25));
+    super::runtime_storage::append_store_data_to_x_offset(
+        &mut bytes,
+        16,
+        25,
+        target_offset,
+        8,
+        19,
+    )?;
+    super::runtime_storage::append_store_data_to_x_offset(
+        &mut bytes,
+        26,
+        25,
+        target_offset + 8,
+        8,
+        19,
+    )?;
+
+    append_wire_decode_epilogue(&mut bytes, read_offset, ok_offset)?;
+    debug_assert_eq!(
+        bytes.len(),
+        read_wire_byte_slice_width(buffer_offset, buffer_length, read_offset, ok_offset, target_offset)
+    );
+    Ok(bytes)
 }
 
 pub fn encode_read_wire_scalar_varint(
@@ -532,4 +601,59 @@ pub fn encode_read_wire_nested_close(
         read_wire_nested_close_width(buffer_offset, read_offset, ok_offset, end_offset)
     );
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The byte-slice decode's EMITTED length must equal its width function for
+    // every operand combination (a drift segfaults via relocation misplacement).
+    // The encoder's own `debug_assert_eq` enforces this in debug builds; this
+    // test pins it across the variable-width prologue / buffer-length / store
+    // paths and confirms the target-page adrp sits within the emitted bytes.
+    #[test]
+    fn byte_slice_decode_widths_match_encoded_bytes() {
+        for &buffer_offset in &[0usize, 4, 200, 5000] {
+            for &buffer_length in &[2usize, 64, 4096] {
+                for &(read_offset, ok_offset, target_offset) in
+                    &[(0usize, 8usize, 16usize), (40, 48, 56), (300, 308, 4096)]
+                {
+                    let bytes = encode_read_wire_byte_slice(
+                        buffer_offset,
+                        buffer_length,
+                        read_offset,
+                        ok_offset,
+                        RuntimeStorageRegion::Machine,
+                        target_offset,
+                    )
+                    .expect("aarch64 byte-slice decode should encode");
+                    let width = read_wire_byte_slice_width(
+                        buffer_offset,
+                        buffer_length,
+                        read_offset,
+                        ok_offset,
+                        target_offset,
+                    );
+                    assert_eq!(
+                        bytes.len(),
+                        width,
+                        "width mismatch for buffer_offset={buffer_offset} buffer_length={buffer_length} read={read_offset} ok={ok_offset} target={target_offset}"
+                    );
+                    // The target-page adrp pair must land inside the instruction
+                    // stream, before the two 8-byte descriptor stores + epilogue.
+                    let target_page = super::super::widths::wire_decode_byte_slice_target_page_offset(
+                        buffer_offset,
+                        buffer_length,
+                        read_offset,
+                    );
+                    assert!(
+                        target_page + 8 <= bytes.len(),
+                        "target-page offset {target_page} past end {} ", bytes.len()
+                    );
+                    assert_eq!(target_page % 4, 0, "aarch64 instructions are 4-byte aligned");
+                }
+            }
+        }
+    }
 }
