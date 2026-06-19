@@ -27,9 +27,33 @@ representation machinery behind a deliberate boundary.
 
 ## Outstanding (pick up next)
 
-Snapshot refreshed 2026-06-14. Decisions 8-16 all implemented (stage 1+);
-harness suite 265, differential oracle fully matched, tree clean. Ordered
-roughly by leverage.
+Snapshot refreshed 2026-06-19. Decisions 8-17 implemented (stage 1+); harness
+canary suite 299, differential oracle fully matched (11), `cargo test
+--workspace` green, tree clean. Ordered roughly by leverage.
+
+**Closed since the 2026-06-14 snapshot (2026-06-19 wave):**
+
+- **Atomic RMW → real atomic instructions — DONE (#27, both ops, both arches).**
+  `fetch_add` → `lock xadd` (x86_64) / `LDADDAL` (aarch64); `compare_exchange` →
+  `LOCK CMPXCHG` / `CASAL`. Detected by TREE-SHAPE at the binary-write selection
+  site on an atomic-typed target — no frontend churn, parser desugar unchanged.
+  `samples/atomics_cross` + a canary byte-verify the aarch64 LSE ops and run the
+  host (exit 70). Cross-thread observability still waits on the scheduler (values
+  oracle-matched). Commits af2cf360 / 598e5f38 / cf7ab02f / 1a146b1c.
+- **Exact-arithmetic overflow proof-check — DONE (decision 17 S1-S3).** Unprovable
+  integer `+ - *` is a compile error by default
+  (omega-validation/src/arithmetic_domains.rs Interval engine); `T in
+  Wrapping/Saturating/Trapping` are the opt-ins (spelling settled as DOMAINS, not
+  policies). Native + interpreter agree. S4 narrowing is the remaining refinement
+  (below).
+- **Zero-copy borrowed wire decode — DONE as `&[u8]` (#43/#46/#47/#49).** Borrowed
+  wire text/bytes unified onto `&[u8]` (the `&string` wire type was RETIRED, per
+  ch8 "text is not a type"); encode + decode + index + `.len` work natively on both
+  arches, oracle-matched. Owned-bytes decode (copy out of the buffer) stays
+  allocator-gated.
+- **Pending-canary backlog purged.** All 5 `canaries/pending` entries were stale
+  duplicates of already-passing canaries; deleted (f6ec39e7). ACTIVE_PENDING_CANARIES
+  empty.
 
 **Closed in the 2026-06-14 wave:**
 
@@ -54,35 +78,40 @@ roughly by leverage.
 
 **Open remaining work:**
 
-- **Exact-arithmetic overflow proof-check (prover gap).** Maintainer ruling
-  2026-06-14: integer overflow/wrap on a primitive is a COMPILE ERROR by
-  default (exact/proven arithmetic, ch5); `wrapping`/`saturating` are explicit
-  opt-ins. Today unprovable overflow (`100000 * 100000` as i32) compiles and
-  runs, and native vs interpreter even diverge on the nested intermediate
-  (native wraps to 32 bits, interpreter is full-width). The checker that
-  rejects unproven overflow does not exist yet. Tracked by the pending canary
-  `expressions/nested_i32_mul_overflow_divergence` (becomes a FAIL canary once
-  the checker lands). FRONTIER: ch5 spells the opt-in as arithmetic *policies*
-  (exact/wrapping/saturating/trap/checked); the maintainer described *domains*
-  (`u32 in Wrapping`) — spelling not yet settled. If wrapping/saturating is
-  later chosen for an operand, the integer arm also needs the f32-style width
-  threading + interpreter intermediate-wrap so the backends agree.
-- **Atomic RMW must become real LOCK instructions** (`fetch_add` -> `LOCK XADD`,
-  `compare_exchange` -> `LOCK CMPXCHG`). DEFERRED to the scheduler arc: both are
-  value-correct non-atomic parse desugars today, and real LOCK ops have no
-  observable/testable effect until real threads exist (no canary can observe
-  atomicity without interleaving). Implement WITH the scheduler so it is
-  testable. Needs a dedicated atomic-RMW op threaded abstract->target->assigned
-  ->machine-instructions + x86 encoders + relocations + BOTH emission-planning
-  blocker lists + interpreter. See decision 16 above; task chip task_b176af85;
-  recipe in session_review_2026_06_12.md.
+- **S4 arithmetic-domain narrowing (refinement, not a correctness gap).** ~30
+  corpus ops are pinned to `Wrapping` ONLY because the prover can't yet narrow
+  their operand ranges; flow-sensitive narrowing (dominating guards, loop bounds,
+  contracts, range types) would return them to Exact. SOUNDNESS-CRITICAL: every
+  narrowing fact must be enforced at its source, never trusted — the #40
+  return-range scar was trusting a *declared* range without enforcing the callee
+  respects it (an unsound miscompile; reverted, then re-landed with enforcement).
+  The flow-sensitive ValueEnv exists (got the count 44->30). First safe increment
+  = **dominating-guard narrowing** (the guard IS the runtime enforcement, so it's
+  sound by construction). aarch64 Sat/Trap is already at x86 parity. This is
+  automation-engine work — see the proof-engine north star (long-view below).
+- **Recoverable-error / failure model (ch15) — DESIGN OPEN.** Failure is modeled
+  as ordinary data today (`errors/fallible_result_data_shape`: a sum handled by an
+  exhaustive transition — NO `Result<T,E>` wrapper, NO `?`, NO exceptions). That
+  works verbose. The open design: (a) propagation ergonomics in a no-early-return
+  model (forward-the-unmatched without `?` — must fit transitions, not bolt on
+  Rust control flow); (b) the inferred-internal vs declared-at-boundary split
+  (inference can't cross a sealed component edge — the boundary needs a stable,
+  wire-evolvable error contract); (c) a "fallible / must-handle" FACT on a sum
+  (annotate-don't-wrap, like `[u8] in Utf8`) for strict-use + failure-surface
+  inference. This BLOCKS clean cancellation in the concurrency arc (cancellation
+  rides the ch15 channel). Settle before deep concurrency work.
 - **Versioned decision 14 maintainer reconciliation:** update decision 14's
   frozen text + versioning.rs provenance to the wire-data role once ch21
   settles (chapter is the authority; it is being actively edited).
 
 Long-view sign-offs still open (only the maintainer): S1-S6 (separate
 compilation -- the big backend revamp, untouched), M1-M6 beyond comptime
-stage 1, A1-A5 beyond allocator stage 1.
+stage 1, A1-A5 beyond allocator stage 1. The next major VERTICAL SLICE is
+CONCURRENCY (decisions C1-C5 frozen, briefs/concurrency_atomics.md; the atomics
+foundation is now done) — gated on the ch15 error model above for cancellation.
+The long-range proof-engine direction (obsolete SPARK near-term, Lean long-term;
+automation-front-line + trusted-kernel backstop + quantifiers) is its own brief:
+[wiki/design_briefs/proof_engine_north_star.md](wiki/design_briefs/proof_engine_north_star.md).
 
 ---
 

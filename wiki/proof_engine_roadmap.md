@@ -5,6 +5,12 @@ ladder in `canaries/pass/proofs/` and `samples/math_proofs/` to the engine
 increments each rung needs, and records what the checker actually discharges
 today (2026-06).
 
+> For the long-range *direction* this engine is climbing toward — obsoleting
+> SPARK (near) and Lean (long pole) via an automation front line + trusted-kernel
+> backstop + quantifiers — see
+> [design_briefs/proof_engine_north_star.md](design_briefs/proof_engine_north_star.md).
+> This roadmap is the rung-by-rung status; that brief is the endpoint.
+
 ## UPDATE 2026-06-12: L7 IS DISCHARGED (induction via recursive contracts + decreases)
 
 The entailment engine now judges INDUCTIVE theorems: single-state machines
