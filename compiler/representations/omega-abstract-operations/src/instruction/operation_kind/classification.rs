@@ -37,7 +37,8 @@ impl OperationSemanticQuery for AbstractOperationKind {
                 AbstractOperationDomain::RuntimeTextAssembly
             }
 
-            Self::WriteRuntimeMachineInteger { .. }
+            Self::AtomicFetchAdd { .. }
+            | Self::WriteRuntimeMachineInteger { .. }
             | Self::WriteRuntimeStorageInteger { .. }
             | Self::WriteRuntimePointeeInteger { .. }
             | Self::WriteRuntimeStorageBinary { .. }

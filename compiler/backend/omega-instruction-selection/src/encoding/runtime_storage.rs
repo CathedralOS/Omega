@@ -204,6 +204,23 @@ pub fn encode_runtime_storage_convert(
     }
 }
 
+pub fn encode_atomic_fetch_add(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    delta: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_atomic_fetch_add(runtime_value_operands, target_offset, byte_size, delta)
+        }
+        Architecture::X86_64 => {
+            x86_64::encode_atomic_fetch_add(runtime_value_operands, target_offset, byte_size, delta)
+        }
+    }
+}
+
 pub fn encode_runtime_pointee_binary_write(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,

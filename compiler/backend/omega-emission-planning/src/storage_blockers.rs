@@ -218,7 +218,8 @@ fn state_mutation_is_planned(
 
             matches!(
                 instruction.kind,
-                SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
+                SelectedInstructionKind::AtomicFetchAdd { .. }
+                    | SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }

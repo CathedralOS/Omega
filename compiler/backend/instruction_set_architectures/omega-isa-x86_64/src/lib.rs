@@ -3950,6 +3950,42 @@ fn append_runtime_convert_operation(
     }
 }
 
+pub fn runtime_atomic_fetch_add_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
+    // mov r14,imm64(target base) (10) + delta operand load into r10 + lock xadd.
+    10 + runtime_value_operand_width(runtime_value_operands, delta)
+        + lock_xadd_r10_to_r14_width(byte_size)
+}
+
+/// Atomic `fetch_add`: hold the target base in r14 (untouched by operand
+/// evaluation, which reloads r15), evaluate `delta` into r10, then `lock xadd
+/// [r14+offset], r10` -- one atomic read-modify-write of the place. The prior
+/// value (left in r10 by xadd) is discarded here; the desugar's preceding
+/// `let old = place` captured it separately.
+pub fn encode_atomic_fetch_add(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    delta: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_atomic_fetch_add_width(
+        runtime_value_operands,
+        byte_size,
+        delta,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0); // target base (imm64 @ +2 relocated)
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, delta)?;
+    append_lock_xadd_r10_to_r14(&mut bytes, target_offset, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_fetch_add_width(runtime_value_operands, byte_size, delta)
+    );
+    Ok(bytes)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_convert_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
@@ -6006,11 +6042,7 @@ fn rel32(value: isize) -> Result<i32, Diagnostic> {
 /// stores `[mem] + r10` back, all as ONE atomic read-modify-write under the
 /// LOCK prefix -- exactly `fetch_add`'s contract (r10 ends with the OLD value).
 /// Caller sets r10 = the delta and r14 = the atomic field's base BEFORE this.
-// FOUNDATION for the atomic-fetch-add lowering: the remaining pipeline increment
-// (a non-erased atomic-RMW node through the trees + a SelectedInstructionKind)
-// will call this to emit a real LOCK xadd instead of the current parse-time
-// desugar to a non-atomic read+add. Byte-verified by `atomic_tests` below.
-#[allow(dead_code)]
+/// Used by `encode_atomic_fetch_add`; byte-verified by `atomic_tests` below.
 fn append_lock_xadd_r10_to_r14(
     bytes: &mut Vec<u8>,
     byte_offset: usize,
@@ -6036,7 +6068,6 @@ fn append_lock_xadd_r10_to_r14(
 }
 
 /// Emitted byte count of [`append_lock_xadd_r10_to_r14`] (opcode block + disp32).
-#[allow(dead_code)]
 fn lock_xadd_r10_to_r14_width(byte_size: usize) -> usize {
     let opcode = match byte_size {
         1 | 4 => 5,

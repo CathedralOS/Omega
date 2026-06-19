@@ -59,6 +59,29 @@ const RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS: &[u8] = &[15, 14, 13, 12, 11, 10, 9
 /// `target_offset`. Mirrors the x86_64 convert path (`cvttsd2si`/`cvtsi2sd`/
 /// `cvtsd2ss`/`cvtss2sd` + sized int moves).
 #[allow(clippy::too_many_arguments)]
+/// AArch64 atomic `fetch_add` is not implemented yet (x86-first). A native
+/// aarch64 build of an atomic RMW aborts cleanly here rather than emitting a
+/// non-atomic sequence; the LSE `LDADD` (or an `ldxr`/`stxr` retry loop) is the
+/// future path. Paired width returns 0 (gated).
+pub fn encode_atomic_fetch_add(
+    _runtime_value_operands: &impl RuntimeValueOperandSource,
+    _target_offset: usize,
+    _byte_size: usize,
+    _delta: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "AArch64 encoder cannot emit an atomic fetch_add yet (x86-first)".to_owned(),
+    ))
+}
+
+pub fn runtime_atomic_fetch_add_width(
+    _runtime_value_operands: &impl RuntimeValueOperandSource,
+    _byte_size: usize,
+    _delta: RuntimeValueOperandHandle,
+) -> usize {
+    0
+}
+
 pub fn encode_runtime_storage_convert(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,

@@ -846,6 +846,53 @@ pub(super) fn resolve_runtime_storage_primitive_type(
     resolve_runtime_storage_primitive_type_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
 }
 
+/// Whether a storage TARGET is an atomic-typed place (`AtomicU32`/`AtomicU64`/
+/// `AtomicBool`/`AtomicUsize`). An RMW on such a place is lowered to a single
+/// atomic instruction (`LOCK xadd`). Reads the RAW leaf descriptor name —
+/// atomics survive here as `Named{"Atomic*"}` (the `AtomicU32 -> u32` primitive
+/// mapping is applied only on demand by `descriptor_primitive_type`).
+pub(super) fn runtime_storage_target_is_atomic(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> bool {
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    runtime_storage_target_is_atomic_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
+}
+
+pub(super) fn runtime_storage_target_is_atomic_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )
+    .is_some_and(|descriptor| descriptor_is_atomic(&descriptor))
+}
+
+fn descriptor_is_atomic(descriptor: &TypeLayoutDescriptor) -> bool {
+    match descriptor {
+        TypeLayoutDescriptor::Named { name, .. } => name.as_str().starts_with("Atomic"),
+        TypeLayoutDescriptor::Constrained { base_type, .. } => descriptor_is_atomic(base_type),
+        _ => false,
+    }
+}
+
 /// Non-table sibling of [`resolve_runtime_storage_arithmetic_domain_in_table`]
 /// (decision 17): the arithmetic domain of a storage target reached through the
 /// older `&Expression` path.

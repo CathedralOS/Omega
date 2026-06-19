@@ -79,6 +79,12 @@ fn selected_instruction_name(
 ) -> String {
     let kind = &instruction.kind;
     match kind {
+        TargetOperationKind::AtomicFetchAdd {
+            target_region,
+            target_offset,
+            byte_size,
+            ..
+        } => format!("atomic fetch_add {target_region:?}[{target_offset}] ({byte_size}B)"),
         TargetOperationKind::EnterFunction => "enter function".to_owned(),
         TargetOperationKind::EnterDispatchLoop {
             entry_dispatch_index,

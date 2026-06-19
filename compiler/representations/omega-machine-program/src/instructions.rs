@@ -39,6 +39,7 @@ pub enum MachineInstructionKind {
     RuntimePointeeIntegerWrite,
     RuntimeStorageBinaryWrite,
     RuntimeStorageConvert,
+    AtomicFetchAdd,
     RuntimePointeeBinaryWrite,
     RuntimeFrameIndexedIntegerWrite,
     RuntimeFrameBaseIndexedIntegerWrite,

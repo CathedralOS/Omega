@@ -313,6 +313,13 @@ pub enum TargetOperationKind {
         target_is_float: bool,
         source_signed: bool,
     },
+    /// Atomic `fetch_add`: `LOCK xadd` of `delta` into the storage place.
+    AtomicFetchAdd {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        delta: TargetValueOperandHandle,
+    },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,
         field_byte_offset: usize,

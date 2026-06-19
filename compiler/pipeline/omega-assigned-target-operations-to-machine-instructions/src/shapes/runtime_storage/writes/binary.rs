@@ -18,6 +18,9 @@ pub(super) fn selected_binary_write_kind(
         SelectedInstructionKind::WriteRuntimeStorageConvert { .. } => {
             Some(MachineInstructionKind::RuntimeStorageConvert)
         }
+        SelectedInstructionKind::AtomicFetchAdd { .. } => {
+            Some(MachineInstructionKind::AtomicFetchAdd)
+        }
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
             field_byte_offset,
