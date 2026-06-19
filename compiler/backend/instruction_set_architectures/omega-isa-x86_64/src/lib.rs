@@ -6000,3 +6000,80 @@ fn rel32(value: isize) -> Result<i32, Diagnostic> {
         ))
     })
 }
+
+/// Emit `lock xadd [r14 + disp32], r10` at the given operand width. XADD swaps
+/// then adds: it loads the prior `[mem]` into the source register (r10) and
+/// stores `[mem] + r10` back, all as ONE atomic read-modify-write under the
+/// LOCK prefix -- exactly `fetch_add`'s contract (r10 ends with the OLD value).
+/// Caller sets r10 = the delta and r14 = the atomic field's base BEFORE this.
+// FOUNDATION for the atomic-fetch-add lowering: the remaining pipeline increment
+// (a non-erased atomic-RMW node through the trees + a SelectedInstructionKind)
+// will call this to emit a real LOCK xadd instead of the current parse-time
+// desugar to a non-atomic read+add. Byte-verified by `atomic_tests` below.
+#[allow(dead_code)]
+fn append_lock_xadd_r10_to_r14(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    // F0 = LOCK. REX picks operand width (W) + r10 (R) + r14 (B). XADD is
+    // `0F C1 /r` (or `0F C0 /r` for 8-bit). ModRM 0x96 = mod=10 (disp32),
+    // reg=r10&7=2, r/m=r14&7=6.
+    match byte_size {
+        1 => bytes.extend([0xf0, 0x45, 0x0f, 0xc0, 0x96]),
+        2 => bytes.extend([0xf0, 0x66, 0x45, 0x0f, 0xc1, 0x96]),
+        4 => bytes.extend([0xf0, 0x45, 0x0f, 0xc1, 0x96]),
+        8 => bytes.extend([0xf0, 0x4d, 0x0f, 0xc1, 0x96]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 encoder cannot LOCK xadd {byte_size}-byte atomics yet"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+/// Emitted byte count of [`append_lock_xadd_r10_to_r14`] (opcode block + disp32).
+#[allow(dead_code)]
+fn lock_xadd_r10_to_r14_width(byte_size: usize) -> usize {
+    let opcode = match byte_size {
+        1 | 4 => 5,
+        2 => 6,
+        8 => 5,
+        _ => 5,
+    };
+    opcode + 4
+}
+
+#[cfg(test)]
+mod atomic_tests {
+    use super::*;
+
+    #[test]
+    fn lock_xadd_emits_lock_prefix_and_xadd_opcode() {
+        for &byte_size in &[1usize, 2, 4, 8] {
+            let mut bytes = Vec::new();
+            append_lock_xadd_r10_to_r14(&mut bytes, 0x18, byte_size).expect("encode");
+            assert_eq!(
+                bytes.len(),
+                lock_xadd_r10_to_r14_width(byte_size),
+                "width mismatch for {byte_size}-byte lock xadd"
+            );
+            assert_eq!(bytes[0], 0xf0, "must begin with the LOCK prefix (0xF0)");
+            // Operand-size prefix only for 16-bit.
+            let rex_index = if byte_size == 2 { 2 } else { 1 };
+            if byte_size == 2 {
+                assert_eq!(bytes[1], 0x66, "16-bit needs the operand-size prefix");
+            }
+            assert_eq!(bytes[rex_index], if byte_size == 8 { 0x4d } else { 0x45 }, "REX");
+            assert_eq!(bytes[rex_index + 1], 0x0f, "two-byte opcode escape");
+            let xadd_opcode = if byte_size == 1 { 0xc0 } else { 0xc1 };
+            assert_eq!(bytes[rex_index + 2], xadd_opcode, "XADD opcode");
+            assert_eq!(bytes[rex_index + 3], 0x96, "ModRM [r14+disp32], r10");
+            // disp32 little-endian tail.
+            assert_eq!(&bytes[rex_index + 4..], &0x18i32.to_le_bytes());
+        }
+    }
+}
