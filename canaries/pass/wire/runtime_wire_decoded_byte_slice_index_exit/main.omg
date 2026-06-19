@@ -1,0 +1,65 @@
+// Consuming a decoded zero-copy `&[u8]`: after `decode_wire` stores a fat
+// {ptr,len} view into `decoded.bytes`, the bytes are read by INDEXING the view
+// (`data[i]`) under a length guard (`transition i < data.len`). The index is
+// the true-arm action -- a transition ARGUMENT -- so it must be materialized by
+// reading THROUGH the descriptor's data pointer at the runtime index. The bug:
+// a runtime-indexed slice element in argument position fell through every
+// materialization strategy and was never written (the parameter kept its
+// uninitialized bytes); now it resolves as a value operand
+// (CopyRuntimeFrameIndexedToRuntimeFrame), the same machinery a `let b = s[i]`
+// local-copy uses. Exits 70 when decoded.bytes[0] == 72.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+wire data Blob {
+    0: bytes: &[u8];
+}
+
+data BlobSample {
+    bytes: &[u8];
+}
+
+data Main {
+    console: Console;
+    source: [u8; 4];
+    buffer: [u8; 64];
+    written: usize;
+    read: usize;
+    ok: bool;
+}
+
+machine Main::main(&mut self) {
+    self.source[0] = 72;
+    self.source[1] = 105;
+    let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
+    Blob::encode_wire(&sample, &mut self.buffer, &mut self.written);
+
+    let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
+    Blob::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+
+    walk(decoded.bytes, 0);
+
+    state walk(&mut self, data: &[u8], i: usize) {
+        transition i < data.len {
+            true -> check(data[i])
+            false -> bad()
+        }
+    }
+
+    state check(&mut self, b: u8) {
+        transition b == 72 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

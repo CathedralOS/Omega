@@ -383,6 +383,38 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
+        // An INDEXED slice element the place-based copies above did not catch:
+        // `s[i]` / `decoded.bytes[i]` where the collection is a slice DESCRIPTOR
+        // (the element lives behind its data pointer, so `resolve_runtime_storage
+        // _place_in_table` refuses it above) and the index is a const, an elided
+        // const local, or a runtime frame value. Resolve it as a VALUE OPERAND --
+        // the same machinery a `let b = s[i]` local-copy uses (which is correct)
+        // -- and write it to the parameter slot. The motivating shape is consuming
+        // a decoded `&[u8]` via `transition i < s.len { true -> handle(s[i]) }`,
+        // where `s[i]` is a transition argument; without this it falls through
+        // every strategy and the parameter slot keeps its uninitialized bytes.
+        if matches!(expressions.expression(argument), ExpressionNode::Indexed(_))
+            && let Some(kind) = select_runtime_frame_slot_value_write_in_table_with_source_anchor(
+                input,
+                source_dispatch_index,
+                argument_source_key,
+                statement_index,
+                expressions,
+                slot,
+                argument,
+                &static_values,
+                runtime_value_operands,
+                source_anchor_byte_offset,
+            )
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key,
+                source_statement: statement_index,
+            });
+            continue;
+        }
+
         if let Some(initial_value) = source_local_initial_value(
             input,
             argument_source_key,
