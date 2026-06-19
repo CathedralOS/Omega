@@ -2206,6 +2206,43 @@ fn runtime_wire_decode_byte_slice_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_decoded_byte_slice_len_exit_canary_runs() {
+    // `.len` of a `&[u8]` held as a struct FIELD must resolve to the descriptor's
+    // runtime len slot. The place resolver used to drop a
+    // `<struct>.<descriptor-field>.len` path (the `.len` step has no data layout),
+    // so `let n = decoded.bytes.len` emitted no write and `n` held garbage. The
+    // length is genuinely runtime (decoded from a varint), so a correct read
+    // proves the len slot is targeted; exits 70 when n == 2.
+    let canary = pass_canary("wire/runtime_wire_decoded_byte_slice_len_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-wire-decoded-byte-slice-len-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wire decoded byte-slice .len canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wire decoded byte-slice .len canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `.len` of a decoded `&[u8]` field to read the descriptor len slot (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_call_result_binary_operand_exit_canary_runs() {
     // A state-call result used as an operand of a larger value (`x = f() + 1`,
     // `x = max(y, f()+1)`) must apply the operator, not collapse to just the call's
@@ -11203,6 +11240,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "wire/runtime_wire_encode_string_exit",
     "wire/runtime_wire_encode_byte_slice_exit",
     "wire/runtime_wire_decode_byte_slice_exit",
+    "wire/runtime_wire_decoded_byte_slice_len_exit",
     "wire/runtime_wire_roundtrip_repeated_exit",
     "wire/runtime_wire_decode_rejects_repeated_overflow_exit",
     // --- 2026-06-12 canary coverage sweep (feature-edge additions) ---
