@@ -335,6 +335,40 @@ impl Interval {
         }
     }
 
+    /// `min(a, b)`: the result is <= both operands and >= the smaller of the two
+    /// possible values. Unbounded ends behave as the appropriate infinity (a
+    /// `None` low is -inf, a `None` high is +inf), so `min(x, 100)` upper-bounds
+    /// at 100 even when `x` is unbounded.
+    fn min_with(self, other: Self) -> Self {
+        Self {
+            low: match (self.low, other.low) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                _ => None,
+            },
+            high: match (self.high, other.high) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (Some(v), None) | (None, Some(v)) => Some(v),
+                (None, None) => None,
+            },
+        }
+    }
+
+    /// `max(a, b)`: the dual of `min_with` -- `max(0, x)` lower-bounds at 0 even
+    /// when `x` is unbounded.
+    fn max_with(self, other: Self) -> Self {
+        Self {
+            low: match (self.low, other.low) {
+                (Some(a), Some(b)) => Some(a.max(b)),
+                (Some(v), None) | (None, Some(v)) => Some(v),
+                (None, None) => None,
+            },
+            high: match (self.high, other.high) {
+                (Some(a), Some(b)) => Some(a.max(b)),
+                _ => None,
+            },
+        }
+    }
+
     /// `Some(max|b|)` when this interval (a divisor) is finite and provably
     /// excludes 0 -- either entirely positive (`low >= 1`) or entirely negative
     /// (`high <= -1`). `None` otherwise (the divisor may be 0 or is unbounded, so
@@ -572,6 +606,52 @@ fn analyze(
             }
         }
         ExpressionNode::Call(call) => {
+            // S4: the `min`/`max` builtins bound their result by their operands'
+            // intervals (`max(0, x)` is >= 0, `min(x, 100)` is <= 100), so a
+            // clamped value can feed exact arithmetic instead of poisoning the
+            // enclosing op. Reserved-builtin name + a free (receiverless) call +
+            // exactly two arguments. Each operand is analyzed into a THROWAWAY
+            // diagnostic buffer and its interval is trusted ONLY if it proves
+            // clean -- the bound then rests on sound operand ranges, while an
+            // unproven operand's diagnostics are dropped (call arguments are not
+            // otherwise overflow-checked today, so this stays strictly permissive:
+            // it can only tighten a previously-unbounded call result, never add a
+            // rejection).
+            if !call.receiver.is_valid()
+                && matches!(call.target.as_str(), "min" | "max")
+                && let [left_arg, right_arg] =
+                    program.expression_table.expression_handles(call.arguments)
+            {
+                let mut throwaway = Vec::new();
+                let left = analyze(
+                    program, machine, state, *left_arg, env, target_primitive, owner,
+                    &mut throwaway,
+                );
+                let right = analyze(
+                    program, machine, state, *right_arg, env, target_primitive, owner,
+                    &mut throwaway,
+                );
+                if throwaway.is_empty() {
+                    let interval = if call.target.as_str() == "max" {
+                        left.interval.max_with(right.interval)
+                    } else {
+                        left.interval.min_with(right.interval)
+                    };
+                    let domain = match (left.domain, right.domain) {
+                        (Some(left_domain), Some(right_domain)) if left_domain == right_domain => {
+                            Some(left_domain)
+                        }
+                        (Some(domain), None) | (None, Some(domain)) => Some(domain),
+                        _ => None,
+                    };
+                    return Analysis {
+                        domain,
+                        interval,
+                        primitive: left.primitive.or(right.primitive),
+                    };
+                }
+            }
+
             // S4 return-range inference: a machine whose return type declares a
             // literal range constraint (`-> i32 [range<0, 10>]`) is ENFORCED to
             // return within that range (validate_return_value_range, below), so a
@@ -850,6 +930,25 @@ mod tests {
         assert_eq!(Interval::UNBOUNDED.divide(iv(2, 2)), Interval::UNBOUNDED);
         // maybe-zero divisor: cannot assume magnitude >= 1
         assert_eq!(iv(10, 50).divide(iv(0, 5)), Interval::UNBOUNDED);
+    }
+
+    #[test]
+    fn min_max_clamp_against_unbounded() {
+        assert_eq!(
+            Interval::UNBOUNDED.max_with(iv(0, 0)),
+            Interval { low: Some(0), high: None }
+        );
+        assert_eq!(
+            Interval::UNBOUNDED.min_with(iv(100, 100)),
+            Interval { low: None, high: Some(100) }
+        );
+        assert_eq!(iv(0, 50).max_with(iv(10, 10)), iv(10, 50));
+        assert_eq!(iv(0, 50).min_with(iv(10, 10)), iv(0, 10));
+        // chained clamp: max(seed,0) then min(_,60) -> [0,60]
+        assert_eq!(
+            Interval::UNBOUNDED.max_with(iv(0, 0)).min_with(iv(60, 60)),
+            iv(0, 60)
+        );
     }
 
     #[test]
