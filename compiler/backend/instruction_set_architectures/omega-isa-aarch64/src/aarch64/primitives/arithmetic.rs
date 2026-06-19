@@ -74,6 +74,38 @@ pub(in crate::aarch64) fn encode_add_x_register(
     )
 }
 
+/// `LDADDAL <Ws/Xs>, WZR/XZR, [<Xn>]` — LSE (ARMv8.1) atomic fetch-add that
+/// discards the prior value (Rt = 31 = the zero register). The ACQUIRE+RELEASE
+/// variant (A=1, R=1) is chosen to match x86 `LOCK xadd`'s sequentially-
+/// consistent barrier: the requested C11 ordering is erased before codegen
+/// today, so the strongest ordering is the conservative cross-architecture
+/// choice (unobservable without a thread to witness it). `byte_size` selects
+/// the size field: 1→LDADDALB, 2→LDADDALH, 4→32-bit, 8→64-bit.
+pub(in crate::aarch64) fn encode_ldaddal_discard(
+    byte_size: usize,
+    add_register: u8,
+    address_register: u8,
+) -> Result<[u8; 4], Diagnostic> {
+    let size = match byte_size {
+        1 => 0u32,
+        2 => 1,
+        4 => 2,
+        8 => 3,
+        other => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 atomic fetch_add cannot encode a {other}-byte width"
+            )));
+        }
+    };
+    Ok(encode_instruction(
+        0x38E0_0000
+            | (size << 30)
+            | (u32::from(add_register) << 16)
+            | (u32::from(address_register) << 5)
+            | 31, // Rt = WZR/XZR: discard the returned prior value
+    ))
+}
+
 pub(in crate::aarch64) fn encode_and_x_register(
     destination_register: u8,
     left_register: u8,
