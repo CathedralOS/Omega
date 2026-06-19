@@ -1,0 +1,34 @@
+// RUN canary (decision 17 S4 narrowing): modulo + division result-interval
+// narrowing lets bounded-by-construction values feed EXACT arithmetic.
+//
+// `self.seed` is a full-range i32 (opaque to the prover). `% 100` bounds the
+// remainder to [-99, 99] and `/ 2` keeps it bounded, so `+ 70` is provably
+// within i32 and stays EXACT. Without S4 modulo/division narrowing both `%` and
+// `/` produce an UNBOUNDED interval, and the `+ 70` is a decision-17
+// exact-arithmetic overflow error ("operands not provably in range") -- i.e.
+// this program only COMPILES because the narrowing proves the bound.
+//
+// seed is ZII (0): r=0, d=0, s=70 -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    seed: i32;
+}
+
+machine Main::main(&mut self) {
+    let r: i32 = self.seed % 100;   // [-99, 99]  (modulo narrowing)
+    let d: i32 = r / 2;             // [-99, 99]  (division keeps it bounded)
+    let s: i32 = d + 70;            // [-29, 169] in i32 -> EXACT only because bounded
+
+    transition s == 70 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
