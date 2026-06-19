@@ -7,6 +7,7 @@ use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
     append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder, encode_add_x_register,
     encode_adrp_placeholder, encode_and_x_register, encode_cbz_x, encode_float_add,
+    encode_ldaddal_discard,
     encode_float_compare, encode_load_byte_w_post_increment, encode_subs_x_immediate,
     encode_unconditional_branch,
     encode_float_convert_double_to_single, encode_float_convert_single_to_double,
@@ -64,22 +65,60 @@ const RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS: &[u8] = &[15, 14, 13, 12, 11, 10, 9
 /// non-atomic sequence; the LSE `LDADD` (or an `ldxr`/`stxr` retry loop) is the
 /// future path. Paired width returns 0 (gated).
 pub fn encode_atomic_fetch_add(
-    _runtime_value_operands: &impl RuntimeValueOperandSource,
-    _target_offset: usize,
-    _byte_size: usize,
-    _delta: RuntimeValueOperandHandle,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    delta: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    Err(Diagnostic::error(
-        "AArch64 encoder cannot emit an atomic fetch_add yet (x86-first)".to_owned(),
-    ))
+    if target_offset > 4095 {
+        // The field address is `base + target_offset`; a single ADD immediate
+        // only reaches 4095. Atomic fields sit at small offsets in practice;
+        // a clear error beats a silent miscompile.
+        return Err(Diagnostic::error(format!(
+            "AArch64 atomic fetch_add target offset `{target_offset}` exceeds the \
+             single-instruction ADD immediate range (4095)"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(runtime_atomic_fetch_add_width(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        delta,
+    ));
+    // x16 = the atomic field's storage-region base, relocated at the instruction
+    // start (same adrp/add convention as the binary write, so the shared
+    // relocation record patches it). The `delta` operand is loaded NEXT, at the
+    // binary-write left-operand offset (8), so its relocations land correctly;
+    // the address ADD comes AFTER so it never shifts the operand's position.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        delta,
+    )?;
+    append_add_x_constant(&mut bytes, 16, 16, target_offset, 19)?;
+    // LDADDAL w17/x17, wzr/xzr, [x16] — atomic [x16] += x17, prior discarded.
+    bytes.extend(encode_ldaddal_discard(byte_size, 17, 16)?);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_fetch_add_width(runtime_value_operands, target_offset, byte_size, delta)
+    );
+    Ok(bytes)
 }
 
 pub fn runtime_atomic_fetch_add_width(
-    _runtime_value_operands: &impl RuntimeValueOperandSource,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
     _byte_size: usize,
-    _delta: RuntimeValueOperandHandle,
+    delta: RuntimeValueOperandHandle,
 ) -> usize {
-    0
+    // adrp + add-page-offset (8) + delta operand load + the address ADD (0 when
+    // the offset is 0, else 4) + the single LDADDAL (4).
+    let address_add = if target_offset == 0 { 0 } else { 4 };
+    8 + runtime_value_operand_width(runtime_value_operands, delta) + address_add + 4
 }
 
 pub fn encode_runtime_storage_convert(
@@ -2870,6 +2909,63 @@ fn data_offset_encodable(byte_offset: usize, byte_size: usize) -> bool {
 mod tests {
     use super::*;
     use super::super::widths;
+
+    /// `LDADDAL <Ws/Xs>, WZR/XZR, [<Xn>]` per width: the size field selects the
+    /// access size, the acquire+release bits (23,22) are set, Rs = the add
+    /// register, Rn = the address register, and Rt = 31 (the prior value is
+    /// discarded). Byte-exact so it stays in lockstep with disassembly.
+    #[test]
+    fn ldaddal_discard_encodes_per_width() {
+        // (byte_size, expected size field in bits 31:30)
+        for &(byte_size, size) in &[(1usize, 0u32), (2, 1), (4, 2), (8, 3)] {
+            let bytes = encode_ldaddal_discard(byte_size, 17, 16).expect("encode");
+            assert_eq!(bytes.len(), 4, "atomic add is a single instruction");
+            let word = u32::from_le_bytes(bytes[..].try_into().unwrap());
+            let expected = 0x38E0_0000 | (size << 30) | (17u32 << 16) | (16u32 << 5) | 31;
+            assert_eq!(word, expected, "byte_size={byte_size}");
+            assert_eq!(word >> 30, size, "size field");
+            assert_eq!((word >> 22) & 0b11, 0b11, "acquire+release ordering bits");
+            assert_eq!((word >> 16) & 0x1F, 17, "Rs = add register");
+            assert_eq!((word >> 5) & 0x1F, 16, "Rn = address register");
+            assert_eq!(word & 0x1F, 31, "Rt = WZR/XZR (discard prior value)");
+        }
+        assert!(
+            encode_ldaddal_discard(3, 17, 16).is_err(),
+            "non-power-of-two width must error, not miscompile"
+        );
+    }
+
+    /// The full `encode_atomic_fetch_add` path: the emitted length must equal
+    /// its width function at every offset, and the final instruction must be the
+    /// `LDADDAL w17, wzr, [x16]` (atomic add, prior discarded). The delta is an
+    /// immediate so the operand load is offset-independent.
+    #[test]
+    fn atomic_fetch_add_encoder_matches_width_and_ends_in_ldaddal() {
+        use omega_core::arena::Arena;
+        use omega_target_operations::RuntimeValueOperand;
+
+        for &target_offset in &[0usize, 8, 4095] {
+            let mut operands: Arena<RuntimeValueOperand> = Arena::default();
+            let delta = operands.insert(RuntimeValueOperand::Immediate(5));
+            let bytes =
+                encode_atomic_fetch_add(&operands, target_offset, 4, delta).expect("encode");
+            assert_eq!(
+                bytes.len(),
+                runtime_atomic_fetch_add_width(&operands, target_offset, 4, delta),
+                "width mismatch at offset {target_offset}"
+            );
+            let last = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap());
+            assert_eq!(
+                last, 0xB8F1_021F,
+                "final instruction must be LDADDAL w17, wzr, [x16] at offset {target_offset}"
+            );
+        }
+
+        // An offset past the single ADD-immediate reach errors, not miscompiles.
+        let mut operands: Arena<RuntimeValueOperand> = Arena::default();
+        let delta = operands.insert(RuntimeValueOperand::Immediate(1));
+        assert!(encode_atomic_fetch_add(&operands, 4096, 4, delta).is_err());
+    }
 
     /// The zero-extending index load must keep the exact byte width of the
     /// 64-bit variant (only the final opcode changes), so width functions are

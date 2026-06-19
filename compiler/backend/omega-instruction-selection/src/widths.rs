@@ -562,11 +562,15 @@ pub fn runtime_atomic_fetch_add_width(
     byte_size: usize,
     delta: RuntimeValueOperandHandle,
 ) -> usize {
-    let _ = target_offset;
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_atomic_fetch_add_width(runtime_value_operands, byte_size, delta)
-        }
+        Architecture::Aarch64 => aarch64::runtime_atomic_fetch_add_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            delta,
+        ),
+        // x86 `lock xadd` carries the offset as a fixed disp32, so its width is
+        // offset-independent.
         Architecture::X86_64 => {
             x86_64::runtime_atomic_fetch_add_width(runtime_value_operands, byte_size, delta)
         }
