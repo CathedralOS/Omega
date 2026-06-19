@@ -246,6 +246,19 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_size,
             *delta,
         ),
+        SelectedInstructionKind::AtomicCompareExchange {
+            target_offset,
+            byte_size,
+            expected,
+            new_value,
+            ..
+        } => runtime_storage::encode_atomic_compare_exchange(
+            input,
+            *target_offset,
+            *byte_size,
+            *expected,
+            *new_value,
+        ),
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
             field_byte_offset,

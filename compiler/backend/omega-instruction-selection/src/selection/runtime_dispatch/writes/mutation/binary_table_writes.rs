@@ -14,7 +14,9 @@ use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind,
     StateGuardOperator,
 };
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 
@@ -46,6 +48,27 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_binary_muta
         expressions,
         target,
     );
+
+    // Atomic compare_exchange: the parser desugars `place.compare_exchange(
+    // expected, new, ..)` to `place = prior + (prior == expected) * (new -
+    // prior)`. Recognize that exact shape on an atomic target FIRST (before
+    // fetch_add, whose looser `place + delta` gate this Add also satisfies) and
+    // lower it to one `LOCK CMPXCHG` / `CASAL` instead of an xadd of the delta.
+    if let Some(cas) = select_runtime_atomic_compare_exchange_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        target,
+        target_place.clone(),
+        value,
+        static_values,
+        runtime_value_operands,
+    ) {
+        return Some(cas);
+    }
 
     // Atomic fetch_add: `atomic_field = atomic_field + delta` lowers to one
     // `LOCK xadd` (the prior value is captured by the desugar's preceding `let
@@ -81,6 +104,86 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_binary_muta
         static_values,
         runtime_value_operands,
     )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_atomic_compare_exchange_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    target_place: Option<RuntimeStoragePlace>,
+    value: ExpressionHandle,
+    static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    // Match the compare_exchange desugar tree:
+    //   Add(_, Multiply(Equal(_, expected), Subtract(new_value, _)))
+    // extracting `expected` (the Equal's right) and `new_value` (the Subtract's
+    // left). Handles are copied out of each node before the next lookup to keep
+    // the immutable borrows from overlapping.
+    let add_right = match expressions.expression(value) {
+        ExpressionNode::Binary(add) if add.operator == BinaryOperator::Add => add.right,
+        _ => return None,
+    };
+    let (mul_left, mul_right) = match expressions.expression(add_right) {
+        ExpressionNode::Binary(mul) if mul.operator == BinaryOperator::Multiply => {
+            (mul.left, mul.right)
+        }
+        _ => return None,
+    };
+    let expected_expr = match expressions.expression(mul_left) {
+        ExpressionNode::Binary(eq) if eq.operator == BinaryOperator::Equal => eq.right,
+        _ => return None,
+    };
+    let new_value_expr = match expressions.expression(mul_right) {
+        ExpressionNode::Binary(sub) if sub.operator == BinaryOperator::Subtract => sub.left,
+        _ => return None,
+    };
+    if !runtime_storage_target_is_atomic_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        return None;
+    }
+    let target_place = target_place?;
+    if target_place.byte_count == 0 {
+        return None;
+    }
+    let expected = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        expected_expr,
+        static_values,
+        runtime_value_operands,
+    )?;
+    let new_value = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        new_value_expr,
+        static_values,
+        runtime_value_operands,
+    )?;
+    invalidate_runtime_static_value_in_table(static_values, expressions, target);
+    Some(SelectedInstructionKind::AtomicCompareExchange {
+        target_region: target_place.region,
+        target_offset: target_place.byte_offset,
+        byte_size: target_place.byte_count,
+        expected,
+        new_value,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

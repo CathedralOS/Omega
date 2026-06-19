@@ -546,6 +546,19 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_size: *byte_size,
                 delta: remap_runtime_value_handle(*delta),
             },
+            omega_abstract_operations::AbstractOperationKind::AtomicCompareExchange {
+                target_region,
+                target_offset,
+                byte_size,
+                expected,
+                new_value,
+            } => Self::AtomicCompareExchange {
+                target_region: *target_region,
+                target_offset: *target_offset,
+                byte_size: *byte_size,
+                expected: remap_runtime_value_handle(*expected),
+                new_value: remap_runtime_value_handle(*new_value),
+            },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimePointeeBinary {
                 pointer_byte_offset,
                 field_byte_offset,

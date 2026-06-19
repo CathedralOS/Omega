@@ -371,6 +371,19 @@ pub enum AbstractOperationKind {
         byte_size: usize,
         delta: AbstractValueOperandHandle,
     },
+    /// An atomic `compare_exchange`: atomically compare the storage place against
+    /// `expected` and, only if equal, swap in `new_value`, via a single `LOCK
+    /// CMPXCHG` (x86) / `CASAL` (aarch64). The prior value is read separately (by
+    /// the desugar's preceding `let prior = place`), so the instruction's
+    /// returned prior is discarded here -- the point is the atomic
+    /// compare-and-swap of the place itself.
+    AtomicCompareExchange {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        expected: AbstractValueOperandHandle,
+        new_value: AbstractValueOperandHandle,
+    },
     WriteRuntimeStorageBinary {
         target_region: RuntimeStorageRegion,
         target_offset: usize,

@@ -106,6 +106,38 @@ pub(in crate::aarch64) fn encode_ldaddal_discard(
     ))
 }
 
+/// `CASAL <Ws/Xs>, <Wt/Xt>, [<Xn>]` — LSE (ARMv8.1) compare-and-swap with full
+/// (acquire+release) ordering to match x86 `LOCK CMPXCHG`. `Rs` (the compare
+/// register) holds `expected` on entry and is OVERWRITTEN with the place's prior
+/// value on exit; `Rt` is the `new_value` stored only when the compare matched.
+/// Base opcode `0x08E0_FC00` (L=1, o0=1, Rt2=11111); `byte_size` selects the size
+/// field: 1→CASALB, 2→CASALH, 4→32-bit, 8→64-bit.
+pub(in crate::aarch64) fn encode_casal(
+    byte_size: usize,
+    compare_register: u8,
+    new_value_register: u8,
+    address_register: u8,
+) -> Result<[u8; 4], Diagnostic> {
+    let size = match byte_size {
+        1 => 0u32,
+        2 => 1,
+        4 => 2,
+        8 => 3,
+        other => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 atomic compare_exchange cannot encode a {other}-byte width"
+            )));
+        }
+    };
+    Ok(encode_instruction(
+        0x08E0_FC00
+            | (size << 30)
+            | (u32::from(compare_register) << 16)
+            | (u32::from(address_register) << 5)
+            | u32::from(new_value_register),
+    ))
+}
+
 pub(in crate::aarch64) fn encode_and_x_register(
     destination_register: u8,
     left_register: u8,

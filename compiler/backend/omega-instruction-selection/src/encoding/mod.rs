@@ -26,7 +26,7 @@ pub use host::{
     encode_runtime_storage_copy_to_return_register_bytes, encode_syscall_sequence,
 };
 pub use runtime_storage::{
-    encode_atomic_fetch_add,
+    encode_atomic_compare_exchange, encode_atomic_fetch_add,
     encode_runtime_frame_base_indexed_address_to_runtime_frame_write,
     encode_runtime_frame_base_indexed_binary_write,
     encode_runtime_frame_base_indexed_integer_write,

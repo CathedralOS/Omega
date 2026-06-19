@@ -38,6 +38,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             }
 
             Self::AtomicFetchAdd { .. }
+            | Self::AtomicCompareExchange { .. }
             | Self::WriteRuntimeMachineInteger { .. }
             | Self::WriteRuntimeStorageInteger { .. }
             | Self::WriteRuntimePointeeInteger { .. }

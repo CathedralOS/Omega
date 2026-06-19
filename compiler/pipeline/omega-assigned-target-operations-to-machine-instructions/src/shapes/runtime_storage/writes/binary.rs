@@ -21,6 +21,9 @@ pub(super) fn selected_binary_write_kind(
         SelectedInstructionKind::AtomicFetchAdd { .. } => {
             Some(MachineInstructionKind::AtomicFetchAdd)
         }
+        SelectedInstructionKind::AtomicCompareExchange { .. } => {
+            Some(MachineInstructionKind::AtomicCompareExchange)
+        }
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
             field_byte_offset,
