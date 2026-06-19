@@ -6213,6 +6213,44 @@ fn runtime_subslice_of_slice_param_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_machine_field_subslice_arg_index_exit_canary_runs() {
+    // Passing a BARE subslice of a machine fixed-array field (`self.source[0..3]`,
+    // no `.as_slice()`) as a `&[u8]` argument must materialize a correct
+    // {ptr,len} descriptor. The literal-subslice descriptor writer only knew
+    // `x.as_slice()[a..b]` bases, so a bare base declined and the argument fell
+    // through to a garbage copy (wrong len AND elements natively). Exits 70.
+    let canary = pass_canary("slices/runtime_machine_field_subslice_arg_index_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-machine-field-subslice-arg-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine-field subslice arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine-field subslice arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a bare machine-field subslice passed as a slice arg to carry a correct descriptor (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_index_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_index_read_exit");
     let main_path = canary.join("main.omg");
@@ -11059,6 +11097,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_slice_index_read_dispatch_exit",
     "slices/runtime_slice_index_read_exit",
     "slices/runtime_subslice_len_exit",
+    "slices/runtime_machine_field_subslice_arg_index_exit",
     "slices/recursive_subslice_element_accumulator_exit",
     "slices/runtime_subslice_of_slice_param_exit",
     "slices/runtime_subslice_param_bounded_range_exit",

@@ -81,7 +81,29 @@ pub(super) fn literal_fixed_array_slice_source_in_table(
             )?;
             fixed_array_subslice_source(source, expressions, range)
         }
-        _ => None,
+        // A BARE fixed array used directly as a slice base (`self.arr[a..b]` or a
+        // local `arr[a..b]` without an explicit `.as_slice()`). Resolves only when
+        // the value is an actual fixed array with a literal length, so non-array
+        // values still decline. Mirrors the base case in subslice_copy.rs; without
+        // it, a subslice-of-machine-field argument (`walk(self.source[0..2])`)
+        // declines descriptor construction and falls through to a garbage copy.
+        _ => {
+            let place = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                value,
+            )?;
+            let length = resolve_fixed_array_length_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                value,
+            )?;
+            fixed_array_slice_source(place, length)
+        }
     }
 }
 

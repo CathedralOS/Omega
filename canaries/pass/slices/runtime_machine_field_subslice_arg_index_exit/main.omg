@@ -1,0 +1,47 @@
+// Passing a BARE subslice of a machine fixed-array field (`self.source[0..3]`,
+// no `.as_slice()`) as a `&[u8]` argument must materialize a correct fat
+// {ptr,len} descriptor. The literal-subslice descriptor writer only recognized
+// `x.as_slice()[a..b]` bases, so a bare `self.arr[a..b]` base resolved to None,
+// the descriptor write declined, and the argument fell through to a garbage
+// copy -- both the passed `.len` and the elements were wrong natively (the
+// interpreter was correct). Now the base case resolves a bare fixed array.
+// Exits 70 when the passed view has len 3 and data[i] reads the right bytes.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    source: [u8; 4];
+}
+
+machine Main::main(&mut self) {
+    self.source[0] = 72;
+    self.source[1] = 105;
+    self.source[2] = 33;
+
+    walk(self.source[0..3], 2);
+
+    state walk(&mut self, data: &[u8], i: usize) {
+        transition data.len == 3 && i < data.len {
+            true -> check(data[i])
+            false -> bad()
+        }
+    }
+
+    state check(&mut self, b: u8) {
+        transition b == 33 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
