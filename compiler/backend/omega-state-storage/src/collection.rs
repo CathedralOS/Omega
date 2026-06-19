@@ -2,7 +2,9 @@ use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTableCapacity};
+use omega_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTableCapacity,
+};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::{
@@ -326,6 +328,31 @@ fn local_data_requires_storage(
         return true;
     }
 
+    // A VALUE-call-result local (`let bounded = min(self.seed, 60)`) whose result
+    // cannot be folded/substituted is correctly elided when consumed in positions
+    // the substitution covers (call arguments, slice ops -- see the `chance` /
+    // subslice-chain canaries, which MUST stay slot-less). But as an
+    // ARITHMETIC-BINARY operand (`let s = bounded + 70`) the substitution does
+    // not fire, so the dependent binary write silently drops its unresolved
+    // operand. Keep the slot for exactly that combination -- narrow enough that
+    // call-arg / slice-op uses are untouched, and no slot-offset shift can
+    // regress a currently-passing program (none exercises this broken pattern).
+    if expression_contains_call(expressions, initial_value)
+        && statements
+            .iter()
+            .skip(local_statement_index + 1)
+            .any(|statement| {
+                statement_uses_symbol_as_arithmetic_operand(
+                    expressions,
+                    statement,
+                    local_symbol,
+                    local_name,
+                )
+            })
+    {
+        return true;
+    }
+
     statements
         .iter()
         .skip(local_statement_index + 1)
@@ -339,6 +366,174 @@ fn local_data_requires_storage(
                 uses_runtime_flow,
             )
         })
+}
+
+/// Whether an initializer contains ANY call (a call result cannot be folded into
+/// a later use). Mirrors `expression_contains_mutating_call`'s structure but any
+/// `Call` qualifies. Only used (with the arithmetic-operand test) to keep a
+/// call-result local's slot where substitution cannot reach.
+fn expression_contains_call(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Call(_) => true,
+        ExpressionNode::Mutable(inner) => expression_contains_call(expressions, *inner),
+        ExpressionNode::ArrayLiteral(items) => expressions
+            .expression_handles(*items)
+            .iter()
+            .copied()
+            .any(|item| expression_contains_call(expressions, item)),
+        ExpressionNode::Binary(binary) => {
+            expression_contains_call(expressions, binary.left)
+                || expression_contains_call(expressions, binary.right)
+        }
+        ExpressionNode::Cast(cast) => expression_contains_call(expressions, cast.value),
+        ExpressionNode::Indexed(indexed) => {
+            expression_contains_call(expressions, indexed.collection)
+                || expression_contains_call(expressions, indexed.index)
+        }
+        ExpressionNode::Range(range) => {
+            expression_contains_call(expressions, range.start)
+                || expression_contains_call(expressions, range.end)
+        }
+        ExpressionNode::Member(member) => expression_contains_call(expressions, member.receiver),
+        ExpressionNode::Unary(unary) => expression_contains_call(expressions, unary.operand),
+        ExpressionNode::StructLiteral(struct_literal) => expressions
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| expression_contains_call(expressions, field.value)),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => false,
+    }
+}
+
+fn is_arithmetic_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+    )
+}
+
+/// Whether `expression` is directly a reference to `symbol` (a bare `Name`).
+fn expression_is_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    matches!(
+        expressions.expression(expression),
+        ExpressionNode::Name(path)
+            if path.head_symbol == symbol
+                || expressions
+                    .name_path_members(path.members)
+                    .first()
+                    .is_some_and(|name| name == local_name)
+    )
+}
+
+/// Whether `expression` uses `symbol` as a DIRECT operand of an arithmetic binary
+/// anywhere in its tree (`bounded + 70`, `(bounded) * k`, ...). This is the one
+/// consumer position where a slot-less call-result local cannot be substituted,
+/// so its presence (with a call initializer) forces the slot to be kept.
+fn expression_uses_symbol_as_arithmetic_operand(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    let recurse = |handle| {
+        expression_uses_symbol_as_arithmetic_operand(expressions, handle, symbol, local_name)
+    };
+    match expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            (is_arithmetic_operator(binary.operator)
+                && (expression_is_symbol(expressions, binary.left, symbol, local_name)
+                    || expression_is_symbol(expressions, binary.right, symbol, local_name)))
+                || recurse(binary.left)
+                || recurse(binary.right)
+        }
+        ExpressionNode::Unary(unary) => recurse(unary.operand),
+        ExpressionNode::Cast(cast) => recurse(cast.value),
+        ExpressionNode::Mutable(inner) => recurse(*inner),
+        ExpressionNode::Member(member) => recurse(member.receiver),
+        ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),
+        ExpressionNode::Range(range) => recurse(range.start) || recurse(range.end),
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid() && recurse(call.receiver))
+                || expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied()
+                    .any(recurse)
+        }
+        ExpressionNode::ArrayLiteral(items) => {
+            expressions.expression_handles(*items).iter().copied().any(recurse)
+        }
+        ExpressionNode::StructLiteral(struct_literal) => expressions
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| recurse(field.value)),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_) => false,
+    }
+}
+
+/// Whether a later statement uses `symbol` as an arithmetic-binary operand (in a
+/// local initializer, an assignment value, a terminal expression, or a call
+/// argument).
+fn statement_uses_symbol_as_arithmetic_operand(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    match statement {
+        StatementNode::LocalData(local_data) => expression_uses_symbol_as_arithmetic_operand(
+            expressions,
+            local_data.initial_value,
+            symbol,
+            local_name,
+        ),
+        StatementNode::Assignment(assignment) => expression_uses_symbol_as_arithmetic_operand(
+            expressions,
+            assignment.value,
+            symbol,
+            local_name,
+        ),
+        StatementNode::Expression(expression) => {
+            expression_uses_symbol_as_arithmetic_operand(expressions, *expression, symbol, local_name)
+        }
+        StatementNode::Call(call) => expressions
+            .expression_handles(call.arguments)
+            .iter()
+            .copied()
+            .any(|argument| {
+                expression_uses_symbol_as_arithmetic_operand(
+                    expressions,
+                    argument,
+                    symbol,
+                    local_name,
+                )
+            }),
+        StatementNode::Transition(_) => false,
+    }
 }
 
 /// Whether a single statement references the local (in a transition, an
