@@ -320,6 +320,15 @@ pub enum TargetOperationKind {
         byte_size: usize,
         delta: TargetValueOperandHandle,
     },
+    /// Atomic `compare_exchange`: `LOCK CMPXCHG` (x86) / `CASAL` (aarch64) of the
+    /// storage place against `expected`, swapping in `new_value` only on match.
+    AtomicCompareExchange {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        expected: TargetValueOperandHandle,
+        new_value: TargetValueOperandHandle,
+    },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,
         field_byte_offset: usize,

@@ -85,6 +85,12 @@ fn selected_instruction_name(
             byte_size,
             ..
         } => format!("atomic fetch_add {target_region:?}[{target_offset}] ({byte_size}B)"),
+        TargetOperationKind::AtomicCompareExchange {
+            target_region,
+            target_offset,
+            byte_size,
+            ..
+        } => format!("atomic compare_exchange {target_region:?}[{target_offset}] ({byte_size}B)"),
         TargetOperationKind::EnterFunction => "enter function".to_owned(),
         TargetOperationKind::EnterDispatchLoop {
             entry_dispatch_index,

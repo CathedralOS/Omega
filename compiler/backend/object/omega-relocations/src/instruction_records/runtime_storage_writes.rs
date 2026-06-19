@@ -81,6 +81,35 @@ pub(super) fn collect_runtime_storage_write_relocations(
             collect_runtime_value_operand_relocations(context, delta_offset, *delta);
             true
         }
+        SelectedInstructionKind::AtomicCompareExchange {
+            target_region,
+            expected,
+            new_value,
+            ..
+        } => {
+            // Target base relocated at the instruction start, then TWO operands:
+            // `new_value` first (at the binary-write left-operand offset), then
+            // `expected` immediately after it, then the `lock cmpxchg` / `casal`.
+            let target_symbol = context.storage_region_symbol_handle(*target_region);
+            context.insert_data_address_at_instruction_start(target_symbol);
+            let new_value_offset = context.selected_text_offset
+                + runtime_storage_binary_left_operand_offset(context.input.target.architecture);
+            collect_runtime_value_operand_relocations(context, new_value_offset, *new_value);
+            // `expected` follows `new_value` plus the same stash gap the binary
+            // write uses between its two operands (x86 `push r10`; 0 on aarch64,
+            // where the operands occupy distinct registers).
+            let expected_offset = new_value_offset
+                + omega_instruction_selection::runtime_value_operand_width(
+                    context.input.target.architecture,
+                    context.input.assigned_target_operations,
+                    *new_value,
+                )
+                + omega_instruction_selection::runtime_binary_right_operand_gap(
+                    context.input.target.architecture,
+                );
+            collect_runtime_value_operand_relocations(context, expected_offset, *expected);
+            true
+        }
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
             field_byte_offset,

@@ -6,7 +6,7 @@ use omega_target_operations::{
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
     append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder, encode_add_x_register,
-    encode_adrp_placeholder, encode_and_x_register, encode_cbz_x, encode_float_add,
+    encode_adrp_placeholder, encode_and_x_register, encode_casal, encode_cbz_x, encode_float_add,
     encode_ldaddal_discard,
     encode_float_compare, encode_load_byte_w_post_increment, encode_subs_x_immediate,
     encode_unconditional_branch,
@@ -119,6 +119,79 @@ pub fn runtime_atomic_fetch_add_width(
     // the offset is 0, else 4) + the single LDADDAL (4).
     let address_add = if target_offset == 0 { 0 } else { 4 };
     8 + runtime_value_operand_width(runtime_value_operands, delta) + address_add + 4
+}
+
+pub fn encode_atomic_compare_exchange(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    expected: RuntimeValueOperandHandle,
+    new_value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    if target_offset > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 atomic compare_exchange target offset `{target_offset}` exceeds the \
+             single-instruction ADD immediate range (4095)"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(runtime_atomic_compare_exchange_width(
+        runtime_value_operands,
+        target_offset,
+        byte_size,
+        expected,
+        new_value,
+    ));
+    // x16 = the atomic field's region base (relocated at the instruction start).
+    // new_value loads FIRST at offset 8 (the binary-write left-operand offset, so
+    // its relocations land correctly), then expected; the address ADD comes after
+    // so it never shifts the operand positions. CASAL clobbers x26 (expected ->
+    // prior, discarded) and stores x17 (new_value) only on a match.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        new_value,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        26,
+        RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
+        expected,
+    )?;
+    append_add_x_constant(&mut bytes, 16, 16, target_offset, 19)?;
+    // CASAL Ws=x26 (expected), Wt=x17 (new_value), [x16].
+    bytes.extend(encode_casal(byte_size, 26, 17, 16)?);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_compare_exchange_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            expected,
+            new_value
+        )
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_atomic_compare_exchange_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    _byte_size: usize,
+    expected: RuntimeValueOperandHandle,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    // adrp + add-page-offset (8) + new_value load + expected load + the address
+    // ADD (0 when offset is 0, else 4) + the single CASAL (4).
+    let address_add = if target_offset == 0 { 0 } else { 4 };
+    8 + runtime_value_operand_width(runtime_value_operands, new_value)
+        + runtime_value_operand_width(runtime_value_operands, expected)
+        + address_add
+        + 4
 }
 
 pub fn encode_runtime_storage_convert(
@@ -2965,6 +3038,67 @@ mod tests {
         let mut operands: Arena<RuntimeValueOperand> = Arena::default();
         let delta = operands.insert(RuntimeValueOperand::Immediate(1));
         assert!(encode_atomic_fetch_add(&operands, 4096, 4, delta).is_err());
+    }
+
+    /// `CASAL <Ws/Xs>, <Wt/Xt>, [<Xn>]` per width: size field selects the access
+    /// size, Rs (bits 20:16) = compare/expected, Rn (bits 9:5) = address, Rt
+    /// (bits 4:0) = new value, with the acquire(L)/release(o0)/Rt2 fixed bits set.
+    #[test]
+    fn casal_encodes_per_width() {
+        use super::super::primitives::encode_casal;
+        for &(byte_size, size) in &[(1usize, 0u32), (2, 1), (4, 2), (8, 3)] {
+            let word = u32::from_le_bytes(
+                encode_casal(byte_size, 26, 17, 16).expect("encode")[..]
+                    .try_into()
+                    .unwrap(),
+            );
+            let expected = 0x08E0_FC00 | (size << 30) | (26u32 << 16) | (16u32 << 5) | 17;
+            assert_eq!(word, expected, "byte_size={byte_size}");
+            assert_eq!(word >> 30, size, "size field");
+            assert_eq!((word >> 16) & 0x1F, 26, "Rs = expected (compare/old)");
+            assert_eq!((word >> 5) & 0x1F, 16, "Rn = address register");
+            assert_eq!(word & 0x1F, 17, "Rt = new value");
+            assert_eq!((word >> 10) & 0x1F, 0x1F, "Rt2 fixed 11111");
+        }
+        assert!(encode_casal(3, 26, 17, 16).is_err(), "non-power-of-two errors");
+    }
+
+    /// Full `encode_atomic_compare_exchange`: emitted length equals the width fn
+    /// at every offset, and the final instruction is `CASAL w26, w17, [x16]`.
+    #[test]
+    fn atomic_compare_exchange_encoder_matches_width_and_ends_in_casal() {
+        use omega_core::arena::Arena;
+        use omega_target_operations::RuntimeValueOperand;
+
+        for &target_offset in &[0usize, 4, 4095] {
+            let mut operands: Arena<RuntimeValueOperand> = Arena::default();
+            let expected = operands.insert(RuntimeValueOperand::Immediate(10));
+            let new_value = operands.insert(RuntimeValueOperand::Immediate(99));
+            let bytes =
+                encode_atomic_compare_exchange(&operands, target_offset, 4, expected, new_value)
+                    .expect("encode");
+            assert_eq!(
+                bytes.len(),
+                runtime_atomic_compare_exchange_width(
+                    &operands,
+                    target_offset,
+                    4,
+                    expected,
+                    new_value
+                ),
+                "width mismatch at offset {target_offset}"
+            );
+            let last = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap());
+            assert_eq!(
+                last, 0x88FA_FE11,
+                "final instruction must be CASAL w26, w17, [x16] at offset {target_offset}"
+            );
+        }
+
+        let mut operands: Arena<RuntimeValueOperand> = Arena::default();
+        let expected = operands.insert(RuntimeValueOperand::Immediate(1));
+        let new_value = operands.insert(RuntimeValueOperand::Immediate(2));
+        assert!(encode_atomic_compare_exchange(&operands, 4096, 4, expected, new_value).is_err());
     }
 
     /// The zero-extending index load must keep the exact byte width of the

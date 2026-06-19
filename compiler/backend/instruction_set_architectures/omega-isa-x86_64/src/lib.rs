@@ -3986,6 +3986,64 @@ pub fn encode_atomic_fetch_add(
     Ok(bytes)
 }
 
+pub fn runtime_atomic_compare_exchange_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
+    expected: RuntimeValueOperandHandle,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    // mov r14,imm64(base) (10) + new_value load (r10) + push r10 + expected load
+    // (r10) + mov rax,r10 + pop r10 + lock cmpxchg. The push/pop stash mirrors
+    // the binary write so operand evaluation (which accumulates in r10) cannot
+    // clobber the other operand; `new_value` is the "left" at the fixed offset 10
+    // and `expected` the "right" after the push gap.
+    10 + runtime_value_operand_width(runtime_value_operands, new_value)
+        + BINARY_RIGHT_OPERAND_PUSH_WIDTH
+        + runtime_value_operand_width(runtime_value_operands, expected)
+        + MOV_RAX_R10_WIDTH
+        + BINARY_RIGHT_OPERAND_PUSH_WIDTH
+        + lock_cmpxchg_r10_to_r14_width(byte_size)
+}
+
+/// Atomic `compare_exchange`: hold the target base in r14, evaluate `new_value`
+/// into r10 and stash it on the stack, evaluate `expected` into r10 and move it
+/// to rax, restore `new_value` into r10, then `lock cmpxchg [r14+offset], r10`.
+/// CMPXCHG compares rax (expected) with the place and swaps in r10 (new_value)
+/// only on equality; the returned prior (left in rax) is discarded -- the
+/// desugar's preceding `let prior = place` captured it. The stash mirrors the
+/// binary write because operand evaluation accumulates in r10.
+pub fn encode_atomic_compare_exchange(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    expected: RuntimeValueOperandHandle,
+    new_value: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_atomic_compare_exchange_width(
+        runtime_value_operands,
+        byte_size,
+        expected,
+        new_value,
+    ));
+    append_mov_r14_imm64(&mut bytes, 0); // target base (imm64 @ +2 relocated)
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, new_value)?;
+    append_push_r10(&mut bytes); // stash new_value across the expected eval
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, expected)?;
+    append_mov_rax_r10(&mut bytes); // expected -> rax (CMPXCHG's implicit accumulator)
+    append_pop_r10(&mut bytes); // restore new_value -> r10
+    append_lock_cmpxchg_r10_to_r14(&mut bytes, target_offset, byte_size)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_atomic_compare_exchange_width(
+            runtime_value_operands,
+            byte_size,
+            expected,
+            new_value
+        )
+    );
+    Ok(bytes)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_convert_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
@@ -5746,6 +5804,14 @@ fn append_mov_rax_r15(bytes: &mut Vec<u8>) {
     bytes.extend([0x4c, 0x89, 0xf8]);
 }
 
+fn append_mov_rax_r10(bytes: &mut Vec<u8>) {
+    // mov rax, r10 -- 89 /r with r10 in the reg field (REX.R) and rax in r/m.
+    bytes.extend([0x4c, 0x89, 0xd0]);
+}
+
+/// Byte count of [`append_mov_rax_r10`].
+const MOV_RAX_R10_WIDTH: usize = 3;
+
 fn element_scale(element_byte_size: usize) -> Result<i32, Diagnostic> {
     i32::try_from(element_byte_size).map_err(|_| {
         Diagnostic::error(format!(
@@ -6078,6 +6144,38 @@ fn lock_xadd_r10_to_r14_width(byte_size: usize) -> usize {
     opcode + 4
 }
 
+/// `LOCK CMPXCHG [r14+disp32], r10`: compare rax with the place; if equal store
+/// r10 (ZF=1), else load the place into rax (ZF=0). Identical layout to
+/// `append_lock_xadd_r10_to_r14` but with the CMPXCHG opcode (`0F B1`, or
+/// `0F B0` for 8-bit). Used by `encode_atomic_compare_exchange`; byte-verified
+/// by `atomic_tests`.
+fn append_lock_cmpxchg_r10_to_r14(
+    bytes: &mut Vec<u8>,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    match byte_size {
+        1 => bytes.extend([0xf0, 0x45, 0x0f, 0xb0, 0x96]),
+        2 => bytes.extend([0xf0, 0x66, 0x45, 0x0f, 0xb1, 0x96]),
+        4 => bytes.extend([0xf0, 0x45, 0x0f, 0xb1, 0x96]),
+        8 => bytes.extend([0xf0, 0x4d, 0x0f, 0xb1, 0x96]),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 encoder cannot LOCK cmpxchg {byte_size}-byte atomics yet"
+            )));
+        }
+    }
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+/// Emitted byte count of [`append_lock_cmpxchg_r10_to_r14`] (opcode + disp32).
+/// Same layout as `lock_xadd_r10_to_r14_width` (only the opcode byte differs).
+fn lock_cmpxchg_r10_to_r14_width(byte_size: usize) -> usize {
+    lock_xadd_r10_to_r14_width(byte_size)
+}
+
 #[cfg(test)]
 mod atomic_tests {
     use super::*;
@@ -6105,6 +6203,31 @@ mod atomic_tests {
             assert_eq!(bytes[rex_index + 3], 0x96, "ModRM [r14+disp32], r10");
             // disp32 little-endian tail.
             assert_eq!(&bytes[rex_index + 4..], &0x18i32.to_le_bytes());
+        }
+    }
+
+    #[test]
+    fn lock_cmpxchg_emits_lock_prefix_and_cmpxchg_opcode() {
+        for &byte_size in &[1usize, 2, 4, 8] {
+            let mut bytes = Vec::new();
+            append_lock_cmpxchg_r10_to_r14(&mut bytes, 0x24, byte_size).expect("encode");
+            assert_eq!(
+                bytes.len(),
+                lock_cmpxchg_r10_to_r14_width(byte_size),
+                "width mismatch for {byte_size}-byte lock cmpxchg"
+            );
+            assert_eq!(bytes[0], 0xf0, "must begin with the LOCK prefix (0xF0)");
+            let rex_index = if byte_size == 2 { 2 } else { 1 };
+            if byte_size == 2 {
+                assert_eq!(bytes[1], 0x66, "16-bit needs the operand-size prefix");
+            }
+            assert_eq!(bytes[rex_index], if byte_size == 8 { 0x4d } else { 0x45 }, "REX");
+            assert_eq!(bytes[rex_index + 1], 0x0f, "two-byte opcode escape");
+            // CMPXCHG is 0F B1 (or 0F B0 for 8-bit), NOT xadd's 0F C1/C0.
+            let cmpxchg_opcode = if byte_size == 1 { 0xb0 } else { 0xb1 };
+            assert_eq!(bytes[rex_index + 2], cmpxchg_opcode, "CMPXCHG opcode");
+            assert_eq!(bytes[rex_index + 3], 0x96, "ModRM [r14+disp32], r10");
+            assert_eq!(&bytes[rex_index + 4..], &0x24i32.to_le_bytes());
         }
     }
 }

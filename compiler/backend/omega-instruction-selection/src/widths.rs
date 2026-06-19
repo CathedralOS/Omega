@@ -577,6 +577,34 @@ pub fn runtime_atomic_fetch_add_width(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_atomic_compare_exchange_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    expected: RuntimeValueOperandHandle,
+    new_value: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_atomic_compare_exchange_width(
+            runtime_value_operands,
+            target_offset,
+            byte_size,
+            expected,
+            new_value,
+        ),
+        // x86 `lock cmpxchg` carries the offset as a fixed disp32, so its width is
+        // offset-independent.
+        Architecture::X86_64 => x86_64::runtime_atomic_compare_exchange_width(
+            runtime_value_operands,
+            byte_size,
+            expected,
+            new_value,
+        ),
+    }
+}
+
 pub fn runtime_pointee_binary_write_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
