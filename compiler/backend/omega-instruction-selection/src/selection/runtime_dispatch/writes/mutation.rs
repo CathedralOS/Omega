@@ -23,6 +23,7 @@ use super::super::super::bindings::{
 use super::super::super::storage_places::{
     resolve_runtime_storage_arithmetic_domain, resolve_runtime_storage_is_signed,
     resolve_runtime_storage_place, resolve_runtime_storage_primitive_type,
+    runtime_storage_target_is_atomic,
 };
 use omega_checked_trees::types::PrimitiveType;
 use super::super::super::storage_places::{
@@ -1657,6 +1658,47 @@ fn select_runtime_binary_mutation_write(
         );
         return None;
     };
+
+    // Atomic fetch_add: `atomic_field = atomic_field + delta` on an `Atomic*`
+    // field lowers to a single `LOCK xadd` (the prior value is captured by the
+    // desugar's preceding `let old = field`). Gated on an Add whose target is an
+    // atomic-typed place AND whose LEFT operand is that same place (a true
+    // self-increment); the `delta` is the right operand. Anything else falls
+    // through to the normal store, so a non-match can never miscompile.
+    if operator == StateGuardOperator::Add
+        && runtime_storage_target_is_atomic(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_target,
+        )
+        && let Some(target_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            target_source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+        )
+        && let Some(left_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            value_source_key,
+            source_machine,
+            source_state,
+            left_expression,
+        )
+        && left_place.region == target_place.region
+        && left_place.byte_offset == target_place.byte_offset
+        && target_place.byte_count > 0
+    {
+        return Some(SelectedInstructionKind::AtomicFetchAdd {
+            target_region: target_place.region,
+            target_offset: target_place.byte_offset,
+            byte_size: target_place.byte_count,
+            delta: right,
+        });
+    }
 
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target(
         input,

@@ -361,6 +361,16 @@ pub enum AbstractOperationKind {
         byte_size: usize,
         value: i64,
     },
+    /// An atomic `fetch_add`: atomically add `delta` to the storage place via a
+    /// single `LOCK xadd`. The prior value is read separately (by the desugar's
+    /// preceding `let old = place`), so the xadd's result register is discarded
+    /// here -- the point is the atomic read-modify-write of the place itself.
+    AtomicFetchAdd {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        delta: AbstractValueOperandHandle,
+    },
     WriteRuntimeStorageBinary {
         target_region: RuntimeStorageRegion,
         target_offset: usize,

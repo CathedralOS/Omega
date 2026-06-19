@@ -8,6 +8,7 @@ use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
+    runtime_atomic_fetch_add_width,
     dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
     host_call_sequence_width, return_register_integer_write_width, return_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
@@ -352,6 +353,18 @@ fn machine_instruction_width(
             *source_is_float,
             *target_is_float,
             *source_signed,
+        ),
+        SelectedInstructionKind::AtomicFetchAdd {
+            target_offset,
+            byte_size,
+            delta,
+            ..
+        } => runtime_atomic_fetch_add_width(
+            input.target.architecture,
+            input.assigned_target_operations,
+            *target_offset,
+            *byte_size,
+            *delta,
         ),
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,

@@ -110,7 +110,8 @@ fn state_value_has_planned_storage_write(
                 && instruction.source_statement == value.statement_index
                 && matches!(
                     instruction.kind,
-                    SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
+                    SelectedInstructionKind::AtomicFetchAdd { .. }
+                        | SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeInteger { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }

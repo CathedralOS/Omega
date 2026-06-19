@@ -235,6 +235,17 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_is_float,
             *source_signed,
         ),
+        SelectedInstructionKind::AtomicFetchAdd {
+            target_offset,
+            byte_size,
+            delta,
+            ..
+        } => runtime_storage::encode_atomic_fetch_add(
+            input,
+            *target_offset,
+            *byte_size,
+            *delta,
+        ),
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
             field_byte_offset,

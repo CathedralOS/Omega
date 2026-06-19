@@ -7,6 +7,7 @@ use crate::selection::storage_places::{
     resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_arithmetic_domain_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
+    runtime_storage_target_is_atomic_in_table,
 };
 use omega_checked_trees::types::PrimitiveType;
 use omega_abstract_operations::{
@@ -46,6 +47,27 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_binary_muta
         target,
     );
 
+    // Atomic fetch_add: `atomic_field = atomic_field + delta` lowers to one
+    // `LOCK xadd` (the prior value is captured by the desugar's preceding `let
+    // old = field`). Gated on an Add whose target is an atomic-typed place and
+    // whose LEFT operand is that same place; the delta is the right operand.
+    // Non-matches fall through to the normal store, so this can never miscompile.
+    if let Some(atomic) = select_runtime_atomic_fetch_add_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        value_source_key,
+        statement_index,
+        expressions,
+        target,
+        target_place.clone(),
+        value,
+        static_values,
+        runtime_value_operands,
+    ) {
+        return Some(atomic);
+    }
+
     select_runtime_targeted_binary_mutation_write_in_table(
         input,
         dispatch_index,
@@ -59,6 +81,73 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_binary_muta
         static_values,
         runtime_value_operands,
     )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_atomic_fetch_add_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    target_place: Option<RuntimeStoragePlace>,
+    value: ExpressionHandle,
+    static_values: &mut RuntimeStaticValues,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let ExpressionNode::Binary(binary) = expressions.expression(value) else {
+        return None;
+    };
+    if runtime_binary_operator(binary.operator) != Some(StateGuardOperator::Add) {
+        return None;
+    }
+    let (left, right) = (binary.left, binary.right);
+    if !runtime_storage_target_is_atomic_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        return None;
+    }
+    let target_place = target_place?;
+    if target_place.byte_count == 0 {
+        return None;
+    }
+    // Confirm the LEFT operand is the target place itself (a true self-add).
+    let left_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        left,
+    )?;
+    if left_place.region != target_place.region || left_place.byte_offset != target_place.byte_offset
+    {
+        return None;
+    }
+    let delta = resolve_runtime_value_operand_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        statement_index,
+        expressions,
+        right,
+        static_values,
+        runtime_value_operands,
+    )?;
+    // The atomic field's value is volatile; drop any tracked static value so a
+    // later read does not fold to a stale constant.
+    invalidate_runtime_static_value_in_table(static_values, expressions, target);
+    Some(SelectedInstructionKind::AtomicFetchAdd {
+        target_region: target_place.region,
+        target_offset: target_place.byte_offset,
+        byte_size: target_place.byte_count,
+        delta,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -555,6 +555,24 @@ pub fn runtime_storage_convert_width(
     }
 }
 
+pub fn runtime_atomic_fetch_add_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    target_offset: usize,
+    byte_size: usize,
+    delta: RuntimeValueOperandHandle,
+) -> usize {
+    let _ = target_offset;
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_atomic_fetch_add_width(runtime_value_operands, byte_size, delta)
+        }
+        Architecture::X86_64 => {
+            x86_64::runtime_atomic_fetch_add_width(runtime_value_operands, byte_size, delta)
+        }
+    }
+}
+
 pub fn runtime_pointee_binary_write_width(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,
