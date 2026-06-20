@@ -11337,6 +11337,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/call_requires_boolean_expression_from_domain_fact",
     "domains/domain_param_membership_satisfied",
     "domains/domain_param_forwarded",
+    "domains/slice_carrier_domain",
     "domains/call_requires_boolean_expression_preserved_across_disjoint_mutating_call",
     "domains/call_requires_dynamic_indexed_scalar_member_expression_from_domain_fact",
     "domains/call_requires_fixed_indexed_boolean_expression_preserved_across_disjoint_mutating_call",

@@ -1,0 +1,24 @@
+// #66: an encoding domain declared over the SLICE carrier (`domain [u8]::Utf8`),
+// the storage-bound form for `[u8] in Utf8` text. The carrier is the slice; the
+// domain rides it and a reference carries it (`&[u8] in Utf8` == `&([u8] in Utf8)`).
+//
+// Also exercises the slice alias: `Slice<u8>` folds to the same `[u8]` slice type,
+// so `&Slice<u8> in Utf8` resolves to the very same `[u8]::Utf8` domain.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+domain [u8]::Utf8 {
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::take_slice(&self, text: &[u8] in Utf8) {
+}
+
+machine Main::take_generic(&self, text: &Slice<u8> in Utf8) {
+}
+
+machine Main::main(&mut self) {
+}

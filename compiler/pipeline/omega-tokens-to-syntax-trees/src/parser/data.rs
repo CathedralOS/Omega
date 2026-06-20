@@ -24,6 +24,14 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             "data name `Join` is reserved: `Join<T>` is the spawn handle type (chapter 17)",
         ));
     }
+    // `Slice` is reserved as a data-type name so the parser's `Slice<T>` -> slice
+    // fold (type_reference.rs) never collides with a user generic; `Slice<T>` is
+    // the canonical spelling of the `[T]` slice type.
+    if name.as_str() == "Slice" {
+        return Err(input.error_here(
+            "data name `Slice` is reserved: `Slice<T>` is the slice type (alias of `[T]`)",
+        ));
+    }
     let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
     input = next;
     let (properties, next) = parse_property_brackets(input)?;

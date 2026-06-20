@@ -13,13 +13,27 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DomainDefinition> {
-    let (target_name, input) = input.take_identifier()?;
+    // The domain TARGET is normally a named type (`domain String::Utf8`), but it
+    // may be a slice/array carrier (`domain [u8]::Utf8`; encoding domains over the
+    // `[u8]` slice). A bracket-prefixed target is parsed as a full type reference;
+    // every other target stays the bare-identifier path, so existing named-target
+    // declarations are completely unchanged (zero fallout).
+    let (target_type, target_label, input) = if input.at_punctuation(PunctuationKind::LeftBracket)
+    {
+        let (handle, input) =
+            crate::parser::type_reference::parse_type_reference_handle(syntax_trees, input)?;
+        let label = type_reference_target_label(syntax_trees, handle);
+        (handle, label, input)
+    } else {
+        let (target_name, input) = input.take_identifier()?;
+        let handle = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(target_name.clone()));
+        (handle, target_name.to_string(), input)
+    };
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
     let (domain_name, input) = input.take_identifier()?;
-    let target_type = syntax_trees
-        .type_references
-        .insert(TypeReferenceNode::Named(target_name.clone()));
-    let name = Identifier::generated(format!("{target_name}::{domain_name}"));
+    let name = Identifier::generated(format!("{target_label}::{domain_name}"));
     let (classifier, input) = parse_optional_domain_classifier(syntax_trees, input)?;
     let ((facts, operators, body_token_count), input) = parse_domain_body(syntax_trees, input)?;
 
@@ -34,6 +48,25 @@ pub(super) fn parse_domain_definition<'tokens, 'source>(
         },
         input,
     ))
+}
+
+/// A readable label for a domain TARGET type, used to build the domain's name
+/// (`[u8]::Utf8`). Covers the carriers an encoding domain attaches to; a named
+/// target uses its identifier.
+fn type_reference_target_label(
+    syntax_trees: &SyntaxTrees,
+    handle: omega_syntax_trees::types::TypeReferenceHandle,
+) -> String {
+    match syntax_trees.type_references.type_reference(handle) {
+        TypeReferenceNode::Slice { element_type } => {
+            format!("[{}]", type_reference_target_label(syntax_trees, *element_type))
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            format!("[{}; N]", type_reference_target_label(syntax_trees, *element_type))
+        }
+        TypeReferenceNode::Named(name) => name.to_string(),
+        _ => "?".to_owned(),
+    }
 }
 
 fn parse_optional_domain_classifier<'tokens, 'source>(
