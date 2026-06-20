@@ -1,0 +1,22 @@
+// RUN canary (decision 17 transition-arg enforcement + dominating-guard
+// narrowing). The recursive arm argument `n - 1` carries the exact-arith proof
+// obligation; it proves EXACT (no `Wrapping`) ONLY because the arm's guard
+// `n > 0` narrows `n` to `[1, ..]` so `n - 1` is in range. An UNGUARDED `n - 1`
+// is rejected (see fail/arithmetic/transition_arg_unguarded_overflow).
+//
+// count_down(3): 3->2->1->0, then done() exits 70.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+machine Main::count_down(&mut self, n: u32) {
+    transition n > 0 {
+        true -> count_down(n - 1)
+        false -> done()
+    }
+    state done(&mut self) { self.console.exit_process(70); }
+}
+
+machine Main::main(&mut self) {
+    self.count_down(3);
+}

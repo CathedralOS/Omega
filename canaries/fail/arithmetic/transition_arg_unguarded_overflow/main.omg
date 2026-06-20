@@ -1,0 +1,14 @@
+// FAIL canary (decision 17 transition-arg enforcement): an UNGUARDED arithmetic
+// transition argument carries the exact-arith proof obligation and cannot prove
+// `n - 1` is in range (no `n > 0` guard narrows it), so it is rejected. Fix by
+// guarding (`transition n > 0`) or opting into a domain.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; ready: bool; }
+machine Main::step(&mut self, n: u32) {
+    transition self.ready {
+        true -> step(n - 1)
+        false -> done()
+    }
+    state done(&mut self) { self.console.exit_process(0); }
+}
+machine Main::main(&mut self) { self.step(3); }

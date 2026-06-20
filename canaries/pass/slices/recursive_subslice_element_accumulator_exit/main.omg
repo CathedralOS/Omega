@@ -17,11 +17,11 @@ data Summer {}
 
 data Main {
     console: Console;
-    arr: [i32; 4];
+    arr: [i32 in Wrapping; 4];
     summer: Summer;
 }
 
-machine Summer::sum(&mut self, s: &[i32], acc: i32) -> i32
+machine Summer::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates {
     decreases s -> Slice::Length;
 }
@@ -37,8 +37,8 @@ machine Main::main(&mut self) {
     self.arr[1] = 10;
     self.arr[2] = 15;
     self.arr[3] = 20;
-    let s: &[i32] = self.arr.as_slice();
-    let total: i32 = self.summer.sum(s, 0);
+    let s: &[i32 in Wrapping] = self.arr.as_slice();
+    let total: i32 in Wrapping = self.summer.sum(s, 0);
     transition total == 50 {
         true -> good()
         _ -> bad()

@@ -35,6 +35,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_min_max_signedness_exit", 70),
     ("arithmetic/runtime_modulo_div_narrowing_exit", 70),
     ("arithmetic/runtime_signed_division_exit", 70),
+    ("arithmetic/runtime_transition_arg_guard_narrowing_exit", 70),
     ("arithmetic/runtime_unsigned_division_exit", 70),
     ("arithmetic/runtime_unsigned_modulo_call_argument_exit", 70),
     ("arithmetic/runtime_unsigned_modulo_cast_operand_exit", 70),
