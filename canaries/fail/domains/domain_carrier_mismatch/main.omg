@@ -1,0 +1,18 @@
+// #66 carrier-match: domains are bound to their storage type. `Scanned` is
+// declared on `Blob`, so `i32 in Scanned` (a different carrier) is rejected even
+// though the domain NAME matches -- a domain never floats free of its storage.
+
+data Blob {
+    payload: i32;
+}
+
+domain Blob::Scanned {
+    self.payload > 0;
+}
+
+data Main {
+    value: i32 in Scanned;
+}
+
+machine Main::main(&mut self) {
+}
