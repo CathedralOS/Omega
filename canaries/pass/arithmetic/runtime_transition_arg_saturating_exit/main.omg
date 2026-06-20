@@ -1,0 +1,21 @@
+// RUN canary (exit 70). Transition-arg enforcement respects domains: a
+// Saturating-domain accumulator argument carries NO exact-arith obligation (it
+// clamps), so `acc + (s[0] as i32 in Saturating)` compiles with no guard / no
+// range proof. arr = [30,25,15] sums to 70 (no clamping occurs at these values).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Summer {}
+data Main { console: Console; arr: [i32; 3]; summer: Summer; }
+machine Summer::sum(&mut self, s: &[i32], acc: i32 in Saturating) -> i32
+terminates { decreases s -> Slice::Length; }
+{
+    transition s.len > 0 {
+        true -> sum(s[1..], acc + (s[0] as i32 in Saturating))
+        false -> acc
+    }
+}
+machine Main::main(&mut self) {
+    self.arr[0] = 30; self.arr[1] = 25; self.arr[2] = 15;
+    let s: &[i32] = self.arr.as_slice();
+    let total: i32 in Saturating = self.summer.sum(s, 0);
+    self.console.exit_process(total);
+}

@@ -782,6 +782,20 @@ pub(super) fn classify_scalar_value_type_in_table(
             .name_path_members(cast.target_type)
             .last()
             .and_then(|name| PrimitiveType::from_name(name.as_str())),
+        // A slice/array element read (`s[0]`) has the COLLECTION's element type.
+        // Without this, a cast of an element (`s[0] as i32 in Wrapping`) could not
+        // classify its source, the cast's `?` bailed, the whole binary operand
+        // nulled out, and the accumulator argument was silently dropped (read 0).
+        ExpressionNode::Indexed(indexed) => {
+            let collection_descriptor = resolve_runtime_storage_leaf_descriptor_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                indexed.collection,
+            )?;
+            descriptor_primitive_type(collection_descriptor.element_type()?)
+        }
         _ => None,
     }
 }
