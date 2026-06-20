@@ -484,6 +484,22 @@ impl Interval {
         }
     }
 
+    /// Widest interval covering both (`[min(lows), max(highs)]`, an unbounded end
+    /// on EITHER side making that side unbounded). Used to union a callee's
+    /// multiple return paths when inferring its return range.
+    fn union(self, other: Self) -> Self {
+        Self {
+            low: match (self.low, other.low) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                _ => None,
+            },
+            high: match (self.high, other.high) {
+                (Some(a), Some(b)) => Some(a.max(b)),
+                _ => None,
+            },
+        }
+    }
+
     /// Tightest interval contained in both (`[max(lows), min(highs)]`, an
     /// unbounded end deferring to the other). Used to intersect a guard bound
     /// with a place's type range.
@@ -983,43 +999,86 @@ fn resolve_unique_self_call_state<'program>(
 /// result can stay Exact without the callee writing `-> i32 [a..=b]`. Sound and
 /// STRICTLY PERMISSIVE: the body is analyzed with an EMPTY env (params at full
 /// type width -> the widest possible result, so any caller's actual return is
-/// within it), only a SINGLE terminal-expression return path is considered
-/// (transitions/multi-state bail), and the interval is trusted only if the body
-/// analysis is clean and fully bounded. Recursion-guarded to one level.
+/// within it). All return paths of the callee state are UNIONed -- a terminal
+/// expression and/or transition VALUE targets (`{ cond -> v1 _ -> v2 }`). SOUND:
+/// every path must be captured, so the state must be a LEAF value state -- if any
+/// transition target is Named/SelfTarget (a return could come from a state we are
+/// not analyzing, or a loop), we bail. The interval is trusted only if every
+/// path's analysis is clean and the union is fully bounded. Recursion-guarded to
+/// one level.
 fn infer_return_interval(
     program: &TypedTrees,
     callee_machine: &Machine,
     callee_state: &State,
     target_primitive: Option<PrimitiveType>,
 ) -> Option<Interval> {
+    use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
     if INFERRING_RETURN.with(std::cell::Cell::get) {
         return None;
     }
     let statements = program.statement_table.statements(callee_state.statement_nodes);
-    let omega_typed_trees::statement::StatementNode::Expression(return_expression) =
-        statements.last()?
-    else {
-        return None;
-    };
-    let env = ValueEnv::new();
-    let mut throwaway = Vec::new();
-    INFERRING_RETURN.with(|flag| flag.set(true));
-    let analysis = analyze(
-        program,
-        callee_machine,
-        Some(callee_state),
-        *return_expression,
-        &env,
-        target_primitive,
-        "inferred return",
-        &mut throwaway,
-    );
-    INFERRING_RETURN.with(|flag| flag.set(false));
-    if !throwaway.is_empty() {
+
+    // Collect every return expression, bailing if any exit could escape to an
+    // uncaptured state. A terminal expression is the last statement; transition
+    // arms return via VALUE targets.
+    let mut return_expressions = Vec::new();
+    if let Some(StatementNode::Expression(expression)) = statements.last() {
+        return_expressions.push(*expression);
+    }
+    for statement in statements {
+        let StatementNode::Transition(transition) = statement else {
+            continue;
+        };
+        for target in [transition.target, transition.continuation] {
+            if !target.is_valid() {
+                continue;
+            }
+            match program.statement_table.transition_target(target) {
+                TransitionTargetNode::Value(expression) => return_expressions.push(*expression),
+                TransitionTargetNode::Terminal => {}
+                // Named (another state / recursion) or SelfTarget (loop): the
+                // return may come from somewhere we are not analyzing -> bail.
+                TransitionTargetNode::Named { .. } | TransitionTargetNode::SelfTarget => {
+                    return None;
+                }
+            }
+        }
+    }
+    if return_expressions.is_empty() {
         return None;
     }
-    (analysis.interval.low().is_some() && analysis.interval.high().is_some())
-        .then_some(analysis.interval)
+
+    let env = ValueEnv::new();
+    INFERRING_RETURN.with(|flag| flag.set(true));
+    let mut union: Option<Interval> = None;
+    let mut clean = true;
+    for expression in return_expressions {
+        let mut throwaway = Vec::new();
+        let analysis = analyze(
+            program,
+            callee_machine,
+            Some(callee_state),
+            expression,
+            &env,
+            target_primitive,
+            "inferred return",
+            &mut throwaway,
+        );
+        if !throwaway.is_empty() {
+            clean = false;
+            break;
+        }
+        union = Some(match union {
+            Some(current) => current.union(analysis.interval),
+            None => analysis.interval,
+        });
+    }
+    INFERRING_RETURN.with(|flag| flag.set(false));
+    if !clean {
+        return None;
+    }
+    let union = union?;
+    (union.low().is_some() && union.high().is_some()).then_some(union)
 }
 
 /// S4 return-range ENFORCEMENT (companion to the call-site narrowing): when a

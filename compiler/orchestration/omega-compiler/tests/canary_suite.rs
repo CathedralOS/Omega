@@ -3323,6 +3323,35 @@ fn runtime_cast_element_accumulator_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// ch15 stage 2 -- multi-path return-range inference: a callee returning via two
+/// transition arms (3 / 7) infers the UNION [3,7], so the caller's `pick(b) + 63`
+/// proves Exact. run(false) -> 70.
+#[test]
+fn runtime_inferred_multipath_return_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_inferred_multipath_return_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-inferred-multipath-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("multi-path inferred return range should let the caller prove Exact");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("multi-path inferred return canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected multi-path inferred-return narrowing to run to 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// ch15 stage 2 (modular return-range inference): a callee with NO declared
 /// return range whose body bounds the result (`min(x, 3)`) lets the caller's
 /// `classify(x) + 67` prove Exact via the INFERRED bound. run(100) -> 70.
@@ -11467,6 +11496,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_struct_field_range_narrowing_exit",
     "arithmetic/runtime_provable_field_construction_exit",
     "arithmetic/runtime_inferred_return_range_exit",
+    "arithmetic/runtime_inferred_multipath_return_exit",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_boolean_or_guard_exit",
     "control_flow/runtime_negated_boolean_place_guard_exit",
