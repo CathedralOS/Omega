@@ -1,0 +1,20 @@
+// #66 Phase C: a `&[u8] in Utf8` value reuses the underlying slice operations
+// (`.len`, indexing) -- the domain is a compile-time fact, erased at runtime, so
+// no new codegen is needed for byte-level reads. (A raw subslice would DROP the
+// Utf8 domain; that is the sound default.)
+
+domain [u8]::Utf8 {
+}
+
+data Main {
+    console: Console;
+}
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+machine Main::measure(&self, text: &[u8] in Utf8) -> usize {
+    transition { _ -> (text.len) }
+}
+
+machine Main::main(&mut self) {
+}
