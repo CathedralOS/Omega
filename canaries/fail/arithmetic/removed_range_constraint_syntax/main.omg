@@ -1,0 +1,4 @@
+// FAIL canary: the vestigial `range<a, b>` constraint syntax is removed in favor
+// of `a..b` (exclusive) / `a..=b` (inclusive). Using it is a clear parse error.
+data Main { x: i32 [range<0, 16>]; }
+machine Main::main(&mut self) {}

@@ -243,7 +243,7 @@ fn validate_state_statement_node(
                 &owner,
                 diagnostics,
             );
-            // S4: enforce a declared return `[range<..>]` so call-site narrowing
+            // S4: enforce a declared return `[a..=b]` so call-site narrowing
             // that trusts it stays sound (the interval is already computed above).
             arithmetic_domains::enforce_declared_return_range(
                 program,
@@ -310,7 +310,7 @@ fn validate_state_statement_node(
             }
 
             // S4: a transition VALUE target (`_ -> (expr)`) is a return value. When
-            // the state's return type declares a `[range<..>]`, enforce the value
+            // the state's return type declares a `[a..=b]`, enforce the value
             // is provably within it (so call-site narrowing that trusts the range
             // is sound). Gated on the range constraint inside
             // `validate_return_value_range`, so plain returns are unaffected.

@@ -139,7 +139,7 @@ impl TypeConstraintNode {
             TypeConstraintNode::Named(name) => name.to_string(),
             TypeConstraintNode::Range { minimum, maximum } => {
                 format!(
-                    "range<{}, {}>",
+                    "{}..={}",
                     expressions.display_name(*minimum),
                     expressions.display_name(*maximum)
                 )

@@ -126,7 +126,7 @@ pub(crate) fn resolve_view_return_source(program: &TypedTrees, state: &State) ->
 }
 
 /// The explicit lifetime name on a reference type, seeing through a
-/// `Constrained` wrapper (e.g. `&'buf string[range<..>]`). `None` for an elided
+/// `Constrained` wrapper (e.g. `&'buf string[a..=b]`). `None` for an elided
 /// reference or a non-reference type.
 fn reference_lifetime(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Option<&str> {
     match program.type_reference_table.type_reference(type_reference) {

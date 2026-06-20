@@ -94,7 +94,7 @@ impl TypeConstraint {
             TypeConstraint::Named(name) => name.to_string(),
             TypeConstraint::Range { minimum, maximum } => {
                 let _ = (minimum, maximum);
-                "range<expression, expression>".to_owned()
+                "expression..=expression".to_owned()
             }
             TypeConstraint::ArithmeticDomain(domain) => format!("in {}", domain.name()),
         }

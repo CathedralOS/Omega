@@ -3323,6 +3323,35 @@ fn runtime_cast_element_accumulator_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// The `a..b` (exclusive) / `a..=b` (inclusive) range refinement syntax that
+/// replaced the removed `range<a, b>`: `x in 0..16` and `y in 0..=100` keep
+/// `x + y` Exact. Runs to 70.
+#[test]
+fn runtime_exclusive_range_constraint_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_exclusive_range_constraint_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-exclusive-range-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("exclusive/inclusive range-constraint syntax should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("exclusive range constraint canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `0..16` + `0..=100` constrained sum to run to 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// Decision 17 S4: min/max clamp narrowing. `max(self.seed, 0)` lower-bounds at
 /// 0 and `min(_, 60)` upper-bounds at 60, so `+ 70` stays EXACT. Without the
 /// narrowing both clamps are unbounded and `+ 70` is a decision-17 overflow
@@ -3632,7 +3661,7 @@ fn arithmetic_domain_trapping_overflow_aborts() {
 
 #[test]
 fn arithmetic_domain_return_range_proven_exact_exit_canary_runs() {
-    // Decision 17 S4: a range-constrained return (`-> i32 [range<0,10>]`) lets a
+    // Decision 17 S4: a range-constrained return (`-> i32 [0..=10]`) lets a
     // caller's exact arithmetic on the result stay Exact (5+5+60=70). Enforcement
     // (callee must return in range) makes trusting the range sound.
     let canary = pass_canary("expressions/arithmetic_domain_return_range_proven_exact_exit");
@@ -11318,6 +11347,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
     "arithmetic/runtime_transition_arg_saturating_exit",
     "arithmetic/runtime_cast_element_accumulator_exit",
+    "arithmetic/runtime_exclusive_range_constraint_exit",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_boolean_or_guard_exit",
     "control_flow/runtime_negated_boolean_place_guard_exit",
@@ -11625,6 +11655,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_mixed",
     "expressions/nested_i32_mul_overflow",
+    "arithmetic/removed_range_constraint_syntax",
     "arithmetic/transition_arg_unguarded_overflow",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",

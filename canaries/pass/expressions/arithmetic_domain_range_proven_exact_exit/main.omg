@@ -1,6 +1,6 @@
 // RUN CANARY (exit 70). Frozen decision 17, stage S4: range-constraint narrowing.
 //
-// `x` and `y` each declare the range constraint `[range<0, 100>]`, so the prover
+// `x` and `y` each declare the range constraint `[0..=100]`, so the prover
 // knows each is in [0, 100]. Their sum is therefore in [0, 200], which fits i32 --
 // so `self.x + self.y` is proven NON-overflowing and stays EXACT (no `Wrapping`
 // domain, no `as` widening needed). This is the ergonomic payoff of exact-by-
@@ -13,8 +13,8 @@ boundary trait Console { machine exit_process(return_code: i32); }
 
 data Main {
     console: Console;
-    x: i32 [range<0, 100>];
-    y: i32 [range<0, 100>];
+    x: i32 [0..=100];
+    y: i32 [0..=100];
 }
 
 machine Main::main(&mut self) {

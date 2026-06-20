@@ -115,8 +115,8 @@ DONE:
   dropped on a call) discharges const-init + read-modify-write arithmetic
   (`self.v = 10; self.v += 5`). Cut the S3 blast radius 44 -> 30 pass canaries.
 - **Range-constraint narrowing** — `range_constraint_interval` reads a
-  `[range<min, max>]` type constraint (literal bounds) and uses [min, max] as the
-  operand interval. So `x: i32 [range<0, 100>]` proves `x + y` in [0, 200] -> exact,
+  `[min..=max]` type constraint (literal bounds) and uses [min, max] as the
+  operand interval. So `x: i32 [0..=100]` proves `x + y` in [0, 200] -> exact,
   no domain. Place-arm precedence: flow value > range constraint > type bounds.
   Canary expressions/arithmetic_domain_range_proven_exact_exit.
 - **Literal-target folding** — a bounded bare-literal computation is range-checked
@@ -135,7 +135,7 @@ STILL TODO:
   exact. (The corpus's remaining `Wrapping` operands are mostly call-results /
   cross-state values; those need return-range / inter-state inference, a bigger
   lift -- they read fine as `Wrapping`.)
-- **Range-respecting assignment check**: assigning out-of-`[range<>]` is not yet
+- **Range-respecting assignment check**: assigning out-of-`[a..=b]` is not yet
   rejected (the narrowed interval trusts the declared range without proving writes
   honour it -- sound as an overflow over-approximation, but a separate obligation).
 

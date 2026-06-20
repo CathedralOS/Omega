@@ -66,7 +66,7 @@ fn type_reference_table_stores_typed_constraints_as_expression_handles() {
     assert!(maximum.is_valid());
     assert_eq!(
         types.display_name_with_constraints(root, &expressions),
-        "i32[range<0, 10>]"
+        "i32[0..=10]"
     );
     assert_eq!(types.primitive_type(root), Some(PrimitiveType::I32));
     assert_eq!(types.type_symbol(root), SymbolHandle::invalid());
@@ -104,7 +104,7 @@ fn type_reference_table_copies_table_payloads_without_tree_roundtrip() {
 
     assert_eq!(
         copied_types.display_name_with_constraints(copied_root, &copied_expressions),
-        "[u8; 8][range<1, 8>]"
+        "[u8; 8][1..=8]"
     );
     assert_eq!(
         copied_types.type_reference_count(),

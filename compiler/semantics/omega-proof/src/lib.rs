@@ -497,7 +497,7 @@ fn constraint_handle_name(
         output.push_str(&match constraint {
             TypeConstraintNode::Named(name) => name.to_string(),
             TypeConstraintNode::Range { minimum, maximum } => format!(
-                "range<{}, {}>",
+                "{}..={}",
                 syntax_trees
                     .expressions
                     .expression(*minimum)
