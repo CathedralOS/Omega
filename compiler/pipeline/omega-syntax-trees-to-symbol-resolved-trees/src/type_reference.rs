@@ -195,6 +195,9 @@ fn lower_type_constraint_handle(
         syntax::types::TypeConstraintNode::Named(name) => {
             Ok(TypeConstraint::Named(crate::name::lower_name(name)))
         }
+        syntax::types::TypeConstraintNode::Domain(name) => {
+            Ok(TypeConstraint::Domain(crate::name::lower_name(name)))
+        }
         syntax::types::TypeConstraintNode::Range { minimum, maximum } => {
             let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
             let minimum = lower_expression_into_table(syntax_trees, expressions, *minimum)?;

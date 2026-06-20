@@ -584,6 +584,8 @@ pub enum TypeConstraint {
         maximum: crate::expression::ExpressionHandle,
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
+    Domain(DiagnosticName),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -594,6 +596,8 @@ pub enum TypeConstraintNode {
         maximum: crate::expression::ExpressionHandle,
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
+    Domain(DiagnosticName),
 }
 
 impl TypeConstraintNode {
@@ -609,6 +613,7 @@ impl TypeConstraintNode {
                 maximum: expressions.copy_from(source_expressions, *maximum),
             },
             TypeConstraint::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
+            TypeConstraint::Domain(name) => Self::Domain(name.clone()),
         }
     }
 }

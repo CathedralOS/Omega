@@ -420,6 +420,16 @@ impl TypeParameterScope<'_> {
     }
 }
 
+/// A domain constraint `in Name` is satisfied by any declared `domain ...::Name`.
+/// Domain definitions store their name as `Target::Name` (e.g. `Slice<u8>::Utf8`),
+/// so we match the component after the final `::` (or the whole name if none).
+fn domain_is_declared(program: &TypedTrees, wanted: &str) -> bool {
+    program.domain_definitions().iter().any(|domain| {
+        let full = domain.name.as_str();
+        full.rsplit("::").next().unwrap_or(full) == wanted
+    })
+}
+
 fn type_reference_is_named_str(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
     matches!(
         program.type_reference_table.type_reference(type_reference),
@@ -451,6 +461,17 @@ fn validate_type_constraints_node(
                 }
             }
             TypeConstraintNode::Named(_) => {}
+            // A declared encoding domain on a carrier (`[u8] in Utf8`; ch8). It
+            // must reference a `domain ...::Name` declaration -- this rejects
+            // typos (`in Utf8x`) and is what distinguishes a domain from a
+            // structural property (`[copy]`, which stays an unvalidated `Named`).
+            TypeConstraintNode::Domain(name) => {
+                if !domain_is_declared(program, name.as_str()) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} uses `in {name}`, but no `domain` named `{name}` is declared"
+                    )));
+                }
+            }
             TypeConstraintNode::Range { .. } => {
                 let Some(primitive_type) = primitive_type else {
                     continue;

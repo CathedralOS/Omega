@@ -92,6 +92,7 @@ impl TypeConstraint {
     pub fn display_name(&self) -> String {
         match self {
             TypeConstraint::Named(name) => name.to_string(),
+            TypeConstraint::Domain(name) => format!("in {name}"),
             TypeConstraint::Range { minimum, maximum } => {
                 let _ = (minimum, maximum);
                 "expression..=expression".to_owned()

@@ -564,7 +564,9 @@ fn count_type_constraint(
     counts: &mut IdentityStorageCounts,
 ) {
     match constraint {
-        TypeConstraint::Named(name) => count_type_name(name, counts),
+        TypeConstraint::Named(name) | TypeConstraint::Domain(name) => {
+            count_type_name(name, counts)
+        }
         TypeConstraint::Range { minimum, maximum } => {
             count_expression_handle(expression_table, *minimum, counts);
             count_expression_handle(expression_table, *maximum, counts);

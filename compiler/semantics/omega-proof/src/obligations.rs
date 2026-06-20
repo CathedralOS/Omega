@@ -83,6 +83,10 @@ impl ProofConstraint {
     fn from_node(program: &TypedTrees, constraint: &TypeConstraintNode) -> Option<Self> {
         match constraint {
             TypeConstraintNode::Named(name) => Some(Self::Named(name.clone())),
+            // A declared domain (`[u8] in Utf8`) is a NAMED FACT (`self in Utf8`),
+            // so it rides the named-constraint proof machinery: a target requiring
+            // the domain needs the source to provably carry that named fact.
+            TypeConstraintNode::Domain(name) => Some(Self::Named(name.clone())),
             TypeConstraintNode::Range { minimum, maximum } => {
                 Self::range_from_expression_handles(program, *minimum, *maximum)
             }

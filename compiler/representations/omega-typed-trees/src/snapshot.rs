@@ -1113,9 +1113,11 @@ fn type_constraint_snapshot(
     constraint: &TypeConstraintNode,
 ) -> TypeConstraintSnapshot {
     match constraint {
-        TypeConstraintNode::Named(name) => TypeConstraintSnapshot::Named {
-            name: name.to_string(),
-        },
+        TypeConstraintNode::Named(name) | TypeConstraintNode::Domain(name) => {
+            TypeConstraintSnapshot::Named {
+                name: name.to_string(),
+            }
+        }
         TypeConstraintNode::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
             minimum: expression_snapshot(program, *minimum),
             maximum: expression_snapshot(program, *maximum),
