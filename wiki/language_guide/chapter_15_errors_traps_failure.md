@@ -153,6 +153,16 @@ The contagion is the deterrent: aborting is annoying to opt into by design,
 reserved for services whose owner restarts them. It is not for ordinary error
 handling.
 
+The contagion and visibility are **not new machinery** — they are the chapter 18
+effect system. Aborting carries the `process_exit` effect, which is inferred
+bodies-up through the call graph (no per-call-site pollution), forced to be
+declared at boundaries (boundary traits, exported APIs, `main`), and recorded in
+the executable manifest for a build/store/OS policy to audit or deny. So "a
+caller of an abortable machine is itself abortable unless it proves the abort
+unreachable" is just ordinary effect propagation; abort adds the *nuclear,
+no-cleanup operation*, not a new propagation rule. (`exit(code)` below carries
+the same `process_exit` effect — the difference is cleanup, not the effect.)
+
 **Graceful shutdown is not `abort`.** Releasing resources and exiting cleanly is
 ordinary control flow: transition to a cleanup state, run its effects, then call
 `exit(code)` (a normal host boundary). Only the no-cleanup, give-up case is the

@@ -486,6 +486,49 @@ boundary and the operators.
 > `string`/`String` with `[u8] in Utf8` wholesale, waits on domains over
 > `Slice<u8>`, the codec operators above, and a corpus migration.
 
+### Establishing the domain: construction, validation, and the wire
+
+A byte container EARNS its encoding domain in exactly one of two ways -- and
+never from the transport:
+
+- **By construction.** A literal, or a value built from known-good bytes, is
+  `[u8] in Utf8` by construction: the compiler knows the bytes, so there is no
+  runtime check. The preservation operators above (`concat`, boundary-`slice`)
+  carry the domain forward, so text stays text without re-validation.
+
+- **By validation -- a fallible call, riding chapter 15.** Raw bytes from an
+  untrusted source are plain `[u8]` with NO encoding domain. To use them as text
+  you run a `validate` operator, which is an ordinary fallible call: it returns
+  the DOMAINED slice or an error, handled at a transition boundary like any other
+  recoverable failure. When validation can land in more than one domain, return a
+  sum whose cases each carry the ALREADY-DOMAINED slice -- the same shape as
+  `Result`, and the same fact-on-a-case-payload machinery as chapter 15's errors.
+  The caller matches once and gets the specific domain in each arm; it never
+  re-validates.
+
+  ```omega
+  data Decoded {
+      case Ascii(text: [u8] in Ascii);   // payload already carries the domain
+      case Utf8(text:  [u8] in Utf8);
+      case Invalid(error: DecodeError);
+  }
+  machine classify(bytes: &[u8]) -> Decoded { /* scans once */ }
+  ```
+
+  This is the blessed pattern, not a trick to be discovered: a multi-domain
+  classifier is a sum-returning fallible call, and the matched case payload IS
+  the discharge.
+
+- **Never from the wire.** Deserializing a wire message produces structure + raw
+  bytes per the agreed SCHEMA (chapter 10) -- that schema *is* "both sides agree
+  on the format in advance." A "string" field decodes to plain `[u8]`, untrusted,
+  with no domain; the encoding is then earned by `validate` like any other raw
+  source (a file read, a socket). The wire layer moves bytes and structure; it
+  does not grant encoding facts, so decode has one failure axis (malformed
+  structure), not two. A schema field MAY opt into a declared encoding domain so
+  decode validates at the boundary and folds encoding-invalidity into the decode
+  error -- but that is an opt-in, never the default.
+
 ## Domains On Foreign Types
 
 A package may declare a domain over a type it does not own. This is the
