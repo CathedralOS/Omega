@@ -11689,6 +11689,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/removed_range_constraint_syntax",
     "arithmetic/construction_payload_out_of_range",
     "arithmetic/unconstrained_payload_arithmetic",
+    "arithmetic/bounded_assignment_unproven",
     "arithmetic/transition_arg_unguarded_overflow",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",

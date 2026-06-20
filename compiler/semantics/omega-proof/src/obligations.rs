@@ -1094,6 +1094,14 @@ fn expression_type_reference(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
+    // A `self.field` place resolves through the machine's ATTACHED DATA. Without
+    // this, `self.field` returned None here, so a bounded-assignment obligation
+    // for a range-refined field target (`self.x = 9999` with `x: i32 [0..=100]`)
+    // was never collected and the declared range went UNENFORCED on assignment
+    // (the field range a later narrowing trusts must hold at every write).
+    if let Some(field_type) = attached_data_field_type(program, machine, expression) {
+        return Some(field_type);
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Mutable(inner) => {
             expression_type_reference(program, machine, state, *inner)
@@ -1142,6 +1150,56 @@ fn expression_type_reference(
         }
         _ => None,
     }
+}
+
+/// Resolve a `self.field` place (`Name ["self", field]` or `Member(Name(self),
+/// field)`) to the field's DECLARED type reference (constraints intact) via the
+/// machine's attached data. `None` for any other expression shape.
+fn attached_data_field_type(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let field_name = match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            let ExpressionNode::Name(receiver) =
+                program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            match program.expression_table.name_path_members(receiver.members) {
+                [segment] if segment.as_str() == "self" => member.member.as_str().to_owned(),
+                _ => return None,
+            }
+        }
+        ExpressionNode::Name(path) => {
+            match program.expression_table.name_path_members(path.members) {
+                [receiver, field] if receiver.as_str() == "self" => field.as_str().to_owned(),
+                _ => return None,
+            }
+        }
+        _ => return None,
+    };
+
+    let attached = machine.attached_data.as_ref()?;
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == attached.as_str())?;
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            omega_typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == field_name =>
+            {
+                field
+                    .type_reference
+                    .is_valid()
+                    .then_some(field.type_reference)
+            }
+            _ => None,
+        })
 }
 
 fn collect_constraints(
