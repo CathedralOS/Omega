@@ -426,6 +426,15 @@ fn collect_constraints(
                     owner,
                 );
             }
+            // A declared domain (`[u8] in Utf8`) references the domain by name.
+            TypeConstraintNode::Domain(name) => {
+                insert_reference(
+                    report,
+                    name.as_str(),
+                    TypeReferenceUseKind::Constraint,
+                    owner,
+                );
+            }
             TypeConstraintNode::Range { minimum, maximum } => {
                 insert_reference(
                     report,

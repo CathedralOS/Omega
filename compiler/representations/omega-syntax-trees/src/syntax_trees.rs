@@ -915,6 +915,7 @@ impl SyntaxTrees {
             other.type_references.constraints(span),
             |this, constraint| match constraint {
                 TypeConstraintNode::Named(name) => TypeConstraintNode::Named(name.clone()),
+                TypeConstraintNode::Domain(name) => TypeConstraintNode::Domain(name.clone()),
                 TypeConstraintNode::Range { minimum, maximum } => TypeConstraintNode::Range {
                     minimum: this.copy_expression_handle(other, *minimum),
                     maximum: this.copy_expression_handle(other, *maximum),

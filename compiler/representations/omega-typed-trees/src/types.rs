@@ -539,6 +539,8 @@ pub enum TypeConstraintNode {
         maximum: crate::expression::ExpressionHandle,
     },
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
+    Domain(Identifier),
 }
 
 impl TypeConstraintNode {
@@ -549,6 +551,7 @@ impl TypeConstraintNode {
     ) -> Self {
         match self {
             TypeConstraintNode::Named(name) => Self::Named(name.clone()),
+            TypeConstraintNode::Domain(name) => Self::Domain(name.clone()),
             TypeConstraintNode::Range { minimum, maximum } => Self::Range {
                 minimum: target_expressions.copy_from(source_expressions, *minimum),
                 maximum: target_expressions.copy_from(source_expressions, *maximum),

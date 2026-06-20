@@ -246,6 +246,11 @@ pub enum TypeConstraintNode {
     /// An arithmetic overflow domain on a primitive (`u32 in Wrapping`); decision
     /// 17. A behaviour tag, not a value-range predicate.
     ArithmeticDomain(omega_core::arithmetic::ArithmeticDomain),
+    /// A DECLARED domain on a carrier (`[u8] in Utf8`); ch8 "domains over
+    /// carriers". The name resolves to a `domain X::Y` declaration. Distinct from
+    /// `Named` (a structural property like `copy`) so it can be validated against
+    /// declared domains and carried as an encoding/validity fact.
+    Domain(Identifier),
 }
 
 impl Default for TypeConstraintNode {

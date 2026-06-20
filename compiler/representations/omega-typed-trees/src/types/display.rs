@@ -137,6 +137,7 @@ impl TypeConstraintNode {
     pub fn display_name(&self, expressions: &ExpressionTable) -> String {
         match self {
             TypeConstraintNode::Named(name) => name.to_string(),
+            TypeConstraintNode::Domain(name) => format!("in {name}"),
             TypeConstraintNode::Range { minimum, maximum } => {
                 format!(
                     "{}..={}",
