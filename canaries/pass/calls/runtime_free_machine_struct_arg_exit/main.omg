@@ -22,7 +22,7 @@ boundary trait Console {
 }
 
 data Job {
-    id: i32;
+    id: i32 in Wrapping;
 }
 
 machine work(job: Job) -> i32 {
@@ -30,8 +30,8 @@ machine work(job: Job) -> i32 {
 }
 
 data Pair {
-    a: i32;
-    b: i32;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
 }
 
 machine combine(pair: Pair) -> i32 {

@@ -186,7 +186,7 @@ pub(crate) fn declared_place_type_raw(
                 .data_definitions()
                 .iter()
                 .find(|data| data.name == *name)?;
-            case_payload_field_type(program, data, field_name)
+            data_field_or_payload_type(program, data, field_name)
         }
         _ => None,
     }
@@ -217,17 +217,25 @@ fn local_or_parameter_type(
     None
 }
 
-/// Find a CASE-VARIANT PAYLOAD field named `field_name` on a sum definition and
-/// return its declared type reference (constraints intact), searched across
-/// every variant. Scoped to payload fields (stage 1 of the fact catalog over sum
-/// cases); a plain struct field of a local/parameter is a separate obligation
-/// hole tracked elsewhere.
-fn case_payload_field_type(
+/// Find a field named `field_name` on a data/sum definition and return its
+/// declared type reference (constraints intact): a plain struct FIELD, or a
+/// CASE-VARIANT PAYLOAD field searched across every variant. Lets the S4 fact
+/// catalog see a `local.field` / `param.field` read's declared type (so its
+/// arithmetic carries the decision-17 obligation) AND range refinement (a
+/// `[a..=b]` field discharges it). Sound because every write to such a field is
+/// range-enforced: construction (struct_literals::enforce_construction_field_ranges)
+/// and assignment (the bounded-assignment obligation on `self.field`/`p.field`).
+fn data_field_or_payload_type(
     program: &TypedTrees,
     data: &omega_typed_trees::data::DataDefinition,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
     for member in program.data_members(data) {
+        if let omega_typed_trees::data::DataMember::Field(field) = member
+            && field.name.as_str() == field_name
+        {
+            return field.type_reference.is_valid().then_some(field.type_reference);
+        }
         if let omega_typed_trees::data::DataMember::Variant(variant) = member {
             for field in program.data_payload_fields(variant) {
                 if field.name.as_str() == field_name {

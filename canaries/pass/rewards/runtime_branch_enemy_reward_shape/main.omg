@@ -3,12 +3,12 @@ data RewardKind { case Gold; case GoldAndItem; }
 
 data Reward {
     kind: RewardKind;
-    gold: u32;
+    gold: u32 in Wrapping;
     item: ItemKind;
 }
 
 data Enemy {
-    depth: u32;
+    depth: u32 in Wrapping;
 }
 
 data RandomState {}

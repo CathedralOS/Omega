@@ -1,5 +1,5 @@
 data Counter {
-    calls: u32;
+    calls: u32 in Wrapping;
 }
 
 data Random {

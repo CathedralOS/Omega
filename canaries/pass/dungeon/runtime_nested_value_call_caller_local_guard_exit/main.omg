@@ -14,7 +14,7 @@ boundary trait Console {
 }
 
 data RandomState {
-    seed: u64;
+    seed: u64 in Wrapping;
     calls: UInt;
 }
 

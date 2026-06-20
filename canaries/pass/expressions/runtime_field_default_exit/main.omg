@@ -14,7 +14,7 @@ boundary trait Console {
 }
 
 data Deep {
-    base: i32 = 5;
+    base: i32 in Wrapping = 5;
 }
 
 data Nested {
