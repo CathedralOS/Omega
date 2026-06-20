@@ -1,0 +1,24 @@
+// #66 Phase 1: a parameter typed `T in Domain` (here `Blob in Scanned`) desugars
+// to an implicit `requires <param> in Domain` membership contract. Calling the
+// transition with a value that is NOT established in the domain must be rejected
+// by the existing `in Domain` entailment -- this is what makes an encoding-domain
+// obligation actually enforce (a raw value cannot satisfy it without establishment).
+
+data Blob {
+    payload: i32;
+}
+
+domain Blob::Scanned {
+    self.payload > 0;
+}
+
+data Main {
+    blob: Blob;
+}
+
+machine Main::consume(&mut self, item: Blob in Scanned) {
+}
+
+machine Main::main(&mut self) {
+    self.consume(self.blob);
+}

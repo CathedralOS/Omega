@@ -116,15 +116,9 @@ pub(crate) fn lower_machine(
             .push_machine_effect(&mut typed_machine, effect);
     }
 
-    // #66 Phase 1 (TODO): for each transition PARAMETER whose type carries a
-    // `TypeConstraintNode::Domain(name)` (e.g. `bytes: [u8] in Utf8`), synthesize
-    // an implicit `requires <param> in <domain>` membership contract here, so the
-    // existing `in Domain` entailment (collection/discharge/mutation-invalidation)
-    // enforces it unchanged. Wrinkles: params live on STATES (not the machine
-    // top-level), the Domain constraint carries only a name (resolve to a domain
-    // SymbolHandle by matching `domain_definitions` on the component after `::`,
-    // as expression/domain_membership.rs finds a data def by name), and the
-    // contract's `value` must be a param reference. Recipe in task #66.
+    // (#66 Phase 1 synthesizes additional implicit `requires <param> in Domain`
+    // machine contracts AFTER the states are lowered -- see the loop below the
+    // states loop, which needs the lowered params to detect Domain constraints.)
     for contract in lowerer.source_trees.machine_contracts(machine) {
         let facts = lower_proof_facts(lowerer, contract.facts)?;
         lowerer.typed_trees.push_machine_contract(
@@ -151,6 +145,43 @@ pub(crate) fn lower_machine(
         lowerer
             .typed_trees
             .push_machine_state(&mut typed_machine, state);
+    }
+
+    // #66 Phase 1: a parameter typed `T in Domain` (e.g. `bytes: [u8] in Utf8`)
+    // desugars to an implicit `requires <param> in <domain>` MACHINE contract, so
+    // the existing `in Domain` entailment enforces it at every call site (a raw
+    // value is rejected; one established via `ensures ... in Domain` is accepted).
+    // Collected first (immutable read of the lowered states/params) then synthesized,
+    // to keep the typed-tree borrow disjoint from the contract construction.
+    let mut domain_constrained_parameters: Vec<(
+        omega_core::symbols::SymbolHandle,
+        typed::name::Identifier,
+        typed::name::Identifier,
+    )> = Vec::new();
+    for state in lowerer.typed_trees.machine_states(&typed_machine) {
+        for parameter in lowerer.typed_trees.state_parameters(state) {
+            if let Some(domain_name) =
+                crate::state::domain_constraint_name(&lowerer.typed_trees, parameter.type_reference)
+            {
+                domain_constrained_parameters.push((
+                    parameter.symbol,
+                    parameter.name.clone(),
+                    domain_name,
+                ));
+            }
+        }
+    }
+    for (param_symbol, param_name, domain_name) in domain_constrained_parameters {
+        if let Some(contract) = crate::state::build_domain_membership_contract(
+            lowerer,
+            param_symbol,
+            param_name,
+            domain_name.as_str(),
+        ) {
+            lowerer
+                .typed_trees
+                .push_machine_contract(&mut typed_machine, contract);
+        }
     }
 
     Ok(typed_machine)
