@@ -151,6 +151,19 @@ that fact-propagation substrate is the highest-leverage near-term investment: it
 pays down all three at once and is the same machinery the automation front line
 runs on.
 
+**Architecture frozen (decision 18 / ch15, 2026-06-19).** The substrate is now a
+named target: ONE **unified flow-sensitive fact catalog** threaded through the
+CFG — the borrow checker, the decision-17 interval engine, and sum case-narrowing
+converge into a single carrier-generic analysis (scalar→interval, sum→which-case,
+slice/`[u8]`→length+encoding, ref→validity), narrowed by guards and case
+partitions via intersection. Cross-call propagation is **modular and
+contract-mediated** (prove `requires`, assume `ensures`), with contracts inferred
+within a compilation unit and written only at boundaries — chosen over
+whole-program context-sensitivity precisely so separate compilation survives,
+which is also the SPARK-rung architecture. ch15's recoverable-error model is the
+first concrete customer: a success case's `ensures` fact is inherited by the
+handling arm. v1 fact-kinds: intervals (done) + which-case + slice-length.
+
 ## Open questions (to decide before the Lean rung)
 
 1. **Logic surface:** what fragment of quantification do we admit, and how is it

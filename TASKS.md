@@ -99,17 +99,26 @@ element miscompiles natively (#59; workaround = element-type Wrapping).
   = **dominating-guard narrowing** (the guard IS the runtime enforcement, so it's
   sound by construction). aarch64 Sat/Trap is already at x86 parity. This is
   automation-engine work — see the proof-engine north star (long-view below).
-- **Recoverable-error / failure model (ch15) — DESIGN OPEN.** Failure is modeled
-  as ordinary data today (`errors/fallible_result_data_shape`: a sum handled by an
-  exhaustive transition — NO `Result<T,E>` wrapper, NO `?`, NO exceptions). That
-  works verbose. The open design: (a) propagation ergonomics in a no-early-return
-  model (forward-the-unmatched without `?` — must fit transitions, not bolt on
-  Rust control flow); (b) the inferred-internal vs declared-at-boundary split
-  (inference can't cross a sealed component edge — the boundary needs a stable,
-  wire-evolvable error contract); (c) a "fallible / must-handle" FACT on a sum
-  (annotate-don't-wrap, like `[u8] in Utf8`) for strict-use + failure-surface
-  inference. This BLOCKS clean cancellation in the concurrency arc (cancellation
-  rides the ch15 channel). Settle before deep concurrency work.
+- **Recoverable-error / failure model (ch15) — DESIGN SETTLED (decision 18,
+  2026-06-19); implementation pending.** All three formerly-open questions
+  resolved: (a) propagation is an explicit arm targeting a state that returns the
+  caller's own failure — verbose by design, NO `?`/`fails`/sugar; (b) cross-call
+  propagation is modular/contract-mediated (prove `requires`, assume `ensures`),
+  contracts inferred intra-unit + written at boundaries; (c) the "fallible fact"
+  is subsumed by the UNIFIED FACT CATALOG (success case's `ensures` inherited by
+  the handling arm). Also frozen: no trap category for logic (compile errors, not
+  runtime traps); `Trapping` arith is the only opt-in runtime trap (done); no
+  `expect`/`unwrap` (prove the failure dead); deliberate death is the contagious
+  nuclear **`abort` effect**; host failure returns a sum (no out-param results);
+  failure cleanup = ordinary per-edge drop set (ch16). The verbose model already
+  has a canary (`errors/fallible_result_data_shape`). Implementation arc, by
+  leverage: (1) **facts on sum cases** — `ensures Case.field in <range>` parsed +
+  carried into the handling arm by the existing decision-17 narrowing engine (v1
+  fact-kinds: which-case + interval + slice-length); (2) **modular contract
+  inference** (infer `ensures` for non-exported machines; require at boundaries);
+  (3) **`abort` effect** — declare + propagate through callers/boundaries, lower
+  to `exit`/`abort` syscall. Unblocks clean concurrency cancellation (rides this
+  channel — decision 16).
 - **Versioned decision 14 maintainer reconciliation:** update decision 14's
   frozen text + versioning.rs provenance to the wire-data role once ch21
   settles (chapter is the authority; it is being actively edited).

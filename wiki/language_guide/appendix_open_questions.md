@@ -263,6 +263,41 @@ This page tracks design pressure that is not fully nailed down yet.
   pointers; deref is bounds+generation checked, fail-safe — kills allocator-UAF
   and ABA by construction; same model as Cathedral's grant arena), **paged** for
   unbounded growth (immovable pages, lock-free CAS-linked).
+- Recoverable errors, traps, and failure (frozen decision 18, see chapter 15):
+  recoverable failure is an ordinary **sum handled by an exhaustive transition** —
+  no dedicated error type, no `?`, no propagation sugar. The must-use /
+  forced-handling / no-success-payload-on-failure guarantees are corollaries of
+  strict-use (decision 9) + exhaustive transitions + case-payload binding, not
+  error-specific machinery. Propagation is an explicit arm targeting a state that
+  returns the caller's own failure (verbose by design). **Success cases carry
+  proven facts** via the callee's `ensures` (`ensures Found.index in 0..16`),
+  inherited by the handling arm — the first instance of the unified fact catalog
+  (see below). There is **no trap category for logic**: proven-impossible states,
+  failed exact-arith proofs, and provable contract breaches are COMPILE errors;
+  prover incompleteness forces an explicit handler or an explicit abort, never a
+  hidden runtime trap. The only opt-in in-language runtime trap is `T in Trapping`
+  arithmetic (decision 17, done). No `expect`/`unwrap` — prove the failure case
+  dead instead. Deliberate termination is the **`abort` effect**: contagious
+  (infects `main`, callers, and boundaries; package-policy-visible), nuclear (no
+  cleanup, no unwind, lowers to an `exit`/`abort` boundary call). Graceful
+  shutdown is NOT abort — it is explicit cleanup states + `exit(code)`. Host
+  failure returns a sum (out-parameter result types rejected as surface). Failure
+  cleanup is an ordinary per-edge drop set (chapter 16), not special machinery.
+- Unified fact catalog (frozen direction, decision 18 / chapter 15 + chapter 7):
+  the borrow checker, the arithmetic-domain interval engine (decision 17 S4), and
+  sum case-narrowing converge into ONE flow-sensitive fact catalog threaded
+  through the CFG, carrier-generic (scalar→interval, sum→which-case,
+  slice/`[u8]`→length+encoding, ref→validity). Guards and case partitions narrow
+  by intersection (tightest wins). Cross-call propagation is **modular and
+  contract-mediated** (prove the callee's `requires`, assume its `ensures`), with
+  contracts **inferred** within a compilation unit and **written** only at
+  boundaries (exported APIs, separate compilation, recursion) — chosen over
+  whole-program context-sensitive propagation so separate compilation survives.
+  This answers the open question below ("infer result bounds from match/transition
+  partitions"): yes, via the catalog; the v1 useful fact-kinds are intervals
+  (done) + which-case + slice-length. The remaining open spelling is how a fact
+  attaches to a case payload field (`ensures Found.index in 0..16` is the working
+  sketch).
 
 ## Still Open
 
@@ -282,7 +317,7 @@ This page tracks design pressure that is not fully nailed down yet.
   up the proof-power ladder we climb to shrink that set (never to zero). The
   generational/paged-arena substrate covers the practical need meanwhile.
 
-- Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?
+- ~~Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?~~ RESOLVED (decision 18 / unified fact catalog, above): yes — a transition partition narrows facts per arm via the same catalog the arithmetic domains use; cross-call propagation is modular/contract-mediated with intra-unit inference.
 - How much domain classifier/checker inference should Omega attempt beyond
   explicit `when` clauses and executable domain bodies?
 - What exact source form should core operator declarations use for `[]`,
