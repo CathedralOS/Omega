@@ -1,0 +1,13 @@
+// RUN canary (exit 70). ch15 stage 2 -- modular return-range INFERENCE: the
+// callee `classify` declares NO return range, but its body `min(x, 3)` bounds the
+// result at <= 3. The caller's `classify(x) + 67` proves Exact only because that
+// bound is INFERRED from the callee body (without inference the result is opaque
+// and `+ 67` on a full i32 would be rejected). run(100): min(100,3)=3, +67 = 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::classify(&self, x: i32) -> i32 { min(x, 3) }
+machine Main::run(&mut self, x: i32) {
+    let s: i32 = self.classify(x) + 67;
+    self.console.exit_process(s);
+}
+machine Main::main(&mut self) { self.run(100); }

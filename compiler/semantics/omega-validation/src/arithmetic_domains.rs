@@ -781,11 +781,25 @@ fn analyze(
             // NEUTRAL (opaque/unbounded, as before); attaching a bare type's full
             // range + primitive to an otherwise-unbounded call result would turn a
             // previously-unchecked expression into a spurious overflow.
-            match call_return_type(program, machine, call)
-                .and_then(|return_type| {
+            if let Some((primitive, interval)) =
+                call_return_type(program, machine, call).and_then(|return_type| {
                     range_constraint_interval(program, return_type)
                         .map(|interval| (program.primitive_type_reference(return_type), interval))
-                }) {
+                })
+            {
+                return Analysis {
+                    domain: None,
+                    interval,
+                    primitive,
+                };
+            }
+            // ch15 stage 2 (modular return-range inference): no DECLARED range, so
+            // infer the callee's return interval from its body (sound, permissive).
+            match resolve_unique_self_call_state(program, machine, call).and_then(|(callee, state)| {
+                let primitive = program.primitive_type_reference(state.return_type);
+                infer_return_interval(program, callee, state, primitive)
+                    .map(|interval| (primitive, interval))
+            }) {
                 Some((primitive, interval)) => Analysis {
                     domain: None,
                     interval,
@@ -909,6 +923,103 @@ fn call_return_type(
         return None;
     }
     Some(first)
+}
+
+thread_local! {
+    /// One-level recursion guard for return-range INFERENCE (ch15 stage 2). While
+    /// inferring a callee's return interval we analyze its body; if that body
+    /// calls another machine, we must NOT recurse into inference again (would
+    /// loop on recursive/mutually-recursive callees). The nested call simply
+    /// stays NEUTRAL.
+    static INFERRING_RETURN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The unique self/sibling machine+state a receiver-free `self.target(..)` call
+/// resolves to (mirrors `call_return_type`'s resolution but keeps the state so
+/// its body can be analyzed). `None` on a non-self receiver or an ambiguous
+/// match (sound: bail rather than guess).
+fn resolve_unique_self_call_state<'program>(
+    program: &'program TypedTrees,
+    current_machine: &Machine,
+    call: &TableCallExpression,
+) -> Option<(&'program Machine, &'program State)> {
+    let receiver_is_self = !call.receiver.is_valid()
+        || matches!(
+            program.expression_table.expression(call.receiver),
+            ExpressionNode::Name(path)
+                if matches!(
+                    program.expression_table.name_path_members(path.members),
+                    [only] if only.as_str() == "self"
+                )
+        );
+    if !receiver_is_self {
+        return None;
+    }
+    let target = call.target.as_str();
+    let attached_data = current_machine.attached_data.as_ref()?;
+    let mut matches = program.machines().iter().filter_map(|candidate| {
+        let same_data = candidate
+            .attached_data
+            .as_ref()
+            .is_some_and(|data| data.as_str() == attached_data.as_str());
+        if !same_data {
+            return None;
+        }
+        let state = program
+            .machine_states(candidate)
+            .iter()
+            .find(|state| state.name.as_str() == target)?;
+        Some((candidate, state))
+    });
+    let first = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(first)
+}
+
+/// ch15 stage 2 -- MODULAR RETURN-RANGE INFERENCE: when a callee declares no
+/// return range, infer one from its body so the caller's arithmetic on the
+/// result can stay Exact without the callee writing `-> i32 [a..=b]`. Sound and
+/// STRICTLY PERMISSIVE: the body is analyzed with an EMPTY env (params at full
+/// type width -> the widest possible result, so any caller's actual return is
+/// within it), only a SINGLE terminal-expression return path is considered
+/// (transitions/multi-state bail), and the interval is trusted only if the body
+/// analysis is clean and fully bounded. Recursion-guarded to one level.
+fn infer_return_interval(
+    program: &TypedTrees,
+    callee_machine: &Machine,
+    callee_state: &State,
+    target_primitive: Option<PrimitiveType>,
+) -> Option<Interval> {
+    if INFERRING_RETURN.with(std::cell::Cell::get) {
+        return None;
+    }
+    let statements = program.statement_table.statements(callee_state.statement_nodes);
+    let omega_typed_trees::statement::StatementNode::Expression(return_expression) =
+        statements.last()?
+    else {
+        return None;
+    };
+    let env = ValueEnv::new();
+    let mut throwaway = Vec::new();
+    INFERRING_RETURN.with(|flag| flag.set(true));
+    let analysis = analyze(
+        program,
+        callee_machine,
+        Some(callee_state),
+        *return_expression,
+        &env,
+        target_primitive,
+        "inferred return",
+        &mut throwaway,
+    );
+    INFERRING_RETURN.with(|flag| flag.set(false));
+    if !throwaway.is_empty() {
+        return None;
+    }
+    (analysis.interval.low().is_some() && analysis.interval.high().is_some())
+        .then_some(analysis.interval)
 }
 
 /// S4 return-range ENFORCEMENT (companion to the call-site narrowing): when a
