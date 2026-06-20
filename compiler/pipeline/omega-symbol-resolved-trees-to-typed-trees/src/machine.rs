@@ -116,6 +116,15 @@ pub(crate) fn lower_machine(
             .push_machine_effect(&mut typed_machine, effect);
     }
 
+    // #66 Phase 1 (TODO): for each transition PARAMETER whose type carries a
+    // `TypeConstraintNode::Domain(name)` (e.g. `bytes: [u8] in Utf8`), synthesize
+    // an implicit `requires <param> in <domain>` membership contract here, so the
+    // existing `in Domain` entailment (collection/discharge/mutation-invalidation)
+    // enforces it unchanged. Wrinkles: params live on STATES (not the machine
+    // top-level), the Domain constraint carries only a name (resolve to a domain
+    // SymbolHandle by matching `domain_definitions` on the component after `::`,
+    // as expression/domain_membership.rs finds a data def by name), and the
+    // contract's `value` must be a param reference. Recipe in task #66.
     for contract in lowerer.source_trees.machine_contracts(machine) {
         let facts = lower_proof_facts(lowerer, contract.facts)?;
         lowerer.typed_trees.push_machine_contract(
