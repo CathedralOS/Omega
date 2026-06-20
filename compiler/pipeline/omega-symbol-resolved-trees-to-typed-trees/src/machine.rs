@@ -184,6 +184,16 @@ pub(crate) fn lower_machine(
         }
     }
 
+    // #66 Phase 1 (returns) NOT YET: synthesizing an `ensures result in Domain`
+    // for a `-> T in Domain` return type is VACUOUS today -- the contract
+    // entailment proves arithmetic ensures (polynomials over `result`) but does
+    // not PROVE a domain-MEMBERSHIP ensures from a machine body, so the obligation
+    // is silently skipped (a fail canary returning a raw value compiled). Returns
+    // need a direct return-membership check (the #40 return-range parallel, but on
+    // the membership engine), not a desugar. Deferred to avoid shipping a vacuous
+    // (unsound) obligation. Params (above) work because their `requires` is checked
+    // at CALL sites, which is robust.
+
     Ok(typed_machine)
 }
 
