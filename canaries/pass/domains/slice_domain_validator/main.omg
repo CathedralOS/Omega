@@ -1,0 +1,19 @@
+// #66: a boundary validator that GRANTS the slice-carrier Utf8 domain -- the
+// raw->domained constructor (`from_utf8`). Probes whether `ensures result in Utf8`
+// resolves to the `[u8]::Utf8` domain (membership over a slice-carrier domain).
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+domain [u8]::Utf8 {
+}
+
+boundary operator Text::from_utf8(bytes: &[u8]) -> &[u8] in Utf8
+ensures
+    result in Utf8;
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+}
