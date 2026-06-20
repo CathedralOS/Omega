@@ -83,10 +83,15 @@ impl ProofConstraint {
     fn from_node(program: &TypedTrees, constraint: &TypeConstraintNode) -> Option<Self> {
         match constraint {
             TypeConstraintNode::Named(name) => Some(Self::Named(name.clone())),
-            // A declared domain (`[u8] in Utf8`) is a NAMED FACT (`self in Utf8`),
-            // so it rides the named-constraint proof machinery: a target requiring
-            // the domain needs the source to provably carry that named fact.
-            TypeConstraintNode::Domain(name) => Some(Self::Named(name.clone())),
+            // A declared encoding domain (`[u8] in Utf8`) is a domain-MEMBERSHIP
+            // obligation, NOT a scalar proof constraint -- `ProofConstraint::Named`
+            // is consumed only by the arithmetic/range logic (`exact`/`wrapping`/
+            // `non_negative`/`positive`), which would silently ignore a domain name.
+            // Discharge is the job of the `in Domain` membership machinery (the
+            // same path as `requires/ensures ... in Domain`); until the type-
+            // constraint surface is wired into it, a domain produces no scalar
+            // obligation here (the constraint still parses + validates).
+            TypeConstraintNode::Domain(_) => None,
             TypeConstraintNode::Range { minimum, maximum } => {
                 Self::range_from_expression_handles(program, *minimum, *maximum)
             }
