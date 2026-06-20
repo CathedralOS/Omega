@@ -1,7 +1,10 @@
-data Main {
-    health: i32 = 100;
-}
-
+// FAIL canary: assigning an out-of-range value to a range-refined field is
+// rejected. The declared range a later narrowing trusts must hold at EVERY
+// write, not just construction/initialization -- assignment was the one write
+// position left unenforced (#63). `x` is [0..=100]; 9999 is outside it.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; x: i32 [0..=100]; }
 machine Main::main(&mut self) {
-    self.health = 500;
+    self.x = 9999;
+    self.console.exit_process(0);
 }
