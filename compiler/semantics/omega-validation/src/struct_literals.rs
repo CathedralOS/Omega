@@ -7,10 +7,13 @@
 //! definition in this program (or is generic, where member types depend on
 //! instantiation) are left to later layers.
 
+use crate::arithmetic_domains::{ValueEnv, range_constraint_interval, validate_arithmetic_domains};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 pub(crate) fn validate_struct_literal_fields(
@@ -22,23 +25,23 @@ pub(crate) fn validate_struct_literal_fields(
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Assignment(assignment) => {
-                        scan_expression(program, assignment.target, diagnostics);
-                        scan_expression(program, assignment.value, diagnostics);
+                        scan_expression(program, machine, state,assignment.target, diagnostics);
+                        scan_expression(program, machine, state,assignment.value, diagnostics);
                     }
                     StatementNode::Call(call) => {
                         for argument in program.statement_table.expression_handles(call.arguments) {
-                            scan_expression(program, *argument, diagnostics);
+                            scan_expression(program, machine, state,*argument, diagnostics);
                         }
                     }
                     StatementNode::Expression(expression) => {
-                        scan_expression(program, *expression, diagnostics);
+                        scan_expression(program, machine, state,*expression, diagnostics);
                     }
                     StatementNode::LocalData(local_data) => {
-                        scan_expression(program, local_data.initial_value, diagnostics);
+                        scan_expression(program, machine, state,local_data.initial_value, diagnostics);
                     }
                     StatementNode::Transition(transition) => {
                         if let TransitionGuardNode::When(guard) = &transition.guard {
-                            scan_expression(program, *guard, diagnostics);
+                            scan_expression(program, machine, state,*guard, diagnostics);
                         }
                         for target in [transition.target, transition.continuation] {
                             if !target.is_valid() {
@@ -46,6 +49,8 @@ pub(crate) fn validate_struct_literal_fields(
                             }
                             scan_transition_target(
                                 program,
+                                machine,
+                                state,
                                 program.statement_table.transition_target(target),
                                 diagnostics,
                             );
@@ -59,17 +64,19 @@ pub(crate) fn validate_struct_literal_fields(
 
 fn scan_transition_target(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     target: &TransitionTargetNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match target {
         TransitionTargetNode::Named { arguments, .. } => {
             for argument in program.statement_table.expression_handles(*arguments) {
-                scan_expression(program, *argument, diagnostics);
+                scan_expression(program, machine, state,*argument, diagnostics);
             }
         }
         TransitionTargetNode::Value(expression) => {
-            scan_expression(program, *expression, diagnostics);
+            scan_expression(program, machine, state,*expression, diagnostics);
         }
         TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
     }
@@ -77,6 +84,8 @@ fn scan_transition_target(
 
 fn scan_expression(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -87,38 +96,38 @@ fn scan_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
             validate_literal_field_names(program, &literal, diagnostics);
-            enforce_construction_field_ranges(program, &literal, diagnostics);
+            enforce_construction_field_ranges(program, machine, state, &literal, diagnostics);
             for field in program.expression_table.struct_fields(literal.fields) {
-                scan_expression(program, field.value, diagnostics);
+                scan_expression(program, machine, state,field.value, diagnostics);
             }
         }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
-                scan_expression(program, *element, diagnostics);
+                scan_expression(program, machine, state,*element, diagnostics);
             }
         }
         ExpressionNode::Binary(binary) => {
-            scan_expression(program, binary.left, diagnostics);
-            scan_expression(program, binary.right, diagnostics);
+            scan_expression(program, machine, state,binary.left, diagnostics);
+            scan_expression(program, machine, state,binary.right, diagnostics);
         }
-        ExpressionNode::Cast(cast) => scan_expression(program, cast.value, diagnostics),
+        ExpressionNode::Cast(cast) => scan_expression(program, machine, state,cast.value, diagnostics),
         ExpressionNode::Call(call) => {
-            scan_expression(program, call.receiver, diagnostics);
+            scan_expression(program, machine, state,call.receiver, diagnostics);
             for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_expression(program, *argument, diagnostics);
+                scan_expression(program, machine, state,*argument, diagnostics);
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            scan_expression(program, indexed.collection, diagnostics);
-            scan_expression(program, indexed.index, diagnostics);
+            scan_expression(program, machine, state,indexed.collection, diagnostics);
+            scan_expression(program, machine, state,indexed.index, diagnostics);
         }
-        ExpressionNode::Member(member) => scan_expression(program, member.receiver, diagnostics),
-        ExpressionNode::Mutable(inner) => scan_expression(program, *inner, diagnostics),
+        ExpressionNode::Member(member) => scan_expression(program, machine, state,member.receiver, diagnostics),
+        ExpressionNode::Mutable(inner) => scan_expression(program, machine, state,*inner, diagnostics),
         ExpressionNode::Range(range) => {
-            scan_expression(program, range.start, diagnostics);
-            scan_expression(program, range.end, diagnostics);
+            scan_expression(program, machine, state,range.start, diagnostics);
+            scan_expression(program, machine, state,range.end, diagnostics);
         }
-        ExpressionNode::Unary(unary) => scan_expression(program, unary.operand, diagnostics),
+        ExpressionNode::Unary(unary) => scan_expression(program, machine, state,unary.operand, diagnostics),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
@@ -217,14 +226,16 @@ fn data_declares_field(
 
 /// Decision-17 / fact-catalog soundness: a field declared with a range
 /// refinement (`index: i32 [0..=15]`) must be CONSTRUCTED with a value provably
-/// in that range -- otherwise a destructure arm that trusts the range (S4
-/// payload narrowing in `places::declared_place_type_raw`) would rest on an
-/// unenforced bound. v1 enforces INTEGER-LITERAL construction values exactly; a
-/// non-literal value is conservatively rejected (construct with a literal in
-/// range, or widen the field). Without this, the payload-fact narrowing is
-/// unsound.
+/// in that range -- otherwise a destructure / field read that trusts the range
+/// (S4 narrowing in `places::declared_place_type_raw`) would rest on an
+/// unenforced bound. An integer literal is checked exactly; a non-literal value
+/// is accepted when its PROVEN interval (type ranges + the flow facts visible
+/// here) is within the field range -- e.g. copying a same-range field -- and
+/// rejected otherwise. Without this, the field-fact narrowing is unsound.
 fn enforce_construction_field_ranges(
     program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
     literal: &TableStructLiteral,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -270,10 +281,38 @@ fn enforce_construction_field_ranges(
                 }
             }
             None => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "construction of `{type_name}` field `{}` cannot be proven within its declared range `{bounds}`; construct with an integer literal in range or widen the field",
+                // Non-literal value: accept when its PROVEN interval is within
+                // the field range (a same-range field copy, a guarded value),
+                // else reject. The value's own arithmetic obligation is reported
+                // by the normal statement walk, so its diagnostics go to a
+                // throwaway buffer here -- we only add the range-violation.
+                let owner = format!(
+                    "construction of `{type_name}` field `{}`",
                     field.name.as_str()
-                )));
+                );
+                let mut throwaway = Vec::new();
+                let interval = validate_arithmetic_domains(
+                    program,
+                    machine,
+                    Some(state),
+                    field.value,
+                    &ValueEnv::new(),
+                    None,
+                    &owner,
+                    &mut throwaway,
+                );
+                let provably_in_range = range
+                    .low()
+                    .is_none_or(|low| interval.low().is_some_and(|value_low| value_low >= low))
+                    && range
+                        .high()
+                        .is_none_or(|high| interval.high().is_some_and(|value_high| value_high <= high));
+                if !provably_in_range {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "construction of `{type_name}` field `{}` cannot be proven within its declared range `{bounds}`; constrain the value, construct with a literal in range, or widen the field",
+                        field.name.as_str()
+                    )));
+                }
             }
         }
     }

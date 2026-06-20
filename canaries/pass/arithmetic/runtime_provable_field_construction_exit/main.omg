@@ -1,0 +1,12 @@
+// RUN canary (exit 70). #62: constructing a range-refined field from a PROVABLE
+// non-literal value (a same-range field) is accepted -- not just integer
+// literals. `src.v` has type `i32 [0..=100]`, so `Box { v: src.v }` proves the
+// [0..=100] field invariant without a literal. copy_box(Box{v:70}) -> 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box { v: i32 [0..=100]; }
+data Main { console: Console; }
+machine Main::copy_box(&mut self, src: Box) {
+    let copy: Box = Box { v: src.v };
+    self.console.exit_process(copy.v);
+}
+machine Main::main(&mut self) { self.copy_box(Box { v: 70 }); }
