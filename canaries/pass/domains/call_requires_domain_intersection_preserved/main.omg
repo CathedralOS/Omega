@@ -1,7 +1,7 @@
 data Password {
     length: i32;
     score: i32;
-    salt: i32;
+    salt: i32 in Wrapping;
 }
 
 domain Password::Valid {

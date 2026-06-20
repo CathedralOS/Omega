@@ -3,7 +3,7 @@ boundary trait Console {
 }
 
 data Room {
-    exit_count: u32;
+    exit_count: u32 in Wrapping;
 }
 
 data Main {

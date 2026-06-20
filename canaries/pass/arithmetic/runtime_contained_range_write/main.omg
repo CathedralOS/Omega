@@ -2,12 +2,12 @@ data Random {
 }
 
 data RandomState {
-    seed: u64;
+    seed: u64 in Wrapping;
     calls: UInt;
 }
 
 data Reward {
-    gold: i32;
+    gold: i32 in Wrapping;
 }
 
 data Main {

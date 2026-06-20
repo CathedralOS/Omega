@@ -3323,6 +3323,34 @@ fn runtime_cast_element_accumulator_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Fact catalog over PLAIN STRUCT fields: a range-refined field `v: i32 [0..=15]`
+/// of a param flows into the reader so `b.v + 65` proves Exact. Box{v:5} -> 70.
+#[test]
+fn runtime_struct_field_range_narrowing_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_struct_field_range_narrowing_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-field-range-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-field range narrowing should compile (constrained field discharges the obligation)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct-field range narrowing canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected constrained struct field `b.v + 65` to run to 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// Stage 1 of the fact catalog over sum cases: a case-payload field's range
 /// refinement (`index: i32 [0..=15]`) flows into the destructure arm so
 /// `index + 65` proves Exact. Sound because construction enforces the range.
@@ -11379,6 +11407,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_cast_element_accumulator_exit",
     "arithmetic/runtime_exclusive_range_constraint_exit",
     "arithmetic/runtime_payload_range_narrowing_exit",
+    "arithmetic/runtime_struct_field_range_narrowing_exit",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_boolean_or_guard_exit",
     "control_flow/runtime_negated_boolean_place_guard_exit",
@@ -11690,6 +11719,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/construction_payload_out_of_range",
     "arithmetic/unconstrained_payload_arithmetic",
     "arithmetic/bounded_assignment_unproven",
+    "arithmetic/struct_field_arithmetic_unproven",
     "arithmetic/transition_arg_unguarded_overflow",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",

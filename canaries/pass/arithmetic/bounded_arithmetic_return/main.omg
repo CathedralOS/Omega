@@ -3,7 +3,7 @@ data Main {
 
 machine Main::main(
     &mut self,
-    branch_id: u32
+    branch_id: u32 in Wrapping
 ) {
     transition {
         _ -> consume(branch_id + 1)

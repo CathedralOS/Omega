@@ -17,7 +17,7 @@
 // any other stream.
 
 data RandomState {
-    seed: u64;
+    seed: u64 in Wrapping;
 }
 
 data Random {

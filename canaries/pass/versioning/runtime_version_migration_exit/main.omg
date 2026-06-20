@@ -12,7 +12,7 @@ boundary trait Console {
 
 data Counter {
     version v1 {
-        counter: i32;
+        counter: i32 in Wrapping;
     }
 
     count: i32;

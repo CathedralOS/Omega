@@ -1,0 +1,12 @@
+// RUN canary (exit 70). Fact catalog over PLAIN STRUCT fields (not just sum
+// payloads): a range-refined field `v: i32 [0..=15]` of a param flows into the
+// reader so `b.v + 65` proves EXACT with no annotation. Sound because every
+// write to the field is range-enforced (construction + assignment). Box{v:5} -> 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box { v: i32 [0..=15]; }
+data Main { console: Console; }
+machine Main::use_box(&mut self, b: Box) {
+    let total: i32 = b.v + 65;
+    self.console.exit_process(total);
+}
+machine Main::main(&mut self) { self.use_box(Box { v: 5 }); }

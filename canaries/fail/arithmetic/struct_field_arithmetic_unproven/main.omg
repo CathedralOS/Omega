@@ -1,0 +1,11 @@
+// FAIL canary: arithmetic on an UNCONSTRAINED struct field of a param carries
+// the decision-17 exact-arith obligation (the struct-field hole is closed). With
+// no range refinement, `b.v + 1` is not provably in range.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box { v: i32; }
+data Main { console: Console; }
+machine Main::use_box(&mut self, b: Box) {
+    let total: i32 = b.v + 1;
+    self.console.exit_process(total);
+}
+machine Main::main(&mut self) { self.use_box(Box { v: 5 }); }

@@ -1,5 +1,5 @@
 data Reward {
-    gold: i32;
+    gold: i32 in Wrapping;
 }
 
 data Main {

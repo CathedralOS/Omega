@@ -18,7 +18,7 @@
 // 4294967209. Exit 1: any other value.
 
 data RandomState {
-    seed: u64;
+    seed: u64 in Wrapping;
 }
 
 data Random {

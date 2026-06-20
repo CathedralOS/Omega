@@ -14,8 +14,8 @@ boundary trait Console {
 }
 
 data Pair {
-    a: i32;
-    b: i32;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
 }
 
 data Worker {
