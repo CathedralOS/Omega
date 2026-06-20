@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70). Decision 17 S4 return-range inference: a machine whose
-// return type declares a literal range constraint (`-> i32 [range<0, 10>]`) is
+// return type declares a literal range constraint (`-> i32 [0..=10]`) is
 // ENFORCED to return within that range, so a caller doing exact arithmetic on the
 // result can trust the narrowed interval instead of being forced into a domain.
 //
@@ -16,7 +16,7 @@ data Main {
     v: i32;
 }
 
-machine Main::level(&mut self) -> i32 [range<0, 10>] {
+machine Main::level(&mut self) -> i32 [0..=10] {
     transition { _ -> (5) }
 }
 

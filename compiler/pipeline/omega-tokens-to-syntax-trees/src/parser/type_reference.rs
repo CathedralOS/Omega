@@ -3,6 +3,7 @@ use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
+use omega_syntax_trees::expression::ExpressionNode;
 use omega_syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -197,7 +198,7 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
     // `Saturating` / `Trapping` opts a primitive into defined overflow behavior;
     // bare arithmetic stays exact (a proof obligation). The domain rides as a
     // `TypeConstraintNode::ArithmeticDomain` on a `Constrained` type-reference --
-    // the same carrier as `range<..>` -- so layout/codegen see through to the
+    // the same carrier as `a..=b` -- so layout/codegen see through to the
     // base primitive. `Wrapping` matches today's width-wrapping codegen;
     // `Saturating`/`Trapping` emit a width-correct op plus a clamp/trap on
     // overflow (x86_64; aarch64 errors until implemented). (`in` is the
@@ -296,25 +297,40 @@ pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
     if !input.at_punctuation(PunctuationKind::RightBracket) {
         loop {
             let constraint = if input.at_contextual("range") {
-                input = input.take_contextual("range")?;
-                input = input.take_punctuation(PunctuationKind::Less, "<")?;
-                let (minimum, rest) = parse_expression_handle_until_punctuation(
-                    syntax_trees,
-                    input,
-                    PunctuationKind::Comma,
-                )?;
-                input = rest.take_punctuation(PunctuationKind::Comma, ",")?;
-                let (maximum, rest) = parse_expression_handle_until_punctuation(
-                    syntax_trees,
-                    input,
-                    PunctuationKind::Greater,
-                )?;
-                input = rest.take_punctuation(PunctuationKind::Greater, ">")?;
-                TypeConstraintNode::Range { minimum, maximum }
-            } else {
+                return Err(input.error_here(
+                    "the `range<a, b>` constraint syntax is removed; use `a..=b` (inclusive) or `a..b` (exclusive)",
+                ));
+            } else if input.at_name_like() {
                 let (name, rest) = input.take_identifier()?;
                 input = rest;
                 TypeConstraintNode::Named(name)
+            } else {
+                // Range refinement: `min..=max` (inclusive) or `min..max` (exclusive).
+                // The node stores an INCLUSIVE maximum, so an exclusive bound is
+                // normalised to `max - 1` at parse (its upper bound must therefore be
+                // an integer literal); every downstream consumer keeps reading an
+                // inclusive maximum unchanged.
+                let (minimum, rest) =
+                    parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+                if rest.at_punctuation(PunctuationKind::DotDotEqual) {
+                    let rest = rest.take_punctuation(PunctuationKind::DotDotEqual, "..=")?;
+                    let (maximum, rest) =
+                        parse_expression_handle_without_struct_literals(syntax_trees, rest)?;
+                    input = rest;
+                    TypeConstraintNode::Range { minimum, maximum }
+                } else if rest.at_punctuation(PunctuationKind::DotDot) {
+                    let rest = rest.take_punctuation(PunctuationKind::DotDot, "..")?;
+                    let (end_exclusive, rest) = rest.take_integer()?;
+                    input = rest;
+                    let maximum = syntax_trees
+                        .expressions
+                        .insert(ExpressionNode::Integer(end_exclusive - 1));
+                    TypeConstraintNode::Range { minimum, maximum }
+                } else {
+                    return Err(
+                        rest.error_here("range constraint requires `..` or `..=` between bounds")
+                    );
+                }
             };
 
             let handle = syntax_trees.type_references.append_constraint(constraint);
@@ -341,27 +357,4 @@ pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
         HandleSpan::from_parts(constraint_start, constraint_count)
     };
     Ok((constraints, input))
-}
-
-fn parse_expression_handle_until_punctuation<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-    delimiter: PunctuationKind,
-) -> Result<
-    (
-        omega_syntax_trees::expression::ExpressionHandle,
-        Input<'tokens, 'source>,
-    ),
-    ParseError,
-> {
-    let (expression_input, rest) =
-        input.split_at_top_level_punctuation(delimiter, "expected constrained type delimiter")?;
-    let (expression, rest_after_expression) =
-        parse_expression_handle_without_struct_literals(syntax_trees, expression_input)?;
-
-    if !rest_after_expression.tokens.is_empty() {
-        return Err(rest_after_expression.error_here("expected constrained type expression"));
-    }
-
-    Ok((expression, rest))
 }

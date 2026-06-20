@@ -765,7 +765,7 @@ fn analyze(
             }
 
             // S4 return-range inference: a machine whose return type declares a
-            // literal range constraint (`-> i32 [range<0, 10>]`) is ENFORCED to
+            // literal range constraint (`-> i32 [0..=10]`) is ENFORCED to
             // return within that range (validate_return_value_range, below), so a
             // caller doing exact arithmetic on the result can rely on the narrowed
             // interval instead of being forced into a domain. Narrow ONLY when the
@@ -901,7 +901,7 @@ fn call_return_type(
 }
 
 /// S4 return-range ENFORCEMENT (companion to the call-site narrowing): when a
-/// return type declares a literal `[range<..>]`, the returned value's proven
+/// return type declares a literal `[a..=b]`, the returned value's proven
 /// interval must fit inside it, else callers that trust the declared range are
 /// unsound. No-op when the return type carries no range constraint (so plain
 /// returns are unaffected -- range-constrained return types are a new
@@ -918,7 +918,7 @@ pub(crate) fn enforce_declared_return_range(
     {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} returns a value not provably within its declared range: callers rely on the \
-             declared `[range<..>]` for exact arithmetic on the result, so the returned value must \
+             declared `[a..=b]` for exact arithmetic on the result, so the returned value must \
              be proven to honor it (decision 17). Constrain the returned value, or widen/remove the \
              return range constraint."
         )));

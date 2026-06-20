@@ -1180,7 +1180,7 @@ fn cannot_prove_bounded_transition_integer(
     target_range: IntegerRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected range<{}, {}>",
+        "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected {}..={}",
         expression_display_name(proof_plan, obligation.argument),
         obligation.parameter,
         obligation.machine,
@@ -1196,7 +1196,7 @@ fn cannot_prove_bounded_assignment_integer(
     target_range: IntegerRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove assignment value `{}` satisfies bounded target `{}` in `{}.{}`; expected range<{}, {}>",
+        "cannot prove assignment value `{}` satisfies bounded target `{}` in `{}.{}`; expected {}..={}",
         expression_display_name(proof_plan, obligation.value),
         expression_display_name(proof_plan, obligation.target),
         obligation.machine,
@@ -1212,7 +1212,7 @@ fn cannot_prove_bounded_return_integer(
     target_range: IntegerRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove return value `{}` satisfies bounded return type in `{}.{}`; expected range<{}, {}>",
+        "cannot prove return value `{}` satisfies bounded return type in `{}.{}`; expected {}..={}",
         expression_display_name(proof_plan, obligation.value),
         obligation.machine,
         obligation.state,
@@ -1227,7 +1227,7 @@ fn cannot_prove_bounded_initializer_integer(
     target_range: IntegerRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove initializer `{}` satisfies bounded value `{}`; expected range<{}, {}>",
+        "cannot prove initializer `{}` satisfies bounded value `{}`; expected {}..={}",
         expression_display_name(proof_plan, obligation.value),
         obligation.owner,
         target_range.minimum,
@@ -1241,7 +1241,7 @@ fn cannot_prove_bounded_transition_float(
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected range<{}, {}>",
+        "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected {}..={}",
         expression_display_name(proof_plan, obligation.argument),
         obligation.parameter,
         obligation.machine,
@@ -1257,7 +1257,7 @@ fn cannot_prove_bounded_assignment_float(
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove assignment value `{}` satisfies bounded target `{}` in `{}.{}`; expected range<{}, {}>",
+        "cannot prove assignment value `{}` satisfies bounded target `{}` in `{}.{}`; expected {}..={}",
         expression_display_name(proof_plan, obligation.value),
         expression_display_name(proof_plan, obligation.target),
         obligation.machine,
@@ -1273,7 +1273,7 @@ fn cannot_prove_bounded_return_float(
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove return value `{}` satisfies bounded return type in `{}.{}`; expected range<{}, {}>",
+        "cannot prove return value `{}` satisfies bounded return type in `{}.{}`; expected {}..={}",
         expression_display_name(proof_plan, obligation.value),
         obligation.machine,
         obligation.state,
@@ -1288,7 +1288,7 @@ fn cannot_prove_bounded_initializer_float(
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "cannot prove initializer `{}` satisfies bounded value `{}`; expected range<{}, {}>",
+        "cannot prove initializer `{}` satisfies bounded value `{}`; expected {}..={}",
         expression_display_name(proof_plan, obligation.value),
         obligation.owner,
         target_range.minimum,
@@ -1369,7 +1369,7 @@ fn cannot_prove_bounded_call_integer(
         .unwrap_or_else(|| obligation.target.to_string());
 
     Diagnostic::error(format!(
-        "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected range<{}, {}>",
+        "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected {}..={}",
         expression_display_name(proof_plan, obligation.argument),
         obligation.parameter,
         target,
@@ -1392,7 +1392,7 @@ fn cannot_prove_bounded_call_float(
         .unwrap_or_else(|| obligation.target.to_string());
 
     Diagnostic::error(format!(
-        "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected range<{}, {}>",
+        "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected {}..={}",
         expression_display_name(proof_plan, obligation.argument),
         obligation.parameter,
         target,

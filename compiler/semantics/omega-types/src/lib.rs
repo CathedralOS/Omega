@@ -430,7 +430,7 @@ fn collect_constraints(
                 insert_reference(
                     report,
                     &format!(
-                        "range<{}, {}>",
+                        "{}..={}",
                         syntax_trees.expressions.display_name(*minimum),
                         syntax_trees.expressions.display_name(*maximum),
                     ),
@@ -718,7 +718,7 @@ mod tests {
         );
         assert!(
             report.references.iter().any(|(_, reference)| {
-                reference.name == "range<0, 100000>"
+                reference.name == "0..=100000"
                     && reference.kind == TypeReferenceUseKind::RangeConstraint
             }),
             "range constraints should be recorded"
