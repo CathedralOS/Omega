@@ -1,0 +1,32 @@
+// #66 Phase 1 fact-flow: a `T in Domain` parameter is not only an obligation on
+// callers -- inside the body the membership is ASSUMED (the synthesized
+// `requires <param> in Domain` is a precondition the body may rely on). So a
+// domained parameter forwards to another domained parameter with no re-proof:
+// `consume`'s `item in Scanned` assumption discharges `inspect`'s requirement.
+// This is the carrier-orthogonal domain fact flowing through a call.
+
+data Blob {
+    payload: i32;
+}
+
+domain Blob::Scanned {
+    self.payload > 0;
+}
+
+data Main {
+    blob: Blob;
+}
+
+machine Main::inspect(&self, item: Blob in Scanned) {
+}
+
+machine Main::consume(&self, item: Blob in Scanned) {
+    self.inspect(item);
+}
+
+machine Main::main(&mut self)
+requires
+    self.blob in Blob::Scanned
+{
+    self.consume(self.blob);
+}
