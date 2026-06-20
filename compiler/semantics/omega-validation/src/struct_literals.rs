@@ -87,6 +87,7 @@ fn scan_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
             validate_literal_field_names(program, &literal, diagnostics);
+            enforce_construction_field_ranges(program, &literal, diagnostics);
             for field in program.expression_table.struct_fields(literal.fields) {
                 scan_expression(program, field.value, diagnostics);
             }
@@ -212,4 +213,119 @@ fn data_declares_field(
     program.data_members(data_definition).iter().any(
         |member| matches!(member, DataMember::Field(field) if field.name.as_str() == field_name),
     )
+}
+
+/// Decision-17 / fact-catalog soundness: a field declared with a range
+/// refinement (`index: i32 [0..=15]`) must be CONSTRUCTED with a value provably
+/// in that range -- otherwise a destructure arm that trusts the range (S4
+/// payload narrowing in `places::declared_place_type_raw`) would rest on an
+/// unenforced bound. v1 enforces INTEGER-LITERAL construction values exactly; a
+/// non-literal value is conservatively rejected (construct with a literal in
+/// range, or widen the field). Without this, the payload-fact narrowing is
+/// unsound.
+fn enforce_construction_field_ranges(
+    program: &TypedTrees,
+    literal: &TableStructLiteral,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let type_name = literal.type_name.as_str();
+    let Some(data_definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == type_name)
+    else {
+        return;
+    };
+    if data_definition.type_parameters.count() > 0 {
+        return;
+    }
+
+    for field in program.expression_table.struct_fields(literal.fields) {
+        let Some(field_type) = construction_field_type(
+            program,
+            data_definition,
+            literal.case_name.as_ref().map(|name| name.as_str()),
+            field.name.as_str(),
+        ) else {
+            continue;
+        };
+        let Some(range) = crate::arithmetic_domains::range_constraint_interval(program, field_type)
+        else {
+            continue;
+        };
+        let bounds = format!(
+            "{}..={}",
+            range.low().map(|low| low.to_string()).unwrap_or_default(),
+            range.high().map(|high| high.to_string()).unwrap_or_default(),
+        );
+        match construction_field_literal(program, field.value) {
+            Some(value) => {
+                let below = range.low().is_some_and(|low| value < low);
+                let above = range.high().is_some_and(|high| value > high);
+                if below || above {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "construction of `{type_name}` field `{}`: value {value} is outside its declared range `{bounds}`",
+                        field.name.as_str()
+                    )));
+                }
+            }
+            None => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "construction of `{type_name}` field `{}` cannot be proven within its declared range `{bounds}`; construct with an integer literal in range or widen the field",
+                    field.name.as_str()
+                )));
+            }
+        }
+    }
+}
+
+/// The declared type of a constructed field: a case literal's PAYLOAD field (for
+/// the named variant) or a record/common struct field.
+fn construction_field_type(
+    program: &TypedTrees,
+    data_definition: &DataDefinition,
+    case_name: Option<&str>,
+    field_name: &str,
+) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+    if let Some(case_name) = case_name
+        && let Some(variant) =
+            program
+                .data_members(data_definition)
+                .iter()
+                .find_map(|member| match member {
+                    DataMember::Variant(variant) if variant.name.as_str() == case_name => {
+                        Some(variant)
+                    }
+                    _ => None,
+                })
+    {
+        for payload_field in program.data_payload_fields(variant) {
+            if payload_field.name.as_str() == field_name {
+                return payload_field
+                    .type_reference
+                    .is_valid()
+                    .then_some(payload_field.type_reference);
+            }
+        }
+    }
+    program
+        .data_members(data_definition)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Field(field) if field.name.as_str() == field_name => field
+                .type_reference
+                .is_valid()
+                .then_some(field.type_reference),
+            _ => None,
+        })
+}
+
+/// Read an integer-literal construction value (the parser folds a negative
+/// `-5` into `Integer(-5)`, so the bare `Integer` case suffices). `None` for any
+/// non-literal value -- those are conservatively rejected by the caller.
+fn construction_field_literal(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
+    match program.expression_table.expression(value) {
+        ExpressionNode::Integer(literal) => Some(*literal),
+        _ => None,
+    }
 }
