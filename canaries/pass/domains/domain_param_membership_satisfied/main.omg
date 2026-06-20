@@ -1,0 +1,27 @@
+// #66 Phase 1 (companion to the fail canary domain_param_requires_membership):
+// the implicit `requires <param> in Domain` synthesized from a `T in Domain`
+// parameter is SATISFIED when the caller has established the membership. This
+// proves the desugar enforces precisely -- it rejects a raw value but accepts an
+// established one (it is not blanket over-rejection).
+
+data Blob {
+    payload: i32;
+}
+
+domain Blob::Scanned {
+    self.payload > 0;
+}
+
+data Main {
+    blob: Blob;
+}
+
+machine Main::consume(item: Blob in Scanned) {
+}
+
+machine Main::main(&mut self)
+requires
+    self.blob in Blob::Scanned
+{
+    self.consume(self.blob);
+}
