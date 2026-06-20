@@ -1,0 +1,12 @@
+// FAIL canary: constructing a range-refined payload field with an out-of-range
+// literal is rejected -- the bound a destructure arm trusts must hold at every
+// construction site (fact-catalog soundness). 9999 is outside [0..=15].
+boundary trait Console { machine exit_process(return_code: i32); }
+data Slot { case Found(index: i32 [0..=15]); case Full; }
+data Main { console: Console; }
+machine Main::run(&mut self, s: Slot) {
+    transition s { Slot::Found { index } -> done(index) Slot::Full -> stop() }
+    state done(&mut self, n: i32) { self.console.exit_process(0); }
+    state stop(&mut self) { self.console.exit_process(0); }
+}
+machine Main::main(&mut self) { self.run(Slot::Found { index: 9999 }); }

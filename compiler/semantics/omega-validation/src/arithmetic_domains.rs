@@ -334,6 +334,14 @@ impl Interval {
         high: None,
     };
 
+    pub(crate) fn low(&self) -> Option<i64> {
+        self.low
+    }
+
+    pub(crate) fn high(&self) -> Option<i64> {
+        self.high
+    }
+
     fn constant(value: i64) -> Self {
         Self {
             low: Some(value),
@@ -832,7 +840,10 @@ fn analyze(
 /// the full type width. Inclusive bounds (a sound over-approximation either way).
 /// `None` when the type has no literal range constraint. Looks through reference
 /// shells.
-fn range_constraint_interval(program: &TypedTrees, handle: TypeReferenceHandle) -> Option<Interval> {
+pub(crate) fn range_constraint_interval(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<Interval> {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => range_constraint_interval(program, *referee),
         TypeReferenceNode::Constrained { constraints, .. } => program

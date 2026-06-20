@@ -1,0 +1,18 @@
+// RUN canary (exit 70). Stage 1 of the unified fact catalog over sum cases:
+// a case-payload field declares a range refinement (`index: i32 [0..=15]`), so
+// inside the `Found` destructure arm `index + 65` proves EXACT (index in [0,15]
+// -> [65,80], no i32 overflow) with no annotation. Sound because construction
+// enforces the range (forged out-of-range values are rejected -- see
+// fail/arithmetic/construction_payload_out_of_range). Found{index:5} -> 5+65=70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Slot { case Found(index: i32 [0..=15]); case Full; }
+data Main { console: Console; }
+machine Main::run(&mut self, s: Slot) {
+    transition s {
+        Slot::Found { index } -> use_it(index + 65)
+        Slot::Full            -> done()
+    }
+    state use_it(&mut self, n: i32) { self.console.exit_process(n); }
+    state done(&mut self) { self.console.exit_process(0); }
+}
+machine Main::main(&mut self) { self.run(Slot::Found { index: 5 }); }

@@ -3323,6 +3323,36 @@ fn runtime_cast_element_accumulator_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Stage 1 of the fact catalog over sum cases: a case-payload field's range
+/// refinement (`index: i32 [0..=15]`) flows into the destructure arm so
+/// `index + 65` proves Exact. Sound because construction enforces the range.
+/// Found{index:5} -> 70.
+#[test]
+fn runtime_payload_range_narrowing_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_payload_range_narrowing_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-payload-range-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("payload range narrowing should compile (constrained payload discharges the obligation)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("payload range narrowing canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected constrained payload `index + 65` to run to 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// The `a..b` (exclusive) / `a..=b` (inclusive) range refinement syntax that
 /// replaced the removed `range<a, b>`: `x in 0..16` and `y in 0..=100` keep
 /// `x + y` Exact. Runs to 70.
@@ -11348,6 +11378,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_transition_arg_saturating_exit",
     "arithmetic/runtime_cast_element_accumulator_exit",
     "arithmetic/runtime_exclusive_range_constraint_exit",
+    "arithmetic/runtime_payload_range_narrowing_exit",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_boolean_or_guard_exit",
     "control_flow/runtime_negated_boolean_place_guard_exit",
@@ -11656,6 +11687,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_mixed",
     "expressions/nested_i32_mul_overflow",
     "arithmetic/removed_range_constraint_syntax",
+    "arithmetic/construction_payload_out_of_range",
+    "arithmetic/unconstrained_payload_arithmetic",
     "arithmetic/transition_arg_unguarded_overflow",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",

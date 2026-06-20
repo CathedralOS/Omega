@@ -165,8 +165,78 @@ pub(crate) fn declared_place_type_raw(
                 .is_valid()
                 .then_some(field.type_reference)
         }
+        [root, field_name] => {
+            // A CASE-PAYLOAD field of a local/parameter of sum type (`s.index`
+            // where `s: Slot` and `Slot` has a case payload `index`). A
+            // destructure arm (`Slot::Found { index } -> ..`) lowers the binding
+            // `index` to `s.index`, so resolving it here lets the S4 fact catalog
+            // see the payload binding's declared type (its arithmetic carries the
+            // decision-17 obligation) AND its range refinement (a `[a..=b]`
+            // payload field discharges that obligation). Sound only because
+            // construction enforces the field range (see
+            // struct_literals::enforce_construction_field_ranges).
+            let receiver_type = local_or_parameter_type(program, current_state, root)?;
+            let unwrapped = unwrapped_type_reference(program, receiver_type)?;
+            let TypeReferenceNode::Named { name, .. } =
+                program.type_reference_table.type_reference(unwrapped)
+            else {
+                return None;
+            };
+            let data = program
+                .data_definitions()
+                .iter()
+                .find(|data| data.name == *name)?;
+            case_payload_field_type(program, data, field_name)
+        }
         _ => None,
     }
+}
+
+/// Resolve a bare local-data or state-parameter name to its declared type.
+fn local_or_parameter_type(
+    program: &TypedTrees,
+    current_state: Option<&omega_typed_trees::state::State>,
+    name: &str,
+) -> Option<TypeReferenceHandle> {
+    let state = current_state?;
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        if let omega_typed_trees::statement::StatementNode::LocalData(local) = statement
+            && local.name.as_str() == name
+        {
+            return local.type_reference.is_valid().then_some(local.type_reference);
+        }
+    }
+    for parameter in program.state_parameters(state) {
+        if parameter.name.as_str() == name {
+            return parameter
+                .type_reference
+                .is_valid()
+                .then_some(parameter.type_reference);
+        }
+    }
+    None
+}
+
+/// Find a CASE-VARIANT PAYLOAD field named `field_name` on a sum definition and
+/// return its declared type reference (constraints intact), searched across
+/// every variant. Scoped to payload fields (stage 1 of the fact catalog over sum
+/// cases); a plain struct field of a local/parameter is a separate obligation
+/// hole tracked elsewhere.
+fn case_payload_field_type(
+    program: &TypedTrees,
+    data: &omega_typed_trees::data::DataDefinition,
+    field_name: &str,
+) -> Option<TypeReferenceHandle> {
+    for member in program.data_members(data) {
+        if let omega_typed_trees::data::DataMember::Variant(variant) = member {
+            for field in program.data_payload_fields(variant) {
+                if field.name.as_str() == field_name {
+                    return field.type_reference.is_valid().then_some(field.type_reference);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Unwrap reference and constraint shells so the structural type underneath
