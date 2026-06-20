@@ -1,0 +1,15 @@
+// RUN canary (exit 70). Dominating-guard narrowing on the FALSE arm: the arm
+// fires when `n >= 70` is FALSE, i.e. `n < 70` (negate `>=` -> `<`), so `n + 1`
+// proves EXACT without an annotation even though i32 + 1 could otherwise
+// overflow at the type's upper bound. climb(0) walks 0..70 through the false
+// arm, then the true arm exits 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::climb(&mut self, n: i32) {
+    transition n >= 70 {
+        true -> done(n)
+        false -> climb(n + 1)
+    }
+    state done(&mut self, n: i32) { self.console.exit_process(n); }
+}
+machine Main::main(&mut self) { self.climb(0); }
