@@ -88,6 +88,33 @@ element miscompiles natively (#59; workaround = element-type Wrapping).
 
 **Open remaining work:**
 
+- **Encoding domains / string retirement (ch8; design settled 2026-06-20) — CORE
+  DONE + PROVEN, migration in progress (executing C → B).** Settled model: NO
+  `string`/`String` keyword, transparent `{container} in Utf8`; domains stay
+  STORAGE-BOUND (re-declared per carrier, e.g. `domain [u8]::Utf8`, sharing
+  machinery — no storage-less form); `&[u8] in Utf8` is the borrowed-view common
+  case (OS-canonical `ptr+len`); owned `Vec<u8> in Utf8` deferred to the allocator;
+  string literals → static `&[u8] in Utf8`. See memory `string-encoding-domain-model`.
+  DONE + canaried + pushed: the `Domain` constraint (parse + validate), parameter
+  enforcement via an implicit `requires <param> in Domain` desugar, fact-forwarding,
+  the `Slice<u8>`/`[u8]` alias, slice-carrier domain targets (`domain [u8]::Utf8`),
+  and the `from_utf8` grant validator. REMAINING:
+    - **(C) Mechanism completion:** tighten domain resolution to match CARRIER+name
+      (not name alone — latent unsoundness once two same-named domains coexist); a
+      fuller `&[u8] in Utf8` operator set (len/byte/range reuse slice ops; a FALLIBLE
+      Utf8 char-boundary slice); the `NoNul` domain. Returns/fields enforcement needs
+      the entailment to PROVE membership at non-call sites (the `ensures`-desugar is
+      vacuous; #66 commit d51273c6) — separate from the param path.
+    - **(B1) Keystone:** string LITERALS lower to static `&[u8] in Utf8` views (today
+      typed owned `String`, expression_types.rs:160) — a backend/lowering change.
+    - **(B2-B4) Corpus sweep + retirement:** migrate the ~185 literal-using `.omg`
+      files, then retire the builtin `string`/`String` PrimitiveType + its ~16
+      special-case compiler sites. ~3-6 files use owned-growable ops
+      (`push_str`/`with_capacity`) — those stay ALLOCATOR-GATED until `Vec<u8>`.
+- **`abort` effect (ch15 stage 3, #65) — ch16-gated.** The contagious capability
+  already exists as `process_exit` (infers bodies-up, forced at boundaries, in the
+  manifest). The only-new-part — a nuclear no-cleanup abort distinct from graceful
+  exit — is meaningless until drops (ch16) exist. Revisit with ch16.
 - **S4 arithmetic-domain narrowing (refinement, not a correctness gap).** ~30
   corpus ops are pinned to `Wrapping` ONLY because the prover can't yet narrow
   their operand ranges; flow-sensitive narrowing (dominating guards, loop bounds,

@@ -11815,6 +11815,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/struct_field_arithmetic_unproven",
     "arithmetic/transition_arg_unguarded_overflow",
     "domains/type_constraint_unknown_domain",
+    "domains/domain_carrier_mismatch",
     "domains/domain_param_requires_membership",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",

@@ -420,13 +420,16 @@ impl TypeParameterScope<'_> {
     }
 }
 
-/// A domain constraint `in Name` is satisfied by any declared `domain ...::Name`.
-/// Domain definitions store their name as `Target::Name` (e.g. `Slice<u8>::Utf8`),
-/// so we match the component after the final `::` (or the whole name if none).
-fn domain_is_declared(program: &TypedTrees, wanted: &str) -> bool {
+/// A domain constraint `T in Name` is satisfied by a declared `domain <T>::Name`:
+/// the name component (after the final `::`) must match AND the domain's TARGET
+/// carrier must match `base_type`. Domains are storage-bound (re-declared per
+/// carrier), so `[u8] in Utf8` resolves to `domain [u8]::Utf8` and NOT to a
+/// `domain String::Utf8` that happens to share the `Utf8` name.
+fn domain_is_declared(program: &TypedTrees, base_type: TypeReferenceHandle, wanted: &str) -> bool {
     program.domain_definitions().iter().any(|domain| {
         let full = domain.name.as_str();
-        full.rsplit("::").next().unwrap_or(full) == wanted
+        let name_matches = full.rsplit("::").next().unwrap_or(full) == wanted;
+        name_matches && type_references_match(program, base_type, domain.target_type)
     })
 }
 
@@ -466,9 +469,11 @@ fn validate_type_constraints_node(
             // typos (`in Utf8x`) and is what distinguishes a domain from a
             // structural property (`[copy]`, which stays an unvalidated `Named`).
             TypeConstraintNode::Domain(name) => {
-                if !domain_is_declared(program, name.as_str()) {
+                if !domain_is_declared(program, base_type, name.as_str()) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "{owner} uses `in {name}`, but no `domain` named `{name}` is declared"
+                        "{owner} uses `in {name}`, but no `domain` named `{name}` is declared \
+                         for `{}` (domains are bound to their storage type)",
+                        type_reference_label(program, base_type)
                     )));
                 }
             }
