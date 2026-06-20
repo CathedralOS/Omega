@@ -28,8 +28,18 @@ representation machinery behind a deliberate boundary.
 ## Outstanding (pick up next)
 
 Snapshot refreshed 2026-06-19. Decisions 8-17 implemented (stage 1+); harness
-canary suite 299, differential oracle fully matched (11), `cargo test
+canary suite 303, differential oracle fully matched (11), `cargo test
 --workspace` green, tree clean. Ordered roughly by leverage.
+
+Also closed this wave (later commits): S4 result-interval narrowing for
+modulo/div + min/max clamp (14978462/5c7d308e); a native miscompile where a
+min/max value-call result fed into arithmetic dropped its write (0e4a88d3);
+and **exact-arith enforcement on transition-arm arguments + dominating-guard
+narrowing** (ce4cb71b) -- exact-by-default is now UNIFORM (no transition-arg
+hole). The S4 narrowing item below is therefore CLOSED for within-state +
+co-located-guard sources; only true cross-state param narrowing remains (no
+consumer). Known low-pri gap: `(elem as T in Wrapping)` domain-cast of a slice
+element miscompiles natively (#59; workaround = element-type Wrapping).
 
 **Closed since the 2026-06-14 snapshot (2026-06-19 wave):**
 
