@@ -171,6 +171,16 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
         // `Versioned<T>` precedent in omega-core/src/versioning.rs).
         if base_name.as_str() == "Join" && argument_count == 1 {
             first_argument
+        } else if base_name.as_str() == "Slice" && argument_count == 1 {
+            // `Slice<T>` is the canonical slice type; `[T]` is its alias. Both fold
+            // to the same `Slice` node, so the spellings are interchangeable
+            // (`Slice<u8> in Utf8` == `[u8] in Utf8`). Like `Join`, `Slice` is a
+            // reserved type name so the fold is unambiguous with user generics.
+            syntax_trees
+                .type_references
+                .insert(TypeReferenceNode::Slice {
+                    element_type: first_argument,
+                })
         } else {
             syntax_trees
                 .type_references
