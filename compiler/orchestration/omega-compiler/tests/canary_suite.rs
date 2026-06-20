@@ -11810,6 +11810,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/bounded_assignment_unproven",
     "arithmetic/struct_field_arithmetic_unproven",
     "arithmetic/transition_arg_unguarded_overflow",
+    "domains/type_constraint_unknown_domain",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",
     "collections/fixed_vec_get_past_length",

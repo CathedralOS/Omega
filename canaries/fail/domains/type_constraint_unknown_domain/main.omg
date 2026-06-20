@@ -1,0 +1,15 @@
+// A carrier domain constraint (`T in Name`; ch8 "domains over carriers") must
+// reference a declared `domain`. `Utf8x` is a typo -- no `domain ...::Utf8x`
+// exists -- so validation rejects it. This is what keeps `in` strict in TYPE
+// position: a misspelled domain name is a hard error, never a silent no-op.
+//
+// (Distinct from the arithmetic overflow domains `Wrapping`/`Saturating`/
+// `Trapping`, which `in` still recognises; an unknown name is now resolved
+// against `domain` declarations rather than rejected outright at parse.)
+
+data Main {
+    value: i32 in Utf8x;
+}
+
+machine Main::main(&mut self) {
+}

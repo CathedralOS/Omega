@@ -52,15 +52,14 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
                 (FixedArrayLength::Literal(length), input)
             };
             let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-            return Ok((
-                syntax_trees
-                    .type_references
-                    .insert(TypeReferenceNode::FixedArray {
-                        element_type,
-                        length,
-                    }),
-                input,
-            ));
+            let array = syntax_trees
+                .type_references
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                });
+            // A fixed array can carry an encoding domain: `[u8; 32] in Utf8`.
+            return apply_in_domain_suffix(syntax_trees, array, input);
         }
 
         let mut type_reference = syntax_trees
@@ -81,7 +80,8 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
         }
 
         let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-        return Ok((type_reference, input));
+        // A slice can carry an encoding domain: `[u8] in Utf8` (ch8).
+        return apply_in_domain_suffix(syntax_trees, type_reference, input);
     }
 
     if input.at_keyword(KeywordKind::SelfType) {
@@ -194,39 +194,48 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
             });
     }
 
-    // Arithmetic DOMAIN suffix (frozen decision 17): `u32 in Wrapping` /
-    // `Saturating` / `Trapping` opts a primitive into defined overflow behavior;
-    // bare arithmetic stays exact (a proof obligation). The domain rides as a
-    // `TypeConstraintNode::ArithmeticDomain` on a `Constrained` type-reference --
-    // the same carrier as `a..=b` -- so layout/codegen see through to the
-    // base primitive. `Wrapping` matches today's width-wrapping codegen;
-    // `Saturating`/`Trapping` emit a width-correct op plus a clamp/trap on
-    // overflow (x86_64; aarch64 errors until implemented). (`in` is the
-    // contextual membership keyword; in TYPE position nothing else consumes a
-    // trailing `in`, so this suffix is additive.)
-    if input.at_contextual("in") {
-        let after_in = input.take_contextual("in")?;
-        let (domain_name, rest) = after_in.take_identifier()?;
-        let Some(domain) =
-            omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str())
-        else {
-            return Err(rest.error_here(
-                "unknown arithmetic domain; expected `Wrapping`, `Saturating`, or `Trapping`",
-            ));
-        };
-        let constraint = syntax_trees
-            .type_references
-            .append_constraint(TypeConstraintNode::ArithmeticDomain(domain));
-        type_reference = syntax_trees
-            .type_references
-            .insert(TypeReferenceNode::Constrained {
-                base_type: type_reference,
-                constraints: HandleSpan::from_parts(constraint, 1),
-            });
-        input = rest;
-    }
-
+    let (type_reference, input) = apply_in_domain_suffix(syntax_trees, type_reference, input)?;
     Ok((type_reference, input))
+}
+
+/// Apply an optional `in <Domain>` suffix to a just-parsed type reference.
+///
+/// The name is an arithmetic overflow domain (`Wrapping`/`Saturating`/`Trapping`;
+/// frozen decision 17) when it matches one -- opting a primitive into defined
+/// overflow behaviour while bare arithmetic stays exact (a proof obligation).
+/// Otherwise it is a DECLARED encoding domain on the carrier (`[u8] in Utf8`;
+/// ch8 "domains over carriers"). Either way the domain rides as a constraint on
+/// a `Constrained` type-reference -- the same carrier as `a..=b` -- so
+/// layout/codegen see through to the base type.
+///
+/// An unknown encoding-domain name is NOT a parse error: validation resolves it
+/// against `domain ...::Name` declarations (rejecting typos with a clear
+/// message). `in` is the contextual membership keyword; in TYPE position nothing
+/// else consumes a trailing `in`, so this suffix is additive. Factored out so it
+/// applies after slice/array returns too (`[u8] in Utf8`), not just named types.
+fn apply_in_domain_suffix<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    if !input.at_contextual("in") {
+        return Ok((type_reference, input));
+    }
+    let after_in = input.take_contextual("in")?;
+    let (domain_name, rest) = after_in.take_identifier()?;
+    let constraint =
+        match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
+            Some(domain) => TypeConstraintNode::ArithmeticDomain(domain),
+            None => TypeConstraintNode::Domain(domain_name),
+        };
+    let constraint = syntax_trees.type_references.append_constraint(constraint);
+    let type_reference = syntax_trees
+        .type_references
+        .insert(TypeReferenceNode::Constrained {
+            base_type: type_reference,
+            constraints: HandleSpan::from_parts(constraint, 1),
+        });
+    Ok((type_reference, rest))
 }
 
 pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
