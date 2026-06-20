@@ -24,12 +24,12 @@ data Adder {}
 
 data Main {
     console: Console;
-    arr: [i32; 6];
+    arr: [i32 in Wrapping; 6];
     adder: Adder;
 }
 
 // Looping value-returning machine: acc + s[0] at each step, recurse on s[1..].
-machine Adder::walk(&mut self, s: &[i32], acc: i32) -> i32
+machine Adder::walk(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates {
     decreases s -> Slice::Length;
 }
@@ -50,7 +50,7 @@ machine Main::main(&mut self) {
     self.arr[5] = 25;
 
     // Sum all 6 elements via shrinking-window recursion: 3+7+12+18+5+25 = 70.
-    let s: &[i32] = self.arr.as_slice();
+    let s: &[i32 in Wrapping] = self.arr.as_slice();
     let t: i32 = self.adder.walk(s, 0);
 
     transition t == 70 {

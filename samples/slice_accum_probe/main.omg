@@ -20,20 +20,20 @@
 use omega::language::std::console;
 
 data Entry {
-    value: i32;
+    value: i32 in Wrapping;
 }
 
 data Walker {}
 
 data Main {
     console: Console;
-    ints: [i32; 7];
+    ints: [i32 in Wrapping; 7];
     entries: [Entry; 7];
     walker: Walker;
 }
 
 // Probe A: i32 slice accumulation.
-machine Walker::sum_ints(&mut self, s: &[i32], acc: i32) -> i32
+machine Walker::sum_ints(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates {
     decreases s -> Slice::Length;
 }
@@ -45,7 +45,7 @@ terminates {
 }
 
 // Probe B: struct slice accumulation using s[0].value.
-machine Walker::sum_entries(&mut self, s: &[Entry], acc: i32) -> i32
+machine Walker::sum_entries(&mut self, s: &[Entry], acc: i32 in Wrapping) -> i32
 terminates {
     decreases s -> Slice::Length;
 }
@@ -74,7 +74,7 @@ machine Main::main(&mut self) {
     self.entries[6].value = 10;
 
     // Probe A.
-    let si: &[i32] = self.ints.as_slice();
+    let si: &[i32 in Wrapping] = self.ints.as_slice();
     let a: i32 = self.walker.sum_ints(si, 0);
 
     // Probe B.

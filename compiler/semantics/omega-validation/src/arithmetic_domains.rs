@@ -125,6 +125,89 @@ fn bound_from(
     (name, low, high)
 }
 
+/// The comparison operator whose truth is the LOGICAL NEGATION of `operator`
+/// (`>` ⟺ `<=`, ...). `None` for `==`/`!=` (their negation has no single-interval
+/// bound). Used to narrow a transition's FALSE arm by the negated guard.
+fn negate_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
+    Some(match operator {
+        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
+        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
+        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
+        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
+        BinaryOperator::NotEqual => BinaryOperator::Equal,
+        _ => return None,
+    })
+}
+
+/// S4 dominating-guard narrowing: a transition arm fires only when its guard
+/// holds, so the arm's argument arithmetic can assume that bound. Returns `base`
+/// refined by the arm's guard. The desugared arm guard is `<comparison> ==
+/// true|false`; the comparison's bound (negated for the `false` arm) is
+/// INTERSECTED with the guarded place's type range so a one-sided guard (`n >
+/// 0`) keeps the type's other end (else `n - 1` loses its `u32` upper bound).
+/// Only simple `place <OP> literal` comparisons narrow; anything else leaves the
+/// env unchanged (sound -- the arm's arithmetic then has to prove on its own).
+pub(crate) fn guard_narrowed_env(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    guard: &omega_typed_trees::statement::TransitionGuardNode,
+    base: &ValueEnv,
+) -> ValueEnv {
+    use omega_typed_trees::statement::TransitionGuardNode;
+    let mut env = base.clone();
+    let TransitionGuardNode::When(guard_expr) = guard else {
+        return env;
+    };
+    let ExpressionNode::Binary(equality) = program.expression_table.expression(*guard_expr) else {
+        return env;
+    };
+    if equality.operator != BinaryOperator::Equal {
+        return env;
+    }
+    let ExpressionNode::Boolean(arm_true) = program.expression_table.expression(equality.right)
+    else {
+        return env;
+    };
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression(equality.left)
+    else {
+        return env;
+    };
+    // Identify the (place, literal) sides.
+    let (place_expr, literal, name_on_left) =
+        if let Some(literal) = literal_i64(program, comparison.right) {
+            (comparison.left, literal, true)
+        } else if let Some(literal) = literal_i64(program, comparison.left) {
+            (comparison.right, literal, false)
+        } else {
+            return env;
+        };
+    // The `false` arm narrows by the NEGATED comparison.
+    let operator = if *arm_true {
+        comparison.operator
+    } else {
+        let Some(negated) = negate_comparison(comparison.operator) else {
+            return env;
+        };
+        negated
+    };
+    let Some(name) = place_path(program, place_expr) else {
+        return env;
+    };
+    let (_, low, high) = bound_from(name.clone(), operator, literal, name_on_left);
+    let guard_interval = Interval { low, high };
+    // Intersect with the place's type range to retain the other bound.
+    let type_interval = declared_place_type_raw(program, machine, state, place_expr)
+        .and_then(|handle| program.primitive_type_reference(handle))
+        .and_then(primitive_range);
+    let interval = match type_interval {
+        Some(type_interval) => guard_interval.intersect(type_interval),
+        None => guard_interval,
+    };
+    env.narrow(name, interval);
+    env
+}
+
 /// S4 flow-sensitive value environment: the proven interval of each place
 /// (`self.field`, local) along the straight-line prefix of a state body. Lets the
 /// overflow proof discharge `self.v = 10; self.v += 5` (v is known to be 10, so
@@ -154,6 +237,17 @@ impl ValueEnv {
 
     fn set(&mut self, path: String, interval: Interval) {
         self.intervals.insert(path, interval);
+    }
+
+    /// Intersect a place's tracked interval with `interval` (tightening it).
+    /// Used by guard narrowing so an arm's guard refines the env without
+    /// discarding a value already proven on the linear path.
+    fn narrow(&mut self, path: String, interval: Interval) {
+        let merged = match self.intervals.get(&path) {
+            Some(existing) => existing.intersect(interval),
+            None => interval,
+        };
+        self.intervals.insert(path, merged);
     }
 }
 
@@ -379,6 +473,24 @@ impl Interval {
             Some(low.saturating_abs().max(high.saturating_abs()))
         } else {
             None
+        }
+    }
+
+    /// Tightest interval contained in both (`[max(lows), min(highs)]`, an
+    /// unbounded end deferring to the other). Used to intersect a guard bound
+    /// with a place's type range.
+    fn intersect(self, other: Self) -> Self {
+        Self {
+            low: match (self.low, other.low) {
+                (Some(a), Some(b)) => Some(a.max(b)),
+                (Some(v), None) | (None, Some(v)) => Some(v),
+                (None, None) => None,
+            },
+            high: match (self.high, other.high) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (Some(v), None) | (None, Some(v)) => Some(v),
+                (None, None) => None,
+            },
         }
     }
 

@@ -10,7 +10,7 @@ data Main {
     arr: [i32; 5];
 }
 
-machine count(s: &[i32], acc: i32) -> i32 {
+machine count(s: &[i32], acc: i32 in Wrapping) -> i32 {
     transition s.len > 0 {
         true -> count(s[1..], acc + 1)
         false -> acc

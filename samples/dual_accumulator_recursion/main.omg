@@ -39,12 +39,12 @@ data Recursor {}
 
 data Main {
     console: Console;
-    data: [i32; 5];
+    data: [i32 in Wrapping; 5];
     r: Recursor;
 }
 
 // Recursive: sum all elements (linear accumulator: acc + s[0]).
-machine Recursor::sum(&mut self, s: &[i32], acc: i32) -> i32
+machine Recursor::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates {
     decreases s -> Slice::Length;
 }
@@ -56,7 +56,7 @@ terminates {
 }
 
 // Recursive: sum of squares (quadratic accumulator: acc + s[0]*s[0]).
-machine Recursor::sum_sq(&mut self, s: &[i32], acc: i32) -> i32
+machine Recursor::sum_sq(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates {
     decreases s -> Slice::Length;
 }
@@ -76,11 +76,11 @@ machine Main::main(&mut self) {
     self.data[4] = 5;
 
     // First recursive value-returning call: compute sum.
-    let s: &[i32] = self.data.as_slice();
+    let s: &[i32 in Wrapping] = self.data.as_slice();
     let sum_result: i32 = self.r.sum(s, 0);
 
     // Second recursive value-returning call: compute sum of squares.
-    let s2: &[i32] = self.data.as_slice();
+    let s2: &[i32 in Wrapping] = self.data.as_slice();
     let sum_sq_result: i32 = self.r.sum_sq(s2, 0);
 
     // Verify sum = 15.

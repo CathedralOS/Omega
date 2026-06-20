@@ -3206,6 +3206,36 @@ fn arithmetic_domain_trapping_mul_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Decision 17 transition-arg enforcement + dominating-guard narrowing: the
+/// recursive arm arg `count_down(n - 1)` carries the exact-arith obligation and
+/// proves Exact ONLY because the guard `n > 0` narrows `n` to `[1, ..]`. Runs to
+/// 70 (the unguarded form is rejected — fail/arithmetic/transition_arg_unguarded_overflow).
+#[test]
+fn runtime_transition_arg_guard_narrowing_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_transition_arg_guard_narrowing_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-transition-arg-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded transition-arg decrement should compile (guard narrows n-1 to Exact)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("transition-arg guard narrowing canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected guarded count_down(n-1) to prove Exact and run to 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// Decision 17 S4: min/max clamp narrowing. `max(self.seed, 0)` lower-bounds at
 /// 0 and `min(_, 60)` upper-bounds at 60, so `+ 70` stays EXACT. Without the
 /// narrowing both clamps are unbounded and `+ 70` is a decision-17 overflow
@@ -11197,6 +11227,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_modulo_value",
     "arithmetic/runtime_modulo_div_narrowing_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
+    "arithmetic/runtime_transition_arg_guard_narrowing_exit",
     "control_flow/runtime_multi_assignment_value_calls",
     "control_flow/runtime_boolean_or_guard_exit",
     "control_flow/runtime_negated_boolean_place_guard_exit",
@@ -11504,6 +11535,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_mixed",
     "expressions/nested_i32_mul_overflow",
+    "arithmetic/transition_arg_unguarded_overflow",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",
     "collections/fixed_vec_get_past_length",

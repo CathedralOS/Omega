@@ -339,6 +339,43 @@ fn validate_state_statement_node(
                     }
                 }
             }
+
+            // Decision 17 completeness: a transition-arm CALL ARGUMENT carries the
+            // exact-arith proof obligation too (`count_down(n - 1)`). The arm fires
+            // only when its guard holds, so the env is narrowed by the guard first
+            // -- `n > 0` proves `n - 1` in range, while an unguarded decrement is
+            // (correctly) rejected and must opt into a domain or a range.
+            let narrowed = arithmetic_domains::guard_narrowed_env(
+                program,
+                machine,
+                machine_symbols.state(state_name),
+                &transition.guard,
+                value_env,
+            );
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
+                    continue;
+                }
+                if let TransitionTargetNode::Named { arguments, .. } =
+                    program.statement_table.transition_target(target)
+                {
+                    for argument in program.statement_table.expression_handles(*arguments) {
+                        arithmetic_domains::validate_arithmetic_domains(
+                            program,
+                            machine,
+                            machine_symbols.state(state_name),
+                            *argument,
+                            &narrowed,
+                            None,
+                            &format!(
+                                "machine `{}` state `{state_name}` transition argument",
+                                machine.name
+                            ),
+                            diagnostics,
+                        );
+                    }
+                }
+            }
         }
     }
 }
