@@ -11339,6 +11339,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/domain_param_forwarded",
     "domains/slice_carrier_domain",
     "domains/slice_domain_validator",
+    "domains/utf8_slice_ops",
     "domains/call_requires_boolean_expression_preserved_across_disjoint_mutating_call",
     "domains/call_requires_dynamic_indexed_scalar_member_expression_from_domain_fact",
     "domains/call_requires_fixed_indexed_boolean_expression_preserved_across_disjoint_mutating_call",
