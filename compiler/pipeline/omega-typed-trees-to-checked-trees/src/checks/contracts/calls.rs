@@ -1,7 +1,7 @@
 use omega_checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_facts::{FactPayload, FactPlace};
+use omega_facts::{FactPayload, FactPlace, PlaceRoot};
 
 use super::places::expression_is_boolean_place_like;
 use super::prover::{
@@ -62,6 +62,12 @@ pub(super) fn check_call_requires(
                     fact,
                 ),
             };
+            // ch8 construction-grant: a string literal is valid UTF-8 by
+            // construction, so it satisfies a `Utf8` domain membership without a
+            // validating boundary call -- this is how a literal flows into a
+            // `&[u8] in Utf8` target.
+            let satisfied = satisfied
+                || string_literal_grants_utf8(program, &facts.semantic, fact.payload, fact.place);
 
             if !satisfied {
                 let detail = match fact.payload {
@@ -95,6 +101,53 @@ pub(super) fn check_call_requires(
             }
         }
     }
+}
+
+/// ch8 construction-grant: a string literal is valid UTF-8 by construction, so a
+/// `Utf8` domain-membership requirement whose subject is a string literal is
+/// satisfied without a validating boundary call. Only `Utf8` is implied by a
+/// literal -- other domains (e.g. `NoNul`) are not granted here.
+fn string_literal_grants_utf8(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &omega_facts::FactPlan,
+    payload: FactPayload,
+    place: FactPlace,
+) -> bool {
+    let FactPayload::ContractDomainMembership { domain_symbol, .. } = payload else {
+        return false;
+    };
+    let FactPlace::Place(place_handle) = place else {
+        return false;
+    };
+    // The subject must be the literal itself (an expression-rooted place with no
+    // field/index segments), not a derived place of it.
+    let resolved = semantic.places.get(place_handle);
+    if !resolved.segments.is_empty() {
+        return false;
+    }
+    let PlaceRoot::Expression(expression) = resolved.root else {
+        return false;
+    };
+    let is_string_literal = matches!(
+        program.expression_table.expression(expression),
+        omega_typed_trees::expression::ExpressionNode::String(_)
+    );
+    is_string_literal && domain_symbol_is_utf8(program, domain_symbol)
+}
+
+fn domain_symbol_is_utf8(
+    program: &omega_typed_trees::TypedTrees,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    program.domain_definitions().iter().any(|domain| {
+        domain.symbol == domain_symbol
+            && domain
+                .name
+                .as_str()
+                .rsplit("::")
+                .next()
+                .is_some_and(|name| name == "Utf8")
+    })
 }
 
 /// Clear "needs fact X here" guidance for a proof-backed operator/contract that
