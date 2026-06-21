@@ -52,13 +52,23 @@ pub(crate) fn argument_matches_type_reference_handle(
                 | ExpressionNode::Member(_)
                 | ExpressionNode::Name(_)
         ),
-        TypeReferenceNode::Slice { .. } => matches!(
-            argument_node,
-            ExpressionNode::Call(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Name(_)
-        ),
+        TypeReferenceNode::Slice { element_type } => {
+            // A string literal is a byte sequence, so it satisfies a `[u8]` slice
+            // target (`&[u8] in Utf8 = "..."`) -- the basis for migrating string
+            // literals to the `[u8] in Utf8` view. Other element types keep the
+            // reference/place forms only.
+            let element_is_u8 = matches!(
+                program.type_reference_table.primitive_type(*element_type),
+                Some(PrimitiveType::U8)
+            );
+            matches!(
+                argument_node,
+                ExpressionNode::Call(_)
+                    | ExpressionNode::Indexed(_)
+                    | ExpressionNode::Member(_)
+                    | ExpressionNode::Name(_)
+            ) || (element_is_u8 && matches!(argument_node, ExpressionNode::String(_)))
+        }
         TypeReferenceNode::Generic { .. } => matches!(
             argument_node,
             ExpressionNode::Binary(_)
