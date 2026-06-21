@@ -908,6 +908,42 @@ fn utf8_equals_view_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 (return a `&[u8] in Utf8` view from a machine): a value-position call
+// returning a `&[u8] in Utf8` literal view flows as a real 16-byte `{ptr,len}`
+// descriptor into a `==` content compare. `pick() == "Gate"` matches and exits 70;
+// the interpreter agrees. Exercises the value-call-result descriptor reaching the
+// TextEquals leaf.
+#[test]
+fn utf8_return_view_equals_exit_canary_runs() {
+    let canary = pass_canary("domains/utf8_return_view_equals_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-utf8-return-view-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf8 return view canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf8 return view canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a returned `&[u8] in Utf8` view compared `== \"Gate\"` to match and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_shift_operators_exit_canary_runs() {
     let canary = pass_canary("operators/runtime_shift_operators_exit");
