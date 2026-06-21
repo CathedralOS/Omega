@@ -1,0 +1,13 @@
+// #66 B1: a string literal passed to a `&[u8] in Utf8` parameter. The literal is
+// valid UTF-8 by construction, so it should satisfy the param's `in Utf8` domain.
+domain [u8]::Utf8 {
+}
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+}
+machine Main::consume(&self, text: &[u8] in Utf8) {
+}
+machine Main::main(&mut self) {
+    self.consume("hi");
+}
