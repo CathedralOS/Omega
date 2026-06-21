@@ -3,6 +3,8 @@ mod direct;
 mod domains;
 mod evaluator;
 mod exits;
+mod grants;
+mod writes;
 // `pub(super)` so the operator-`requires` discharge (checks/operators) can
 // reuse the domain-derived boolean proving labels.
 pub(super) mod labels;
@@ -13,6 +15,7 @@ use calls::check_call_requires;
 use exits::check_exit_ensures;
 use omega_checked_trees::CheckFacts;
 use omega_core::diagnostics::Diagnostic;
+use writes::check_domain_field_writes;
 
 pub(crate) fn check_flow_call_contracts(
     program: &omega_typed_trees::TypedTrees,
@@ -27,6 +30,10 @@ pub(crate) fn check_flow_call_contracts(
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
             check_exit_ensures(program, facts, state_flow, exit_flow, &mut diagnostics);
         }
+        // #66 write-enforcement: every assignment into a domain-refined field must
+        // establish the value in that domain (the soundness floor for trusting the
+        // field's declared domain on read).
+        check_domain_field_writes(program, facts, state_flow, &mut diagnostics);
     }
 
     if diagnostics.is_empty() {
