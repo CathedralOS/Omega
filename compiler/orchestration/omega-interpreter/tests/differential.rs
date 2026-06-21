@@ -256,6 +256,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         "domains/executable_imported_domain_membership_union_value_exit",
         215,
     ),
+    ("domains/utf8_literal_len_exit", 70),
     ("dungeon/runtime_clear_carve_render_string_fields_exit", 198),
     ("dungeon/runtime_direct_boolean_conjunction_exit", 21),
     ("dungeon/runtime_enemy_clear_reentry_exit", 51),

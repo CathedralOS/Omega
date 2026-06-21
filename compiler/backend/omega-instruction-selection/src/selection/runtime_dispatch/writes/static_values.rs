@@ -181,7 +181,23 @@ pub(super) fn resolve_runtime_static_integer_value_in_table(
                 static_values.get(&key)
             })
         }
-        ExpressionNode::Indexed(_) | ExpressionNode::Member(_) | ExpressionNode::Mutable(_) => {
+        ExpressionNode::Member(member) => {
+            // `<string-literal>.len`: a string literal flowing into a `&[u8] in
+            // Utf8` parameter (the encoding-domain text model, #66) is inlined to
+            // its literal at the value-call splice, so `text.len` reaches here as
+            // `"hello".len`. The literal's `&[u8]` view has exactly its UTF-8
+            // BYTE length, a compile-time constant -- fold it. Without this the
+            // member has no storage place (a literal has no descriptor slot) and
+            // the result-slot write silently drops (the call returns a stale 0).
+            if member.member.as_str() == "len"
+                && let Some(literal) = expressions.string_literal_value(member.receiver)
+            {
+                return i64::try_from(literal.len()).ok();
+            }
+            let key = PlaceKey::from_expression_handle(expressions, expression)?;
+            static_values.get(&key)
+        }
+        ExpressionNode::Indexed(_) | ExpressionNode::Mutable(_) => {
             let key = PlaceKey::from_expression_handle(expressions, expression)?;
             static_values.get(&key)
         }

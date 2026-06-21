@@ -2586,6 +2586,13 @@ impl<'program> Evaluator<'program> {
             Value::Array(elements) if field == "len" => {
                 Ok(Value::Int(elements.len() as i64).cell())
             }
+            // `text.len` where `text` is a string literal flowing into a `&[u8] in
+            // Utf8` parameter (the encoding-domain text model, #66): the literal's
+            // `&[u8]` view length is its UTF-8 BYTE count, which is exactly the
+            // Rust `String::len`. Matches the native fold of `<literal>.len`.
+            Value::Str(text) if field == "len" => {
+                Ok(Value::Int(text.borrow().len() as i64).cell())
+            }
             other => trap(format!("cannot read field `{field}` of {other:?}")),
         }
     }
