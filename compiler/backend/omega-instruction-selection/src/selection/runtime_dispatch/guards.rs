@@ -17,7 +17,8 @@ use super::super::storage_places::{
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_frame_indexed_primitive_type_in_table, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
+    resolve_runtime_storage_place_in_table, resolve_runtime_storage_place_is_fat_slice_in_table,
+    resolve_runtime_storage_primitive_type_in_table,
     resolve_runtime_transition_guard_call_result_place, static_elided_local_value_in_table,
     static_fixed_array_len_in_table,
 };
@@ -885,6 +886,13 @@ fn resolve_runtime_text_descriptor_place_operand_in_table(
     // covers indexed element fields (`items[i].name`, fixed `items[0].name`,
     // and inline-array elements alike), whose Index node the name-path walk
     // cannot see through.
+    // A `&[u8] in Utf8` text view shares the IDENTICAL 16-byte `{ptr, len}`
+    // descriptor with `String`, so it is content-comparable through the SAME
+    // text leaves. Recognize such a slice-descriptor place (not
+    // `PrimitiveType::String`) too -- otherwise a `text == "literal"` guard over
+    // a `&[u8] in Utf8` value falls through to the raw scalar compare, which
+    // compares the descriptor's POINTER words and silently mismatches the
+    // interpreter's content equality.
     let place_is_string = matches!(
         resolve_runtime_storage_primitive_type_in_table(
             input,
@@ -903,6 +911,12 @@ fn resolve_runtime_text_descriptor_place_operand_in_table(
             expression,
         ),
         Some(PrimitiveType::String)
+    ) || resolve_runtime_storage_place_is_fat_slice_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
     );
     if !place_is_string {
         return None;

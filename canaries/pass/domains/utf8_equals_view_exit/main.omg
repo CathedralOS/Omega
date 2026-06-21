@@ -1,0 +1,27 @@
+// RUN CANARY (exit 70). #66: `&[u8] in Utf8 == &[u8] in Utf8` (two views) is
+// CONTENT equality through the same TextEquals leaf -- the generic scalar path
+// would try to load the 16-byte descriptor as a runtime operand (rejected by the
+// encoder) AND compare only the pointer words. `cmp("Gate", "Gate")` matches and
+// exits 70. (Counter-variant: `cmp("Gate", "Door")` exits 71.)
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+}
+
+machine Main::cmp(&self, a: &[u8] in Utf8, b: &[u8] in Utf8) {
+    transition a == b {
+        true -> same()
+        _ -> diff()
+    }
+
+    state same(&self) { self.console.exit_process(70); }
+    state diff(&self) { self.console.exit_process(71); }
+}
+
+machine Main::main(&mut self) {
+    self.cmp("Gate", "Gate");
+}
