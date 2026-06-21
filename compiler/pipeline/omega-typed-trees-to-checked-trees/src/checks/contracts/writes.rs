@@ -19,9 +19,8 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_facts::FactPayload;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use omega_typed_trees::machine::Machine;
 use omega_typed_trees::statement::StatementNode;
-use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::TypeReferenceHandle;
 
 use crate::labels::{canonical_place_label, machine_name, symbol_name};
 

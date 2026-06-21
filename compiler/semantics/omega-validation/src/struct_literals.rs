@@ -7,7 +7,7 @@
 //! definition in this program (or is generic, where member types depend on
 //! instantiation) are left to later layers.
 
-use crate::arithmetic_domains::{ValueEnv, range_constraint_interval, validate_arithmetic_domains};
+use crate::arithmetic_domains::{ValueEnv, validate_arithmetic_domains};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
