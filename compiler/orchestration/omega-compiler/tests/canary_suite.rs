@@ -687,15 +687,41 @@ fn unary_negation_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// NOTE (#66 B1c): canaries/pass/domains/utf8_literal_len_exit is the repro for a
-// backend gap -- a string literal passed to a `&[u8] in Utf8` parameter reads the
-// WRONG `.len` at runtime (exits 71 not 70). Isolation: the value-call and literal
-// arg PASSING work (returning a constant 5 exits 70); only `text.len` over the
-// literal-sourced descriptor is wrong. String and slice share `{ptr,len}` layout,
-// so the cause is the literal-descriptor materialization not setting len for the
-// slice-arg path. Deferred: needs a focused codegen fix before the corpus sweep
-// (B2) relies on literal-as-`&[u8]` at runtime. Not registered as a RUN canary
-// until fixed.
+// #66 B1c / GAP #2 (value-call arg descriptor): a string literal passed to a
+// `&[u8] in Utf8` parameter materializes a correct `{ptr, len}` slice descriptor
+// so the callee's `text.len` reads the literal's byte length 5 (exit 70). The
+// value-call mechanism and arg passing already worked; the gap was the
+// param-slice `.len` value-source read in the value-call splice path.
+#[test]
+fn utf8_literal_len_exit_canary_runs() {
+    let canary = pass_canary("domains/utf8_literal_len_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-utf8-literal-len-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf8 literal len canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf8 literal len canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a string literal passed to a `&[u8] in Utf8` param to read len 5 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
 
 #[test]
 fn runtime_shift_operators_exit_canary_runs() {
