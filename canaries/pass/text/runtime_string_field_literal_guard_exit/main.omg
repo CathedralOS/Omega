@@ -5,13 +5,16 @@
 // runtime_slice_indexed_string_guard_exit -- before the TextEqualsLiteral
 // guard selection existed, BOTH shapes selected no compare and the guard
 // silently evaluated true.
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
 data Main {
     console: Console;
-    name: String;
+    name: &[u8] in Utf8;
 }
 
 machine Main::main(&mut self) {

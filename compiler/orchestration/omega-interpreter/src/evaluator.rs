@@ -472,6 +472,17 @@ impl<'program> Evaluator<'program> {
             Some(PrimitiveType::F32) | Some(PrimitiveType::F64) => Value::Float(0.0),
             Some(PrimitiveType::String) => Value::str(String::new()),
             Some(_) => Value::Int(0),
+            // A `&[u8] in Utf8` text view (the encoding-domain model that retires
+            // builtin String, #66) shares String's fat `{ptr,len}` descriptor and
+            // reuses String's content-compare/literal-store path natively. The
+            // zero-initialized field is a zeroed descriptor (empty bytes), so the
+            // interpreter must default it to an EMPTY `Str` -- not `Unit`. (A `Unit`
+            // default makes `self.name == "literal"` fall through `values_equal`'s
+            // int-compare arm where `None == None` is spuriously TRUE, diverging from
+            // the native empty-vs-nonempty content compare.)
+            None if self.program.is_borrowed_byte_slice(type_reference) => {
+                Value::str(String::new())
+            }
             None => Value::Unit,
         }
     }
