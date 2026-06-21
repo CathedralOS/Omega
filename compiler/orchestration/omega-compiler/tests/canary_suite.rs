@@ -947,6 +947,46 @@ fn utf8_field_read_carries_domain_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 soundness-gate COMPLETENESS: an empty-violating domain (`[u8]::NonEmpty`,
+// `non_empty(self)`) gets NO machine-entry field-invariant (the empty/ZII value
+// violates it -- see fail canary domain_field_read_no_write_unproven), but after
+// an ENFORCED write the re-established fact still flows to a read. `self.f = "x"`
+// stores a literal accepted by the write-enforcement construction-grant
+// (non-empty bytes); the subsequent `self.check(self.f)` read carries the
+// re-established `in NonEmpty` and discharges the `&[u8] in NonEmpty` parameter.
+// `check` guards `text == "x"` and exits 73; the interpreter agrees.
+#[test]
+fn domain_field_write_then_read_exit_canary_runs() {
+    let canary = pass_canary("domains/domain_field_write_then_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-domain-field-write-then-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("domain field write-then-read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("domain field write-then-read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(73),
+        "expected the enforced write `self.f = \"x\"` to re-establish `in NonEmpty` so the \
+         read `self.check(self.f)` discharges and `text == \"x\"` exits 73, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 (return a `&[u8] in Utf8` view from a machine): a value-position call
 // returning a `&[u8] in Utf8` literal view flows as a real 16-byte `{ptr,len}`
 // descriptor into a `==` content compare. `pick() == "Gate"` matches and exits 70;
@@ -11640,6 +11680,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/utf8_value_call_field_write",
     "domains/utf8_field_write_from_param",
     "domains/utf8_field_read_carries_domain_exit",
+    "domains/domain_field_write_then_read_exit",
     "domains/call_requires_boolean_expression_preserved_across_disjoint_mutating_call",
     "domains/call_requires_dynamic_indexed_scalar_member_expression_from_domain_fact",
     "domains/call_requires_fixed_indexed_boolean_expression_preserved_across_disjoint_mutating_call",
@@ -12120,6 +12161,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/domain_param_requires_membership",
     "domains/domain_field_write_raw_value",
     "domains/literal_violates_classifier",
+    "domains/domain_field_read_no_write_unproven",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",
     "collections/fixed_vec_get_past_length",

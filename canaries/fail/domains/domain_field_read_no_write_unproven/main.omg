@@ -1,0 +1,25 @@
+// FAIL CANARY. #66 soundness gate: the machine-field entry-invariant (a declared
+// `in Domain` field is trusted on READ as ALWAYS-holding at machine entry) is
+// sound ONLY IF the field's ZERO/ZII value is in-domain. `[u8]::NonEmpty` is
+// `non_empty(self)`, which the EMPTY byte sequence (a slice carrier's default)
+// VIOLATES. So the entry-invariant for `f: &[u8] in NonEmpty` must be WITHHELD,
+// and a READ of `self.f` with NO prior write cannot discharge `in NonEmpty`.
+// (Contrast Utf8/NoNul/AsciiOnly, which admit the empty sequence and ARE
+// surfaced -- see pass canary utf8_field_read_carries_domain_exit.)
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+domain [u8]::NonEmpty when non_empty(self) {
+}
+
+data Main {
+    console: Console;
+    f: &[u8] in NonEmpty;
+}
+
+machine Main::consume(&self, x: &[u8] in NonEmpty) {
+}
+
+machine Main::main(&mut self) {
+    self.consume(self.f);
+}
