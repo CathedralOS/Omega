@@ -1,0 +1,25 @@
+// #66 write-enforcement (the #40-trap floor): a field declared `out: &[u8] in Utf8`
+// carries an encoding-domain refinement that READS are allowed to trust (the
+// synthesized `requires self.out in Utf8`). That trust is sound ONLY because
+// every WRITE is proven in-domain. Here a RAW `&[u8]` parameter (carrying NO
+// Utf8 fact) is assigned into the field; with no domain establishment the write
+// must be REJECTED. (A string literal, a `&[u8] in Utf8` param/field copy, or a
+// `-> &[u8] in Utf8` value-call result would be accepted -- those establish the
+// domain; a raw slice does not.) Without this rejection the read-narrowing would
+// rest on an unenforced refinement.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+data Main {
+    console: Console;
+    out: &[u8] in Utf8;
+}
+
+machine Main::store(&mut self, raw: &[u8]) {
+    self.out = raw;
+}
+
+machine Main::main(&mut self) {
+}

@@ -12078,6 +12078,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/type_constraint_unknown_domain",
     "domains/domain_carrier_mismatch",
     "domains/domain_param_requires_membership",
+    "domains/domain_field_write_raw_value",
     "domains/literal_violates_classifier",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",
