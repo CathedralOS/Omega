@@ -506,7 +506,20 @@ impl<'program> LayoutBuilder<'program> {
                 // pointer cannot carry the element/byte count. (`fat_descriptor_
                 // layout` is documented "for slices and text windows".) Every
                 // other reference (`&SizedType`) stays a thin pointer.
-                let referee_node = self.program.type_reference_table.type_reference(*referee);
+                //
+                // A domain-constrained slice view (`&[u8] in Utf8`) is
+                // `Reference { Constrained { Slice } }`: the constraint is a
+                // compile-time fact that does not change the storage shape, so
+                // the referee must be unwrapped past any `Constrained` wrappers
+                // before deciding sized-ness -- otherwise a `&[u8] in Utf8`
+                // field would be sized as a thin 8-byte pointer while the
+                // call-result/return path (which unwraps Constrained) sizes it
+                // as the fat 16-byte descriptor, and the byte-count mismatch
+                // silently drops the descriptor copy.
+                let mut referee_node = self.program.type_reference_table.type_reference(*referee);
+                while let TypeReferenceNode::Constrained { base_type, .. } = referee_node {
+                    referee_node = self.program.type_reference_table.type_reference(*base_type);
+                }
                 let referee_unsized = matches!(referee_node, TypeReferenceNode::Slice { .. })
                     || matches!(
                         referee_node,
