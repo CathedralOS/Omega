@@ -1,4 +1,5 @@
 mod contracts;
+mod field_domains;
 mod points;
 
 use crate::context::*;
@@ -9,6 +10,7 @@ pub(crate) use crate::semantic_calls::{
 pub(crate) use crate::semantic_places::instantiate_call_contract_place;
 use contracts::append_contract_semantic_facts;
 pub(crate) use contracts::contract_fact_place;
+use field_domains::append_machine_field_domain_facts;
 use points::proof_obligation_point;
 
 pub(crate) fn build_semantic_facts(
@@ -18,6 +20,9 @@ pub(crate) fn build_semantic_facts(
     let mut facts = omega_facts::build_definition_fact_plan(program);
     append_proof_obligation_semantic_facts(proof, &mut facts);
     append_contract_semantic_facts(program, proof, &mut facts);
+    // #66 read-narrowing: surface declared field domains as machine entry facts
+    // (sound because every write is enforced in-domain by checks::contracts::writes).
+    append_machine_field_domain_facts(program, &mut facts);
 
     facts
 }

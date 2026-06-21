@@ -53,7 +53,7 @@ pub(super) fn check_domain_field_writes(
         // (1) Assignment `self.f = X` into a domain-refined field.
         if let StatementNode::Assignment(assignment) = statement
             && let Some(domain_symbol) =
-                target_field_domain_symbol(program, machine, assignment.target)
+                crate::field_domain::target_field_domain_symbol(program, machine, assignment.target)
             && !value_proves_domain(
                 program,
                 facts,
@@ -337,8 +337,8 @@ fn construction_field_domain_symbol(
     }
 
     let field_type = construction_field_type(program, data_definition, case_name, field_name)?;
-    let domain_name = domain_constraint_name(program, field_type)?;
-    resolve_domain_symbol(program, domain_name.as_str())
+    let domain_name = crate::field_domain::domain_constraint_name(program, field_type)?;
+    crate::field_domain::resolve_domain_symbol(program, &domain_name)
 }
 
 /// The declared type of a constructed field (a case PAYLOAD field for the named
@@ -478,8 +478,8 @@ fn value_call_return_domain_implies(
     if !target.return_type.is_valid() {
         return false;
     }
-    let Some(return_domain) = domain_constraint_name(program, target.return_type)
-        .and_then(|name| resolve_domain_symbol(program, name.as_str()))
+    let Some(return_domain) = crate::field_domain::domain_constraint_name(program, target.return_type)
+        .and_then(|name| crate::field_domain::resolve_domain_symbol(program, &name))
     else {
         return false;
     };
@@ -512,104 +512,3 @@ fn program_domain_implies(
     })
 }
 
-/// The declared encoding-domain symbol of the assignment target field, if the
-/// target is a `self.field` whose declared type carries a
-/// `TypeConstraintNode::Domain`. `None` for any non-domained or unresolved target.
-/// Resolves the field type through the machine's ATTACHED DATA -- the same path
-/// the #63 assignment range-check uses (`self` is not a resolvable place type).
-fn target_field_domain_symbol(
-    program: &omega_typed_trees::TypedTrees,
-    machine: &Machine,
-    target: ExpressionHandle,
-) -> Option<SymbolHandle> {
-    let type_reference = attached_data_field_type(program, machine, target)?;
-    let domain_name = domain_constraint_name(program, type_reference)?;
-    resolve_domain_symbol(program, domain_name.as_str())
-}
-
-/// Resolve a `self.field` target (`Member(Name(self), field)` or
-/// `Name ["self", field]`) to the field's DECLARED type reference (constraints
-/// intact) via the machine's attached data. `None` for any other target shape.
-/// Mirrors omega-proof `obligations::attached_data_field_type` (#63).
-fn attached_data_field_type(
-    program: &omega_typed_trees::TypedTrees,
-    machine: &Machine,
-    expression: ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    let field_name = match program.expression_table.expression(expression) {
-        ExpressionNode::Member(member) => {
-            let ExpressionNode::Name(receiver) =
-                program.expression_table.expression(member.receiver)
-            else {
-                return None;
-            };
-            match program.expression_table.name_path_members(receiver.members) {
-                [segment] if segment.as_str() == "self" => member.member.as_str().to_owned(),
-                _ => return None,
-            }
-        }
-        ExpressionNode::Name(path) => {
-            match program.expression_table.name_path_members(path.members) {
-                [receiver, field] if receiver.as_str() == "self" => field.as_str().to_owned(),
-                _ => return None,
-            }
-        }
-        _ => return None,
-    };
-
-    let attached = machine.attached_data.as_ref()?;
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
-    program
-        .data_members(data)
-        .iter()
-        .find_map(|member| match member {
-            omega_typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == field_name =>
-            {
-                field
-                    .type_reference
-                    .is_valid()
-                    .then_some(field.type_reference)
-            }
-            _ => None,
-        })
-}
-
-/// The short domain name (`Utf8`) declared on a type reference, looking through
-/// a leading reference (`&[u8] in Utf8`). The checked-trees analog of the
-/// symbol-resolved-to-typed-trees `domain_constraint_name`.
-fn domain_constraint_name<'program>(
-    program: &'program omega_typed_trees::TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<&'program omega_typed_trees::name::Identifier> {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            domain_constraint_name(program, *referee)
-        }
-        TypeReferenceNode::Constrained { constraints, .. } => program
-            .type_reference_table
-            .constraints(*constraints)
-            .iter()
-            .find_map(|constraint| match constraint {
-                omega_typed_trees::types::TypeConstraintNode::Domain(name) => Some(name),
-                _ => None,
-            }),
-        _ => None,
-    }
-}
-
-/// Resolve a short domain name (`Utf8`) to its declared domain symbol, matching
-/// the trailing path segment of a domain definition's full name (`[u8]::Utf8`).
-/// Mirrors the param-desugar `resolve_domain` (short-name match).
-fn resolve_domain_symbol(
-    program: &omega_typed_trees::TypedTrees,
-    wanted: &str,
-) -> Option<SymbolHandle> {
-    program.domain_definitions().iter().find_map(|domain| {
-        let full = domain.name.as_str();
-        (full.rsplit("::").next().unwrap_or(full) == wanted).then_some(domain.symbol)
-    })
-}

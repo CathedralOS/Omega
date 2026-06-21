@@ -908,6 +908,45 @@ fn utf8_equals_view_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 read-narrowing: a DECLARED-domain field (`out: &[u8] in Utf8`) carries its
+// `in Utf8` fact when READ. `self.out = "Gate"` (write-enforced) then
+// `self.check(self.out)` passes the field read to a `&[u8] in Utf8` parameter --
+// which only discharges because the read carries the field's declared domain.
+// `check` guards `text == "Gate"` and exits 70; the interpreter agrees. Before the
+// read-narrowing fix this rejected with "cannot prove requires contract ...
+// self.out in [u8]::Utf8".
+#[test]
+fn utf8_field_read_carries_domain_exit_canary_runs() {
+    let canary = pass_canary("domains/utf8_field_read_carries_domain_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-utf8-field-read-domain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf8 field-read domain canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf8 field-read domain canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the declared-domain field read `self.out` to carry `in Utf8` so \
+         `self.check(self.out)` discharges and `text == \"Gate\"` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 (return a `&[u8] in Utf8` view from a machine): a value-position call
 // returning a `&[u8] in Utf8` literal view flows as a real 16-byte `{ptr,len}`
 // descriptor into a `==` content compare. `pick() == "Gate"` matches and exits 70;
@@ -11600,6 +11639,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/utf8_literal_arg",
     "domains/utf8_value_call_field_write",
     "domains/utf8_field_write_from_param",
+    "domains/utf8_field_read_carries_domain_exit",
     "domains/call_requires_boolean_expression_preserved_across_disjoint_mutating_call",
     "domains/call_requires_dynamic_indexed_scalar_member_expression_from_domain_fact",
     "domains/call_requires_fixed_indexed_boolean_expression_preserved_across_disjoint_mutating_call",

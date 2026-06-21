@@ -118,6 +118,34 @@ pub(super) fn propagate_statement_transfers(
         }
     }
 
+    // #66 read-narrowing across a write: an assignment into a domain-refined
+    // field RE-ESTABLISHES that field's domain invariant. The machine-entry
+    // field-domain fact is invalidated by the mutation just above; re-add it so
+    // a read after the write still carries `<field> in Domain`. SOUND because
+    // every write is separately enforced in-domain (checks::contracts::writes);
+    // this only carries forward the invariant that enforcement guarantees.
+    if let StatementNode::Assignment(assignment) = statement
+        && let Some(machine) = crate::field_domain::machine_by_symbol(program, machine_symbol)
+        && let Some(domain_symbol) =
+            crate::field_domain::target_field_domain_symbol(program, machine, assignment.target)
+    {
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(target_place),
+            point: ProgramPoint::Statement {
+                machine_symbol,
+                state_symbol,
+                statement_index,
+            },
+            origin: FactOrigin::MachineFieldDomain { machine_symbol },
+            payload: FactPayload::DomainMembership {
+                value: ExpressionHandle::invalid(),
+                domain: HandleSpan::empty(),
+                domain_symbol,
+            },
+        });
+        semantic.append_ref(&mut refs, fact);
+    }
+
     if refs.is_empty() {
         return;
     }
