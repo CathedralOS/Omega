@@ -127,6 +127,18 @@ pub(crate) fn field_equality<'program>(
     owner: &str,
     field: &DataField,
 ) -> Result<FieldEquality<'program>, Diagnostic> {
+    // A `&[u8]` byte-slice text VIEW (`&[u8] in Utf8`, bare `&[u8]`) shares the
+    // identical 16-byte `{ptr, len}` descriptor with `String` and is likewise
+    // CONTENT-comparable (length AND single-byte loop) -- the value-position
+    // `==` over such a fat-slice place already lowers to the dedicated
+    // TextEquals leaf. Classify it as a text field BEFORE the base-name
+    // collapse (which would discard the slice shape and reject it). Scoped to a
+    // BYTE slice on purpose: TextEquals compares `len` bytes, so a wider-element
+    // slice would compare too few bytes.
+    if byte_slice_text_view(program, &field.type_reference) {
+        return Ok(FieldEquality::Text);
+    }
+
     let Some(base_name) = value_type_base_name(program, &field.type_reference) else {
         return Err(Diagnostic::error(format!(
             "conformance `{conforming_type} satisfies Equatable`: field `{}` of `{owner}` is not Equatable: only scalar primitives, payload-less sums, and Equatable-conforming data types participate in synthesized structural equality",
@@ -215,6 +227,34 @@ fn validate_equatable_data(
         }
     }
     Ok(())
+}
+
+/// Whether a declaration-storage type reference is a `&[u8]` byte-slice text
+/// VIEW -- a reference whose referee (after unwrapping any `Constrained`
+/// domain, e.g. `in Utf8`) is a `Slice` of `u8`. Such a field is the same
+/// 16-byte `{ptr, len}` fat descriptor as `String` and is content-comparable
+/// through the same value-position TextEquals path, so synthesized structural
+/// equality treats it as a text field. The domain NAME is irrelevant (any
+/// declared domain over `[u8]` qualifies); only the byte-slice shape matters.
+pub(crate) fn byte_slice_text_view(
+    program: &SymbolResolvedTrees,
+    type_reference: &resolved::types::TypeReference,
+) -> bool {
+    let resolved::types::TypeReference::Reference(reference) = type_reference else {
+        return false;
+    };
+    let mut referee = program.child_type_reference(reference.storage.referee);
+    while let resolved::types::TypeReference::Constrained(constrained) = referee {
+        referee = program.child_type_reference(constrained.storage.base_type);
+    }
+    let resolved::types::TypeReference::Slice(slice) = referee else {
+        return false;
+    };
+    matches!(
+        program.child_type_reference(slice.storage.element_type),
+        resolved::types::TypeReference::Named { name, .. }
+            if PrimitiveType::from_name(name.as_str()) == Some(PrimitiveType::U8)
+    )
 }
 
 /// The base NAMED type of a declaration-storage type reference (`&T` and
