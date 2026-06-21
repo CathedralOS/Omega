@@ -723,6 +723,44 @@ fn utf8_literal_len_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66: the literal-grant mechanism is GENERAL -- not hardcoded to the `Utf8`
+// domain name. A USER domain `[u8]::Ascii` with a DIFFERENT classifier predicate
+// (`ascii_only(self)`) grants an ASCII string literal its domain, discharging the
+// param's `in Ascii` requirement; under the old `name == "Utf8"` hardcode this
+// would have failed. The literal also flows as a real `&[u8]` view, so
+// `measure("hi")` reads len 2 and exits 70.
+#[test]
+fn user_domain_literal_grant_canary_runs() {
+    let canary = pass_canary("domains/user_domain_literal_grant");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-user-domain-grant-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("user-domain literal grant canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("user-domain literal grant canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an ASCII literal to be granted a user `[u8]::Ascii` domain via its \
+         `ascii_only(self)` classifier and read len 2 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 GAP #4 (slice-`.len`-to-field write): a `&[u8] in Utf8` PARAM is a runtime
 // `{ptr, len}` descriptor in a frame slot, so `self.result = text.len` reads the
 // descriptor's len field (NOT a compile-time constant -- that is GAP #2). This
@@ -11929,6 +11967,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "domains/type_constraint_unknown_domain",
     "domains/domain_carrier_mismatch",
     "domains/domain_param_requires_membership",
+    "domains/literal_violates_classifier",
     "expressions/arithmetic_domain_literal_target_overflow",
     "collections/fixed_vec_push_without_room",
     "collections/fixed_vec_get_past_length",

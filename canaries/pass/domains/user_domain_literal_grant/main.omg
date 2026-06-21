@@ -1,0 +1,31 @@
+// RUN CANARY (exit 70). #66: the literal-grant mechanism is GENERAL -- it is NOT
+// hardcoded to the `Utf8` domain name. A USER domain `[u8]::Ascii` declares a
+// DIFFERENT comptime byte-predicate classifier (`ascii_only(self)`); an ASCII
+// string literal satisfies that classifier on its compile-time bytes and so is
+// granted the `Ascii` domain WITHOUT a validating boundary call. Under the old
+// `name == "Utf8"` hardcode this would have FAILED to discharge the param's
+// `in Ascii` requirement. The literal also flows as a real `&[u8]` view, so
+// `measure("hi")` reads its slice length 2 at runtime.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+domain [u8]::Ascii when ascii_only(self) {
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::measure(&self, text: &[u8] in Ascii) -> usize {
+    transition { _ -> (text.len) }
+}
+
+machine Main::main(&mut self) {
+    let n: usize = self.measure("hi");
+    transition n == 2 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

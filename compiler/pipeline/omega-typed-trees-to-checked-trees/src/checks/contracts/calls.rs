@@ -62,12 +62,12 @@ pub(super) fn check_call_requires(
                     fact,
                 ),
             };
-            // ch8 construction-grant: a string literal is valid UTF-8 by
-            // construction, so it satisfies a `Utf8` domain membership without a
-            // validating boundary call -- this is how a literal flows into a
-            // `&[u8] in Utf8` target.
+            // ch8 construction-grant: a string literal whose compile-time bytes
+            // satisfy a domain's declared classifier predicate grants that
+            // domain without a validating boundary call -- this is how a literal
+            // flows into a `&[u8] in Utf8` (or any classifier-backed) target.
             let satisfied = satisfied
-                || string_literal_grants_utf8(program, &facts.semantic, fact.payload, fact.place);
+                || string_literal_grants_domain(program, &facts.semantic, fact.payload, fact.place);
 
             if !satisfied {
                 let detail = match fact.payload {
@@ -103,11 +103,17 @@ pub(super) fn check_call_requires(
     }
 }
 
-/// ch8 construction-grant: a string literal is valid UTF-8 by construction, so a
-/// `Utf8` domain-membership requirement whose subject is a string literal is
-/// satisfied without a validating boundary call. Only `Utf8` is implied by a
-/// literal -- other domains (e.g. `NoNul`) are not granted here.
-fn string_literal_grants_utf8(
+/// ch8 construction-grant: a string literal grants a domain `D` -- satisfying a
+/// `requires <arg> in D` membership without a validating boundary call -- iff
+/// `D`'s declared classifier is a recognized comptime byte-predicate over `self`
+/// (`valid_utf8`/`no_nul`/`ascii_only`) AND that predicate holds for the
+/// literal's compile-time bytes. The policy of which bytes are in a domain lives
+/// in the DOMAIN declaration's `when` clause; this function only provides the
+/// reusable comptime byte-predicate primitives and evaluates them per-literal.
+/// A domain with no classifier (or an unrecognized/non-comptime one) grants
+/// nothing, so the literal must flow through a runtime validator instead -- that
+/// is correct, not a regression. There is NO hardcoded domain name here.
+fn string_literal_grants_domain(
     program: &omega_typed_trees::TypedTrees,
     semantic: &omega_facts::FactPlan,
     payload: FactPayload,
@@ -128,26 +134,103 @@ fn string_literal_grants_utf8(
     let PlaceRoot::Expression(expression) = resolved.root else {
         return false;
     };
-    let is_string_literal = matches!(
-        program.expression_table.expression(expression),
-        omega_typed_trees::expression::ExpressionNode::String(_)
-    );
-    is_string_literal && domain_symbol_is_utf8(program, domain_symbol)
+    let omega_typed_trees::expression::ExpressionNode::String(literal) =
+        program.expression_table.expression(expression)
+    else {
+        return false;
+    };
+    let bytes = literal.as_bytes();
+
+    let Some(predicate) = domain_classifier_byte_predicate(program, domain_symbol) else {
+        return false;
+    };
+    predicate.holds_for(bytes)
 }
 
-fn domain_symbol_is_utf8(
+/// A compiler-recognized comptime byte-predicate primitive over a byte sequence.
+/// These are reusable building blocks (like `+`/`==`), NOT domain-specific: a
+/// domain selects one by spelling it as its `when <predicate>(self)` classifier.
+#[derive(Clone, Copy)]
+enum ByteSequencePredicate {
+    /// `valid_utf8(self)`: the bytes are well-formed UTF-8.
+    ValidUtf8,
+    /// `no_nul(self)`: no byte is `0x00`.
+    NoNul,
+    /// `ascii_only(self)`: every byte is < 128.
+    AsciiOnly,
+}
+
+impl ByteSequencePredicate {
+    fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "valid_utf8" => Some(Self::ValidUtf8),
+            "no_nul" => Some(Self::NoNul),
+            "ascii_only" => Some(Self::AsciiOnly),
+            _ => None,
+        }
+    }
+
+    fn holds_for(self, bytes: &[u8]) -> bool {
+        match self {
+            Self::ValidUtf8 => std::str::from_utf8(bytes).is_ok(),
+            Self::NoNul => !bytes.contains(&0),
+            Self::AsciiOnly => bytes.iter().all(|byte| *byte < 128),
+        }
+    }
+}
+
+/// If `domain_symbol`'s declared classifier is a recognized comptime
+/// byte-predicate call applied to `self` (e.g. `when valid_utf8(self)`), return
+/// that primitive. Any other classifier shape (a `self.field` comparison, a
+/// `self in Type::Case` subset, an unknown call, or no classifier at all) is not
+/// a comptime byte-predicate, so no grant is implied.
+fn domain_classifier_byte_predicate(
     program: &omega_typed_trees::TypedTrees,
     domain_symbol: SymbolHandle,
+) -> Option<ByteSequencePredicate> {
+    let domain = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)?;
+    if !domain.classifier.is_valid() {
+        return None;
+    }
+
+    let omega_typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(domain.classifier)
+    else {
+        return None;
+    };
+    // A free-function predicate over `self`: no receiver, exactly one argument,
+    // and that argument is the bare `self` subject the classifier scrutinizes.
+    if call.receiver.is_valid() {
+        return None;
+    }
+    let predicate = ByteSequencePredicate::from_name(call.target.as_str())?;
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    let [argument] = arguments else {
+        return None;
+    };
+    if !expression_is_self_reference(program, *argument) {
+        return None;
+    }
+    Some(predicate)
+}
+
+/// Whether `expression` is the bare classifier subject `self` -- a single-member
+/// name path spelled `self`. The classifier predicate must apply to `self` (the
+/// value being classified), not to some unrelated place.
+fn expression_is_self_reference(
+    program: &omega_typed_trees::TypedTrees,
+    expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    program.domain_definitions().iter().any(|domain| {
-        domain.symbol == domain_symbol
-            && domain
-                .name
-                .as_str()
-                .rsplit("::")
-                .next()
-                .is_some_and(|name| name == "Utf8")
-    })
+    let omega_typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(expression)
+    else {
+        return false;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    matches!(members, [member] if member.as_str() == "self")
 }
 
 /// Clear "needs fact X here" guidance for a proof-backed operator/contract that

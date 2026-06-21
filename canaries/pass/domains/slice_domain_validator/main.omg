@@ -4,7 +4,7 @@
 
 boundary trait Console { machine exit_process(return_code: i32); }
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8 when valid_utf8(self) {
 }
 
 boundary operator Text::from_utf8(bytes: &[u8]) -> &[u8] in Utf8

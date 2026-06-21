@@ -1,0 +1,22 @@
+// FAIL CANARY. Per-literal soundness of the construction-grant: a string literal
+// grants a domain ONLY when its compile-time bytes actually satisfy the domain's
+// classifier predicate. Here `[u8]::NoNul` is `no_nul(self)` (no `0x00` byte),
+// but the literal `"a\0b"` contains an interior NUL, so the predicate is FALSE
+// for these bytes and the `in NoNul` requirement is NOT discharged. The grant is
+// per-literal (it evaluates the bytes), not an unconditional name-based pass.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+domain [u8]::NoNul when no_nul(self) {
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::consume(&self, text: &[u8] in NoNul) {
+}
+
+machine Main::main(&mut self) {
+    self.consume("a\0b");
+}

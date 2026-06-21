@@ -1,6 +1,6 @@
 // #66 B1: a string literal passed to a `&[u8] in Utf8` parameter. The literal is
 // valid UTF-8 by construction, so it should satisfy the param's `in Utf8` domain.
-domain [u8]::Utf8 {
+domain [u8]::Utf8 when valid_utf8(self) {
 }
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main {
