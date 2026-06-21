@@ -1,0 +1,36 @@
+// #66 GAP #1 (regular-call arg descriptor): a string literal passed to a
+// `&[u8] in Utf8` param in a REGULAR (non-value) statement call materializes a
+// correct `{ptr, len}` slice descriptor in the param slot, so the callee can
+// branch on `text.len` directly. String and slice share the `{ptr, len}` fat
+// descriptor, so the existing String-literal frame-slot writer
+// (select_runtime_frame_slot_value_write_in_table, frame_slots.rs) populates the
+// 16-byte param slot's len -- no `slice_descriptors.rs` String case is needed.
+// `check("hello")` sees len 5 and exits 70.
+
+domain [u8]::Utf8 {
+}
+
+data Main {
+    console: Console;
+}
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+machine Main::check(&self, text: &[u8] in Utf8) {
+    transition text.len == 5 {
+        true -> ok()
+        _ -> nope()
+    }
+
+    state ok(&self) {
+        self.console.exit_process(70);
+    }
+
+    state nope(&self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::main(&mut self) {
+    self.check("hello");
+}
