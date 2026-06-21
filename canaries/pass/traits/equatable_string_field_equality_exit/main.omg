@@ -7,12 +7,15 @@
 // scalar sibling field misses through the conjunction. Exits 70 only when all
 // four are right.
 
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
 data Tag {
-    label: String;
+    label: &[u8] in Utf8;
     weight: i32;
 }
 
