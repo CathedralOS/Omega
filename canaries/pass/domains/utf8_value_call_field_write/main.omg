@@ -1,0 +1,32 @@
+// #66 GAP (value-call result -> `&[u8] in Utf8` field write): a `&[u8] in Utf8`
+// value produced by a value-position call (`self.pick(flag)`) is written to a
+// `&[u8] in Utf8` field. String and a slice descriptor share the identical 16-byte
+// `{ptr, len}` fat layout, so this lowers to the same `CopyRuntimeStorage` the
+// String field write uses -- once the FIELD is sized as the fat descriptor.
+//
+// The gap was a layout disagreement: `&[u8] in Utf8` is
+// `Reference { Constrained { Slice } }`, and the data-field layout did not unwrap
+// the `Constrained` wrapper before deciding the referee was unsized, so the field
+// was sized as a thin 8-byte pointer while the call-result slot (which DOES unwrap
+// Constrained) was the fat 16-byte descriptor. The byte-count mismatch made every
+// descriptor-copy path bail, surfacing as "needs runtime storage write lowering" +
+// "needs runtime value lowering". Unwrapping `Constrained` in the field layout
+// makes the field a fat descriptor and the copy lowers.
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+data Main {
+    out: &[u8] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    let flag: bool = true;
+    self.out = self.pick(flag);
+}
+
+machine Main::pick(&mut self, flag: bool) -> &[u8] in Utf8 {
+    transition flag {
+        true -> "Gate"
+        false -> "Branch Room"
+    }
+}
