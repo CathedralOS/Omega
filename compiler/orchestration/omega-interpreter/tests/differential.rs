@@ -259,6 +259,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("domains/user_domain_literal_grant", 70),
     ("domains/utf8_equals_literal_exit", 70),
     ("domains/utf8_equals_view_exit", 70),
+    ("domains/utf8_field_read_carries_domain_exit", 70),
     ("domains/utf8_literal_len_exit", 70),
     ("domains/utf8_param_len_field_exit", 70),
     ("domains/utf8_regular_call_len_exit", 70),

@@ -1,0 +1,37 @@
+// RUN CANARY (exit 70). #66 read-narrowing: a DECLARED-domain field
+// (`out: &[u8] in Utf8`) carries its `in Utf8` fact when READ. `self.out = "Gate"`
+// stores a literal (granted Utf8, write-enforced); then `self.check(self.out)`
+// passes the field READ to a `&[u8] in Utf8` parameter -- which only discharges
+// because the field read carries the declared domain (before this fix it failed
+// with "cannot prove requires contract ... self.out in [u8]::Utf8"). `check`
+// guards `text == "Gate"` (content equality over the carried view) and exits 70.
+// (Counter-checked: storing "Door" makes the `== "Gate"` guard false -> exit 71.)
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    out: &[u8] in Utf8;
+}
+
+machine Main::check(&self, text: &[u8] in Utf8) {
+    transition text == "Gate" {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::main(&mut self) {
+    self.out = "Gate";
+    self.check(self.out);
+}
