@@ -1,0 +1,38 @@
+// #66 GAP #4 (slice-`.len`-to-field write): a `&[u8] in Utf8` PARAM is a runtime
+// `{ptr, len}` descriptor in a frame slot, so `self.result = text.len` reads the
+// descriptor's len field (NOT a compile-time constant -- the literal case is
+// GAP #2). This already lowers via `runtime_slice_descriptor_member_place` (the
+// `<root>.len` value-source over a descriptor slot); this RUN canary pins that
+// behavior end-to-end. `store("hello")` records len 5; the caller guards == 5.
+// (Verified to read the GENUINE runtime length: a counter-variant `store("hi")`
+// with guard `== 5` exits 71, and with guard `== 2` exits 70.)
+
+domain [u8]::Utf8 {
+}
+
+data Main {
+    console: Console;
+    result: usize;
+}
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+machine Main::store(&mut self, text: &[u8] in Utf8) {
+    self.result = text.len;
+}
+
+machine Main::main(&mut self) {
+    self.store("hello");
+    transition self.result == 5 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

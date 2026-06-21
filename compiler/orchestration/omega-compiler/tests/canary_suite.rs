@@ -723,6 +723,80 @@ fn utf8_literal_len_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 GAP #4 (slice-`.len`-to-field write): a `&[u8] in Utf8` PARAM is a runtime
+// `{ptr, len}` descriptor in a frame slot, so `self.result = text.len` reads the
+// descriptor's len field (NOT a compile-time constant -- that is GAP #2). This
+// already lowers via the `<root>.len`-over-a-descriptor-slot value-source; the
+// canary pins it end-to-end. `store("hello")` records 5; the caller guards == 5.
+#[test]
+fn utf8_param_len_field_exit_canary_runs() {
+    let canary = pass_canary("domains/utf8_param_len_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-utf8-param-len-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf8 param len field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf8 param len field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `self.result = text.len` of a `&[u8] in Utf8` param to record len 5 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 GAP #1 (regular-call arg descriptor) + GAP #3 (sub-state requires flow): a
+// string literal passed to a `&[u8] in Utf8` param in a REGULAR statement call
+// materializes a correct `{ptr, len}` descriptor (String/slice share the fat
+// layout, so the existing String-literal frame-slot writer populates the slot),
+// and the callee's synthesized `requires text in [u8]::Utf8` is assumed once on
+// entry -- NOT re-imposed at the internal `true -> ok() _ -> nope()` sub-state
+// dispatch. `check("hello")` sees len 5 and exits 70.
+#[test]
+fn utf8_regular_call_len_exit_canary_runs() {
+    let canary = pass_canary("domains/utf8_regular_call_len_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-utf8-regular-call-len-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf8 regular call len canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf8 regular call len canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a regular call passing a string literal to a `&[u8] in Utf8` param to read len 5 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_shift_operators_exit_canary_runs() {
     let canary = pass_canary("operators/runtime_shift_operators_exit");
