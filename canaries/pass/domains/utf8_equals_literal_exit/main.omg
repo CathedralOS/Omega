@@ -1,0 +1,30 @@
+// RUN CANARY (exit 70). #66: a `&[u8] in Utf8` value `==` a string literal is
+// CONTENT equality, lowered through the SAME TextEquals leaf String uses (length
+// + bounded byte loop) -- NOT a scalar compare of the descriptor's pointer words.
+// `classify("quit")` matches "quit" and exits 70. A `&[u8] in Utf8` view shares
+// String's identical 16-byte `{ptr, len}` descriptor, so the text leaf applies
+// once the slice-descriptor place is recognized as text-comparable.
+// (Counter-variant: passing "look" takes the `_` arm and exits 71 -- proving the
+// compare reads genuine content, not an always-true descriptor-word match.)
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+}
+
+machine Main::classify(&self, text: &[u8] in Utf8) {
+    transition text == "quit" {
+        true -> finished()
+        _ -> other()
+    }
+
+    state finished(&self) { self.console.exit_process(70); }
+    state other(&self) { self.console.exit_process(71); }
+}
+
+machine Main::main(&mut self) {
+    self.classify("quit");
+}

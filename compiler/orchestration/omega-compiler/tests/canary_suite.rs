@@ -835,6 +835,79 @@ fn utf8_regular_call_len_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 (`&[u8] in Utf8 == "literal"` content compare): a domained-slice-view value
+// `==` a string literal lowers through the SAME TextEquals leaf String uses, NOT a
+// scalar compare of the descriptor's pointer words. `classify("quit")` matches and
+// exits 70; the interpreter agrees (differential). Before this, the guard fell to
+// the generic scalar path: native compared the descriptor's POINTER words and took
+// the wrong arm, silently diverging from the interpreter's content equality.
+#[test]
+fn utf8_equals_literal_exit_canary_runs() {
+    let canary = pass_canary("domains/utf8_equals_literal_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-utf8-equals-literal-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf8 equals literal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf8 equals literal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `&[u8] in Utf8 == \"quit\"` content equality to match and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 (`&[u8] in Utf8 == &[u8] in Utf8` content compare): comparing two
+// domained-slice views lowers through the TextEquals content leaf. `cmp("Gate",
+// "Gate")` matches and exits 70; the interpreter agrees. Before this, the generic
+// scalar path tried to load the 16-byte descriptor as a runtime operand (the
+// encoder rejects it) and compared only the pointer words.
+#[test]
+fn utf8_equals_view_exit_canary_runs() {
+    let canary = pass_canary("domains/utf8_equals_view_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-utf8-equals-view-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf8 equals view canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf8 equals view canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `&[u8] in Utf8 == &[u8] in Utf8` content equality to match and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_shift_operators_exit_canary_runs() {
     let canary = pass_canary("operators/runtime_shift_operators_exit");
@@ -11490,6 +11563,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "domains/utf8_slice_ops",
     "domains/utf8_literal_arg",
     "domains/utf8_value_call_field_write",
+    "domains/utf8_field_write_from_param",
     "domains/call_requires_boolean_expression_preserved_across_disjoint_mutating_call",
     "domains/call_requires_dynamic_indexed_scalar_member_expression_from_domain_fact",
     "domains/call_requires_fixed_indexed_boolean_expression_preserved_across_disjoint_mutating_call",

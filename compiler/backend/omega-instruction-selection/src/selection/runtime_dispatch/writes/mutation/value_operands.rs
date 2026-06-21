@@ -11,6 +11,7 @@ use crate::selection::storage_places::{
     classify_scalar_value_type_in_table, combine_binary_operand_scalar_types,
     resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_place_is_fat_slice_in_table,
     resolve_runtime_storage_primitive_type_in_table,
 };
 use omega_abstract_operations::{RuntimeValueOperand, RuntimeValueOperandHandle};
@@ -427,7 +428,12 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
         omega_checked_trees::expression::BinaryOperator::NotEqual => true,
         _ => return None,
     };
-    let operand_is_string = |expression: ExpressionHandle| {
+    // A `&[u8] in Utf8` view shares the identical 16-byte `{ptr, len}` descriptor
+    // with `String`, so its content `==` is the SAME TextEquals leaf (length +
+    // bounded byte loop). Recognize such a fat-slice-descriptor place too, else a
+    // `&[u8] in Utf8 == &[u8] in Utf8` compare falls to the generic scalar path,
+    // whose 16-byte runtime-operand load the encoder rejects loudly.
+    let operand_is_text = |expression: ExpressionHandle| {
         matches!(
             resolve_runtime_storage_primitive_type_in_table(
                 input,
@@ -437,9 +443,15 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
                 expression,
             ),
             Some(PrimitiveType::String)
+        ) || resolve_runtime_storage_place_is_fat_slice_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            expression,
         )
     };
-    if !operand_is_string(left_expression) || !operand_is_string(right_expression) {
+    if !operand_is_text(left_expression) || !operand_is_text(right_expression) {
         return None;
     }
     let left_place = resolve_runtime_storage_place_in_table(

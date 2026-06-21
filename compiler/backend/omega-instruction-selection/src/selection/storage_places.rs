@@ -71,11 +71,22 @@ fn runtime_slice_descriptor_member_place(
 fn descriptor_is_fat_slice(descriptor: &TypeLayoutDescriptor) -> bool {
     match descriptor {
         TypeLayoutDescriptor::Constrained { base_type, .. } => descriptor_is_fat_slice(base_type),
-        TypeLayoutDescriptor::Reference { referee, .. } => match referee.as_ref() {
-            TypeLayoutDescriptor::Slice { .. } => true,
-            TypeLayoutDescriptor::Named { name, .. } => name.as_str() == "string",
-            _ => false,
-        },
+        TypeLayoutDescriptor::Reference { referee, .. } => {
+            // Unwrap any `Constrained` wrappers on the referee: a `&[u8] in Utf8`
+            // is `Reference { Constrained { Slice } }`, and the domain constraint
+            // does not change the fat-descriptor shape -- it must classify as a
+            // fat slice exactly like `&[u8]`. (Mirrors omega-layout's reference
+            // sizing, which likewise unwraps Constrained before the unsized check.)
+            let mut referee = referee.as_ref();
+            while let TypeLayoutDescriptor::Constrained { base_type, .. } = referee {
+                referee = base_type.as_ref();
+            }
+            match referee {
+                TypeLayoutDescriptor::Slice { .. } => true,
+                TypeLayoutDescriptor::Named { name, .. } => name.as_str() == "string",
+                _ => false,
+            }
+        }
         TypeLayoutDescriptor::Slice { .. } => true,
         _ => false,
     }
@@ -692,6 +703,30 @@ pub(super) fn resolve_runtime_storage_primitive_type_in_table(
         expression,
     )?;
     descriptor_primitive_type(&descriptor)
+}
+
+/// Whether a storage PLACE is a fat `{ptr, len}` slice/text descriptor -- a
+/// `&[T]`/`&[u8] in Utf8` view, a bare slice, or the builtin `string` view. A
+/// `&[u8] in Utf8` text value shares the IDENTICAL 16-byte descriptor with
+/// `String`, so the String content-comparison/text leaves apply to it
+/// unchanged; this lets those leaves recognize a slice-descriptor place that is
+/// not `PrimitiveType::String`. Type-driven (not size-driven): an arbitrary
+/// 16-byte aggregate must never be misread as a text descriptor.
+pub(super) fn resolve_runtime_storage_place_is_fat_slice_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )
+    .is_some_and(|descriptor| descriptor_is_fat_slice(&descriptor))
 }
 
 /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17) of a
