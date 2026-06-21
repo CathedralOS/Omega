@@ -3,7 +3,7 @@
 // no new codegen is needed for byte-level reads. (A raw subslice would DROP the
 // Utf8 domain; that is the sound default.)
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8 when valid_utf8(self) {
 }
 
 data Main {

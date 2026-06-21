@@ -7,7 +7,7 @@
 // 16-byte param slot's len -- no `slice_descriptors.rs` String case is needed.
 // `check("hello")` sees len 5 and exits 70.
 
-domain [u8]::Utf8 {
+domain [u8]::Utf8 when valid_utf8(self) {
 }
 
 data Main {
