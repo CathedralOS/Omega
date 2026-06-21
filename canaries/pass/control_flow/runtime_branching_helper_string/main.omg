@@ -1,5 +1,8 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 data Main {
-    out: String;
+    out: &[u8] in Utf8;
 }
 
 machine Main::main(&mut self) {
@@ -7,10 +10,9 @@ machine Main::main(&mut self) {
     self.out = self.pick(flag);
 }
 
-machine Main::pick(&mut self, flag: bool) -> String {
+machine Main::pick(&mut self, flag: bool) -> &[u8] in Utf8 {
     transition flag {
         true -> "Gate"
         false -> "Branch Room"
     }
-    
 }
