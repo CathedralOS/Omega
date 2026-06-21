@@ -400,7 +400,7 @@ fn value_proves_domain(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
-    if super::grants::string_literal_expression_grants_domain(program, value, domain_symbol) {
+    if crate::field_domain::string_literal_expression_grants_domain(program, value, domain_symbol) {
         return true;
     }
 
