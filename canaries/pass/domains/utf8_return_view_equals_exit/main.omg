@@ -1,0 +1,32 @@
+// RUN CANARY (exit 70). #66 (return a `&[u8] in Utf8` view from a machine): a
+// value-position call to `pick()` returns a `&[u8] in Utf8` literal view; the
+// returned value flows as a real 16-byte `{ptr, len}` descriptor into a `==`
+// content compare against a literal. `pick() == "Gate"` matches and exits 70 --
+// proving the returned descriptor is the genuine view, not a stale/empty slot.
+// (Counter-variant: returning "Door" exits 71.)
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+}
+
+machine Main::pick(&self) -> &[u8] in Utf8 {
+    transition { _ -> "Gate" }
+}
+
+machine Main::run(&self) {
+    transition self.pick() == "Gate" {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}
+
+machine Main::main(&mut self) {
+    self.run();
+}

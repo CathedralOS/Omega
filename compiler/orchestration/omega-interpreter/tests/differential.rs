@@ -262,6 +262,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("domains/utf8_literal_len_exit", 70),
     ("domains/utf8_param_len_field_exit", 70),
     ("domains/utf8_regular_call_len_exit", 70),
+    ("domains/utf8_return_view_equals_exit", 70),
     ("dungeon/runtime_clear_carve_render_string_fields_exit", 198),
     ("dungeon/runtime_direct_boolean_conjunction_exit", 21),
     ("dungeon/runtime_enemy_clear_reentry_exit", 51),
