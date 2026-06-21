@@ -1,0 +1,27 @@
+// RUN CANARY (exit 70). #66 B1c: a string literal flows into a `&[u8] in Utf8`
+// parameter (coercion + Utf8 grant) and lowers as a real `&[u8]` view at runtime
+// -- `measure("hello")` reads the slice length 5 through the domain. Verifies the
+// literal-as-`&[u8]` backend lowering before the corpus sweep relies on it.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+domain [u8]::Utf8 {
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::measure(&self, text: &[u8] in Utf8) -> usize {
+    transition { _ -> (text.len) }
+}
+
+machine Main::main(&mut self) {
+    let n: usize = self.measure("hello");
+    transition n == 5 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
