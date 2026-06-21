@@ -13,6 +13,16 @@
 //! also become a CALLER obligation (`build_contract_call_facts` matches
 //! `ContractProofFactOwner::Machine`), which is wrong for an always-true field
 //! invariant. The fact is established directly, imposing no caller obligation.
+//!
+//! SOUNDNESS: the entry-invariant rests on the field's ZERO/ZII value being
+//! in-domain. The fact is surfaced as ALWAYS-holding at machine entry, so a READ
+//! with no prior write discharges against it -- which is sound only if the
+//! field's default (for a slice carrier, the EMPTY byte sequence) satisfies the
+//! domain. We therefore GATE the surfacing on
+//! `crate::field_domain::domain_admits_empty_byte_sequence`: Utf8/NoNul/AsciiOnly
+//! admit the empty sequence (surfaced as before), while an empty-violating domain
+//! (e.g. `non_empty`, `len > 0`) is NOT surfaced -- a read-with-no-prior-write of
+//! such a field cannot falsely discharge.
 
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint};
@@ -45,6 +55,16 @@ pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mu
             else {
                 continue;
             };
+
+            // SOUNDNESS GATE: surface the entry-invariant only when the field's
+            // ZERO/ZII value provably satisfies the domain. The invariant is
+            // ALWAYS-holding at machine entry, so a read-with-no-prior-write would
+            // discharge against it -- sound only if the empty/default value is
+            // in-domain. A domain whose classifier the empty value violates (e.g.
+            // `non_empty`) is withheld; its reads must follow an enforced write.
+            if !crate::field_domain::domain_admits_empty_byte_sequence(program, domain_symbol) {
+                continue;
+            }
 
             // Place `self.<field>`: root the machine receiver symbol (named
             // `self`) + a Field segment for the declared field, so the canonical

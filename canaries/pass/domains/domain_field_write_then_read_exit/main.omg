@@ -1,0 +1,41 @@
+// RUN CANARY (exit 73). #66 soundness gate COMPLETENESS: an empty-violating
+// domain's field invariant is WITHHELD at machine entry (see fail canary
+// domain_field_read_no_write_unproven), but after an ENFORCED write the
+// re-established fact still flows to a read. `[u8]::NonEmpty` is `non_empty(self)`
+// (the empty/ZII value violates it, so no entry-invariant). Here `self.f = "x"`
+// stores a literal whose comptime bytes are non-empty -- accepted by the existing
+// write-enforcement construction-grant -- which re-establishes `self.f in
+// NonEmpty`. The subsequent `self.check(self.f)` read then carries that fact and
+// discharges the `&[u8] in NonEmpty` parameter requirement. `check` guards
+// `text == "x"` (content equality over the carried view) and exits 73.
+// (Counter-checked: storing "y" makes the `== "x"` guard false -> exit 74.)
+
+domain [u8]::NonEmpty when non_empty(self) {
+}
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    f: &[u8] in NonEmpty;
+}
+
+machine Main::check(&self, text: &[u8] in NonEmpty) {
+    transition text == "x" {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&self) {
+        self.console.exit_process(73);
+    }
+
+    state bad(&self) {
+        self.console.exit_process(74);
+    }
+}
+
+machine Main::main(&mut self) {
+    self.f = "x";
+    self.check(self.f);
+}

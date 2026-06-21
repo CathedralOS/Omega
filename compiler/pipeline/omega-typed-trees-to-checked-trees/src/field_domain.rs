@@ -149,6 +149,26 @@ pub(crate) fn string_literal_expression_grants_domain(
     predicate.holds_for(literal.as_bytes())
 }
 
+/// Whether the domain's ZERO/ZII value -- for a slice carrier, the EMPTY byte
+/// sequence -- provably satisfies `domain_symbol`'s declared classifier. True
+/// only when the classifier is a recognized comptime byte-predicate AND it holds
+/// for `&[]`. An unrecognized/absent classifier returns `false` (we cannot prove
+/// the zero value is in-domain -> conservative).
+///
+/// This underwrites the machine-field entry-invariant in
+/// `semantic::field_domains`: that invariant treats a field's declared domain as
+/// ALWAYS-holding at machine entry, which is sound for a read-with-no-prior-write
+/// ONLY IF the field's zero value is itself in-domain. Utf8/NoNul/AsciiOnly admit
+/// the empty sequence; a `len > 0`-style domain (e.g. `non_empty`) does not, so
+/// its entry-invariant must be withheld.
+pub(crate) fn domain_admits_empty_byte_sequence(
+    program: &omega_typed_trees::TypedTrees,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    domain_classifier_byte_predicate(program, domain_symbol)
+        .is_some_and(|predicate| predicate.holds_for(&[]))
+}
+
 /// A compiler-recognized comptime byte-predicate primitive over a byte sequence.
 /// These are reusable building blocks (like `+`/`==`), NOT domain-specific: a
 /// domain selects one by spelling it as its `when <predicate>(self)` classifier.
@@ -160,6 +180,10 @@ enum ByteSequencePredicate {
     NoNul,
     /// `ascii_only(self)`: every byte is < 128.
     AsciiOnly,
+    /// `non_empty(self)`: the sequence has at least one byte. Notably does NOT
+    /// hold for the empty/ZII value -- the means to exercise an empty-violating
+    /// domain (see `domain_admits_empty_byte_sequence`).
+    NonEmpty,
 }
 
 impl ByteSequencePredicate {
@@ -168,6 +192,7 @@ impl ByteSequencePredicate {
             "valid_utf8" => Some(Self::ValidUtf8),
             "no_nul" => Some(Self::NoNul),
             "ascii_only" => Some(Self::AsciiOnly),
+            "non_empty" => Some(Self::NonEmpty),
             _ => None,
         }
     }
@@ -177,6 +202,7 @@ impl ByteSequencePredicate {
             Self::ValidUtf8 => std::str::from_utf8(bytes).is_ok(),
             Self::NoNul => !bytes.contains(&0),
             Self::AsciiOnly => bytes.iter().all(|byte| *byte < 128),
+            Self::NonEmpty => !bytes.is_empty(),
         }
     }
 }

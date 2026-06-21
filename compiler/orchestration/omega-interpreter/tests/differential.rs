@@ -224,6 +224,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("data/runtime_mixed_shape_exit", 70),
     ("data/runtime_array_literal_string_field_exit", 70),
     ("data/runtime_struct_literal_string_field_exit", 70),
+    ("domains/domain_field_write_then_read_exit", 73),
     ("domains/executable_domain_membership_expression_exit", 81),
     (
         "domains/executable_domain_membership_intersection_guard_exit",
