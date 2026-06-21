@@ -129,7 +129,7 @@ fn string_literal_grants_domain(
     let PlaceRoot::Expression(expression) = resolved.root else {
         return false;
     };
-    super::grants::string_literal_expression_grants_domain(program, expression, domain_symbol)
+    crate::field_domain::string_literal_expression_grants_domain(program, expression, domain_symbol)
 }
 
 /// Clear "needs fact X here" guidance for a proof-backed operator/contract that
