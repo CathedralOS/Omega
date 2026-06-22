@@ -68,6 +68,7 @@ pub fn build_pe(lowered: &LoweredProgram) -> Vec<u8> {
                     + match import_function {
                         ImportFunction::GetStdHandle => 0,
                         ImportFunction::WriteFile => 8,
+                        ImportFunction::ReadFile => 16,
                     }
             }
         };
@@ -103,23 +104,27 @@ struct RdataLayout {
 }
 
 // Layout of .rdata: [strings][IDT][ILT][IAT][hint/name entries][dll name].
+// The kernel32 imports, in IAT-slot order (must match ImportFunction in x64.rs).
+const IMPORT_NAMES: [&[u8]; 3] = [b"GetStdHandle", b"WriteFile", b"ReadFile"];
+
 fn build_rdata_section(rodata: &[u8], rdata_rva: u32) -> RdataLayout {
-    let getstdhandle_name = b"GetStdHandle";
-    let writefile_name = b"WriteFile";
     let dll_name = b"kernel32.dll";
+    let count = IMPORT_NAMES.len();
+    let thunk_table_bytes = 8 * (count + 1); // n thunks + a null terminator
 
     let string_len = rodata.len();
     let mut cursor = align_to_8(string_len);
     let import_directory_offset = cursor;
     cursor += 40; // IMAGE_IMPORT_DESCRIPTOR (kernel32) + null terminator (2 * 20)
     let lookup_table_offset = cursor;
-    cursor += 24; // 2 thunks + null (3 * u64)
+    cursor += thunk_table_bytes;
     let address_table_offset = cursor;
-    cursor += 24;
-    let getstdhandle_name_offset = cursor;
-    cursor += align_to_2(2 + getstdhandle_name.len() + 1);
-    let writefile_name_offset = cursor;
-    cursor += align_to_2(2 + writefile_name.len() + 1);
+    cursor += thunk_table_bytes;
+    let mut name_offsets = Vec::with_capacity(count);
+    for name in IMPORT_NAMES {
+        name_offsets.push(cursor);
+        cursor += align_to_2(2 + name.len() + 1); // u16 hint + name + NUL
+    }
     let dll_name_offset = cursor;
     cursor += align_to_2(dll_name.len() + 1);
     let total = cursor;
@@ -127,8 +132,6 @@ fn build_rdata_section(rodata: &[u8], rdata_rva: u32) -> RdataLayout {
     let lookup_table_rva = rdata_rva + lookup_table_offset as u32;
     let address_table_rva = rdata_rva + address_table_offset as u32;
     let dll_name_rva = rdata_rva + dll_name_offset as u32;
-    let getstdhandle_name_rva = rdata_rva + getstdhandle_name_offset as u32;
-    let writefile_name_rva = rdata_rva + writefile_name_offset as u32;
     let import_directory_rva = rdata_rva + import_directory_offset as u32;
 
     let mut bytes = vec![0u8; total];
@@ -140,17 +143,13 @@ fn build_rdata_section(rodata: &[u8], rdata_rva: u32) -> RdataLayout {
     write_u32_le(&mut bytes, import_directory_offset + 16, address_table_rva); // FirstThunk
 
     // ILT and IAT both hold RVAs of the hint/name entries (import-by-name).
-    write_u64_le(&mut bytes, lookup_table_offset, getstdhandle_name_rva as u64);
-    write_u64_le(&mut bytes, lookup_table_offset + 8, writefile_name_rva as u64);
-    write_u64_le(&mut bytes, address_table_offset, getstdhandle_name_rva as u64);
-    write_u64_le(&mut bytes, address_table_offset + 8, writefile_name_rva as u64);
-
-    // hint/name entries: u16 hint (0) + name + NUL
-    bytes[getstdhandle_name_offset + 2..getstdhandle_name_offset + 2 + getstdhandle_name.len()]
-        .copy_from_slice(getstdhandle_name);
-    bytes[writefile_name_offset + 2..writefile_name_offset + 2 + writefile_name.len()]
-        .copy_from_slice(writefile_name);
-    // dll name + NUL
+    for (index, &name_offset) in name_offsets.iter().enumerate() {
+        let name_rva = (rdata_rva + name_offset as u32) as u64;
+        write_u64_le(&mut bytes, lookup_table_offset + 8 * index, name_rva);
+        write_u64_le(&mut bytes, address_table_offset + 8 * index, name_rva);
+        let name = IMPORT_NAMES[index];
+        bytes[name_offset + 2..name_offset + 2 + name.len()].copy_from_slice(name); // hint=0, then name
+    }
     bytes[dll_name_offset..dll_name_offset + dll_name.len()].copy_from_slice(dll_name);
 
     RdataLayout {
@@ -158,7 +157,7 @@ fn build_rdata_section(rodata: &[u8], rdata_rva: u32) -> RdataLayout {
         import_directory_rva,
         import_directory_size: 40,
         address_table_rva,
-        address_table_size: 24,
+        address_table_size: thunk_table_bytes as u32,
     }
 }
 
