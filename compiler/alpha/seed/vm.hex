@@ -2,14 +2,15 @@
 ; Hand-assembled Alpha tape VM — Windows x64 PE.  Every instruction byte is
 ; hand-authored; build.py resolves label arithmetic.
 ;
-; Milestone 4: a GENERAL VM. The tape is read from a 4-byte little-endian length
-; prefix on stdin, then that many tape bytes into VM memory; the rest of stdin is the
-; program's input. So one VM runs any tape:
-;     ( printf <len LE32> ; cat TAPE ; cat INPUT ) | vm  > OUTPUT
+; The VM carries the program INSIDE itself: a .tape section is a big hole of zeros
+; (the "binary from god" + a memcpy'd program). On startup the VM copies the embedded
+; tape into VM memory and runs it; stdin/stdout are then purely the program's own I/O.
+; To "build" a program you copy this exe and memcpy the program's bytes into the hole
+; (4-byte LE length, then the bytes), up to the hole's size.
 ; getbyte/putbyte are self-aligning native subroutines wrapping ReadFile/WriteFile.
 ;   rsi=pc ptr  rdi=mem base (0x140004000)  rbx=&vregs (0x140003000)  r12=sp
-;   scratch (vregs page): stdin_h 3080, stdout_h 3088, io_byte 3090, count 3098,
-;   lenbuf 30A0.   Sections: .text 0x1000, .rdata 0x2000 (imports), .data 0x3000.
+;   scratch (vregs page): stdin_h 3080, stdout_h 3088, io_byte 3090, count 3098.
+;   Sections: .text 0x1000, .rdata 0x2000 (imports), .data 0x3000, .tape 0x4004000.
 ; ===========================================================================
 
 ; --- DOS header ---
@@ -19,7 +20,7 @@
 ; --- PE signature + COFF ---
 50 45 00 00
 64 86
-03 00
+04 00
 00 00 00 00
 00 00 00 00
 00 00 00 00
@@ -41,7 +42,7 @@ F0 00
 00 00 00 00
 06 00 00 00
 00 00 00 00
-00 40 00 04              ; SizeOfImage = 0x4004000
+00 40 02 04              ; SizeOfImage = 0x4024000 (covers the .tape hole)
 00 02 00 00              ; SizeOfHeaders
 00 00 00 00
 03 00
@@ -83,6 +84,14 @@ z24
 00 00 00 00 00 00 00 00
 00 00 00 00
 80 00 00 C0
+2E 74 61 70 65 00 00 00          ; .tape — the embedded-program hole
+00 00 02 00                      ; VirtualSize  0x20000 (128 KB)
+00 40 00 04                      ; VirtualAddress 0x4004000
+00 00 02 00                      ; SizeOfRawData 0x20000
+00 14 00 00                      ; PointerToRawData 0x1400
+00 00 00 00 00 00 00 00
+00 00 00 00
+40 00 00 40                      ; initialized data, read
 .pad 0x200
 
 ; ===================== .text (RVA 0x1000) =====================
@@ -99,29 +108,19 @@ B9 F5 FF FF FF
 FF 15 .rel32 iat_gsh
 48 B9 88 30 00 40 01 00 00 00
 48 89 01
-; --- loader: 4-byte LE length prefix into lenbuf ---
-E8 .rel32 getbyte
-48 BA A0 30 00 40 01 00 00 00
-88 02
-E8 .rel32 getbyte
-48 BA A1 30 00 40 01 00 00 00
-88 02
-E8 .rel32 getbyte
-48 BA A2 30 00 40 01 00 00 00
-88 02
-E8 .rel32 getbyte
-48 BA A3 30 00 40 01 00 00 00
-88 02
-48 B8 A0 30 00 40 01 00 00 00   ; rax = &lenbuf
-44 8B 30                        ; mov r14d, [rax]   (tape length)
+; --- loader: copy the embedded tape (the .tape hole) into VM memory ---
+48 B8 00 40 00 44 01 00 00 00   ; rax = &.tape  (ImageBase + 0x4004000)
+44 8B 30                        ; mov r14d, [rax]   (tape length, 4-byte LE)
+48 83 C0 04                     ; add rax, 4        (rax -> first tape byte)
 4D 31 FF                        ; xor r15, r15      (i = 0)
 load_loop:
 4D 85 F6                        ; test r14, r14
 74 .rel8 load_done
-E8 .rel32 getbyte               ; al = next tape byte
+0F B6 08                        ; movzx ecx, byte [rax]
 48 89 FA                        ; mov rdx, rdi
 4C 01 FA                        ; add rdx, r15
-88 02                           ; mov [rdx], al
+88 0A                           ; mov [rdx], cl
+48 FF C0                        ; inc rax
 49 FF C7                        ; inc r15
 49 FF CE                        ; dec r14
 EB .rel8 load_loop
@@ -402,3 +401,8 @@ n_wf:
 dllname:
 6B 65 72 6E 65 6C 33 32 2E 64 6C 6C 00 00
 .pad 0x1400
+
+; ===================== .tape (RVA 0x4004000, file 0x1400) =====================
+; The hole: 0x20000 zero bytes. A built program is this exe with [4-byte LE length]
+; [tape bytes] memcpy'd in here at file offset 0x1400.
+.pad 0x21400
