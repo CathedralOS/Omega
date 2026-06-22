@@ -70,10 +70,24 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
   loop (0→3), multi-arm dispatch (x=2→22, x=5→99), a sum-1..=5 loop (→15); samples
   still compile (exit7/arith/locals). No on-ramp gaps.
 
+- **Increment 7a — multi-machine + free calls + `return`: DONE.** A program is now
+  a list of machines: `prescan_machines` records each top-level machine's start +
+  callable name (and finds the entry `main`); `parse` emits the entry first (PE
+  entry stays at offset 0) then the rest, recording cross-machine `call rel32`
+  fixups that `patch_calls` resolves. `emit_machine` parses a header (spilling value
+  params from rcx/rdx/r8/r9 to frame slots) and a `return` statement. `compile_call`
+  evaluates args, loads the first four into registers, `call rel32`s the callee
+  (recursion-safe via per-call `let` locals + a base-relative operator stack).
+  Verified: `add(20,22)`→42, nested `inc(inc(inc(5)))`→8, 4-arg `sum4`→10, and
+  forward references in any source order. (Recursion is permitted for now, as in the
+  on-ramp; DAG-purity is deferred.)
+
 ## Next increments
 
-7. Machine calls, `data`/arrays, byte I/O, the import-table PE path — the full
-   on-ramp language. Hand-specialize arenas (no generics). Then close the fixed point.
+7b. `data` structs + `self` fields + `&mut self` method calls (the self-pointer,
+    a `.data` PE section). 7c: arrays + trap-checked indexing. 7d: byte I/O +
+    the import-table PE path. Then `alphac` compiles `alphac.alp` and the fixed
+    point closes.
 
 ## Known gaps to fix in the on-ramp as they surface
 
