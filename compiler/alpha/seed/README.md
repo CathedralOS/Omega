@@ -6,16 +6,19 @@ Rust `vm` is the throwaway reference; *this* is the thing the trust chain is mea
 bottom out at.
 
 - `vm.hex` — the VM as a commented x64 machine-code listing (the hand-assembled
-  artifact you audit byte by byte). Every instruction is annotated; every jump
-  offset is computed by hand.
-- `build.py` — a trivial materializer (hex listing → binary). Not part of the trust
-  root any more than `xxd -r` is; it only concatenates bytes.
+  artifact you audit byte by byte). Every instruction is annotated; build resolves
+  the label arithmetic (jump displacements, absolute/RIP-relative addresses).
+- `materialize.py` — a ~40-line label-resolving hex assembler (hex listing → binary).
+  Not part of the trust root any more than `xxd -r` is; it only does the address
+  arithmetic a human would otherwise compute by hand (the hex0 → hex1 step), not
+  compilation.
 
-Build + run:
+Materialize + run a tape (the parent `../build.sh` does the full self-host chain):
 
 ```
-python build.py vm.hex vm.exe
-./vm.exe ; echo $?
+python materialize.py vm.hex ../build/vm.exe
+( python -c "import sys,struct;sys.stdout.buffer.write(struct.pack('<I',N))"; \
+  cat TAPE; cat INPUT ) | ../build/vm.exe            # tape from a 4-byte LE length prefix
 ```
 
 Verification uses `llvm-objdump` to disassemble and confirm the bytes match the
@@ -47,20 +50,19 @@ intended instructions — a *read-only* check; it never produces the artifact.
   tape from a 4-byte little-endian length prefix on stdin, loads it into VM memory,
   then runs it (the rest of stdin is the program's input). I/O is factored into
   self-aligning `getbyte`/`putbyte` subroutines. The hand-assembled VM runs the
-  Alpha assembler (`../assembler.alp`) on the assembler's own source and reproduces the
-  assembler tape byte-for-byte, across two generations entirely on the hand-VM:
-  `as.tape == as1 == as2` (3003 bytes). **No Rust or LLVM is in the VM's
-  provenance** — it is materialized from the hand-authored `vm.hex`. Run
-  `selfhost.sh`.
+  Alpha assembler (`../src/assembler.alp`) on the assembler's own source and
+  reproduces the assembler tape byte-for-byte (3003 bytes). **No Rust or LLVM is in
+  the VM's provenance** — it is materialized from the hand-authored `vm.hex`. Run
+  `../build.sh`.
 
 ## What this means
 
 The trust chain now bottoms out at `vm.hex` — a few hundred hand-authored,
 hand-auditable x64 instructions — instead of the Rust+LLVM toolchain. Everything
 above (the assembler, and anything written in Alpha assembly) is a checkable tape
-that the audited VM reproduces. The Rust `vm`/`asm` in `../../alpha-rs` are now only
-a convenience reference; `selfhost.sh` needs the Rust `asm` solely to mint the
-*initial* tape, which the hand-VM then reproduces from source.
+that the audited VM reproduces. The Rust `vm`/`assembler` in `../../alpha-rs` are now
+only a convenience reference; `../build.sh` needs the Rust `assembler` solely to mint
+the *initial* tape, which the hand-VM then reproduces from source.
 
 Remaining toward full purity: hand-assemble (or independently re-derive) the
 *assembler tape* too, so even the initial tape doesn't come from the Rust on-ramp;

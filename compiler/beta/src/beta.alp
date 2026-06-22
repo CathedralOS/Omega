@@ -1,22 +1,22 @@
-// The Alpha compiler, written in Alpha (compiled by the alpha-rs on-ramp, then by
-// itself to a byte-identical fixed point — see README.md).
+// The Beta compiler, written in Beta (compiled by the beta-rs on-ramp, then by
+// itself to a byte-identical fixed point — see ../README.md).
 //
 // This is the FRONT END + driver. The compiler source is one translation unit split
-// across three files (Alpha has no module system — they concatenate, in order):
+// across three files in src/ (Beta has no module system — they concatenate, in order):
 //
-//   alpha.alp  this file — lexer, keyword matchers, symbol/field/state resolution,
+//   beta.alp   this file — lexer, keyword matchers, symbol/field/state resolution,
 //              the prescans, the single-pass parse+emit driver (compile_expr /
 //              compile_statement / emit_machine / parse), `data Main`, and `main`.
 //   x64.alp    the x86-64 instruction encoders (emit_byte/emit_i32, the
 //              instruction + host-call encoders, patch_i32, emit_binary_op).
 //   pe.alp     the Windows PE32+ image writer (emit_u16/u32/zeros, write_pe).
 //
-// Build/run them together (see build.sh):
-//   ../alpha-rs/target/debug/alpha.exe alpha.alp x64.alp pe.alp out.exe   (on-ramp)
-//   cat alpha.alp x64.alp pe.alp | ./out.exe > next.exe                   (self-host)
+// Build/run them together (see ../build.sh):
+//   ../../beta-rs/target/debug/beta.exe src/*.alp build/beta0.exe   (on-ramp)
+//   cat src/*.alp | ./build/beta0.exe > build/beta1.exe            (self-host)
 //
 // The compiler is a filter: the concatenated source on stdin, a Windows PE on stdout.
-// Alpha has no bitwise ops, so bytes are split with integer division (write_byte
+// Beta has no bitwise ops, so bytes are split with integer division (write_byte
 // keeps only the low 8 bits, so `v / 256` shifts right a byte).
 
 boundary trait Console {
@@ -34,7 +34,7 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    source: [u8; 131072];         // source text (alpha.alp itself is ~93 KB)
+    source: [u8; 131072];         // source text (beta's own source is ~93 KB)
     source_length: i32;
     token_kind: [u8; 65536];      // token kinds are 0..27, so one byte each
     token_start: [i32; 65536];
@@ -783,7 +783,7 @@ machine Main::patch_calls(&mut self) {
 // Lay out the (single) `data` type's fields: each scalar field is 8 bytes, a
 // boundary capability (an uppercase type name, e.g. Console) is 0, and an array
 // `[u8;N]`/`[i32;N]` is N*1 / N*8. Records each field's name token + byte offset,
-// and the total instance size (the .data section). alpha.alp has one data type.
+// and the total instance size (the .data section). beta.alp has one data type.
 machine Main::prescan_data(&mut self) {
     let left_byte: i32 = 0; // first byte of a field's type name (uppercase = capability)
     self.field_count = 0;
