@@ -16,6 +16,7 @@ OUT="build/$NAME.exe"
 # 1. .alp text -> bytecode, via beta (the assembler, running on the seed)
 ./beta_x64_windows.exe < "$SRC" > "build/$NAME.tape"
 TLEN=$(wc -c < "build/$NAME.tape")
+[ $((TLEN + 4)) -le 8192 ] || { echo "FAIL: $NAME tape is $TLEN B, exceeds the seed's 8 KB hole" >&2; exit 1; }
 
 # 2. copy the seed and memcpy [4-byte LE length][bytecode] into its hole (file offset 0x1400)
 cp "$SEED" "$OUT"
