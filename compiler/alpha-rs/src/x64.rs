@@ -57,17 +57,32 @@ fn emit_store_local(code: &mut Vec<u8>, local_index: usize) {
     emit_rbp_memory_operand(code, &[0x89], 0, local_displacement(local_index)); // mov [rbp+disp], eax
 }
 
-// On entry the caller passed the first 4 args in rcx/rdx/r8/r9 (Win64). Spill
-// parameter `param_position` into its frame slot so the body reads it like any local.
-fn emit_store_parameter_register(code: &mut Vec<u8>, param_position: usize) {
-    let displacement = local_displacement(param_position);
-    let (prefix, reg_field): (&[u8], u8) = match param_position {
+// On entry the caller passed the first 4 args in rcx/rdx/r8/r9 (Win64). Spill the
+// register at `register_index` into local slot `slot_index`. For a `&mut self`
+// method, rcx holds self, so value params start at register_index 1.
+fn emit_store_parameter_register(code: &mut Vec<u8>, slot_index: usize, register_index: usize) {
+    let displacement = local_displacement(slot_index);
+    let (prefix, reg_field): (&[u8], u8) = match register_index {
         0 => (&[0x48, 0x89], 1), // rcx
         1 => (&[0x48, 0x89], 2), // rdx
         2 => (&[0x4C, 0x89], 0), // r8
         _ => (&[0x4C, 0x89], 1), // r9
     };
     emit_rbp_memory_operand(code, prefix, reg_field, displacement);
+}
+
+// Emit a memory operand [rax + offset] with the given ModRM reg field, for the
+// given opcode (e.g. 0x8B mov-load, 0x89 mov-store). Used for self-field access
+// once the self pointer is in rax.
+fn emit_rax_indirect(code: &mut Vec<u8>, opcode: u8, reg_field: u8, offset: i32) {
+    code.push(opcode);
+    if (-128..=127).contains(&offset) {
+        code.push(0x40 | (reg_field << 3)); // mod=01, reg, rm=000 (rax+disp8)
+        code.push(offset as i8 as u8);
+    } else {
+        code.push(0x80 | (reg_field << 3)); // mod=10, reg, rm=000 (rax+disp32)
+        code.extend_from_slice(&offset.to_le_bytes());
+    }
 }
 
 // Load a pushed call argument off the stack into its ABI register:
@@ -132,6 +147,11 @@ fn lower_expression(
             emit_load_local(code, local_index);
             code.push(0x50); // push rax
         }
+        Expr::SelfField(offset) => {
+            emit_rbp_memory_operand(code, &[0x48, 0x8B], 0, context.self_ptr_displacement); // mov rax, [rbp+self]
+            emit_rax_indirect(code, 0x8B, 0, offset); // mov eax, [rax+offset]
+            code.push(0x50); // push rax
+        }
         Expr::Call(machine_index, args_start, arg_count) => {
             // Evaluate args left-to-right (each leaves its result pushed), then load
             // them into the ABI registers and discard them so rsp returns to the
@@ -192,6 +212,7 @@ struct LoweringContext<'a> {
     string_offsets: &'a [u32],
     handle_displacement: i32,
     written_displacement: i32,
+    self_ptr_displacement: i32, // frame slot holding the `self` pointer (if has_self)
 }
 
 fn lower_statement(
@@ -212,6 +233,12 @@ fn lower_statement(
             lower_expression(*expression, context, code, call_fixups);
             code.push(0x58); // pop rax
             emit_store_local(code, *local_index);
+        }
+        Statement::StoreSelfField(offset, expression) => {
+            lower_expression(*expression, context, code, call_fixups);
+            code.push(0x59); // pop rcx (value)
+            emit_rbp_memory_operand(code, &[0x48, 0x8B], 0, context.self_ptr_displacement); // mov rax, [rbp+self]
+            emit_rax_indirect(code, 0x89, 1, *offset); // mov [rax+offset], ecx
         }
         Statement::Return(expression) => {
             lower_expression(*expression, context, code, call_fixups);
@@ -265,20 +292,43 @@ fn lower_statement(
     }
 }
 
-// Lower one machine as a function: prologue, spill register params to frame slots,
-// entry block, then each state block (recording its label), a trailing return-0,
-// and finally patch this machine's intra-machine state jumps.
+// Lower one machine as a function: prologue, establish `self`, spill register
+// params, entry block, then each state block (recording its label), a trailing
+// return-0, and finally patch this machine's intra-machine state jumps.
+//
+// Frame layout (high → low address, all rbp-relative): locals · self-ptr slot ·
+// [entry only] the self data instance · write_line scratch · shadow space.
 fn lower_machine(
     machine: &Machine,
-    context: &LoweringContext,
+    is_entry: bool,
+    entry_data_size: i32,
+    string_offsets: &[u32],
+    program: &Program,
     code: &mut Vec<u8>,
     relocations: &mut Vec<Relocation>,
     call_fixups: &mut Vec<(u32, usize)>,
 ) {
-    let local_count = machine.local_count as u32;
-    // frame = locals + (when calling out: 16 scratch [written,handle] + 32 shadow + 8 fifth-arg slot)
-    let extra = if machine.makes_call { 16 + 40 } else { 0 };
-    let frame = align_up(local_count * 8 + extra, 16);
+    let local_count = machine.local_count as i32;
+    let self_slots = if machine.has_self { 1 } else { 0 };
+    let named_bytes = 8 * (local_count + self_slots); // locals + the self-pointer slot
+    // The entry machine's `self` instance lives in its own (long-lived) frame, ZII.
+    let region_bytes = if is_entry && machine.has_self {
+        (entry_data_size + 7) & !7 // round up to 8
+    } else {
+        0
+    };
+    let scratch = if machine.makes_call { 16 + 40 } else { 0 }; // handle/written + shadow + 5th arg
+    let frame = align_up((named_bytes + region_bytes + scratch) as u32, 16);
+
+    let self_ptr_displacement = -(8 * (local_count + 1)); // first slot past the locals
+    let region_displacement = -(named_bytes + region_bytes); // self instance base (field offset 0)
+    let context = LoweringContext {
+        program,
+        string_offsets,
+        handle_displacement: -(named_bytes + region_bytes + 16),
+        written_displacement: -(named_bytes + region_bytes + 8),
+        self_ptr_displacement,
+    };
 
     // prologue
     code.push(0x55); // push rbp
@@ -291,20 +341,36 @@ fn lower_machine(
             code.extend_from_slice(&frame.to_le_bytes()); // sub rsp, imm32
         }
     }
-    // spill incoming register params into their frame slots (before any call clobbers them)
+    // spill incoming register params into their frame slots (a `&mut self` method
+    // takes self in rcx, so its value params start at register index 1).
+    let self_register_offset = if machine.has_self { 1 } else { 0 };
     for param_position in 0..machine.param_count {
-        emit_store_parameter_register(code, param_position);
+        emit_store_parameter_register(code, param_position, param_position + self_register_offset);
+    }
+    // establish the self pointer
+    if machine.has_self {
+        if is_entry {
+            // zero the frame-resident self instance (ZII), then point self at it
+            for slot in 0..(region_bytes / 8) {
+                emit_rbp_memory_operand(code, &[0x48, 0xC7], 0, region_displacement + 8 * slot);
+                code.extend_from_slice(&[0, 0, 0, 0]); // mov qword [rbp+region+8*slot], 0
+            }
+            emit_rbp_memory_operand(code, &[0x48, 0x8D], 0, region_displacement); // lea rax, [rbp+region]
+            emit_rbp_memory_operand(code, &[0x48, 0x89], 0, self_ptr_displacement); // mov [rbp+self], rax
+        } else {
+            emit_rbp_memory_operand(code, &[0x48, 0x89], 1, self_ptr_displacement); // mov [rbp+self], rcx
+        }
     }
 
     let mut state_fixups: Vec<(u32, usize)> = Vec::new();
     for statement in &machine.entry {
-        lower_statement(statement, context, code, relocations, &mut state_fixups, call_fixups);
+        lower_statement(statement, &context, code, relocations, &mut state_fixups, call_fixups);
     }
     let mut labels = vec![0u32; machine.states.len()];
     for (state_index, state_statements) in machine.states.iter().enumerate() {
         labels[state_index] = code.len() as u32;
         for statement in state_statements {
-            lower_statement(statement, context, code, relocations, &mut state_fixups, call_fixups);
+            lower_statement(statement, &context, code, relocations, &mut state_fixups, call_fixups);
         }
     }
     // trailing default: return 0 (reached only by fall-through off the end)
@@ -350,15 +416,17 @@ pub fn lower_program(program: &Program) -> LoweredProgram {
     }
     for &machine_index in &order {
         let machine = &program.machines[machine_index];
-        let local_count = machine.local_count as u32;
-        let context = LoweringContext {
-            program,
-            string_offsets: &string_offsets,
-            handle_displacement: -((local_count * 8 + 16) as i32),
-            written_displacement: -((local_count * 8 + 8) as i32),
-        };
         machine_offsets[machine_index] = code.len() as u32;
-        lower_machine(machine, &context, &mut code, &mut relocations, &mut call_fixups);
+        lower_machine(
+            machine,
+            machine_index == program.entry_machine,
+            program.entry_data_size,
+            &string_offsets,
+            program,
+            &mut code,
+            &mut relocations,
+            &mut call_fixups,
+        );
     }
 
     // patch cross-machine call rel32s now that every machine's offset is known
