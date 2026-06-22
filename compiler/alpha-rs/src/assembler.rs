@@ -2,7 +2,7 @@
 // the throwaway on-ramp; the self-hosting target is the same assembler written in
 // Alpha-assembly and run on the VM.
 //
-//   asm [in.asm] [out.tape]      (default: stdin -> stdout)
+//   assembler [in.alp] [out.tape]      (default: stdin -> stdout)
 //
 // Syntax (one item per line; `;` starts a comment):
 //   label:                a label, bound to the current tape address
@@ -53,7 +53,7 @@ fn parse(source: &str) -> Vec<Item> {
         }
         let mnemonic_text = tokens[0];
         // accept either a mnemonic ("imm") or a bare opcode number ("1"); the
-        // numeric form is what the self-hosting assembler (as.asm) reads and emits.
+        // numeric form is what the self-hosting assembler (assembler.alp) reads + emits.
         let op = match mnemonic(mnemonic_text) {
             Some(op) => op,
             None => match mnemonic_text.parse::<u8>() {
@@ -100,8 +100,8 @@ fn main() {
     let mut args: Vec<String> = std::env::args().collect();
 
     // --num: re-emit the source with mnemonics replaced by opcode numbers (labels and
-    // operands preserved). This is the numeric form the self-hosting as.asm reads;
-    // it lets as.asm be authored in readable mnemonics yet self-host on numbers.
+    // operands preserved). This is the numeric form the self-hosting assembler.alp
+    // reads; it lets assembler.alp be authored in mnemonics yet self-host on numbers.
     let numericize = args.len() >= 2 && args[1] == "--num";
     if numericize {
         args.remove(1);

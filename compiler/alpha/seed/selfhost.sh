@@ -8,11 +8,11 @@
 set -e
 cd "$(dirname "$0")"
 
-ASM=../../alpha-rs/target/debug/asm.exe       # Rust on-ramp: only to make the *initial* tape
+ASSEMBLER=../../alpha-rs/target/debug/assembler.exe   # Rust on-ramp: only to mint the *initial* tape
 python build.py vm.hex vm.exe                 # the hand-assembled trust-root VM
 
-"$ASM" ../as.asm as.tape                       # initial assembler tape (will be reproduced)
-"$ASM" --num ../as.asm > as.num                 # the assembler's source in numeric form
+"$ASSEMBLER" ../assembler.alp as.tape          # initial assembler tape (will be reproduced)
+"$ASSEMBLER" --num ../assembler.alp > as.num    # the assembler's source in numeric form
 LEN=$(wc -c < as.tape)
 prefix() { python -c "import sys,struct; sys.stdout.buffer.write(struct.pack('<I',$LEN))"; }
 
