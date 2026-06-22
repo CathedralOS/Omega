@@ -43,7 +43,7 @@ fn compile(source: &[u8]) -> Result<Vec<u8>, String> {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("usage: alpha-onramp <input.alpha> [output.exe]");
+        eprintln!("usage: alpha-onramp <input.alp> [output.exe]");
         exit(2);
     }
     let input = &args[1];

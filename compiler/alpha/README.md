@@ -14,7 +14,7 @@ on-ramp is the executable spec; this must accept the same language.
 The compiler is a filter: source on stdin, a Windows PE on stdout.
 
 ```
-../alpha-rs/target/debug/alphac.exe alphac.alpha alphac0.exe   # on-ramp compiles it
+../alpha-rs/target/debug/alphac.exe alphac.alp alphac0.exe   # on-ramp compiles it
 printf '42' | ./alphac0.exe > out.exe                          # it compiles "42"
 ./out.exe; echo $?                                             # -> 42
 ```
