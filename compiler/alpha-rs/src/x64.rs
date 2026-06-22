@@ -155,6 +155,11 @@ fn lower_statement(
             code.push(0x58); // pop rax
             emit_store_local(code, *local_index);
         }
+        Statement::Assign(local_index, expression) => {
+            lower_expression(*expression, &context.program.expressions, code);
+            code.push(0x58); // pop rax
+            emit_store_local(code, *local_index);
+        }
         Statement::Exit(expression) => {
             lower_expression(*expression, &context.program.expressions, code);
             code.push(0x58); // pop rax (exit code)
