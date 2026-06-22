@@ -1,0 +1,21 @@
+[package]
+name = "alpha"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Alpha = the tape VM (rung 0 / v1): a tiny register machine with byte I/O — the
+# Turing-minimal floor. These Rust binaries are the throwaway seed/on-ramp:
+#   vm  — interprets a bytecode tape (the seed; to be hand-rolled in asm later)
+#   asm — assembles Alpha-assembly text into a bytecode tape (the on-ramp)
+# The self-hosting target is an assembler written IN Alpha-assembly that the VM
+# runs to reproduce its own tape.
+[[bin]]
+name = "vm"
+path = "src/vm.rs"
+
+[[bin]]
+name = "asm"
+path = "src/asm.rs"
+
+[workspace]
