@@ -1,0 +1,190 @@
+// The Alpha compiler, written in Alpha (compiled by the alpha-rs on-ramp).
+//
+// Increment 1: the accepted "source" is a single decimal integer N read from
+// stdin; the output (stdout) is a Windows PE whose entry is `mov eax,N; ret`, so
+// running it exits with code N. This proves the Alpha -> PE pipeline and builds
+// the byte-exact PE writer the full compiler reuses.
+//
+// The PE structure is transcribed from alpha-rs/src/pe.rs (single-section path).
+// Alpha has no bitwise ops, so bytes are split with integer division: write_byte
+// already takes only the low 8 bits of its argument, so `v / 256` shifts right a
+// byte, `v / 65536` two bytes, etc.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine write_line(text: &[u8] in Utf8);
+    machine write_byte(b: i32);
+    machine read_byte() -> i32;
+}
+
+data Main {
+    console: Console;
+    code: [u8; 512]; // generated machine code
+    code_len: i32;
+    value: i32;      // the parsed exit code
+    raw_size: i32;   // .text size rounded up to FileAlignment
+    image_size: i32; // total mapped image size
+    i: i32;          // scratch loop cursor
+    c: i32;          // current input byte
+}
+
+// --- byte output helpers (free machines; write_byte keeps only the low 8 bits) ---
+
+machine emit_u16(v: i32) {
+    write_byte(v);
+    write_byte(v / 256);
+}
+
+machine emit_u32(v: i32) {
+    write_byte(v);
+    write_byte(v / 256);
+    write_byte(v / 65536);
+    write_byte(v / 16777216);
+}
+
+machine emit_zeros(n: i32) {
+    let k: i32 = 0;
+    transition 0 { _ -> step() }
+    state step() { transition k < n { true -> one() false -> done() } }
+    state one() { write_byte(0); k = k + 1; transition 0 { _ -> step() } }
+    state done() { }
+}
+
+machine align_up(v: i32, a: i32) -> i32 {
+    return ((v + a - 1) / a) * a;
+}
+
+// --- the PE writer: emits headers, then the code section, padded ---
+
+machine Main::write_pe(&mut self) {
+    self.raw_size = align_up(self.code_len, 512);
+    self.image_size = 4096 + align_up(self.code_len, 4096);
+
+    // DOS header (64 bytes): "MZ", pad to 0x3C, e_lfanew = 0x40
+    write_byte(77); write_byte(90);
+    emit_zeros(58);
+    emit_u32(64);
+
+    // PE signature + COFF header (24 bytes)
+    write_byte(80); write_byte(69); write_byte(0); write_byte(0); // "PE\0\0"
+    emit_u16(34404); // Machine = 0x8664 (x86-64)
+    emit_u16(1);     // NumberOfSections
+    emit_u32(0);     // TimeDateStamp
+    emit_u32(0);     // PointerToSymbolTable
+    emit_u32(0);     // NumberOfSymbols
+    emit_u16(240);   // SizeOfOptionalHeader
+    emit_u16(34);    // Characteristics = 0x0022 (executable, large-address-aware)
+
+    // Optional header (PE32+, 240 bytes)
+    emit_u16(523);                       // Magic = 0x20B
+    write_byte(0); write_byte(0);        // Major/MinorLinkerVersion
+    emit_u32(self.raw_size);             // SizeOfCode
+    emit_u32(0);                         // SizeOfInitializedData
+    emit_u32(0);                         // SizeOfUninitializedData
+    emit_u32(4096);                      // AddressOfEntryPoint = 0x1000
+    emit_u32(4096);                      // BaseOfCode
+    emit_u32(1073741824); emit_u32(1);   // ImageBase = 0x140000000
+    emit_u32(4096);                      // SectionAlignment
+    emit_u32(512);                       // FileAlignment
+    emit_u16(6); emit_u16(0);            // Major/MinorOperatingSystemVersion
+    emit_u16(0); emit_u16(0);            // Major/MinorImageVersion
+    emit_u16(6); emit_u16(0);            // Major/MinorSubsystemVersion
+    emit_u32(0);                         // Win32VersionValue
+    emit_u32(self.image_size);           // SizeOfImage
+    emit_u32(512);                       // SizeOfHeaders
+    emit_u32(0);                         // CheckSum
+    emit_u16(3);                         // Subsystem = console
+    emit_u16(0);                         // DllCharacteristics
+    emit_u32(1048576); emit_u32(0);      // SizeOfStackReserve = 0x100000
+    emit_u32(4096); emit_u32(0);         // SizeOfStackCommit = 0x1000
+    emit_u32(1048576); emit_u32(0);      // SizeOfHeapReserve = 0x100000
+    emit_u32(4096); emit_u32(0);         // SizeOfHeapCommit = 0x1000
+    emit_u32(0);                         // LoaderFlags
+    emit_u32(16);                        // NumberOfRvaAndSizes
+    emit_zeros(128);                     // 16 data directories, all zero
+
+    // Section header (.text, 40 bytes)
+    write_byte(46); write_byte(116); write_byte(101); write_byte(120); write_byte(116); // ".text"
+    write_byte(0); write_byte(0); write_byte(0);   // pad name to 8 bytes
+    emit_u32(self.code_len);    // VirtualSize
+    emit_u32(4096);             // VirtualAddress
+    emit_u32(self.raw_size);    // SizeOfRawData
+    emit_u32(512);              // PointerToRawData
+    emit_u32(0);                // PointerToRelocations
+    emit_u32(0);                // PointerToLinenumbers
+    emit_u16(0);                // NumberOfRelocations
+    emit_u16(0);                // NumberOfLinenumbers
+    emit_u32(1610612768);       // Characteristics = 0x60000020 (code|execute|read)
+
+    // pad headers from 368 to SizeOfHeaders (512)
+    emit_zeros(144);
+
+    // emit the code section, then pad to raw_size
+    self.i = 0;
+    transition 0 { _ -> code_step() }
+
+    state code_step() {
+        transition self.i < self.code_len {
+            true  -> code_one()
+            false -> pad_step()
+        }
+    }
+    state code_one() {
+        write_byte(self.code[self.i]);
+        self.i = self.i + 1;
+        transition 0 { _ -> code_step() }
+    }
+    state pad_step() {
+        transition self.i < self.raw_size {
+            true  -> pad_one()
+            false -> done()
+        }
+    }
+    state pad_one() {
+        write_byte(0);
+        self.i = self.i + 1;
+        transition 0 { _ -> pad_step() }
+    }
+    state done() { }
+}
+
+// --- the (trivial) front-end: parse a decimal integer, build an exit stub ---
+
+machine Main::main(&mut self) {
+    self.value = 0;
+    transition 0 { _ -> read() }
+
+    state read() {
+        self.c = read_byte();
+        transition self.c < 48 {
+            true  -> build()      // EOF (-1), newline, or any non-digit ends the number
+            false -> check_high()
+        }
+    }
+    state check_high() {
+        transition self.c > 57 {
+            true  -> build()
+            false -> accumulate()
+        }
+    }
+    state accumulate() {
+        self.value = self.value * 10 + self.c - 48;
+        transition 0 { _ -> read() }
+    }
+
+    state build() {
+        // mov eax, <value> ; ret   (0xB8 imm32, 0xC3)
+        self.code[0] = 184;
+        self.code[1] = self.value;
+        self.code[2] = self.value / 256;
+        self.code[3] = self.value / 65536;
+        self.code[4] = self.value / 16777216;
+        self.code[5] = 195;
+        self.code_len = 6;
+        transition 0 { _ -> finish() }
+    }
+    state finish() {
+        self.write_pe();
+        self.console.exit_process(0)
+    }
+}
