@@ -77,12 +77,18 @@ cargo run -- samples/exit7.alpha out.exe
   writes are scalar-only for now. Verified: mutable fields, ZII reads 0, a counter
   held in `self` across a loop, multi-field offsets. See `samples/data.alpha`.
 
+- **Slice 7b — array fields + trap-checked indexing: DONE.** `data` fields may be
+  `[scalar; N]` (N×8 bytes). `self.arr[i]` reads and `self.arr[i] = e` writes
+  compute `self_ptr + field_offset + i*8` after a `cmp i,N; jb +2; ud2` bounds
+  check — an out-of-bounds index **traps** (SIGILL), per the Alpha spec. The index
+  is any expression. Verified: write/read, fill-and-sum in a loop with a runtime
+  index, OOB traps; `samples/arena.alpha` computes fib(11)=89 in an array.
+
 ## Next slices (grow the grammar feature-by-feature)
 
-7b. `[T;N]` array fields + trap-checked indexing `self.arr[i]` (the IR arenas);
-    then `&mut self` method calls passing a receiver address (struct locals).
-8.  File I/O: CreateFile/ReadFile/WriteFile — the compiler reads a source file and
-    writes a `.exe`. Then sum-types-as-tags, and the Alpha compiler in `compiler/alpha/`.
+8. File I/O: CreateFile/ReadFile/WriteFile — the compiler reads a source file and
+   writes a `.exe`. Then `&mut self` method calls on data, sum-types-as-tags, and
+   the Alpha compiler in `compiler/alpha/`.
 
 Deferred subset-enforcement (front-end is the spec; add before self-host): reject
 a cyclic call graph (Alpha bans recursion — calls must be a DAG); >4-arg calls
