@@ -19,10 +19,12 @@ pub enum ExprKind {
 pub enum Stmt {
     Let(usize, usize), // local index, init expr node
     Exit(usize),       // exit-code expr node
+    WriteLine(usize),  // index into Main.strings (bytes already include trailing '\n')
 }
 
 pub struct Main {
     pub stmts: Vec<Stmt>,
     pub exprs: Vec<ExprKind>,
     pub n_locals: usize,
+    pub strings: Vec<Vec<u8>>, // interned string-literal payloads for write_line
 }
