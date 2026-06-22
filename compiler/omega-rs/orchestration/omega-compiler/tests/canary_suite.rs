@@ -11599,7 +11599,7 @@ fn unique_no_output_build_dir() -> PathBuf {
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(3)
+        .nth(4)
         .expect("compiler crate should live under compiler/orchestration/omega-compiler")
         .to_path_buf()
 }

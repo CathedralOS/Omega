@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 #[test]
 fn backend_crates_do_not_depend_on_frontend_crates() {
     let repo_root = repo_root();
-    let backend_root = repo_root.join("compiler/backend");
+    let backend_root = repo_root.join("compiler/omega-rs/backend");
     let forbidden = [
         "omega-syntax-trees",
         "omega-tokens-to-syntax-trees",
@@ -28,7 +28,7 @@ fn backend_crates_do_not_depend_on_frontend_crates() {
 #[test]
 fn backend_crates_do_not_depend_on_lowering_crates() {
     let repo_root = repo_root();
-    let backend_root = repo_root.join("compiler/backend");
+    let backend_root = repo_root.join("compiler/omega-rs/backend");
 
     for cargo_toml in cargo_tomls_under(&backend_root) {
         let contents = fs::read_to_string(&cargo_toml)
@@ -45,7 +45,7 @@ fn backend_crates_do_not_depend_on_lowering_crates() {
 #[test]
 fn representation_crates_do_not_depend_on_frontend_crates() {
     let repo_root = repo_root();
-    let representations_root = repo_root.join("compiler/representations");
+    let representations_root = repo_root.join("compiler/omega-rs/representations");
     let forbidden = [
         "omega-syntax-trees",
         "omega-tokens-to-syntax-trees",
@@ -84,7 +84,7 @@ fn representation_crates_do_not_depend_on_frontend_crates() {
 #[test]
 fn representation_crates_do_not_depend_on_native_bridge() {
     let repo_root = repo_root();
-    let representations_root = repo_root.join("compiler/representations");
+    let representations_root = repo_root.join("compiler/omega-rs/representations");
 
     for cargo_toml in cargo_tomls_under(&representations_root) {
         let contents = fs::read_to_string(&cargo_toml)
@@ -107,7 +107,7 @@ fn lowering_crates_do_not_depend_on_final_machinery_crates() {
     // edge. What stays forbidden is final target machinery: ISA encodings,
     // object/image writers, and machine emission.
     let repo_root = repo_root();
-    let lowering_root = repo_root.join("compiler/pipeline");
+    let lowering_root = repo_root.join("compiler/omega-rs/pipeline");
     let forbidden_paths = [
         "backend/instruction_set_architectures/",
         "backend/object/",
@@ -139,7 +139,7 @@ fn lowering_crates_do_not_depend_on_final_machinery_crates() {
 #[test]
 fn artifact_crates_do_not_depend_on_native_bridge() {
     let repo_root = repo_root();
-    let orchestration_root = repo_root.join("compiler/orchestration");
+    let orchestration_root = repo_root.join("compiler/omega-rs/orchestration");
 
     for cargo_toml in cargo_tomls_under(&orchestration_root) {
         let Some(crate_dir) = cargo_toml.parent() else {
@@ -166,7 +166,7 @@ fn artifact_crates_do_not_depend_on_native_bridge() {
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(3)
+        .nth(4)
         .expect("compiler crate should live under compiler/orchestration/omega-compiler")
         .to_path_buf()
 }

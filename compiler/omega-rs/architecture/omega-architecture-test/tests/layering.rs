@@ -92,23 +92,23 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
     // the generic `compiler/backend/` catch-all.
     if m("/apps/") {
         Some("app")
-    } else if m("/compiler/foundation/") {
+    } else if m("/compiler/omega-rs/foundation/") {
         Some("foundation")
-    } else if m("/compiler/representations/") {
+    } else if m("/compiler/omega-rs/representations/") {
         Some("representations")
-    } else if m("/compiler/semantics/") {
+    } else if m("/compiler/omega-rs/semantics/") {
         Some("semantics")
-    } else if m("/compiler/pipeline/") {
+    } else if m("/compiler/omega-rs/pipeline/") {
         Some("pipeline")
-    } else if m("/compiler/orchestration/") {
+    } else if m("/compiler/omega-rs/orchestration/") {
         Some("orchestration")
-    } else if m("/compiler/backend/instruction_set_architectures/") {
+    } else if m("/compiler/omega-rs/backend/instruction_set_architectures/") {
         Some("isa")
-    } else if m("/compiler/backend/images/") {
+    } else if m("/compiler/omega-rs/backend/images/") {
         Some("images")
-    } else if m("/compiler/backend/object/") {
+    } else if m("/compiler/omega-rs/backend/object/") {
         Some("object")
-    } else if m("/compiler/backend/") {
+    } else if m("/compiler/omega-rs/backend/") {
         Some("backend")
     } else {
         // This crate itself lives under compiler/architecture/ and is not part
@@ -184,7 +184,7 @@ fn load_graph() -> BTreeMap<String, Crate> {
 /// `<root>/compiler/architecture/omega-architecture-test`, so go up three.
 fn workspace_root() -> std::path::PathBuf {
     let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for _ in 0..3 {
+    for _ in 0..4 {
         p.pop();
     }
     p

@@ -8,7 +8,7 @@ use omega_tokens_to_syntax_trees::parse_syntax_trees;
 fn parses_dungeon_sample_project() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(3)
+        .nth(4)
         .expect("parser crate should live under compiler/pipeline/omega-tokens-to-syntax-trees");
     let sample_root = repo_root.join("samples/dungeon_crawler_cli");
     let mut omega_files = Vec::new();
@@ -38,7 +38,7 @@ fn parses_dungeon_sample_project() {
 fn sample_projects_ignore_local_build_output() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(3)
+        .nth(4)
         .expect("parser crate should live under compiler/pipeline/omega-tokens-to-syntax-trees");
     let sample_root = repo_root.join("samples");
     let mut sample_projects = Vec::new();
@@ -69,7 +69,7 @@ fn sample_projects_ignore_local_build_output() {
 fn canaries_ignore_local_build_output() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(3)
+        .nth(4)
         .expect("parser crate should live under compiler/pipeline/omega-tokens-to-syntax-trees");
     let gitignore_path = repo_root.join("canaries/.gitignore");
     let gitignore = fs::read_to_string(&gitignore_path)

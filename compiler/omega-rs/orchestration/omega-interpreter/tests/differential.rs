@@ -524,7 +524,7 @@ fn run_canary_list_matches_canary_suite() {
     use std::collections::{BTreeMap, BTreeSet};
 
     let suite_path =
-        repo_root().join("compiler/orchestration/omega-compiler/tests/canary_suite.rs");
+        repo_root().join("compiler/omega-rs/orchestration/omega-compiler/tests/canary_suite.rs");
     let source = fs::read_to_string(&suite_path).unwrap_or_else(|error| {
         panic!(
             "failed to read canary suite source at {}: {error}",
@@ -1301,7 +1301,7 @@ fn join_diagnostics(diagnostics: &[omega_core::diagnostics::Diagnostic]) -> Stri
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
-        .nth(3)
+        .nth(4)
         .expect("interpreter crate should live under compiler/orchestration/omega-interpreter")
         .to_path_buf()
 }
