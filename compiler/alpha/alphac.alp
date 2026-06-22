@@ -24,215 +24,280 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    src: [u8; 65536];     // source text
-    src_len: i32;
-    tok_kind: [i32; 16384];
-    tok_start: [i32; 16384];
-    tok_len: [i32; 16384];
-    tok_count: i32;
-    pos: i32;             // lexer cursor into src
-    c: i32;               // current byte
-    d: i32;               // lookahead byte
-    start: i32;           // token start
-    tp: i32;              // parser token cursor
-    acc: i32;             // tok_int accumulator
-    j: i32;               // tok_int byte cursor
-    jend: i32;            // tok_int byte end
-    op_stack: [i32; 64];  // shunting-yard operator stack (token kinds)
-    op_top: i32;
-    curop: i32;
-    pa: i32;              // precedence scratch
-    pb: i32;
-    kw: [u8; 32];         // keyword-compare buffer
-    ki: i32;
-    ca: i32;              // byte-compare scratch
-    cb: i32;
-    local_tok: [i32; 64]; // symbol table: token index naming each local
+    source: [u8; 65536];          // source text
+    source_length: i32;
+    token_kind: [i32; 16384];
+    token_start: [i32; 16384];
+    token_length: [i32; 16384];
+    token_count: i32;
+    lex_position: i32;            // lexer cursor into source
+    current_byte: i32;            // current byte
+    next_byte: i32;               // lookahead byte
+    token_text_start: i32;        // token start
+    token_position: i32;          // parser token cursor
+    int_accumulator: i32;         // token_int accumulator
+    digit_position: i32;          // token_int byte cursor
+    digit_end: i32;               // token_int byte end
+    operator_stack: [i32; 64];    // shunting-yard operator stack (token kinds)
+    operator_count: i32;
+    current_operator: i32;
+    top_precedence: i32;          // precedence scratch
+    current_precedence: i32;
+    keyword_bytes: [u8; 32];      // keyword-compare buffer
+    compare_position: i32;
+    left_byte: i32;               // byte-compare scratch
+    right_byte: i32;
+    local_token: [i32; 64];       // symbol table: token index naming each local
     local_count: i32;
-    slot: i32;            // current let's slot
-    ri: i32;              // resolve_local cursor
-    tmp: i32;             // emit_i32 scratch
-    depth: i32;           // brace depth while finding the top-level machine
-    code: [u8; 512];      // generated machine code
-    code_len: i32;
-    value: i32;
-    raw_size: i32;
+    current_slot: i32;            // current let's slot
+    resolve_position: i32;        // resolve_local cursor
+    emit_scratch: i32;            // emit_i32 scratch
+    brace_depth: i32;             // brace depth while finding the top-level machine
+    code: [u8; 512];              // generated machine code
+    code_length: i32;
+    pending_value: i32;
+    raw_section_size: i32;
     image_size: i32;
-    i: i32;               // scratch loop cursor
+    write_cursor: i32;            // scratch loop cursor
 }
 
 // --- byte classifiers (free machines returning 0/1) ---
 
-machine is_space(c: i32) -> i32 {
-    transition c { 32 -> yes() 9 -> yes() 13 -> yes() 10 -> yes() _ -> no() }
-    state yes() { return 1; }
-    state no() { return 0; }
+machine is_space(byte: i32) -> i32 {
+    transition byte {
+        32 -> return_true()
+        9 -> return_true()
+        13 -> return_true()
+        10 -> return_true()
+        _ -> return_false()
+    }
+    state return_true() { return 1; }
+    state return_false() { return 0; }
 }
 
-machine is_digit(c: i32) -> i32 {
-    transition c < 48 { true -> no() _ -> hi() }
-    state hi() { transition c > 57 { true -> no() _ -> yes() } }
-    state yes() { return 1; }
-    state no() { return 0; }
+machine is_digit(byte: i32) -> i32 {
+    transition byte < 48 { true -> return_false() _ -> check_high() }
+    state check_high() {
+        transition byte > 57 { true -> return_false() _ -> return_true() }
+    }
+    state return_true() { return 1; }
+    state return_false() { return 0; }
 }
 
-machine is_alpha(c: i32) -> i32 {
-    transition c { 95 -> yes() _ -> chk() } // '_'
-    state chk() { transition c < 65 { true -> no() _ -> chk2() } }
-    state chk2() { transition c > 122 { true -> no() _ -> mid() } }
-    state mid() { transition c < 91 { true -> yes() _ -> mid2() } }   // 65..90 = A-Z
-    state mid2() { transition c > 96 { true -> yes() _ -> no() } }    // 97..122 = a-z
-    state yes() { return 1; }
-    state no() { return 0; }
+machine is_alpha(byte: i32) -> i32 {
+    transition byte { 95 -> return_true() _ -> check_low() } // '_'
+    state check_low() {
+        transition byte < 65 { true -> return_false() _ -> check_high() }
+    }
+    state check_high() {
+        transition byte > 122 { true -> return_false() _ -> check_upper_range() }
+    }
+    state check_upper_range() {
+        transition byte < 91 { true -> return_true() _ -> check_lower_range() } // 65..90 = A-Z
+    }
+    state check_lower_range() {
+        transition byte > 96 { true -> return_true() _ -> return_false() }      // 97..122 = a-z
+    }
+    state return_true() { return 1; }
+    state return_false() { return 0; }
 }
 
-machine is_alnum(c: i32) -> i32 {
-    transition is_alpha(c) { 1 -> yes() _ -> digit() }
-    state digit() { transition is_digit(c) { 1 -> yes() _ -> no() } }
-    state yes() { return 1; }
-    state no() { return 0; }
+machine is_alnum(byte: i32) -> i32 {
+    transition is_alpha(byte) { 1 -> return_true() _ -> check_digit() }
+    state check_digit() {
+        transition is_digit(byte) { 1 -> return_true() _ -> return_false() }
+    }
+    state return_true() { return 1; }
+    state return_false() { return 0; }
 }
 
 // --- byte output helpers (write_byte keeps only the low 8 bits) ---
 
-machine emit_u16(v: i32) {
-    write_byte(v);
-    write_byte(v / 256);
+machine emit_u16(value: i32) {
+    write_byte(value);
+    write_byte(value / 256);
 }
 
-machine emit_u32(v: i32) {
-    write_byte(v);
-    write_byte(v / 256);
-    write_byte(v / 65536);
-    write_byte(v / 16777216);
+machine emit_u32(value: i32) {
+    write_byte(value);
+    write_byte(value / 256);
+    write_byte(value / 65536);
+    write_byte(value / 16777216);
 }
 
-machine emit_zeros(n: i32) {
-    let k: i32 = 0;
-    transition 0 { _ -> step() }
-    state step() { transition k < n { true -> one() false -> done() } }
-    state one() { write_byte(0); k = k + 1; transition 0 { _ -> step() } }
-    state done() { }
-}
-
-machine align_up(v: i32, a: i32) -> i32 {
-    return ((v + a - 1) / a) * a;
-}
-
-// operator precedence: * / bind tighter (2) than + - (1)
-machine prec(op: i32) -> i32 {
-    transition op { 18 -> two() 19 -> two() _ -> one() }
-    state two() { return 2; }
-    state one() { return 1; }
-}
-
-// arithmetic shift right by 8 bits = floor(v/256). Alpha's `/` truncates toward
-// zero, so for negatives we bias by -255 to get floor. Used to emit the bytes of
-// a (possibly negative) i32 in two's complement, since there are no bitwise ops.
-machine ashr8(v: i32) -> i32 {
-    transition v < 0 { true -> neg() false -> pos() }
-    state neg() { return (v - 255) / 256; }
-    state pos() { return v / 256; }
-}
-
-// --- the lexer ---
-
-machine Main::read_source(&mut self) {
-    self.src_len = 0;
+machine emit_zeros(count: i32) {
+    let written: i32 = 0;
     transition 0 { _ -> step() }
     state step() {
-        self.c = read_byte();
-        transition self.c < 0 { true -> done() false -> store() }
+        transition written < count { true -> write_one() false -> done() }
     }
-    state store() {
-        self.src[self.src_len] = self.c;
-        self.src_len = self.src_len + 1;
+    state write_one() {
+        write_byte(0);
+        written = written + 1;
         transition 0 { _ -> step() }
     }
     state done() { }
 }
 
-machine Main::push_token(&mut self, kind: i32, start: i32, len: i32) {
-    self.tok_kind[self.tok_count] = kind;
-    self.tok_start[self.tok_count] = start;
-    self.tok_len[self.tok_count] = len;
-    self.tok_count = self.tok_count + 1;
+machine align_up(value: i32, alignment: i32) -> i32 {
+    return ((value + alignment - 1) / alignment) * alignment;
+}
+
+// operator precedence: * / bind tighter (2) than + - (1)
+machine precedence(operator: i32) -> i32 {
+    transition operator { 18 -> high() 19 -> high() _ -> low() }
+    state high() { return 2; }
+    state low() { return 1; }
+}
+
+// arithmetic shift right by 8 bits = floor(value/256). Alpha's `/` truncates toward
+// zero, so for negatives we bias by -255 to get floor. Used to emit the bytes of
+// a (possibly negative) i32 in two's complement, since there are no bitwise ops.
+machine arithmetic_shift_8(value: i32) -> i32 {
+    transition value < 0 { true -> negative() false -> positive() }
+    state negative() { return (value - 255) / 256; }
+    state positive() { return value / 256; }
+}
+
+// --- the lexer ---
+
+machine Main::read_source(&mut self) {
+    self.source_length = 0;
+    transition 0 { _ -> step() }
+    state step() {
+        self.current_byte = read_byte();
+        transition self.current_byte < 0 { true -> done() false -> store() }
+    }
+    state store() {
+        self.source[self.source_length] = self.current_byte;
+        self.source_length = self.source_length + 1;
+        transition 0 { _ -> step() }
+    }
+    state done() { }
+}
+
+machine Main::push_token(&mut self, kind: i32, start: i32, length: i32) {
+    self.token_kind[self.token_count] = kind;
+    self.token_start[self.token_count] = start;
+    self.token_length[self.token_count] = length;
+    self.token_count = self.token_count + 1;
 }
 
 machine Main::lex(&mut self) {
-    self.tok_count = 0;
-    self.pos = 0;
+    self.token_count = 0;
+    self.lex_position = 0;
     transition 0 { _ -> scan() }
 
     // skip whitespace and // line comments, then dispatch one token
-    state scan() { transition self.pos < self.src_len { true -> peek() false -> at_eof() } }
+    state scan() {
+        transition self.lex_position < self.source_length { true -> peek() false -> at_eof() }
+    }
     state peek() {
-        self.c = self.src[self.pos];
-        transition is_space(self.c) { 1 -> adv1() _ -> peek_slash() }
+        self.current_byte = self.source[self.lex_position];
+        transition is_space(self.current_byte) { 1 -> advance() _ -> peek_slash() }
     }
-    state adv1() { self.pos = self.pos + 1; transition 0 { _ -> scan() } }
-    state peek_slash() { transition self.c { 47 -> slash2() _ -> dispatch() } } // '/'
-    state slash2() {
-        self.d = self.src[self.pos + 1];
-        transition self.d { 47 -> skip_comment() _ -> dispatch() } // '//' -> comment
+    state advance() {
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> scan() }
     }
-    state skip_comment() { transition self.pos < self.src_len { true -> sc_look() false -> scan() } }
-    state sc_look() {
-        self.c = self.src[self.pos];
-        transition self.c { 10 -> adv1() _ -> sc_adv() } // newline ends the comment
+    state peek_slash() {
+        transition self.current_byte { 47 -> peek_second_slash() _ -> dispatch() } // '/'
     }
-    state sc_adv() { self.pos = self.pos + 1; transition 0 { _ -> skip_comment() } }
+    state peek_second_slash() {
+        self.next_byte = self.source[self.lex_position + 1];
+        transition self.next_byte { 47 -> skip_comment() _ -> dispatch() } // '//' -> comment
+    }
+    state skip_comment() {
+        transition self.lex_position < self.source_length { true -> comment_look() false -> scan() }
+    }
+    state comment_look() {
+        self.current_byte = self.source[self.lex_position];
+        transition self.current_byte { 10 -> advance() _ -> comment_advance() } // newline ends the comment
+    }
+    state comment_advance() {
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> skip_comment() }
+    }
 
     state dispatch() {
-        transition is_alpha(self.c) { 1 -> ident() _ -> dispatch2() }
+        transition is_alpha(self.current_byte) { 1 -> ident() _ -> dispatch_digit() }
     }
-    state dispatch2() {
-        transition is_digit(self.c) { 1 -> int() _ -> dispatch3() }
+    state dispatch_digit() {
+        transition is_digit(self.current_byte) { 1 -> int() _ -> dispatch_string() }
     }
-    state dispatch3() { transition self.c { 34 -> string() _ -> op() } } // '"'
+    state dispatch_string() {
+        transition self.current_byte { 34 -> string() _ -> op() } // '"'
+    }
 
     // identifier
-    state ident() { self.start = self.pos; transition 0 { _ -> id_loop() } }
-    state id_loop() { transition self.pos < self.src_len { true -> id_check() false -> id_end() } }
-    state id_check() {
-        self.c = self.src[self.pos];
-        transition is_alnum(self.c) { 1 -> id_adv() _ -> id_end() }
+    state ident() {
+        self.token_text_start = self.lex_position;
+        transition 0 { _ -> ident_loop() }
     }
-    state id_adv() { self.pos = self.pos + 1; transition 0 { _ -> id_loop() } }
-    state id_end() { self.push_token(1, self.start, self.pos - self.start); transition 0 { _ -> scan() } }
+    state ident_loop() {
+        transition self.lex_position < self.source_length { true -> ident_check() false -> ident_end() }
+    }
+    state ident_check() {
+        self.current_byte = self.source[self.lex_position];
+        transition is_alnum(self.current_byte) { 1 -> ident_advance() _ -> ident_end() }
+    }
+    state ident_advance() {
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> ident_loop() }
+    }
+    state ident_end() {
+        self.push_token(1, self.token_text_start, self.lex_position - self.token_text_start);
+        transition 0 { _ -> scan() }
+    }
 
     // integer
-    state int() { self.start = self.pos; transition 0 { _ -> int_loop() } }
-    state int_loop() { transition self.pos < self.src_len { true -> int_check() false -> int_end() } }
-    state int_check() {
-        self.c = self.src[self.pos];
-        transition is_digit(self.c) { 1 -> int_adv() _ -> int_end() }
+    state int() {
+        self.token_text_start = self.lex_position;
+        transition 0 { _ -> int_loop() }
     }
-    state int_adv() { self.pos = self.pos + 1; transition 0 { _ -> int_loop() } }
-    state int_end() { self.push_token(2, self.start, self.pos - self.start); transition 0 { _ -> scan() } }
+    state int_loop() {
+        transition self.lex_position < self.source_length { true -> int_check() false -> int_end() }
+    }
+    state int_check() {
+        self.current_byte = self.source[self.lex_position];
+        transition is_digit(self.current_byte) { 1 -> int_advance() _ -> int_end() }
+    }
+    state int_advance() {
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> int_loop() }
+    }
+    state int_end() {
+        self.push_token(2, self.token_text_start, self.lex_position - self.token_text_start);
+        transition 0 { _ -> scan() }
+    }
 
     // string literal: start/len cover the bytes between the quotes
     state string() {
-        self.pos = self.pos + 1;
-        self.start = self.pos;
-        transition 0 { _ -> str_loop() }
+        self.lex_position = self.lex_position + 1;
+        self.token_text_start = self.lex_position;
+        transition 0 { _ -> string_loop() }
     }
-    state str_loop() { transition self.pos < self.src_len { true -> str_check() false -> str_end() } }
-    state str_check() {
-        self.c = self.src[self.pos];
-        transition self.c { 34 -> str_end() _ -> str_adv() }
+    state string_loop() {
+        transition self.lex_position < self.source_length { true -> string_check() false -> string_end() }
     }
-    state str_adv() { self.pos = self.pos + 1; transition 0 { _ -> str_loop() } }
-    state str_end() {
-        self.push_token(27, self.start, self.pos - self.start);
-        self.pos = self.pos + 1; // skip closing quote
+    state string_check() {
+        self.current_byte = self.source[self.lex_position];
+        transition self.current_byte { 34 -> string_end() _ -> string_advance() }
+    }
+    state string_advance() {
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> string_loop() }
+    }
+    state string_end() {
+        self.push_token(27, self.token_text_start, self.lex_position - self.token_text_start);
+        self.lex_position = self.lex_position + 1; // skip closing quote
         transition 0 { _ -> scan() }
     }
 
     // operators / punctuation (two-char forms first)
     state op() {
-        self.d = self.src[self.pos + 1];
-        transition self.c {
+        self.next_byte = self.source[self.lex_position + 1];
+        transition self.current_byte {
             45 -> op_minus()   // -
             58 -> op_colon()   // :
             61 -> op_eq()      // =
@@ -242,69 +307,171 @@ machine Main::lex(&mut self) {
             _  -> op_single()
         }
     }
-    state op_minus() { transition self.d { 62 -> set_arrow() _ -> one_minus() } }
-    state one_minus() { self.push_token(17, self.pos, 1); self.pos = self.pos + 1; transition 0 { _ -> scan() } }
-    state op_colon() { transition self.d { 58 -> set_cc() _ -> one_colon() } }
-    state one_colon() { self.push_token(10, self.pos, 1); self.pos = self.pos + 1; transition 0 { _ -> scan() } }
-    state op_eq() { transition self.d { 61 -> set_eqeq() _ -> one_eq() } }
-    state one_eq() { self.push_token(15, self.pos, 1); self.pos = self.pos + 1; transition 0 { _ -> scan() } }
-    state op_bang() { transition self.d { 61 -> set_ne() _ -> skip_bad() } }
-    state skip_bad() { self.pos = self.pos + 1; transition 0 { _ -> scan() } }
-    state op_lt() { transition self.d { 61 -> set_le() _ -> one_lt() } }
-    state one_lt() { self.push_token(20, self.pos, 1); self.pos = self.pos + 1; transition 0 { _ -> scan() } }
-    state op_gt() { transition self.d { 61 -> set_ge() _ -> one_gt() } }
-    state one_gt() { self.push_token(21, self.pos, 1); self.pos = self.pos + 1; transition 0 { _ -> scan() } }
+    state op_minus() {
+        transition self.next_byte { 62 -> set_arrow() _ -> emit_minus() }
+    }
+    state emit_minus() {
+        self.push_token(17, self.lex_position, 1);
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> scan() }
+    }
+    state op_colon() {
+        transition self.next_byte { 58 -> set_colon_colon() _ -> emit_colon() }
+    }
+    state emit_colon() {
+        self.push_token(10, self.lex_position, 1);
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> scan() }
+    }
+    state op_eq() {
+        transition self.next_byte { 61 -> set_eq_eq() _ -> emit_eq() }
+    }
+    state emit_eq() {
+        self.push_token(15, self.lex_position, 1);
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> scan() }
+    }
+    state op_bang() {
+        transition self.next_byte { 61 -> set_ne() _ -> skip_bad() }
+    }
+    state skip_bad() {
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> scan() }
+    }
+    state op_lt() {
+        transition self.next_byte { 61 -> set_le() _ -> emit_lt() }
+    }
+    state emit_lt() {
+        self.push_token(20, self.lex_position, 1);
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> scan() }
+    }
+    state op_gt() {
+        transition self.next_byte { 61 -> set_ge() _ -> emit_gt() }
+    }
+    state emit_gt() {
+        self.push_token(21, self.lex_position, 1);
+        self.lex_position = self.lex_position + 1;
+        transition 0 { _ -> scan() }
+    }
 
-    // two-char tokens: a setter puts the kind in self.value, then `two` emits it
+    // two-char tokens: a setter puts the kind in self.pending_value, then `emit_two_char` emits it
     // (transition arm targets are parameterless, so the kind can't be passed inline)
-    state set_arrow() { self.value = 26; transition 0 { _ -> two() } }
-    state set_cc() { self.value = 11; transition 0 { _ -> two() } }
-    state set_eqeq() { self.value = 24; transition 0 { _ -> two() } }
-    state set_ne() { self.value = 25; transition 0 { _ -> two() } }
-    state set_le() { self.value = 22; transition 0 { _ -> two() } }
-    state set_ge() { self.value = 23; transition 0 { _ -> two() } }
-    state two() {
-        self.push_token(self.value, self.pos, 2);
-        self.pos = self.pos + 2;
+    state set_arrow() {
+        self.pending_value = 26;
+        transition 0 { _ -> emit_two_char() }
+    }
+    state set_colon_colon() {
+        self.pending_value = 11;
+        transition 0 { _ -> emit_two_char() }
+    }
+    state set_eq_eq() {
+        self.pending_value = 24;
+        transition 0 { _ -> emit_two_char() }
+    }
+    state set_ne() {
+        self.pending_value = 25;
+        transition 0 { _ -> emit_two_char() }
+    }
+    state set_le() {
+        self.pending_value = 22;
+        transition 0 { _ -> emit_two_char() }
+    }
+    state set_ge() {
+        self.pending_value = 23;
+        transition 0 { _ -> emit_two_char() }
+    }
+    state emit_two_char() {
+        self.push_token(self.pending_value, self.lex_position, 2);
+        self.lex_position = self.lex_position + 2;
         transition 0 { _ -> scan() }
     }
 
     // single-char punctuation
     state op_single() {
-        transition self.c {
-            123 -> k3() 125 -> k4() 40 -> k5() 41 -> k6()
-            91 -> k7() 93 -> k8() 59 -> k9() 44 -> k12()
-            46 -> k13() 38 -> k14() 43 -> k16() 42 -> k18() 47 -> k19()
+        transition self.current_byte {
+            123 -> set_lbrace()
+            125 -> set_rbrace()
+            40 -> set_lparen()
+            41 -> set_rparen()
+            91 -> set_lbracket()
+            93 -> set_rbracket()
+            59 -> set_semi()
+            44 -> set_comma()
+            46 -> set_dot()
+            38 -> set_amp()
+            43 -> set_plus()
+            42 -> set_star()
+            47 -> set_slash()
             _ -> skip_bad()
         }
     }
-    state k3() { self.value = 3; transition 0 { _ -> one() } }
-    state k4() { self.value = 4; transition 0 { _ -> one() } }
-    state k5() { self.value = 5; transition 0 { _ -> one() } }
-    state k6() { self.value = 6; transition 0 { _ -> one() } }
-    state k7() { self.value = 7; transition 0 { _ -> one() } }
-    state k8() { self.value = 8; transition 0 { _ -> one() } }
-    state k9() { self.value = 9; transition 0 { _ -> one() } }
-    state k12() { self.value = 12; transition 0 { _ -> one() } }
-    state k13() { self.value = 13; transition 0 { _ -> one() } }
-    state k14() { self.value = 14; transition 0 { _ -> one() } }
-    state k16() { self.value = 16; transition 0 { _ -> one() } }
-    state k18() { self.value = 18; transition 0 { _ -> one() } }
-    state k19() { self.value = 19; transition 0 { _ -> one() } }
-    state one() {
-        self.push_token(self.value, self.pos, 1);
-        self.pos = self.pos + 1;
+    state set_lbrace() {
+        self.pending_value = 3;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_rbrace() {
+        self.pending_value = 4;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_lparen() {
+        self.pending_value = 5;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_rparen() {
+        self.pending_value = 6;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_lbracket() {
+        self.pending_value = 7;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_rbracket() {
+        self.pending_value = 8;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_semi() {
+        self.pending_value = 9;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_comma() {
+        self.pending_value = 12;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_dot() {
+        self.pending_value = 13;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_amp() {
+        self.pending_value = 14;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_plus() {
+        self.pending_value = 16;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_star() {
+        self.pending_value = 18;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state set_slash() {
+        self.pending_value = 19;
+        transition 0 { _ -> emit_one_char() }
+    }
+    state emit_one_char() {
+        self.push_token(self.pending_value, self.lex_position, 1);
+        self.lex_position = self.lex_position + 1;
         transition 0 { _ -> scan() }
     }
 
-    state at_eof() { self.push_token(0, self.pos, 0); }
+    state at_eof() { self.push_token(0, self.lex_position, 0); }
 }
 
 // --- the PE writer (single-section, no imports), reused from increment 1 ---
 
 machine Main::write_pe(&mut self) {
-    self.raw_size = align_up(self.code_len, 512);
-    self.image_size = 4096 + align_up(self.code_len, 4096);
+    self.raw_section_size = align_up(self.code_length, 512);
+    self.image_size = 4096 + align_up(self.code_length, 4096);
 
     write_byte(77); write_byte(90);  // "MZ"
     emit_zeros(58);
@@ -317,7 +484,7 @@ machine Main::write_pe(&mut self) {
 
     emit_u16(523);                   // PE32+
     write_byte(0); write_byte(0);
-    emit_u32(self.raw_size);         // SizeOfCode
+    emit_u32(self.raw_section_size); // SizeOfCode
     emit_u32(0); emit_u32(0);
     emit_u32(4096); emit_u32(4096);  // entry point, base of code
     emit_u32(1073741824); emit_u32(1); // ImageBase = 0x140000000
@@ -337,237 +504,306 @@ machine Main::write_pe(&mut self) {
 
     write_byte(46); write_byte(116); write_byte(101); write_byte(120); write_byte(116); // ".text"
     write_byte(0); write_byte(0); write_byte(0);
-    emit_u32(self.code_len);
+    emit_u32(self.code_length);
     emit_u32(4096);
-    emit_u32(self.raw_size);
+    emit_u32(self.raw_section_size);
     emit_u32(512);
     emit_u32(0); emit_u32(0);
     emit_u16(0); emit_u16(0);
     emit_u32(1610612768);            // 0x60000020
     emit_zeros(144);                 // pad headers 368 -> 512
 
-    self.i = 0;
+    self.write_cursor = 0;
     transition 0 { _ -> code_step() }
-    state code_step() { transition self.i < self.code_len { true -> code_one() false -> pad_step() } }
-    state code_one() { write_byte(self.code[self.i]); self.i = self.i + 1; transition 0 { _ -> code_step() } }
-    state pad_step() { transition self.i < self.raw_size { true -> pad_one() false -> done() } }
-    state pad_one() { write_byte(0); self.i = self.i + 1; transition 0 { _ -> pad_step() } }
+    state code_step() {
+        transition self.write_cursor < self.code_length { true -> code_one() false -> pad_step() }
+    }
+    state code_one() {
+        write_byte(self.code[self.write_cursor]);
+        self.write_cursor = self.write_cursor + 1;
+        transition 0 { _ -> code_step() }
+    }
+    state pad_step() {
+        transition self.write_cursor < self.raw_section_size { true -> pad_one() false -> done() }
+    }
+    state pad_one() {
+        write_byte(0);
+        self.write_cursor = self.write_cursor + 1;
+        transition 0 { _ -> pad_step() }
+    }
     state done() { }
 }
 
 // --- parser (increment 3) ---
 
 // Parse the decimal value of an Int token from its source bytes.
-machine Main::tok_int(&mut self, t: i32) -> i32 {
-    self.acc = 0;
-    self.j = self.tok_start[t];
-    self.jend = self.tok_start[t] + self.tok_len[t];
+machine Main::token_int(&mut self, token: i32) -> i32 {
+    self.int_accumulator = 0;
+    self.digit_position = self.token_start[token];
+    self.digit_end = self.token_start[token] + self.token_length[token];
     transition 0 { _ -> step() }
-    state step() { transition self.j < self.jend { true -> digit() false -> done() } }
+    state step() {
+        transition self.digit_position < self.digit_end { true -> digit() false -> done() }
+    }
     state digit() {
-        self.acc = self.acc * 10 + self.src[self.j] - 48;
-        self.j = self.j + 1;
+        self.int_accumulator = self.int_accumulator * 10 + self.source[self.digit_position] - 48;
+        self.digit_position = self.digit_position + 1;
         transition 0 { _ -> step() }
     }
-    state done() { return self.acc; }
+    state done() { return self.int_accumulator; }
 }
 
-// Is token t the identifier "exit_process"?
-machine Main::is_exit_process(&mut self, t: i32) -> i32 {
-    transition self.tok_len[t] == 12 { false -> no() _ -> setup() }
+// Is token the identifier "exit_process"?
+machine Main::is_exit_process(&mut self, token: i32) -> i32 {
+    transition self.token_length[token] == 12 { false -> return_false() _ -> setup() }
     state setup() {
-        self.kw[0] = 101; self.kw[1] = 120; self.kw[2] = 105; self.kw[3] = 116;   // e x i t
-        self.kw[4] = 95;  self.kw[5] = 112; self.kw[6] = 114; self.kw[7] = 111;   // _ p r o
-        self.kw[8] = 99;  self.kw[9] = 101; self.kw[10] = 115; self.kw[11] = 115; // c e s s
-        self.ki = 0;
-        transition 0 { _ -> cmp() }
+        self.keyword_bytes[0] = 101; self.keyword_bytes[1] = 120; self.keyword_bytes[2] = 105; self.keyword_bytes[3] = 116;   // e x i t
+        self.keyword_bytes[4] = 95;  self.keyword_bytes[5] = 112; self.keyword_bytes[6] = 114; self.keyword_bytes[7] = 111;   // _ p r o
+        self.keyword_bytes[8] = 99;  self.keyword_bytes[9] = 101; self.keyword_bytes[10] = 115; self.keyword_bytes[11] = 115; // c e s s
+        self.compare_position = 0;
+        transition 0 { _ -> compare() }
     }
-    state cmp() { transition self.ki < 12 { true -> cmp1() false -> yes() } }
-    state cmp1() {
-        self.ca = self.src[self.tok_start[t] + self.ki];
-        self.cb = self.kw[self.ki];
-        transition self.ca == self.cb { true -> adv() false -> no() }
+    state compare() {
+        transition self.compare_position < 12 { true -> compare_byte() false -> return_true() }
     }
-    state adv() { self.ki = self.ki + 1; transition 0 { _ -> cmp() } }
-    state yes() { return 1; }
-    state no() { return 0; }
+    state compare_byte() {
+        self.left_byte = self.source[self.token_start[token] + self.compare_position];
+        self.right_byte = self.keyword_bytes[self.compare_position];
+        transition self.left_byte == self.right_byte { true -> advance() false -> return_false() }
+    }
+    state advance() {
+        self.compare_position = self.compare_position + 1;
+        transition 0 { _ -> compare() }
+    }
+    state return_true() { return 1; }
+    state return_false() { return 0; }
 }
 
-// Do tokens a and b have identical source text?
-machine Main::tok_eq(&mut self, a: i32, b: i32) -> i32 {
-    transition self.tok_len[a] == self.tok_len[b] { false -> no() _ -> setup() }
-    state setup() { self.ki = 0; transition 0 { _ -> cmp() } }
-    state cmp() { transition self.ki < self.tok_len[a] { true -> cmp1() false -> yes() } }
-    state cmp1() {
-        self.ca = self.src[self.tok_start[a] + self.ki];
-        self.cb = self.src[self.tok_start[b] + self.ki];
-        transition self.ca == self.cb { true -> adv() false -> no() }
-    }
-    state adv() { self.ki = self.ki + 1; transition 0 { _ -> cmp() } }
-    state yes() { return 1; }
-    state no() { return 0; }
-}
-
-// Is token t the keyword "let"?
-machine Main::is_let(&mut self, t: i32) -> i32 {
-    transition self.tok_len[t] == 3 { false -> no() _ -> setup() }
+// Do tokens first and second have identical source text?
+machine Main::tokens_equal(&mut self, first: i32, second: i32) -> i32 {
+    transition self.token_length[first] == self.token_length[second] { false -> return_false() _ -> setup() }
     state setup() {
-        self.kw[0] = 108; self.kw[1] = 101; self.kw[2] = 116; // l e t
-        self.ki = 0;
-        transition 0 { _ -> cmp() }
+        self.compare_position = 0;
+        transition 0 { _ -> compare() }
     }
-    state cmp() { transition self.ki < 3 { true -> cmp1() false -> yes() } }
-    state cmp1() {
-        self.ca = self.src[self.tok_start[t] + self.ki];
-        self.cb = self.kw[self.ki];
-        transition self.ca == self.cb { true -> adv() false -> no() }
+    state compare() {
+        transition self.compare_position < self.token_length[first] { true -> compare_byte() false -> return_true() }
     }
-    state adv() { self.ki = self.ki + 1; transition 0 { _ -> cmp() } }
-    state yes() { return 1; }
-    state no() { return 0; }
+    state compare_byte() {
+        self.left_byte = self.source[self.token_start[first] + self.compare_position];
+        self.right_byte = self.source[self.token_start[second] + self.compare_position];
+        transition self.left_byte == self.right_byte { true -> advance() false -> return_false() }
+    }
+    state advance() {
+        self.compare_position = self.compare_position + 1;
+        transition 0 { _ -> compare() }
+    }
+    state return_true() { return 1; }
+    state return_false() { return 0; }
 }
 
-// Is token t the keyword "machine"?
-machine Main::is_machine(&mut self, t: i32) -> i32 {
-    transition self.tok_len[t] == 7 { false -> no() _ -> setup() }
+// Is token the keyword "let"?
+machine Main::is_let(&mut self, token: i32) -> i32 {
+    transition self.token_length[token] == 3 { false -> return_false() _ -> setup() }
     state setup() {
-        self.kw[0] = 109; self.kw[1] = 97; self.kw[2] = 99; self.kw[3] = 104; // m a c h
-        self.kw[4] = 105; self.kw[5] = 110; self.kw[6] = 101;                 // i n e
-        self.ki = 0;
-        transition 0 { _ -> cmp() }
+        self.keyword_bytes[0] = 108; self.keyword_bytes[1] = 101; self.keyword_bytes[2] = 116; // l e t
+        self.compare_position = 0;
+        transition 0 { _ -> compare() }
     }
-    state cmp() { transition self.ki < 7 { true -> cmp1() false -> yes() } }
-    state cmp1() {
-        self.ca = self.src[self.tok_start[t] + self.ki];
-        self.cb = self.kw[self.ki];
-        transition self.ca == self.cb { true -> adv() false -> no() }
+    state compare() {
+        transition self.compare_position < 3 { true -> compare_byte() false -> return_true() }
     }
-    state adv() { self.ki = self.ki + 1; transition 0 { _ -> cmp() } }
-    state yes() { return 1; }
-    state no() { return 0; }
+    state compare_byte() {
+        self.left_byte = self.source[self.token_start[token] + self.compare_position];
+        self.right_byte = self.keyword_bytes[self.compare_position];
+        transition self.left_byte == self.right_byte { true -> advance() false -> return_false() }
+    }
+    state advance() {
+        self.compare_position = self.compare_position + 1;
+        transition 0 { _ -> compare() }
+    }
+    state return_true() { return 1; }
+    state return_false() { return 0; }
 }
 
-// Resolve identifier token t to a local slot (0 if not found — increment 5 assumes
+// Is token the keyword "machine"?
+machine Main::is_machine(&mut self, token: i32) -> i32 {
+    transition self.token_length[token] == 7 { false -> return_false() _ -> setup() }
+    state setup() {
+        self.keyword_bytes[0] = 109; self.keyword_bytes[1] = 97; self.keyword_bytes[2] = 99; self.keyword_bytes[3] = 104; // m a c h
+        self.keyword_bytes[4] = 105; self.keyword_bytes[5] = 110; self.keyword_bytes[6] = 101;                            // i n e
+        self.compare_position = 0;
+        transition 0 { _ -> compare() }
+    }
+    state compare() {
+        transition self.compare_position < 7 { true -> compare_byte() false -> return_true() }
+    }
+    state compare_byte() {
+        self.left_byte = self.source[self.token_start[token] + self.compare_position];
+        self.right_byte = self.keyword_bytes[self.compare_position];
+        transition self.left_byte == self.right_byte { true -> advance() false -> return_false() }
+    }
+    state advance() {
+        self.compare_position = self.compare_position + 1;
+        transition 0 { _ -> compare() }
+    }
+    state return_true() { return 1; }
+    state return_false() { return 0; }
+}
+
+// Resolve identifier token to a local slot (0 if not found — increment 5 assumes
 // every referenced local was declared).
-machine Main::resolve_local(&mut self, t: i32) -> i32 {
-    self.ri = 0;
+machine Main::resolve_local(&mut self, token: i32) -> i32 {
+    self.resolve_position = 0;
     transition 0 { _ -> step() }
-    state step() { transition self.ri < self.local_count { true -> check() false -> notfound() } }
-    state check() { transition self.tok_eq(self.local_tok[self.ri], t) { 1 -> found() _ -> next() } }
-    state next() { self.ri = self.ri + 1; transition 0 { _ -> step() } }
-    state found() { return self.ri; }
-    state notfound() { return 0; }
+    state step() {
+        transition self.resolve_position < self.local_count { true -> check() false -> not_found() }
+    }
+    state check() {
+        transition self.tokens_equal(self.local_token[self.resolve_position], token) { 1 -> found() _ -> next() }
+    }
+    state next() {
+        self.resolve_position = self.resolve_position + 1;
+        transition 0 { _ -> step() }
+    }
+    state found() { return self.resolve_position; }
+    state not_found() { return 0; }
 }
 
 // --- machine-code emission into self.code ---
 
-machine Main::emit_code(&mut self, b: i32) {
-    self.code[self.code_len] = b;
-    self.code_len = self.code_len + 1;
+machine Main::emit_byte(&mut self, byte: i32) {
+    self.code[self.code_length] = byte;
+    self.code_length = self.code_length + 1;
 }
 
 // emit a little-endian i32 into the code (two's complement, handles negatives)
-machine Main::emit_i32(&mut self, v: i32) {
-    self.tmp = v;
-    self.emit_code(self.tmp); self.tmp = ashr8(self.tmp);
-    self.emit_code(self.tmp); self.tmp = ashr8(self.tmp);
-    self.emit_code(self.tmp); self.tmp = ashr8(self.tmp);
-    self.emit_code(self.tmp);
+machine Main::emit_i32(&mut self, value: i32) {
+    self.emit_scratch = value;
+    self.emit_byte(self.emit_scratch); self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
+    self.emit_byte(self.emit_scratch); self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
+    self.emit_byte(self.emit_scratch); self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
+    self.emit_byte(self.emit_scratch);
 }
 
-machine Main::emit_push_imm(&mut self, v: i32) {
-    self.emit_code(184);          // mov eax, imm32 (0xB8)
-    self.emit_i32(v);
-    self.emit_code(80);           // push rax
+machine Main::emit_push_immediate(&mut self, value: i32) {
+    self.emit_byte(184);          // mov eax, imm32 (0xB8)
+    self.emit_i32(value);
+    self.emit_byte(80);           // push rax
 }
 
 // mov eax, [rbp + disp32] ; push rax     (load local `slot` onto the stack)
 machine Main::emit_load_local(&mut self, slot: i32) {
-    self.emit_code(139); self.emit_code(133);   // 8B /0 mod=10 rm=rbp
+    self.emit_byte(139); self.emit_byte(133);   // 8B /0 mod=10 rm=rbp
     self.emit_i32(0 - 8 * (slot + 1));
-    self.emit_code(80);                          // push rax
+    self.emit_byte(80);                          // push rax
 }
 
 // pop rax ; mov [rbp + disp32], eax     (store top of stack into local `slot`)
 machine Main::emit_store_local(&mut self, slot: i32) {
-    self.emit_code(88);                          // pop rax
-    self.emit_code(137); self.emit_code(133);    // 89 /0 mod=10 rm=rbp
+    self.emit_byte(88);                          // pop rax
+    self.emit_byte(137); self.emit_byte(133);    // 89 /0 mod=10 rm=rbp
     self.emit_i32(0 - 8 * (slot + 1));
 }
 
 // pop rcx (rhs); pop rax (lhs); <op> eax,ecx [+ overflow trap]; push rax
-machine Main::emit_binop(&mut self, op: i32) {
-    self.emit_code(89);  // pop rcx
-    self.emit_code(88);  // pop rax
-    transition op {
-        16 -> em_add()
-        17 -> em_sub()
-        18 -> em_mul()
-        19 -> em_div()
-        _  -> em_add()
+machine Main::emit_binary_op(&mut self, operator: i32) {
+    self.emit_byte(89);  // pop rcx
+    self.emit_byte(88);  // pop rax
+    transition operator {
+        16 -> emit_add()
+        17 -> emit_sub()
+        18 -> emit_mul()
+        19 -> emit_div()
+        _  -> emit_add()
     }
-    state em_add() { self.emit_code(1); self.emit_code(200); transition 0 { _ -> trap() } }            // add eax,ecx
-    state em_sub() { self.emit_code(41); self.emit_code(200); transition 0 { _ -> trap() } }           // sub eax,ecx
-    state em_mul() { self.emit_code(15); self.emit_code(175); self.emit_code(193); transition 0 { _ -> trap() } } // imul eax,ecx
-    state em_div() { self.emit_code(153); self.emit_code(247); self.emit_code(249); transition 0 { _ -> res() } } // cdq; idiv ecx
+    state emit_add() {
+        self.emit_byte(1); self.emit_byte(200);   // add eax,ecx
+        transition 0 { _ -> trap() }
+    }
+    state emit_sub() {
+        self.emit_byte(41); self.emit_byte(200);  // sub eax,ecx
+        transition 0 { _ -> trap() }
+    }
+    state emit_mul() {
+        self.emit_byte(15); self.emit_byte(175); self.emit_byte(193); // imul eax,ecx
+        transition 0 { _ -> trap() }
+    }
+    state emit_div() {
+        self.emit_byte(153); self.emit_byte(247); self.emit_byte(249); // cdq; idiv ecx
+        transition 0 { _ -> push_result() }
+    }
     state trap() {
-        self.emit_code(113); self.emit_code(2); self.emit_code(15); self.emit_code(11); // jno +2 ; ud2
-        transition 0 { _ -> res() }
+        self.emit_byte(113); self.emit_byte(2); self.emit_byte(15); self.emit_byte(11); // jno +2 ; ud2
+        transition 0 { _ -> push_result() }
     }
-    state res() { self.emit_code(80); } // push rax
+    state push_result() { self.emit_byte(80); } // push rax
 }
 
-// Compile an arithmetic expression (Int / + - * /) from self.tp until ')' or Eof,
+// Compile an arithmetic expression (Int / + - * /) from self.token_position until ')' or Eof,
 // emitting stack-machine code. Iterative shunting-yard (no recursion).
 machine Main::compile_expr(&mut self) {
-    self.op_top = 0;
+    self.operator_count = 0;
     transition 0 { _ -> step() }
     state step() {
-        transition self.tok_kind[self.tp] { 6 -> flush() 9 -> flush() 0 -> flush() _ -> item() }
+        transition self.token_kind[self.token_position] { 6 -> flush() 9 -> flush() 0 -> flush() _ -> item() }
     } // stop at ) ; or Eof
     state item() {
-        transition self.tok_kind[self.tp] {
+        transition self.token_kind[self.token_position] {
             2 -> operand_int()
             1 -> operand_ident()
-            16 -> binop() 17 -> binop() 18 -> binop() 19 -> binop()
+            16 -> binop()
+            17 -> binop()
+            18 -> binop()
+            19 -> binop()
             _ -> skip()
         }
     }
     state operand_int() {
-        self.value = self.tok_int(self.tp);
-        self.emit_push_imm(self.value);
-        self.tp = self.tp + 1;
+        self.pending_value = self.token_int(self.token_position);
+        self.emit_push_immediate(self.pending_value);
+        self.token_position = self.token_position + 1;
         transition 0 { _ -> step() }
     }
     state operand_ident() {
-        self.value = self.resolve_local(self.tp);
-        self.emit_load_local(self.value);
-        self.tp = self.tp + 1;
+        self.pending_value = self.resolve_local(self.token_position);
+        self.emit_load_local(self.pending_value);
+        self.token_position = self.token_position + 1;
         transition 0 { _ -> step() }
     }
-    state skip() { self.tp = self.tp + 1; transition 0 { _ -> step() } }
-    state binop() { self.curop = self.tok_kind[self.tp]; transition 0 { _ -> pop_loop() } }
-    state pop_loop() { transition self.op_top > 0 { true -> pop_test() false -> push_op() } }
+    state skip() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> step() }
+    }
+    state binop() {
+        self.current_operator = self.token_kind[self.token_position];
+        transition 0 { _ -> pop_loop() }
+    }
+    state pop_loop() {
+        transition self.operator_count > 0 { true -> pop_test() false -> push_op() }
+    }
     state pop_test() {
-        self.pa = prec(self.op_stack[self.op_top - 1]);
-        self.pb = prec(self.curop);
-        transition self.pa < self.pb { true -> push_op() false -> pop_emit() } // emit while top prec >= cur
+        self.top_precedence = precedence(self.operator_stack[self.operator_count - 1]);
+        self.current_precedence = precedence(self.current_operator);
+        transition self.top_precedence < self.current_precedence { true -> push_op() false -> pop_emit() } // emit while top prec >= cur
     }
     state pop_emit() {
-        self.op_top = self.op_top - 1;
-        self.emit_binop(self.op_stack[self.op_top]);
+        self.operator_count = self.operator_count - 1;
+        self.emit_binary_op(self.operator_stack[self.operator_count]);
         transition 0 { _ -> pop_loop() }
     }
     state push_op() {
-        self.op_stack[self.op_top] = self.curop;
-        self.op_top = self.op_top + 1;
-        self.tp = self.tp + 1;
+        self.operator_stack[self.operator_count] = self.current_operator;
+        self.operator_count = self.operator_count + 1;
+        self.token_position = self.token_position + 1;
         transition 0 { _ -> step() }
     }
-    state flush() { transition self.op_top > 0 { true -> flush_emit() false -> done() } }
+    state flush() {
+        transition self.operator_count > 0 { true -> flush_emit() false -> done() }
+    }
     state flush_emit() {
-        self.op_top = self.op_top - 1;
-        self.emit_binop(self.op_stack[self.op_top]);
+        self.operator_count = self.operator_count - 1;
+        self.emit_binary_op(self.operator_stack[self.operator_count]);
         transition 0 { _ -> flush() }
     }
     state done() { }
@@ -576,78 +812,112 @@ machine Main::compile_expr(&mut self) {
 // Increment 5: emit a frame prologue, walk the entry machine's body, handle
 // `let IDENT : TYPE = expr ;` (locals in an rbp frame) and `exit_process(expr)`.
 machine Main::parse(&mut self) {
-    self.code_len = 0;
+    self.code_length = 0;
     self.local_count = 0;
-    self.tp = 0;
+    self.token_position = 0;
     // prologue: push rbp ; mov rbp,rsp ; sub rsp, 512 (room for up to 64 locals)
-    self.emit_code(85);
-    self.emit_code(72); self.emit_code(137); self.emit_code(229);
-    self.emit_code(72); self.emit_code(129); self.emit_code(236);
+    self.emit_byte(85);
+    self.emit_byte(72); self.emit_byte(137); self.emit_byte(229);
+    self.emit_byte(72); self.emit_byte(129); self.emit_byte(236);
     self.emit_i32(512);
-    self.depth = 0;
+    self.brace_depth = 0;
     transition 0 { _ -> find_machine() }
 
     // Find the TOP-LEVEL `machine` keyword (depth 0), skipping boundary/data blocks
     // and the `machine` keywords inside a boundary trait. Then locate its body '{'.
     state find_machine() {
-        transition self.tp < self.tok_count { true -> fm_tok() false -> ret0() }
+        transition self.token_position < self.token_count { true -> find_machine_token() false -> emit_return_zero() }
     }
-    state fm_tok() {
-        transition self.tok_kind[self.tp] {
-            3 -> fm_open()    // { depth++
-            4 -> fm_close()   // } depth--
-            _ -> fm_maybe()
+    state find_machine_token() {
+        transition self.token_kind[self.token_position] {
+            3 -> open_brace()    // { depth++
+            4 -> close_brace()   // } depth--
+            _ -> maybe_machine()
         }
     }
-    state fm_open() { self.depth = self.depth + 1; transition 0 { _ -> fm_next() } }
-    state fm_close() { self.depth = self.depth - 1; transition 0 { _ -> fm_next() } }
-    state fm_maybe() { transition self.depth { 0 -> fm_check() _ -> fm_next() } }
-    state fm_check() { transition self.is_machine(self.tp) { 1 -> mfound() _ -> fm_next() } }
-    state fm_next() { self.tp = self.tp + 1; transition 0 { _ -> find_machine() } }
-    state mfound() { self.tp = self.tp + 1; transition 0 { _ -> find_brace() } } // past 'machine'
-    state find_brace() {
-        transition self.tp < self.tok_count { true -> fb_check() false -> ret0() }
+    state open_brace() {
+        self.brace_depth = self.brace_depth + 1;
+        transition 0 { _ -> scan_next() }
     }
-    state fb_check() { transition self.tok_kind[self.tp] { 3 -> body() _ -> fb_next() } } // 3 = LBrace
-    state fb_next() { self.tp = self.tp + 1; transition 0 { _ -> find_brace() } }
-    state body() { self.tp = self.tp + 1; transition 0 { _ -> stmt() } } // skip '{'
+    state close_brace() {
+        self.brace_depth = self.brace_depth - 1;
+        transition 0 { _ -> scan_next() }
+    }
+    state maybe_machine() {
+        transition self.brace_depth { 0 -> check_machine() _ -> scan_next() }
+    }
+    state check_machine() {
+        transition self.is_machine(self.token_position) { 1 -> machine_found() _ -> scan_next() }
+    }
+    state scan_next() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> find_machine() }
+    }
+    state machine_found() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> find_brace() } // past 'machine'
+    }
+    state find_brace() {
+        transition self.token_position < self.token_count { true -> check_for_brace() false -> emit_return_zero() }
+    }
+    state check_for_brace() {
+        transition self.token_kind[self.token_position] { 3 -> body() _ -> brace_next() } // 3 = LBrace
+    }
+    state brace_next() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> find_brace() }
+    }
+    state body() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> stmt() } // skip '{'
+    }
 
     state stmt() {
-        transition self.tok_kind[self.tp] {
-            4 -> ret0()   // '}' end of body, no explicit exit
-            0 -> ret0()   // Eof
+        transition self.token_kind[self.token_position] {
+            4 -> emit_return_zero()   // '}' end of body, no explicit exit
+            0 -> emit_return_zero()   // Eof
             _ -> stmt_let()
         }
     }
-    state stmt_let() { transition self.is_let(self.tp) { 1 -> do_let() _ -> stmt_exit() } }
-    state stmt_exit() { transition self.is_exit_process(self.tp) { 1 -> do_exit() _ -> stmt_skip() } }
-    state stmt_skip() { self.tp = self.tp + 1; transition 0 { _ -> stmt() } }
+    state stmt_let() {
+        transition self.is_let(self.token_position) { 1 -> do_let() _ -> stmt_exit() }
+    }
+    state stmt_exit() {
+        transition self.is_exit_process(self.token_position) { 1 -> do_exit() _ -> stmt_skip() }
+    }
+    state stmt_skip() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> stmt() }
+    }
 
     state do_let() {
-        self.tp = self.tp + 1;                      // skip 'let'
-        self.local_tok[self.local_count] = self.tp; // IDENT names this local
-        self.slot = self.local_count;
+        self.token_position = self.token_position + 1;                      // skip 'let'
+        self.local_token[self.local_count] = self.token_position;           // IDENT names this local
+        self.current_slot = self.local_count;
         self.local_count = self.local_count + 1;
-        self.tp = self.tp + 4;                      // skip IDENT : TYPE =
-        self.compile_expr();                        // result on the stack
-        self.emit_store_local(self.slot);
-        transition self.tok_kind[self.tp] { 9 -> let_semi() _ -> stmt() } // skip ';'
+        self.token_position = self.token_position + 4;                      // skip IDENT : TYPE =
+        self.compile_expr();                                                // result on the stack
+        self.emit_store_local(self.current_slot);
+        transition self.token_kind[self.token_position] { 9 -> let_semi() _ -> stmt() } // skip ';'
     }
-    state let_semi() { self.tp = self.tp + 1; transition 0 { _ -> stmt() } }
+    state let_semi() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> stmt() }
+    }
 
     state do_exit() {
-        self.tp = self.tp + 2;                      // skip 'exit_process' '('
-        self.compile_expr();                        // result on the stack
-        self.emit_code(88);                         // pop rax
-        self.emit_code(72); self.emit_code(137); self.emit_code(236); // mov rsp,rbp
-        self.emit_code(93);                         // pop rbp
-        self.emit_code(195);                        // ret
+        self.token_position = self.token_position + 2;                      // skip 'exit_process' '('
+        self.compile_expr();                                                // result on the stack
+        self.emit_byte(88);                                                 // pop rax
+        self.emit_byte(72); self.emit_byte(137); self.emit_byte(236);       // mov rsp,rbp
+        self.emit_byte(93);                                                 // pop rbp
+        self.emit_byte(195);                                                // ret
         transition 0 { _ -> done() }
     }
-    state ret0() {
-        self.emit_code(49); self.emit_code(192);    // xor eax,eax
-        self.emit_code(72); self.emit_code(137); self.emit_code(236); // mov rsp,rbp
-        self.emit_code(93); self.emit_code(195);    // pop rbp ; ret
+    state emit_return_zero() {
+        self.emit_byte(49); self.emit_byte(192);                            // xor eax,eax
+        self.emit_byte(72); self.emit_byte(137); self.emit_byte(236);       // mov rsp,rbp
+        self.emit_byte(93); self.emit_byte(195);                            // pop rbp ; ret
         transition 0 { _ -> done() }
     }
     state done() { }
@@ -656,7 +926,7 @@ machine Main::parse(&mut self) {
 machine Main::main(&mut self) {
     self.read_source();
     self.lex();
-    self.parse();      // builds self.code / self.code_len
+    self.parse();      // builds self.code / self.code_length
     self.write_pe();
     self.console.exit_process(0)
 }
