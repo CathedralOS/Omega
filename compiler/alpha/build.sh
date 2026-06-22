@@ -1,39 +1,36 @@
 #!/usr/bin/env sh
-# Build the Alpha tape VM + assembler and verify both self-hosting facts:
-#   1. the assembler reproduces itself  (on the Rust reference VM)
-#   2. the HAND-ASSEMBLED seed VM reproduces the assembler tape (no Rust in the VM path)
-# All generated files go under build/. The numeric form of the source is piped, never
-# written, so there is no .num artifact.
+# Build the Alpha tape VM + assembler and verify self-hosting — with NO Python in the
+# loop. The VM is materialized from a committed flat-hex listing by the hand-assembled
+# hex0 seed (seed/hex0.exe), which reproduces itself first. Only the assembler TAPE is
+# still minted by the Rust on-ramp (the remaining non-hand-assembled bit). All
+# generated files go under build/.
 set -e
 cd "$(dirname "$0")"
 mkdir -p build
 
 ASSEMBLER=../alpha-rs/target/debug/assembler.exe
-VM=../alpha-rs/target/debug/vm.exe
 (cd ../alpha-rs && cargo build -q)
 
-# the Rust on-ramp mints the initial assembler tape from its mnemonic source
-"$ASSEMBLER" src/assembler.alp build/assembler.tape
+# 1. seed integrity: the committed hex0 reproduces itself from its own flat hex
+seed/hex0.exe < seed/hex0.flat.hex > build/hex0.exe
+cmp -s seed/hex0.exe build/hex0.exe || { echo "FAIL: hex0 does not self-reproduce" >&2; exit 1; }
+echo "hex0 self-reproduces (the seed is consistent)"
 
-# 1. self-host on the Rust reference VM: the assembler assembles its own (numeric)
-#    source twice and reaches a byte-identical fixed point
-"$ASSEMBLER" --num src/assembler.alp | "$VM" build/assembler.tape > build/gen1.tape
-"$ASSEMBLER" --num src/assembler.alp | "$VM" build/gen1.tape      > build/gen2.tape
-if cmp -s build/assembler.tape build/gen1.tape && cmp -s build/gen1.tape build/gen2.tape; then
-    echo "self-host (Rust VM): assembler.tape == gen1 == gen2 ($(wc -c < build/assembler.tape) bytes)"
-else
-    echo "FAIL: Rust-VM self-host" >&2; exit 1
-fi
+# 2. materialize the tape VM with hex0 — no Python, no LLVM
+seed/hex0.exe < seed/vm.flat.hex > build/vm.exe
+echo "materialized vm.exe via hand-assembled hex0 (no Python in the VM path)"
 
-# 2. grounding: the hand-assembled seed VM (materialized from seed/vm.hex — no Rust,
-#    no LLVM) reproduces the assembler tape. The VM reads the tape from a 4-byte LE
-#    stdin length prefix, then the program's input (the numeric source) follows.
-python seed/materialize.py seed/vm.hex build/vm.exe
+# 3. grounding self-host: the hand VM runs the assembler tape and reproduces it
+"$ASSEMBLER" src/assembler.alp build/assembler.tape      # Rust on-ramp mints the tape
 LEN=$(wc -c < build/assembler.tape)
-prefix() { python -c "import sys,struct; sys.stdout.buffer.write(struct.pack('<I',$LEN))"; }
+# 4-byte little-endian length prefix, emitted as hex through our own hex0 (no Python)
+prefix() {
+    printf '%02x %02x %02x %02x' \
+        $((LEN & 255)) $(((LEN >> 8) & 255)) $(((LEN >> 16) & 255)) $(((LEN >> 24) & 255)) | seed/hex0.exe
+}
 { prefix; cat build/assembler.tape; "$ASSEMBLER" --num src/assembler.alp; } | ./build/vm.exe > build/hand.tape
 if cmp -s build/assembler.tape build/hand.tape; then
-    echo "grounding (hand seed VM): reproduces assembler.tape, no Rust in the VM path"
+    echo "grounding: hand VM reproduces assembler.tape ($(wc -c < build/hand.tape) bytes)"
 else
     echo "FAIL: hand-VM grounding" >&2; exit 1
 fi

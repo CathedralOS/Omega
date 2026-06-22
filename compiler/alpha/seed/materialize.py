@@ -65,7 +65,10 @@ def assemble(path):
             # RIP-relative in RVA space (works across sections, e.g. call [rip+IAT])
             out += (rva(labels[toks[i + 1]]) - rva(len(out) + 4)).to_bytes(4, 'little', signed=True); i += 2
         elif t == '.rel8':
-            out += (labels[toks[i + 1]] - (len(out) + 1)).to_bytes(1, 'little', signed=True); i += 2
+            disp = labels[toks[i + 1]] - (len(out) + 1)
+            if not -128 <= disp <= 127:
+                raise SystemExit(f"rel8 to {toks[i+1]} out of range: {disp}")
+            out += disp.to_bytes(1, 'little', signed=True); i += 2
         elif t == '.abs':
             out += (IMAGE_BASE + rva(labels[toks[i + 1]])).to_bytes(8, 'little'); i += 2
         elif t == '.rva':
