@@ -60,10 +60,18 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
   `arith.alp`→11, `locals.alp`→14. No on-ramp gaps (one bug, in alphac's own
   depth-blind machine-finding, found + fixed).
 
+- **Increment 6 — comparisons + `transition`/`state` control flow: DONE.**
+  Comparison operators (`< > <= >= == !=`, precedence 0) emit `cmp`/`setcc`.
+  States are pre-scanned (depth-aware) into a name table and become code labels;
+  a `transition` compiles its subject into eax then emits `cmp eax,imm; je` per
+  int/`true`/`false` arm and `jmp` for `_`, recording forward-jump fixups that are
+  patched once every state's offset is known. Local reassignment `x = e;` added.
+  The keyword matchers were unified into one `keyword_equals`. Verified: a counter
+  loop (0→3), multi-arm dispatch (x=2→22, x=5→99), a sum-1..=5 loop (→15); samples
+  still compile (exit7/arith/locals). No on-ramp gaps.
+
 ## Next increments
 
-6. Comparison ops + `transition`/`state` control flow (cmp/jcc/jmp + labels,
-   mirroring `alpha-rs/src/x64.rs`).
 7. Machine calls, `data`/arrays, byte I/O, the import-table PE path — the full
    on-ramp language. Hand-specialize arenas (no generics). Then close the fixed point.
 

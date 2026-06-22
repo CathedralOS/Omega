@@ -577,18 +577,16 @@ machine Main::token_int(&mut self, token: i32) -> i32 {
     state done() { return self.int_accumulator; }
 }
 
-// Is token the identifier "exit_process"?
-machine Main::is_exit_process(&mut self, token: i32) -> i32 {
-    transition self.token_length[token] == 12 { false -> return_false() _ -> setup() }
+// Does `token`'s source text equal the `length` bytes already placed in
+// keyword_bytes? The thin is_<keyword> wrappers below fill keyword_bytes and call this.
+machine Main::keyword_equals(&mut self, token: i32, length: i32) -> i32 {
+    transition self.token_length[token] == length { false -> return_false() _ -> setup() }
     state setup() {
-        self.keyword_bytes[0] = 101; self.keyword_bytes[1] = 120; self.keyword_bytes[2] = 105; self.keyword_bytes[3] = 116;   // e x i t
-        self.keyword_bytes[4] = 95;  self.keyword_bytes[5] = 112; self.keyword_bytes[6] = 114; self.keyword_bytes[7] = 111;   // _ p r o
-        self.keyword_bytes[8] = 99;  self.keyword_bytes[9] = 101; self.keyword_bytes[10] = 115; self.keyword_bytes[11] = 115; // c e s s
         self.compare_position = 0;
         transition 0 { _ -> compare() }
     }
     state compare() {
-        transition self.compare_position < 12 { true -> compare_byte() false -> return_true() }
+        transition self.compare_position < length { true -> compare_byte() false -> return_true() }
     }
     state compare_byte() {
         self.left_byte = self.source[self.token_start[token] + self.compare_position];
@@ -601,6 +599,13 @@ machine Main::is_exit_process(&mut self, token: i32) -> i32 {
     }
     state return_true() { return 1; }
     state return_false() { return 0; }
+}
+
+machine Main::is_exit_process(&mut self, token: i32) -> i32 {
+    self.keyword_bytes[0] = 101; self.keyword_bytes[1] = 120; self.keyword_bytes[2] = 105; self.keyword_bytes[3] = 116;   // e x i t
+    self.keyword_bytes[4] = 95;  self.keyword_bytes[5] = 112; self.keyword_bytes[6] = 114; self.keyword_bytes[7] = 111;   // _ p r o
+    self.keyword_bytes[8] = 99;  self.keyword_bytes[9] = 101; self.keyword_bytes[10] = 115; self.keyword_bytes[11] = 115; // c e s s
+    return self.keyword_equals(token, 12);
 }
 
 // Do tokens first and second have identical source text?
@@ -626,53 +631,42 @@ machine Main::tokens_equal(&mut self, first: i32, second: i32) -> i32 {
     state return_false() { return 0; }
 }
 
-// Is token the keyword "let"?
 machine Main::is_let(&mut self, token: i32) -> i32 {
-    transition self.token_length[token] == 3 { false -> return_false() _ -> setup() }
-    state setup() {
-        self.keyword_bytes[0] = 108; self.keyword_bytes[1] = 101; self.keyword_bytes[2] = 116; // l e t
-        self.compare_position = 0;
-        transition 0 { _ -> compare() }
-    }
-    state compare() {
-        transition self.compare_position < 3 { true -> compare_byte() false -> return_true() }
-    }
-    state compare_byte() {
-        self.left_byte = self.source[self.token_start[token] + self.compare_position];
-        self.right_byte = self.keyword_bytes[self.compare_position];
-        transition self.left_byte == self.right_byte { true -> advance() false -> return_false() }
-    }
-    state advance() {
-        self.compare_position = self.compare_position + 1;
-        transition 0 { _ -> compare() }
-    }
-    state return_true() { return 1; }
-    state return_false() { return 0; }
+    self.keyword_bytes[0] = 108; self.keyword_bytes[1] = 101; self.keyword_bytes[2] = 116; // l e t
+    return self.keyword_equals(token, 3);
 }
 
-// Is token the keyword "machine"?
+machine Main::is_state(&mut self, token: i32) -> i32 {
+    self.keyword_bytes[0] = 115; self.keyword_bytes[1] = 116; self.keyword_bytes[2] = 97;
+    self.keyword_bytes[3] = 116; self.keyword_bytes[4] = 101; // s t a t e
+    return self.keyword_equals(token, 5);
+}
+
+machine Main::is_transition(&mut self, token: i32) -> i32 {
+    self.keyword_bytes[0] = 116; self.keyword_bytes[1] = 114; self.keyword_bytes[2] = 97;
+    self.keyword_bytes[3] = 110; self.keyword_bytes[4] = 115; self.keyword_bytes[5] = 105;
+    self.keyword_bytes[6] = 116; self.keyword_bytes[7] = 105; self.keyword_bytes[8] = 111;
+    self.keyword_bytes[9] = 110; // t r a n s i t i o n
+    return self.keyword_equals(token, 10);
+}
+
+machine Main::is_true(&mut self, token: i32) -> i32 {
+    self.keyword_bytes[0] = 116; self.keyword_bytes[1] = 114; self.keyword_bytes[2] = 117;
+    self.keyword_bytes[3] = 101; // t r u e
+    return self.keyword_equals(token, 4);
+}
+
+machine Main::is_false(&mut self, token: i32) -> i32 {
+    self.keyword_bytes[0] = 102; self.keyword_bytes[1] = 97; self.keyword_bytes[2] = 108;
+    self.keyword_bytes[3] = 115; self.keyword_bytes[4] = 101; // f a l s e
+    return self.keyword_equals(token, 5);
+}
+
 machine Main::is_machine(&mut self, token: i32) -> i32 {
-    transition self.token_length[token] == 7 { false -> return_false() _ -> setup() }
-    state setup() {
-        self.keyword_bytes[0] = 109; self.keyword_bytes[1] = 97; self.keyword_bytes[2] = 99; self.keyword_bytes[3] = 104; // m a c h
-        self.keyword_bytes[4] = 105; self.keyword_bytes[5] = 110; self.keyword_bytes[6] = 101;                            // i n e
-        self.compare_position = 0;
-        transition 0 { _ -> compare() }
-    }
-    state compare() {
-        transition self.compare_position < 7 { true -> compare_byte() false -> return_true() }
-    }
-    state compare_byte() {
-        self.left_byte = self.source[self.token_start[token] + self.compare_position];
-        self.right_byte = self.keyword_bytes[self.compare_position];
-        transition self.left_byte == self.right_byte { true -> advance() false -> return_false() }
-    }
-    state advance() {
-        self.compare_position = self.compare_position + 1;
-        transition 0 { _ -> compare() }
-    }
-    state return_true() { return 1; }
-    state return_false() { return 0; }
+    self.keyword_bytes[0] = 109; self.keyword_bytes[1] = 97; self.keyword_bytes[2] = 99;
+    self.keyword_bytes[3] = 104; self.keyword_bytes[4] = 105; self.keyword_bytes[5] = 110;
+    self.keyword_bytes[6] = 101; // m a c h i n e
+    return self.keyword_equals(token, 7);
 }
 
 // Resolve identifier token to a local slot (0 if not found — increment 5 assumes
@@ -685,6 +679,27 @@ machine Main::resolve_local(&mut self, token: i32) -> i32 {
     }
     state check() {
         transition self.tokens_equal(self.local_token[self.resolve_position], token) { 1 -> found() _ -> next() }
+    }
+    state next() {
+        self.resolve_position = self.resolve_position + 1;
+        transition 0 { _ -> step() }
+    }
+    state found() { return self.resolve_position; }
+    state not_found() { return 0; }
+}
+
+// Resolve a state-name token to its index (matched against the pre-scanned states).
+machine Main::resolve_state(&mut self, name_token: i32) -> i32 {
+    self.resolve_position = 0;
+    transition 0 { _ -> step() }
+    state step() {
+        transition self.resolve_position < self.state_count { true -> check() false -> not_found() }
+    }
+    state check() {
+        transition self.tokens_equal(self.state_name_token[self.resolve_position], name_token) {
+            1 -> found()
+            _ -> next()
+        }
     }
     state next() {
         self.resolve_position = self.resolve_position + 1;
@@ -728,6 +743,44 @@ machine Main::emit_store_local(&mut self, slot: i32) {
     self.emit_byte(88);                          // pop rax
     self.emit_byte(137); self.emit_byte(133);    // 89 /0 mod=10 rm=rbp
     self.emit_i32(0 - 8 * (slot + 1));
+}
+
+// Record a forward jump to `target_state` and emit a placeholder rel32 (patched
+// once every state's offset is known). The je/jmp opcode is emitted by the caller.
+machine Main::record_jump(&mut self, target_state: i32) {
+    self.fixup_at[self.fixup_count] = self.code_length;
+    self.fixup_target[self.fixup_count] = target_state;
+    self.fixup_count = self.fixup_count + 1;
+    self.emit_i32(0);
+}
+
+// Overwrite the 4 code bytes at `offset` with a little-endian i32.
+machine Main::patch_i32(&mut self, offset: i32, value: i32) {
+    self.emit_scratch = value;
+    self.code[offset] = self.emit_scratch;
+    self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
+    self.code[offset + 1] = self.emit_scratch;
+    self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
+    self.code[offset + 2] = self.emit_scratch;
+    self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
+    self.code[offset + 3] = self.emit_scratch;
+}
+
+// Patch every recorded jump: rel32 = target_state_offset - (rel32_position + 4).
+machine Main::patch_jumps(&mut self) {
+    self.resolve_position = 0;
+    transition 0 { _ -> step() }
+    state step() {
+        transition self.resolve_position < self.fixup_count { true -> patch_one() false -> done() }
+    }
+    state patch_one() {
+        self.target_state = self.fixup_target[self.resolve_position];
+        self.pending_value = self.state_offset[self.target_state] - (self.fixup_at[self.resolve_position] + 4);
+        self.patch_i32(self.fixup_at[self.resolve_position], self.pending_value);
+        self.resolve_position = self.resolve_position + 1;
+        transition 0 { _ -> step() }
+    }
+    state done() { }
 }
 
 // pop rcx (rhs); pop rax (lhs); <op> eax,ecx [+ overflow trap]; push rax
@@ -865,11 +918,215 @@ machine Main::compile_expr(&mut self) {
     state done() { }
 }
 
-// Increment 5: emit a frame prologue, walk the entry machine's body, handle
-// `let IDENT : TYPE = expr ;` (locals in an rbp frame) and `exit_process(expr)`.
+// Pre-scan the machine body (from token_position, just past its '{') for the
+// names of its top-level states, in declaration order. Depth-aware: only `state`
+// keywords directly inside the body (depth 1) count, not ones nested in arms.
+machine Main::prescan_states(&mut self) {
+    self.state_count = 0;
+    self.scan_position = self.token_position;
+    self.brace_depth = 1;
+    transition 0 { _ -> step() }
+    state step() {
+        transition self.brace_depth { 0 -> done() _ -> scan() }
+    }
+    state scan() {
+        transition self.scan_position < self.token_count { true -> look() false -> done() }
+    }
+    state look() {
+        transition self.token_kind[self.scan_position] {
+            3 -> open()    // {
+            4 -> close()   // }
+            _ -> maybe_state()
+        }
+    }
+    state open() {
+        self.brace_depth = self.brace_depth + 1;
+        transition 0 { _ -> advance() }
+    }
+    state close() {
+        self.brace_depth = self.brace_depth - 1;
+        transition 0 { _ -> advance() }
+    }
+    state maybe_state() {
+        transition self.brace_depth { 1 -> check_state() _ -> advance() }
+    }
+    state check_state() {
+        transition self.is_state(self.scan_position) { 1 -> record() _ -> advance() }
+    }
+    state record() {
+        self.state_name_token[self.state_count] = self.scan_position + 1; // the name after 'state'
+        self.state_count = self.state_count + 1;
+        transition 0 { _ -> advance() }
+    }
+    state advance() {
+        self.scan_position = self.scan_position + 1;
+        transition 0 { _ -> step() }
+    }
+    state done() { }
+}
+
+// Compile one statement at token_position, advancing past it. Handles
+// `let`, local reassignment `IDENT = expr;`, `transition`, and `exit_process(expr)`.
+machine Main::compile_statement(&mut self) {
+    transition self.is_let(self.token_position) { 1 -> do_let() _ -> not_let() }
+    state not_let() {
+        transition self.is_transition(self.token_position) { 1 -> do_transition() _ -> not_transition() }
+    }
+    state not_transition() {
+        transition self.is_exit_process(self.token_position) { 1 -> do_exit() _ -> maybe_assign() }
+    }
+    state maybe_assign() {
+        transition self.token_kind[self.token_position] { 1 -> check_assign() _ -> skip_one() } // 1 = Ident
+    }
+    state check_assign() {
+        transition self.token_kind[self.token_position + 1] { 15 -> do_reassign() _ -> skip_one() } // 15 = '='
+    }
+    state skip_one() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> done() }
+    }
+
+    state do_let() {
+        self.token_position = self.token_position + 1;            // skip 'let'
+        self.local_token[self.local_count] = self.token_position; // IDENT names this local
+        self.current_slot = self.local_count;
+        self.local_count = self.local_count + 1;
+        self.token_position = self.token_position + 4;            // skip IDENT : TYPE =
+        self.compile_expr();
+        self.emit_store_local(self.current_slot);
+        transition self.token_kind[self.token_position] { 9 -> skip_semicolon() _ -> done() }
+    }
+    state do_reassign() {
+        self.current_slot = self.resolve_local(self.token_position);
+        self.token_position = self.token_position + 2;            // skip IDENT '='
+        self.compile_expr();
+        self.emit_store_local(self.current_slot);
+        transition self.token_kind[self.token_position] { 9 -> skip_semicolon() _ -> done() }
+    }
+    state skip_semicolon() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> done() }
+    }
+
+    state do_exit() {
+        self.token_position = self.token_position + 2;            // skip 'exit_process' '('
+        self.compile_expr();
+        self.emit_byte(88);                                       // pop rax
+        self.emit_byte(72); self.emit_byte(137); self.emit_byte(236); // mov rsp,rbp
+        self.emit_byte(93);                                       // pop rbp
+        self.emit_byte(195);                                      // ret
+        transition self.token_kind[self.token_position] { 6 -> skip_rparen() _ -> done() } // skip ')'
+    }
+    state skip_rparen() {
+        self.token_position = self.token_position + 1;
+        transition self.token_kind[self.token_position] { 9 -> skip_semicolon() _ -> done() }
+    }
+
+    state do_transition() {
+        self.token_position = self.token_position + 1;            // skip 'transition'
+        self.compile_expr();                                       // subject; stops at '{'
+        self.emit_byte(88);                                       // pop rax (subject value)
+        self.token_position = self.token_position + 1;            // skip '{'
+        transition 0 { _ -> arm_loop() }
+    }
+    state arm_loop() {
+        transition self.token_kind[self.token_position] {
+            4 -> arm_end()   // '}'
+            0 -> arm_end()   // Eof
+            _ -> arm()
+        }
+    }
+    state arm() {
+        transition self.token_kind[self.token_position] {
+            2 -> arm_int()      // Int pattern
+            1 -> arm_ident()    // true / false / _
+            _ -> arm_skip()
+        }
+    }
+    state arm_int() {
+        self.pattern_value = self.token_int(self.token_position);
+        self.arm_is_wild = 0;
+        transition 0 { _ -> arm_target() }
+    }
+    state arm_ident() {
+        transition self.is_true(self.token_position) { 1 -> arm_true() _ -> arm_ident_false() }
+    }
+    state arm_true() {
+        self.pattern_value = 1;
+        self.arm_is_wild = 0;
+        transition 0 { _ -> arm_target() }
+    }
+    state arm_ident_false() {
+        transition self.is_false(self.token_position) { 1 -> arm_false() _ -> arm_wild() }
+    }
+    state arm_false() {
+        self.pattern_value = 0;
+        self.arm_is_wild = 0;
+        transition 0 { _ -> arm_target() }
+    }
+    state arm_wild() {
+        self.arm_is_wild = 1;
+        transition 0 { _ -> arm_target() }
+    }
+    state arm_target() {
+        self.token_position = self.token_position + 1;            // skip pattern
+        self.token_position = self.token_position + 1;            // skip '->'
+        self.target_state = self.resolve_state(self.token_position);
+        self.token_position = self.token_position + 3;            // skip name '(' ')'
+        transition self.arm_is_wild { 1 -> emit_jump() _ -> emit_branch() }
+    }
+    state emit_branch() {
+        self.emit_byte(61);                                       // cmp eax, imm32 (0x3D)
+        self.emit_i32(self.pattern_value);
+        self.emit_byte(15); self.emit_byte(132);                  // je rel32 (0F 84)
+        self.record_jump(self.target_state);
+        transition 0 { _ -> arm_loop() }
+    }
+    state emit_jump() {
+        self.emit_byte(233);                                      // jmp rel32 (0xE9)
+        self.record_jump(self.target_state);
+        transition 0 { _ -> arm_loop() }
+    }
+    state arm_skip() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> arm_loop() }
+    }
+    state arm_end() {
+        self.token_position = self.token_position + 1;            // skip '}'
+        transition 0 { _ -> done() }
+    }
+
+    state done() { }
+}
+
+// Compile statements until the end of a block: '}', a 'state' keyword (entry block
+// ending), or Eof. Leaves token_position at that terminator.
+machine Main::compile_block(&mut self) {
+    transition 0 { _ -> step() }
+    state step() {
+        transition self.token_kind[self.token_position] {
+            4 -> stop()   // '}'
+            0 -> stop()   // Eof
+            _ -> check_state()
+        }
+    }
+    state check_state() {
+        transition self.is_state(self.token_position) { 1 -> stop() _ -> one_statement() }
+    }
+    state one_statement() {
+        self.compile_statement();
+        transition 0 { _ -> step() }
+    }
+    state stop() { }
+}
+
+// Emit a frame prologue, then the entry block and each state block (states become
+// code labels), then a trailing exit-0 and the jump fixups.
 machine Main::parse(&mut self) {
     self.code_length = 0;
     self.local_count = 0;
+    self.fixup_count = 0;
+    self.state_emit_index = 0;
     self.token_position = 0;
     // prologue: push rbp ; mov rbp,rsp ; sub rsp, 512 (room for up to 64 locals)
     self.emit_byte(85);
@@ -924,56 +1181,49 @@ machine Main::parse(&mut self) {
         transition 0 { _ -> find_brace() }
     }
     state body() {
-        self.token_position = self.token_position + 1;
-        transition 0 { _ -> stmt() } // skip '{'
+        self.token_position = self.token_position + 1; // skip the body '{'
+        self.prescan_states();                          // record the state names + count
+        transition 0 { _ -> entry_block() }
     }
-
-    state stmt() {
-        transition self.token_kind[self.token_position] {
-            4 -> emit_return_zero()   // '}' end of body, no explicit exit
-            0 -> emit_return_zero()   // Eof
-            _ -> stmt_let()
-        }
+    state entry_block() {
+        self.compile_block(); // entry statements, until the first 'state' or '}'
+        transition 0 { _ -> state_loop() }
     }
-    state stmt_let() {
-        transition self.is_let(self.token_position) { 1 -> do_let() _ -> stmt_exit() }
+    state state_loop() {
+        transition self.is_state(self.token_position) { 1 -> emit_state() _ -> finalize() }
     }
-    state stmt_exit() {
-        transition self.is_exit_process(self.token_position) { 1 -> do_exit() _ -> stmt_skip() }
+    state emit_state() {
+        self.state_offset[self.state_emit_index] = self.code_length; // this state's label
+        self.state_emit_index = self.state_emit_index + 1;
+        self.token_position = self.token_position + 2;  // skip 'state' and its name
+        transition 0 { _ -> skip_to_brace() }
     }
-    state stmt_skip() {
-        self.token_position = self.token_position + 1;
-        transition 0 { _ -> stmt() }
+    state skip_to_brace() {
+        transition self.token_kind[self.token_position] { 3 -> enter_state_body() _ -> skip_header() } // 3 = '{'
     }
-
-    state do_let() {
-        self.token_position = self.token_position + 1;                      // skip 'let'
-        self.local_token[self.local_count] = self.token_position;           // IDENT names this local
-        self.current_slot = self.local_count;
-        self.local_count = self.local_count + 1;
-        self.token_position = self.token_position + 4;                      // skip IDENT : TYPE =
-        self.compile_expr();                                                // result on the stack
-        self.emit_store_local(self.current_slot);
-        transition self.token_kind[self.token_position] { 9 -> let_semi() _ -> stmt() } // skip ';'
+    state skip_header() {
+        self.token_position = self.token_position + 1;  // skip a parameter-list token
+        transition 0 { _ -> skip_to_brace() }
     }
-    state let_semi() {
-        self.token_position = self.token_position + 1;
-        transition 0 { _ -> stmt() }
+    state enter_state_body() {
+        self.token_position = self.token_position + 1;  // skip '{'
+        self.compile_block();                            // state body, until '}'
+        self.token_position = self.token_position + 1;  // skip '}'
+        transition 0 { _ -> state_loop() }
     }
-
-    state do_exit() {
-        self.token_position = self.token_position + 2;                      // skip 'exit_process' '('
-        self.compile_expr();                                                // result on the stack
-        self.emit_byte(88);                                                 // pop rax
-        self.emit_byte(72); self.emit_byte(137); self.emit_byte(236);       // mov rsp,rbp
-        self.emit_byte(93);                                                 // pop rbp
-        self.emit_byte(195);                                                // ret
+    state finalize() {
+        // trailing default: xor eax,eax ; mov rsp,rbp ; pop rbp ; ret  (fall-through exit 0)
+        self.emit_byte(49); self.emit_byte(192);
+        self.emit_byte(72); self.emit_byte(137); self.emit_byte(236);
+        self.emit_byte(93); self.emit_byte(195);
+        self.patch_jumps();
         transition 0 { _ -> done() }
     }
     state emit_return_zero() {
-        self.emit_byte(49); self.emit_byte(192);                            // xor eax,eax
-        self.emit_byte(72); self.emit_byte(137); self.emit_byte(236);       // mov rsp,rbp
-        self.emit_byte(93); self.emit_byte(195);                            // pop rbp ; ret
+        // reached only if no top-level machine was found: exit 0
+        self.emit_byte(49); self.emit_byte(192);
+        self.emit_byte(72); self.emit_byte(137); self.emit_byte(236);
+        self.emit_byte(93); self.emit_byte(195);
         transition 0 { _ -> done() }
     }
     state done() { }
