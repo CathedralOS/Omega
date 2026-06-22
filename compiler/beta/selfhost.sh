@@ -7,8 +7,9 @@ SEED=../alpha/alpha_x64_windows.exe
 mkdir -p build
 
 ./beta_x64_windows.exe < assembler.alp > build/assembler.tape
-cp "$SEED" build/beta.exe
 L=$(wc -c < build/assembler.tape)
+[ $((L + 4)) -le 8192 ] || { echo "FAIL: assembler tape is $L B, exceeds the seed's 8 KB hole" >&2; exit 1; }
+cp "$SEED" build/beta.exe
 printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $((L & 255)) $(((L >> 8) & 255)) $(((L >> 16) & 255)) $(((L >> 24) & 255)))" \
     | dd of=build/beta.exe bs=1 seek=5120 conv=notrunc status=none
 dd if=build/assembler.tape of=build/beta.exe bs=1 seek=5124 conv=notrunc status=none
