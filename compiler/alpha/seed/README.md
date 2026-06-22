@@ -37,6 +37,11 @@ intended instructions — a *read-only* check; it never produces the artifact.
   a memory+subroutine program → 42 (store/load/mul/call/ret/sub). `read`/`write` are
   `ud2` placeholders until M3.
 
-Next: byte I/O (`read`/`write`) via a kernel32 import table, then tape loading from
-stdin/argv, until the hand-assembled VM runs `../as.tape` and reproduces the
-self-hosting fixed point with no Rust in the loop.
+- **M3** — byte I/O. Adds a `.rdata` kernel32 import table (GetStdHandle/ReadFile/
+  WriteFile), the `read`/`write` handlers, and the Win64 call ABI (`sub rsp,0x28` at
+  entry for 16-aligned rsp + shadow space; kernel32 preserves the VM state regs
+  rbx/rsi/rdi/r12). Verified: an embedded "write ABC\n" tape prints `ABC`, and an
+  embedded echo tape cats stdin→stdout.
+
+Next: load the tape from a stdin length-prefix (so the same VM runs any tape), then
+run `../as.tape` and reproduce the self-hosting fixed point with no Rust in the loop.
