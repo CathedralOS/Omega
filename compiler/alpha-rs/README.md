@@ -19,7 +19,7 @@ it and it never rots when the main compiler churns.
 ## Run
 
 ```
-cargo run -- samples/exit7.alpha out.exe
+cargo run -- samples/exit7.alp out.exe
 ./out.exe ; echo $?     # -> 7
 ```
 
@@ -56,7 +56,7 @@ cargo run -- samples/exit7.alpha out.exe
   local (stores to its existing frame slot); combined with the slice-4 back-edge
   transition this gives real loops. Verified: a counter loops 0→3 and exits 3; a
   loop with a `write_line` side effect prints `tick` three times. See
-  `samples/loop.alpha`.
+  `samples/loop.alp`.
 
 - **Slice 6 — machine calls (the DAG model): DONE.** A program is now a list of
   callable machines. Free machines take value params (`a: i32`) and `return` a
@@ -67,7 +67,7 @@ cargo run -- samples/exit7.alpha out.exe
   call rel32s are patched after layout. Forward references work (machine names are
   pre-scanned), and a callee may have its own transitions. Verified: `add(20,22)`,
   forward-ref `square`/`mul`, `max(max(7,19),12)`, 4-arg `sum4` feeding
-  arithmetic. See `samples/calls.alpha`.
+  arithmetic. See `samples/calls.alp`.
 
 - **Slice 7a — `data` structs + mutable `self` fields: DONE.** `data Name { f: T;
   ... }` lays out scalar fields (8 bytes each; boundary fields = 0; nested data =
@@ -75,20 +75,20 @@ cargo run -- samples/exit7.alpha out.exe
   its own long-lived frame, reached through a self-pointer slot; methods get
   `self` in rcx. `self.field` reads (`mov eax,[self+off]`) and `self.field = e`
   writes are scalar-only for now. Verified: mutable fields, ZII reads 0, a counter
-  held in `self` across a loop, multi-field offsets. See `samples/data.alpha`.
+  held in `self` across a loop, multi-field offsets. See `samples/data.alp`.
 
 - **Slice 7b — array fields + trap-checked indexing: DONE.** `data` fields may be
   `[scalar; N]` (N×8 bytes). `self.arr[i]` reads and `self.arr[i] = e` writes
   compute `self_ptr + field_offset + i*8` after a `cmp i,N; jb +2; ud2` bounds
   check — an out-of-bounds index **traps** (SIGILL), per the Alpha spec. The index
   is any expression. Verified: write/read, fill-and-sum in a loop with a runtime
-  index, OOB traps; `samples/arena.alpha` computes fib(11)=89 in an array.
+  index, OOB traps; `samples/arena.alp` computes fib(11)=89 in an array.
 
 - **Slice 8a — host byte I/O: DONE.** `read_byte() -> i32` (next stdin byte, or
   -1 at EOF) and `write_byte(b)` (one byte to stdout), via `ReadFile`/`WriteFile`
   on the std handles (`ReadFile` added as a third kernel32 import; the import
   table is now generated from a name list). EOF is branchless (`cmove`). Verified:
-  `echo.alpha` cats stdin→stdout; a byte counter; `write_byte` emits `ABC`. This
+  `echo.alp` cats stdin→stdout; a byte counter; `write_byte` emits `ABC`. This
   is the I/O backbone — the self-hosting compiler reads source and writes output
   bytes through these.
 
@@ -96,7 +96,7 @@ cargo run -- samples/exit7.alpha out.exe
   width (`u8` = 1 byte, other scalars = 8). Indexing scales by it (`shl` by 0/2/3)
   and uses a byte (`movzx`/`mov [rax],cl`) or dword access accordingly — the bounds
   check is unchanged. So source/output can be buffered in a `data` field. Verified:
-  buffered cat round-trips, `buffer.alpha` reverses stdin via a `[u8;4096]` field,
+  buffered cat round-trips, `buffer.alp` reverses stdin via a `[u8;4096]` field,
   and i32 arrays (`arena`) still work.
 
 The on-ramp now has a compiler's full vocabulary: arithmetic, control flow + loops,
@@ -109,7 +109,7 @@ and byte arrays with trapping indexing, and byte stdin/stdout I/O.
   (`let a = self.pop()`) and as a statement (`self.push(5);`, via a new `Eval` node
   that discards the result). Mutations persist across calls because all methods
   share one self instance. Verified: counter methods (12), array push/read (44),
-  method-of-method (7); `methods.alpha` runs a self-resident stack → 75.
+  method-of-method (7); `methods.alp` runs a self-resident stack → 75.
 
 The on-ramp is now feature-complete for writing a compiler: a `Main` holds the
 arenas/buffers as self fields, and lexer/parser/emitter helper machines mutate
