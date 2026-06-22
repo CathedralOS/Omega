@@ -688,7 +688,27 @@ impl<'a> Parser<'a> {
             })?;
             return Ok(Statement::Assign(local_index, value));
         }
-        // call statement: the last path segment selects the boundary op
+        // method call statement: self.<method>(args)
+        if segments.len() == 2 && segments[0] == b"self" && self.current_kind() == TokenKind::LParen {
+            if let Some(machine_index) = self.find_machine_index(&segments[1]) {
+                let expr = self.parse_call(machine_index, true)?;
+                if self.current_kind() == TokenKind::Semi {
+                    self.bump();
+                }
+                return Ok(Statement::Eval(expr));
+            }
+        }
+        // free call statement: <machine>(args)
+        if segments.len() == 1 && self.current_kind() == TokenKind::LParen {
+            if let Some(machine_index) = self.find_machine_index(&segments[0]) {
+                let expr = self.parse_call(machine_index, false)?;
+                if self.current_kind() == TokenKind::Semi {
+                    self.bump();
+                }
+                return Ok(Statement::Eval(expr));
+            }
+        }
+        // otherwise a boundary op call: the last path segment selects the op
         self.expect(TokenKind::LParen)?;
         let last_segment = segments.last().unwrap().clone();
         let statement = match last_segment.as_slice() {
@@ -727,8 +747,9 @@ impl<'a> Parser<'a> {
     }
 
     // Parse `(arg, arg, ...)` after a machine name; record args in the flat
-    // call_args arena. The leading '(' has not been consumed yet.
-    fn parse_call(&mut self, machine_index: usize) -> Result<usize, String> {
+    // call_args arena. The leading '(' has not been consumed yet. `pass_self` means
+    // a method call `self.m(..)` — self occupies rcx, so only 3 register args remain.
+    fn parse_call(&mut self, machine_index: usize, pass_self: bool) -> Result<usize, String> {
         self.current_machine_makes_call = true;
         self.expect(TokenKind::LParen)?;
         let mut arg_nodes = Vec::new();
@@ -744,16 +765,23 @@ impl<'a> Parser<'a> {
             }
         }
         self.expect(TokenKind::RParen)?;
-        if arg_nodes.len() > 4 {
+        let max_args = if pass_self { 3 } else { 4 };
+        if arg_nodes.len() > max_args {
             return Err(format!(
-                "alpha-onramp: call has {} args; the on-ramp ABI supports at most 4 (slice 6)",
-                arg_nodes.len()
+                "alpha-onramp: call has {} args; the on-ramp ABI supports at most {} here",
+                arg_nodes.len(),
+                max_args
             ));
         }
         let args_start = self.call_args.len();
         let arg_count = arg_nodes.len();
         self.call_args.extend(arg_nodes);
-        Ok(self.add_expression(Expr::Call(machine_index, args_start, arg_count)))
+        let node = if pass_self {
+            Expr::SelfCall(machine_index, args_start, arg_count)
+        } else {
+            Expr::Call(machine_index, args_start, arg_count)
+        };
+        Ok(self.add_expression(node))
     }
 
     fn parse_binary(&mut self, min_precedence: u8) -> Result<usize, String> {
@@ -801,6 +829,16 @@ impl<'a> Parser<'a> {
                 if name == b"self" {
                     self.expect(TokenKind::Dot)?;
                     let field = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+                    if self.current_kind() == TokenKind::LParen {
+                        // method call self.m(args) — passes self
+                        if let Some(machine_index) = self.find_machine_index(&field) {
+                            return self.parse_call(machine_index, true);
+                        }
+                        return Err(format!(
+                            "alpha-onramp: 'self.{}(..)' is not a method",
+                            String::from_utf8_lossy(&field)
+                        ));
+                    }
                     if self.current_kind() == TokenKind::LBracket {
                         let (offset, count, element_bytes) = self.self_array_field(&field)?;
                         self.bump(); // [
@@ -820,7 +858,7 @@ impl<'a> Parser<'a> {
                 }
                 if self.current_kind() == TokenKind::LParen {
                     return match self.find_machine_index(&name) {
-                        Some(machine_index) => self.parse_call(machine_index),
+                        Some(machine_index) => self.parse_call(machine_index, false),
                         None => Err(format!(
                             "alpha-onramp: call to unknown machine '{}'",
                             String::from_utf8_lossy(&name)

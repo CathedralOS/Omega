@@ -23,7 +23,8 @@ pub enum Expr {
     SelfIndex(i32, i32, i32, usize), // read self.<array>[index]; (byte offset, count, element_bytes, index node)
     ReadByte,                       // next byte from stdin, or -1 at EOF
     Binary(BinaryOp, usize, usize), // op, lhs node, rhs node (indices into `expressions`)
-    Call(usize, usize, usize),      // machine index, args_start (into call_args), arg_count
+    Call(usize, usize, usize),      // free call: machine index, args_start (into call_args), arg_count
+    SelfCall(usize, usize, usize),  // method call self.m(args): passes self in rcx + args; same triple
 }
 
 // A transition arm: a pattern over the subject and the state it jumps to.
@@ -42,6 +43,7 @@ pub enum Statement {
     Assign(usize, usize),                  // local index, value expr node (reassignment)
     StoreSelfField(i32, usize),            // self.<field at this byte offset> = value expr node
     StoreSelfIndex(i32, i32, i32, usize, usize), // self.<array>[index] = value; (offset, count, element_bytes, index, value)
+    Eval(usize),                           // evaluate an expr (a call) for effect, discard the result
     Return(usize),                         // return value expr node (yields to the caller)
     Exit(usize),                           // exit-code expr node (process exit; entry machine only)
     WriteByte(usize),                      // write the low byte of the value expr node to stdout
