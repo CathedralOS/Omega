@@ -21,6 +21,12 @@ pub enum TokKind {
     Minus,
     Star,
     Slash,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+    EqEq,
+    Ne,
     Str, // string literal; span (start..start+len) covers the bytes BETWEEN the quotes
     Eof,
 }
@@ -82,6 +88,28 @@ pub fn lex(src: &[u8]) -> Result<Vec<Token>, String> {
             }
             toks.push(Token { kind: TokKind::Str, start, len: i - start });
             i += 1; // consume closing quote
+            continue;
+        }
+        if c == b'=' && i + 1 < n && src[i + 1] == b'=' {
+            toks.push(Token { kind: TokKind::EqEq, start: i, len: 2 });
+            i += 2;
+            continue;
+        }
+        if c == b'!' && i + 1 < n && src[i + 1] == b'=' {
+            toks.push(Token { kind: TokKind::Ne, start: i, len: 2 });
+            i += 2;
+            continue;
+        }
+        if c == b'<' {
+            let two = i + 1 < n && src[i + 1] == b'=';
+            toks.push(Token { kind: if two { TokKind::Le } else { TokKind::Lt }, start: i, len: if two { 2 } else { 1 } });
+            i += if two { 2 } else { 1 };
+            continue;
+        }
+        if c == b'>' {
+            let two = i + 1 < n && src[i + 1] == b'=';
+            toks.push(Token { kind: if two { TokKind::Ge } else { TokKind::Gt }, start: i, len: if two { 2 } else { 1 } });
+            i += if two { 2 } else { 1 };
             continue;
         }
         if c == b':' && i + 1 < n && src[i + 1] == b':' {

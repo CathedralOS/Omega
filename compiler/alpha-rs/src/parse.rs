@@ -200,10 +200,16 @@ impl<'a> Parser<'a> {
         let mut lhs = self.parse_primary()?;
         loop {
             let (op, prec) = match self.kind() {
-                TokKind::Plus => (BinOp::Add, 1u8),
-                TokKind::Minus => (BinOp::Sub, 1),
-                TokKind::Star => (BinOp::Mul, 2),
-                TokKind::Slash => (BinOp::Div, 2),
+                TokKind::Lt => (BinOp::Lt, 1u8),
+                TokKind::Gt => (BinOp::Gt, 1),
+                TokKind::Le => (BinOp::Le, 1),
+                TokKind::Ge => (BinOp::Ge, 1),
+                TokKind::EqEq => (BinOp::EqEq, 1),
+                TokKind::Ne => (BinOp::Ne, 1),
+                TokKind::Plus => (BinOp::Add, 2),
+                TokKind::Minus => (BinOp::Sub, 2),
+                TokKind::Star => (BinOp::Mul, 3),
+                TokKind::Slash => (BinOp::Div, 3),
                 _ => break,
             };
             if prec < min_prec {

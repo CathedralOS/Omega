@@ -7,6 +7,12 @@ pub enum BinOp {
     Sub,
     Mul,
     Div,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+    EqEq,
+    Ne,
 }
 
 #[derive(Clone, Copy)]
