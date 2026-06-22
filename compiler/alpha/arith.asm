@@ -1,0 +1,5 @@
+; arith — exit with 6 * 7 = 42, exercising imm + mul + halt.
+        imm  r0, 6
+        imm  r1, 7
+        mul  r0, r1
+        halt r0
