@@ -35,14 +35,8 @@ data Main {
     next_byte: i32;               // lookahead byte
     token_text_start: i32;        // token start
     token_position: i32;          // parser token cursor
-    int_accumulator: i32;         // token_int accumulator
-    digit_position: i32;          // token_int byte cursor
-    digit_end: i32;               // token_int byte end
     operator_stack: [i32; 64];    // shunting-yard operator stack (token kinds)
     operator_count: i32;
-    current_operator: i32;
-    top_precedence: i32;          // precedence scratch
-    current_precedence: i32;
     keyword_bytes: [u8; 32];      // keyword-compare buffer
     compare_position: i32;
     left_byte: i32;               // byte-compare scratch
@@ -58,7 +52,6 @@ data Main {
     pending_value: i32;
     image_size: i32;
     write_cursor: i32;            // scratch loop cursor
-    setcc_byte: i32;              // setcc opcode for a comparison
     state_name_token: [i32; 256]; // token index naming each state (prescan order)
     state_offset: [i32; 256];     // code offset (label) of each state
     state_count: i32;
@@ -67,9 +60,6 @@ data Main {
     fixup_target: [i32; 1024];    // target state index for each fixup
     fixup_count: i32;
     scan_position: i32;           // state pre-scan cursor
-    pattern_value: i32;           // transition arm: the matched integer
-    arm_is_wild: i32;             // transition arm: is it the `_` default?
-    target_state: i32;            // transition arm: resolved target state index
     machine_start: [i32; 256];    // token index of each top-level machine's `machine` keyword
     machine_name: [i32; 256];     // token index of each machine's callable name
     machine_offset: [i32; 256];   // code offset of each machine (filled as emitted)
@@ -81,7 +71,6 @@ data Main {
     call_count: i32;
     target_machine: i32;          // patch_calls scratch
     emit_machine_index: i32;      // driver loop over machines
-    probe: i32;                   // prescan_machines name-finding cursor
     field_name_token: [i32; 256]; // data Main's field names (token index)
     field_offset: [i32; 256];     // each field's byte offset within the instance
     field_elem_bytes: [i32; 256]; // element width for array fields (1 or 8), else 0
@@ -740,19 +729,19 @@ machine Main::emit_rdata(&mut self) {
 
 // Parse the decimal value of an Int token from its source bytes.
 machine Main::token_int(&mut self, token: i32) -> i32 {
-    self.int_accumulator = 0;
-    self.digit_position = self.token_start[token];
-    self.digit_end = self.token_start[token] + self.token_length[token];
+    let accumulator: i32 = 0;
+    let position: i32 = self.token_start[token];
+    let end: i32 = self.token_start[token] + self.token_length[token];
     transition 0 { _ -> step() }
     state step() {
-        transition self.digit_position < self.digit_end { true -> digit() false -> done() }
+        transition position < end { true -> digit() false -> done() }
     }
     state digit() {
-        self.int_accumulator = self.int_accumulator * 10 + self.source[self.digit_position] - 48;
-        self.digit_position = self.digit_position + 1;
+        accumulator = accumulator * 10 + self.source[position] - 48;
+        position = position + 1;
         transition 0 { _ -> step() }
     }
-    state done() { return self.int_accumulator; }
+    state done() { return accumulator; }
 }
 
 // Does `token`'s source text equal the `length` bytes already placed in
@@ -931,6 +920,7 @@ machine Main::is_main(&mut self, token: i32) -> i32 {
 // and its callable name (the last identifier before the parameter-list '('), in
 // declaration order. Sets entry_machine to the one named `main`.
 machine Main::prescan_machines(&mut self) {
+    let probe: i32 = 0; // cursor for finding a machine's callable name (leaves scan_position put)
     self.machine_count = 0;
     self.entry_machine = 0;
     self.scan_position = 0;
@@ -964,19 +954,19 @@ machine Main::prescan_machines(&mut self) {
         self.machine_start[self.machine_count] = self.scan_position;
         // find the callable name with a separate probe, so scan_position stays on the
         // `machine` keyword and the normal scan still counts the body braces.
-        self.probe = self.scan_position + 1;
+        probe = self.scan_position + 1;
         transition 0 { _ -> find_name() }
     }
     state find_name() {
-        transition self.token_kind[self.probe] {
+        transition self.token_kind[probe] {
             5 -> name_done()   // '(' : parameter list
             3 -> name_done()   // '{' : no parameter list
             _ -> name_next()
         }
     }
     state name_next() {
-        self.machine_name[self.machine_count] = self.probe; // last segment before '(' or '{'
-        self.probe = self.probe + 1;
+        self.machine_name[self.machine_count] = probe; // last segment before '(' or '{'
+        probe = probe + 1;
         transition 0 { _ -> find_name() }
     }
     state name_done() {
@@ -1343,8 +1333,7 @@ machine Main::patch_jumps(&mut self) {
         transition self.resolve_position < self.fixup_count { true -> patch_one() false -> done() }
     }
     state patch_one() {
-        self.target_state = self.fixup_target[self.resolve_position];
-        self.pending_value = self.state_offset[self.target_state] - (self.fixup_at[self.resolve_position] + 4);
+        self.pending_value = self.state_offset[self.fixup_target[self.resolve_position]] - (self.fixup_at[self.resolve_position] + 4);
         self.patch_i32(self.fixup_at[self.resolve_position], self.pending_value);
         self.resolve_position = self.resolve_position + 1;
         transition 0 { _ -> step() }
@@ -1354,6 +1343,7 @@ machine Main::patch_jumps(&mut self) {
 
 // pop rcx (rhs); pop rax (lhs); <op> eax,ecx [+ overflow trap]; push rax
 machine Main::emit_binary_op(&mut self, operator: i32) {
+    let setcc_byte: i32 = 0; // setcc opcode chosen for a comparison operator
     self.emit_byte(89);  // pop rcx
     self.emit_byte(88);  // pop rax
     transition operator {
@@ -1391,15 +1381,15 @@ machine Main::emit_binary_op(&mut self, operator: i32) {
     }
     // comparisons: a setter picks the setcc opcode, then emit_comparison emits
     // cmp eax,ecx ; setcc al ; movzx eax,al  (result is 0 or 1)
-    state set_less()          { self.setcc_byte = 156; transition 0 { _ -> emit_comparison() } } // setl  0x9C
-    state set_greater()       { self.setcc_byte = 159; transition 0 { _ -> emit_comparison() } } // setg  0x9F
-    state set_less_equal()    { self.setcc_byte = 158; transition 0 { _ -> emit_comparison() } } // setle 0x9E
-    state set_greater_equal() { self.setcc_byte = 157; transition 0 { _ -> emit_comparison() } } // setge 0x9D
-    state set_equal()         { self.setcc_byte = 148; transition 0 { _ -> emit_comparison() } } // sete  0x94
-    state set_not_equal()     { self.setcc_byte = 149; transition 0 { _ -> emit_comparison() } } // setne 0x95
+    state set_less()          { setcc_byte = 156; transition 0 { _ -> emit_comparison() } } // setl  0x9C
+    state set_greater()       { setcc_byte = 159; transition 0 { _ -> emit_comparison() } } // setg  0x9F
+    state set_less_equal()    { setcc_byte = 158; transition 0 { _ -> emit_comparison() } } // setle 0x9E
+    state set_greater_equal() { setcc_byte = 157; transition 0 { _ -> emit_comparison() } } // setge 0x9D
+    state set_equal()         { setcc_byte = 148; transition 0 { _ -> emit_comparison() } } // sete  0x94
+    state set_not_equal()     { setcc_byte = 149; transition 0 { _ -> emit_comparison() } } // setne 0x95
     state emit_comparison() {
         self.emit_byte(57); self.emit_byte(200);                              // cmp eax, ecx
-        self.emit_byte(15); self.emit_byte(self.setcc_byte); self.emit_byte(192); // setcc al
+        self.emit_byte(15); self.emit_byte(setcc_byte); self.emit_byte(192); // setcc al
         self.emit_byte(15); self.emit_byte(182); self.emit_byte(192);         // movzx eax, al
         transition 0 { _ -> push_result() }
     }
@@ -1419,6 +1409,9 @@ machine Main::compile_expr(&mut self) {
     let element_count: i32 = 0;
     let element_width: i32 = 0;
     let paren_depth: i32 = 0; // open grouping parens; a ')' closes one or ends the expr
+    let current_operator: i32 = 0;   // the operator token being shunted
+    let top_precedence: i32 = 0;     // precedence of the operator on top of the stack
+    let current_precedence: i32 = 0; // precedence of current_operator
     transition 0 { _ -> step() }
     state step() {
         transition self.token_kind[self.token_position] {
@@ -1526,16 +1519,16 @@ machine Main::compile_expr(&mut self) {
         transition 0 { _ -> step() }
     }
     state binop() {
-        self.current_operator = self.token_kind[self.token_position];
+        current_operator = self.token_kind[self.token_position];
         transition 0 { _ -> pop_loop() }
     }
     state pop_loop() {
         transition self.operator_count > base { true -> pop_test() false -> push_op() }
     }
     state pop_test() {
-        self.top_precedence = precedence(self.operator_stack[self.operator_count - 1]);
-        self.current_precedence = precedence(self.current_operator);
-        transition self.top_precedence < self.current_precedence { true -> push_op() false -> pop_emit() } // emit while top prec >= cur
+        top_precedence = precedence(self.operator_stack[self.operator_count - 1]);
+        current_precedence = precedence(current_operator);
+        transition top_precedence < current_precedence { true -> push_op() false -> pop_emit() } // emit while top prec >= cur
     }
     state pop_emit() {
         self.operator_count = self.operator_count - 1;
@@ -1543,7 +1536,7 @@ machine Main::compile_expr(&mut self) {
         transition 0 { _ -> pop_loop() }
     }
     state push_op() {
-        self.operator_stack[self.operator_count] = self.current_operator;
+        self.operator_stack[self.operator_count] = current_operator;
         self.operator_count = self.operator_count + 1;
         self.token_position = self.token_position + 1;
         transition 0 { _ -> step() }
@@ -1746,6 +1739,9 @@ machine Main::compile_statement(&mut self) {
     let saved_offset: i32 = 0;
     let saved_count: i32 = 0;
     let saved_width: i32 = 0;
+    let pattern_value: i32 = 0; // transition arm: the matched integer
+    let arm_is_wild: i32 = 0;   // transition arm: is it the `_` default?
+    let target_state: i32 = 0;  // transition arm: resolved target state index
     transition self.is_let(self.token_position) { 1 -> do_let() _ -> not_let() }
     state not_let() {
         transition self.is_return(self.token_position) { 1 -> do_return() _ -> not_return() }
@@ -1914,47 +1910,47 @@ machine Main::compile_statement(&mut self) {
         }
     }
     state arm_int() {
-        self.pattern_value = self.token_int(self.token_position);
-        self.arm_is_wild = 0;
+        pattern_value = self.token_int(self.token_position);
+        arm_is_wild = 0;
         transition 0 { _ -> arm_target() }
     }
     state arm_ident() {
         transition self.is_true(self.token_position) { 1 -> arm_true() _ -> arm_ident_false() }
     }
     state arm_true() {
-        self.pattern_value = 1;
-        self.arm_is_wild = 0;
+        pattern_value = 1;
+        arm_is_wild = 0;
         transition 0 { _ -> arm_target() }
     }
     state arm_ident_false() {
         transition self.is_false(self.token_position) { 1 -> arm_false() _ -> arm_wild() }
     }
     state arm_false() {
-        self.pattern_value = 0;
-        self.arm_is_wild = 0;
+        pattern_value = 0;
+        arm_is_wild = 0;
         transition 0 { _ -> arm_target() }
     }
     state arm_wild() {
-        self.arm_is_wild = 1;
+        arm_is_wild = 1;
         transition 0 { _ -> arm_target() }
     }
     state arm_target() {
         self.token_position = self.token_position + 1;            // skip pattern
         self.token_position = self.token_position + 1;            // skip '->'
-        self.target_state = self.resolve_state(self.token_position);
+        target_state = self.resolve_state(self.token_position);
         self.token_position = self.token_position + 3;            // skip name '(' ')'
-        transition self.arm_is_wild { 1 -> emit_jump() _ -> emit_branch() }
+        transition arm_is_wild { 1 -> emit_jump() _ -> emit_branch() }
     }
     state emit_branch() {
         self.emit_byte(61);                                       // cmp eax, imm32 (0x3D)
-        self.emit_i32(self.pattern_value);
+        self.emit_i32(pattern_value);
         self.emit_byte(15); self.emit_byte(132);                  // je rel32 (0F 84)
-        self.record_jump(self.target_state);
+        self.record_jump(target_state);
         transition 0 { _ -> arm_loop() }
     }
     state emit_jump() {
         self.emit_byte(233);                                      // jmp rel32 (0xE9)
-        self.record_jump(self.target_state);
+        self.record_jump(target_state);
         transition 0 { _ -> arm_loop() }
     }
     state arm_skip() {
