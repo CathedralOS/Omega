@@ -61,6 +61,13 @@ fn emit_overflow_trap(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x71, 0x02, 0x0F, 0x0B]); // jno +2 ; ud2
 }
 
+// eax = (eax <cc> ecx) ? 1 : 0  — signed compare, then setcc al + zero-extend.
+fn emit_cmp_set(c: &mut Vec<u8>, setcc: u8) {
+    c.extend_from_slice(&[0x39, 0xC8]); // cmp eax, ecx
+    c.extend_from_slice(&[0x0F, setcc, 0xC0]); // setcc al
+    c.extend_from_slice(&[0x0F, 0xB6, 0xC0]); // movzx eax, al
+}
+
 fn emit_epilogue(c: &mut Vec<u8>) {
     c.extend_from_slice(&[0x48, 0x89, 0xEC]); // mov rsp, rbp
     c.push(0x5D); // pop rbp
@@ -116,6 +123,12 @@ fn lower_expr(node: usize, exprs: &[ExprKind], c: &mut Vec<u8>) {
                     c.push(0x99); // cdq
                     c.extend_from_slice(&[0xF7, 0xF9]); // idiv ecx (traps on /0, INT_MIN/-1)
                 }
+                BinOp::Lt => emit_cmp_set(c, 0x9C),   // setl
+                BinOp::Gt => emit_cmp_set(c, 0x9F),   // setg
+                BinOp::Le => emit_cmp_set(c, 0x9E),   // setle
+                BinOp::Ge => emit_cmp_set(c, 0x9D),   // setge
+                BinOp::EqEq => emit_cmp_set(c, 0x94), // sete
+                BinOp::Ne => emit_cmp_set(c, 0x95),   // setne
             }
             c.push(0x50); // push rax
         }
