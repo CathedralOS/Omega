@@ -34,6 +34,10 @@ data Main {
     c: i32;               // current byte
     d: i32;               // lookahead byte
     start: i32;           // token start
+    tp: i32;              // parser token cursor
+    acc: i32;             // tok_int accumulator
+    j: i32;               // tok_int byte cursor
+    jend: i32;            // tok_int byte end
     code: [u8; 512];      // generated machine code
     code_len: i32;
     value: i32;
@@ -320,12 +324,43 @@ machine Main::write_pe(&mut self) {
     state done() { }
 }
 
+// --- parser (increment 3) ---
+
+// Parse the decimal value of an Int token from its source bytes.
+machine Main::tok_int(&mut self, t: i32) -> i32 {
+    self.acc = 0;
+    self.j = self.tok_start[t];
+    self.jend = self.tok_start[t] + self.tok_len[t];
+    transition 0 { _ -> step() }
+    state step() { transition self.j < self.jend { true -> digit() false -> done() } }
+    state digit() {
+        self.acc = self.acc * 10 + self.src[self.j] - 48;
+        self.j = self.j + 1;
+        transition 0 { _ -> step() }
+    }
+    state done() { return self.acc; }
+}
+
+// Increment 3: the accepted grammar is a program containing `exit_process(<int>)`.
+// We take the first integer literal as the exit code. (Increment 4 will match
+// keywords and parse real statements + expressions.)
+machine Main::parse(&mut self) {
+    self.value = 0;
+    self.tp = 0;
+    transition 0 { _ -> step() }
+    state step() { transition self.tp < self.tok_count { true -> check() false -> done() } }
+    state check() { transition self.tok_kind[self.tp] { 2 -> got_int() _ -> next() } } // 2 = Int
+    state got_int() { self.value = self.tok_int(self.tp); transition 0 { _ -> done() } }
+    state next() { self.tp = self.tp + 1; transition 0 { _ -> step() } }
+    state done() { }
+}
+
 machine Main::main(&mut self) {
     self.read_source();
     self.lex();
+    self.parse(); // sets self.value to the exit code
 
-    // (increment 2) emit a PE that exits with the token count, to verify the lexer
-    self.value = self.tok_count;
+    // emit the entry stub: mov eax, <value> ; ret
     self.code[0] = 184;
     self.code[1] = self.value;
     self.code[2] = self.value / 256;

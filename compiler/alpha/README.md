@@ -33,13 +33,22 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
   tokens incl. Eof). The big token arrays live in the static `.data` section (the
   enabler), so the compiler exe is ~470 KB. No on-ramp gaps surfaced.
 
+- **Increment 3 — parse + emit `exit_process(<int>)`: DONE.** `tok_int` parses a
+  decimal value from a token's source bytes; `parse` walks the token stream and
+  takes the first integer literal as the exit code; `main` emits the `mov eax,N;
+  ret` entry stub and writes the PE. So `alphac` now does a real translation:
+  source → tokens → value → code → PE. Verified: `machine main { exit_process(42) }`
+  → 42 (and 7/200/123), and it compiles the on-ramp's own `samples/exit7.alp` → 7.
+  (Still a stepping stone — "first int wins", no keyword matching yet.)
+
 ## Next increments
 
-3. Parser (tokens → an AST in arenas) + the x64 stack-machine emitter (port of
-   `alpha-rs/src/x64.rs`), starting with `machine main { exit_process(N) }`.
-4. Widen to expressions, locals, control flow, calls, data/arrays — the full
-   on-ramp language. De-recurse tree-walks to an explicit worklist (Alpha bans call
-   recursion); hand-specialize arenas (no generics). Then close the fixed point.
+4. Keyword matching (byte compare) + a real statement/expression parser (the x64
+   stack-machine emitter, port of `alpha-rs/src/x64.rs`): `let`, locals, `+ - * /`,
+   so `exit_process(3 + 4 * 2)` → 11.
+5. Widen to control flow, calls, data/arrays — the full on-ramp language.
+   De-recurse tree-walks to an explicit worklist (Alpha bans call recursion);
+   hand-specialize arenas (no generics). Then close the fixed point.
 
 ## Known gaps to fix in the on-ramp as they surface
 
