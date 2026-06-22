@@ -24,11 +24,11 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    source: [u8; 262144];         // source text (alpha.alp itself is ~93 KB)
+    source: [u8; 131072];         // source text (alpha.alp itself is ~93 KB)
     source_length: i32;
-    token_kind: [i32; 131072];
-    token_start: [i32; 131072];
-    token_length: [i32; 131072];
+    token_kind: [u8; 65536];      // token kinds are 0..27, so one byte each
+    token_start: [i32; 65536];
+    token_length: [i32; 65536];
     token_count: i32;
     lex_position: i32;            // lexer cursor into source
     current_byte: i32;            // current byte
@@ -47,37 +47,37 @@ data Main {
     compare_position: i32;
     left_byte: i32;               // byte-compare scratch
     right_byte: i32;
-    local_token: [i32; 256];      // symbol table: token index naming each local
+    local_token: [i32; 128];      // symbol table: token index naming each local
     local_count: i32;
     current_slot: i32;            // current let's slot
     resolve_position: i32;        // resolve_local cursor
     emit_scratch: i32;            // emit_i32 scratch
     brace_depth: i32;             // brace depth while finding the top-level machine
-    code: [u8; 262144];           // generated machine code (alpha's own .text is tens of KB)
+    code: [u8; 98304];            // generated machine code (alpha's own .text is ~50 KB)
     code_length: i32;
     pending_value: i32;
     image_size: i32;
     write_cursor: i32;            // scratch loop cursor
     setcc_byte: i32;              // setcc opcode for a comparison
-    state_name_token: [i32; 512]; // token index naming each state (prescan order)
-    state_offset: [i32; 512];     // code offset (label) of each state
+    state_name_token: [i32; 256]; // token index naming each state (prescan order)
+    state_offset: [i32; 256];     // code offset (label) of each state
     state_count: i32;
     state_emit_index: i32;        // which state we are emitting
-    fixup_at: [i32; 2048];        // code offset of each jump rel32 to patch
-    fixup_target: [i32; 2048];    // target state index for each fixup
+    fixup_at: [i32; 1024];        // code offset of each jump rel32 to patch
+    fixup_target: [i32; 1024];    // target state index for each fixup
     fixup_count: i32;
     scan_position: i32;           // state pre-scan cursor
     pattern_value: i32;           // transition arm: the matched integer
     arm_is_wild: i32;             // transition arm: is it the `_` default?
     target_state: i32;            // transition arm: resolved target state index
-    machine_start: [i32; 512];    // token index of each top-level machine's `machine` keyword
-    machine_name: [i32; 512];     // token index of each machine's callable name
-    machine_offset: [i32; 512];   // code offset of each machine (filled as emitted)
+    machine_start: [i32; 256];    // token index of each top-level machine's `machine` keyword
+    machine_name: [i32; 256];     // token index of each machine's callable name
+    machine_offset: [i32; 256];   // code offset of each machine (filled as emitted)
     machine_count: i32;
     entry_machine: i32;           // index of the machine named `main`
     param_count: i32;             // value params of the machine being emitted
-    call_at: [i32; 8192];         // code offset of each call rel32 to patch
-    call_target: [i32; 8192];     // target machine index for each call
+    call_at: [i32; 4096];         // code offset of each call rel32 to patch
+    call_target: [i32; 4096];     // target machine index for each call
     call_count: i32;
     target_machine: i32;          // patch_calls scratch
     emit_machine_index: i32;      // driver loop over machines
@@ -96,8 +96,8 @@ data Main {
     data_raw_size: i32;           // .data size rounded up to FileAlignment
     data_rva: i32;                // .data virtual address
     section_count: i32;           // 1/2/3 (.text [+ .rdata] [+ .data])
-    import_reloc_at: [i32; 4096];  // code offset of each `call [rip+IAT]` disp32
-    import_reloc_slot: [i32; 4096]; // which import (0 GetStdHandle, 1 WriteFile, 2 ReadFile)
+    import_reloc_at: [i32; 1024];  // code offset of each `call [rip+IAT]` disp32
+    import_reloc_slot: [i32; 1024]; // which import (0 GetStdHandle, 1 WriteFile, 2 ReadFile)
     import_reloc_count: i32;
     uses_imports: i32;            // 1 once any host I/O call has been emitted
     code_raw_size: i32;           // .text size rounded up to FileAlignment
