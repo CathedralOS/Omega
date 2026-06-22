@@ -1,0 +1,16 @@
+[package]
+name = "alpha"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# The Alpha compiler. Currently the throwaway Rust "on-ramp"; the binary is
+# `alphac`. Eventually this directory holds the Alpha seed + the Alpha-in-Alpha
+# compiler, and the Rust on-ramp is discarded.
+[[bin]]
+name = "alphac"
+path = "src/main.rs"
+
+# Standalone (own workspace root) so the parent Omega workspace (explicit
+# members) does not absorb it, and it never rots when the main compiler churns.
+[workspace]
