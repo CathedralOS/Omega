@@ -49,11 +49,22 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
   `emit_binop` build into `self.code`. Verified: `3 + 4 * 2`→11, `2 * 3 + 4`→10,
   `20 - 3 - 2`→15, `100 / 5 / 2`→10. No on-ramp gaps.
 
+- **Increment 5 — `let`/locals: DONE.** A frame prologue (`push rbp; mov rbp,rsp;
+  sub rsp,512`), a symbol table (`local_tok[]` + `tok_eq` ident byte-compare), and
+  `let IDENT: TYPE = expr;` storing into an rbp slot; identifiers in expressions
+  load from their slot. `find_machine` skips `boundary`/`data` blocks by tracking
+  brace depth and matching the **top-level** `machine` keyword. `emit_i32` writes
+  correct two's-complement bytes for negative rbp displacements via `ashr8` (Alpha's
+  `/` truncates, so a floor-division bias gives the arithmetic shift). Verified:
+  two-local programs, `y = x*2`, and it compiles the on-ramp's own `exit7.alp`→7,
+  `arith.alp`→11, `locals.alp`→14. No on-ramp gaps (one bug, in alphac's own
+  depth-blind machine-finding, found + fixed).
+
 ## Next increments
 
-5. `let`/locals (an rbp frame + symbol table) and the comparison ops; then
-   statements + `transition`/`state` control flow.
-6. Machine calls, `data`/arrays, byte I/O, the import-table PE path — the full
+6. Comparison ops + `transition`/`state` control flow (cmp/jcc/jmp + labels,
+   mirroring `alpha-rs/src/x64.rs`).
+7. Machine calls, `data`/arrays, byte I/O, the import-table PE path — the full
    on-ramp language. Hand-specialize arenas (no generics). Then close the fixed point.
 
 ## Known gaps to fix in the on-ramp as they surface
