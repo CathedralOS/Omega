@@ -10,5 +10,5 @@ path = "src/main.rs"
 test = false
 
 [dependencies]
-omega-compiler = { path = "../../compiler/orchestration/omega-compiler" }
-omega-core = { path = "../../compiler/foundation/omega-core" }
+omega-compiler = { path = "../../compiler/omega-rs/orchestration/omega-compiler" }
+omega-core = { path = "../../compiler/omega-rs/foundation/omega-core" }

@@ -285,9 +285,9 @@ fn is_bundled_omega_path(path: &[Identifier]) -> bool {
 
 fn bundled_omega_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../omega")
+        .join("../../../../omega")
         .canonicalize()
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../omega"))
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../omega"))
 }
 
 fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
