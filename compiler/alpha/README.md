@@ -37,9 +37,23 @@ cd ../alpha-rs && cargo build            # builds vm + asm
 printf 'hi' | ../alpha-rs/target/debug/vm echo.tape   # -> hi
 ```
 
-## Self-hosting goal
+## ✅ Self-hosting reached
 
-The target is an assembler written **in Alpha-assembly** that the VM runs to
-reproduce its own tape: `asm` builds `as.tape` from `as.asm`; then
-`vm as.tape < as.asm` reproduces `as.tape` byte-for-byte (fixed point). That makes
-the trust root the tiny VM alone — everything above is checkable tape.
+`as.asm` is an assembler written **in Alpha-assembly** (a two-pass, label-resolving
+assembler). The VM runs it to reproduce its own bytecode tape:
+
+```
+asm as.asm as0.tape          # Rust on-ramp builds the assembler
+asm --num as.asm > as.num     # numeric form of its own source
+vm as0.tape < as.num > as1.tape   # the assembler assembles itself
+vm as1.tape < as.num > as2.tape   # ...and again
+cmp as1.tape as2.tape         # byte-identical  (and as1 == as0)
+```
+
+`build.sh` runs the whole chain. So the **trust root is the tiny VM alone** — the
+assembler (labels, two passes, encoding) is a checkable tape that reproduces itself.
+
+`as.asm` is authored in mnemonics for readability; `asm --num` lowers it to the
+numeric-opcode form the assembler itself reads (mnemonics -> opcode numbers, labels
+preserved). The asm-in-asm carries no mnemonic table — that keeps it small; the
+mnemonic alias is the only thing outside the self-hosting loop (a trivial 1:1 map).

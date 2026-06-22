@@ -52,9 +52,14 @@ fn parse(source: &str) -> Vec<Item> {
             continue;
         }
         let mnemonic_text = tokens[0];
+        // accept either a mnemonic ("imm") or a bare opcode number ("1"); the
+        // numeric form is what the self-hosting assembler (as.asm) reads and emits.
         let op = match mnemonic(mnemonic_text) {
             Some(op) => op,
-            None => fail(format!("line {}: unknown mnemonic '{}'", line_number + 1, mnemonic_text)),
+            None => match mnemonic_text.parse::<u8>() {
+                Ok(n) if n < OP_COUNT => n,
+                _ => fail(format!("line {}: unknown mnemonic '{}'", line_number + 1, mnemonic_text)),
+            },
         };
         let args: Vec<String> = tokens[1..].iter().map(|t| t.to_string()).collect();
         let expected = operands(op).len();
@@ -70,10 +75,11 @@ fn parse(source: &str) -> Vec<Item> {
 }
 
 fn register(token: &str) -> u8 {
-    let index = token
-        .strip_prefix('r')
-        .and_then(|n| n.parse::<u8>().ok())
-        .unwrap_or_else(|| fail(format!("bad register '{}'", token)));
+    // accept "r5" (mnemonic form) or plain "5" (numeric form the asm-in-asm uses)
+    let digits = token.strip_prefix('r').unwrap_or(token);
+    let index = digits
+        .parse::<u8>()
+        .unwrap_or_else(|_| fail(format!("bad register '{}'", token)));
     if index > 15 {
         fail(format!("register out of range '{}'", token));
     }
@@ -91,7 +97,15 @@ fn resolve_value(token: &str, labels: &HashMap<String, i64>) -> i64 {
 }
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
+
+    // --num: re-emit the source with mnemonics replaced by opcode numbers (labels and
+    // operands preserved). This is the numeric form the self-hosting as.asm reads;
+    // it lets as.asm be authored in readable mnemonics yet self-host on numbers.
+    let numericize = args.len() >= 2 && args[1] == "--num";
+    if numericize {
+        args.remove(1);
+    }
 
     let mut source = String::new();
     if args.len() >= 2 {
@@ -102,6 +116,31 @@ fn main() {
     }
 
     let items = parse(&source);
+
+    if numericize {
+        let mut out = String::new();
+        for item in &items {
+            match item {
+                Item::Label(name) => out.push_str(&format!("{}:\n", name)),
+                Item::Instr { op, args } => {
+                    out.push_str(&op.to_string());
+                    // emit register operands as plain numbers (rN -> N); leave
+                    // immediates and label/addr operands as written.
+                    for (arg, kind) in args.iter().zip(operands(*op)) {
+                        out.push(' ');
+                        if *kind == Operand::Reg {
+                            out.push_str(&register(arg).to_string());
+                        } else {
+                            out.push_str(arg);
+                        }
+                    }
+                    out.push('\n');
+                }
+            }
+        }
+        print!("{}", out);
+        return;
+    }
 
     // pass 1: assign label addresses
     let mut labels: HashMap<String, i64> = HashMap::new();

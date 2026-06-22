@@ -1,0 +1,517 @@
+; as.asm — the Alpha assembler, written in Alpha assembly. Reads assembly text on
+; stdin, writes a bytecode tape on stdout. Two passes: pass 1 records label
+; addresses, pass 2 emits, resolving label references. This is the self-hosting
+; target: assembled to as.tape, then `vm as.tape < as.asm` reproduces as.tape.
+;
+; The source language is NUMERIC opcodes + labels (no mnemonic table — that keeps the
+; assembler small). Operands: a register/immediate is a decimal number; a jump/call
+; target may be a decimal number or a label name. `;` starts a comment.
+;
+; Cross-call state lives in fixed memory (calls clobber registers). Globals (i64):
+;   524288 SRCLEN   524296 CUR     524304 TSTART  524312 TLEN    524320 TDONE
+;   524328 OUT      524336 NLBL    524344 NOPS    524352 WID0    524360 WID1
+;   524368 WID2     524376 OPCODE  524384 NUM     524392 EMITW   524416 SKIP
+; Buffers: 1048576 SRC (input);  label tables: 2097152 off, 2621440 len, 3145728 addr.
+
+; ---------------- main ----------------
+        ; read all of stdin into SRC
+        imm   r0, 1048576       ; r0 = write pointer
+read_loop:
+        read  r1
+        imm   r3, 0
+        jlt   r1, r3, read_done ; byte < 0  =>  EOF
+        storeb r0, r1
+        imm   r3, 1
+        add   r0, r3
+        jmp   read_loop
+read_done:
+        imm   r2, 1048576
+        sub   r0, r2           ; r0 = source length
+        imm   r3, 524288
+        store r3, r0           ; SRCLEN = length
+        imm   r3, 524336       ; NLBL = 0
+        imm   r4, 0
+        store r3, r4
+
+        ; pass 1: CUR = 0, OUT = 0, build label table
+        imm   r3, 524296
+        imm   r4, 0
+        store r3, r4           ; CUR = 0
+        imm   r3, 524328
+        store r3, r4           ; OUT = 0
+p1_loop:
+        call  next_token
+        imm   r3, 524320
+        load  r4, r3
+        imm   r5, 1
+        jeq   r4, r5, p1_done  ; TDONE
+        call  is_label
+        imm   r3, 524384
+        load  r4, r3
+        imm   r5, 1
+        jeq   r4, r5, p1_label
+        ; opcode token
+        call  parse_num
+        imm   r3, 524384
+        load  r4, r3
+        imm   r5, 524376
+        store r5, r4           ; OPCODE = op
+        call  op_widths
+        ; OUT += 1 + WID0 + WID1 + WID2
+        imm   r3, 524328
+        load  r6, r3
+        imm   r7, 1
+        add   r6, r7
+        imm   r5, 524352
+        load  r7, r5
+        add   r6, r7
+        imm   r5, 524360
+        load  r7, r5
+        add   r6, r7
+        imm   r5, 524368
+        load  r7, r5
+        add   r6, r7
+        store r3, r6           ; OUT updated
+        ; skip NOPS operand tokens (counter in memory across calls)
+        imm   r3, 524344
+        load  r8, r3
+        imm   r3, 524416
+        store r3, r8           ; SKIP = NOPS
+p1_skip:
+        imm   r3, 524416
+        load  r8, r3
+        imm   r9, 0
+        jeq   r8, r9, p1_loop
+        call  next_token
+        imm   r3, 524416
+        load  r8, r3
+        imm   r9, 1
+        sub   r8, r9
+        imm   r3, 524416
+        store r3, r8
+        jmp   p1_skip
+p1_label:
+        call  record_label
+        jmp   p1_loop
+p1_done:
+        ; pass 2: CUR = 0, emit
+        imm   r3, 524296
+        imm   r4, 0
+        store r3, r4
+p2_loop:
+        call  next_token
+        imm   r3, 524320
+        load  r4, r3
+        imm   r5, 1
+        jeq   r4, r5, p2_done
+        call  is_label
+        imm   r3, 524384
+        load  r4, r3
+        imm   r5, 1
+        jeq   r4, r5, p2_loop  ; skip label defs
+        ; opcode
+        call  parse_num
+        imm   r3, 524384
+        load  r4, r3
+        imm   r5, 524376
+        store r5, r4
+        write r4               ; emit opcode byte
+        call  op_widths
+        ; operand 0
+        imm   r3, 524344
+        load  r8, r3
+        imm   r9, 1
+        jlt   r8, r9, p2_loop
+        imm   r5, 524352
+        load  r6, r5
+        imm   r7, 524392
+        store r7, r6           ; EMITW = WID0
+        call  emit_operand
+        ; operand 1
+        imm   r3, 524344
+        load  r8, r3
+        imm   r9, 2
+        jlt   r8, r9, p2_loop
+        imm   r5, 524360
+        load  r6, r5
+        imm   r7, 524392
+        store r7, r6
+        call  emit_operand
+        ; operand 2
+        imm   r3, 524344
+        load  r8, r3
+        imm   r9, 3
+        jlt   r8, r9, p2_loop
+        imm   r5, 524368
+        load  r6, r5
+        imm   r7, 524392
+        store r7, r6
+        call  emit_operand
+        jmp   p2_loop
+p2_done:
+        imm   r0, 0
+        halt  r0
+
+; ---------------- next_token ----------------
+; skip whitespace (<=32) and `;` comments, then read a token; set TSTART/TLEN/TDONE.
+next_token:
+        imm   r0, 524296
+        load  r1, r0           ; r1 = CUR
+        imm   r3, 524288
+        load  r3, r3           ; r3 = SRCLEN
+nt_skip:
+        jlt   r1, r3, nt_have
+        jmp   nt_none
+nt_have:
+        imm   r5, 1048576
+        add   r5, r1
+        loadb r2, r5           ; c
+        imm   r6, 33
+        jlt   r2, r6, nt_adv   ; c < 33  =>  whitespace
+        imm   r6, 59
+        jeq   r2, r6, nt_comment
+        jmp   nt_token
+nt_adv:
+        imm   r6, 1
+        add   r1, r6
+        jmp   nt_skip
+nt_comment:
+        jlt   r1, r3, nt_comment_in
+        jmp   nt_none
+nt_comment_in:
+        imm   r5, 1048576
+        add   r5, r1
+        loadb r2, r5
+        imm   r6, 1
+        add   r1, r6
+        imm   r6, 10
+        jeq   r2, r6, nt_skip  ; newline ends the comment
+        jmp   nt_comment
+nt_token:
+        imm   r7, 524304
+        store r7, r1           ; TSTART = CUR
+nt_tloop:
+        jlt   r1, r3, nt_tin
+        jmp   nt_tend
+nt_tin:
+        imm   r5, 1048576
+        add   r5, r1
+        loadb r2, r5
+        imm   r6, 33
+        jlt   r2, r6, nt_tend  ; whitespace ends token
+        imm   r6, 59
+        jeq   r2, r6, nt_tend  ; `;` ends token
+        imm   r6, 1
+        add   r1, r6
+        jmp   nt_tloop
+nt_tend:
+        imm   r7, 524304
+        load  r8, r7           ; TSTART
+        mov   r9, r1
+        sub   r9, r8           ; TLEN = CUR - TSTART
+        imm   r7, 524312
+        store r7, r9
+        imm   r7, 524320
+        imm   r9, 0
+        store r7, r9           ; TDONE = 0
+        imm   r0, 524296
+        store r0, r1           ; CUR = r1
+        ret
+nt_none:
+        imm   r7, 524320
+        imm   r9, 1
+        store r7, r9           ; TDONE = 1
+        imm   r0, 524296
+        store r0, r1
+        ret
+
+; ---------------- is_label ----------------
+; NUM = 1 if the current token ends with ':' (a label definition), else 0.
+is_label:
+        imm   r3, 524304
+        load  r4, r3           ; TSTART
+        imm   r3, 524312
+        load  r5, r3           ; TLEN
+        add   r4, r5
+        imm   r6, 1
+        sub   r4, r6           ; offset of last char
+        imm   r7, 1048576
+        add   r7, r4
+        loadb r8, r7           ; last char
+        imm   r6, 58           ; ':'
+        imm   r3, 524384
+        jeq   r8, r6, is_label_yes
+        imm   r9, 0
+        store r3, r9
+        ret
+is_label_yes:
+        imm   r9, 1
+        store r3, r9
+        ret
+
+; ---------------- parse_num ----------------
+; NUM = decimal value of the current token (TSTART/TLEN), non-negative.
+parse_num:
+        imm   r3, 524304
+        load  r4, r3           ; TSTART
+        imm   r3, 524312
+        load  r5, r3           ; TLEN
+        imm   r6, 0            ; accumulator
+        imm   r7, 0            ; i
+pn_loop:
+        jlt   r7, r5, pn_in
+        jmp   pn_done
+pn_in:
+        imm   r8, 1048576
+        add   r8, r4
+        add   r8, r7
+        loadb r9, r8           ; c
+        imm   r10, 48
+        sub   r9, r10          ; digit
+        imm   r10, 10
+        mul   r6, r10
+        add   r6, r9           ; acc = acc*10 + digit
+        imm   r10, 1
+        add   r7, r10
+        jmp   pn_loop
+pn_done:
+        imm   r3, 524384
+        store r3, r6           ; NUM = acc
+        ret
+
+; ---------------- op_widths ----------------
+; from OPCODE, set NOPS and WID0/WID1/WID2 (widths 0 absent, 1 reg, 8 imm/addr).
+op_widths:
+        imm   r3, 524376
+        load  r0, r3           ; op
+        imm   r2, 20
+        jeq   r0, r2, ow_n0
+        imm   r2, 0
+        jeq   r0, r2, ow_r
+        imm   r2, 17
+        jeq   r0, r2, ow_r
+        imm   r2, 18
+        jeq   r0, r2, ow_r
+        imm   r2, 1
+        jeq   r0, r2, ow_ri
+        imm   r2, 13
+        jeq   r0, r2, ow_ri
+        imm   r2, 14
+        jeq   r0, r2, ow_ri
+        imm   r2, 12
+        jeq   r0, r2, ow_a
+        imm   r2, 19
+        jeq   r0, r2, ow_a
+        imm   r2, 15
+        jeq   r0, r2, ow_rra
+        imm   r2, 16
+        jeq   r0, r2, ow_rra
+        jmp   ow_rr            ; default: 2..11 are reg,reg
+ow_n0:
+        imm   r4, 524344
+        imm   r5, 0
+        store r4, r5
+        imm   r4, 524352
+        store r4, r5
+        imm   r4, 524360
+        store r4, r5
+        imm   r4, 524368
+        store r4, r5
+        ret
+ow_r:
+        imm   r4, 524344
+        imm   r5, 1
+        store r4, r5           ; NOPS 1
+        imm   r4, 524352
+        store r4, r5           ; WID0 1
+        imm   r5, 0
+        imm   r4, 524360
+        store r4, r5
+        imm   r4, 524368
+        store r4, r5
+        ret
+ow_ri:
+        imm   r4, 524344
+        imm   r5, 2
+        store r4, r5           ; NOPS 2
+        imm   r4, 524352
+        imm   r5, 1
+        store r4, r5           ; WID0 1
+        imm   r4, 524360
+        imm   r5, 8
+        store r4, r5           ; WID1 8
+        imm   r4, 524368
+        imm   r5, 0
+        store r4, r5
+        ret
+ow_a:
+        imm   r4, 524344
+        imm   r5, 1
+        store r4, r5           ; NOPS 1
+        imm   r4, 524352
+        imm   r5, 8
+        store r4, r5           ; WID0 8
+        imm   r4, 524360
+        imm   r5, 0
+        store r4, r5
+        imm   r4, 524368
+        store r4, r5
+        ret
+ow_rra:
+        imm   r4, 524344
+        imm   r5, 3
+        store r4, r5           ; NOPS 3
+        imm   r4, 524352
+        imm   r5, 1
+        store r4, r5
+        imm   r4, 524360
+        imm   r5, 1
+        store r4, r5
+        imm   r4, 524368
+        imm   r5, 8
+        store r4, r5
+        ret
+ow_rr:
+        imm   r4, 524344
+        imm   r5, 2
+        store r4, r5
+        imm   r4, 524352
+        imm   r5, 1
+        store r4, r5
+        imm   r4, 524360
+        imm   r5, 1
+        store r4, r5
+        imm   r4, 524368
+        imm   r5, 0
+        store r4, r5
+        ret
+
+; ---------------- record_label ----------------
+; append (TSTART, TLEN-1, OUT) to the label tables; NLBL++.
+record_label:
+        imm   r3, 524336
+        load  r0, r3           ; index = NLBL
+        mov   r1, r0
+        imm   r2, 8
+        mul   r1, r2           ; index*8
+        imm   r3, 524304
+        load  r4, r3           ; TSTART
+        imm   r5, 2097152
+        add   r5, r1
+        store r5, r4           ; off table
+        imm   r3, 524312
+        load  r4, r3           ; TLEN
+        imm   r6, 1
+        sub   r4, r6           ; drop ':'
+        imm   r5, 2621440
+        add   r5, r1
+        store r5, r4           ; len table
+        imm   r3, 524328
+        load  r4, r3           ; OUT
+        imm   r5, 3145728
+        add   r5, r1
+        store r5, r4           ; addr table
+        imm   r6, 1
+        add   r0, r6
+        imm   r3, 524336
+        store r3, r0           ; NLBL++
+        ret
+
+; ---------------- find_label ----------------
+; NUM = address of the label whose name equals the current token; halt 7 if none.
+find_label:
+        imm   r3, 524336
+        load  r0, r3           ; NLBL
+        imm   r1, 0            ; i
+fl_loop:
+        jlt   r1, r0, fl_in
+        jmp   fl_none
+fl_in:
+        mov   r2, r1
+        imm   r3, 8
+        mul   r2, r3           ; i*8
+        imm   r3, 2621440
+        add   r3, r2
+        load  r4, r3           ; LLEN[i]
+        imm   r3, 524312
+        load  r5, r3           ; TLEN
+        jeq   r4, r5, fl_lenok
+        jmp   fl_next
+fl_lenok:
+        imm   r3, 2097152
+        add   r3, r2
+        load  r6, r3           ; LOFF[i]
+        imm   r3, 524304
+        load  r7, r3           ; TSTART
+        imm   r8, 0            ; j
+fl_cmp:
+        jlt   r8, r4, fl_cin
+        jmp   fl_match
+fl_cin:
+        imm   r9, 1048576
+        add   r9, r6
+        add   r9, r8
+        loadb r10, r9          ; name byte
+        imm   r9, 1048576
+        add   r9, r7
+        add   r9, r8
+        loadb r11, r9          ; token byte
+        jeq   r10, r11, fl_cnext
+        jmp   fl_next
+fl_cnext:
+        imm   r9, 1
+        add   r8, r9
+        jmp   fl_cmp
+fl_match:
+        imm   r3, 3145728
+        add   r3, r2
+        load  r9, r3           ; LADR[i]
+        imm   r3, 524384
+        store r3, r9           ; NUM = addr
+        ret
+fl_next:
+        imm   r9, 1
+        add   r1, r9
+        jmp   fl_loop
+fl_none:
+        imm   r0, 7
+        halt  r0
+
+; ---------------- emit_operand ----------------
+; read the next token, resolve it (number or label), emit EMITW bytes LE.
+emit_operand:
+        call  next_token
+        imm   r3, 524304
+        load  r4, r3           ; TSTART
+        imm   r5, 1048576
+        add   r5, r4
+        loadb r6, r5           ; first char
+        imm   r7, 48
+        jlt   r6, r7, eo_label ; < '0' => label
+        imm   r7, 58
+        jlt   r6, r7, eo_num   ; <= '9' => number
+        jmp   eo_label
+eo_num:
+        call  parse_num
+        jmp   eo_emit
+eo_label:
+        call  find_label
+eo_emit:
+        imm   r3, 524384
+        load  r0, r3           ; value
+        imm   r3, 524392
+        load  r1, r3           ; width
+eo_bloop:
+        imm   r2, 0
+        jeq   r1, r2, eo_done
+        mov   r3, r0
+        imm   r4, 256
+        mod   r3, r4
+        write r3
+        imm   r4, 256
+        div   r0, r4
+        imm   r4, 1
+        sub   r1, r4
+        jmp   eo_bloop
+eo_done:
+        ret
