@@ -1,14 +1,13 @@
 // The Alpha compiler, written in Alpha (compiled by the alpha-rs on-ramp).
 //
-// Increment 1: the accepted "source" is a single decimal integer N read from
-// stdin; the output (stdout) is a Windows PE whose entry is `mov eax,N; ret`, so
-// running it exits with code N. This proves the Alpha -> PE pipeline and builds
-// the byte-exact PE writer the full compiler reuses.
+// Increment 2: a real lexer. Reads the whole source from stdin into a buffer,
+// tokenizes it into parallel token arrays (kind/start/len), and — to verify the
+// lexer end to end — emits a PE that exits with the token count. (Increment 3 will
+// add the parser + emitter so the output is a real translation of the input.)
 //
-// The PE structure is transcribed from alpha-rs/src/pe.rs (single-section path).
-// Alpha has no bitwise ops, so bytes are split with integer division: write_byte
-// already takes only the low 8 bits of its argument, so `v / 256` shifts right a
-// byte, `v / 65536` two bytes, etc.
+// The byte-exact PE writer (write_pe + emit helpers) is unchanged from increment 1
+// and is reused verbatim. Alpha has no bitwise ops, so bytes are split with integer
+// division (write_byte keeps only the low 8 bits, so `v / 256` shifts right a byte).
 
 boundary trait Console {
     machine exit_process(return_code: i32);
@@ -17,18 +16,65 @@ boundary trait Console {
     machine read_byte() -> i32;
 }
 
+// Token kinds (Alpha has no enums; these are the integer tags used everywhere).
+//  0 Eof      1 Ident    2 Int      3 LBrace   4 RBrace   5 LParen   6 RParen
+//  7 LBracket 8 RBracket 9 Semi    10 Colon   11 ColonColon 12 Comma 13 Dot
+// 14 Amp     15 Eq      16 Plus    17 Minus   18 Star    19 Slash   20 Lt
+// 21 Gt      22 Le      23 Ge      24 EqEq    25 Ne      26 Arrow   27 Str
+
 data Main {
     console: Console;
-    code: [u8; 512]; // generated machine code
+    src: [u8; 65536];     // source text
+    src_len: i32;
+    tok_kind: [i32; 16384];
+    tok_start: [i32; 16384];
+    tok_len: [i32; 16384];
+    tok_count: i32;
+    pos: i32;             // lexer cursor into src
+    c: i32;               // current byte
+    d: i32;               // lookahead byte
+    start: i32;           // token start
+    code: [u8; 512];      // generated machine code
     code_len: i32;
-    value: i32;      // the parsed exit code
-    raw_size: i32;   // .text size rounded up to FileAlignment
-    image_size: i32; // total mapped image size
-    i: i32;          // scratch loop cursor
-    c: i32;          // current input byte
+    value: i32;
+    raw_size: i32;
+    image_size: i32;
+    i: i32;               // scratch loop cursor
 }
 
-// --- byte output helpers (free machines; write_byte keeps only the low 8 bits) ---
+// --- byte classifiers (free machines returning 0/1) ---
+
+machine is_space(c: i32) -> i32 {
+    transition c { 32 -> yes() 9 -> yes() 13 -> yes() 10 -> yes() _ -> no() }
+    state yes() { return 1; }
+    state no() { return 0; }
+}
+
+machine is_digit(c: i32) -> i32 {
+    transition c < 48 { true -> no() _ -> hi() }
+    state hi() { transition c > 57 { true -> no() _ -> yes() } }
+    state yes() { return 1; }
+    state no() { return 0; }
+}
+
+machine is_alpha(c: i32) -> i32 {
+    transition c { 95 -> yes() _ -> chk() } // '_'
+    state chk() { transition c < 65 { true -> no() _ -> chk2() } }
+    state chk2() { transition c > 122 { true -> no() _ -> mid() } }
+    state mid() { transition c < 91 { true -> yes() _ -> mid2() } }   // 65..90 = A-Z
+    state mid2() { transition c > 96 { true -> yes() _ -> no() } }    // 97..122 = a-z
+    state yes() { return 1; }
+    state no() { return 0; }
+}
+
+machine is_alnum(c: i32) -> i32 {
+    transition is_alpha(c) { 1 -> yes() _ -> digit() }
+    state digit() { transition is_digit(c) { 1 -> yes() _ -> no() } }
+    state yes() { return 1; }
+    state no() { return 0; }
+}
+
+// --- byte output helpers (write_byte keeps only the low 8 bits) ---
 
 machine emit_u16(v: i32) {
     write_byte(v);
@@ -54,137 +100,239 @@ machine align_up(v: i32, a: i32) -> i32 {
     return ((v + a - 1) / a) * a;
 }
 
-// --- the PE writer: emits headers, then the code section, padded ---
+// --- the lexer ---
+
+machine Main::read_source(&mut self) {
+    self.src_len = 0;
+    transition 0 { _ -> step() }
+    state step() {
+        self.c = read_byte();
+        transition self.c < 0 { true -> done() false -> store() }
+    }
+    state store() {
+        self.src[self.src_len] = self.c;
+        self.src_len = self.src_len + 1;
+        transition 0 { _ -> step() }
+    }
+    state done() { }
+}
+
+machine Main::push_token(&mut self, kind: i32, start: i32, len: i32) {
+    self.tok_kind[self.tok_count] = kind;
+    self.tok_start[self.tok_count] = start;
+    self.tok_len[self.tok_count] = len;
+    self.tok_count = self.tok_count + 1;
+}
+
+machine Main::lex(&mut self) {
+    self.tok_count = 0;
+    self.pos = 0;
+    transition 0 { _ -> scan() }
+
+    // skip whitespace and // line comments, then dispatch one token
+    state scan() { transition self.pos < self.src_len { true -> peek() false -> at_eof() } }
+    state peek() {
+        self.c = self.src[self.pos];
+        transition is_space(self.c) { 1 -> adv1() _ -> peek_slash() }
+    }
+    state adv1() { self.pos = self.pos + 1; transition 0 { _ -> scan() } }
+    state peek_slash() { transition self.c { 47 -> slash2() _ -> dispatch() } } // '/'
+    state slash2() {
+        self.d = self.src[self.pos + 1];
+        transition self.d { 47 -> skip_comment() _ -> dispatch() } // '//' -> comment
+    }
+    state skip_comment() { transition self.pos < self.src_len { true -> sc_look() false -> scan() } }
+    state sc_look() {
+        self.c = self.src[self.pos];
+        transition self.c { 10 -> adv1() _ -> sc_adv() } // newline ends the comment
+    }
+    state sc_adv() { self.pos = self.pos + 1; transition 0 { _ -> skip_comment() } }
+
+    state dispatch() {
+        transition is_alpha(self.c) { 1 -> ident() _ -> dispatch2() }
+    }
+    state dispatch2() {
+        transition is_digit(self.c) { 1 -> int() _ -> dispatch3() }
+    }
+    state dispatch3() { transition self.c { 34 -> string() _ -> op() } } // '"'
+
+    // identifier
+    state ident() { self.start = self.pos; transition 0 { _ -> id_loop() } }
+    state id_loop() { transition self.pos < self.src_len { true -> id_check() false -> id_end() } }
+    state id_check() {
+        self.c = self.src[self.pos];
+        transition is_alnum(self.c) { 1 -> id_adv() _ -> id_end() }
+    }
+    state id_adv() { self.pos = self.pos + 1; transition 0 { _ -> id_loop() } }
+    state id_end() { self.push_token(1, self.start, self.pos - self.start); transition 0 { _ -> scan() } }
+
+    // integer
+    state int() { self.start = self.pos; transition 0 { _ -> int_loop() } }
+    state int_loop() { transition self.pos < self.src_len { true -> int_check() false -> int_end() } }
+    state int_check() {
+        self.c = self.src[self.pos];
+        transition is_digit(self.c) { 1 -> int_adv() _ -> int_end() }
+    }
+    state int_adv() { self.pos = self.pos + 1; transition 0 { _ -> int_loop() } }
+    state int_end() { self.push_token(2, self.start, self.pos - self.start); transition 0 { _ -> scan() } }
+
+    // string literal: start/len cover the bytes between the quotes
+    state string() {
+        self.pos = self.pos + 1;
+        self.start = self.pos;
+        transition 0 { _ -> str_loop() }
+    }
+    state str_loop() { transition self.pos < self.src_len { true -> str_check() false -> str_end() } }
+    state str_check() {
+        self.c = self.src[self.pos];
+        transition self.c { 34 -> str_end() _ -> str_adv() }
+    }
+    state str_adv() { self.pos = self.pos + 1; transition 0 { _ -> str_loop() } }
+    state str_end() {
+        self.push_token(27, self.start, self.pos - self.start);
+        self.pos = self.pos + 1; // skip closing quote
+        transition 0 { _ -> scan() }
+    }
+
+    // operators / punctuation (two-char forms first)
+    state op() {
+        self.d = self.src[self.pos + 1];
+        transition self.c {
+            45 -> op_minus()   // -
+            58 -> op_colon()   // :
+            61 -> op_eq()      // =
+            33 -> op_bang()    // !
+            60 -> op_lt()      // <
+            62 -> op_gt()      // >
+            _  -> op_single()
+        }
+    }
+    state op_minus() { transition self.d { 62 -> set_arrow() _ -> one_minus() } }
+    state one_minus() { self.push_token(17, self.pos, 1); self.pos = self.pos + 1; transition 0 { _ -> scan() } }
+    state op_colon() { transition self.d { 58 -> set_cc() _ -> one_colon() } }
+    state one_colon() { self.push_token(10, self.pos, 1); self.pos = self.pos + 1; transition 0 { _ -> scan() } }
+    state op_eq() { transition self.d { 61 -> set_eqeq() _ -> one_eq() } }
+    state one_eq() { self.push_token(15, self.pos, 1); self.pos = self.pos + 1; transition 0 { _ -> scan() } }
+    state op_bang() { transition self.d { 61 -> set_ne() _ -> skip_bad() } }
+    state skip_bad() { self.pos = self.pos + 1; transition 0 { _ -> scan() } }
+    state op_lt() { transition self.d { 61 -> set_le() _ -> one_lt() } }
+    state one_lt() { self.push_token(20, self.pos, 1); self.pos = self.pos + 1; transition 0 { _ -> scan() } }
+    state op_gt() { transition self.d { 61 -> set_ge() _ -> one_gt() } }
+    state one_gt() { self.push_token(21, self.pos, 1); self.pos = self.pos + 1; transition 0 { _ -> scan() } }
+
+    // two-char tokens: a setter puts the kind in self.value, then `two` emits it
+    // (transition arm targets are parameterless, so the kind can't be passed inline)
+    state set_arrow() { self.value = 26; transition 0 { _ -> two() } }
+    state set_cc() { self.value = 11; transition 0 { _ -> two() } }
+    state set_eqeq() { self.value = 24; transition 0 { _ -> two() } }
+    state set_ne() { self.value = 25; transition 0 { _ -> two() } }
+    state set_le() { self.value = 22; transition 0 { _ -> two() } }
+    state set_ge() { self.value = 23; transition 0 { _ -> two() } }
+    state two() {
+        self.push_token(self.value, self.pos, 2);
+        self.pos = self.pos + 2;
+        transition 0 { _ -> scan() }
+    }
+
+    // single-char punctuation
+    state op_single() {
+        transition self.c {
+            123 -> k3() 125 -> k4() 40 -> k5() 41 -> k6()
+            91 -> k7() 93 -> k8() 59 -> k9() 44 -> k12()
+            46 -> k13() 38 -> k14() 43 -> k16() 42 -> k18() 47 -> k19()
+            _ -> skip_bad()
+        }
+    }
+    state k3() { self.value = 3; transition 0 { _ -> one() } }
+    state k4() { self.value = 4; transition 0 { _ -> one() } }
+    state k5() { self.value = 5; transition 0 { _ -> one() } }
+    state k6() { self.value = 6; transition 0 { _ -> one() } }
+    state k7() { self.value = 7; transition 0 { _ -> one() } }
+    state k8() { self.value = 8; transition 0 { _ -> one() } }
+    state k9() { self.value = 9; transition 0 { _ -> one() } }
+    state k12() { self.value = 12; transition 0 { _ -> one() } }
+    state k13() { self.value = 13; transition 0 { _ -> one() } }
+    state k14() { self.value = 14; transition 0 { _ -> one() } }
+    state k16() { self.value = 16; transition 0 { _ -> one() } }
+    state k18() { self.value = 18; transition 0 { _ -> one() } }
+    state k19() { self.value = 19; transition 0 { _ -> one() } }
+    state one() {
+        self.push_token(self.value, self.pos, 1);
+        self.pos = self.pos + 1;
+        transition 0 { _ -> scan() }
+    }
+
+    state at_eof() { self.push_token(0, self.pos, 0); }
+}
+
+// --- the PE writer (single-section, no imports), reused from increment 1 ---
 
 machine Main::write_pe(&mut self) {
     self.raw_size = align_up(self.code_len, 512);
     self.image_size = 4096 + align_up(self.code_len, 4096);
 
-    // DOS header (64 bytes): "MZ", pad to 0x3C, e_lfanew = 0x40
-    write_byte(77); write_byte(90);
+    write_byte(77); write_byte(90);  // "MZ"
     emit_zeros(58);
-    emit_u32(64);
+    emit_u32(64);                    // e_lfanew = 0x40
 
-    // PE signature + COFF header (24 bytes)
     write_byte(80); write_byte(69); write_byte(0); write_byte(0); // "PE\0\0"
-    emit_u16(34404); // Machine = 0x8664 (x86-64)
-    emit_u16(1);     // NumberOfSections
-    emit_u32(0);     // TimeDateStamp
-    emit_u32(0);     // PointerToSymbolTable
-    emit_u32(0);     // NumberOfSymbols
-    emit_u16(240);   // SizeOfOptionalHeader
-    emit_u16(34);    // Characteristics = 0x0022 (executable, large-address-aware)
+    emit_u16(34404); emit_u16(1);    // Machine x86-64, 1 section
+    emit_u32(0); emit_u32(0); emit_u32(0);
+    emit_u16(240); emit_u16(34);     // SizeOfOptionalHeader, Characteristics
 
-    // Optional header (PE32+, 240 bytes)
-    emit_u16(523);                       // Magic = 0x20B
-    write_byte(0); write_byte(0);        // Major/MinorLinkerVersion
-    emit_u32(self.raw_size);             // SizeOfCode
-    emit_u32(0);                         // SizeOfInitializedData
-    emit_u32(0);                         // SizeOfUninitializedData
-    emit_u32(4096);                      // AddressOfEntryPoint = 0x1000
-    emit_u32(4096);                      // BaseOfCode
-    emit_u32(1073741824); emit_u32(1);   // ImageBase = 0x140000000
-    emit_u32(4096);                      // SectionAlignment
-    emit_u32(512);                       // FileAlignment
-    emit_u16(6); emit_u16(0);            // Major/MinorOperatingSystemVersion
-    emit_u16(0); emit_u16(0);            // Major/MinorImageVersion
-    emit_u16(6); emit_u16(0);            // Major/MinorSubsystemVersion
-    emit_u32(0);                         // Win32VersionValue
-    emit_u32(self.image_size);           // SizeOfImage
-    emit_u32(512);                       // SizeOfHeaders
-    emit_u32(0);                         // CheckSum
-    emit_u16(3);                         // Subsystem = console
-    emit_u16(0);                         // DllCharacteristics
-    emit_u32(1048576); emit_u32(0);      // SizeOfStackReserve = 0x100000
-    emit_u32(4096); emit_u32(0);         // SizeOfStackCommit = 0x1000
-    emit_u32(1048576); emit_u32(0);      // SizeOfHeapReserve = 0x100000
-    emit_u32(4096); emit_u32(0);         // SizeOfHeapCommit = 0x1000
-    emit_u32(0);                         // LoaderFlags
-    emit_u32(16);                        // NumberOfRvaAndSizes
-    emit_zeros(128);                     // 16 data directories, all zero
+    emit_u16(523);                   // PE32+
+    write_byte(0); write_byte(0);
+    emit_u32(self.raw_size);         // SizeOfCode
+    emit_u32(0); emit_u32(0);
+    emit_u32(4096); emit_u32(4096);  // entry point, base of code
+    emit_u32(1073741824); emit_u32(1); // ImageBase = 0x140000000
+    emit_u32(4096); emit_u32(512);   // section + file alignment
+    emit_u16(6); emit_u16(0); emit_u16(0); emit_u16(0); emit_u16(6); emit_u16(0);
+    emit_u32(0);
+    emit_u32(self.image_size);
+    emit_u32(512);                   // SizeOfHeaders
+    emit_u32(0);
+    emit_u16(3); emit_u16(0);        // Subsystem = console
+    emit_u32(1048576); emit_u32(0);
+    emit_u32(4096); emit_u32(0);
+    emit_u32(1048576); emit_u32(0);
+    emit_u32(4096); emit_u32(0);
+    emit_u32(0); emit_u32(16);
+    emit_zeros(128);                 // 16 data directories
 
-    // Section header (.text, 40 bytes)
     write_byte(46); write_byte(116); write_byte(101); write_byte(120); write_byte(116); // ".text"
-    write_byte(0); write_byte(0); write_byte(0);   // pad name to 8 bytes
-    emit_u32(self.code_len);    // VirtualSize
-    emit_u32(4096);             // VirtualAddress
-    emit_u32(self.raw_size);    // SizeOfRawData
-    emit_u32(512);              // PointerToRawData
-    emit_u32(0);                // PointerToRelocations
-    emit_u32(0);                // PointerToLinenumbers
-    emit_u16(0);                // NumberOfRelocations
-    emit_u16(0);                // NumberOfLinenumbers
-    emit_u32(1610612768);       // Characteristics = 0x60000020 (code|execute|read)
+    write_byte(0); write_byte(0); write_byte(0);
+    emit_u32(self.code_len);
+    emit_u32(4096);
+    emit_u32(self.raw_size);
+    emit_u32(512);
+    emit_u32(0); emit_u32(0);
+    emit_u16(0); emit_u16(0);
+    emit_u32(1610612768);            // 0x60000020
+    emit_zeros(144);                 // pad headers 368 -> 512
 
-    // pad headers from 368 to SizeOfHeaders (512)
-    emit_zeros(144);
-
-    // emit the code section, then pad to raw_size
     self.i = 0;
     transition 0 { _ -> code_step() }
-
-    state code_step() {
-        transition self.i < self.code_len {
-            true  -> code_one()
-            false -> pad_step()
-        }
-    }
-    state code_one() {
-        write_byte(self.code[self.i]);
-        self.i = self.i + 1;
-        transition 0 { _ -> code_step() }
-    }
-    state pad_step() {
-        transition self.i < self.raw_size {
-            true  -> pad_one()
-            false -> done()
-        }
-    }
-    state pad_one() {
-        write_byte(0);
-        self.i = self.i + 1;
-        transition 0 { _ -> pad_step() }
-    }
+    state code_step() { transition self.i < self.code_len { true -> code_one() false -> pad_step() } }
+    state code_one() { write_byte(self.code[self.i]); self.i = self.i + 1; transition 0 { _ -> code_step() } }
+    state pad_step() { transition self.i < self.raw_size { true -> pad_one() false -> done() } }
+    state pad_one() { write_byte(0); self.i = self.i + 1; transition 0 { _ -> pad_step() } }
     state done() { }
 }
 
-// --- the (trivial) front-end: parse a decimal integer, build an exit stub ---
-
 machine Main::main(&mut self) {
-    self.value = 0;
-    transition 0 { _ -> read() }
+    self.read_source();
+    self.lex();
 
-    state read() {
-        self.c = read_byte();
-        transition self.c < 48 {
-            true  -> build()      // EOF (-1), newline, or any non-digit ends the number
-            false -> check_high()
-        }
-    }
-    state check_high() {
-        transition self.c > 57 {
-            true  -> build()
-            false -> accumulate()
-        }
-    }
-    state accumulate() {
-        self.value = self.value * 10 + self.c - 48;
-        transition 0 { _ -> read() }
-    }
-
-    state build() {
-        // mov eax, <value> ; ret   (0xB8 imm32, 0xC3)
-        self.code[0] = 184;
-        self.code[1] = self.value;
-        self.code[2] = self.value / 256;
-        self.code[3] = self.value / 65536;
-        self.code[4] = self.value / 16777216;
-        self.code[5] = 195;
-        self.code_len = 6;
-        transition 0 { _ -> finish() }
-    }
-    state finish() {
-        self.write_pe();
-        self.console.exit_process(0)
-    }
+    // (increment 2) emit a PE that exits with the token count, to verify the lexer
+    self.value = self.tok_count;
+    self.code[0] = 184;
+    self.code[1] = self.value;
+    self.code[2] = self.value / 256;
+    self.code[3] = self.value / 65536;
+    self.code[4] = self.value / 16777216;
+    self.code[5] = 195;
+    self.code_len = 6;
+    self.write_pe();
+    self.console.exit_process(0)
 }

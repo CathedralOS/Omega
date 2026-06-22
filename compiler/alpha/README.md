@@ -21,20 +21,25 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
 
 ## Status (incremental)
 
-- **Increment 1 — PE emitter + minimal front-end: in progress.** Accepted "grammar"
-  is a single decimal integer N; output is a PE whose entry is `mov eax,N; ret`, so
-  it exits with N. This exists to (a) prove the Alpha→PE pipeline end to end and
-  (b) build the byte-exact PE writer (`write_pe`) + byte-emit helpers that the full
-  compiler reuses. Code lives in a `[u8;N]` self buffer; the PE structure is
-  transcribed from `alpha-rs/src/pe.rs` (single-section, no-imports path).
+- **Increment 1 — PE emitter + `mov eax,N; ret` stub: DONE.** Proved the Alpha→PE
+  pipeline and built the byte-exact PE writer (`write_pe` + `emit_u16/u32/zeros`),
+  transcribed from `alpha-rs/src/pe.rs` (single-section path).
+- **Increment 2 — lexer: DONE.** `read_source` reads stdin into a `[u8;65536]`
+  buffer; `lex` tokenizes it into parallel `tok_kind/tok_start/tok_len` arrays
+  (`[i32;16384]`) with a `tok_count`. Handles idents, ints, string literals,
+  `//` comments, whitespace, the two-char ops (`-> :: == != <= >=`) and all
+  single-char punctuation. To verify end to end, `main` emits a PE that exits with
+  the token count. Confirmed against 8 snippets (e.g. `self.n = self.n + 1;` → 11
+  tokens incl. Eof). The big token arrays live in the static `.data` section (the
+  enabler), so the compiler exe is ~470 KB. No on-ramp gaps surfaced.
 
 ## Next increments
 
-2. A real lexer + `exit_process(N)` grammar (tokens, a tiny parser).
-3. Expressions, locals, the x64 stack-machine emitter (port of `alpha-rs/src/x64.rs`).
-4. Control flow, calls, data/arrays — widen to the full on-ramp language.
-5. De-recurse any tree-walks to an explicit worklist (Alpha bans call recursion);
-   hand-specialize arenas (no generics). Then close the self-hosting fixed point.
+3. Parser (tokens → an AST in arenas) + the x64 stack-machine emitter (port of
+   `alpha-rs/src/x64.rs`), starting with `machine main { exit_process(N) }`.
+4. Widen to expressions, locals, control flow, calls, data/arrays — the full
+   on-ramp language. De-recurse tree-walks to an explicit worklist (Alpha bans call
+   recursion); hand-specialize arenas (no generics). Then close the fixed point.
 
 ## Known gaps to fix in the on-ramp as they surface
 
