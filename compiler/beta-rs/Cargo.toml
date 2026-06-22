@@ -1,14 +1,14 @@
 [package]
-name = "alpha"
+name = "beta"
 version = "0.0.0"
 edition = "2021"
 publish = false
 
 # The Alpha compiler. Currently the throwaway Rust "on-ramp"; the binary is
-# `alpha`. Eventually this directory holds the Alpha seed + the Alpha-in-Alpha
+# `beta`. Eventually this directory holds the Alpha seed + the Alpha-in-Alpha
 # compiler, and the Rust on-ramp is discarded.
 [[bin]]
-name = "alpha"
+name = "beta"
 path = "src/main.rs"
 
 # Standalone (own workspace root) so the parent Omega workspace (explicit
