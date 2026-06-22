@@ -29,6 +29,14 @@ intended instructions — a *read-only* check; it never produces the artifact.
   with the 16 virtual registers in a writable `.data` (BSS) region (`rbx=&vregs`,
   `rsi=pc`). The embedded tape computes 6*7 and halts r0 → exits 42.
 
-Next: the rest of the compute/memory/branch opcodes + `call`/`ret`, then byte I/O
-via a kernel32 import table + tape loading, until the hand-assembled VM runs
-`../as.tape` and reproduces the self-hosting fixed point with no Rust in the loop.
+- **M2** — the full non-I/O interpreter: all compute (`mov`/`add`/`sub`/`mul`/`div`/
+  `mod`), memory (`load`/`store`/`loadb`/`storeb`), branch (`jmp`/`jz`/`jnz`/`jlt`/
+  `jeq`), and `call`/`ret` (a VM call stack growing down from the top of a 64 MB
+  memory in `.data`). The tape is embedded in `.text` and copied into VM memory at
+  startup. Verified with two embedded tapes: sum 1..10 → 55 (imm/jlt/jmp/add), and
+  a memory+subroutine program → 42 (store/load/mul/call/ret/sub). `read`/`write` are
+  `ud2` placeholders until M3.
+
+Next: byte I/O (`read`/`write`) via a kernel32 import table, then tape loading from
+stdin/argv, until the hand-assembled VM runs `../as.tape` and reproduces the
+self-hosting fixed point with no Rust in the loop.
