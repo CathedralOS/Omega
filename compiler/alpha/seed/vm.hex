@@ -1,15 +1,15 @@
 ; ===========================================================================
 ; Hand-assembled Alpha tape VM — Windows x64 PE.  Every instruction byte is
-; hand-authored; build.py resolves label arithmetic (.rel32/.abs/.rva/.pad).
+; hand-authored; build.py resolves label arithmetic.
 ;
-; Milestone 3: byte I/O. Adds a .rdata kernel32 import table (GetStdHandle/ReadFile/
-; WriteFile) and the read/write opcode handlers. Win64 ABI: rcx/rdx/r8/r9 + 5th arg
-; at [rsp+0x20]; `sub rsp,0x28` once at entry gives 16-aligned rsp + shadow space.
-; kernel32 preserves rbx/rsi/rdi/r12 (the VM state regs).
-;   rsi=pc ptr   rdi=mem base (0x140004000)   rbx=&vregs (0x140003000)   r12=sp
-;   vregs[i] @ rbx+i*8;  scratch in the vregs page: stdin_h 0x...3080,
-;   stdout_h 0x...3088, io_byte 0x...3090, count 0x...3098
-; Sections: .text 0x1000, .rdata 0x2000 (imports), .data 0x3000 (BSS).
+; Milestone 4: a GENERAL VM. The tape is read from a 4-byte little-endian length
+; prefix on stdin, then that many tape bytes into VM memory; the rest of stdin is the
+; program's input. So one VM runs any tape:
+;     ( printf <len LE32> ; cat TAPE ; cat INPUT ) | vm  > OUTPUT
+; getbyte/putbyte are self-aligning native subroutines wrapping ReadFile/WriteFile.
+;   rsi=pc ptr  rdi=mem base (0x140004000)  rbx=&vregs (0x140003000)  r12=sp
+;   scratch (vregs page): stdin_h 3080, stdout_h 3088, io_byte 3090, count 3098,
+;   lenbuf 30A0.   Sections: .text 0x1000, .rdata 0x2000 (imports), .data 0x3000.
 ; ===========================================================================
 
 ; --- DOS header ---
@@ -19,7 +19,7 @@
 ; --- PE signature + COFF ---
 50 45 00 00
 64 86
-03 00                    ; 3 sections
+03 00
 00 00 00 00
 00 00 00 00
 00 00 00 00
@@ -29,14 +29,14 @@ F0 00
 ; --- Optional header (PE32+) ---
 0B 02
 00 00
-00 10 00 00              ; SizeOfCode = 0x1000
-00 02 00 00              ; SizeOfInitializedData = 0x200 (.rdata)
-00 10 00 04              ; SizeOfUninitializedData = 0x4001000 (.data)
-00 10 00 00              ; AddressOfEntryPoint = 0x1000
+00 10 00 00              ; SizeOfCode
+00 02 00 00              ; SizeOfInitializedData (.rdata)
+00 10 00 04              ; SizeOfUninitializedData (.data)
+00 10 00 00              ; AddressOfEntryPoint
 00 10 00 00              ; BaseOfCode
-00 00 00 40 01 00 00 00  ; ImageBase = 0x140000000
-00 10 00 00              ; SectionAlignment
-00 02 00 00              ; FileAlignment
+00 00 00 40 01 00 00 00  ; ImageBase
+00 10 00 00
+00 02 00 00
 06 00 00 00
 00 00 00 00
 06 00 00 00
@@ -44,77 +44,88 @@ F0 00
 00 40 00 04              ; SizeOfImage = 0x4004000
 00 02 00 00              ; SizeOfHeaders
 00 00 00 00
-03 00                    ; console
+03 00
 00 00
 00 00 10 00 00 00 00 00
 00 10 00 00 00 00 00 00
 00 00 10 00 00 00 00 00
 00 10 00 00 00 00 00 00
 00 00 00 00
-10 00 00 00              ; NumberOfRvaAndSizes = 16
-; data directories
-00 00 00 00 00 00 00 00          ; [0] export
-.rva idt 28 00 00 00             ; [1] import directory (size 40)
-z80                              ; [2..11]
-.rva iat 20 00 00 00             ; [12] IAT (size 32)
-z24                              ; [13..15]
+10 00 00 00
+00 00 00 00 00 00 00 00          ; dir[0]
+.rva idt 28 00 00 00             ; dir[1] import
+z80
+.rva iat 20 00 00 00             ; dir[12] IAT
+z24
 
 ; --- section headers ---
-2E 74 65 78 74 00 00 00          ; .text
-00 10 00 00                      ; VirtualSize 0x1000
-00 10 00 00                      ; VA 0x1000
-00 10 00 00                      ; SizeOfRawData 0x1000
-00 02 00 00                      ; PtrToRawData 0x200
+2E 74 65 78 74 00 00 00
+00 10 00 00
+00 10 00 00
+00 10 00 00
+00 02 00 00
 00 00 00 00 00 00 00 00
 00 00 00 00
-20 00 00 60                      ; CODE|EXEC|READ
-2E 72 64 61 74 61 00 00          ; .rdata
-00 02 00 00                      ; VirtualSize 0x200
-00 20 00 00                      ; VA 0x2000
-00 02 00 00                      ; SizeOfRawData 0x200
-00 12 00 00                      ; PtrToRawData 0x1200
+20 00 00 60
+2E 72 64 61 74 61 00 00
+00 02 00 00
+00 20 00 00
+00 02 00 00
+00 12 00 00
 00 00 00 00 00 00 00 00
 00 00 00 00
-40 00 00 40                      ; INITIALIZED|READ (0x40000040)
-2E 64 61 74 61 00 00 00          ; .data
-00 10 00 04                      ; VirtualSize 0x4001000
-00 30 00 00                      ; VA 0x3000
-00 00 00 00                      ; SizeOfRawData 0 (BSS)
-00 00 00 00                      ; PtrToRawData 0
+40 00 00 40
+2E 64 61 74 61 00 00 00
+00 10 00 04
+00 30 00 00
+00 00 00 00
+00 00 00 00
 00 00 00 00 00 00 00 00
 00 00 00 00
-80 00 00 C0                      ; UNINIT|READ|WRITE
+80 00 00 C0
 .pad 0x200
 
 ; ===================== .text (RVA 0x1000) =====================
-48 83 EC 28                     ; sub rsp, 0x28   (align + shadow space)
-48 BB 00 30 00 40 01 00 00 00   ; mov rbx, 0x140003000  (&vregs)
-48 BF 00 40 00 40 01 00 00 00   ; mov rdi, 0x140004000  (mem base)
-49 BC 00 00 00 04 00 00 00 00   ; mov r12, 0x4000000    (sp)
-; stdin_h = GetStdHandle(-10)
-B9 F6 FF FF FF                  ; mov ecx, -10
-FF 15 .rel32 iat_gsh            ; call GetStdHandle
-48 B9 80 30 00 40 01 00 00 00   ; mov rcx, 0x140003080
-48 89 01                        ; mov [rcx], rax
-; stdout_h = GetStdHandle(-11)
-B9 F5 FF FF FF                  ; mov ecx, -11
+48 83 EC 28                     ; sub rsp, 0x28
+48 BB 00 30 00 40 01 00 00 00   ; mov rbx, &vregs
+48 BF 00 40 00 40 01 00 00 00   ; mov rdi, mem base
+49 BC 00 00 00 04 00 00 00 00   ; mov r12, sp (64MB)
+; stdin_h / stdout_h
+B9 F6 FF FF FF
 FF 15 .rel32 iat_gsh
-48 B9 88 30 00 40 01 00 00 00   ; mov rcx, 0x140003088
+48 B9 80 30 00 40 01 00 00 00
 48 89 01
-; copy embedded tape -> mem
-48 BE .abs tape                 ; rsi = &tape
-48 89 FA                        ; mov rdx, rdi
-41 B8 2E 00 00 00               ; mov r8d, 46   (tape length)
-copy:
-4D 85 C0
-74 .rel8 copy_done
-8A 06
+B9 F5 FF FF FF
+FF 15 .rel32 iat_gsh
+48 B9 88 30 00 40 01 00 00 00
+48 89 01
+; --- loader: 4-byte LE length prefix into lenbuf ---
+E8 .rel32 getbyte
+48 BA A0 30 00 40 01 00 00 00
 88 02
-48 FF C6
-48 FF C2
-49 FF C8
-EB .rel8 copy
-copy_done:
+E8 .rel32 getbyte
+48 BA A1 30 00 40 01 00 00 00
+88 02
+E8 .rel32 getbyte
+48 BA A2 30 00 40 01 00 00 00
+88 02
+E8 .rel32 getbyte
+48 BA A3 30 00 40 01 00 00 00
+88 02
+48 B8 A0 30 00 40 01 00 00 00   ; rax = &lenbuf
+44 8B 30                        ; mov r14d, [rax]   (tape length)
+4D 31 FF                        ; xor r15, r15      (i = 0)
+load_loop:
+4D 85 F6                        ; test r14, r14
+74 .rel8 load_done
+E8 .rel32 getbyte               ; al = next tape byte
+48 89 FA                        ; mov rdx, rdi
+4C 01 FA                        ; add rdx, r15
+88 02                           ; mov [rdx], al
+49 FF C7                        ; inc r15
+49 FF CE                        ; dec r14
+EB .rel8 load_loop
+load_done:
 48 89 FE                        ; rsi = rdi (pc = 0)
 
 ; --- fetch + dispatch ---
@@ -288,41 +299,16 @@ h_jeq:
 0F 84 .rel32 do_jump
 E9 .rel32 skip_addr
 h_read:
-0F B6 0E                        ; rD
-48 FF C6
-48 B8 80 30 00 40 01 00 00 00   ; rax = &stdin_h
-48 8B 08                        ; mov rcx, [rax]
-48 BA 90 30 00 40 01 00 00 00   ; mov rdx, &io_byte
-41 B8 01 00 00 00               ; mov r8d, 1
-49 B9 98 30 00 40 01 00 00 00   ; mov r9, &count
-48 C7 44 24 20 00 00 00 00       ; mov qword [rsp+0x20], 0
-FF 15 .rel32 iat_rf             ; call ReadFile
-48 B8 98 30 00 40 01 00 00 00   ; rax = &count
-48 8B 00                        ; mov rax, [rax]   (nread)
-48 85 C0                        ; test rax, rax
-74 .rel8 read_eof               ; jz read_eof
-48 B8 90 30 00 40 01 00 00 00   ; rax = &io_byte
-0F B6 00                        ; movzx eax, byte [rax]
-EB .rel8 read_store
-read_eof:
-48 C7 C0 FF FF FF FF            ; mov rax, -1
-read_store:
-0F B6 4E FF                     ; movzx ecx, byte [rsi-1]  (re-read rD)
-48 89 04 CB                     ; mov [rbx+rcx*8], rax
+48 FF C6                        ; inc rsi (consume rD; rD now at rsi-1)
+E8 .rel32 getbyte               ; rax = byte or -1
+0F B6 4E FF                     ; movzx ecx, byte [rsi-1]
+48 89 04 CB
 E9 .rel32 next
 h_write:
 0F B6 0E                        ; rS
 48 FF C6
-48 8B 04 CB                     ; rax = vregs[rS]
-48 BA 90 30 00 40 01 00 00 00   ; mov rdx, &io_byte
-88 02                           ; mov [rdx], al
-48 B8 88 30 00 40 01 00 00 00   ; rax = &stdout_h
-48 8B 08                        ; mov rcx, [rax]
-48 BA 90 30 00 40 01 00 00 00   ; mov rdx, &io_byte
-41 B8 01 00 00 00               ; mov r8d, 1
-49 B9 98 30 00 40 01 00 00 00   ; mov r9, &count
-48 C7 44 24 20 00 00 00 00       ; mov qword [rsp+0x20], 0
-FF 15 .rel32 iat_wf             ; call WriteFile
+48 8B 04 CB                     ; rax = vregs[rS] (al = byte)
+E8 .rel32 putbyte
 E9 .rel32 next
 h_call:
 48 8B 06
@@ -346,29 +332,57 @@ h_ret:
 E9 .rel32 next
 h_halt:
 0F B6 0E
-8B 04 CB                        ; eax = vregs[rD] (low 32)
-48 83 C4 28                     ; add rsp, 0x28  (undo entry sub)
-C3                              ; ret
+8B 04 CB
+48 83 C4 28                     ; add rsp, 0x28
+C3
 
-; --- embedded tape: echo (cat stdin to stdout) ---
-tape:
-01 01 00 00 00 00 00 00 00 00   ; imm r1, 0
-11 00                           ; read r0
-0F 00 01 22 00 00 00 00 00 00 00 ; jlt r0, r1, done
-12 00                           ; write r0
-0C 0A 00 00 00 00 00 00 00      ; jmp loop
-01 00 00 00 00 00 00 00 00 00   ; imm r0, 0
-00 00                           ; halt r0
+; --- getbyte: rax = next stdin byte, or -1 at EOF (self-aligning frame) ---
+getbyte:
+48 83 EC 28
+48 B8 80 30 00 40 01 00 00 00   ; &stdin_h
+48 8B 08
+48 BA 90 30 00 40 01 00 00 00   ; &io_byte
+41 B8 01 00 00 00
+49 B9 98 30 00 40 01 00 00 00   ; &count
+48 C7 44 24 20 00 00 00 00
+FF 15 .rel32 iat_rf
+48 B8 98 30 00 40 01 00 00 00   ; &count
+48 8B 00
+48 85 C0
+74 .rel8 gb_eof
+48 B8 90 30 00 40 01 00 00 00   ; &io_byte
+0F B6 00
+48 83 C4 28
+C3
+gb_eof:
+48 C7 C0 FF FF FF FF            ; rax = -1
+48 83 C4 28
+C3
+
+; --- putbyte: write al to stdout (self-aligning frame) ---
+putbyte:
+48 83 EC 28
+48 BA 90 30 00 40 01 00 00 00   ; &io_byte
+88 02                           ; mov [io_byte], al
+48 B8 88 30 00 40 01 00 00 00   ; &stdout_h
+48 8B 08
+48 BA 90 30 00 40 01 00 00 00   ; &io_byte
+41 B8 01 00 00 00
+49 B9 98 30 00 40 01 00 00 00   ; &count
+48 C7 44 24 20 00 00 00 00
+FF 15 .rel32 iat_wf
+48 83 C4 28
+C3
 .pad 0x1200
 
 ; ===================== .rdata (RVA 0x2000, file 0x1200) =====================
 idt:
-.rva ilt                        ; OriginalFirstThunk
-00 00 00 00                     ; TimeDateStamp
-00 00 00 00                     ; ForwarderChain
-.rva dllname                    ; Name
-.rva iat                        ; FirstThunk
-z20                             ; null descriptor
+.rva ilt
+00 00 00 00
+00 00 00 00
+.rva dllname
+.rva iat
+z20
 ilt:
 .rva n_gsh 00 00 00 00
 .rva n_rf  00 00 00 00
@@ -380,11 +394,11 @@ iat_rf:  .rva n_rf  00 00 00 00
 iat_wf:  .rva n_wf  00 00 00 00
 z8
 n_gsh:
-00 00 47 65 74 53 74 64 48 61 6E 64 6C 65 00 00   ; hint + "GetStdHandle"
+00 00 47 65 74 53 74 64 48 61 6E 64 6C 65 00 00
 n_rf:
-00 00 52 65 61 64 46 69 6C 65 00 00               ; "ReadFile"
+00 00 52 65 61 64 46 69 6C 65 00 00
 n_wf:
-00 00 57 72 69 74 65 46 69 6C 65 00               ; "WriteFile"
+00 00 57 72 69 74 65 46 69 6C 65 00
 dllname:
-6B 65 72 6E 65 6C 33 32 2E 64 6C 6C 00 00         ; "kernel32.dll"
+6B 65 72 6E 65 6C 33 32 2E 64 6C 6C 00 00
 .pad 0x1400
