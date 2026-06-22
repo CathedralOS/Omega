@@ -27,8 +27,10 @@ pub const OP_JLT: u8 = 15; //  jlt  rA, rB, addr  if rA <  rB (signed) PC = addr
 pub const OP_JEQ: u8 = 16; //  jeq  rA, rB, addr  if rA == rB PC = addr
 pub const OP_READ: u8 = 17; // read rD            rD = next stdin byte, or -1 at EOF
 pub const OP_WRITE: u8 = 18; // write rS          write (rS & 0xff) to stdout
+pub const OP_CALL: u8 = 19; // call addr          push return addr; PC = addr
+pub const OP_RET: u8 = 20; //  ret                PC = popped return addr
 
-pub const OP_COUNT: u8 = 19;
+pub const OP_COUNT: u8 = 21;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Operand {
@@ -53,9 +55,10 @@ pub fn operands(op: u8) -> &'static [Operand] {
         OP_IMM => &[Reg, Imm],
         OP_MOV | OP_ADD | OP_SUB | OP_MUL | OP_DIV | OP_MOD | OP_LOADB | OP_STOREB | OP_LOAD
         | OP_STORE => &[Reg, Reg],
-        OP_JMP => &[Addr],
+        OP_JMP | OP_CALL => &[Addr],
         OP_JZ | OP_JNZ => &[Reg, Addr],
         OP_JLT | OP_JEQ => &[Reg, Reg, Addr],
+        OP_RET => &[],
         _ => &[],
     }
 }
@@ -86,6 +89,8 @@ pub fn mnemonic(name: &str) -> Option<u8> {
         "jeq" => OP_JEQ,
         "read" => OP_READ,
         "write" => OP_WRITE,
+        "call" => OP_CALL,
+        "ret" => OP_RET,
         _ => return None,
     })
 }

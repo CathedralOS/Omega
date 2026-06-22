@@ -47,6 +47,7 @@ fn main() {
 
     let mut reg = [0i64; 16];
     let mut pc: usize = 0;
+    let mut sp: usize = MEM_SIZE; // call stack grows down from the top of memory
 
     let stdin = std::io::stdin();
     let mut input = stdin.lock().bytes();
@@ -94,6 +95,16 @@ fn main() {
                 let byte = (reg[mem[a] as usize] & 0xff) as u8;
                 let _ = out.write_all(&[byte]);
                 pc += instr_size(op);
+            }
+            OP_CALL => {
+                let target = read_i64(&mem, a) as usize;
+                sp -= 8;
+                write_i64(&mut mem, sp, (pc + instr_size(op)) as i64);
+                pc = target;
+            }
+            OP_RET => {
+                pc = read_i64(&mem, sp) as usize;
+                sp += 8;
             }
             _ => {
                 eprintln!("vm: bad opcode {} at pc {}", op, pc);
