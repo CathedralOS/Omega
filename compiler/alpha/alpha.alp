@@ -24,7 +24,7 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    source: [u8; 262144];         // source text (alphac.alp itself is ~93 KB)
+    source: [u8; 262144];         // source text (alpha.alp itself is ~93 KB)
     source_length: i32;
     token_kind: [i32; 131072];
     token_start: [i32; 131072];
@@ -53,7 +53,7 @@ data Main {
     resolve_position: i32;        // resolve_local cursor
     emit_scratch: i32;            // emit_i32 scratch
     brace_depth: i32;             // brace depth while finding the top-level machine
-    code: [u8; 262144];           // generated machine code (alphac's own .text is tens of KB)
+    code: [u8; 262144];           // generated machine code (alpha's own .text is tens of KB)
     code_length: i32;
     pending_value: i32;
     image_size: i32;
@@ -1038,7 +1038,7 @@ machine Main::patch_calls(&mut self) {
 // Lay out the (single) `data` type's fields: each scalar field is 8 bytes, a
 // boundary capability (an uppercase type name, e.g. Console) is 0, and an array
 // `[u8;N]`/`[i32;N]` is N*1 / N*8. Records each field's name token + byte offset,
-// and the total instance size (the .data section). alphac.alp has one data type.
+// and the total instance size (the .data section). alpha.alp has one data type.
 machine Main::prescan_data(&mut self) {
     self.field_count = 0;
     self.data_size = 0;

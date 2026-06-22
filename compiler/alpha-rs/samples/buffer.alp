@@ -2,7 +2,7 @@
 // into a byte buffer held in self, then writes it back reversed — so the buffer
 // is demonstrably real (output != input). This is the storage shape the
 // self-hosting compiler uses to hold its source text.
-//   alphac buffer.alp rev.exe && printf 'abcde' | ./rev.exe   ->  edcba
+//   alpha buffer.alp rev.exe && printf 'abcde' | ./rev.exe   ->  edcba
 boundary trait Console {
     machine exit_process(return_code: i32);
     machine write_line(text: &[u8] in Utf8);

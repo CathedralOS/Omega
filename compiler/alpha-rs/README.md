@@ -2,7 +2,7 @@
 
 Sibling of `compiler/omega-rs`. Alpha is the smallest subset of Omega (rung 0 of
 the self-building lattice). The `-rs` suffix marks this as the **throwaway Rust**
-implementation (binary `alphac`) — the "on-ramp." Eventually a `compiler/alpha`
+implementation (binary `alpha`) — the "on-ramp." Eventually a `compiler/alpha`
 holds the Alpha seed + the Alpha-in-Alpha compiler, and this Rust on-ramp is
 discarded (just as `compiler/omega-rs` is the throwaway Rust Omega compiler,
 to be retired by a lattice-built `compiler/omega`).
