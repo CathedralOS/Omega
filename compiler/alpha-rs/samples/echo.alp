@@ -1,6 +1,6 @@
 // Slice 8a: host byte I/O. Reads stdin one byte at a time and writes each to
 // stdout until end-of-input (read_byte returns -1 at EOF). Run as a filter:
-//   alphac echo.alp echo.exe && printf 'hello' | ./echo.exe   ->  hello
+//   alpha echo.alp echo.exe && printf 'hello' | ./echo.exe   ->  hello
 boundary trait Console {
     machine exit_process(return_code: i32);
     machine write_line(text: &[u8] in Utf8);

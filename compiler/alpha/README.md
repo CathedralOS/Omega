@@ -14,8 +14,8 @@ on-ramp is the executable spec; this must accept the same language.
 The compiler is a filter: source on stdin, a Windows PE on stdout.
 
 ```
-../alpha-rs/target/debug/alphac.exe alphac.alp alphac0.exe   # on-ramp compiles it
-printf '42' | ./alphac0.exe > out.exe                          # it compiles "42"
+../alpha-rs/target/debug/alpha.exe alpha.alp alpha0.exe   # on-ramp compiles it
+printf '42' | ./alpha0.exe > out.exe                       # it compiles "42"
 ./out.exe; echo $?                                             # -> 42
 ```
 
@@ -36,7 +36,7 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
 - **Increment 3 — parse + emit `exit_process(<int>)`: DONE.** `tok_int` parses a
   decimal value from a token's source bytes; `parse` walks the token stream and
   takes the first integer literal as the exit code; `main` emits the `mov eax,N;
-  ret` entry stub and writes the PE. So `alphac` now does a real translation:
+  ret` entry stub and writes the PE. So `alpha` now does a real translation:
   source → tokens → value → code → PE. Verified: `machine main { exit_process(42) }`
   → 42 (and 7/200/123), and it compiles the on-ramp's own `samples/exit7.alp` → 7.
   (Still a stepping stone — "first int wins", no keyword matching yet.)
@@ -57,7 +57,7 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
   correct two's-complement bytes for negative rbp displacements via `ashr8` (Alpha's
   `/` truncates, so a floor-division bias gives the arithmetic shift). Verified:
   two-local programs, `y = x*2`, and it compiles the on-ramp's own `exit7.alp`→7,
-  `arith.alp`→11, `locals.alp`→14. No on-ramp gaps (one bug, in alphac's own
+  `arith.alp`→11, `locals.alp`→14. No on-ramp gaps (one bug, in alpha's own
   depth-blind machine-finding, found + fixed).
 
 - **Increment 6 — comparisons + `transition`/`state` control flow: DONE.**
@@ -116,34 +116,34 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
 
 ## ✅ SELF-HOSTING REACHED
 
-`alphac.alp` compiles itself to a byte-identical fixed point:
+`alpha.alp` compiles itself to a byte-identical fixed point:
 
 ```
-alpha-rs (on-ramp)  --compiles-->  alphac0      (throwaway-built)
-alphac0             --compiles-->  alphac1      (first Alpha-built)
-alphac1             --compiles-->  alphac2      (alphac1 == alphac2, byte-identical)
-alphac2             --compiles-->  alphac3      (== alphac2)
+alpha-rs (on-ramp)  --compiles-->  alpha0      (throwaway-built)
+alpha0             --compiles-->  alpha1      (first Alpha-built)
+alpha1             --compiles-->  alpha2      (alpha1 == alpha2, byte-identical)
+alpha2             --compiles-->  alpha3      (== alpha2)
 ```
 
-alphac1 == alphac2 == alphac3 (same MD5), and the Alpha-built compiler compiles the
+alpha1 == alpha2 == alpha3 (same MD5), and the Alpha-built compiler compiles the
 full language (arithmetic + precedence + parens, control flow + loops, a DAG of
 machines with params/returns, `data` + mutable `self` fields, scalar/byte arrays with
 trapping indexing, and byte stdin/stdout I/O). The on-ramp (`../alpha-rs`) is now
 discardable — Alpha builds Alpha.
 
 The bug that blocked convergence: `compile_expr` ignored parentheses (it flushed at
-`)`), so the on-ramp-built `alphac0` correctly ran `align_up`'s `((v+a-1)/a)*a` while
-`alphac1` (built by `alphac0`, which couldn't parse the parens) miscomputed every PE
+`)`), so the on-ramp-built `alpha0` correctly ran `align_up`'s `((v+a-1)/a)*a` while
+`alpha1` (built by `alpha0`, which couldn't parse the parens) miscomputed every PE
 size by `+code_length`. Adding shunting-yard paren handling (push a `(` marker, pop to
 it on `)`, with `(` ranked below every operator) closed the fixed point.
 
 ### Rebuild + verify the fixed point
 
 ```
-../alpha-rs/target/debug/alphac.exe alphac.alp alphac0.exe
-./alphac0.exe < alphac.alp > alphac1.exe
-./alphac1.exe < alphac.alp > alphac2.exe
-cmp alphac1.exe alphac2.exe && echo "self-hosting holds"
+../alpha-rs/target/debug/alpha.exe alpha.alp alpha0.exe
+./alpha0.exe < alpha.alp > alpha1.exe
+./alpha1.exe < alpha.alp > alpha2.exe
+cmp alpha1.exe alpha2.exe && echo "self-hosting holds"
 ```
 
 ## Known gaps to fix in the on-ramp as they surface
