@@ -2,8 +2,8 @@
 
 The goal of the tape VM: a native interpreter whose provenance is **hand-written,
 hand-audited machine code**, not Rust+LLVM — and a build with **no Python in the
-loop**. `compiler/alpha-rs`'s Rust `vm` is just a throwaway reference; *this* is what
-the trust chain bottoms out at.
+loop**. *This* is what the trust chain bottoms out at. (The old Rust `vm` reference was
+removed as redundant; `compiler/alpha-rs` is now just the throwaway `assembler` on-ramp.)
 
 The committed seed:
 - `hex0.hex` / `hex0.exe` — a tiny hand-assembled flat-hex transcriber (a Windows PE)
@@ -71,9 +71,9 @@ artifact.
 The build now turns source into the VM binary with **no Python and no LLVM** — only
 the hand-assembled, hand-auditable `hex0` (~5 KB; audit it by disassembly). hex0
 reproduces itself and materializes the VM; the VM reproduces the assembler tape.
-The Rust `vm`/`assembler` in `../../alpha-rs` are now only a convenience reference;
-`../build.sh` needs the Rust `assembler` solely to mint the *initial* assembler tape,
-which the hand VM then reproduces.
+`../build.sh` reproduces the whole chain from the committed seed with **no Rust and no
+Python**. The Rust `assembler` in `../../alpha-rs` is needed only by `../dev-regen.sh`
+to re-mint the committed assembler tape after editing `src/assembler.alp`.
 
 Remaining toward full purity (the goal is reproducible-from-bare-metal):
 1. hand-assemble (or independently re-derive) the **assembler tape**, so even the

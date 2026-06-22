@@ -1,70 +1,63 @@
 # `compiler/alpha/` — Alpha, the tape VM (rung 0 / v1)
 
 Alpha is the Turing-minimal floor of the lattice: a tiny **register machine with byte
-I/O**. It is *not* a member of the Omega language family — it's the substrate the
-trust chain bottoms out at. The whole point is that the thing you must hand-audit is
-as small and regular as possible: a uniform fetch/decode/execute loop over a fixed
-opcode table. Everything above is built and checked downward onto this.
+I/O**. Everything above is built and checked downward onto it. The whole point is that
+the thing you must trust is small, hand-written, and hand-auditable — no Rust, no LLVM,
+no Python in the loop.
+
+## The whole bootstrap, in one breath
+
+```
+seed/hex0.exe   a hand-assembled hex->bytes transcriber  (YOU AUDIT THIS — ~5 KB of x64)
+      │
+      ├─ hex0 < seed/vm.flat.hex             →  the tape VM        (build/vm.exe)
+      └─ hex0 < seed/assembler.tape.flat.hex →  the assembler      (build/assembler.tape)
+                                                      │
+            vm runs the assembler on its own source (seed/assembler.num)
+                                                      │
+                                          reproduces the assembler tape  ← self-verifies
+```
+
+`./build.sh` runs exactly that and prints OK. **It uses no Rust and no Python** — only
+the committed seed and `sh`/`cmp`/`cat`. Trust reduces to: audit `hex0.exe`'s bytes
+(disassemble, check against `seed/hex0.hex`), and the self-verification does the rest.
 
 ## Layout
 
 ```
-src/       Alpha-assembly source (.alp): assembler.alp, echo.alp, multiply.alp
-seed/      the HAND-ASSEMBLED VM — the trust root (vm.hex + materialize.py)
-build/     generated artifacts (gitignored): *.tape, vm.exe
-build.sh   builds everything and verifies both self-hosting facts
+build.sh        reproduce + self-verify the bootstrap  (no Rust, no Python)
+dev-regen.sh    regenerate the committed seed after editing a source  (Rust + Python; DEV ONLY)
+src/            Alpha-assembly source: assembler.alp, echo.alp, multiply.alp
+seed/           the committed, hand-auditable bootstrap inputs:
+                  hex0.hex / hex0.exe / hex0.flat.hex   the seed transcriber (listing, binary, flat)
+                  vm.hex / vm.flat.hex                  the tape VM (listing, flat)
+                  assembler.tape.flat.hex               the assembler, as a tape
+                  assembler.num                         the assembler's source (numeric form)
+                  materialize.py                        DEV-ONLY label resolver (regenerates flat hex)
+build/          generated outputs (gitignored)
+../alpha-rs/    DEV-ONLY Rust on-ramp: the `assembler` (mints the tape for dev-regen)
 ```
 
-The VM has two implementations of one rung — not two rungs:
-- **`seed/vm.hex`** — the hand-assembled x64 VM (a few hundred hand-authored,
-  hand-auditable instructions). This is the **trust root**; no Rust or LLVM is in its
-  provenance. Per-arch by nature (x64 today; a sibling `.hex` per future target).
-- **`../alpha-rs`** — the *throwaway* Rust reference: `vm` (interprets a tape) and
-  `assembler` (assembles `.alp` text → a tape). Used for development + to mint the
-  initial tape; not part of the trust root.
+There is **one** VM — the hand-assembled `seed/vm.hex`. The labeled `.hex`/`.alp`
+listings + `materialize.py` + the Rust `assembler` are the *authoring* tools (used by
+`dev-regen.sh`); they are never in the reproduce/trust path.
 
 ## ISA
 
-16 registers `r0..r15` (signed 64-bit), a flat zero-initialized byte memory, `PC`
-starting at 0. The tape loads at address 0; the program owns all memory past it.
-Each instruction is one opcode byte + operands (`Reg`=1 byte, `Imm`/`Addr`=8-byte
-little-endian). See `../alpha-rs/src/isa.rs` — the single source of truth shared by
-`vm`, `assembler`, and the hand-assembled `seed/vm.hex`.
+16 registers `r0..r15` (signed 64-bit), a flat zero-initialized byte memory, `PC` at 0.
+One opcode byte + operands (`Reg`=1 byte, `Imm`/`Addr`=8-byte LE). Single source of
+truth: `../alpha-rs/src/isa.rs`.
 
 ```
-halt rS              imm rD,N    mov rD,rS
-add/sub/mul/div/mod rD,rS        loadb/storeb/load/store rD,rS
-jmp A   jz/jnz rS,A   jlt/jeq rA,rB,A
-read rD              write rS    call A   ret
+halt rS   imm rD,N   mov rD,rS   add/sub/mul/div/mod rD,rS   loadb/storeb/load/store rD,rS
+jmp A     jz/jnz rS,A   jlt/jeq rA,rB,A   read rD   write rS   call A   ret
 ```
 
-## Build / run
+## How the seed is grown / audited
 
-`build.sh` does the full build + both verifications. By hand:
-
-```
-cd ../alpha-rs && cargo build            # builds vm + assembler
-../alpha-rs/target/debug/assembler src/multiply.alp build/multiply.tape
-../alpha-rs/target/debug/vm        build/multiply.tape; echo $?    # -> 42
-printf 'hi' | ../alpha-rs/target/debug/vm  build/echo.tape         # echo -> hi
-```
-
-Alpha-assembly source files are `.alp`; the bytecode tapes they assemble to are
-`.tape`.
-
-## ✅ Self-hosting, and the trust root off Rust
-
-`src/assembler.alp` is an assembler written **in Alpha-assembly** (two-pass,
-label-resolving). `build.sh` verifies two things:
-
-1. **Self-host** — the assembler assembles its own source and reaches a byte-identical
-   fixed point (`assembler.tape == gen1 == gen2`), run on the Rust reference VM.
-2. **Grounding** — the **hand-assembled `seed/vm.hex`** (no Rust/LLVM in the VM path)
-   loads that tape and reproduces it. So the trust chain bottoms out at hand-authored,
-   auditable machine code, not the Rust+LLVM toolchain.
-
-`assembler.alp` is authored in mnemonics for readability; `assembler --num` lowers it
-to the numeric-opcode form the assembler itself reads (no mnemonic table in the
-Alpha-side assembler keeps it small). That numeric form is *piped*, never written —
-the mnemonic alias is the only thing outside the self-hosting loop (a trivial 1:1
-map; teaching the Alpha assembler a mnemonic table would retire it entirely).
+`seed/vm.hex` and `seed/hex0.hex` are commented x64 machine-code listings — every
+instruction is hand-authored and annotated; `materialize.py` only resolves label
+arithmetic (jump displacements, addresses), the way `hex0` (or hex1) would. Verify with
+`llvm-objdump` (read-only) and by running. See `seed/README.md` for the M0–M5 build log
+and what remains toward fully reproducible-from-bare-metal (hand-assembling the
+assembler tape; a complete disassembly audit of `hex0.exe`/`vm.exe`).
