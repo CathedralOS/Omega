@@ -1,19 +1,85 @@
 ; assembler.alp — the Alpha assembler, written in Alpha assembly. Reads assembly text
 ; on stdin, writes a bytecode tape on stdout. Two passes: pass 1 records label
 ; addresses, pass 2 emits, resolving label references. This is the self-hosting
-; target: assembled to a tape, which the VM then runs to reproduce that tape.
+; target: assembled to a tape, which the alpha seed then runs to reproduce that tape.
 ;
-; The source language is NUMERIC opcodes + labels (no mnemonic table — that keeps the
-; assembler small). Operands: a register/immediate is a decimal number; a jump/call
-; target may be a decimal number or a label name. `;` starts a comment.
+; The source language is human mnemonics: opcode names (imm/mov/add/.../ret), registers
+; written `rN`, decimal immediates, and label names. Commas are treated as whitespace.
+; `;` starts a comment. No Rust/--num step — beta reads .alp directly.
 ;
 ; Cross-call state lives in fixed memory (calls clobber registers). Globals (i64):
 ;   524288 SRCLEN   524296 CUR     524304 TSTART  524312 TLEN    524320 TDONE
 ;   524328 OUT      524336 NLBL    524344 NOPS    524352 WID0    524360 WID1
 ;   524368 WID2     524376 OPCODE  524384 NUM     524392 EMITW   524416 SKIP
 ; Buffers: 1048576 SRC (input);  label tables: 2097152 off, 2621440 len, 3145728 addr.
+; Mnemonic table (op -> packed name, i64 each): 4194304.
 
 ; ---------------- main ----------------
+        ; build the mnemonic table (op -> name packed little-endian into an i64)
+        imm   r0, 1953259880
+        imm   r1, 4194304
+        store r1, r0           ; halt = 0
+        imm   r0, 7171433
+        imm   r1, 4194312
+        store r1, r0           ; imm = 1
+        imm   r0, 7761773
+        imm   r1, 4194320
+        store r1, r0           ; mov = 2
+        imm   r0, 6579297
+        imm   r1, 4194328
+        store r1, r0           ; add = 3
+        imm   r0, 6452595
+        imm   r1, 4194336
+        store r1, r0           ; sub = 4
+        imm   r0, 7107949
+        imm   r1, 4194344
+        store r1, r0           ; mul = 5
+        imm   r0, 7760228
+        imm   r1, 4194352
+        store r1, r0           ; div = 6
+        imm   r0, 6582125
+        imm   r1, 4194360
+        store r1, r0           ; mod = 7
+        imm   r0, 422590902124
+        imm   r1, 4194368
+        store r1, r0           ; loadb = 8
+        imm   r0, 108187851125875
+        imm   r1, 4194376
+        store r1, r0           ; storeb = 9
+        imm   r0, 1684107116
+        imm   r1, 4194384
+        store r1, r0           ; load = 10
+        imm   r0, 435711603827
+        imm   r1, 4194392
+        store r1, r0           ; store = 11
+        imm   r0, 7368042
+        imm   r1, 4194400
+        store r1, r0           ; jmp = 12
+        imm   r0, 31338
+        imm   r1, 4194408
+        store r1, r0           ; jz = 13
+        imm   r0, 8023658
+        imm   r1, 4194416
+        store r1, r0           ; jnz = 14
+        imm   r0, 7629930
+        imm   r1, 4194424
+        store r1, r0           ; jlt = 15
+        imm   r0, 7431530
+        imm   r1, 4194432
+        store r1, r0           ; jeq = 16
+        imm   r0, 1684104562
+        imm   r1, 4194440
+        store r1, r0           ; read = 17
+        imm   r0, 435744764535
+        imm   r1, 4194448
+        store r1, r0           ; write = 18
+        imm   r0, 1819042147
+        imm   r1, 4194456
+        store r1, r0           ; call = 19
+        imm   r0, 7628146
+        imm   r1, 4194464
+        store r1, r0           ; ret = 20
+
         ; read all of stdin into SRC
         imm   r0, 1048576       ; r0 = write pointer
 read_loop:
@@ -51,7 +117,7 @@ p1_loop:
         imm   r5, 1
         jeq   r4, r5, p1_label
         ; opcode token
-        call  parse_num
+        call  parse_op
         imm   r3, 524384
         load  r4, r3
         imm   r5, 524376
@@ -110,7 +176,7 @@ p2_loop:
         imm   r5, 1
         jeq   r4, r5, p2_loop  ; skip label defs
         ; opcode
-        call  parse_num
+        call  parse_op
         imm   r3, 524384
         load  r4, r3
         imm   r5, 524376
@@ -153,7 +219,8 @@ p2_done:
         halt  r0
 
 ; ---------------- next_token ----------------
-; skip whitespace (<=32) and `;` comments, then read a token; set TSTART/TLEN/TDONE.
+; skip whitespace (<=32), commas, and `;` comments, then read a token;
+; set TSTART/TLEN/TDONE.
 next_token:
         imm   r0, 524296
         load  r1, r0           ; r1 = CUR
@@ -168,6 +235,8 @@ nt_have:
         loadb r2, r5           ; c
         imm   r6, 33
         jlt   r2, r6, nt_adv   ; c < 33  =>  whitespace
+        imm   r6, 44
+        jeq   r2, r6, nt_adv   ; ','     =>  separator
         imm   r6, 59
         jeq   r2, r6, nt_comment
         jmp   nt_token
@@ -199,6 +268,8 @@ nt_tin:
         loadb r2, r5
         imm   r6, 33
         jlt   r2, r6, nt_tend  ; whitespace ends token
+        imm   r6, 44
+        jeq   r2, r6, nt_tend  ; ',' ends token
         imm   r6, 59
         jeq   r2, r6, nt_tend  ; `;` ends token
         imm   r6, 1
@@ -277,6 +348,55 @@ pn_in:
 pn_done:
         imm   r3, 524384
         store r3, r6           ; NUM = acc
+        ret
+
+; ---------------- parse_op ----------------
+; pack the current token (<=8 bytes) into an i64 and look it up in the mnemonic table;
+; NUM = opcode. Halt 8 on an unknown mnemonic.
+parse_op:
+        imm   r3, 524304
+        load  r4, r3           ; TSTART
+        imm   r3, 524312
+        load  r5, r3           ; TLEN
+        imm   r6, 0            ; acc (packed token)
+        imm   r7, 0            ; i
+        imm   r10, 1           ; place (256^i)
+po_pack:
+        jlt   r7, r5, po_pin
+        jmp   po_match
+po_pin:
+        imm   r8, 1048576
+        add   r8, r4
+        add   r8, r7
+        loadb r9, r8           ; c
+        mul   r9, r10          ; c * place
+        add   r6, r9           ; acc += c*place
+        imm   r9, 256
+        mul   r10, r9          ; place *= 256
+        imm   r9, 1
+        add   r7, r9
+        jmp   po_pack
+po_match:
+        imm   r0, 0            ; op = 0
+po_mloop:
+        imm   r1, 21
+        jlt   r0, r1, po_min
+        imm   r0, 8            ; unknown mnemonic
+        halt  r0
+po_min:
+        mov   r2, r0
+        imm   r1, 8
+        mul   r2, r1
+        imm   r1, 4194304
+        add   r1, r2
+        load  r2, r1           ; MNEM[op]
+        jeq   r2, r6, po_found
+        imm   r1, 1
+        add   r0, r1
+        jmp   po_mloop
+po_found:
+        imm   r3, 524384
+        store r3, r0           ; NUM = op
         ret
 
 ; ---------------- op_widths ----------------
@@ -478,7 +598,8 @@ fl_none:
         halt  r0
 
 ; ---------------- emit_operand ----------------
-; read the next token, resolve it (number or label), emit EMITW bytes LE.
+; read the next token, resolve it (register rN, decimal number, or label),
+; emit EMITW bytes little-endian.
 emit_operand:
         call  next_token
         imm   r3, 524304
@@ -486,11 +607,56 @@ emit_operand:
         imm   r5, 1048576
         add   r5, r4
         loadb r6, r5           ; first char
+        imm   r7, 114          ; 'r'
+        jeq   r6, r7, eo_maybe_reg
         imm   r7, 48
         jlt   r6, r7, eo_label ; < '0' => label
         imm   r7, 58
         jlt   r6, r7, eo_num   ; <= '9' => number
         jmp   eo_label
+eo_maybe_reg:
+        imm   r5, 524312
+        load  r8, r5           ; TLEN
+        imm   r9, 2
+        jlt   r8, r9, eo_label ; len < 2 => label (e.g. a name "r")
+        imm   r5, 1048576
+        add   r5, r4
+        imm   r9, 1
+        add   r5, r9
+        loadb r6, r5           ; second char
+        imm   r7, 48
+        jlt   r6, r7, eo_label ; not a digit => label (e.g. read_loop)
+        imm   r7, 58
+        jlt   r6, r7, eo_reg   ; digit => register rN
+        jmp   eo_label
+eo_reg:
+        ; value = decimal of token[1..TLEN]
+        imm   r3, 524304
+        load  r4, r3           ; TSTART
+        imm   r3, 524312
+        load  r5, r3           ; TLEN
+        imm   r6, 0            ; acc
+        imm   r7, 1            ; i = 1 (skip 'r')
+er_loop:
+        jlt   r7, r5, er_in
+        jmp   er_done
+er_in:
+        imm   r8, 1048576
+        add   r8, r4
+        add   r8, r7
+        loadb r9, r8
+        imm   r10, 48
+        sub   r9, r10
+        imm   r10, 10
+        mul   r6, r10
+        add   r6, r9
+        imm   r10, 1
+        add   r7, r10
+        jmp   er_loop
+er_done:
+        imm   r3, 524384
+        store r3, r6           ; NUM = register number
+        jmp   eo_emit
 eo_num:
         call  parse_num
         jmp   eo_emit

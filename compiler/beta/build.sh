@@ -1,9 +1,9 @@
 #!/usr/bin/env sh
 # ./build.sh PROGRAM.alp   ->   build/PROGRAM.exe   (a standalone Windows exe)
 #
-# Beta is the assembler, written in alpha. A built program is just the alpha seed
-# binary (../alpha/alpha_x64_windows.exe) with the program's bytes memcpy'd into its
-# hole. One hand-audited binary; every program is that binary with its code stamped in.
+# Pure alpha, no Rust: beta_x64_windows.exe (which is itself the alpha seed with the
+# assembler tape in its hole) assembles the program to bytecode; we memcpy that into a
+# fresh copy of the alpha seed. A built program is the seed with its tape stamped in.
 set -e
 cd "$(dirname "$0")"
 mkdir -p build
@@ -13,9 +13,8 @@ SRC=${1:-examples/multiply.alp}
 NAME=$(basename "$SRC" .alp)
 OUT="build/$NAME.exe"
 
-# 1. .alp text -> bytecode  (Rust on-ramp; goes away once beta assembles its own source)
-(cd ../beta-rs && cargo build -q 2>/dev/null)
-../beta-rs/target/debug/assembler.exe "$SRC" "build/$NAME.tape"
+# 1. .alp text -> bytecode, via beta (the assembler, running on the seed)
+./beta_x64_windows.exe < "$SRC" > "build/$NAME.tape"
 TLEN=$(wc -c < "build/$NAME.tape")
 
 # 2. copy the seed and memcpy [4-byte LE length][bytecode] into its hole (file offset 0x1400)
