@@ -86,6 +86,9 @@ data Main {
     field_name_token: [i32; 256]; // data Main's field names (token index)
     field_offset: [i32; 256];     // each field's byte offset within the instance
     field_elem_bytes: [i32; 256]; // element width for array fields (1 or 8), else 0
+    field_array_count: [i32; 256]; // element count for array fields (for the bounds check)
+    field_elem_result: i32;       // resolve_field: the resolved field's element width
+    field_count_result: i32;      // resolve_field: the resolved field's element count
     field_count: i32;
     data_size: i32;               // total bytes of the Main instance (the .data section)
     machine_has_self: i32;        // does the machine being emitted take `&mut self`?
@@ -951,6 +954,7 @@ machine Main::prescan_data(&mut self) {
         self.field_name_token[self.field_count] = self.scan_position;
         self.field_offset[self.field_count] = self.data_size;
         self.field_elem_bytes[self.field_count] = 0;
+        self.field_array_count[self.field_count] = 0;
         self.scan_position = self.scan_position + 2; // skip IDENT ':'
         transition self.token_kind[self.scan_position] {
             7 -> array_field()  // '[' : an array type
@@ -985,6 +989,7 @@ machine Main::prescan_data(&mut self) {
     state array_count() {
         self.scan_position = self.scan_position + 2; // skip element type and ';'
         self.pending_value = self.token_int(self.scan_position);
+        self.field_array_count[self.field_count] = self.pending_value;
         self.data_size = self.data_size + self.pending_value * self.field_elem_bytes[self.field_count];
         self.scan_position = self.scan_position + 2; // skip N and ']'
         transition 0 { _ -> finish_field() }
@@ -1022,8 +1027,42 @@ machine Main::resolve_field(&mut self, name_token: i32) -> i32 {
         self.resolve_position = self.resolve_position + 1;
         transition 0 { _ -> step() }
     }
-    state found() { return self.field_offset[self.resolve_position]; }
-    state not_found() { return 0; }
+    state found() {
+        self.field_elem_result = self.field_elem_bytes[self.resolve_position];
+        self.field_count_result = self.field_array_count[self.resolve_position];
+        return self.field_offset[self.resolve_position];
+    }
+    state not_found() {
+        self.field_elem_result = 0;
+        self.field_count_result = 0;
+        return 0;
+    }
+}
+
+// Emit the address of `self.<field>[index]` into rax, with the index already on
+// top of the stack: pop the index, trap (ud2) if it is >= the element count, then
+// rax = self_ptr + field_offset + index * element_width.
+machine Main::emit_self_element_addr(&mut self, offset: i32, count: i32, elem_bytes: i32) {
+    self.emit_byte(88);                                          // pop rax (index)
+    self.emit_byte(137); self.emit_byte(192);                    // mov eax, eax (zero-extend to rax)
+    self.emit_byte(61); self.emit_i32(count);                    // cmp eax, count
+    self.emit_byte(114); self.emit_byte(2);                      // jb +2 (skip the trap)
+    self.emit_byte(15); self.emit_byte(11);                      // ud2 (index out of bounds)
+    transition elem_bytes { 8 -> scale8() _ -> after_scale() }   // 1-byte elements need no scaling
+    state scale8() {
+        self.emit_byte(72); self.emit_byte(193); self.emit_byte(224); self.emit_byte(3); // shl rax, 3
+        transition 0 { _ -> after_scale() }
+    }
+    state after_scale() {
+        transition offset { 0 -> add_self_pointer() _ -> add_offset() }
+    }
+    state add_offset() {
+        self.emit_byte(72); self.emit_byte(5); self.emit_i32(offset); // add rax, offset (48 05 id)
+        transition 0 { _ -> add_self_pointer() }
+    }
+    state add_self_pointer() {
+        self.emit_byte(72); self.emit_byte(3); self.emit_byte(133); self.emit_i32(0 - 512); // add rax, [rbp-512]
+    }
 }
 
 // --- machine-code emission into self.code ---
@@ -1193,6 +1232,11 @@ machine Main::compile_expr(&mut self) {
     // compile_expr only owns the operators it pushes above `base`, and flushes back
     // down to `base` — so recursion through call arguments is safe.
     let base: i32 = self.operator_count;
+    // an array element read saves the field layout here before compiling the index,
+    // so a nested resolve_field (in the index expression) can't clobber it
+    let element_offset: i32 = 0;
+    let element_count: i32 = 0;
+    let element_width: i32 = 0;
     transition 0 { _ -> step() }
     state step() {
         transition self.token_kind[self.token_position] {
@@ -1200,6 +1244,7 @@ machine Main::compile_expr(&mut self) {
             9 -> flush()   // ;
             3 -> flush()   // {  (end of a transition subject)
             12 -> flush()  // ,  (end of a call argument)
+            8 -> flush()   // ]  (end of an array index)
             0 -> flush()   // Eof
             _ -> item()
         }
@@ -1233,8 +1278,12 @@ machine Main::compile_expr(&mut self) {
         transition self.is_self(self.token_position) { 1 -> operand_self() _ -> operand_name2() }
     }
     state operand_self() {
-        self.token_position = self.token_position + 2; // skip 'self' '.'
-        transition self.token_kind[self.token_position + 1] { 5 -> operand_self_call() _ -> operand_self_field() } // 5 = '('
+        self.token_position = self.token_position + 2; // skip 'self' '.' (now at the field name)
+        transition self.token_kind[self.token_position + 1] {
+            5 -> operand_self_call()  // '(' : a method call
+            7 -> operand_self_index() // '[' : an array element read
+            _ -> operand_self_field() // a scalar field read
+        }
     }
     state operand_self_call() {
         self.compile_self_call(); // method call; leaves the result pushed
@@ -1246,6 +1295,26 @@ machine Main::compile_expr(&mut self) {
         self.emit_byte(72); self.emit_byte(139); self.emit_byte(133); self.emit_i32(0 - 512); // mov rax,[rbp-512]
         self.emit_byte(139); self.emit_byte(128); self.emit_i32(self.field_offset_result);    // mov eax,[rax+off]
         self.emit_byte(80); // push rax
+        transition 0 { _ -> step() }
+    }
+    state operand_self_index() {
+        element_offset = self.resolve_field(self.token_position);
+        element_count = self.field_count_result;
+        element_width = self.field_elem_result;
+        self.token_position = self.token_position + 2; // skip field name '['
+        self.compile_expr();                           // push the index (stops at ']')
+        self.token_position = self.token_position + 1; // skip ']'
+        self.emit_self_element_addr(element_offset, element_count, element_width); // address -> rax
+        transition element_width { 1 -> read_byte() _ -> read_word() }
+    }
+    state read_byte() {
+        self.emit_byte(15); self.emit_byte(182); self.emit_byte(0); // movzx eax, byte [rax]
+        self.emit_byte(80);                                         // push rax
+        transition 0 { _ -> step() }
+    }
+    state read_word() {
+        self.emit_byte(139); self.emit_byte(0); // mov eax, [rax]
+        self.emit_byte(80);                     // push rax
         transition 0 { _ -> step() }
     }
     state operand_name2() {
@@ -1455,6 +1524,11 @@ machine Main::prescan_states(&mut self) {
 // Compile one statement at token_position, advancing past it. Handles
 // `let`, local reassignment `IDENT = expr;`, `transition`, and `exit_process(expr)`.
 machine Main::compile_statement(&mut self) {
+    // saved field layout for self-field/element writes (survives the value/index
+    // sub-expressions, which may resolve other fields and clobber the shared results)
+    let saved_offset: i32 = 0;
+    let saved_count: i32 = 0;
+    let saved_width: i32 = 0;
     transition self.is_let(self.token_position) { 1 -> do_let() _ -> not_let() }
     state not_let() {
         transition self.is_return(self.token_position) { 1 -> do_return() _ -> not_return() }
@@ -1505,17 +1579,39 @@ machine Main::compile_statement(&mut self) {
             15 -> self_field_write()     // self . field =
             5 -> self_method_statement() // self . method (
             13 -> self_boundary()        // self . capability . op (...)
+            7 -> self_element_write()    // self . field [ index ] =
             _ -> skip_one()
         }
     }
     state self_field_write() {
         self.token_position = self.token_position + 2; // skip 'self' '.'
-        self.field_offset_result = self.resolve_field(self.token_position);
+        saved_offset = self.resolve_field(self.token_position);
         self.token_position = self.token_position + 2; // skip field '='
-        self.compile_expr();
+        self.compile_expr();                           // value -> top of stack
         self.emit_byte(89);  // pop rcx (value)
         self.emit_byte(72); self.emit_byte(139); self.emit_byte(133); self.emit_i32(0 - 512); // mov rax,[rbp-512]
-        self.emit_byte(137); self.emit_byte(136); self.emit_i32(self.field_offset_result);    // mov [rax+off],ecx
+        self.emit_byte(137); self.emit_byte(136); self.emit_i32(saved_offset);                // mov [rax+off],ecx
+        transition self.token_kind[self.token_position] { 9 -> skip_semicolon() _ -> done() }
+    }
+    state self_element_write() {
+        self.token_position = self.token_position + 2; // skip 'self' '.' (now at field name)
+        saved_offset = self.resolve_field(self.token_position);
+        saved_count = self.field_count_result;
+        saved_width = self.field_elem_result;
+        self.token_position = self.token_position + 2; // skip field '['
+        self.compile_expr();                           // index -> top of stack (stops at ']')
+        self.token_position = self.token_position + 2; // skip ']' '='
+        self.compile_expr();                           // value -> top of stack
+        self.emit_byte(89);                            // pop rcx (value)
+        self.emit_self_element_addr(saved_offset, saved_count, saved_width); // address -> rax (pops index)
+        transition saved_width { 1 -> store_byte() _ -> store_word() }
+    }
+    state store_byte() {
+        self.emit_byte(136); self.emit_byte(8); // mov [rax], cl
+        transition self.token_kind[self.token_position] { 9 -> skip_semicolon() _ -> done() }
+    }
+    state store_word() {
+        self.emit_byte(137); self.emit_byte(8); // mov [rax], ecx
         transition self.token_kind[self.token_position] { 9 -> skip_semicolon() _ -> done() }
     }
     state self_method_statement() {

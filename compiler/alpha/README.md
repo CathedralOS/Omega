@@ -92,11 +92,24 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
   a counter held in `self` across a loop (5), `bump`×3 (3), `add_to(5)` (15);
   no-data programs still emit a single-section PE.
 
+- **Increment 7c — array fields + trap-checked indexing: DONE.** `self.arr[i]`
+  reads (`movzx`/`mov` byte or dword) and `self.arr[i] = e` writes compute
+  `self_ptr + field_offset + i*width` after a `cmp i,N; jb +2; ud2` bounds check —
+  an out-of-bounds index traps (SIGILL). `emit_self_element_addr` shares the address
+  math; the index is any expression (`compile_expr` now also flushes at `]`).
+  `prescan_data` records each array field's element count for the bounds check, and
+  `resolve_field` reports the resolved field's width + count alongside its offset.
+  The field layout is saved to frame locals before the index/value sub-expressions
+  so a nested `resolve_field` can't clobber it (this also fixed a latent 7b bug
+  where `self.a = self.b + 1` wrote to `b`'s offset). Verified: i32 array (15),
+  loop fill+sum with a runtime index (30), u8 buffer (74), OOB → trap (exit 132).
+
 ## Next increments
 
-7c. Array fields + trap-checked indexing `self.arr[i]` (the `[`-led read/write —
-    layout is already computed). 7d: byte I/O + the import-table PE path. Then
-    `alphac` compiles `alphac.alp` and the fixed point closes.
+7d. Byte I/O — `read_byte()`/`write_byte(b)` host calls + the kernel32 import-table
+    PE path (GetStdHandle/ReadFile/WriteFile, IDT/ILT/IAT). This is the last gap:
+    `alphac.alp` reads source and writes its PE through exactly these, so once
+    `alphac` can emit them it can compile `alphac.alp` and the fixed point closes.
 
 ## Known gaps to fix in the on-ramp as they surface
 
