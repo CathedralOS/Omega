@@ -13,6 +13,27 @@
 use crate::ast::{BinaryOp, Expr, Machine, Pattern, Program, Statement, TransitionArm};
 use crate::lex::{token_text, Token, TokenKind};
 
+// How a data field is laid out / what it carries.
+enum FieldKind {
+    Scalar,      // i32-width value, occupies 8 bytes
+    Boundary,    // a capability handle (e.g. Console): zero runtime storage
+    Data(usize), // a nested data type (occupies that type's size)
+}
+
+struct DataFieldInfo {
+    name: Vec<u8>,
+    offset: i32, // byte offset within the struct
+    kind: FieldKind,
+}
+
+fn is_scalar_type(type_name: &[u8]) -> bool {
+    matches!(
+        type_name,
+        b"i8" | b"u8" | b"i16" | b"u16" | b"i32" | b"u32" | b"i64" | b"u64" | b"usize" | b"isize"
+            | b"bool"
+    )
+}
+
 pub struct Parser<'a> {
     tokens: &'a [Token],
     source: &'a [u8],
@@ -22,8 +43,14 @@ pub struct Parser<'a> {
     strings: Vec<Vec<u8>>,
     machines: Vec<Machine>,
     machine_names: Vec<Vec<u8>>,      // pre-scanned callable names, in machine-index order
+    machine_self_types: Vec<Option<usize>>, // per machine: its receiver data type, if any
+    boundary_names: Vec<Vec<u8>>,     // declared `boundary trait` names (zero-size fields)
+    data_type_names: Vec<Vec<u8>>,    // declared `data` type names
+    data_type_sizes: Vec<i32>,        // byte size of each data type
+    data_field_maps: Vec<Vec<DataFieldInfo>>, // fields of each data type
     local_names: Vec<Vec<u8>>,        // locals of the machine being parsed (params first)
     state_names: Vec<Vec<u8>>,        // pre-scanned state names of the machine being parsed
+    self_data_type: Option<usize>,    // data type of `self` in the machine being parsed
     current_machine_makes_call: bool, // set while parsing a machine that calls out
 }
 
@@ -38,8 +65,14 @@ impl<'a> Parser<'a> {
             strings: Vec::new(),
             machines: Vec::new(),
             machine_names: Vec::new(),
+            machine_self_types: Vec::new(),
+            boundary_names: Vec::new(),
+            data_type_names: Vec::new(),
+            data_type_sizes: Vec::new(),
+            data_field_maps: Vec::new(),
             local_names: Vec::new(),
             state_names: Vec::new(),
+            self_data_type: None,
             current_machine_makes_call: false,
         }
     }
@@ -50,6 +83,35 @@ impl<'a> Parser<'a> {
 
     fn find_machine_index(&self, name: &[u8]) -> Option<usize> {
         self.machine_names.iter().position(|machine_name| machine_name.as_slice() == name)
+    }
+
+    fn find_data_type(&self, name: &[u8]) -> Option<usize> {
+        self.data_type_names.iter().position(|type_name| type_name.as_slice() == name)
+    }
+
+    // Resolve `self.<field>` to its byte offset; only scalar fields can be read or
+    // written directly (boundary/nested-data field access is a later slice).
+    fn self_field_offset(&self, field: &[u8]) -> Result<i32, String> {
+        let data_type = self.self_data_type.ok_or_else(|| {
+            "alpha-onramp: `self` used in a machine with no receiver".to_string()
+        })?;
+        let info = self.data_field_maps[data_type]
+            .iter()
+            .find(|field_info| field_info.name.as_slice() == field)
+            .ok_or_else(|| {
+                format!("alpha-onramp: unknown field 'self.{}'", String::from_utf8_lossy(field))
+            })?;
+        match info.kind {
+            FieldKind::Scalar => Ok(info.offset),
+            FieldKind::Boundary => Err(format!(
+                "alpha-onramp: 'self.{}' is a capability, not a readable value",
+                String::from_utf8_lossy(field)
+            )),
+            FieldKind::Data(_) => Err(format!(
+                "alpha-onramp: 'self.{}' is a nested struct; only scalar fields are supported (slice 7a)",
+                String::from_utf8_lossy(field)
+            )),
+        }
     }
 
     fn current_kind(&self) -> TokenKind {
@@ -92,7 +154,8 @@ impl<'a> Parser<'a> {
                 ));
             }
             match self.current_text() {
-                b"boundary" | b"data" => self.skip_braced_item()?,
+                b"boundary" => self.parse_boundary()?,
+                b"data" => self.parse_data()?,
                 b"machine" => {
                     let machine = self.parse_machine()?;
                     self.machines.push(machine);
@@ -111,13 +174,101 @@ impl<'a> Parser<'a> {
         let entry_machine = self
             .find_machine_index(b"main")
             .ok_or_else(|| "alpha-onramp: no entry machine 'main'".to_string())?;
+        let entry_data_size = match self.machine_self_types[entry_machine] {
+            Some(data_type) => self.data_type_sizes[data_type],
+            None => 0,
+        };
         Ok(Program {
             machines: std::mem::take(&mut self.machines),
             entry_machine,
+            entry_data_size,
             expressions: std::mem::take(&mut self.expressions),
             call_args: std::mem::take(&mut self.call_args),
             strings: std::mem::take(&mut self.strings),
         })
+    }
+
+    // `boundary trait NAME { ... }` — record NAME (a capability type = zero-size
+    // field), then skip the body (its methods are declarations the on-ramp hardwires).
+    fn parse_boundary(&mut self) -> Result<(), String> {
+        let mut probe = self.position;
+        let mut name: Option<Vec<u8>> = None;
+        while self.tokens[probe].kind != TokenKind::LBrace {
+            if self.tokens[probe].kind == TokenKind::Eof {
+                return Err("alpha-onramp: parse error: boundary without a body".into());
+            }
+            if self.tokens[probe].kind == TokenKind::Ident {
+                name = Some(token_text(&self.tokens[probe], self.source).to_vec());
+            }
+            probe += 1;
+        }
+        if let Some(name) = name {
+            self.boundary_names.push(name);
+        }
+        self.skip_braced_item()
+    }
+
+    // `data NAME { field: Type; ... }` — lay out fields (scalar = 8 bytes, boundary
+    // = 0, nested data = its size) and record the type's name, size, and field map.
+    fn parse_data(&mut self) -> Result<(), String> {
+        self.bump(); // data
+        let name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+        self.expect(TokenKind::LBrace)?;
+        let mut fields = Vec::new();
+        let mut offset = 0i32;
+        while self.current_kind() != TokenKind::RBrace {
+            if self.current_kind() == TokenKind::Eof {
+                return Err("alpha-onramp: parse error: unterminated data body".into());
+            }
+            let field_name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+            self.expect(TokenKind::Colon)?;
+            if self.current_kind() == TokenKind::Amp {
+                return Err("alpha-onramp: ref/slice data fields are unsupported (slice 7a)".into());
+            }
+            let type_name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+            let kind = self.classify_field_type(&type_name)?;
+            let size = match kind {
+                FieldKind::Scalar => 8,
+                FieldKind::Boundary => 0,
+                FieldKind::Data(index) => self.data_type_sizes[index],
+            };
+            fields.push(DataFieldInfo { name: field_name, offset, kind });
+            offset += size;
+            // skip any remaining type tokens (e.g. `in Utf8`) up to the separator
+            while self.current_kind() != TokenKind::Semi
+                && self.current_kind() != TokenKind::Comma
+                && self.current_kind() != TokenKind::RBrace
+            {
+                if self.current_kind() == TokenKind::Eof {
+                    return Err("alpha-onramp: parse error: unterminated data field".into());
+                }
+                self.bump();
+            }
+            if self.current_kind() == TokenKind::Semi || self.current_kind() == TokenKind::Comma {
+                self.bump();
+            }
+        }
+        self.bump(); // '}'
+        self.data_type_names.push(name);
+        self.data_type_sizes.push(offset);
+        self.data_field_maps.push(fields);
+        Ok(())
+    }
+
+    fn classify_field_type(&self, type_name: &[u8]) -> Result<FieldKind, String> {
+        if self.boundary_names.iter().any(|boundary| boundary.as_slice() == type_name) {
+            return Ok(FieldKind::Boundary);
+        }
+        if let Some(index) = self.find_data_type(type_name) {
+            return Ok(FieldKind::Data(index));
+        }
+        if is_scalar_type(type_name) {
+            return Ok(FieldKind::Scalar);
+        }
+        Err(format!(
+            "alpha-onramp: unknown field type '{}'",
+            String::from_utf8_lossy(type_name)
+        ))
     }
 
     // Record each top-level machine's callable name (the identifier just before its
@@ -163,11 +314,13 @@ impl<'a> Parser<'a> {
     fn parse_machine(&mut self) -> Result<Machine, String> {
         self.local_names.clear();
         self.state_names.clear();
+        self.self_data_type = None;
         self.current_machine_makes_call = false;
         self.bump(); // "machine"
 
-        // consume the name path (resolution + entry lookup use the pre-scan)
-        self.expect(TokenKind::Ident)?;
+        // name path: the first segment is the receiver type for a method (`Foo::m`);
+        // resolution + entry lookup use the pre-scan, so we only need the first here.
+        let receiver_type = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
         while self.current_kind() == TokenKind::ColonColon {
             self.bump();
             self.expect(TokenKind::Ident)?;
@@ -175,6 +328,7 @@ impl<'a> Parser<'a> {
 
         self.expect(TokenKind::LParen)?;
         let mut param_count = 0usize;
+        let mut has_self = false;
         while self.current_kind() != TokenKind::RParen {
             if self.current_kind() == TokenKind::Eof {
                 return Err("alpha-onramp: parse error: unterminated parameter list".into());
@@ -186,8 +340,10 @@ impl<'a> Parser<'a> {
                     self.bump();
                 }
                 self.expect(TokenKind::Ident)?; // self
+                has_self = true;
             } else if self.current_kind() == TokenKind::Ident && self.current_text() == b"self" {
                 self.bump(); // by-value self
+                has_self = true;
             } else {
                 // value parameter: name ":" type  (the first params become locals 0..n)
                 let param_name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
@@ -219,11 +375,17 @@ impl<'a> Parser<'a> {
             }
         }
 
+        // `self`'s data type is the receiver (the name path's first segment), if any
+        let self_data_type = if has_self { self.find_data_type(&receiver_type) } else { None };
+        self.self_data_type = self_data_type;
+        self.machine_self_types.push(self_data_type);
+
         let (entry, states) = self.parse_machine_body()?;
         Ok(Machine {
             param_count,
             local_count: self.local_names.len(),
             makes_call: self.current_machine_makes_call,
+            has_self,
             entry,
             states,
         })
@@ -430,30 +592,41 @@ impl<'a> Parser<'a> {
             }
             return Ok(Statement::Return(value));
         }
-        // first identifier: either a local reassignment `name = expr` or the
-        // start of a call path `receiver.op(...)`.
-        let first_identifier = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+        // A statement starting with an identifier is either a place assignment
+        // (`x = e`, `self.f = e`) or a call (`recv.op(args)`). Collect the dotted
+        // path, then branch on the terminator (`=` vs `(`).
+        let mut segments = vec![token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec()];
+        while self.current_kind() == TokenKind::Dot {
+            self.bump();
+            segments.push(token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec());
+        }
         if self.current_kind() == TokenKind::Eq {
             self.bump(); // =
             let value = self.parse_expression()?;
             if self.current_kind() == TokenKind::Semi {
                 self.bump();
             }
-            let local_index = self.find_local_index(&first_identifier).ok_or_else(|| {
+            if segments[0] == b"self" {
+                if segments.len() != 2 {
+                    return Err("alpha-onramp: only `self.<field> = ...` is supported (slice 7a)".into());
+                }
+                let offset = self.self_field_offset(&segments[1])?;
+                return Ok(Statement::StoreSelfField(offset, value));
+            }
+            if segments.len() != 1 {
+                return Err("alpha-onramp: local field assignment is unsupported (slice 7a)".into());
+            }
+            let local_index = self.find_local_index(&segments[0]).ok_or_else(|| {
                 format!(
                     "alpha-onramp: assignment to undeclared local '{}'",
-                    String::from_utf8_lossy(&first_identifier)
+                    String::from_utf8_lossy(&segments[0])
                 )
             })?;
             return Ok(Statement::Assign(local_index, value));
         }
-        // call statement: path "(" arg ")" — last path segment selects the boundary op
-        let mut last_segment = first_identifier;
-        while self.current_kind() == TokenKind::Dot {
-            self.bump();
-            last_segment = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
-        }
+        // call statement: the last path segment selects the boundary op
         self.expect(TokenKind::LParen)?;
+        let last_segment = segments.last().unwrap().clone();
         let statement = match last_segment.as_slice() {
             b"exit_process" => Statement::Exit(self.parse_expression()?),
             b"write_line" => {
@@ -555,6 +728,12 @@ impl<'a> Parser<'a> {
             TokenKind::Ident => {
                 let token = self.bump();
                 let name = token_text(&token, self.source).to_vec();
+                if name == b"self" {
+                    self.expect(TokenKind::Dot)?;
+                    let field = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+                    let offset = self.self_field_offset(&field)?;
+                    return Ok(self.add_expression(Expr::SelfField(offset)));
+                }
                 if self.current_kind() == TokenKind::LParen {
                     return match self.find_machine_index(&name) {
                         Some(machine_index) => self.parse_call(machine_index),

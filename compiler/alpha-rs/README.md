@@ -69,12 +69,24 @@ cargo run -- samples/exit7.alpha out.exe
   forward-ref `square`/`mul`, `max(max(7,19),12)`, 4-arg `sum4` feeding
   arithmetic. See `samples/calls.alpha`.
 
+- **Slice 7a — `data` structs + mutable `self` fields: DONE.** `data Name { f: T;
+  ... }` lays out scalar fields (8 bytes each; boundary fields = 0; nested data =
+  its size). The entry machine's `self` is a zero-initialized (ZII) instance in
+  its own long-lived frame, reached through a self-pointer slot; methods get
+  `self` in rcx. `self.field` reads (`mov eax,[self+off]`) and `self.field = e`
+  writes are scalar-only for now. Verified: mutable fields, ZII reads 0, a counter
+  held in `self` across a loop, multi-field offsets. See `samples/data.alpha`.
+
 ## Next slices (grow the grammar feature-by-feature)
 
-7. `data` structs + field access (incl. `&mut self` methods); `[T;N]` arrays +
-   trap-checked indexing (the IR arenas — the heart of the compiler's storage).
-8. File I/O: CreateFile/ReadFile/WriteFile — the compiler reads a source file and
-   writes a `.exe`. Then sum-types-as-tags, and the Alpha compiler in `compiler/alpha/`.
+7b. `[T;N]` array fields + trap-checked indexing `self.arr[i]` (the IR arenas);
+    then `&mut self` method calls passing a receiver address (struct locals).
+8.  File I/O: CreateFile/ReadFile/WriteFile — the compiler reads a source file and
+    writes a `.exe`. Then sum-types-as-tags, and the Alpha compiler in `compiler/alpha/`.
+
+Deferred subset-enforcement (front-end is the spec; add before self-host): reject
+a cyclic call graph (Alpha bans recursion — calls must be a DAG); >4-arg calls
+(stack args); arena-capacity bounds.
 
 Deferred subset-enforcement (front-end is the spec; add before self-host): reject
 a cyclic call graph (Alpha bans recursion — calls must be a DAG); >4-arg calls
