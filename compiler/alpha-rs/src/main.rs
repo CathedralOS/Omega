@@ -32,11 +32,11 @@ mod x64;
 
 use std::process::exit;
 
-fn compile(src: &[u8]) -> Result<Vec<u8>, String> {
-    let toks = lex::lex(src)?;
-    let mut parser = parse::Parser::new(&toks, src);
+fn compile(source: &[u8]) -> Result<Vec<u8>, String> {
+    let tokens = lex::lex(source)?;
+    let mut parser = parse::Parser::new(&tokens, source);
     let program = parser.parse_program()?;
-    let lowered = x64::lower_main(&program);
+    let lowered = x64::lower_program(&program);
     Ok(pe::build_pe(&lowered))
 }
 
@@ -53,24 +53,24 @@ fn main() {
         "a.exe".to_string()
     };
 
-    let src = match std::fs::read(input) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("alpha-onramp: cannot read {}: {}", input, e);
+    let source = match std::fs::read(input) {
+        Ok(contents) => contents,
+        Err(error) => {
+            eprintln!("alpha-onramp: cannot read {}: {}", input, error);
             exit(1);
         }
     };
 
-    match compile(&src) {
+    match compile(&source) {
         Ok(bytes) => {
-            if let Err(e) = std::fs::write(&output, &bytes) {
-                eprintln!("alpha-onramp: cannot write {}: {}", output, e);
+            if let Err(error) = std::fs::write(&output, &bytes) {
+                eprintln!("alpha-onramp: cannot write {}: {}", output, error);
                 exit(1);
             }
             eprintln!("alpha-onramp: wrote {} ({} bytes)", output, bytes.len());
         }
-        Err(e) => {
-            eprintln!("{}", e);
+        Err(error) => {
+            eprintln!("{}", error);
             exit(1);
         }
     }

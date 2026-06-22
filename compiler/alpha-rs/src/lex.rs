@@ -1,7 +1,7 @@
 // Lexer: source bytes -> tokens. Platform-independent.
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum TokKind {
+pub enum TokenKind {
     Ident,
     Int,
     LBrace,
@@ -34,122 +34,132 @@ pub enum TokKind {
 
 #[derive(Clone, Copy)]
 pub struct Token {
-    pub kind: TokKind,
+    pub kind: TokenKind,
     pub start: usize,
     pub len: usize,
 }
 
-pub fn tok_text<'a>(t: &Token, src: &'a [u8]) -> &'a [u8] {
-    &src[t.start..t.start + t.len]
+pub fn token_text<'a>(token: &Token, source: &'a [u8]) -> &'a [u8] {
+    &source[token.start..token.start + token.len]
 }
 
-pub fn lex(src: &[u8]) -> Result<Vec<Token>, String> {
-    let mut toks = Vec::new();
-    let mut i = 0usize;
-    let n = src.len();
-    while i < n {
-        let c = src[i];
-        if c == b' ' || c == b'\t' || c == b'\r' || c == b'\n' {
-            i += 1;
+pub fn lex(source: &[u8]) -> Result<Vec<Token>, String> {
+    let mut tokens = Vec::new();
+    let mut position = 0usize;
+    let source_len = source.len();
+    while position < source_len {
+        let byte = source[position];
+        if byte == b' ' || byte == b'\t' || byte == b'\r' || byte == b'\n' {
+            position += 1;
             continue;
         }
-        if c == b'/' && i + 1 < n && src[i + 1] == b'/' {
-            while i < n && src[i] != b'\n' {
-                i += 1;
+        if byte == b'/' && position + 1 < source_len && source[position + 1] == b'/' {
+            while position < source_len && source[position] != b'\n' {
+                position += 1;
             }
             continue;
         }
-        if c.is_ascii_alphabetic() || c == b'_' {
-            let start = i;
-            while i < n && (src[i].is_ascii_alphanumeric() || src[i] == b'_') {
-                i += 1;
+        if byte.is_ascii_alphabetic() || byte == b'_' {
+            let start = position;
+            while position < source_len
+                && (source[position].is_ascii_alphanumeric() || source[position] == b'_')
+            {
+                position += 1;
             }
-            toks.push(Token { kind: TokKind::Ident, start, len: i - start });
+            tokens.push(Token { kind: TokenKind::Ident, start, len: position - start });
             continue;
         }
-        if c.is_ascii_digit() {
-            let start = i;
-            while i < n && src[i].is_ascii_digit() {
-                i += 1;
+        if byte.is_ascii_digit() {
+            let start = position;
+            while position < source_len && source[position].is_ascii_digit() {
+                position += 1;
             }
-            toks.push(Token { kind: TokKind::Int, start, len: i - start });
+            tokens.push(Token { kind: TokenKind::Int, start, len: position - start });
             continue;
         }
-        if c == b'"' {
-            let start = i + 1;
-            i += 1;
-            while i < n && src[i] != b'"' {
-                i += 1;
+        if byte == b'"' {
+            let start = position + 1;
+            position += 1;
+            while position < source_len && source[position] != b'"' {
+                position += 1;
             }
-            if i >= n {
+            if position >= source_len {
                 return Err(format!(
                     "alpha-onramp: lex error: unterminated string starting at offset {}",
                     start - 1
                 ));
             }
-            toks.push(Token { kind: TokKind::Str, start, len: i - start });
-            i += 1; // consume closing quote
+            tokens.push(Token { kind: TokenKind::Str, start, len: position - start });
+            position += 1; // consume closing quote
             continue;
         }
-        if c == b'=' && i + 1 < n && src[i + 1] == b'=' {
-            toks.push(Token { kind: TokKind::EqEq, start: i, len: 2 });
-            i += 2;
+        if byte == b'=' && position + 1 < source_len && source[position + 1] == b'=' {
+            tokens.push(Token { kind: TokenKind::EqEq, start: position, len: 2 });
+            position += 2;
             continue;
         }
-        if c == b'!' && i + 1 < n && src[i + 1] == b'=' {
-            toks.push(Token { kind: TokKind::Ne, start: i, len: 2 });
-            i += 2;
+        if byte == b'!' && position + 1 < source_len && source[position + 1] == b'=' {
+            tokens.push(Token { kind: TokenKind::Ne, start: position, len: 2 });
+            position += 2;
             continue;
         }
-        if c == b'-' && i + 1 < n && src[i + 1] == b'>' {
-            toks.push(Token { kind: TokKind::Arrow, start: i, len: 2 });
-            i += 2;
+        if byte == b'-' && position + 1 < source_len && source[position + 1] == b'>' {
+            tokens.push(Token { kind: TokenKind::Arrow, start: position, len: 2 });
+            position += 2;
             continue;
         }
-        if c == b'<' {
-            let two = i + 1 < n && src[i + 1] == b'=';
-            toks.push(Token { kind: if two { TokKind::Le } else { TokKind::Lt }, start: i, len: if two { 2 } else { 1 } });
-            i += if two { 2 } else { 1 };
+        if byte == b'<' {
+            let two = position + 1 < source_len && source[position + 1] == b'=';
+            tokens.push(Token {
+                kind: if two { TokenKind::Le } else { TokenKind::Lt },
+                start: position,
+                len: if two { 2 } else { 1 },
+            });
+            position += if two { 2 } else { 1 };
             continue;
         }
-        if c == b'>' {
-            let two = i + 1 < n && src[i + 1] == b'=';
-            toks.push(Token { kind: if two { TokKind::Ge } else { TokKind::Gt }, start: i, len: if two { 2 } else { 1 } });
-            i += if two { 2 } else { 1 };
+        if byte == b'>' {
+            let two = position + 1 < source_len && source[position + 1] == b'=';
+            tokens.push(Token {
+                kind: if two { TokenKind::Ge } else { TokenKind::Gt },
+                start: position,
+                len: if two { 2 } else { 1 },
+            });
+            position += if two { 2 } else { 1 };
             continue;
         }
-        if c == b':' && i + 1 < n && src[i + 1] == b':' {
-            toks.push(Token { kind: TokKind::ColonColon, start: i, len: 2 });
-            i += 2;
+        if byte == b':' && position + 1 < source_len && source[position + 1] == b':' {
+            tokens.push(Token { kind: TokenKind::ColonColon, start: position, len: 2 });
+            position += 2;
             continue;
         }
-        let kind = match c {
-            b'{' => TokKind::LBrace,
-            b'}' => TokKind::RBrace,
-            b'(' => TokKind::LParen,
-            b')' => TokKind::RParen,
-            b'[' => TokKind::LBracket,
-            b']' => TokKind::RBracket,
-            b';' => TokKind::Semi,
-            b':' => TokKind::Colon,
-            b',' => TokKind::Comma,
-            b'.' => TokKind::Dot,
-            b'&' => TokKind::Amp,
-            b'=' => TokKind::Eq,
-            b'+' => TokKind::Plus,
-            b'-' => TokKind::Minus,
-            b'*' => TokKind::Star,
-            b'/' => TokKind::Slash,
+        let kind = match byte {
+            b'{' => TokenKind::LBrace,
+            b'}' => TokenKind::RBrace,
+            b'(' => TokenKind::LParen,
+            b')' => TokenKind::RParen,
+            b'[' => TokenKind::LBracket,
+            b']' => TokenKind::RBracket,
+            b';' => TokenKind::Semi,
+            b':' => TokenKind::Colon,
+            b',' => TokenKind::Comma,
+            b'.' => TokenKind::Dot,
+            b'&' => TokenKind::Amp,
+            b'=' => TokenKind::Eq,
+            b'+' => TokenKind::Plus,
+            b'-' => TokenKind::Minus,
+            b'*' => TokenKind::Star,
+            b'/' => TokenKind::Slash,
             _ => {
                 return Err(format!(
                     "alpha-onramp: lex error: unexpected byte {:?} at offset {}",
-                    c as char, i
+                    byte as char, position
                 ))
             }
         };
-        toks.push(Token { kind, start: i, len: 1 });
-        i += 1;
+        tokens.push(Token { kind, start: position, len: 1 });
+        position += 1;
     }
-    toks.push(Token { kind: TokKind::Eof, start: n, len: 0 });
-    Ok(toks)
+    tokens.push(Token { kind: TokenKind::Eof, start: source_len, len: 0 });
+    Ok(tokens)
 }
