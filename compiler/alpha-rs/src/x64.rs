@@ -238,6 +238,26 @@ fn lower_expression(
             call_fixups.push((patch_offset, machine_index));
             code.push(0x50); // push rax (return value)
         }
+        Expr::SelfCall(machine_index, args_start, arg_count) => {
+            // Like Call, but self goes in rcx and the args shift to rdx/r8/r9.
+            for index in 0..arg_count {
+                let arg_node = context.program.call_args[args_start + index];
+                lower_expression(arg_node, context, code, relocations, call_fixups);
+            }
+            for index in 0..arg_count {
+                let displacement = (8 * (arg_count - 1 - index)) as i32;
+                emit_load_argument_register(code, index + 1, displacement); // args -> rdx/r8/r9
+            }
+            if arg_count > 0 {
+                code.extend_from_slice(&[0x48, 0x83, 0xC4, (8 * arg_count) as u8]); // add rsp, imm8
+            }
+            emit_rbp_memory_operand(code, &[0x48, 0x8B], 1, context.self_ptr_displacement); // mov rcx, [rbp+self]
+            code.push(0xE8); // call rel32
+            let patch_offset = code.len() as u32;
+            code.extend_from_slice(&[0, 0, 0, 0]);
+            call_fixups.push((patch_offset, machine_index));
+            code.push(0x50); // push rax (return value)
+        }
         Expr::Binary(op, lhs, rhs) => {
             lower_expression(lhs, context, code, relocations, call_fixups);
             lower_expression(rhs, context, code, relocations, call_fixups);
@@ -299,6 +319,10 @@ fn lower_statement(
             lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax
             emit_store_local(code, *local_index);
+        }
+        Statement::Eval(expression) => {
+            lower_expression(*expression, context, code, relocations, call_fixups);
+            code.push(0x58); // pop rax (discard the result)
         }
         Statement::StoreSelfField(offset, expression) => {
             lower_expression(*expression, context, code, relocations, call_fixups);

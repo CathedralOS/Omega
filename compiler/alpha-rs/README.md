@@ -103,11 +103,26 @@ The on-ramp now has a compiler's full vocabulary: arithmetic, control flow + loo
 a DAG of machines with params/returns, structs with mutable `self` fields, scalar
 and byte arrays with trapping indexing, and byte stdin/stdout I/O.
 
-## Next slices (grow the grammar feature-by-feature)
+- **Slice 9 — `&mut self` method calls on data: DONE.** `self.method(args)` calls
+  another method of the same machine, passing the current self-pointer in rcx and
+  args in rdx/r8/r9 (≤3 args, since rcx is self). Works in value position
+  (`let a = self.pop()`) and as a statement (`self.push(5);`, via a new `Eval` node
+  that discards the result). Mutations persist across calls because all methods
+  share one self instance. Verified: counter methods (12), array push/read (44),
+  method-of-method (7); `methods.alpha` runs a self-resident stack → 75.
 
-9. `&mut self` method calls on data (pass a receiver address) and
-   sum-types-as-int-tags (token/AST kinds), then the Alpha compiler in
-   `compiler/alpha/` — bootstrap it through `alpha-rs` and close the fixed point.
+The on-ramp is now feature-complete for writing a compiler: a `Main` holds the
+arenas/buffers as self fields, and lexer/parser/emitter helper machines mutate
+them through `self.*` method calls.
+
+## Next
+
+10. Write the Alpha compiler **in Alpha** under `compiler/alpha/` (lexer → parser →
+    layout → x64 + PE emitter, all as methods over a `Main` holding the source
+    buffer + arenas), bootstrap it through `alpha-rs`, and close the self-hosting
+    fixed point. Sum-types-as-tags is optional (token/AST kinds = i32 tags
+    dispatched by `transition`). De-recurse the tree-walks to an explicit worklist
+    (Alpha bans call recursion).
 
 Deferred subset-enforcement (front-end is the spec; add before self-host): reject
 a cyclic call graph (Alpha bans recursion — calls must be a DAG); >4-arg calls
