@@ -1,12 +1,12 @@
 ; ===========================================================================
-; Hand-assembled Alpha tape VM — Windows x64 PE.  Milestone 1: a real interpreter
-; for opcodes imm(1)/mul(5)/halt(0), running a tape embedded in .text, with the 16
-; virtual registers in a writable .data (BSS) region. The embedded tape computes
-; 6*7 and halts r0, so the process exits 42 — proving the dispatch loop + opcode
-; handlers + register memory, all from hand-assembled bytes.
+; Hand-assembled Alpha tape VM — Windows x64 PE.  Every instruction byte is
+; hand-authored; build.py only resolves label arithmetic (.rel32/.rel8/.abs/.pad).
 ;
-; Convention: rbx = &vregs[0] (.data), rsi = pc (into the tape). vregs[i] at rbx+i*8.
-; PE32+, no imports, sections .text (RVA 0x1000) + .data (RVA 0x2000, BSS).
+; Milestone 2: the full non-I/O interpreter (compute/memory/branch/call/ret). The
+; tape is embedded in .text, copied into VM memory at startup, then run.
+;   rsi = pc (absolute pointer into VM memory)   rdi = mem base (0x140003000)
+;   rbx = &vregs[0] (0x140002000)                r12 = sp (offset; init 64MB)
+;   vregs[i] at rbx+i*8;  mem[off] at [rdi+off]   (read/write are M3 — ud2 for now)
 ; ===========================================================================
 
 ; --- DOS header ---
@@ -15,100 +15,295 @@
 
 ; --- PE signature + COFF ---
 50 45 00 00              ; "PE\0\0"
-64 86                    ; Machine = AMD64
-02 00                    ; NumberOfSections = 2
-00 00 00 00              ; TimeDateStamp
-00 00 00 00              ; PointerToSymbolTable
-00 00 00 00              ; NumberOfSymbols
-F0 00                    ; SizeOfOptionalHeader = 240
+64 86                    ; AMD64
+02 00                    ; 2 sections
+00 00 00 00
+00 00 00 00
+00 00 00 00
+F0 00                    ; SizeOfOptionalHeader
 22 00                    ; Characteristics
 
 ; --- Optional header (PE32+) ---
-0B 02                    ; PE32+
-00 00                    ; linker version
-00 02 00 00              ; SizeOfCode = 0x200
+0B 02
+00 00
+00 10 00 00              ; SizeOfCode = 0x1000
 00 00 00 00              ; SizeOfInitializedData
-00 10 00 00              ; SizeOfUninitializedData = 0x1000 (.data)
+00 10 00 04              ; SizeOfUninitializedData = 0x4001000 (.data)
 00 10 00 00              ; AddressOfEntryPoint = 0x1000
 00 10 00 00              ; BaseOfCode = 0x1000
 00 00 00 40 01 00 00 00  ; ImageBase = 0x140000000
-00 10 00 00              ; SectionAlignment = 0x1000
-00 02 00 00              ; FileAlignment = 0x200
-06 00 00 00              ; OS version 6.0
-00 00 00 00              ; image version
-06 00 00 00              ; subsystem version 6.0
-00 00 00 00              ; Win32VersionValue
-00 30 00 00              ; SizeOfImage = 0x3000
+00 10 00 00              ; SectionAlignment
+00 02 00 00              ; FileAlignment
+06 00 00 00              ; OS 6.0
+00 00 00 00
+06 00 00 00              ; subsystem 6.0
+00 00 00 00
+00 30 00 04              ; SizeOfImage = 0x4003000
 00 02 00 00              ; SizeOfHeaders = 0x200
-00 00 00 00              ; CheckSum
-03 00                    ; Subsystem = console
-00 00                    ; DllCharacteristics
-00 00 10 00 00 00 00 00  ; SizeOfStackReserve = 0x100000
-00 10 00 00 00 00 00 00  ; SizeOfStackCommit  = 0x1000
-00 00 10 00 00 00 00 00  ; SizeOfHeapReserve
-00 10 00 00 00 00 00 00  ; SizeOfHeapCommit
-00 00 00 00              ; LoaderFlags
-10 00 00 00              ; NumberOfRvaAndSizes = 16
-z128                     ; 16 data directories (no imports)
+00 00 00 00
+03 00                    ; console
+00 00
+00 00 10 00 00 00 00 00  ; stack reserve 0x100000
+00 10 00 00 00 00 00 00  ; stack commit  0x1000
+00 00 10 00 00 00 00 00  ; heap reserve
+00 10 00 00 00 00 00 00  ; heap commit
+00 00 00 00
+10 00 00 00              ; NumberOfRvaAndSizes
+z128
 
 ; --- section header: .text ---
-2E 74 65 78 74 00 00 00  ; ".text"
-8B 00 00 00              ; VirtualSize = 0x8B (139)
-00 10 00 00              ; VirtualAddress = 0x1000
-00 02 00 00              ; SizeOfRawData = 0x200
-00 02 00 00              ; PointerToRawData = 0x200
-00 00 00 00 00 00 00 00  ; relocations / linenumbers ptrs
-00 00 00 00              ; counts
-20 00 00 60              ; CODE | EXECUTE | READ
-
-; --- section header: .data (BSS) ---
-2E 64 61 74 61 00 00 00  ; ".data"
+2E 74 65 78 74 00 00 00
 00 10 00 00              ; VirtualSize = 0x1000
+00 10 00 00              ; VirtualAddress = 0x1000
+00 10 00 00              ; SizeOfRawData = 0x1000
+00 02 00 00              ; PointerToRawData = 0x200
+00 00 00 00 00 00 00 00
+00 00 00 00
+20 00 00 60              ; CODE|EXEC|READ
+
+; --- section header: .data (BSS): vregs page + 64MB VM memory ---
+2E 64 61 74 61 00 00 00
+00 10 00 04              ; VirtualSize = 0x4001000
 00 20 00 00              ; VirtualAddress = 0x2000
-00 00 00 00              ; SizeOfRawData = 0 (BSS)
+00 00 00 00              ; SizeOfRawData = 0
 00 00 00 00              ; PointerToRawData = 0
 00 00 00 00 00 00 00 00
 00 00 00 00
-80 00 00 C0              ; UNINIT | READ | WRITE  (0xC0000080)
-z104                     ; pad headers to 0x200
+80 00 00 C0              ; UNINIT|READ|WRITE
+.pad 0x200
 
-; --- .text (RVA 0x1000) ---
-; 00: setup
-48 BB 00 20 00 40 01 00 00 00   ; mov rbx, 0x140002000   (&vregs)
-48 BE 72 10 00 40 01 00 00 00   ; mov rsi, 0x140001072   (pc -> embedded tape)
-; 14 next: fetch + dispatch
-0F B6 06                        ; movzx eax, byte [rsi]   (opcode)
+; ===================== .text (RVA 0x1000) =====================
+; --- setup ---
+48 BB 00 20 00 40 01 00 00 00   ; mov rbx, 0x140002000  (&vregs)
+48 BF 00 30 00 40 01 00 00 00   ; mov rdi, 0x140003000  (mem base)
+49 BC 00 00 00 04 00 00 00 00   ; mov r12, 0x4000000    (sp = 64MB)
+; copy embedded tape -> mem[0..]
+48 BE .abs tape                 ; rsi = &tape
+48 89 FA                        ; mov rdx, rdi          (dest = mem base)
+41 B8 4A 00 00 00               ; mov r8d, 74           (tape length)
+copy:
+4D 85 C0                        ; test r8, r8
+74 .rel8 copy_done              ; jz copy_done
+8A 06                           ; mov al, [rsi]
+88 02                           ; mov [rdx], al
 48 FF C6                        ; inc rsi
-83 F8 00                        ; cmp eax, 0
-0F 84 48 00 00 00               ; je halt
-83 F8 01                        ; cmp eax, 1
-0F 84 0B 00 00 00               ; je do_imm
-83 F8 05                        ; cmp eax, 5
-0F 84 18 00 00 00               ; je do_mul
-0F 0B                           ; ud2  (unknown opcode)
-; 37 do_imm: rD <- imm64
-0F B6 0E                        ; movzx ecx, byte [rsi]   (rD)
+48 FF C2                        ; inc rdx
+49 FF C8                        ; dec r8
+EB .rel8 copy                   ; jmp copy
+copy_done:
+48 89 FE                        ; mov rsi, rdi          (pc = 0)
+
+; --- fetch + dispatch ---
+next:
+0F B6 06                        ; movzx eax, byte [rsi]
 48 FF C6                        ; inc rsi
-48 8B 06                        ; mov rax, [rsi]          (imm64)
+83 F8 00  0F 84 .rel32 h_halt
+83 F8 01  0F 84 .rel32 h_imm
+83 F8 02  0F 84 .rel32 h_mov
+83 F8 03  0F 84 .rel32 h_add
+83 F8 04  0F 84 .rel32 h_sub
+83 F8 05  0F 84 .rel32 h_mul
+83 F8 06  0F 84 .rel32 h_div
+83 F8 07  0F 84 .rel32 h_mod
+83 F8 08  0F 84 .rel32 h_loadb
+83 F8 09  0F 84 .rel32 h_storeb
+83 F8 0A  0F 84 .rel32 h_load
+83 F8 0B  0F 84 .rel32 h_store
+83 F8 0C  0F 84 .rel32 h_jmp
+83 F8 0D  0F 84 .rel32 h_jz
+83 F8 0E  0F 84 .rel32 h_jnz
+83 F8 0F  0F 84 .rel32 h_jlt
+83 F8 10  0F 84 .rel32 h_jeq
+83 F8 11  0F 84 .rel32 h_trap   ; read  (M3)
+83 F8 12  0F 84 .rel32 h_trap   ; write (M3)
+83 F8 13  0F 84 .rel32 h_call
+83 F8 14  0F 84 .rel32 h_ret
+0F 0B                           ; ud2 (unknown opcode)
+
+; --- shared jump epilogues (rsi at the 8-byte addr operand) ---
+do_jump:
+48 8B 06                        ; mov rax, [rsi]  (target addr)
+48 89 FE                        ; mov rsi, rdi
+48 01 C6                        ; add rsi, rax    (rsi = mem + addr)
+E9 .rel32 next
+skip_addr:
+48 83 C6 08                     ; add rsi, 8
+E9 .rel32 next
+
+; --- handlers ---
+h_imm:
+0F B6 0E                        ; movzx ecx, byte [rsi] (rD)
+48 FF C6
+48 8B 06                        ; mov rax, [rsi] (imm64)
 48 83 C6 08                     ; add rsi, 8
 48 89 04 CB                     ; mov [rbx+rcx*8], rax
-E9 C7 FF FF FF                  ; jmp next
-; 4D do_mul: rD *= rS
-0F B6 0E                        ; movzx ecx, byte [rsi]   (rD)
-48 FF C6                        ; inc rsi
-0F B6 16                        ; movzx edx, byte [rsi]   (rS)
-48 FF C6                        ; inc rsi
-48 8B 04 CB                     ; mov rax, [rbx+rcx*8]
-48 0F AF 04 D3                  ; imul rax, [rbx+rdx*8]
-48 89 04 CB                     ; mov [rbx+rcx*8], rax
-E9 A9 FF FF FF                  ; jmp next
-; 6B halt: exit with vregs[rD] (low 32)
-0F B6 0E                        ; movzx ecx, byte [rsi]   (rD)
-8B 04 CB                        ; mov eax, [rbx+rcx*8]
+E9 .rel32 next
+h_mov:
+0F B6 0E                        ; rD
+48 FF C6
+0F B6 16                        ; rS
+48 FF C6
+48 8B 04 D3                     ; rax = vregs[rS]
+48 89 04 CB                     ; vregs[rD] = rax
+E9 .rel32 next
+h_add:
+0F B6 0E
+48 FF C6
+0F B6 16
+48 FF C6
+48 8B 04 CB                     ; rax = vregs[rD]
+48 03 04 D3                     ; add rax, vregs[rS]
+48 89 04 CB
+E9 .rel32 next
+h_sub:
+0F B6 0E
+48 FF C6
+0F B6 16
+48 FF C6
+48 8B 04 CB
+48 2B 04 D3                     ; sub rax, vregs[rS]
+48 89 04 CB
+E9 .rel32 next
+h_mul:
+0F B6 0E
+48 FF C6
+0F B6 16
+48 FF C6
+48 8B 04 CB
+48 0F AF 04 D3                  ; imul rax, vregs[rS]
+48 89 04 CB
+E9 .rel32 next
+h_div:
+0F B6 0E
+48 FF C6
+0F B6 16
+48 FF C6
+4C 8B 04 D3                     ; r8 = vregs[rS] (divisor)
+48 8B 04 CB                     ; rax = vregs[rD]
+48 99                           ; cqo
+49 F7 F8                        ; idiv r8
+48 89 04 CB                     ; vregs[rD] = rax (quotient)
+E9 .rel32 next
+h_mod:
+0F B6 0E
+48 FF C6
+0F B6 16
+48 FF C6
+4C 8B 04 D3                     ; r8 = vregs[rS]
+48 8B 04 CB                     ; rax = vregs[rD]
+48 99                           ; cqo
+49 F7 F8                        ; idiv r8
+48 89 14 CB                     ; vregs[rD] = rdx (remainder)
+E9 .rel32 next
+h_loadb:
+0F B6 0E
+48 FF C6
+0F B6 16
+48 FF C6
+48 8B 04 D3                     ; rax = vregs[rS] (addr)
+0F B6 14 07                     ; movzx edx, byte [rdi+rax]
+48 89 14 CB                     ; vregs[rD] = rdx
+E9 .rel32 next
+h_storeb:
+0F B6 0E
+48 FF C6
+0F B6 16
+48 FF C6
+48 8B 04 CB                     ; rax = vregs[rD] (addr)
+48 8B 14 D3                     ; rdx = vregs[rS] (value)
+88 14 07                        ; mov [rdi+rax], dl
+E9 .rel32 next
+h_load:
+0F B6 0E
+48 FF C6
+0F B6 16
+48 FF C6
+48 8B 04 D3                     ; rax = vregs[rS] (addr)
+48 8B 14 07                     ; rdx = [rdi+rax] (qword)
+48 89 14 CB                     ; vregs[rD] = rdx
+E9 .rel32 next
+h_store:
+0F B6 0E
+48 FF C6
+0F B6 16
+48 FF C6
+48 8B 04 CB                     ; rax = vregs[rD] (addr)
+48 8B 14 D3                     ; rdx = vregs[rS] (value)
+48 89 14 07                     ; mov [rdi+rax], rdx
+E9 .rel32 next
+h_jmp:
+E9 .rel32 do_jump               ; rsi already at addr
+h_jz:
+0F B6 0E                        ; rS
+48 FF C6
+48 8B 04 CB                     ; rax = vregs[rS]
+48 85 C0                        ; test rax, rax
+0F 84 .rel32 do_jump            ; je
+E9 .rel32 skip_addr
+h_jnz:
+0F B6 0E
+48 FF C6
+48 8B 04 CB
+48 85 C0
+0F 85 .rel32 do_jump            ; jne
+E9 .rel32 skip_addr
+h_jlt:
+0F B6 0E                        ; rA
+48 FF C6
+0F B6 16                        ; rB
+48 FF C6
+48 8B 04 CB                     ; rax = vregs[rA]
+48 3B 04 D3                     ; cmp rax, vregs[rB]
+0F 8C .rel32 do_jump            ; jl (signed)
+E9 .rel32 skip_addr
+h_jeq:
+0F B6 0E
+48 FF C6
+0F B6 16
+48 FF C6
+48 8B 04 CB
+48 3B 04 D3
+0F 84 .rel32 do_jump            ; je
+E9 .rel32 skip_addr
+h_call:
+48 8B 06                        ; rax = [rsi] (target)
+48 89 F2                        ; mov rdx, rsi
+48 29 FA                        ; sub rdx, rdi   (rdx = pc offset of addr operand)
+48 83 C2 08                     ; add rdx, 8     (return pc = past the addr)
+49 83 EC 08                     ; sub r12, 8     (sp -= 8)
+49 89 FA                        ; mov r10, rdi
+4D 01 E2                        ; add r10, r12   (r10 = &mem[sp])
+49 89 12                        ; mov [r10], rdx (push return pc)
+48 89 FE                        ; rsi = rdi
+48 01 C6                        ; rsi += rax     (pc = target)
+E9 .rel32 next
+h_ret:
+49 89 FA                        ; mov r10, rdi
+4D 01 E2                        ; add r10, r12   (r10 = &mem[sp])
+49 8B 02                        ; mov rax, [r10] (return pc)
+49 83 C4 08                     ; add r12, 8     (sp += 8)
+48 89 FE                        ; rsi = rdi
+48 01 C6                        ; rsi += rax
+E9 .rel32 next
+h_halt:
+0F B6 0E                        ; rD
+8B 04 CB                        ; mov eax, [rbx+rcx*8] (low 32 = exit code)
 C3                              ; ret
-; 72 tape:  imm r0,6 ; imm r1,7 ; mul r0,r1 ; halt r0
-01 00 06 00 00 00 00 00 00 00
+h_trap:
+0F 0B                           ; ud2 (read/write not yet implemented)
+
+; --- embedded tape: mem + subroutine = 42 ---
+tape:
+01 00 64 00 00 00 00 00 00 00
 01 01 07 00 00 00 00 00 00 00
-05 00 01
-00 00
-z373                            ; pad .text to FileAlignment
+0B 00 01
+01 02 64 00 00 00 00 00 00 00
+0A 03 02
+01 04 06 00 00 00 00 00 00 00
+05 03 04
+13 3C 00 00 00 00 00 00 00
+00 03
+01 05 00 00 00 00 00 00 00 00
+04 03 05
+14
+.pad 0x1200
