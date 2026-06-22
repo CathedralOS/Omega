@@ -41,14 +41,20 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
   → 42 (and 7/200/123), and it compiles the on-ramp's own `samples/exit7.alp` → 7.
   (Still a stepping stone — "first int wins", no keyword matching yet.)
 
+- **Increment 4 — arithmetic expressions: DONE.** Keyword matching (`is_exit_process`
+  byte-compares the token) + an **iterative shunting-yard** expression compiler
+  (`compile_expr`) that emits the x64 stack-machine code for `+ - * /` with correct
+  precedence/associativity and trap-on-overflow — no recursion (an explicit
+  operator stack), since Alpha bans call recursion. `emit_code`/`emit_push_imm`/
+  `emit_binop` build into `self.code`. Verified: `3 + 4 * 2`→11, `2 * 3 + 4`→10,
+  `20 - 3 - 2`→15, `100 / 5 / 2`→10. No on-ramp gaps.
+
 ## Next increments
 
-4. Keyword matching (byte compare) + a real statement/expression parser (the x64
-   stack-machine emitter, port of `alpha-rs/src/x64.rs`): `let`, locals, `+ - * /`,
-   so `exit_process(3 + 4 * 2)` → 11.
-5. Widen to control flow, calls, data/arrays — the full on-ramp language.
-   De-recurse tree-walks to an explicit worklist (Alpha bans call recursion);
-   hand-specialize arenas (no generics). Then close the fixed point.
+5. `let`/locals (an rbp frame + symbol table) and the comparison ops; then
+   statements + `transition`/`state` control flow.
+6. Machine calls, `data`/arrays, byte I/O, the import-table PE path — the full
+   on-ramp language. Hand-specialize arenas (no generics). Then close the fixed point.
 
 ## Known gaps to fix in the on-ramp as they surface
 
