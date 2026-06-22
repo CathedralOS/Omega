@@ -84,11 +84,19 @@ cargo run -- samples/exit7.alpha out.exe
   is any expression. Verified: write/read, fill-and-sum in a loop with a runtime
   index, OOB traps; `samples/arena.alpha` computes fib(11)=89 in an array.
 
+- **Slice 8a — host byte I/O: DONE.** `read_byte() -> i32` (next stdin byte, or
+  -1 at EOF) and `write_byte(b)` (one byte to stdout), via `ReadFile`/`WriteFile`
+  on the std handles (`ReadFile` added as a third kernel32 import; the import
+  table is now generated from a name list). EOF is branchless (`cmove`). Verified:
+  `echo.alpha` cats stdin→stdout; a byte counter; `write_byte` emits `ABC`. This
+  is the I/O backbone — the self-hosting compiler reads source and writes output
+  bytes through these.
+
 ## Next slices (grow the grammar feature-by-feature)
 
-8. File I/O: CreateFile/ReadFile/WriteFile — the compiler reads a source file and
-   writes a `.exe`. Then `&mut self` method calls on data, sum-types-as-tags, and
-   the Alpha compiler in `compiler/alpha/`.
+8b. `[u8;N]` byte buffers (1-byte element addressing) so the source/output can be
+    buffered in a `data` field; then `&mut self` method calls on data,
+    sum-types-as-tags, and the Alpha compiler in `compiler/alpha/`.
 
 Deferred subset-enforcement (front-end is the spec; add before self-host): reject
 a cyclic call graph (Alpha bans recursion — calls must be a DAG); >4-arg calls

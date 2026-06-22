@@ -54,6 +54,7 @@ pub struct Parser<'a> {
     state_names: Vec<Vec<u8>>,        // pre-scanned state names of the machine being parsed
     self_data_type: Option<usize>,    // data type of `self` in the machine being parsed
     current_machine_makes_call: bool, // set while parsing a machine that calls out
+    uses_host_io: bool,               // any machine uses a host op => program needs the import table
 }
 
 impl<'a> Parser<'a> {
@@ -76,6 +77,7 @@ impl<'a> Parser<'a> {
             state_names: Vec::new(),
             self_data_type: None,
             current_machine_makes_call: false,
+            uses_host_io: false,
         }
     }
 
@@ -208,6 +210,7 @@ impl<'a> Parser<'a> {
             machines: std::mem::take(&mut self.machines),
             entry_machine,
             entry_data_size,
+            uses_imports: self.uses_host_io,
             expressions: std::mem::take(&mut self.expressions),
             call_args: std::mem::take(&mut self.call_args),
             strings: std::mem::take(&mut self.strings),
@@ -689,7 +692,13 @@ impl<'a> Parser<'a> {
         let last_segment = segments.last().unwrap().clone();
         let statement = match last_segment.as_slice() {
             b"exit_process" => Statement::Exit(self.parse_expression()?),
+            b"write_byte" => {
+                self.uses_host_io = true;
+                self.current_machine_makes_call = true;
+                Statement::WriteByte(self.parse_expression()?)
+            }
             b"write_line" => {
+                self.uses_host_io = true;
                 self.current_machine_makes_call = true;
                 let string_token = self.expect(TokenKind::Str)?;
                 let mut bytes = token_text(&string_token, self.source).to_vec();
@@ -700,7 +709,7 @@ impl<'a> Parser<'a> {
             }
             other => {
                 return Err(format!(
-                    "alpha-onramp: unsupported call '{}' (supported: exit_process, write_line)",
+                    "alpha-onramp: unsupported call '{}' (supported: exit_process, write_line, write_byte)",
                     String::from_utf8_lossy(other)
                 ))
             }
@@ -800,6 +809,13 @@ impl<'a> Parser<'a> {
                     }
                     let offset = self.self_field_offset(&field)?;
                     return Ok(self.add_expression(Expr::SelfField(offset)));
+                }
+                if name == b"read_byte" && self.current_kind() == TokenKind::LParen {
+                    self.bump(); // (
+                    self.expect(TokenKind::RParen)?;
+                    self.uses_host_io = true;
+                    self.current_machine_makes_call = true;
+                    return Ok(self.add_expression(Expr::ReadByte));
                 }
                 if self.current_kind() == TokenKind::LParen {
                     return match self.find_machine_index(&name) {

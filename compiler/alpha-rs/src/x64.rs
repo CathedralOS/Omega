@@ -13,6 +13,7 @@ use crate::util::align_up;
 pub enum ImportFunction {
     GetStdHandle, // IAT slot 0
     WriteFile,    // IAT slot 1
+    ReadFile,     // IAT slot 2
 }
 
 pub enum RelocationTarget {
@@ -157,6 +158,7 @@ fn lower_expression(
     node: usize,
     context: &LoweringContext,
     code: &mut Vec<u8>,
+    relocations: &mut Vec<Relocation>,
     call_fixups: &mut Vec<(u32, usize)>,
 ) {
     match context.program.expressions[node] {
@@ -175,9 +177,31 @@ fn lower_expression(
             code.push(0x50); // push rax
         }
         Expr::SelfIndex(field_offset, count, index) => {
-            lower_expression(index, context, code, call_fixups); // push index
+            lower_expression(index, context, code, relocations, call_fixups); // push index
             emit_self_element_address(code, context.self_ptr_displacement, field_offset, count);
             code.extend_from_slice(&[0x8B, 0x00]); // mov eax, [rax]
+            code.push(0x50); // push rax
+        }
+        Expr::ReadByte => {
+            // handle = GetStdHandle(STD_INPUT_HANDLE = -10)
+            code.push(0xB9);
+            code.extend_from_slice(&(-10i32).to_le_bytes()); // mov ecx, -10
+            emit_rip_call(code, relocations, RelocationTarget::Import(ImportFunction::GetStdHandle));
+            emit_rbp_memory_operand(code, &[0x48, 0x89], 0, context.handle_displacement); // mov [rbp+handle], rax
+            // ReadFile(handle, &io_byte, 1, &count, NULL)
+            emit_rbp_memory_operand(code, &[0x48, 0x8B], 1, context.handle_displacement); // mov rcx, [rbp+handle]
+            emit_rbp_memory_operand(code, &[0x48, 0x8D], 2, context.io_byte_displacement); // lea rdx, [rbp+io_byte]
+            code.extend_from_slice(&[0x41, 0xB8, 0x01, 0, 0, 0]); // mov r8d, 1
+            emit_rbp_memory_operand(code, &[0x4C, 0x8D], 1, context.written_displacement); // lea r9, [rbp+count]
+            code.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // mov qword [rsp+0x20], 0
+            emit_rip_call(code, relocations, RelocationTarget::Import(ImportFunction::ReadFile));
+            // result = (bytesRead != 0) ? io_byte : -1   (branchless via cmove)
+            emit_rbp_memory_operand(code, &[0x0F, 0xB6], 0, context.io_byte_displacement); // movzx eax, byte [rbp+io_byte]
+            code.push(0xB9);
+            code.extend_from_slice(&(-1i32).to_le_bytes()); // mov ecx, -1
+            emit_rbp_memory_operand(code, &[0x83], 7, context.written_displacement); // cmp dword [rbp+count], imm8
+            code.push(0x00);
+            code.extend_from_slice(&[0x0F, 0x44, 0xC1]); // cmove eax, ecx
             code.push(0x50); // push rax
         }
         Expr::Call(machine_index, args_start, arg_count) => {
@@ -186,7 +210,7 @@ fn lower_expression(
             // (16-aligned) frame base before the call. arg i sits at the deeper slot.
             for index in 0..arg_count {
                 let arg_node = context.program.call_args[args_start + index];
-                lower_expression(arg_node, context, code, call_fixups);
+                lower_expression(arg_node, context, code, relocations, call_fixups);
             }
             for index in 0..arg_count {
                 let displacement = (8 * (arg_count - 1 - index)) as i32;
@@ -202,8 +226,8 @@ fn lower_expression(
             code.push(0x50); // push rax (return value)
         }
         Expr::Binary(op, lhs, rhs) => {
-            lower_expression(lhs, context, code, call_fixups);
-            lower_expression(rhs, context, code, call_fixups);
+            lower_expression(lhs, context, code, relocations, call_fixups);
+            lower_expression(rhs, context, code, relocations, call_fixups);
             code.push(0x59); // pop rcx (rhs)
             code.push(0x58); // pop rax (lhs)
             match op {
@@ -239,8 +263,9 @@ struct LoweringContext<'a> {
     program: &'a Program,
     string_offsets: &'a [u32],
     handle_displacement: i32,
-    written_displacement: i32,
-    self_ptr_displacement: i32, // frame slot holding the `self` pointer (if has_self)
+    written_displacement: i32,    // also the byte-count slot for read/write_byte
+    io_byte_displacement: i32,    // 1-byte scratch buffer for read_byte/write_byte
+    self_ptr_displacement: i32,   // frame slot holding the `self` pointer (if has_self)
 }
 
 fn lower_statement(
@@ -253,37 +278,54 @@ fn lower_statement(
 ) {
     match statement {
         Statement::Let(local_index, expression) => {
-            lower_expression(*expression, context, code, call_fixups);
+            lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax
             emit_store_local(code, *local_index);
         }
         Statement::Assign(local_index, expression) => {
-            lower_expression(*expression, context, code, call_fixups);
+            lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax
             emit_store_local(code, *local_index);
         }
         Statement::StoreSelfField(offset, expression) => {
-            lower_expression(*expression, context, code, call_fixups);
+            lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x59); // pop rcx (value)
             emit_rbp_memory_operand(code, &[0x48, 0x8B], 0, context.self_ptr_displacement); // mov rax, [rbp+self]
             emit_rax_indirect(code, 0x89, 1, *offset); // mov [rax+offset], ecx
         }
         Statement::StoreSelfIndex(field_offset, count, index, value) => {
-            lower_expression(*value, context, code, call_fixups); // push value
-            lower_expression(*index, context, code, call_fixups); // push index (popped first)
+            lower_expression(*value, context, code, relocations, call_fixups); // push value
+            lower_expression(*index, context, code, relocations, call_fixups); // push index (popped first)
             emit_self_element_address(code, context.self_ptr_displacement, *field_offset, *count);
             code.push(0x59); // pop rcx (value)
             code.extend_from_slice(&[0x89, 0x08]); // mov [rax], ecx
         }
         Statement::Return(expression) => {
-            lower_expression(*expression, context, code, call_fixups);
+            lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax (return value -> caller)
             emit_epilogue(code);
         }
         Statement::Exit(expression) => {
-            lower_expression(*expression, context, code, call_fixups);
+            lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax (exit code)
             emit_epilogue(code);
+        }
+        Statement::WriteByte(expression) => {
+            lower_expression(*expression, context, code, relocations, call_fixups);
+            code.push(0x58); // pop rax (value)
+            emit_rbp_memory_operand(code, &[0x88], 0, context.io_byte_displacement); // mov [rbp+io_byte], al
+            // handle = GetStdHandle(STD_OUTPUT_HANDLE = -11)
+            code.push(0xB9);
+            code.extend_from_slice(&(-11i32).to_le_bytes()); // mov ecx, -11
+            emit_rip_call(code, relocations, RelocationTarget::Import(ImportFunction::GetStdHandle));
+            emit_rbp_memory_operand(code, &[0x48, 0x89], 0, context.handle_displacement); // mov [rbp+handle], rax
+            // WriteFile(handle, &io_byte, 1, &written, NULL)
+            emit_rbp_memory_operand(code, &[0x48, 0x8B], 1, context.handle_displacement); // mov rcx, [rbp+handle]
+            emit_rbp_memory_operand(code, &[0x48, 0x8D], 2, context.io_byte_displacement); // lea rdx, [rbp+io_byte]
+            code.extend_from_slice(&[0x41, 0xB8, 0x01, 0, 0, 0]); // mov r8d, 1
+            emit_rbp_memory_operand(code, &[0x4C, 0x8D], 1, context.written_displacement); // lea r9, [rbp+written]
+            code.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // mov qword [rsp+0x20], 0
+            emit_rip_call(code, relocations, RelocationTarget::Import(ImportFunction::WriteFile));
         }
         Statement::WriteLine(string_index) => {
             let offset = context.string_offsets[*string_index];
@@ -303,7 +345,7 @@ fn lower_statement(
             emit_rip_call(code, relocations, RelocationTarget::Import(ImportFunction::WriteFile));
         }
         Statement::Transition(subject, arms) => {
-            lower_expression(*subject, context, code, call_fixups);
+            lower_expression(*subject, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax (subject value)
             for arm in arms {
                 match arm.pattern {
@@ -352,16 +394,19 @@ fn lower_machine(
     } else {
         0
     };
-    let scratch = if machine.makes_call { 16 + 40 } else { 0 }; // handle/written + shadow + 5th arg
+    // scratch when calling out: written/count(8) + handle(8) + io_byte(8) + shadow(32) + 5th arg(8)
+    let scratch = if machine.makes_call { 24 + 40 } else { 0 };
     let frame = align_up((named_bytes + region_bytes + scratch) as u32, 16);
 
+    let scratch_base = named_bytes + region_bytes;
     let self_ptr_displacement = -(8 * (local_count + 1)); // first slot past the locals
     let region_displacement = -(named_bytes + region_bytes); // self instance base (field offset 0)
     let context = LoweringContext {
         program,
         string_offsets,
-        handle_displacement: -(named_bytes + region_bytes + 16),
-        written_displacement: -(named_bytes + region_bytes + 8),
+        written_displacement: -(scratch_base + 8),
+        handle_displacement: -(scratch_base + 16),
+        io_byte_displacement: -(scratch_base + 24),
         self_ptr_displacement,
     };
 
@@ -428,13 +473,7 @@ pub fn lower_program(program: &Program) -> LoweredProgram {
         string_offsets.push(rodata.len() as u32);
         rodata.extend_from_slice(string);
     }
-    let uses_imports = program.machines.iter().any(|machine| {
-        machine
-            .entry
-            .iter()
-            .chain(machine.states.iter().flatten())
-            .any(|statement| matches!(statement, Statement::WriteLine(_)))
-    });
+    let uses_imports = program.uses_imports;
 
     let mut code = Vec::new();
     let mut relocations = Vec::new();

@@ -21,6 +21,7 @@ pub enum Expr {
     Local(usize),                   // index into the locals frame
     SelfField(i32),                 // read self.<field> (scalar at this byte offset)
     SelfIndex(i32, i32, usize),     // read self.<array at byte offset>[index]; (offset, count, index node)
+    ReadByte,                       // next byte from stdin, or -1 at EOF
     Binary(BinaryOp, usize, usize), // op, lhs node, rhs node (indices into `expressions`)
     Call(usize, usize, usize),      // machine index, args_start (into call_args), arg_count
 }
@@ -43,6 +44,7 @@ pub enum Statement {
     StoreSelfIndex(i32, i32, usize, usize), // self.<array @offset>[index] = value; (offset, count, index, value)
     Return(usize),                         // return value expr node (yields to the caller)
     Exit(usize),                           // exit-code expr node (process exit; entry machine only)
+    WriteByte(usize),                      // write the low byte of the value expr node to stdout
     WriteLine(usize),                      // index into Program.strings (bytes include trailing '\n')
     Transition(usize, Vec<TransitionArm>), // subject expr node, arms (jump to a state)
 }
@@ -63,6 +65,7 @@ pub struct Program {
     pub machines: Vec<Machine>,
     pub entry_machine: usize,   // index of the process entry (Main::main)
     pub entry_data_size: i32,   // bytes of the entry machine's `self` data (its frame-resident instance)
+    pub uses_imports: bool,     // uses any host op (write_line/write_byte/read_byte) => needs the import table
     pub expressions: Vec<Expr>, // global node arena
     pub call_args: Vec<usize>,  // flat arena of call-arg node indices (Expr::Call slices into this)
     pub strings: Vec<Vec<u8>>,
