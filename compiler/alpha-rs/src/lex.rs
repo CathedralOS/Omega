@@ -27,7 +27,8 @@ pub enum TokKind {
     Ge,
     EqEq,
     Ne,
-    Str, // string literal; span (start..start+len) covers the bytes BETWEEN the quotes
+    Arrow, // ->
+    Str,   // string literal; span (start..start+len) covers the bytes BETWEEN the quotes
     Eof,
 }
 
@@ -97,6 +98,11 @@ pub fn lex(src: &[u8]) -> Result<Vec<Token>, String> {
         }
         if c == b'!' && i + 1 < n && src[i + 1] == b'=' {
             toks.push(Token { kind: TokKind::Ne, start: i, len: 2 });
+            i += 2;
+            continue;
+        }
+        if c == b'-' && i + 1 < n && src[i + 1] == b'>' {
+            toks.push(Token { kind: TokKind::Arrow, start: i, len: 2 });
             i += 2;
             continue;
         }
