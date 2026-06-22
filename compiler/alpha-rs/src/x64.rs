@@ -88,19 +88,28 @@ fn emit_rax_indirect(code: &mut Vec<u8>, opcode: u8, reg_field: u8, offset: i32)
 
 // Consume a pushed index off the stack and leave `&self.<array>[index]` in rax:
 // bounds-check (trap on out-of-bounds, per the Alpha spec), then
-// rax = self_ptr + field_offset + index*8.
+// rax = self_ptr + field_offset + index*element_bytes.
 fn emit_self_element_address(
     code: &mut Vec<u8>,
     self_ptr_displacement: i32,
     field_offset: i32,
     count: i32,
+    element_bytes: i32,
 ) {
     code.push(0x58); // pop rax (index)
     code.extend_from_slice(&[0x89, 0xC0]); // mov eax, eax (zero-extend index into rax)
     code.push(0x3D);
     code.extend_from_slice(&count.to_le_bytes()); // cmp eax, count
     code.extend_from_slice(&[0x72, 0x02, 0x0F, 0x0B]); // jb +2 ; ud2 (trap if index >= count, unsigned)
-    code.extend_from_slice(&[0x48, 0xC1, 0xE0, 0x03]); // shl rax, 3 (index * 8)
+    let shift = match element_bytes {
+        1 => 0,
+        2 => 1,
+        4 => 2,
+        _ => 3, // 8
+    };
+    if shift > 0 {
+        code.extend_from_slice(&[0x48, 0xC1, 0xE0, shift]); // shl rax, shift (index * element_bytes)
+    }
     if field_offset != 0 {
         code.extend_from_slice(&[0x48, 0x05]);
         code.extend_from_slice(&field_offset.to_le_bytes()); // add rax, field_offset
@@ -176,10 +185,14 @@ fn lower_expression(
             emit_rax_indirect(code, 0x8B, 0, offset); // mov eax, [rax+offset]
             code.push(0x50); // push rax
         }
-        Expr::SelfIndex(field_offset, count, index) => {
+        Expr::SelfIndex(field_offset, count, element_bytes, index) => {
             lower_expression(index, context, code, relocations, call_fixups); // push index
-            emit_self_element_address(code, context.self_ptr_displacement, field_offset, count);
-            code.extend_from_slice(&[0x8B, 0x00]); // mov eax, [rax]
+            emit_self_element_address(code, context.self_ptr_displacement, field_offset, count, element_bytes);
+            if element_bytes == 1 {
+                code.extend_from_slice(&[0x0F, 0xB6, 0x00]); // movzx eax, byte [rax]
+            } else {
+                code.extend_from_slice(&[0x8B, 0x00]); // mov eax, [rax]
+            }
             code.push(0x50); // push rax
         }
         Expr::ReadByte => {
@@ -293,12 +306,16 @@ fn lower_statement(
             emit_rbp_memory_operand(code, &[0x48, 0x8B], 0, context.self_ptr_displacement); // mov rax, [rbp+self]
             emit_rax_indirect(code, 0x89, 1, *offset); // mov [rax+offset], ecx
         }
-        Statement::StoreSelfIndex(field_offset, count, index, value) => {
+        Statement::StoreSelfIndex(field_offset, count, element_bytes, index, value) => {
             lower_expression(*value, context, code, relocations, call_fixups); // push value
             lower_expression(*index, context, code, relocations, call_fixups); // push index (popped first)
-            emit_self_element_address(code, context.self_ptr_displacement, *field_offset, *count);
+            emit_self_element_address(code, context.self_ptr_displacement, *field_offset, *count, *element_bytes);
             code.push(0x59); // pop rcx (value)
-            code.extend_from_slice(&[0x89, 0x08]); // mov [rax], ecx
+            if *element_bytes == 1 {
+                code.extend_from_slice(&[0x88, 0x08]); // mov [rax], cl
+            } else {
+                code.extend_from_slice(&[0x89, 0x08]); // mov [rax], ecx
+            }
         }
         Statement::Return(expression) => {
             lower_expression(*expression, context, code, relocations, call_fixups);

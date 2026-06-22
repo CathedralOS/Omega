@@ -92,11 +92,22 @@ cargo run -- samples/exit7.alpha out.exe
   is the I/O backbone — the self-hosting compiler reads source and writes output
   bytes through these.
 
+- **Slice 8b — `[u8;N]` byte buffers: DONE.** Array fields now carry an element
+  width (`u8` = 1 byte, other scalars = 8). Indexing scales by it (`shl` by 0/2/3)
+  and uses a byte (`movzx`/`mov [rax],cl`) or dword access accordingly — the bounds
+  check is unchanged. So source/output can be buffered in a `data` field. Verified:
+  buffered cat round-trips, `buffer.alpha` reverses stdin via a `[u8;4096]` field,
+  and i32 arrays (`arena`) still work.
+
+The on-ramp now has a compiler's full vocabulary: arithmetic, control flow + loops,
+a DAG of machines with params/returns, structs with mutable `self` fields, scalar
+and byte arrays with trapping indexing, and byte stdin/stdout I/O.
+
 ## Next slices (grow the grammar feature-by-feature)
 
-8b. `[u8;N]` byte buffers (1-byte element addressing) so the source/output can be
-    buffered in a `data` field; then `&mut self` method calls on data,
-    sum-types-as-tags, and the Alpha compiler in `compiler/alpha/`.
+9. `&mut self` method calls on data (pass a receiver address) and
+   sum-types-as-int-tags (token/AST kinds), then the Alpha compiler in
+   `compiler/alpha/` — bootstrap it through `alpha-rs` and close the fixed point.
 
 Deferred subset-enforcement (front-end is the spec; add before self-host): reject
 a cyclic call graph (Alpha bans recursion — calls must be a DAG); >4-arg calls

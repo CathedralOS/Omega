@@ -18,8 +18,8 @@ use crate::lex::{token_text, Token, TokenKind};
 enum FieldKind {
     Scalar,      // i32-width value, occupies 8 bytes
     Boundary,    // a capability handle (e.g. Console): zero runtime storage
-    Data(usize), // a nested data type (occupies that type's size)
-    Array(i32),  // [scalar; N]: N elements of 8 bytes each
+    Data(usize),     // a nested data type (occupies that type's size)
+    Array(i32, i32), // [scalar; N]: (count, element_bytes); u8 = 1 byte, others = 8
 }
 
 struct DataFieldInfo {
@@ -115,15 +115,15 @@ impl<'a> Parser<'a> {
                 "alpha-onramp: 'self.{}' is a nested struct; only scalar fields are supported (slice 7a)",
                 String::from_utf8_lossy(field)
             )),
-            FieldKind::Array(_) => Err(format!(
+            FieldKind::Array(..) => Err(format!(
                 "alpha-onramp: 'self.{}' is an array; index it with [..]",
                 String::from_utf8_lossy(field)
             )),
         }
     }
 
-    // Resolve `self.<array>` to (byte offset, element count) for indexing.
-    fn self_array_field(&self, field: &[u8]) -> Result<(i32, i32), String> {
+    // Resolve `self.<array>` to (byte offset, element count, element bytes) for indexing.
+    fn self_array_field(&self, field: &[u8]) -> Result<(i32, i32, i32), String> {
         let data_type = self.self_data_type.ok_or_else(|| {
             "alpha-onramp: `self` used in a machine with no receiver".to_string()
         })?;
@@ -134,7 +134,7 @@ impl<'a> Parser<'a> {
                 format!("alpha-onramp: unknown field 'self.{}'", String::from_utf8_lossy(field))
             })?;
         match info.kind {
-            FieldKind::Array(count) => Ok((info.offset, count)),
+            FieldKind::Array(count, element_bytes) => Ok((info.offset, count, element_bytes)),
             _ => Err(format!(
                 "alpha-onramp: 'self.{}' is not an array",
                 String::from_utf8_lossy(field)
@@ -265,7 +265,8 @@ impl<'a> Parser<'a> {
                     .parse()
                     .map_err(|_| "alpha-onramp: bad array length".to_string())?;
                 self.expect(TokenKind::RBracket)?;
-                (FieldKind::Array(count), count * 8)
+                let element_bytes = if element == b"u8" { 1 } else { 8 };
+                (FieldKind::Array(count, element_bytes), count * element_bytes)
             } else if self.current_kind() == TokenKind::Amp {
                 return Err("alpha-onramp: ref/slice data fields are unsupported (slice 7a)".into());
             } else {
@@ -275,7 +276,7 @@ impl<'a> Parser<'a> {
                     FieldKind::Scalar => 8,
                     FieldKind::Boundary => 0,
                     FieldKind::Data(index) => self.data_type_sizes[index],
-                    FieldKind::Array(count) => count * 8,
+                    FieldKind::Array(count, element_bytes) => count * element_bytes,
                 };
                 (kind, size)
             };
@@ -652,7 +653,7 @@ impl<'a> Parser<'a> {
             if segments[0] != b"self" || segments.len() != 2 {
                 return Err("alpha-onramp: only `self.<array>[i] = ...` is supported (slice 7b)".into());
             }
-            let (offset, count) = self.self_array_field(&segments[1])?;
+            let (offset, count, element_bytes) = self.self_array_field(&segments[1])?;
             self.bump(); // [
             let index = self.parse_expression()?;
             self.expect(TokenKind::RBracket)?;
@@ -661,7 +662,7 @@ impl<'a> Parser<'a> {
             if self.current_kind() == TokenKind::Semi {
                 self.bump();
             }
-            return Ok(Statement::StoreSelfIndex(offset, count, index, value));
+            return Ok(Statement::StoreSelfIndex(offset, count, element_bytes, index, value));
         }
         if self.current_kind() == TokenKind::Eq {
             self.bump(); // =
@@ -801,11 +802,11 @@ impl<'a> Parser<'a> {
                     self.expect(TokenKind::Dot)?;
                     let field = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
                     if self.current_kind() == TokenKind::LBracket {
-                        let (offset, count) = self.self_array_field(&field)?;
+                        let (offset, count, element_bytes) = self.self_array_field(&field)?;
                         self.bump(); // [
                         let index = self.parse_expression()?;
                         self.expect(TokenKind::RBracket)?;
-                        return Ok(self.add_expression(Expr::SelfIndex(offset, count, index)));
+                        return Ok(self.add_expression(Expr::SelfIndex(offset, count, element_bytes, index)));
                     }
                     let offset = self.self_field_offset(&field)?;
                     return Ok(self.add_expression(Expr::SelfField(offset)));
