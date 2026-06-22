@@ -1,3 +1,5 @@
 *.tape
 *.num
 seed/*.exe
+seed/*.tape
+seed/*.num

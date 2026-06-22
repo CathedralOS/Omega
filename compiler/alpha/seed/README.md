@@ -43,5 +43,25 @@ intended instructions — a *read-only* check; it never produces the artifact.
   rbx/rsi/rdi/r12). Verified: an embedded "write ABC\n" tape prints `ABC`, and an
   embedded echo tape cats stdin→stdout.
 
-Next: load the tape from a stdin length-prefix (so the same VM runs any tape), then
-run `../as.tape` and reproduce the self-hosting fixed point with no Rust in the loop.
+- **M4 — DONE: the trust root is off Rust.** The VM is now general: it reads the
+  tape from a 4-byte little-endian length prefix on stdin, loads it into VM memory,
+  then runs it (the rest of stdin is the program's input). I/O is factored into
+  self-aligning `getbyte`/`putbyte` subroutines. The hand-assembled VM runs the
+  Alpha assembler (`../as.asm`) on the assembler's own source and reproduces the
+  assembler tape byte-for-byte, across two generations entirely on the hand-VM:
+  `as.tape == as1 == as2` (3003 bytes). **No Rust or LLVM is in the VM's
+  provenance** — it is materialized from the hand-authored `vm.hex`. Run
+  `selfhost.sh`.
+
+## What this means
+
+The trust chain now bottoms out at `vm.hex` — a few hundred hand-authored,
+hand-auditable x64 instructions — instead of the Rust+LLVM toolchain. Everything
+above (the assembler, and anything written in Alpha assembly) is a checkable tape
+that the audited VM reproduces. The Rust `vm`/`asm` in `../../alpha-rs` are now only
+a convenience reference; `selfhost.sh` needs the Rust `asm` solely to mint the
+*initial* tape, which the hand-VM then reproduces from source.
+
+Remaining toward full purity: hand-assemble (or independently re-derive) the
+*assembler tape* too, so even the initial tape doesn't come from the Rust on-ramp;
+and a `.hex`-level audit pass / a second materializer path (DDC) over `vm.hex`.
