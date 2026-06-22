@@ -47,7 +47,7 @@ intended instructions — a *read-only* check; it never produces the artifact.
   tape from a 4-byte little-endian length prefix on stdin, loads it into VM memory,
   then runs it (the rest of stdin is the program's input). I/O is factored into
   self-aligning `getbyte`/`putbyte` subroutines. The hand-assembled VM runs the
-  Alpha assembler (`../as.asm`) on the assembler's own source and reproduces the
+  Alpha assembler (`../assembler.alp`) on the assembler's own source and reproduces the
   assembler tape byte-for-byte, across two generations entirely on the hand-VM:
   `as.tape == as1 == as2` (3003 bytes). **No Rust or LLVM is in the VM's
   provenance** — it is materialized from the hand-authored `vm.hex`. Run

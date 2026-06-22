@@ -1,4 +1,4 @@
-// Alpha tape-VM instruction set — shared by the assembler (asm.rs) and the VM
+// Alpha tape-VM instruction set — shared by the assembler (assembler.rs) and the VM
 // (vm.rs) so they can never disagree on encoding.
 //
 // A program is a flat bytecode tape, loaded at address 0; PC starts at 0. There are

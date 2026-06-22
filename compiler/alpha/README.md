@@ -30,30 +30,34 @@ read rD              write rS
 ## Build / run
 
 ```
-cd ../alpha-rs && cargo build            # builds vm + asm
-../alpha-rs/target/debug/asm arith.asm arith.tape
-../alpha-rs/target/debug/vm  arith.tape; echo $?      # -> 42
-../alpha-rs/target/debug/asm echo.asm echo.tape
-printf 'hi' | ../alpha-rs/target/debug/vm echo.tape   # -> hi
+cd ../alpha-rs && cargo build            # builds vm + assembler
+../alpha-rs/target/debug/assembler multiply.alp multiply.tape
+../alpha-rs/target/debug/vm        multiply.tape; echo $?   # -> 42
+../alpha-rs/target/debug/assembler echo.alp echo.tape
+printf 'hi' | ../alpha-rs/target/debug/vm echo.tape         # -> hi
 ```
+
+Alpha-assembly source files are `.alp`. The bytecode tapes they assemble to are
+`.tape`.
 
 ## ✅ Self-hosting reached
 
-`as.asm` is an assembler written **in Alpha-assembly** (a two-pass, label-resolving
-assembler). The VM runs it to reproduce its own bytecode tape:
+`assembler.alp` is an assembler written **in Alpha-assembly** (a two-pass,
+label-resolving assembler). The VM runs it to reproduce its own bytecode tape:
 
 ```
-asm as.asm as0.tape          # Rust on-ramp builds the assembler
-asm --num as.asm > as.num     # numeric form of its own source
-vm as0.tape < as.num > as1.tape   # the assembler assembles itself
-vm as1.tape < as.num > as2.tape   # ...and again
-cmp as1.tape as2.tape         # byte-identical  (and as1 == as0)
+assembler assembler.alp a0.tape          # Rust on-ramp builds the assembler
+assembler --num assembler.alp > a.num     # numeric form of its own source
+vm a0.tape < a.num > a1.tape   # the assembler assembles itself
+vm a1.tape < a.num > a2.tape   # ...and again
+cmp a1.tape a2.tape            # byte-identical  (and a1 == a0)
 ```
 
 `build.sh` runs the whole chain. So the **trust root is the tiny VM alone** — the
 assembler (labels, two passes, encoding) is a checkable tape that reproduces itself.
 
-`as.asm` is authored in mnemonics for readability; `asm --num` lowers it to the
-numeric-opcode form the assembler itself reads (mnemonics -> opcode numbers, labels
-preserved). The asm-in-asm carries no mnemonic table — that keeps it small; the
-mnemonic alias is the only thing outside the self-hosting loop (a trivial 1:1 map).
+`assembler.alp` is authored in mnemonics for readability; `assembler --num` lowers it
+to the numeric-opcode form the assembler itself reads (mnemonics -> opcode numbers,
+labels preserved). The assembler-in-Alpha carries no mnemonic table — that keeps it
+small; the mnemonic alias is the only thing outside the self-hosting loop (a trivial
+1:1 map).

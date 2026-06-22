@@ -1,7 +1,7 @@
-; as.asm — the Alpha assembler, written in Alpha assembly. Reads assembly text on
-; stdin, writes a bytecode tape on stdout. Two passes: pass 1 records label
+; assembler.alp — the Alpha assembler, written in Alpha assembly. Reads assembly text
+; on stdin, writes a bytecode tape on stdout. Two passes: pass 1 records label
 ; addresses, pass 2 emits, resolving label references. This is the self-hosting
-; target: assembled to as.tape, then `vm as.tape < as.asm` reproduces as.tape.
+; target: assembled to a tape, which the VM then runs to reproduce that tape.
 ;
 ; The source language is NUMERIC opcodes + labels (no mnemonic table — that keeps the
 ; assembler small). Operands: a register/immediate is a decimal number; a jump/call
