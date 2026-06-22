@@ -82,12 +82,21 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
   forward references in any source order. (Recursion is permitted for now, as in the
   on-ramp; DAG-purity is deferred.)
 
+- **Increment 7b — `data` + `self` fields + methods: DONE.** `prescan_data` lays
+  out the data type's fields (scalar 8B, capability 0B, arrays N×width). The entry
+  machine's `self` is a zero-init `.data` section reached via a self-pointer
+  (`lea rax,[rip+data]` + a patched RIP-relative reloc; methods get self in rcx).
+  `self.field` reads/writes go through it; `self.m(args)` method calls pass self in
+  rcx and args in rdx/r8/r9. `write_pe` now emits a two-section PE (`.text` +
+  writable `.data`) when there's data. Verified: mutable self fields (10/34),
+  a counter held in `self` across a loop (5), `bump`×3 (3), `add_to(5)` (15);
+  no-data programs still emit a single-section PE.
+
 ## Next increments
 
-7b. `data` structs + `self` fields + `&mut self` method calls (the self-pointer,
-    a `.data` PE section). 7c: arrays + trap-checked indexing. 7d: byte I/O +
-    the import-table PE path. Then `alphac` compiles `alphac.alp` and the fixed
-    point closes.
+7c. Array fields + trap-checked indexing `self.arr[i]` (the `[`-led read/write —
+    layout is already computed). 7d: byte I/O + the import-table PE path. Then
+    `alphac` compiles `alphac.alp` and the fixed point closes.
 
 ## Known gaps to fix in the on-ramp as they surface
 

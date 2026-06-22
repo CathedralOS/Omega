@@ -91,6 +91,9 @@ data Main {
     machine_has_self: i32;        // does the machine being emitted take `&mut self`?
     data_reloc_at: i32;           // code offset of the entry's `lea rax,[rip+data]` disp32
     field_offset_result: i32;     // resolve_field scratch
+    data_raw_size: i32;           // .data size rounded up to FileAlignment
+    data_rva: i32;                // .data virtual address
+    section_count: i32;           // 1 (.text only) or 2 (.text + .data)
 }
 
 // --- byte classifiers (free machines returning 0/1) ---
@@ -515,65 +518,109 @@ machine Main::lex(&mut self) {
 
 machine Main::write_pe(&mut self) {
     self.raw_section_size = align_up(self.code_length, 512);
-    self.image_size = 4096 + align_up(self.code_length, 4096);
+    self.data_raw_size = align_up(self.data_size, 512);
+    self.data_rva = 4096 + align_up(self.code_length, 4096);
+    transition self.data_size { 0 -> no_data() _ -> with_data() }
 
-    write_byte(77); write_byte(90);  // "MZ"
-    emit_zeros(58);
-    emit_u32(64);                    // e_lfanew = 0x40
+    state no_data() {
+        self.image_size = 4096 + align_up(self.code_length, 4096);
+        self.section_count = 1;
+        transition 0 { _ -> headers() }
+    }
+    state with_data() {
+        self.image_size = self.data_rva + align_up(self.data_size, 4096);
+        self.section_count = 2;
+        // patch the entry's `lea rax,[rip+disp32]` to point at the .data section
+        self.patch_i32(self.data_reloc_at, self.data_rva - (4096 + self.data_reloc_at + 4));
+        transition 0 { _ -> headers() }
+    }
 
-    write_byte(80); write_byte(69); write_byte(0); write_byte(0); // "PE\0\0"
-    emit_u16(34404); emit_u16(1);    // Machine x86-64, 1 section
-    emit_u32(0); emit_u32(0); emit_u32(0);
-    emit_u16(240); emit_u16(34);     // SizeOfOptionalHeader, Characteristics
+    state headers() {
+        write_byte(77); write_byte(90);  // "MZ"
+        emit_zeros(58);
+        emit_u32(64);                    // e_lfanew = 0x40
 
-    emit_u16(523);                   // PE32+
-    write_byte(0); write_byte(0);
-    emit_u32(self.raw_section_size); // SizeOfCode
-    emit_u32(0); emit_u32(0);
-    emit_u32(4096); emit_u32(4096);  // entry point, base of code
-    emit_u32(1073741824); emit_u32(1); // ImageBase = 0x140000000
-    emit_u32(4096); emit_u32(512);   // section + file alignment
-    emit_u16(6); emit_u16(0); emit_u16(0); emit_u16(0); emit_u16(6); emit_u16(0);
-    emit_u32(0);
-    emit_u32(self.image_size);
-    emit_u32(512);                   // SizeOfHeaders
-    emit_u32(0);
-    emit_u16(3); emit_u16(0);        // Subsystem = console
-    emit_u32(1048576); emit_u32(0);
-    emit_u32(4096); emit_u32(0);
-    emit_u32(1048576); emit_u32(0);
-    emit_u32(4096); emit_u32(0);
-    emit_u32(0); emit_u32(16);
-    emit_zeros(128);                 // 16 data directories
+        write_byte(80); write_byte(69); write_byte(0); write_byte(0); // "PE\0\0"
+        emit_u16(34404); emit_u16(self.section_count); // Machine x86-64, section count
+        emit_u32(0); emit_u32(0); emit_u32(0);
+        emit_u16(240); emit_u16(34);     // SizeOfOptionalHeader, Characteristics
 
-    write_byte(46); write_byte(116); write_byte(101); write_byte(120); write_byte(116); // ".text"
-    write_byte(0); write_byte(0); write_byte(0);
-    emit_u32(self.code_length);
-    emit_u32(4096);
-    emit_u32(self.raw_section_size);
-    emit_u32(512);
-    emit_u32(0); emit_u32(0);
-    emit_u16(0); emit_u16(0);
-    emit_u32(1610612768);            // 0x60000020
-    emit_zeros(144);                 // pad headers 368 -> 512
+        emit_u16(523);                   // PE32+
+        write_byte(0); write_byte(0);
+        emit_u32(self.raw_section_size); // SizeOfCode
+        emit_u32(self.data_raw_size);    // SizeOfInitializedData
+        emit_u32(0);
+        emit_u32(4096); emit_u32(4096);  // entry point, base of code
+        emit_u32(1073741824); emit_u32(1); // ImageBase = 0x140000000
+        emit_u32(4096); emit_u32(512);   // section + file alignment
+        emit_u16(6); emit_u16(0); emit_u16(0); emit_u16(0); emit_u16(6); emit_u16(0);
+        emit_u32(0);
+        emit_u32(self.image_size);
+        emit_u32(512);                   // SizeOfHeaders
+        emit_u32(0);
+        emit_u16(3); emit_u16(0);        // Subsystem = console
+        emit_u32(1048576); emit_u32(0);
+        emit_u32(4096); emit_u32(0);
+        emit_u32(1048576); emit_u32(0);
+        emit_u32(4096); emit_u32(0);
+        emit_u32(0); emit_u32(16);
+        emit_zeros(128);                 // 16 data directories
 
-    self.write_cursor = 0;
-    transition 0 { _ -> code_step() }
+        write_byte(46); write_byte(116); write_byte(101); write_byte(120); write_byte(116); // ".text"
+        write_byte(0); write_byte(0); write_byte(0);
+        emit_u32(self.code_length);
+        emit_u32(4096);
+        emit_u32(self.raw_section_size);
+        emit_u32(512);
+        emit_u32(0); emit_u32(0);
+        emit_u16(0); emit_u16(0);
+        emit_u32(1610612768);            // 0x60000020 (code | execute | read)
+        transition self.data_size { 0 -> pad_one_section() _ -> data_header() }
+    }
+    state data_header() {
+        write_byte(46); write_byte(100); write_byte(97); write_byte(116); write_byte(97); // ".data"
+        write_byte(0); write_byte(0); write_byte(0);
+        emit_u32(self.data_size);              // VirtualSize
+        emit_u32(self.data_rva);               // VirtualAddress
+        emit_u32(self.data_raw_size);          // SizeOfRawData
+        emit_u32(512 + self.raw_section_size); // PointerToRawData (after .text)
+        emit_u32(0); emit_u32(0);
+        emit_u16(0); emit_u16(0);
+        write_byte(64); write_byte(0); write_byte(0); write_byte(192); // 0xC0000040 (init|read|write)
+        emit_zeros(104);                       // pad headers 408 -> 512
+        transition 0 { _ -> emit_text() }
+    }
+    state pad_one_section() {
+        emit_zeros(144);                       // pad headers 368 -> 512
+        transition 0 { _ -> emit_text() }
+    }
+
+    state emit_text() {
+        self.write_cursor = 0;
+        transition 0 { _ -> code_step() }
+    }
     state code_step() {
-        transition self.write_cursor < self.code_length { true -> code_one() false -> pad_step() }
+        transition self.write_cursor < self.code_length { true -> code_one() false -> code_pad() }
     }
     state code_one() {
         write_byte(self.code[self.write_cursor]);
         self.write_cursor = self.write_cursor + 1;
         transition 0 { _ -> code_step() }
     }
-    state pad_step() {
-        transition self.write_cursor < self.raw_section_size { true -> pad_one() false -> done() }
+    state code_pad() {
+        transition self.write_cursor < self.raw_section_size { true -> code_pad_one() false -> emit_data() }
     }
-    state pad_one() {
+    state code_pad_one() {
         write_byte(0);
         self.write_cursor = self.write_cursor + 1;
-        transition 0 { _ -> pad_step() }
+        transition 0 { _ -> code_pad() }
+    }
+    state emit_data() {
+        transition self.data_size { 0 -> done() _ -> data_bytes() }
+    }
+    state data_bytes() {
+        emit_zeros(self.data_raw_size); // .data is zero-initialized
+        transition 0 { _ -> done() }
     }
     state done() { }
 }
@@ -691,6 +738,12 @@ machine Main::is_return(&mut self, token: i32) -> i32 {
 machine Main::is_data(&mut self, token: i32) -> i32 {
     self.keyword_bytes[0] = 100; self.keyword_bytes[1] = 97; self.keyword_bytes[2] = 116;
     self.keyword_bytes[3] = 97; // d a t a
+    return self.keyword_equals(token, 4);
+}
+
+machine Main::is_self(&mut self, token: i32) -> i32 {
+    self.keyword_bytes[0] = 115; self.keyword_bytes[1] = 101; self.keyword_bytes[2] = 108;
+    self.keyword_bytes[3] = 102; // s e l f
     return self.keyword_equals(token, 4);
 }
 
@@ -1174,8 +1227,28 @@ machine Main::compile_expr(&mut self) {
         self.token_position = self.token_position + 1;
         transition 0 { _ -> step() }
     }
-    // an identifier is either a call `name(...)` or a local load
+    // an identifier is `self.<field>` / `self.<method>(...)`, a free call `name(...)`,
+    // or a local load
     state operand_name() {
+        transition self.is_self(self.token_position) { 1 -> operand_self() _ -> operand_name2() }
+    }
+    state operand_self() {
+        self.token_position = self.token_position + 2; // skip 'self' '.'
+        transition self.token_kind[self.token_position + 1] { 5 -> operand_self_call() _ -> operand_self_field() } // 5 = '('
+    }
+    state operand_self_call() {
+        self.compile_self_call(); // method call; leaves the result pushed
+        transition 0 { _ -> step() }
+    }
+    state operand_self_field() {
+        self.field_offset_result = self.resolve_field(self.token_position);
+        self.token_position = self.token_position + 1; // skip field name
+        self.emit_byte(72); self.emit_byte(139); self.emit_byte(133); self.emit_i32(0 - 512); // mov rax,[rbp-512]
+        self.emit_byte(139); self.emit_byte(128); self.emit_i32(self.field_offset_result);    // mov eax,[rax+off]
+        self.emit_byte(80); // push rax
+        transition 0 { _ -> step() }
+    }
+    state operand_name2() {
         transition self.token_kind[self.token_position + 1] { 5 -> operand_call() _ -> operand_local() } // 5 = '('
     }
     state operand_call() {
@@ -1278,6 +1351,60 @@ machine Main::compile_call(&mut self) {
     }
 }
 
+// Compile a method call `self.m(args)` with token_position at the method name:
+// like compile_call, but self goes in rcx and the args shift to rdx/r8/r9.
+machine Main::compile_self_call(&mut self) {
+    let callee: i32 = self.resolve_machine(self.token_position);
+    let argument_count: i32 = 0;
+    let load_index: i32 = 0;
+    self.token_position = self.token_position + 2; // skip name '('
+    transition 0 { _ -> arg_loop() }
+    state arg_loop() {
+        transition self.token_kind[self.token_position] { 6 -> begin_loads() _ -> one_arg() } // 6 = ')'
+    }
+    state one_arg() {
+        self.compile_expr();
+        argument_count = argument_count + 1;
+        transition self.token_kind[self.token_position] { 12 -> skip_comma() _ -> arg_loop() } // 12 = ','
+    }
+    state skip_comma() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> arg_loop() }
+    }
+    state begin_loads() {
+        self.token_position = self.token_position + 1; // skip ')'
+        transition 0 { _ -> load_loop() }
+    }
+    state load_loop() {
+        transition load_index < argument_count { true -> load_one() false -> discard_args() }
+    }
+    state load_one() {
+        self.emit_load_arg(load_index + 1, 8 * (argument_count - 1 - load_index)); // +1: skip rcx (=self)
+        load_index = load_index + 1;
+        transition 0 { _ -> load_loop() }
+    }
+    state discard_args() {
+        transition argument_count { 0 -> pass_self() _ -> drop() }
+    }
+    state drop() {
+        self.emit_byte(72); self.emit_byte(131); self.emit_byte(196); // add rsp, imm8
+        self.emit_byte(8 * argument_count);
+        transition 0 { _ -> pass_self() }
+    }
+    state pass_self() {
+        self.emit_byte(72); self.emit_byte(139); self.emit_byte(141); self.emit_i32(0 - 512); // mov rcx, [rbp-512]
+        transition 0 { _ -> emit_call() }
+    }
+    state emit_call() {
+        self.emit_byte(232); // call rel32
+        self.call_at[self.call_count] = self.code_length;
+        self.call_target[self.call_count] = callee;
+        self.call_count = self.call_count + 1;
+        self.emit_i32(0);    // placeholder rel32
+        self.emit_byte(80);  // push rax (return value)
+    }
+}
+
 // Pre-scan the machine body (from token_position, just past its '{') for the
 // names of its top-level states, in declaration order. Depth-aware: only `state`
 // keywords directly inside the body (depth 1) count, not ones nested in arms.
@@ -1336,7 +1463,10 @@ machine Main::compile_statement(&mut self) {
         transition self.is_transition(self.token_position) { 1 -> do_transition() _ -> not_transition() }
     }
     state not_transition() {
-        transition self.is_exit_process(self.token_position) { 1 -> do_exit() _ -> maybe_ident() }
+        transition self.is_exit_process(self.token_position) { 1 -> do_exit() _ -> not_exit() }
+    }
+    state not_exit() {
+        transition self.is_self(self.token_position) { 1 -> self_statement() _ -> maybe_ident() }
     }
     state maybe_ident() {
         transition self.token_kind[self.token_position] { 1 -> ident_statement() _ -> skip_one() } // 1 = Ident
@@ -1365,6 +1495,42 @@ machine Main::compile_statement(&mut self) {
         self.compile_call(); // pushes the result
         self.emit_byte(88);  // pop rax (discard it)
         transition self.token_kind[self.token_position] { 9 -> skip_semicolon() _ -> done() }
+    }
+
+    // a `self`-led statement: a field write, a method-call statement, or a
+    // capability call `self.console.exit_process(...)`. Dispatch on the token after
+    // the field name — i.e. self(.0) .(.1) field(.2) <here .3>.
+    state self_statement() {
+        transition self.token_kind[self.token_position + 3] {
+            15 -> self_field_write()     // self . field =
+            5 -> self_method_statement() // self . method (
+            13 -> self_boundary()        // self . capability . op (...)
+            _ -> skip_one()
+        }
+    }
+    state self_field_write() {
+        self.token_position = self.token_position + 2; // skip 'self' '.'
+        self.field_offset_result = self.resolve_field(self.token_position);
+        self.token_position = self.token_position + 2; // skip field '='
+        self.compile_expr();
+        self.emit_byte(89);  // pop rcx (value)
+        self.emit_byte(72); self.emit_byte(139); self.emit_byte(133); self.emit_i32(0 - 512); // mov rax,[rbp-512]
+        self.emit_byte(137); self.emit_byte(136); self.emit_i32(self.field_offset_result);    // mov [rax+off],ecx
+        transition self.token_kind[self.token_position] { 9 -> skip_semicolon() _ -> done() }
+    }
+    state self_method_statement() {
+        self.token_position = self.token_position + 2; // skip 'self' '.' (at method name)
+        self.compile_self_call(); // pushes the result
+        self.emit_byte(88);       // pop rax (discard it)
+        transition self.token_kind[self.token_position] { 9 -> skip_semicolon() _ -> done() }
+    }
+    state self_boundary() {
+        self.token_position = self.token_position + 4; // skip 'self' '.' capability '.'
+        transition 0 { _ -> boundary_op() }
+    }
+    state boundary_op() {
+        // exit_process is the only capability op compiled for now (I/O comes in 7d)
+        transition self.is_exit_process(self.token_position) { 1 -> do_exit() _ -> skip_one() }
     }
 
     state do_let() {
@@ -1546,6 +1712,7 @@ machine Main::emit_machine(&mut self, machine_index: i32) {
     self.state_count = 0;
     self.state_emit_index = 0;
     self.fixup_count = 0;
+    self.machine_has_self = 0;
     self.token_position = self.token_position + 1; // skip 'machine'
     transition 0 { _ -> skip_name() }
 
@@ -1565,13 +1732,33 @@ machine Main::emit_machine(&mut self, machine_index: i32) {
         transition 0 { _ -> param_loop() }
     }
     state param_loop() {
-        transition self.token_kind[self.token_position] { 6 -> close_params() _ -> one_param() } // 6 = ')'
+        transition self.token_kind[self.token_position] {
+            6 -> close_params()  // ')'
+            14 -> receiver()     // '&' : a `&mut self` / `&self` receiver
+            _ -> one_param()
+        }
+    }
+    state receiver() {
+        self.machine_has_self = 1;
+        self.token_position = self.token_position + 1; // skip '&'
+        transition 0 { _ -> skip_receiver() }
+    }
+    state skip_receiver() {
+        // skip the `mut` and `self` identifiers
+        transition self.token_kind[self.token_position] { 1 -> skip_receiver_word() _ -> after_param() } // 1 = Ident
+    }
+    state skip_receiver_word() {
+        self.token_position = self.token_position + 1;
+        transition 0 { _ -> skip_receiver() }
     }
     state one_param() {
         self.local_token[self.local_count] = self.token_position; // value param name
         self.local_count = self.local_count + 1;
         self.param_count = self.param_count + 1;
         self.token_position = self.token_position + 3; // skip IDENT ':' TYPE
+        transition 0 { _ -> after_param() }
+    }
+    state after_param() {
         transition self.token_kind[self.token_position] { 12 -> skip_param_comma() _ -> param_loop() } // 12 = ','
     }
     state skip_param_comma() {
@@ -1597,12 +1784,32 @@ machine Main::emit_machine(&mut self, machine_index: i32) {
         transition 0 { _ -> spill_loop() }
     }
     state spill_loop() {
-        transition spill_index < self.param_count { true -> spill_one() false -> body() }
+        transition spill_index < self.param_count { true -> spill_one() false -> setup_self() }
     }
     state spill_one() {
-        self.emit_spill_param(spill_index, spill_index);
+        // a `&mut self` method takes self in rcx, so value params start at register 1
+        self.emit_spill_param(spill_index, spill_index + self.machine_has_self);
         spill_index = spill_index + 1;
         transition 0 { _ -> spill_loop() }
+    }
+    state setup_self() {
+        transition self.machine_has_self { 1 -> self_present() _ -> body() }
+    }
+    state self_present() {
+        transition machine_index == self.entry_machine { true -> entry_self() false -> method_self() }
+    }
+    state entry_self() {
+        // self = the static .data instance:  lea rax, [rip+disp32] ; mov [rbp-512], rax
+        self.emit_byte(72); self.emit_byte(141); self.emit_byte(5); // 48 8D 05 (lea rax,[rip+disp32])
+        self.data_reloc_at = self.code_length;
+        self.emit_i32(0); // disp32 placeholder, patched in write_pe
+        self.emit_byte(72); self.emit_byte(137); self.emit_byte(133); self.emit_i32(0 - 512); // mov [rbp-512], rax
+        transition 0 { _ -> body() }
+    }
+    state method_self() {
+        // self came in rcx:  mov [rbp-512], rcx
+        self.emit_byte(72); self.emit_byte(137); self.emit_byte(141); self.emit_i32(0 - 512); // 48 89 8D disp32
+        transition 0 { _ -> body() }
     }
     state body() {
         self.token_position = self.token_position + 1; // skip the body '{'
