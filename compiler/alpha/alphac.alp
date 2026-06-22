@@ -83,6 +83,14 @@ data Main {
     target_machine: i32;          // patch_calls scratch
     emit_machine_index: i32;      // driver loop over machines
     probe: i32;                   // prescan_machines name-finding cursor
+    field_name_token: [i32; 256]; // data Main's field names (token index)
+    field_offset: [i32; 256];     // each field's byte offset within the instance
+    field_elem_bytes: [i32; 256]; // element width for array fields (1 or 8), else 0
+    field_count: i32;
+    data_size: i32;               // total bytes of the Main instance (the .data section)
+    machine_has_self: i32;        // does the machine being emitted take `&mut self`?
+    data_reloc_at: i32;           // code offset of the entry's `lea rax,[rip+data]` disp32
+    field_offset_result: i32;     // resolve_field scratch
 }
 
 // --- byte classifiers (free machines returning 0/1) ---
@@ -680,6 +688,12 @@ machine Main::is_return(&mut self, token: i32) -> i32 {
     return self.keyword_equals(token, 6);
 }
 
+machine Main::is_data(&mut self, token: i32) -> i32 {
+    self.keyword_bytes[0] = 100; self.keyword_bytes[1] = 97; self.keyword_bytes[2] = 116;
+    self.keyword_bytes[3] = 97; // d a t a
+    return self.keyword_equals(token, 4);
+}
+
 machine Main::is_machine(&mut self, token: i32) -> i32 {
     self.keyword_bytes[0] = 109; self.keyword_bytes[1] = 97; self.keyword_bytes[2] = 99;
     self.keyword_bytes[3] = 104; self.keyword_bytes[4] = 105; self.keyword_bytes[5] = 110;
@@ -839,6 +853,124 @@ machine Main::patch_calls(&mut self) {
         transition 0 { _ -> step() }
     }
     state done() { }
+}
+
+// Lay out the (single) `data` type's fields: each scalar field is 8 bytes, a
+// boundary capability (an uppercase type name, e.g. Console) is 0, and an array
+// `[u8;N]`/`[i32;N]` is N*1 / N*8. Records each field's name token + byte offset,
+// and the total instance size (the .data section). alphac.alp has one data type.
+machine Main::prescan_data(&mut self) {
+    self.field_count = 0;
+    self.data_size = 0;
+    self.scan_position = 0;
+    self.brace_depth = 0;
+    transition 0 { _ -> step() }
+    state step() {
+        transition self.scan_position < self.token_count { true -> look() false -> done() }
+    }
+    state look() {
+        transition self.token_kind[self.scan_position] {
+            3 -> open()
+            4 -> close()
+            _ -> maybe_data()
+        }
+    }
+    state open() { self.brace_depth = self.brace_depth + 1; transition 0 { _ -> advance() } }
+    state close() { self.brace_depth = self.brace_depth - 1; transition 0 { _ -> advance() } }
+    state maybe_data() {
+        transition self.brace_depth { 0 -> check_data() _ -> advance() }
+    }
+    state check_data() {
+        transition self.is_data(self.scan_position) { 1 -> enter_data() _ -> advance() }
+    }
+    state advance() {
+        self.scan_position = self.scan_position + 1;
+        transition 0 { _ -> step() }
+    }
+    state enter_data() {
+        self.scan_position = self.scan_position + 3; // skip 'data' NAME '{'
+        transition 0 { _ -> field_loop() }
+    }
+    state field_loop() {
+        transition self.token_kind[self.scan_position] { 4 -> done() _ -> a_field() } // '}' ends the data body
+    }
+    state a_field() {
+        self.field_name_token[self.field_count] = self.scan_position;
+        self.field_offset[self.field_count] = self.data_size;
+        self.field_elem_bytes[self.field_count] = 0;
+        self.scan_position = self.scan_position + 2; // skip IDENT ':'
+        transition self.token_kind[self.scan_position] {
+            7 -> array_field()  // '[' : an array type
+            _ -> scalar_field() // an identifier type (scalar or boundary)
+        }
+    }
+    state scalar_field() {
+        self.left_byte = self.source[self.token_start[self.scan_position]];
+        transition self.left_byte < 97 { true -> boundary_size() false -> scalar_size() } // < 'a' = uppercase = boundary
+    }
+    state scalar_size() {
+        self.data_size = self.data_size + 8;
+        self.scan_position = self.scan_position + 1;
+        transition 0 { _ -> finish_field() }
+    }
+    state boundary_size() {
+        self.scan_position = self.scan_position + 1; // a capability occupies no storage
+        transition 0 { _ -> finish_field() }
+    }
+    state array_field() {
+        self.scan_position = self.scan_position + 1; // skip '['
+        transition self.token_length[self.scan_position] { 2 -> array_byte() _ -> array_word() } // "u8" is 2 chars
+    }
+    state array_byte() {
+        self.field_elem_bytes[self.field_count] = 1;
+        transition 0 { _ -> array_count() }
+    }
+    state array_word() {
+        self.field_elem_bytes[self.field_count] = 8;
+        transition 0 { _ -> array_count() }
+    }
+    state array_count() {
+        self.scan_position = self.scan_position + 2; // skip element type and ';'
+        self.pending_value = self.token_int(self.scan_position);
+        self.data_size = self.data_size + self.pending_value * self.field_elem_bytes[self.field_count];
+        self.scan_position = self.scan_position + 2; // skip N and ']'
+        transition 0 { _ -> finish_field() }
+    }
+    state finish_field() {
+        self.field_count = self.field_count + 1;
+        transition self.token_kind[self.scan_position] {
+            9 -> skip_semicolon() // ';'
+            4 -> done()           // '}' (last field, no trailing ;)
+            _ -> skip_token()
+        }
+    }
+    state skip_token() {
+        self.scan_position = self.scan_position + 1;
+        transition 0 { _ -> finish_field() }
+    }
+    state skip_semicolon() {
+        self.scan_position = self.scan_position + 1;
+        transition 0 { _ -> field_loop() }
+    }
+    state done() { }
+}
+
+// Resolve a field-name token to its byte offset within the data instance.
+machine Main::resolve_field(&mut self, name_token: i32) -> i32 {
+    self.resolve_position = 0;
+    transition 0 { _ -> step() }
+    state step() {
+        transition self.resolve_position < self.field_count { true -> check() false -> not_found() }
+    }
+    state check() {
+        transition self.tokens_equal(self.field_name_token[self.resolve_position], name_token) { 1 -> found() _ -> next() }
+    }
+    state next() {
+        self.resolve_position = self.resolve_position + 1;
+        transition 0 { _ -> step() }
+    }
+    state found() { return self.field_offset[self.resolve_position]; }
+    state not_found() { return 0; }
 }
 
 // --- machine-code emission into self.code ---
@@ -1378,6 +1510,7 @@ machine Main::parse(&mut self) {
     self.call_count = 0;
     self.token_position = 0;
     self.prescan_machines();
+    self.prescan_data(); // lay out data fields (consumed by self.field codegen in 7b part 2)
     self.emit_machine(self.entry_machine);
     self.emit_machine_index = 0;
     transition 0 { _ -> loop() }
