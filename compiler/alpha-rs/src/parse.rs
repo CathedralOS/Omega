@@ -10,7 +10,7 @@
 //   expr    := add ; add := mul (("+"|"-") mul)* ; mul := primary (("*"|"/") primary)*
 //   primary := INT | IDENT(local) | "(" expr ")"
 
-use crate::ast::{BinaryOp, Expr, Pattern, Program, Statement, TransitionArm};
+use crate::ast::{BinaryOp, Expr, Machine, Pattern, Program, Statement, TransitionArm};
 use crate::lex::{token_text, Token, TokenKind};
 
 pub struct Parser<'a> {
@@ -18,9 +18,13 @@ pub struct Parser<'a> {
     source: &'a [u8],
     position: usize,
     expressions: Vec<Expr>,
-    local_names: Vec<Vec<u8>>,
+    call_args: Vec<usize>,
     strings: Vec<Vec<u8>>,
-    state_names: Vec<Vec<u8>>, // pre-scanned state names of the current machine
+    machines: Vec<Machine>,
+    machine_names: Vec<Vec<u8>>,      // pre-scanned callable names, in machine-index order
+    local_names: Vec<Vec<u8>>,        // locals of the machine being parsed (params first)
+    state_names: Vec<Vec<u8>>,        // pre-scanned state names of the machine being parsed
+    current_machine_makes_call: bool, // set while parsing a machine that calls out
 }
 
 impl<'a> Parser<'a> {
@@ -30,14 +34,22 @@ impl<'a> Parser<'a> {
             source,
             position: 0,
             expressions: Vec::new(),
-            local_names: Vec::new(),
+            call_args: Vec::new(),
             strings: Vec::new(),
+            machines: Vec::new(),
+            machine_names: Vec::new(),
+            local_names: Vec::new(),
             state_names: Vec::new(),
+            current_machine_makes_call: false,
         }
     }
 
     fn find_state_index(&self, name: &[u8]) -> Option<usize> {
         self.state_names.iter().position(|state_name| state_name.as_slice() == name)
+    }
+
+    fn find_machine_index(&self, name: &[u8]) -> Option<usize> {
+        self.machine_names.iter().position(|machine_name| machine_name.as_slice() == name)
     }
 
     fn current_kind(&self) -> TokenKind {
@@ -71,7 +83,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_program(&mut self) -> Result<Program, String> {
-        let mut machine: Option<(Vec<Statement>, Vec<Vec<Statement>>)> = None;
+        self.prescan_machine_names()?; // so a call can name a machine defined later
         while self.current_kind() != TokenKind::Eof {
             if self.current_kind() != TokenKind::Ident {
                 return Err(format!(
@@ -81,7 +93,10 @@ impl<'a> Parser<'a> {
             }
             match self.current_text() {
                 b"boundary" | b"data" => self.skip_braced_item()?,
-                b"machine" => machine = Some(self.parse_machine_body()?),
+                b"machine" => {
+                    let machine = self.parse_machine()?;
+                    self.machines.push(machine);
+                }
                 other => {
                     return Err(format!(
                         "alpha-onramp: unsupported top-level keyword '{}' (Alpha subset)",
@@ -90,15 +105,127 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        let (entry, states) =
-            machine.ok_or_else(|| "alpha-onramp: no machine to compile".to_string())?;
-        let local_count = self.local_names.len();
+        if self.machines.is_empty() {
+            return Err("alpha-onramp: no machine to compile".into());
+        }
+        let entry_machine = self
+            .find_machine_index(b"main")
+            .ok_or_else(|| "alpha-onramp: no entry machine 'main'".to_string())?;
         Ok(Program {
+            machines: std::mem::take(&mut self.machines),
+            entry_machine,
+            expressions: std::mem::take(&mut self.expressions),
+            call_args: std::mem::take(&mut self.call_args),
+            strings: std::mem::take(&mut self.strings),
+        })
+    }
+
+    // Record each top-level machine's callable name (the identifier just before its
+    // parameter-list '('), so a call can refer to a machine declared later. Only
+    // depth-0 `machine` tokens count — `machine` inside a `boundary`/`data` block is
+    // a boundary method declaration, not a top-level machine.
+    fn prescan_machine_names(&mut self) -> Result<(), String> {
+        let mut scan = 0usize;
+        let mut depth = 0i32;
+        while self.tokens[scan].kind != TokenKind::Eof {
+            match self.tokens[scan].kind {
+                TokenKind::LBrace => depth += 1,
+                TokenKind::RBrace => depth -= 1,
+                TokenKind::Ident
+                    if depth == 0 && token_text(&self.tokens[scan], self.source) == b"machine" =>
+                {
+                    let mut last_ident: Option<usize> = None;
+                    let mut probe = scan + 1;
+                    while self.tokens[probe].kind != TokenKind::LParen
+                        && self.tokens[probe].kind != TokenKind::Eof
+                    {
+                        if self.tokens[probe].kind == TokenKind::Ident {
+                            last_ident = Some(probe);
+                        }
+                        probe += 1;
+                    }
+                    match last_ident {
+                        Some(index) => self
+                            .machine_names
+                            .push(token_text(&self.tokens[index], self.source).to_vec()),
+                        None => return Err("alpha-onramp: parse error: machine without a name".into()),
+                    }
+                }
+                _ => {}
+            }
+            scan += 1;
+        }
+        Ok(())
+    }
+
+    // machine := "machine" path "(" params ")" ("->" type)? "{" body "}"
+    // path    := IDENT ("::" IDENT)*   (callable name = last segment)
+    fn parse_machine(&mut self) -> Result<Machine, String> {
+        self.local_names.clear();
+        self.state_names.clear();
+        self.current_machine_makes_call = false;
+        self.bump(); // "machine"
+
+        // consume the name path (resolution + entry lookup use the pre-scan)
+        self.expect(TokenKind::Ident)?;
+        while self.current_kind() == TokenKind::ColonColon {
+            self.bump();
+            self.expect(TokenKind::Ident)?;
+        }
+
+        self.expect(TokenKind::LParen)?;
+        let mut param_count = 0usize;
+        while self.current_kind() != TokenKind::RParen {
+            if self.current_kind() == TokenKind::Eof {
+                return Err("alpha-onramp: parse error: unterminated parameter list".into());
+            }
+            if self.current_kind() == TokenKind::Amp {
+                // receiver `&mut self` / `&self` — the machine's data pointer, not a value param
+                self.bump(); // &
+                if self.current_kind() == TokenKind::Ident && self.current_text() == b"mut" {
+                    self.bump();
+                }
+                self.expect(TokenKind::Ident)?; // self
+            } else if self.current_kind() == TokenKind::Ident && self.current_text() == b"self" {
+                self.bump(); // by-value self
+            } else {
+                // value parameter: name ":" type  (the first params become locals 0..n)
+                let param_name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+                self.expect(TokenKind::Colon)?;
+                while self.current_kind() != TokenKind::Comma
+                    && self.current_kind() != TokenKind::RParen
+                {
+                    if self.current_kind() == TokenKind::Eof {
+                        return Err("alpha-onramp: parse error: unterminated parameter type".into());
+                    }
+                    self.bump(); // skip the type (slice 6: everything is i32-width)
+                }
+                self.local_names.push(param_name);
+                param_count += 1;
+            }
+            if self.current_kind() == TokenKind::Comma {
+                self.bump();
+            }
+        }
+        self.expect(TokenKind::RParen)?;
+
+        if self.current_kind() == TokenKind::Arrow {
+            self.bump();
+            while self.current_kind() != TokenKind::LBrace {
+                if self.current_kind() == TokenKind::Eof {
+                    return Err("alpha-onramp: parse error: unterminated return type".into());
+                }
+                self.bump(); // skip the return type
+            }
+        }
+
+        let (entry, states) = self.parse_machine_body()?;
+        Ok(Machine {
+            param_count,
+            local_count: self.local_names.len(),
+            makes_call: self.current_machine_makes_call,
             entry,
             states,
-            expressions: std::mem::take(&mut self.expressions),
-            local_count,
-            strings: std::mem::take(&mut self.strings),
         })
     }
 
@@ -128,9 +255,10 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // Parse the `{ entry-stmts state-decls }` body; the header (name, params,
+    // return type) has already been consumed by parse_machine, and local_names /
+    // state_names have been reset there (params are already in local_names).
     fn parse_machine_body(&mut self) -> Result<(Vec<Statement>, Vec<Vec<Statement>>), String> {
-        self.local_names.clear(); // per-machine locals
-        self.state_names.clear();
         while self.current_kind() != TokenKind::LBrace {
             if self.current_kind() == TokenKind::Eof {
                 return Err("alpha-onramp: parse error: expected machine body '{'".into());
@@ -294,6 +422,14 @@ impl<'a> Parser<'a> {
             }
             return Ok(Statement::Transition(subject, arms));
         }
+        if self.current_kind() == TokenKind::Ident && self.current_text() == b"return" {
+            self.bump(); // return
+            let value = self.parse_expression()?;
+            if self.current_kind() == TokenKind::Semi {
+                self.bump();
+            }
+            return Ok(Statement::Return(value));
+        }
         // first identifier: either a local reassignment `name = expr` or the
         // start of a call path `receiver.op(...)`.
         let first_identifier = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
@@ -321,6 +457,7 @@ impl<'a> Parser<'a> {
         let statement = match last_segment.as_slice() {
             b"exit_process" => Statement::Exit(self.parse_expression()?),
             b"write_line" => {
+                self.current_machine_makes_call = true;
                 let string_token = self.expect(TokenKind::Str)?;
                 let mut bytes = token_text(&string_token, self.source).to_vec();
                 bytes.push(b'\n'); // write_line appends a newline
@@ -344,6 +481,36 @@ impl<'a> Parser<'a> {
 
     fn parse_expression(&mut self) -> Result<usize, String> {
         self.parse_binary(1)
+    }
+
+    // Parse `(arg, arg, ...)` after a machine name; record args in the flat
+    // call_args arena. The leading '(' has not been consumed yet.
+    fn parse_call(&mut self, machine_index: usize) -> Result<usize, String> {
+        self.current_machine_makes_call = true;
+        self.expect(TokenKind::LParen)?;
+        let mut arg_nodes = Vec::new();
+        while self.current_kind() != TokenKind::RParen {
+            if self.current_kind() == TokenKind::Eof {
+                return Err("alpha-onramp: parse error: unterminated call arguments".into());
+            }
+            arg_nodes.push(self.parse_expression()?);
+            if self.current_kind() == TokenKind::Comma {
+                self.bump();
+            } else {
+                break;
+            }
+        }
+        self.expect(TokenKind::RParen)?;
+        if arg_nodes.len() > 4 {
+            return Err(format!(
+                "alpha-onramp: call has {} args; the on-ramp ABI supports at most 4 (slice 6)",
+                arg_nodes.len()
+            ));
+        }
+        let args_start = self.call_args.len();
+        let arg_count = arg_nodes.len();
+        self.call_args.extend(arg_nodes);
+        Ok(self.add_expression(Expr::Call(machine_index, args_start, arg_count)))
     }
 
     fn parse_binary(&mut self, min_precedence: u8) -> Result<usize, String> {
@@ -388,6 +555,15 @@ impl<'a> Parser<'a> {
             TokenKind::Ident => {
                 let token = self.bump();
                 let name = token_text(&token, self.source).to_vec();
+                if self.current_kind() == TokenKind::LParen {
+                    return match self.find_machine_index(&name) {
+                        Some(machine_index) => self.parse_call(machine_index),
+                        None => Err(format!(
+                            "alpha-onramp: call to unknown machine '{}'",
+                            String::from_utf8_lossy(&name)
+                        )),
+                    };
+                }
                 match self.find_local_index(&name) {
                     Some(local_index) => Ok(self.add_expression(Expr::Local(local_index))),
                     None => Err(format!(

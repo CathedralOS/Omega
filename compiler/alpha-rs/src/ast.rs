@@ -18,8 +18,9 @@ pub enum BinaryOp {
 #[derive(Clone, Copy)]
 pub enum Expr {
     Int(i32),
-    Local(usize),                  // index into the locals frame
+    Local(usize),                   // index into the locals frame
     Binary(BinaryOp, usize, usize), // op, lhs node, rhs node (indices into `expressions`)
+    Call(usize, usize, usize),      // machine index, args_start (into call_args), arg_count
 }
 
 // A transition arm: a pattern over the subject and the state it jumps to.
@@ -30,23 +31,33 @@ pub enum Pattern {
 
 pub struct TransitionArm {
     pub pattern: Pattern,
-    pub target: usize, // index into Program.states
+    pub target: usize, // index into the machine's states
 }
 
 pub enum Statement {
     Let(usize, usize),                     // local index, init expr node
     Assign(usize, usize),                  // local index, value expr node (reassignment)
-    Exit(usize),                           // exit-code expr node
+    Return(usize),                         // return value expr node (yields to the caller)
+    Exit(usize),                           // exit-code expr node (process exit; entry machine only)
     WriteLine(usize),                      // index into Program.strings (bytes include trailing '\n')
     Transition(usize, Vec<TransitionArm>), // subject expr node, arms (jump to a state)
 }
 
-// A machine = an entry block plus named state blocks (jump targets). A transition
-// in the entry (or in a state) jumps to a state; loops are backward jumps.
-pub struct Program {
+// A machine: a named, callable unit. The first `param_count` locals are its value
+// parameters (filled by the caller). `entry` runs first; control then jumps among
+// the named state blocks. The cross-machine call graph is a DAG.
+pub struct Machine {
+    pub param_count: usize,
+    pub local_count: usize, // params + body locals
+    pub makes_call: bool,   // calls write_line or another machine => needs ABI shadow space
     pub entry: Vec<Statement>,
-    pub states: Vec<Vec<Statement>>, // state index -> its statements
-    pub expressions: Vec<Expr>,
-    pub local_count: usize,
+    pub states: Vec<Vec<Statement>>,
+}
+
+pub struct Program {
+    pub machines: Vec<Machine>,
+    pub entry_machine: usize,   // index of the process entry (Main::main)
+    pub expressions: Vec<Expr>, // global node arena
+    pub call_args: Vec<usize>,  // flat arena of call-arg node indices (Expr::Call slices into this)
     pub strings: Vec<Vec<u8>>,
 }
