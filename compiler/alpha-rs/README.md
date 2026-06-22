@@ -45,10 +45,17 @@ cargo run -- samples/exit7.alpha out.exe
   byte-identical). This is the I/O backbone — the self-hosting compiler reads
   source and writes its output through this same machinery.
 
+- **Slice 4 — comparisons + control flow: DONE.** `< > <= >= == !=` (signed
+  cmp/setcc → 0/1). `transition <expr> { <pat> -> state() ... }` over int / `true`
+  / `false` / `_` patterns, with `state name() { ... }` blocks lowered to labels +
+  `cmp`/`je`/`jmp` (intra-text relocations patched after layout; backward jumps =
+  loops). Verified: 3-arm int dispatch (1→11, 2→22, default→99), boolean
+  transition, no regression. This is Omega's core execution model.
+
 ## Next slices (grow the grammar feature-by-feature)
 
-4. Control flow: `transition` / guards → cmp + jcc, the state/jump model
-   (Omega's core execution shape).
-5. A second machine + a call: the call-frame / DAG-call model.
-6. File I/O: `read`/`open`/`write` to a file (CreateFile/ReadFile) — the compiler
-   reads a source file and writes a `.exe`.
+5. Mutable reassignment (`x = e`) → enables real loops (counter + back-edge).
+6. Machine calls: a second machine + a call (the call-frame / DAG model).
+7. `data` structs + field access; `[T;N]` arrays + indexing (the IR arenas).
+8. File I/O: CreateFile/ReadFile/WriteFile — the compiler reads a source file and
+   writes a `.exe`. Then sum-types-as-tags, and the Alpha compiler in `compiler/alpha/`.

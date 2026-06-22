@@ -6,7 +6,7 @@
 // overflow per the Alpha spec. Slice 3 adds host calls (write_line) lowered to
 // the Win32 ABI with RIP-relative relocations resolved by the PE writer.
 
-use crate::ast::{BinOp, ExprKind, Main, Stmt};
+use crate::ast::{BinOp, ExprKind, Main, Pat, Stmt};
 use crate::util::align_up;
 
 #[derive(Clone, Copy)]
@@ -135,6 +135,73 @@ fn lower_expr(node: usize, exprs: &[ExprKind], c: &mut Vec<u8>) {
     }
 }
 
+struct Ctx<'a> {
+    m: &'a Main,
+    offsets: &'a [u32],
+    handle_disp: i32,
+    written_disp: i32,
+}
+
+fn lower_stmt(
+    s: &Stmt,
+    cx: &Ctx,
+    code: &mut Vec<u8>,
+    relocs: &mut Vec<Reloc>,
+    fixups: &mut Vec<(u32, usize)>,
+) {
+    match s {
+        Stmt::Let(idx, e) => {
+            lower_expr(*e, &cx.m.exprs, code);
+            code.push(0x58); // pop rax
+            emit_store_local(code, *idx);
+        }
+        Stmt::Exit(e) => {
+            lower_expr(*e, &cx.m.exprs, code);
+            code.push(0x58); // pop rax (exit code)
+            emit_epilogue(code);
+        }
+        Stmt::WriteLine(i) => {
+            let off = cx.offsets[*i];
+            let len = cx.m.strings[*i].len() as u32;
+            // handle = GetStdHandle(STD_OUTPUT_HANDLE = -11)
+            code.push(0xB9);
+            code.extend_from_slice(&(-11i32).to_le_bytes()); // mov ecx, -11
+            emit_rip_call(code, relocs, RelocTarget::Import(ImportFn::GetStdHandle));
+            emit_rbp_mem(code, &[0x48, 0x89], 0, cx.handle_disp); // mov [rbp+handle], rax
+            // WriteFile(handle, buf, len, &written, NULL)
+            emit_rbp_mem(code, &[0x48, 0x8B], 1, cx.handle_disp); // mov rcx, [rbp+handle]
+            emit_lea_rdx_rip(code, relocs, RelocTarget::Rodata(off)); // lea rdx, [rip+str]
+            code.extend_from_slice(&[0x41, 0xB8]);
+            code.extend_from_slice(&len.to_le_bytes()); // mov r8d, len
+            emit_rbp_mem(code, &[0x4C, 0x8D], 1, cx.written_disp); // lea r9, [rbp+written]
+            code.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // mov qword [rsp+0x20], 0
+            emit_rip_call(code, relocs, RelocTarget::Import(ImportFn::WriteFile));
+        }
+        Stmt::Transition(subject, arms) => {
+            lower_expr(*subject, &cx.m.exprs, code);
+            code.push(0x58); // pop rax (subject value)
+            for arm in arms {
+                match arm.pat {
+                    Pat::Int(v) => {
+                        code.push(0x3D);
+                        code.extend_from_slice(&v.to_le_bytes()); // cmp eax, imm32
+                        code.extend_from_slice(&[0x0F, 0x84]); // je rel32
+                        let at = code.len() as u32;
+                        code.extend_from_slice(&[0, 0, 0, 0]);
+                        fixups.push((at, arm.target));
+                    }
+                    Pat::Wild => {
+                        code.push(0xE9); // jmp rel32
+                        let at = code.len() as u32;
+                        code.extend_from_slice(&[0, 0, 0, 0]);
+                        fixups.push((at, arm.target));
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn lower_main(m: &Main) -> Lowered {
     // .rdata strings + per-string offsets
     let mut rodata = Vec::new();
@@ -145,63 +212,57 @@ pub fn lower_main(m: &Main) -> Lowered {
     }
 
     let n = m.n_locals as u32;
-    let has_calls = m.stmts.iter().any(|s| matches!(s, Stmt::WriteLine(_)));
+    let has_calls = m
+        .entry
+        .iter()
+        .chain(m.states.iter().flatten())
+        .any(|s| matches!(s, Stmt::WriteLine(_)));
     // frame = locals + (when calling: 16 scratch [written,handle] + 32 shadow + 8 fifth-arg slot)
     let extra = if has_calls { 16 + 40 } else { 0 };
     let frame = align_up(n * 8 + extra, 16);
-    let handle_disp = -((n * 8 + 16) as i32); // [rbp+handle_disp] : saved stdout HANDLE
-    let written_disp = -((n * 8 + 8) as i32); // [rbp+written_disp]: WriteFile's out DWORD
+    let cx = Ctx {
+        m,
+        offsets: &offsets,
+        handle_disp: -((n * 8 + 16) as i32),
+        written_disp: -((n * 8 + 8) as i32),
+    };
 
-    let mut c = Vec::new();
+    let mut code = Vec::new();
     let mut relocs = Vec::new();
+    let mut fixups: Vec<(u32, usize)> = Vec::new();
 
     // prologue
-    c.push(0x55); // push rbp
-    c.extend_from_slice(&[0x48, 0x89, 0xE5]); // mov rbp, rsp
+    code.push(0x55); // push rbp
+    code.extend_from_slice(&[0x48, 0x89, 0xE5]); // mov rbp, rsp
     if frame > 0 {
         if frame <= 127 {
-            c.extend_from_slice(&[0x48, 0x83, 0xEC, frame as u8]); // sub rsp, imm8
+            code.extend_from_slice(&[0x48, 0x83, 0xEC, frame as u8]); // sub rsp, imm8
         } else {
-            c.extend_from_slice(&[0x48, 0x81, 0xEC]);
-            c.extend_from_slice(&frame.to_le_bytes()); // sub rsp, imm32
+            code.extend_from_slice(&[0x48, 0x81, 0xEC]);
+            code.extend_from_slice(&frame.to_le_bytes()); // sub rsp, imm32
         }
     }
 
-    for s in &m.stmts {
-        match s {
-            Stmt::Let(idx, e) => {
-                lower_expr(*e, &m.exprs, &mut c);
-                c.push(0x58); // pop rax
-                emit_store_local(&mut c, *idx);
-            }
-            Stmt::Exit(e) => {
-                lower_expr(*e, &m.exprs, &mut c);
-                c.push(0x58); // pop rax (exit code)
-                emit_epilogue(&mut c);
-            }
-            Stmt::WriteLine(i) => {
-                let off = offsets[*i];
-                let len = m.strings[*i].len() as u32;
-                // handle = GetStdHandle(STD_OUTPUT_HANDLE = -11)
-                c.push(0xB9);
-                c.extend_from_slice(&(-11i32).to_le_bytes()); // mov ecx, -11
-                emit_rip_call(&mut c, &mut relocs, RelocTarget::Import(ImportFn::GetStdHandle));
-                emit_rbp_mem(&mut c, &[0x48, 0x89], 0, handle_disp); // mov [rbp+handle], rax
-                // WriteFile(handle, buf, len, &written, NULL)
-                emit_rbp_mem(&mut c, &[0x48, 0x8B], 1, handle_disp); // mov rcx, [rbp+handle]
-                emit_lea_rdx_rip(&mut c, &mut relocs, RelocTarget::Rodata(off)); // lea rdx, [rip+str]
-                c.extend_from_slice(&[0x41, 0xB8]);
-                c.extend_from_slice(&len.to_le_bytes()); // mov r8d, len
-                emit_rbp_mem(&mut c, &[0x4C, 0x8D], 1, written_disp); // lea r9, [rbp+written]
-                c.extend_from_slice(&[0x48, 0xC7, 0x44, 0x24, 0x20, 0, 0, 0, 0]); // mov qword [rsp+0x20], 0
-                emit_rip_call(&mut c, &mut relocs, RelocTarget::Import(ImportFn::WriteFile));
-            }
+    for s in &m.entry {
+        lower_stmt(s, &cx, &mut code, &mut relocs, &mut fixups);
+    }
+    let mut labels = vec![0u32; m.states.len()];
+    for (i, st) in m.states.iter().enumerate() {
+        labels[i] = code.len() as u32;
+        for s in st {
+            lower_stmt(s, &cx, &mut code, &mut relocs, &mut fixups);
         }
     }
+    // trailing default: exit 0 (reached only by fall-through)
+    code.extend_from_slice(&[0x31, 0xC0]); // xor eax, eax
+    emit_epilogue(&mut code);
 
-    // fall-through default: exit 0
-    c.extend_from_slice(&[0x31, 0xC0]); // xor eax, eax
-    emit_epilogue(&mut c);
+    // patch intra-text jumps to state labels
+    for (at, target) in &fixups {
+        let rel = labels[*target] as i64 - (*at as i64 + 4);
+        let a = *at as usize;
+        code[a..a + 4].copy_from_slice(&(rel as i32).to_le_bytes());
+    }
 
-    Lowered { code: c, relocs, rodata, uses_imports: has_calls }
+    Lowered { code, relocs, rodata, uses_imports: has_calls }
 }

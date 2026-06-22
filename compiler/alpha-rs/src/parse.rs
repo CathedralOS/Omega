@@ -10,7 +10,7 @@
 //   expr    := add ; add := mul (("+"|"-") mul)* ; mul := primary (("*"|"/") primary)*
 //   primary := INT | IDENT(local) | "(" expr ")"
 
-use crate::ast::{BinOp, ExprKind, Main, Stmt};
+use crate::ast::{Arm, BinOp, ExprKind, Main, Pat, Stmt};
 use crate::lex::{tok_text, Token, TokKind};
 
 pub struct Parser<'a> {
@@ -20,6 +20,7 @@ pub struct Parser<'a> {
     exprs: Vec<ExprKind>,
     local_names: Vec<Vec<u8>>,
     strings: Vec<Vec<u8>>,
+    state_names: Vec<Vec<u8>>, // pre-scanned state names of the current machine
 }
 
 impl<'a> Parser<'a> {
@@ -31,7 +32,12 @@ impl<'a> Parser<'a> {
             exprs: Vec::new(),
             local_names: Vec::new(),
             strings: Vec::new(),
+            state_names: Vec::new(),
         }
+    }
+
+    fn state_index(&self, name: &[u8]) -> Option<usize> {
+        self.state_names.iter().position(|n| n.as_slice() == name)
     }
 
     fn kind(&self) -> TokKind {
@@ -65,7 +71,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_program(&mut self) -> Result<Main, String> {
-        let mut entry: Option<Vec<Stmt>> = None;
+        let mut machine: Option<(Vec<Stmt>, Vec<Vec<Stmt>>)> = None;
         while self.kind() != TokKind::Eof {
             if self.kind() != TokKind::Ident {
                 return Err(format!(
@@ -75,7 +81,7 @@ impl<'a> Parser<'a> {
             }
             match self.cur_text() {
                 b"boundary" | b"data" => self.skip_braced_item()?,
-                b"machine" => entry = Some(self.parse_machine_body()?),
+                b"machine" => machine = Some(self.parse_machine_body()?),
                 other => {
                     return Err(format!(
                         "alpha-onramp: unsupported top-level keyword '{}' (Alpha subset)",
@@ -84,10 +90,12 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        let stmts = entry.ok_or_else(|| "alpha-onramp: no machine to compile".to_string())?;
+        let (entry, states) =
+            machine.ok_or_else(|| "alpha-onramp: no machine to compile".to_string())?;
         let n_locals = self.local_names.len();
         Ok(Main {
-            stmts,
+            entry,
+            states,
             exprs: std::mem::take(&mut self.exprs),
             n_locals,
             strings: std::mem::take(&mut self.strings),
@@ -120,8 +128,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_machine_body(&mut self) -> Result<Vec<Stmt>, String> {
-        self.local_names.clear(); // per-machine locals (slice 2: one entry machine)
+    fn parse_machine_body(&mut self) -> Result<(Vec<Stmt>, Vec<Vec<Stmt>>), String> {
+        self.local_names.clear(); // per-machine locals
+        self.state_names.clear();
         while self.kind() != TokKind::LBrace {
             if self.kind() == TokKind::Eof {
                 return Err("alpha-onramp: parse error: expected machine body '{'".into());
@@ -129,10 +138,71 @@ impl<'a> Parser<'a> {
             self.bump();
         }
         self.bump(); // '{'
+        self.prescan_state_names()?; // so transitions can name states declared later
+
+        // entry statements come first, then state declarations
+        let mut entry = Vec::new();
+        while self.kind() != TokKind::RBrace
+            && !(self.kind() == TokKind::Ident && self.cur_text() == b"state")
+        {
+            if self.kind() == TokKind::Eof {
+                return Err("alpha-onramp: parse error: unterminated machine body".into());
+            }
+            entry.push(self.parse_stmt()?);
+        }
+        let mut states = Vec::new();
+        while self.kind() == TokKind::Ident && self.cur_text() == b"state" {
+            states.push(self.parse_state_decl()?);
+        }
+        if self.kind() != TokKind::RBrace {
+            return Err("alpha-onramp: parse error: expected '}' or 'state' in machine body".into());
+        }
+        self.bump(); // '}'
+        Ok((entry, states))
+    }
+
+    // Scan from the current position (just inside the body '{') to the matching
+    // '}', recording every top-level `state <name>` so transitions can refer to a
+    // state declared later in the body.
+    fn prescan_state_names(&mut self) -> Result<(), String> {
+        let mut p = self.pos;
+        let mut depth = 1i32;
+        while depth > 0 {
+            match self.toks[p].kind {
+                TokKind::LBrace => depth += 1,
+                TokKind::RBrace => depth -= 1,
+                TokKind::Eof => return Err("alpha-onramp: parse error: unterminated machine body".into()),
+                TokKind::Ident
+                    if depth == 1 && tok_text(&self.toks[p], self.src) == b"state" =>
+                {
+                    if self.toks[p + 1].kind == TokKind::Ident {
+                        self.state_names
+                            .push(tok_text(&self.toks[p + 1], self.src).to_vec());
+                    }
+                }
+                _ => {}
+            }
+            p += 1;
+        }
+        Ok(())
+    }
+
+    fn parse_state_decl(&mut self) -> Result<Vec<Stmt>, String> {
+        self.bump(); // "state"
+        self.expect(TokKind::Ident)?; // name (already pre-scanned)
+        self.expect(TokKind::LParen)?;
+        while self.kind() != TokKind::RParen {
+            if self.kind() == TokKind::Eof {
+                return Err("alpha-onramp: parse error: unterminated state parameter list".into());
+            }
+            self.bump(); // skip params (e.g. &mut self)
+        }
+        self.expect(TokKind::RParen)?;
+        self.expect(TokKind::LBrace)?;
         let mut stmts = Vec::new();
         while self.kind() != TokKind::RBrace {
             if self.kind() == TokKind::Eof {
-                return Err("alpha-onramp: parse error: unterminated machine body".into());
+                return Err("alpha-onramp: parse error: unterminated state body".into());
             }
             stmts.push(self.parse_stmt()?);
         }
@@ -160,6 +230,69 @@ impl<'a> Parser<'a> {
             let idx = self.local_names.len();
             self.local_names.push(name);
             return Ok(Stmt::Let(idx, init));
+        }
+        if self.kind() == TokKind::Ident && self.cur_text() == b"transition" {
+            self.bump(); // transition
+            let subject = self.parse_expr()?;
+            self.expect(TokKind::LBrace)?;
+            let mut arms = Vec::new();
+            while self.kind() != TokKind::RBrace {
+                if self.kind() == TokKind::Eof {
+                    return Err("alpha-onramp: parse error: unterminated transition".into());
+                }
+                let pat = match self.kind() {
+                    TokKind::Int => {
+                        let t = self.bump();
+                        let text = std::str::from_utf8(tok_text(&t, self.src)).unwrap();
+                        let v: i64 = text
+                            .parse()
+                            .map_err(|_| format!("alpha-onramp: bad integer pattern '{}'", text))?;
+                        Pat::Int(v as i32)
+                    }
+                    TokKind::Ident => {
+                        let t = self.bump();
+                        match tok_text(&t, self.src) {
+                            b"_" => Pat::Wild,
+                            b"true" => Pat::Int(1),
+                            b"false" => Pat::Int(0),
+                            other => {
+                                return Err(format!(
+                                    "alpha-onramp: unsupported transition pattern '{}'",
+                                    String::from_utf8_lossy(other)
+                                ))
+                            }
+                        }
+                    }
+                    k => {
+                        return Err(format!(
+                            "alpha-onramp: parse error: expected a transition pattern, found {:?}",
+                            k
+                        ))
+                    }
+                };
+                self.expect(TokKind::Arrow)?;
+                let target_name = tok_text(&self.expect(TokKind::Ident)?, self.src).to_vec();
+                self.expect(TokKind::LParen)?;
+                while self.kind() != TokKind::RParen {
+                    if self.kind() == TokKind::Eof {
+                        return Err("alpha-onramp: parse error: unterminated transition target".into());
+                    }
+                    self.bump(); // skip target args (slice 4b: parameterless states)
+                }
+                self.expect(TokKind::RParen)?;
+                let target = self.state_index(&target_name).ok_or_else(|| {
+                    format!(
+                        "alpha-onramp: transition to unknown state '{}'",
+                        String::from_utf8_lossy(&target_name)
+                    )
+                })?;
+                arms.push(Arm { pat, target });
+            }
+            self.bump(); // '}'
+            if self.kind() == TokKind::Semi {
+                self.bump();
+            }
+            return Ok(Stmt::Transition(subject, arms));
         }
         // call statement: path "(" arg ")" — last path segment selects the boundary op
         let mut last = tok_text(&self.expect(TokKind::Ident)?, self.src).to_vec();
