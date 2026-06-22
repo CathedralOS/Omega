@@ -1,0 +1,247 @@
+// alpha/pe.alp — the Windows PE32+ image writer (per-format backend).
+//
+// Concatenated with alpha.alp + x64.alp into one Alpha translation unit; these
+// machines write the final image bytes to stdout (emit_u16/u32/zeros) and lay
+// out the headers + sections + kernel32 import table. A new image format (ELF,
+// Mach-O) would be a sibling file, not an edit here.
+
+
+// --- byte output helpers (write_byte keeps only the low 8 bits) ---
+
+machine emit_u16(value: i32) {
+    write_byte(value);
+    write_byte(value / 256);
+}
+
+machine emit_u32(value: i32) {
+    write_byte(value);
+    write_byte(value / 256);
+    write_byte(value / 65536);
+    write_byte(value / 16777216);
+}
+
+machine emit_zeros(count: i32) {
+    let written: i32 = 0;
+    transition 0 { _ -> step() }
+    state step() {
+        transition written < count { true -> write_one() false -> done() }
+    }
+    state write_one() {
+        write_byte(0);
+        written = written + 1;
+        transition 0 { _ -> step() }
+    }
+    state done() { }
+}
+
+machine align_up(value: i32, alignment: i32) -> i32 {
+    return ((value + alignment - 1) / alignment) * alignment;
+}
+
+// --- the PE writer: .text [+ .rdata import table] [+ .data] ---
+
+machine Main::write_pe(&mut self) {
+    self.code_raw_size = align_up(self.code_length, 512);
+    self.text_pages = align_up(self.code_length, 4096);
+    self.data_raw_size = align_up(self.data_size, 512);
+    self.rdata_size = 158;       // fixed: IDT 40 + ILT 32 + IAT 32 + names 40 + dll 14
+    self.section_count = 1;
+    self.rdata_rva = 4096 + self.text_pages; // (only used when imports are present)
+    transition self.uses_imports { 1 -> with_imports() _ -> without_imports() }
+
+    state with_imports() {
+        self.section_count = self.section_count + 1;
+        self.rdata_raw_size = 512;            // align_up(158, 512)
+        self.rdata_pages = 4096;              // align_up(158, 4096)
+        self.data_rva = self.rdata_rva + self.rdata_pages; // .data follows .rdata
+        self.write_cursor = 0;
+        transition 0 { _ -> patch_imports() }
+    }
+    state patch_imports() {
+        transition self.write_cursor < self.import_reloc_count { true -> patch_one_import() false -> after_imports() }
+    }
+    state patch_one_import() {
+        // disp32 = IAT_slot_rva - (text_rva + reloc_site + 4); IAT slots start at rdata+72
+        self.patch_i32(self.import_reloc_at[self.write_cursor],
+            self.rdata_rva + 72 + self.import_reloc_slot[self.write_cursor] * 8
+            - (4096 + self.import_reloc_at[self.write_cursor] + 4));
+        self.write_cursor = self.write_cursor + 1;
+        transition 0 { _ -> patch_imports() }
+    }
+    state without_imports() {
+        self.rdata_raw_size = 0;
+        self.data_rva = 4096 + self.text_pages;
+        transition 0 { _ -> after_imports() }
+    }
+    state after_imports() {
+        transition self.data_size { 0 -> compute_no_data() _ -> compute_with_data() }
+    }
+    state compute_no_data() {
+        self.image_size = self.data_rva;       // nothing past .text/.rdata
+        transition 0 { _ -> headers() }
+    }
+    state compute_with_data() {
+        self.section_count = self.section_count + 1;
+        self.image_size = self.data_rva + align_up(self.data_size, 4096);
+        // patch the entry's `lea rax,[rip+disp32]` to point at the .data section
+        self.patch_i32(self.data_reloc_at, self.data_rva - (4096 + self.data_reloc_at + 4));
+        transition 0 { _ -> headers() }
+    }
+
+    state headers() {
+        write_byte(77); write_byte(90);  // "MZ"
+        emit_zeros(58);
+        emit_u32(64);                    // e_lfanew = 0x40
+
+        write_byte(80); write_byte(69); write_byte(0); write_byte(0); // "PE\0\0"
+        emit_u16(34404); emit_u16(self.section_count); // Machine x86-64, section count
+        emit_u32(0); emit_u32(0); emit_u32(0);
+        emit_u16(240); emit_u16(34);     // SizeOfOptionalHeader, Characteristics
+
+        emit_u16(523);                   // PE32+
+        write_byte(0); write_byte(0);
+        emit_u32(self.code_raw_size);    // SizeOfCode
+        emit_u32(self.rdata_raw_size);   // SizeOfInitializedData
+        emit_u32(self.data_raw_size);    // SizeOfUninitializedData (.data is BSS)
+        emit_u32(4096); emit_u32(4096);  // entry point, base of code
+        emit_u32(1073741824); emit_u32(1); // ImageBase = 0x140000000
+        emit_u32(4096); emit_u32(512);   // section + file alignment
+        emit_u16(6); emit_u16(0); emit_u16(0); emit_u16(0); emit_u16(6); emit_u16(0);
+        emit_u32(0);
+        emit_u32(self.image_size);
+        emit_u32(512);                   // SizeOfHeaders
+        emit_u32(0);
+        emit_u16(3); emit_u16(0);        // Subsystem = console
+        emit_u32(1048576); emit_u32(0);
+        emit_u32(4096); emit_u32(0);
+        emit_u32(1048576); emit_u32(0);
+        emit_u32(4096); emit_u32(0);
+        emit_u32(0); emit_u32(16);
+        transition self.uses_imports { 1 -> import_data_dirs() _ -> zero_data_dirs() }
+    }
+    state zero_data_dirs() {
+        emit_zeros(128);                 // 16 empty data directories
+        transition 0 { _ -> text_header() }
+    }
+    state import_data_dirs() {
+        emit_u32(0); emit_u32(0);                    // dir[0] export
+        emit_u32(self.rdata_rva); emit_u32(40);      // dir[1] import directory (IDT)
+        emit_zeros(80);                              // dir[2..11]
+        emit_u32(self.rdata_rva + 72); emit_u32(32); // dir[12] IAT
+        emit_zeros(24);                              // dir[13..15]
+        transition 0 { _ -> text_header() }
+    }
+    state text_header() {
+        write_byte(46); write_byte(116); write_byte(101); write_byte(120); write_byte(116); // ".text"
+        write_byte(0); write_byte(0); write_byte(0);
+        emit_u32(self.code_length);
+        emit_u32(4096);
+        emit_u32(self.code_raw_size);
+        emit_u32(512);
+        emit_u32(0); emit_u32(0);
+        emit_u16(0); emit_u16(0);
+        emit_u32(1610612768);            // 0x60000020 (code | execute | read)
+        transition self.uses_imports { 1 -> rdata_header() _ -> maybe_data_header() }
+    }
+    state rdata_header() {
+        write_byte(46); write_byte(114); write_byte(100); write_byte(97); write_byte(116); write_byte(97); // ".rdata"
+        write_byte(0); write_byte(0);
+        emit_u32(self.rdata_size);
+        emit_u32(self.rdata_rva);
+        emit_u32(self.rdata_raw_size);
+        emit_u32(512 + self.code_raw_size); // PointerToRawData (after .text)
+        emit_u32(0); emit_u32(0);
+        emit_u16(0); emit_u16(0);
+        emit_u32(1073741888);            // 0x40000040 (initialized | read)
+        transition 0 { _ -> maybe_data_header() }
+    }
+    state maybe_data_header() {
+        transition self.data_size { 0 -> pad_headers() _ -> data_header() }
+    }
+    state data_header() {
+        write_byte(46); write_byte(100); write_byte(97); write_byte(116); write_byte(97); // ".data"
+        write_byte(0); write_byte(0); write_byte(0);
+        emit_u32(self.data_size);          // VirtualSize (loader zero-fills this many bytes)
+        emit_u32(self.data_rva);           // VirtualAddress
+        emit_u32(0);                       // SizeOfRawData (BSS: no bytes in the file)
+        emit_u32(0);                       // PointerToRawData
+        emit_u32(0); emit_u32(0);
+        emit_u16(0); emit_u16(0);
+        write_byte(128); write_byte(0); write_byte(0); write_byte(192); // 0xC0000080 (uninit|read|write)
+        transition 0 { _ -> pad_headers() }
+    }
+    state pad_headers() {
+        emit_zeros(184 - 40 * self.section_count); // pad the headers to 512
+        transition 0 { _ -> emit_text() }
+    }
+
+    state emit_text() {
+        self.write_cursor = 0;
+        transition 0 { _ -> code_step() }
+    }
+    state code_step() {
+        transition self.write_cursor < self.code_length { true -> code_one() false -> code_pad() }
+    }
+    state code_one() {
+        write_byte(self.code[self.write_cursor]);
+        self.write_cursor = self.write_cursor + 1;
+        transition 0 { _ -> code_step() }
+    }
+    state code_pad() {
+        transition self.write_cursor < self.code_raw_size { true -> code_pad_one() false -> emit_rdata_section() }
+    }
+    state code_pad_one() {
+        write_byte(0);
+        self.write_cursor = self.write_cursor + 1;
+        transition 0 { _ -> code_pad() }
+    }
+    state emit_rdata_section() {
+        // .data is BSS (zero-filled by the loader), so nothing follows .rdata in the file
+        transition self.uses_imports { 1 -> rdata_bytes() _ -> done() }
+    }
+    state rdata_bytes() {
+        self.emit_rdata();                          // 158 bytes of import table
+        emit_zeros(self.rdata_raw_size - self.rdata_size); // pad to FileAlignment
+        transition 0 { _ -> done() }
+    }
+    state done() { }
+}
+
+// Emit the 158-byte kernel32 import table for .rdata. Layout (offsets within .rdata):
+// IDT @0 (40), ILT @40 (32), IAT @72 (32), name "GetStdHandle" @104 (16),
+// "WriteFile" @120 (12), "ReadFile" @132 (12), "kernel32.dll" @144 (14).
+machine Main::emit_rdata(&mut self) {
+    // IDT[0]: kernel32 import descriptor, then a 20-byte null descriptor.
+    emit_u32(self.rdata_rva + 40);  // OriginalFirstThunk (ILT rva)
+    emit_u32(0); emit_u32(0);        // TimeDateStamp, ForwarderChain
+    emit_u32(self.rdata_rva + 144); // Name (dll-name rva)
+    emit_u32(self.rdata_rva + 72);  // FirstThunk (IAT rva)
+    emit_zeros(20);                  // null descriptor
+    // ILT: import-by-name RVAs of the three hint/name entries, then a null.
+    emit_u32(self.rdata_rva + 104); emit_u32(0);
+    emit_u32(self.rdata_rva + 120); emit_u32(0);
+    emit_u32(self.rdata_rva + 132); emit_u32(0);
+    emit_u32(0); emit_u32(0);
+    // IAT: same RVAs (the loader overwrites these with real addresses), then a null.
+    emit_u32(self.rdata_rva + 104); emit_u32(0);
+    emit_u32(self.rdata_rva + 120); emit_u32(0);
+    emit_u32(self.rdata_rva + 132); emit_u32(0);
+    emit_u32(0); emit_u32(0);
+    // hint/name entries: u16 hint (0) + NUL-terminated name, padded to 2 bytes.
+    emit_u16(0); // GetStdHandle
+    write_byte(71); write_byte(101); write_byte(116); write_byte(83); write_byte(116); write_byte(100);
+    write_byte(72); write_byte(97); write_byte(110); write_byte(100); write_byte(108); write_byte(101);
+    write_byte(0); write_byte(0); // NUL + pad (15 -> 16)
+    emit_u16(0); // WriteFile
+    write_byte(87); write_byte(114); write_byte(105); write_byte(116); write_byte(101);
+    write_byte(70); write_byte(105); write_byte(108); write_byte(101);
+    write_byte(0); // NUL (12, even)
+    emit_u16(0); // ReadFile
+    write_byte(82); write_byte(101); write_byte(97); write_byte(100);
+    write_byte(70); write_byte(105); write_byte(108); write_byte(101);
+    write_byte(0); write_byte(0); // NUL + pad (11 -> 12)
+    // dll name "kernel32.dll" + NUL, padded to 2 bytes.
+    write_byte(107); write_byte(101); write_byte(114); write_byte(110); write_byte(101); write_byte(108);
+    write_byte(51); write_byte(50); write_byte(46); write_byte(100); write_byte(108); write_byte(108);
+    write_byte(0); write_byte(0); // NUL + pad (13 -> 14)
+}

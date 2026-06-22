@@ -41,25 +41,34 @@ fn compile(source: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 fn main() {
+    // alpha <input.alp>... <output.exe>  — Alpha is multi-FILE, one translation
+    // unit: the inputs are concatenated in order (no module system), so the front
+    // end / per-arch / per-format files build as one program. With a single input
+    // the output defaults to a.exe.
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
-        eprintln!("usage: alpha-onramp <input.alp> [output.exe]");
+        eprintln!("usage: alpha <input.alp>... <output.exe>");
         exit(2);
     }
-    let input = &args[1];
-    let output = if args.len() >= 3 {
-        args[2].clone()
+    let (inputs, output): (&[String], String) = if args.len() >= 3 {
+        (&args[1..args.len() - 1], args[args.len() - 1].clone())
     } else {
-        "a.exe".to_string()
+        (&args[1..2], "a.exe".to_string())
     };
 
-    let source = match std::fs::read(input) {
-        Ok(contents) => contents,
-        Err(error) => {
-            eprintln!("alpha-onramp: cannot read {}: {}", input, error);
-            exit(1);
+    let mut source: Vec<u8> = Vec::new();
+    for input in inputs {
+        match std::fs::read(input) {
+            Ok(contents) => {
+                source.extend_from_slice(&contents);
+                source.push(b'\n'); // keep a separator so a file ending mid-token can't fuse
+            }
+            Err(error) => {
+                eprintln!("alpha: cannot read {}: {}", input, error);
+                exit(1);
+            }
         }
-    };
+    }
 
     match compile(&source) {
         Ok(bytes) => {

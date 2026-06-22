@@ -9,15 +9,33 @@ It is grown the same way the on-ramp was — smallest useful thing first, then w
 the accepted grammar slice by slice until it matches what `alpha-rs` accepts. The
 on-ramp is the executable spec; this must accept the same language.
 
+## Source layout (one translation unit, multiple files)
+
+Alpha has no module system: the compiler is **one translation unit split across
+files that concatenate in order** (front end, per-arch backend, per-format backend).
+This mirrors the on-ramp's `lex/parse/x64/pe` module split and is what lets a new
+target or image format be a *new sibling file* rather than an edit to a monolith.
+
+- `alpha.alp` — front end + driver: lexer, keyword matchers, resolution, prescans,
+  the single-pass parse+emit driver, `data Main`, `main`.
+- `x64.alp` — the x86-64 instruction encoders (emit a future `aarch64.alp` alongside).
+- `pe.alp` — the Windows PE32+ image writer (emit a future `elf.alp` alongside).
+
 ## Build / test
 
-The compiler is a filter: source on stdin, a Windows PE on stdout.
+The compiler is a filter: the concatenated source on stdin, a Windows PE on stdout.
+`build.sh` does the full build + fixed-point check; by hand:
 
 ```
-../alpha-rs/target/debug/alpha.exe alpha.alp alpha0.exe   # on-ramp compiles it
-printf '42' | ./alpha0.exe > out.exe                       # it compiles "42"
-./out.exe; echo $?                                             # -> 42
+../alpha-rs/target/debug/alpha.exe alpha.alp x64.alp pe.alp alpha0.exe  # on-ramp builds it
+cat alpha.alp x64.alp pe.alp | ./alpha0.exe > alpha1.exe                # it builds itself
+cat alpha.alp x64.alp pe.alp | ./alpha1.exe > alpha2.exe                # ...and again
+cmp alpha1.exe alpha2.exe                                               # byte-identical
+printf '42' | ./alpha1.exe > out.exe && ./out.exe; echo $?             # compiles "42" -> 42
 ```
+
+(The on-ramp takes the file list on argv and concatenates it; the self-hosted
+compiler reads the concatenation on stdin.)
 
 ## Status (incremental)
 
