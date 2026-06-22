@@ -24,11 +24,11 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    source: [u8; 65536];          // source text
+    source: [u8; 262144];         // source text (alphac.alp itself is ~93 KB)
     source_length: i32;
-    token_kind: [i32; 16384];
-    token_start: [i32; 16384];
-    token_length: [i32; 16384];
+    token_kind: [i32; 131072];
+    token_start: [i32; 131072];
+    token_length: [i32; 131072];
     token_count: i32;
     lex_position: i32;            // lexer cursor into source
     current_byte: i32;            // current byte
@@ -47,38 +47,37 @@ data Main {
     compare_position: i32;
     left_byte: i32;               // byte-compare scratch
     right_byte: i32;
-    local_token: [i32; 64];       // symbol table: token index naming each local
+    local_token: [i32; 256];      // symbol table: token index naming each local
     local_count: i32;
     current_slot: i32;            // current let's slot
     resolve_position: i32;        // resolve_local cursor
     emit_scratch: i32;            // emit_i32 scratch
     brace_depth: i32;             // brace depth while finding the top-level machine
-    code: [u8; 512];              // generated machine code
+    code: [u8; 262144];           // generated machine code (alphac's own .text is tens of KB)
     code_length: i32;
     pending_value: i32;
-    raw_section_size: i32;
     image_size: i32;
     write_cursor: i32;            // scratch loop cursor
     setcc_byte: i32;              // setcc opcode for a comparison
-    state_name_token: [i32; 128]; // token index naming each state (prescan order)
-    state_offset: [i32; 128];     // code offset (label) of each state
+    state_name_token: [i32; 512]; // token index naming each state (prescan order)
+    state_offset: [i32; 512];     // code offset (label) of each state
     state_count: i32;
     state_emit_index: i32;        // which state we are emitting
-    fixup_at: [i32; 256];         // code offset of each jump rel32 to patch
-    fixup_target: [i32; 256];     // target state index for each fixup
+    fixup_at: [i32; 2048];        // code offset of each jump rel32 to patch
+    fixup_target: [i32; 2048];    // target state index for each fixup
     fixup_count: i32;
     scan_position: i32;           // state pre-scan cursor
     pattern_value: i32;           // transition arm: the matched integer
     arm_is_wild: i32;             // transition arm: is it the `_` default?
     target_state: i32;            // transition arm: resolved target state index
-    machine_start: [i32; 128];    // token index of each top-level machine's `machine` keyword
-    machine_name: [i32; 128];     // token index of each machine's callable name
-    machine_offset: [i32; 128];   // code offset of each machine (filled as emitted)
+    machine_start: [i32; 512];    // token index of each top-level machine's `machine` keyword
+    machine_name: [i32; 512];     // token index of each machine's callable name
+    machine_offset: [i32; 512];   // code offset of each machine (filled as emitted)
     machine_count: i32;
     entry_machine: i32;           // index of the machine named `main`
     param_count: i32;             // value params of the machine being emitted
-    call_at: [i32; 256];          // code offset of each call rel32 to patch
-    call_target: [i32; 256];      // target machine index for each call
+    call_at: [i32; 8192];         // code offset of each call rel32 to patch
+    call_target: [i32; 8192];     // target machine index for each call
     call_count: i32;
     target_machine: i32;          // patch_calls scratch
     emit_machine_index: i32;      // driver loop over machines
@@ -96,7 +95,17 @@ data Main {
     field_offset_result: i32;     // resolve_field scratch
     data_raw_size: i32;           // .data size rounded up to FileAlignment
     data_rva: i32;                // .data virtual address
-    section_count: i32;           // 1 (.text only) or 2 (.text + .data)
+    section_count: i32;           // 1/2/3 (.text [+ .rdata] [+ .data])
+    import_reloc_at: [i32; 4096];  // code offset of each `call [rip+IAT]` disp32
+    import_reloc_slot: [i32; 4096]; // which import (0 GetStdHandle, 1 WriteFile, 2 ReadFile)
+    import_reloc_count: i32;
+    uses_imports: i32;            // 1 once any host I/O call has been emitted
+    code_raw_size: i32;           // .text size rounded up to FileAlignment
+    text_pages: i32;              // .text size rounded up to SectionAlignment
+    rdata_size: i32;              // import-table size (fixed: 158 bytes)
+    rdata_raw_size: i32;          // rdata rounded up to FileAlignment
+    rdata_pages: i32;             // rdata rounded up to SectionAlignment
+    rdata_rva: i32;               // .rdata virtual address
 }
 
 // --- byte classifiers (free machines returning 0/1) ---
@@ -193,11 +202,13 @@ machine precedence(operator: i32) -> i32 {
         23 -> comparison()
         24 -> comparison()
         25 -> comparison()
+        5 -> paren()        // '(' marker: below every operator so nothing pops past it
         _ -> low()
     }
     state high() { return 2; }
     state low() { return 1; }
     state comparison() { return 0; }
+    state paren() { return 0 - 1; }
 }
 
 // arithmetic shift right by 8 bits = floor(value/256). Alpha's `/` truncates toward
@@ -517,22 +528,51 @@ machine Main::lex(&mut self) {
     state at_eof() { self.push_token(0, self.lex_position, 0); }
 }
 
-// --- the PE writer (single-section, no imports), reused from increment 1 ---
+// --- the PE writer: .text [+ .rdata import table] [+ .data] ---
 
 machine Main::write_pe(&mut self) {
-    self.raw_section_size = align_up(self.code_length, 512);
+    self.code_raw_size = align_up(self.code_length, 512);
+    self.text_pages = align_up(self.code_length, 4096);
     self.data_raw_size = align_up(self.data_size, 512);
-    self.data_rva = 4096 + align_up(self.code_length, 4096);
-    transition self.data_size { 0 -> no_data() _ -> with_data() }
+    self.rdata_size = 158;       // fixed: IDT 40 + ILT 32 + IAT 32 + names 40 + dll 14
+    self.section_count = 1;
+    self.rdata_rva = 4096 + self.text_pages; // (only used when imports are present)
+    transition self.uses_imports { 1 -> with_imports() _ -> without_imports() }
 
-    state no_data() {
-        self.image_size = 4096 + align_up(self.code_length, 4096);
-        self.section_count = 1;
+    state with_imports() {
+        self.section_count = self.section_count + 1;
+        self.rdata_raw_size = 512;            // align_up(158, 512)
+        self.rdata_pages = 4096;              // align_up(158, 4096)
+        self.data_rva = self.rdata_rva + self.rdata_pages; // .data follows .rdata
+        self.write_cursor = 0;
+        transition 0 { _ -> patch_imports() }
+    }
+    state patch_imports() {
+        transition self.write_cursor < self.import_reloc_count { true -> patch_one_import() false -> after_imports() }
+    }
+    state patch_one_import() {
+        // disp32 = IAT_slot_rva - (text_rva + reloc_site + 4); IAT slots start at rdata+72
+        self.patch_i32(self.import_reloc_at[self.write_cursor],
+            self.rdata_rva + 72 + self.import_reloc_slot[self.write_cursor] * 8
+            - (4096 + self.import_reloc_at[self.write_cursor] + 4));
+        self.write_cursor = self.write_cursor + 1;
+        transition 0 { _ -> patch_imports() }
+    }
+    state without_imports() {
+        self.rdata_raw_size = 0;
+        self.data_rva = 4096 + self.text_pages;
+        transition 0 { _ -> after_imports() }
+    }
+    state after_imports() {
+        transition self.data_size { 0 -> compute_no_data() _ -> compute_with_data() }
+    }
+    state compute_no_data() {
+        self.image_size = self.data_rva;       // nothing past .text/.rdata
         transition 0 { _ -> headers() }
     }
-    state with_data() {
+    state compute_with_data() {
+        self.section_count = self.section_count + 1;
         self.image_size = self.data_rva + align_up(self.data_size, 4096);
-        self.section_count = 2;
         // patch the entry's `lea rax,[rip+disp32]` to point at the .data section
         self.patch_i32(self.data_reloc_at, self.data_rva - (4096 + self.data_reloc_at + 4));
         transition 0 { _ -> headers() }
@@ -550,9 +590,9 @@ machine Main::write_pe(&mut self) {
 
         emit_u16(523);                   // PE32+
         write_byte(0); write_byte(0);
-        emit_u32(self.raw_section_size); // SizeOfCode
-        emit_u32(self.data_raw_size);    // SizeOfInitializedData
-        emit_u32(0);
+        emit_u32(self.code_raw_size);    // SizeOfCode
+        emit_u32(self.rdata_raw_size);   // SizeOfInitializedData
+        emit_u32(self.data_raw_size);    // SizeOfUninitializedData (.data is BSS)
         emit_u32(4096); emit_u32(4096);  // entry point, base of code
         emit_u32(1073741824); emit_u32(1); // ImageBase = 0x140000000
         emit_u32(4096); emit_u32(512);   // section + file alignment
@@ -567,34 +607,61 @@ machine Main::write_pe(&mut self) {
         emit_u32(1048576); emit_u32(0);
         emit_u32(4096); emit_u32(0);
         emit_u32(0); emit_u32(16);
-        emit_zeros(128);                 // 16 data directories
-
+        transition self.uses_imports { 1 -> import_data_dirs() _ -> zero_data_dirs() }
+    }
+    state zero_data_dirs() {
+        emit_zeros(128);                 // 16 empty data directories
+        transition 0 { _ -> text_header() }
+    }
+    state import_data_dirs() {
+        emit_u32(0); emit_u32(0);                    // dir[0] export
+        emit_u32(self.rdata_rva); emit_u32(40);      // dir[1] import directory (IDT)
+        emit_zeros(80);                              // dir[2..11]
+        emit_u32(self.rdata_rva + 72); emit_u32(32); // dir[12] IAT
+        emit_zeros(24);                              // dir[13..15]
+        transition 0 { _ -> text_header() }
+    }
+    state text_header() {
         write_byte(46); write_byte(116); write_byte(101); write_byte(120); write_byte(116); // ".text"
         write_byte(0); write_byte(0); write_byte(0);
         emit_u32(self.code_length);
         emit_u32(4096);
-        emit_u32(self.raw_section_size);
+        emit_u32(self.code_raw_size);
         emit_u32(512);
         emit_u32(0); emit_u32(0);
         emit_u16(0); emit_u16(0);
         emit_u32(1610612768);            // 0x60000020 (code | execute | read)
-        transition self.data_size { 0 -> pad_one_section() _ -> data_header() }
+        transition self.uses_imports { 1 -> rdata_header() _ -> maybe_data_header() }
+    }
+    state rdata_header() {
+        write_byte(46); write_byte(114); write_byte(100); write_byte(97); write_byte(116); write_byte(97); // ".rdata"
+        write_byte(0); write_byte(0);
+        emit_u32(self.rdata_size);
+        emit_u32(self.rdata_rva);
+        emit_u32(self.rdata_raw_size);
+        emit_u32(512 + self.code_raw_size); // PointerToRawData (after .text)
+        emit_u32(0); emit_u32(0);
+        emit_u16(0); emit_u16(0);
+        emit_u32(1073741888);            // 0x40000040 (initialized | read)
+        transition 0 { _ -> maybe_data_header() }
+    }
+    state maybe_data_header() {
+        transition self.data_size { 0 -> pad_headers() _ -> data_header() }
     }
     state data_header() {
         write_byte(46); write_byte(100); write_byte(97); write_byte(116); write_byte(97); // ".data"
         write_byte(0); write_byte(0); write_byte(0);
-        emit_u32(self.data_size);              // VirtualSize
-        emit_u32(self.data_rva);               // VirtualAddress
-        emit_u32(self.data_raw_size);          // SizeOfRawData
-        emit_u32(512 + self.raw_section_size); // PointerToRawData (after .text)
+        emit_u32(self.data_size);          // VirtualSize (loader zero-fills this many bytes)
+        emit_u32(self.data_rva);           // VirtualAddress
+        emit_u32(0);                       // SizeOfRawData (BSS: no bytes in the file)
+        emit_u32(0);                       // PointerToRawData
         emit_u32(0); emit_u32(0);
         emit_u16(0); emit_u16(0);
-        write_byte(64); write_byte(0); write_byte(0); write_byte(192); // 0xC0000040 (init|read|write)
-        emit_zeros(104);                       // pad headers 408 -> 512
-        transition 0 { _ -> emit_text() }
+        write_byte(128); write_byte(0); write_byte(0); write_byte(192); // 0xC0000080 (uninit|read|write)
+        transition 0 { _ -> pad_headers() }
     }
-    state pad_one_section() {
-        emit_zeros(144);                       // pad headers 368 -> 512
+    state pad_headers() {
+        emit_zeros(184 - 40 * self.section_count); // pad the headers to 512
         transition 0 { _ -> emit_text() }
     }
 
@@ -611,21 +678,62 @@ machine Main::write_pe(&mut self) {
         transition 0 { _ -> code_step() }
     }
     state code_pad() {
-        transition self.write_cursor < self.raw_section_size { true -> code_pad_one() false -> emit_data() }
+        transition self.write_cursor < self.code_raw_size { true -> code_pad_one() false -> emit_rdata_section() }
     }
     state code_pad_one() {
         write_byte(0);
         self.write_cursor = self.write_cursor + 1;
         transition 0 { _ -> code_pad() }
     }
-    state emit_data() {
-        transition self.data_size { 0 -> done() _ -> data_bytes() }
+    state emit_rdata_section() {
+        // .data is BSS (zero-filled by the loader), so nothing follows .rdata in the file
+        transition self.uses_imports { 1 -> rdata_bytes() _ -> done() }
     }
-    state data_bytes() {
-        emit_zeros(self.data_raw_size); // .data is zero-initialized
+    state rdata_bytes() {
+        self.emit_rdata();                          // 158 bytes of import table
+        emit_zeros(self.rdata_raw_size - self.rdata_size); // pad to FileAlignment
         transition 0 { _ -> done() }
     }
     state done() { }
+}
+
+// Emit the 158-byte kernel32 import table for .rdata. Layout (offsets within .rdata):
+// IDT @0 (40), ILT @40 (32), IAT @72 (32), name "GetStdHandle" @104 (16),
+// "WriteFile" @120 (12), "ReadFile" @132 (12), "kernel32.dll" @144 (14).
+machine Main::emit_rdata(&mut self) {
+    // IDT[0]: kernel32 import descriptor, then a 20-byte null descriptor.
+    emit_u32(self.rdata_rva + 40);  // OriginalFirstThunk (ILT rva)
+    emit_u32(0); emit_u32(0);        // TimeDateStamp, ForwarderChain
+    emit_u32(self.rdata_rva + 144); // Name (dll-name rva)
+    emit_u32(self.rdata_rva + 72);  // FirstThunk (IAT rva)
+    emit_zeros(20);                  // null descriptor
+    // ILT: import-by-name RVAs of the three hint/name entries, then a null.
+    emit_u32(self.rdata_rva + 104); emit_u32(0);
+    emit_u32(self.rdata_rva + 120); emit_u32(0);
+    emit_u32(self.rdata_rva + 132); emit_u32(0);
+    emit_u32(0); emit_u32(0);
+    // IAT: same RVAs (the loader overwrites these with real addresses), then a null.
+    emit_u32(self.rdata_rva + 104); emit_u32(0);
+    emit_u32(self.rdata_rva + 120); emit_u32(0);
+    emit_u32(self.rdata_rva + 132); emit_u32(0);
+    emit_u32(0); emit_u32(0);
+    // hint/name entries: u16 hint (0) + NUL-terminated name, padded to 2 bytes.
+    emit_u16(0); // GetStdHandle
+    write_byte(71); write_byte(101); write_byte(116); write_byte(83); write_byte(116); write_byte(100);
+    write_byte(72); write_byte(97); write_byte(110); write_byte(100); write_byte(108); write_byte(101);
+    write_byte(0); write_byte(0); // NUL + pad (15 -> 16)
+    emit_u16(0); // WriteFile
+    write_byte(87); write_byte(114); write_byte(105); write_byte(116); write_byte(101);
+    write_byte(70); write_byte(105); write_byte(108); write_byte(101);
+    write_byte(0); // NUL (12, even)
+    emit_u16(0); // ReadFile
+    write_byte(82); write_byte(101); write_byte(97); write_byte(100);
+    write_byte(70); write_byte(105); write_byte(108); write_byte(101);
+    write_byte(0); write_byte(0); // NUL + pad (11 -> 12)
+    // dll name "kernel32.dll" + NUL, padded to 2 bytes.
+    write_byte(107); write_byte(101); write_byte(114); write_byte(110); write_byte(101); write_byte(108);
+    write_byte(51); write_byte(50); write_byte(46); write_byte(100); write_byte(108); write_byte(108);
+    write_byte(0); write_byte(0); // NUL + pad (13 -> 14)
 }
 
 // --- parser (increment 3) ---
@@ -748,6 +856,22 @@ machine Main::is_self(&mut self, token: i32) -> i32 {
     self.keyword_bytes[0] = 115; self.keyword_bytes[1] = 101; self.keyword_bytes[2] = 108;
     self.keyword_bytes[3] = 102; // s e l f
     return self.keyword_equals(token, 4);
+}
+
+machine Main::is_write_byte(&mut self, token: i32) -> i32 {
+    self.keyword_bytes[0] = 119; self.keyword_bytes[1] = 114; self.keyword_bytes[2] = 105;
+    self.keyword_bytes[3] = 116; self.keyword_bytes[4] = 101; self.keyword_bytes[5] = 95;
+    self.keyword_bytes[6] = 98;  self.keyword_bytes[7] = 121; self.keyword_bytes[8] = 116;
+    self.keyword_bytes[9] = 101; // w r i t e _ b y t e
+    return self.keyword_equals(token, 10);
+}
+
+machine Main::is_read_byte(&mut self, token: i32) -> i32 {
+    self.keyword_bytes[0] = 114; self.keyword_bytes[1] = 101; self.keyword_bytes[2] = 97;
+    self.keyword_bytes[3] = 100; self.keyword_bytes[4] = 95;  self.keyword_bytes[5] = 98;
+    self.keyword_bytes[6] = 121; self.keyword_bytes[7] = 116; self.keyword_bytes[8] = 101;
+    // r e a d _ b y t e
+    return self.keyword_equals(token, 9);
 }
 
 machine Main::is_machine(&mut self, token: i32) -> i32 {
@@ -1065,6 +1189,63 @@ machine Main::emit_self_element_addr(&mut self, offset: i32, count: i32, elem_by
     }
 }
 
+// Emit the ModRM + disp32 for an `[rbp+disp]` memory operand with register field
+// `reg` (0=rax/al, 1=rcx/r9, 2=rdx, ... ; ModRM mod=10, rm=101=rbp). The opcode (and
+// any REX prefix) is emitted by the caller.
+machine Main::emit_rbp_operand(&mut self, reg: i32, disp: i32) {
+    self.emit_byte(133 + reg * 8); // 0x85 | (reg << 3)
+    self.emit_i32(disp);
+}
+
+// Emit `call [rip+disp32]` through the import address table, recording the
+// relocation for the disp32 (patched in write_pe). slot: 0 GetStdHandle, 1 WriteFile,
+// 2 ReadFile.
+machine Main::emit_import_call(&mut self, slot: i32) {
+    self.uses_imports = 1;
+    self.emit_byte(255); self.emit_byte(21); // FF 15 (call r/m64, RIP-relative)
+    self.import_reloc_at[self.import_reloc_count] = self.code_length;
+    self.import_reloc_slot[self.import_reloc_count] = slot;
+    self.import_reloc_count = self.import_reloc_count + 1;
+    self.emit_i32(0); // placeholder disp32
+}
+
+// Emit WriteFile(GetStdHandle(STDOUT), &io_byte, 1, &written, NULL) with the byte
+// value already on top of the stack. Frame slots: handle -520, written -528,
+// io_byte -536. Win64 ABI: rcx/rdx/r8/r9 + the 5th arg at [rsp+0x20].
+machine Main::emit_write_byte_code(&mut self) {
+    self.emit_byte(88);                                                       // pop rax (value)
+    self.emit_byte(136); self.emit_rbp_operand(0, 0 - 536);                   // mov [rbp+io_byte], al
+    self.emit_byte(185); self.emit_i32(0 - 11);                              // mov ecx, -11 (STD_OUTPUT)
+    self.emit_import_call(0);                                                 // GetStdHandle
+    self.emit_byte(72); self.emit_byte(137); self.emit_rbp_operand(0, 0 - 520); // mov [rbp+handle], rax
+    self.emit_byte(72); self.emit_byte(139); self.emit_rbp_operand(1, 0 - 520); // mov rcx, [rbp+handle]
+    self.emit_byte(72); self.emit_byte(141); self.emit_rbp_operand(2, 0 - 536); // lea rdx, [rbp+io_byte]
+    self.emit_byte(65); self.emit_byte(184); self.emit_i32(1);               // mov r8d, 1
+    self.emit_byte(76); self.emit_byte(141); self.emit_rbp_operand(1, 0 - 528); // lea r9, [rbp+written]
+    self.emit_byte(72); self.emit_byte(199); self.emit_byte(68); self.emit_byte(36); self.emit_byte(32); self.emit_i32(0); // mov qword [rsp+0x20], 0
+    self.emit_import_call(1);                                                 // WriteFile
+}
+
+// Emit ReadFile(GetStdHandle(STDIN), &io_byte, 1, &count, NULL) and leave the byte
+// read (or -1 at EOF, branchless via cmove) pushed on the stack. count reuses the
+// `written` slot (-528).
+machine Main::emit_read_byte_code(&mut self) {
+    self.emit_byte(185); self.emit_i32(0 - 10);                              // mov ecx, -10 (STD_INPUT)
+    self.emit_import_call(0);                                                 // GetStdHandle
+    self.emit_byte(72); self.emit_byte(137); self.emit_rbp_operand(0, 0 - 520); // mov [rbp+handle], rax
+    self.emit_byte(72); self.emit_byte(139); self.emit_rbp_operand(1, 0 - 520); // mov rcx, [rbp+handle]
+    self.emit_byte(72); self.emit_byte(141); self.emit_rbp_operand(2, 0 - 536); // lea rdx, [rbp+io_byte]
+    self.emit_byte(65); self.emit_byte(184); self.emit_i32(1);               // mov r8d, 1
+    self.emit_byte(76); self.emit_byte(141); self.emit_rbp_operand(1, 0 - 528); // lea r9, [rbp+count]
+    self.emit_byte(72); self.emit_byte(199); self.emit_byte(68); self.emit_byte(36); self.emit_byte(32); self.emit_i32(0); // mov qword [rsp+0x20], 0
+    self.emit_import_call(2);                                                 // ReadFile
+    self.emit_byte(15); self.emit_byte(182); self.emit_rbp_operand(0, 0 - 536); // movzx eax, byte [rbp+io_byte]
+    self.emit_byte(185); self.emit_i32(0 - 1);                               // mov ecx, -1
+    self.emit_byte(131); self.emit_rbp_operand(7, 0 - 528); self.emit_byte(0); // cmp dword [rbp+count], 0
+    self.emit_byte(15); self.emit_byte(68); self.emit_byte(193);             // cmove eax, ecx
+    self.emit_byte(80);                                                       // push rax
+}
+
 // --- machine-code emission into self.code ---
 
 machine Main::emit_byte(&mut self, byte: i32) {
@@ -1237,10 +1418,11 @@ machine Main::compile_expr(&mut self) {
     let element_offset: i32 = 0;
     let element_count: i32 = 0;
     let element_width: i32 = 0;
+    let paren_depth: i32 = 0; // open grouping parens; a ')' closes one or ends the expr
     transition 0 { _ -> step() }
     state step() {
         transition self.token_kind[self.token_position] {
-            6 -> flush()   // )
+            6 -> on_rparen() // )  : closes a grouping paren, or ends the expression
             9 -> flush()   // ;
             3 -> flush()   // {  (end of a transition subject)
             12 -> flush()  // ,  (end of a call argument)
@@ -1253,6 +1435,7 @@ machine Main::compile_expr(&mut self) {
         transition self.token_kind[self.token_position] {
             2 -> operand_int()
             1 -> operand_name()
+            5 -> open_paren()   // '(' : start a grouping sub-expression
             16 -> binop()
             17 -> binop()
             18 -> binop()
@@ -1275,7 +1458,15 @@ machine Main::compile_expr(&mut self) {
     // an identifier is `self.<field>` / `self.<method>(...)`, a free call `name(...)`,
     // or a local load
     state operand_name() {
-        transition self.is_self(self.token_position) { 1 -> operand_self() _ -> operand_name2() }
+        transition self.is_self(self.token_position) { 1 -> operand_self() _ -> operand_name_nonself() }
+    }
+    state operand_name_nonself() {
+        transition self.is_read_byte(self.token_position) { 1 -> operand_read_byte() _ -> operand_name2() }
+    }
+    state operand_read_byte() {
+        self.token_position = self.token_position + 3; // skip read_byte '(' ')'
+        self.emit_read_byte_code();                    // leaves the byte (or -1) pushed
+        transition 0 { _ -> step() }
     }
     state operand_self() {
         self.token_position = self.token_position + 2; // skip 'self' '.' (now at the field name)
@@ -1355,6 +1546,32 @@ machine Main::compile_expr(&mut self) {
         self.operator_stack[self.operator_count] = self.current_operator;
         self.operator_count = self.operator_count + 1;
         self.token_position = self.token_position + 1;
+        transition 0 { _ -> step() }
+    }
+    state open_paren() {
+        self.operator_stack[self.operator_count] = 5; // push the '(' marker
+        self.operator_count = self.operator_count + 1;
+        paren_depth = paren_depth + 1;
+        self.token_position = self.token_position + 1; // skip '('
+        transition 0 { _ -> step() }
+    }
+    state on_rparen() {
+        // a ')' with an open grouping paren closes it; otherwise it ends the expression
+        transition paren_depth { 0 -> flush() _ -> close_paren() }
+    }
+    state close_paren() {
+        // pop operators down to the matching '(' marker (kind 5)
+        transition self.operator_stack[self.operator_count - 1] { 5 -> discard_paren() _ -> pop_to_paren() }
+    }
+    state pop_to_paren() {
+        self.operator_count = self.operator_count - 1;
+        self.emit_binary_op(self.operator_stack[self.operator_count]);
+        transition 0 { _ -> close_paren() }
+    }
+    state discard_paren() {
+        self.operator_count = self.operator_count - 1; // drop the '(' marker
+        paren_depth = paren_depth - 1;
+        self.token_position = self.token_position + 1; // skip ')'
         transition 0 { _ -> step() }
     }
     state flush() {
@@ -1540,7 +1757,17 @@ machine Main::compile_statement(&mut self) {
         transition self.is_exit_process(self.token_position) { 1 -> do_exit() _ -> not_exit() }
     }
     state not_exit() {
-        transition self.is_self(self.token_position) { 1 -> self_statement() _ -> maybe_ident() }
+        transition self.is_self(self.token_position) { 1 -> self_statement() _ -> not_self() }
+    }
+    state not_self() {
+        transition self.is_write_byte(self.token_position) { 1 -> do_write_byte() _ -> maybe_ident() }
+    }
+    state do_write_byte() {
+        self.token_position = self.token_position + 2; // skip write_byte '('
+        self.compile_expr();                           // value -> top of stack (stops at ')')
+        self.token_position = self.token_position + 1; // skip ')'
+        self.emit_write_byte_code();
+        transition self.token_kind[self.token_position] { 9 -> skip_semicolon() _ -> done() }
     }
     state maybe_ident() {
         transition self.token_kind[self.token_position] { 1 -> ident_statement() _ -> skip_one() } // 1 = Ident
@@ -1770,6 +1997,8 @@ machine Main::compile_block(&mut self) {
 machine Main::parse(&mut self) {
     self.code_length = 0;
     self.call_count = 0;
+    self.import_reloc_count = 0;
+    self.uses_imports = 0;
     self.token_position = 0;
     self.prescan_machines();
     self.prescan_data(); // lay out data fields (consumed by self.field codegen in 7b part 2)
@@ -1876,7 +2105,9 @@ machine Main::emit_machine(&mut self, machine_index: i32) {
         self.emit_byte(85);                                          // push rbp
         self.emit_byte(72); self.emit_byte(137); self.emit_byte(229); // mov rbp, rsp
         self.emit_byte(72); self.emit_byte(129); self.emit_byte(236); // sub rsp, imm32
-        self.emit_i32(512);
+        // 640 bytes: locals -8..-504, self-pointer -512, I/O scratch handle/written/io_byte
+        // at -520/-528/-536, leaving the bottom for the Win64 call shadow space.
+        self.emit_i32(640);
         transition 0 { _ -> spill_loop() }
     }
     state spill_loop() {

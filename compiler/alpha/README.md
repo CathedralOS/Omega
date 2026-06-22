@@ -104,12 +104,47 @@ printf '42' | ./alphac0.exe > out.exe                          # it compiles "42
   where `self.a = self.b + 1` wrote to `b`'s offset). Verified: i32 array (15),
   loop fill+sum with a runtime index (30), u8 buffer (74), OOB → trap (exit 132).
 
-## Next increments
+- **Increment 7d — byte I/O + the import-table PE: DONE.** `write_byte(b)` and
+  `read_byte()` lower to `GetStdHandle`+`WriteFile`/`ReadFile` (Win64 ABI: the args
+  in rcx/rdx/r8/r9 + the 5th at `[rsp+0x20]`, I/O scratch in fixed frame slots);
+  `read_byte` returns the byte or -1 at EOF (branchless `cmove`). `write_pe` grew to
+  emit a `.rdata` section with a full kernel32 import table (IDT/ILT/IAT + hint/name
+  + dll name) and patch the `call [rip+IAT]` relocations, and the optional header's
+  import + IAT data directories. `.data` became a BSS section (the loader zero-fills,
+  so a multi-MB instance costs no file bytes). The frame grew to 640 bytes for the
+  I/O scratch above the call's shadow space.
 
-7d. Byte I/O — `read_byte()`/`write_byte(b)` host calls + the kernel32 import-table
-    PE path (GetStdHandle/ReadFile/WriteFile, IDT/ILT/IAT). This is the last gap:
-    `alphac.alp` reads source and writes its PE through exactly these, so once
-    `alphac` can emit them it can compile `alphac.alp` and the fixed point closes.
+## ✅ SELF-HOSTING REACHED
+
+`alphac.alp` compiles itself to a byte-identical fixed point:
+
+```
+alpha-rs (on-ramp)  --compiles-->  alphac0      (throwaway-built)
+alphac0             --compiles-->  alphac1      (first Alpha-built)
+alphac1             --compiles-->  alphac2      (alphac1 == alphac2, byte-identical)
+alphac2             --compiles-->  alphac3      (== alphac2)
+```
+
+alphac1 == alphac2 == alphac3 (same MD5), and the Alpha-built compiler compiles the
+full language (arithmetic + precedence + parens, control flow + loops, a DAG of
+machines with params/returns, `data` + mutable `self` fields, scalar/byte arrays with
+trapping indexing, and byte stdin/stdout I/O). The on-ramp (`../alpha-rs`) is now
+discardable — Alpha builds Alpha.
+
+The bug that blocked convergence: `compile_expr` ignored parentheses (it flushed at
+`)`), so the on-ramp-built `alphac0` correctly ran `align_up`'s `((v+a-1)/a)*a` while
+`alphac1` (built by `alphac0`, which couldn't parse the parens) miscomputed every PE
+size by `+code_length`. Adding shunting-yard paren handling (push a `(` marker, pop to
+it on `)`, with `(` ranked below every operator) closed the fixed point.
+
+### Rebuild + verify the fixed point
+
+```
+../alpha-rs/target/debug/alphac.exe alphac.alp alphac0.exe
+./alphac0.exe < alphac.alp > alphac1.exe
+./alphac1.exe < alphac.alp > alphac2.exe
+cmp alphac1.exe alphac2.exe && echo "self-hosting holds"
+```
 
 ## Known gaps to fix in the on-ramp as they surface
 
