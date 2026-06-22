@@ -6,7 +6,7 @@
 // overflow per the Alpha spec. Slice 3 adds host calls (write_line) lowered to
 // the Win32 ABI with RIP-relative relocations resolved by the PE writer.
 
-use crate::ast::{BinaryOp, Expr, Pattern, Program, Statement};
+use crate::ast::{BinaryOp, Expr, Machine, Pattern, Program, Statement};
 use crate::util::align_up;
 
 #[derive(Clone, Copy)]
@@ -57,6 +57,32 @@ fn emit_store_local(code: &mut Vec<u8>, local_index: usize) {
     emit_rbp_memory_operand(code, &[0x89], 0, local_displacement(local_index)); // mov [rbp+disp], eax
 }
 
+// On entry the caller passed the first 4 args in rcx/rdx/r8/r9 (Win64). Spill
+// parameter `param_position` into its frame slot so the body reads it like any local.
+fn emit_store_parameter_register(code: &mut Vec<u8>, param_position: usize) {
+    let displacement = local_displacement(param_position);
+    let (prefix, reg_field): (&[u8], u8) = match param_position {
+        0 => (&[0x48, 0x89], 1), // rcx
+        1 => (&[0x48, 0x89], 2), // rdx
+        2 => (&[0x4C, 0x89], 0), // r8
+        _ => (&[0x4C, 0x89], 1), // r9
+    };
+    emit_rbp_memory_operand(code, prefix, reg_field, displacement);
+}
+
+// Load a pushed call argument off the stack into its ABI register:
+// mov <rcx|rdx|r8|r9>, [rsp + displacement].
+fn emit_load_argument_register(code: &mut Vec<u8>, arg_position: usize, displacement: i32) {
+    let modrm_bytes: &[u8] = match arg_position {
+        0 => &[0x48, 0x8B, 0x4C, 0x24], // rcx, [rsp+disp8]
+        1 => &[0x48, 0x8B, 0x54, 0x24], // rdx
+        2 => &[0x4C, 0x8B, 0x44, 0x24], // r8
+        _ => &[0x4C, 0x8B, 0x4C, 0x24], // r9
+    };
+    code.extend_from_slice(modrm_bytes);
+    code.push(displacement as u8); // disp8 (0..=24, since arg_count <= 4)
+}
+
 fn emit_overflow_trap(code: &mut Vec<u8>) {
     code.extend_from_slice(&[0x71, 0x02, 0x0F, 0x0B]); // jno +2 ; ud2
 }
@@ -90,8 +116,13 @@ fn emit_lea_rdx_rip(code: &mut Vec<u8>, relocations: &mut Vec<Relocation>, targe
     relocations.push(Relocation { patch_offset, target });
 }
 
-fn lower_expression(node: usize, expressions: &[Expr], code: &mut Vec<u8>) {
-    match expressions[node] {
+fn lower_expression(
+    node: usize,
+    context: &LoweringContext,
+    code: &mut Vec<u8>,
+    call_fixups: &mut Vec<(u32, usize)>,
+) {
+    match context.program.expressions[node] {
         Expr::Int(value) => {
             code.push(0xB8); // mov eax, imm32
             code.extend_from_slice(&value.to_le_bytes());
@@ -101,9 +132,30 @@ fn lower_expression(node: usize, expressions: &[Expr], code: &mut Vec<u8>) {
             emit_load_local(code, local_index);
             code.push(0x50); // push rax
         }
+        Expr::Call(machine_index, args_start, arg_count) => {
+            // Evaluate args left-to-right (each leaves its result pushed), then load
+            // them into the ABI registers and discard them so rsp returns to the
+            // (16-aligned) frame base before the call. arg i sits at the deeper slot.
+            for index in 0..arg_count {
+                let arg_node = context.program.call_args[args_start + index];
+                lower_expression(arg_node, context, code, call_fixups);
+            }
+            for index in 0..arg_count {
+                let displacement = (8 * (arg_count - 1 - index)) as i32;
+                emit_load_argument_register(code, index, displacement);
+            }
+            if arg_count > 0 {
+                code.extend_from_slice(&[0x48, 0x83, 0xC4, (8 * arg_count) as u8]); // add rsp, imm8
+            }
+            code.push(0xE8); // call rel32
+            let patch_offset = code.len() as u32;
+            code.extend_from_slice(&[0, 0, 0, 0]);
+            call_fixups.push((patch_offset, machine_index));
+            code.push(0x50); // push rax (return value)
+        }
         Expr::Binary(op, lhs, rhs) => {
-            lower_expression(lhs, expressions, code);
-            lower_expression(rhs, expressions, code);
+            lower_expression(lhs, context, code, call_fixups);
+            lower_expression(rhs, context, code, call_fixups);
             code.push(0x59); // pop rcx (rhs)
             code.push(0x58); // pop rax (lhs)
             match op {
@@ -147,21 +199,27 @@ fn lower_statement(
     context: &LoweringContext,
     code: &mut Vec<u8>,
     relocations: &mut Vec<Relocation>,
-    fixups: &mut Vec<(u32, usize)>,
+    state_fixups: &mut Vec<(u32, usize)>,
+    call_fixups: &mut Vec<(u32, usize)>,
 ) {
     match statement {
         Statement::Let(local_index, expression) => {
-            lower_expression(*expression, &context.program.expressions, code);
+            lower_expression(*expression, context, code, call_fixups);
             code.push(0x58); // pop rax
             emit_store_local(code, *local_index);
         }
         Statement::Assign(local_index, expression) => {
-            lower_expression(*expression, &context.program.expressions, code);
+            lower_expression(*expression, context, code, call_fixups);
             code.push(0x58); // pop rax
             emit_store_local(code, *local_index);
         }
+        Statement::Return(expression) => {
+            lower_expression(*expression, context, code, call_fixups);
+            code.push(0x58); // pop rax (return value -> caller)
+            emit_epilogue(code);
+        }
         Statement::Exit(expression) => {
-            lower_expression(*expression, &context.program.expressions, code);
+            lower_expression(*expression, context, code, call_fixups);
             code.push(0x58); // pop rax (exit code)
             emit_epilogue(code);
         }
@@ -183,7 +241,7 @@ fn lower_statement(
             emit_rip_call(code, relocations, RelocationTarget::Import(ImportFunction::WriteFile));
         }
         Statement::Transition(subject, arms) => {
-            lower_expression(*subject, &context.program.expressions, code);
+            lower_expression(*subject, context, code, call_fixups);
             code.push(0x58); // pop rax (subject value)
             for arm in arms {
                 match arm.pattern {
@@ -193,13 +251,13 @@ fn lower_statement(
                         code.extend_from_slice(&[0x0F, 0x84]); // je rel32
                         let patch_offset = code.len() as u32;
                         code.extend_from_slice(&[0, 0, 0, 0]);
-                        fixups.push((patch_offset, arm.target));
+                        state_fixups.push((patch_offset, arm.target));
                     }
                     Pattern::Wild => {
                         code.push(0xE9); // jmp rel32
                         let patch_offset = code.len() as u32;
                         code.extend_from_slice(&[0, 0, 0, 0]);
-                        fixups.push((patch_offset, arm.target));
+                        state_fixups.push((patch_offset, arm.target));
                     }
                 }
             }
@@ -207,34 +265,20 @@ fn lower_statement(
     }
 }
 
-pub fn lower_program(program: &Program) -> LoweredProgram {
-    // .rdata strings + per-string offsets
-    let mut rodata = Vec::new();
-    let mut string_offsets = Vec::with_capacity(program.strings.len());
-    for string in &program.strings {
-        string_offsets.push(rodata.len() as u32);
-        rodata.extend_from_slice(string);
-    }
-
-    let local_count = program.local_count as u32;
-    let has_calls = program
-        .entry
-        .iter()
-        .chain(program.states.iter().flatten())
-        .any(|statement| matches!(statement, Statement::WriteLine(_)));
-    // frame = locals + (when calling: 16 scratch [written,handle] + 32 shadow + 8 fifth-arg slot)
-    let extra = if has_calls { 16 + 40 } else { 0 };
+// Lower one machine as a function: prologue, spill register params to frame slots,
+// entry block, then each state block (recording its label), a trailing return-0,
+// and finally patch this machine's intra-machine state jumps.
+fn lower_machine(
+    machine: &Machine,
+    context: &LoweringContext,
+    code: &mut Vec<u8>,
+    relocations: &mut Vec<Relocation>,
+    call_fixups: &mut Vec<(u32, usize)>,
+) {
+    let local_count = machine.local_count as u32;
+    // frame = locals + (when calling out: 16 scratch [written,handle] + 32 shadow + 8 fifth-arg slot)
+    let extra = if machine.makes_call { 16 + 40 } else { 0 };
     let frame = align_up(local_count * 8 + extra, 16);
-    let context = LoweringContext {
-        program,
-        string_offsets: &string_offsets,
-        handle_displacement: -((local_count * 8 + 16) as i32),
-        written_displacement: -((local_count * 8 + 8) as i32),
-    };
-
-    let mut code = Vec::new();
-    let mut relocations = Vec::new();
-    let mut fixups: Vec<(u32, usize)> = Vec::new();
 
     // prologue
     code.push(0x55); // push rbp
@@ -247,27 +291,82 @@ pub fn lower_program(program: &Program) -> LoweredProgram {
             code.extend_from_slice(&frame.to_le_bytes()); // sub rsp, imm32
         }
     }
-
-    for statement in &program.entry {
-        lower_statement(statement, &context, &mut code, &mut relocations, &mut fixups);
+    // spill incoming register params into their frame slots (before any call clobbers them)
+    for param_position in 0..machine.param_count {
+        emit_store_parameter_register(code, param_position);
     }
-    let mut labels = vec![0u32; program.states.len()];
-    for (state_index, state_statements) in program.states.iter().enumerate() {
+
+    let mut state_fixups: Vec<(u32, usize)> = Vec::new();
+    for statement in &machine.entry {
+        lower_statement(statement, context, code, relocations, &mut state_fixups, call_fixups);
+    }
+    let mut labels = vec![0u32; machine.states.len()];
+    for (state_index, state_statements) in machine.states.iter().enumerate() {
         labels[state_index] = code.len() as u32;
         for statement in state_statements {
-            lower_statement(statement, &context, &mut code, &mut relocations, &mut fixups);
+            lower_statement(statement, context, code, relocations, &mut state_fixups, call_fixups);
         }
     }
-    // trailing default: exit 0 (reached only by fall-through)
+    // trailing default: return 0 (reached only by fall-through off the end)
     code.extend_from_slice(&[0x31, 0xC0]); // xor eax, eax
-    emit_epilogue(&mut code);
+    emit_epilogue(code);
 
-    // patch intra-text jumps to state labels
-    for (patch_offset, target) in &fixups {
+    // patch intra-machine jumps to state labels
+    for (patch_offset, target) in &state_fixups {
         let relative = labels[*target] as i64 - (*patch_offset as i64 + 4);
         let offset = *patch_offset as usize;
         code[offset..offset + 4].copy_from_slice(&(relative as i32).to_le_bytes());
     }
+}
 
-    LoweredProgram { code, relocations, rodata, uses_imports: has_calls }
+pub fn lower_program(program: &Program) -> LoweredProgram {
+    // .rdata strings + per-string offsets (global across machines)
+    let mut rodata = Vec::new();
+    let mut string_offsets = Vec::with_capacity(program.strings.len());
+    for string in &program.strings {
+        string_offsets.push(rodata.len() as u32);
+        rodata.extend_from_slice(string);
+    }
+    let uses_imports = program.machines.iter().any(|machine| {
+        machine
+            .entry
+            .iter()
+            .chain(machine.states.iter().flatten())
+            .any(|statement| matches!(statement, Statement::WriteLine(_)))
+    });
+
+    let mut code = Vec::new();
+    let mut relocations = Vec::new();
+    let mut call_fixups: Vec<(u32, usize)> = Vec::new();
+    let mut machine_offsets = vec![0u32; program.machines.len()];
+
+    // Lower the entry machine FIRST so the PE entry point stays at text offset 0,
+    // then the rest; record each machine's start offset for the call relocations.
+    let mut order = vec![program.entry_machine];
+    for index in 0..program.machines.len() {
+        if index != program.entry_machine {
+            order.push(index);
+        }
+    }
+    for &machine_index in &order {
+        let machine = &program.machines[machine_index];
+        let local_count = machine.local_count as u32;
+        let context = LoweringContext {
+            program,
+            string_offsets: &string_offsets,
+            handle_displacement: -((local_count * 8 + 16) as i32),
+            written_displacement: -((local_count * 8 + 8) as i32),
+        };
+        machine_offsets[machine_index] = code.len() as u32;
+        lower_machine(machine, &context, &mut code, &mut relocations, &mut call_fixups);
+    }
+
+    // patch cross-machine call rel32s now that every machine's offset is known
+    for (patch_offset, target_machine) in &call_fixups {
+        let relative = machine_offsets[*target_machine] as i64 - (*patch_offset as i64 + 4);
+        let offset = *patch_offset as usize;
+        code[offset..offset + 4].copy_from_slice(&(relative as i32).to_le_bytes());
+    }
+
+    LoweredProgram { code, relocations, rodata, uses_imports }
 }

@@ -58,9 +58,24 @@ cargo run -- samples/exit7.alpha out.exe
   loop with a `write_line` side effect prints `tick` three times. See
   `samples/loop.alpha`.
 
+- **Slice 6 — machine calls (the DAG model): DONE.** A program is now a list of
+  callable machines. Free machines take value params (`a: i32`) and `return` a
+  value; calls in value position (`add(2, 3)`) pass args in the Win64 registers
+  (rcx/rdx/r8/r9, ≤4 for now), `call rel32` to the callee, result in eax. Each
+  machine is its own function (own frame, params spilled to slots on entry); the
+  entry machine is lowered first so the PE entry stays at offset 0; cross-machine
+  call rel32s are patched after layout. Forward references work (machine names are
+  pre-scanned), and a callee may have its own transitions. Verified: `add(20,22)`,
+  forward-ref `square`/`mul`, `max(max(7,19),12)`, 4-arg `sum4` feeding
+  arithmetic. See `samples/calls.alpha`.
+
 ## Next slices (grow the grammar feature-by-feature)
 
-6. Machine calls: a second machine + a call (the call-frame / DAG model).
-7. `data` structs + field access; `[T;N]` arrays + indexing (the IR arenas).
+7. `data` structs + field access (incl. `&mut self` methods); `[T;N]` arrays +
+   trap-checked indexing (the IR arenas — the heart of the compiler's storage).
 8. File I/O: CreateFile/ReadFile/WriteFile — the compiler reads a source file and
    writes a `.exe`. Then sum-types-as-tags, and the Alpha compiler in `compiler/alpha/`.
+
+Deferred subset-enforcement (front-end is the spec; add before self-host): reject
+a cyclic call graph (Alpha bans recursion — calls must be a DAG); >4-arg calls
+(stack args); arena-capacity bounds.
