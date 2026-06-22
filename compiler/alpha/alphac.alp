@@ -59,6 +59,18 @@ data Main {
     raw_section_size: i32;
     image_size: i32;
     write_cursor: i32;            // scratch loop cursor
+    setcc_byte: i32;              // setcc opcode for a comparison
+    state_name_token: [i32; 128]; // token index naming each state (prescan order)
+    state_offset: [i32; 128];     // code offset (label) of each state
+    state_count: i32;
+    state_emit_index: i32;        // which state we are emitting
+    fixup_at: [i32; 256];         // code offset of each jump rel32 to patch
+    fixup_target: [i32; 256];     // target state index for each fixup
+    fixup_count: i32;
+    scan_position: i32;           // state pre-scan cursor
+    pattern_value: i32;           // transition arm: the matched integer
+    arm_is_wild: i32;             // transition arm: is it the `_` default?
+    target_state: i32;            // transition arm: resolved target state index
 }
 
 // --- byte classifiers (free machines returning 0/1) ---
@@ -143,11 +155,23 @@ machine align_up(value: i32, alignment: i32) -> i32 {
     return ((value + alignment - 1) / alignment) * alignment;
 }
 
-// operator precedence: * / bind tighter (2) than + - (1)
+// operator precedence: * / (2) bind tighter than + - (1), which bind tighter
+// than the comparisons < > <= >= == != (0).
 machine precedence(operator: i32) -> i32 {
-    transition operator { 18 -> high() 19 -> high() _ -> low() }
+    transition operator {
+        18 -> high()
+        19 -> high()
+        20 -> comparison()
+        21 -> comparison()
+        22 -> comparison()
+        23 -> comparison()
+        24 -> comparison()
+        25 -> comparison()
+        _ -> low()
+    }
     state high() { return 2; }
     state low() { return 1; }
+    state comparison() { return 0; }
 }
 
 // arithmetic shift right by 8 bits = floor(value/256). Alpha's `/` truncates toward
@@ -715,6 +739,12 @@ machine Main::emit_binary_op(&mut self, operator: i32) {
         17 -> emit_sub()
         18 -> emit_mul()
         19 -> emit_div()
+        20 -> set_less()
+        21 -> set_greater()
+        22 -> set_less_equal()
+        23 -> set_greater_equal()
+        24 -> set_equal()
+        25 -> set_not_equal()
         _  -> emit_add()
     }
     state emit_add() {
@@ -737,6 +767,20 @@ machine Main::emit_binary_op(&mut self, operator: i32) {
         self.emit_byte(113); self.emit_byte(2); self.emit_byte(15); self.emit_byte(11); // jno +2 ; ud2
         transition 0 { _ -> push_result() }
     }
+    // comparisons: a setter picks the setcc opcode, then emit_comparison emits
+    // cmp eax,ecx ; setcc al ; movzx eax,al  (result is 0 or 1)
+    state set_less()          { self.setcc_byte = 156; transition 0 { _ -> emit_comparison() } } // setl  0x9C
+    state set_greater()       { self.setcc_byte = 159; transition 0 { _ -> emit_comparison() } } // setg  0x9F
+    state set_less_equal()    { self.setcc_byte = 158; transition 0 { _ -> emit_comparison() } } // setle 0x9E
+    state set_greater_equal() { self.setcc_byte = 157; transition 0 { _ -> emit_comparison() } } // setge 0x9D
+    state set_equal()         { self.setcc_byte = 148; transition 0 { _ -> emit_comparison() } } // sete  0x94
+    state set_not_equal()     { self.setcc_byte = 149; transition 0 { _ -> emit_comparison() } } // setne 0x95
+    state emit_comparison() {
+        self.emit_byte(57); self.emit_byte(200);                              // cmp eax, ecx
+        self.emit_byte(15); self.emit_byte(self.setcc_byte); self.emit_byte(192); // setcc al
+        self.emit_byte(15); self.emit_byte(182); self.emit_byte(192);         // movzx eax, al
+        transition 0 { _ -> push_result() }
+    }
     state push_result() { self.emit_byte(80); } // push rax
 }
 
@@ -746,8 +790,14 @@ machine Main::compile_expr(&mut self) {
     self.operator_count = 0;
     transition 0 { _ -> step() }
     state step() {
-        transition self.token_kind[self.token_position] { 6 -> flush() 9 -> flush() 0 -> flush() _ -> item() }
-    } // stop at ) ; or Eof
+        transition self.token_kind[self.token_position] {
+            6 -> flush()   // )
+            9 -> flush()   // ;
+            3 -> flush()   // {  (end of a transition subject)
+            0 -> flush()   // Eof
+            _ -> item()
+        }
+    }
     state item() {
         transition self.token_kind[self.token_position] {
             2 -> operand_int()
@@ -756,6 +806,12 @@ machine Main::compile_expr(&mut self) {
             17 -> binop()
             18 -> binop()
             19 -> binop()
+            20 -> binop()
+            21 -> binop()
+            22 -> binop()
+            23 -> binop()
+            24 -> binop()
+            25 -> binop()
             _ -> skip()
         }
     }
