@@ -15,6 +15,7 @@ const SECT_ALIGN: u32 = 0x1000;
 const IMAGE_BASE: u64 = 0x1_4000_0000;
 const TEXT_CHARS: u32 = 0x6000_0020; // CNT_CODE | MEM_EXECUTE | MEM_READ
 const RDATA_CHARS: u32 = 0x4000_0040; // CNT_INITIALIZED_DATA | MEM_READ
+const DATA_CHARS: u32 = 0xC000_0040; // CNT_INITIALIZED_DATA | MEM_READ | MEM_WRITE
 
 struct Section {
     name: [u8; 8],
@@ -43,34 +44,40 @@ fn align_to_8(value: usize) -> usize {
 
 pub fn build_pe(lowered: &LoweredProgram) -> Vec<u8> {
     let text_rva = SECT_ALIGN; // 0x1000
+    let mut code = lowered.code.clone();
+    let mut next_rva = text_rva + align_up(code.len() as u32, SECT_ALIGN);
 
-    if !lowered.uses_imports {
-        let text = Section {
-            name: section_name(b".text"),
-            rva: text_rva,
-            data: lowered.code.clone(),
-            characteristics: TEXT_CHARS,
-        };
-        return assemble_pe(text_rva, &[text], &[]);
+    // Optional .rdata (string literals + the kernel32 import table).
+    let mut rdata_layout: Option<RdataLayout> = None;
+    let mut rdata_rva = 0;
+    if lowered.uses_imports {
+        rdata_rva = next_rva;
+        let rdata = build_rdata_section(&lowered.rodata, rdata_rva);
+        next_rva += align_up(rdata.bytes.len() as u32, SECT_ALIGN);
+        rdata_layout = Some(rdata);
     }
 
-    // Two sections: .text + .rdata (strings followed by the kernel32 import table).
-    let mut code = lowered.code.clone();
-    let rdata_rva = text_rva + align_up(code.len() as u32, SECT_ALIGN);
-    let rdata = build_rdata_section(&lowered.rodata, rdata_rva);
+    // Optional .data (the entry machine's zero-initialized `self` instance).
+    let mut data_rva = 0;
+    if lowered.data_size > 0 {
+        data_rva = next_rva;
+        next_rva += align_up(lowered.data_size, SECT_ALIGN);
+    }
+    let _ = next_rva;
 
     // Patch RIP-relative disp32s now that all RVAs are fixed.
     for relocation in &lowered.relocations {
         let target_rva = match &relocation.target {
             RelocationTarget::Rodata(offset) => rdata_rva + offset,
             RelocationTarget::Import(import_function) => {
-                rdata.address_table_rva
+                rdata_layout.as_ref().unwrap().address_table_rva
                     + match import_function {
                         ImportFunction::GetStdHandle => 0,
                         ImportFunction::WriteFile => 8,
                         ImportFunction::ReadFile => 16,
                     }
             }
+            RelocationTarget::Data(offset) => data_rva + offset,
         };
         let rip = text_rva + relocation.patch_offset + 4; // RVA of the byte after the disp32
         let displacement = target_rva as i64 - rip as i64;
@@ -78,21 +85,32 @@ pub fn build_pe(lowered: &LoweredProgram) -> Vec<u8> {
         code[offset..offset + 4].copy_from_slice(&(displacement as i32).to_le_bytes());
     }
 
-    let text = Section { name: section_name(b".text"), rva: text_rva, data: code, characteristics: TEXT_CHARS };
-    let rdata_section = Section {
-        name: section_name(b".rdata"),
-        rva: rdata_rva,
-        data: rdata.bytes,
-        characteristics: RDATA_CHARS,
-    };
-    assemble_pe(
-        text_rva,
-        &[text, rdata_section],
-        &[
-            (1, rdata.import_directory_rva, rdata.import_directory_size),
-            (12, rdata.address_table_rva, rdata.address_table_size),
-        ],
-    )
+    let mut sections = vec![Section {
+        name: section_name(b".text"),
+        rva: text_rva,
+        data: code,
+        characteristics: TEXT_CHARS,
+    }];
+    let mut data_dirs = Vec::new();
+    if let Some(rdata) = rdata_layout {
+        data_dirs.push((1, rdata.import_directory_rva, rdata.import_directory_size));
+        data_dirs.push((12, rdata.address_table_rva, rdata.address_table_size));
+        sections.push(Section {
+            name: section_name(b".rdata"),
+            rva: rdata_rva,
+            data: rdata.bytes,
+            characteristics: RDATA_CHARS,
+        });
+    }
+    if lowered.data_size > 0 {
+        sections.push(Section {
+            name: section_name(b".data"),
+            rva: data_rva,
+            data: vec![0u8; lowered.data_size as usize], // zero-initialized
+            characteristics: DATA_CHARS,
+        });
+    }
+    assemble_pe(text_rva, &sections, &data_dirs)
 }
 
 struct RdataLayout {

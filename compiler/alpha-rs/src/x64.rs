@@ -17,8 +17,9 @@ pub enum ImportFunction {
 }
 
 pub enum RelocationTarget {
-    Rodata(u32),              // RIP-relative reference to a byte offset within .rdata strings
-    Import(ImportFunction),   // RIP-relative indirect call through the IAT slot
+    Rodata(u32),            // RIP-relative reference to a byte offset within .rdata strings
+    Import(ImportFunction), // RIP-relative indirect call through the IAT slot
+    Data(u32),              // RIP-relative reference to a byte offset within .data (the static self)
 }
 
 pub struct Relocation {
@@ -31,6 +32,7 @@ pub struct LoweredProgram {
     pub relocations: Vec<Relocation>,
     pub rodata: Vec<u8>, // concatenated string payloads; RelocationTarget::Rodata indexes into this
     pub uses_imports: bool,
+    pub data_size: u32,  // bytes of the zero-init .data section (the entry's static self), 0 if none
 }
 
 fn local_displacement(local_index: usize) -> i32 {
@@ -415,11 +417,12 @@ fn lower_statement(
 // return-0, and finally patch this machine's intra-machine state jumps.
 //
 // Frame layout (high → low address, all rbp-relative): locals · self-ptr slot ·
-// [entry only] the self data instance · write_line scratch · shadow space.
+// write_line/io scratch · shadow space. The entry machine's `self` data instance
+// lives in a zero-init .data section (RIP-relative), not the frame, so the frame
+// stays small regardless of how big the arenas are.
 fn lower_machine(
     machine: &Machine,
     is_entry: bool,
-    entry_data_size: i32,
     string_offsets: &[u32],
     program: &Program,
     code: &mut Vec<u8>,
@@ -429,25 +432,17 @@ fn lower_machine(
     let local_count = machine.local_count as i32;
     let self_slots = if machine.has_self { 1 } else { 0 };
     let named_bytes = 8 * (local_count + self_slots); // locals + the self-pointer slot
-    // The entry machine's `self` instance lives in its own (long-lived) frame, ZII.
-    let region_bytes = if is_entry && machine.has_self {
-        (entry_data_size + 7) & !7 // round up to 8
-    } else {
-        0
-    };
     // scratch when calling out: written/count(8) + handle(8) + io_byte(8) + shadow(32) + 5th arg(8)
     let scratch = if machine.makes_call { 24 + 40 } else { 0 };
-    let frame = align_up((named_bytes + region_bytes + scratch) as u32, 16);
+    let frame = align_up((named_bytes + scratch) as u32, 16);
 
-    let scratch_base = named_bytes + region_bytes;
     let self_ptr_displacement = -(8 * (local_count + 1)); // first slot past the locals
-    let region_displacement = -(named_bytes + region_bytes); // self instance base (field offset 0)
     let context = LoweringContext {
         program,
         string_offsets,
-        written_displacement: -(scratch_base + 8),
-        handle_displacement: -(scratch_base + 16),
-        io_byte_displacement: -(scratch_base + 24),
+        written_displacement: -(named_bytes + 8),
+        handle_displacement: -(named_bytes + 16),
+        io_byte_displacement: -(named_bytes + 24),
         self_ptr_displacement,
     };
 
@@ -471,12 +466,11 @@ fn lower_machine(
     // establish the self pointer
     if machine.has_self {
         if is_entry {
-            // zero the frame-resident self instance (ZII), then point self at it
-            for slot in 0..(region_bytes / 8) {
-                emit_rbp_memory_operand(code, &[0x48, 0xC7], 0, region_displacement + 8 * slot);
-                code.extend_from_slice(&[0, 0, 0, 0]); // mov qword [rbp+region+8*slot], 0
-            }
-            emit_rbp_memory_operand(code, &[0x48, 0x8D], 0, region_displacement); // lea rax, [rbp+region]
+            // the entry's self is the static, zero-init .data instance
+            code.extend_from_slice(&[0x48, 0x8D, 0x05]); // lea rax, [rip+disp32]
+            let patch_offset = code.len() as u32;
+            code.extend_from_slice(&[0, 0, 0, 0]);
+            relocations.push(Relocation { patch_offset, target: RelocationTarget::Data(0) });
             emit_rbp_memory_operand(code, &[0x48, 0x89], 0, self_ptr_displacement); // mov [rbp+self], rax
         } else {
             emit_rbp_memory_operand(code, &[0x48, 0x89], 1, self_ptr_displacement); // mov [rbp+self], rcx
@@ -535,7 +529,6 @@ pub fn lower_program(program: &Program) -> LoweredProgram {
         lower_machine(
             machine,
             machine_index == program.entry_machine,
-            program.entry_data_size,
             &string_offsets,
             program,
             &mut code,
@@ -551,5 +544,12 @@ pub fn lower_program(program: &Program) -> LoweredProgram {
         code[offset..offset + 4].copy_from_slice(&(relative as i32).to_le_bytes());
     }
 
-    LoweredProgram { code, relocations, rodata, uses_imports }
+    // the entry machine's `self` instance lives in a zero-init .data section
+    let data_size = if program.machines[program.entry_machine].has_self {
+        align_up(program.entry_data_size as u32, 8)
+    } else {
+        0
+    };
+
+    LoweredProgram { code, relocations, rodata, uses_imports, data_size }
 }
