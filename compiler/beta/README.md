@@ -11,15 +11,17 @@ on-ramp is the executable spec; this must accept the same language.
 
 ## Source layout (one translation unit, multiple files)
 
-Alpha has no module system: the compiler is **one translation unit split across
-files that concatenate in order** (front end, per-arch backend, per-format backend).
-This mirrors the on-ramp's `lex/parse/x64/pe` module split and is what lets a new
-target or image format be a *new sibling file* rather than an edit to a monolith.
+Beta has no module system: the compiler is **one translation unit split across the
+files in `src/`, concatenated in order** (front end, per-arch backend, per-format
+backend). This mirrors the on-ramp's `lex/parse/x64/pe` module split and is what lets
+a new target or image format be a *new sibling file* rather than an edit to a monolith.
 
-- `alpha.alp` — front end + driver: lexer, keyword matchers, resolution, prescans,
+- `src/beta.alp` — front end + driver: lexer, keyword matchers, resolution, prescans,
   the single-pass parse+emit driver, `data Main`, `main`.
-- `x64.alp` — the x86-64 instruction encoders (emit a future `aarch64.alp` alongside).
-- `pe.alp` — the Windows PE32+ image writer (emit a future `elf.alp` alongside).
+- `src/x64.alp` — the x86-64 instruction encoders (emit a future `aarch64.alp` alongside).
+- `src/pe.alp` — the Windows PE32+ image writer (emit a future `elf.alp` alongside).
+
+Generated binaries go under `build/` (gitignored).
 
 ## Build / test
 
@@ -27,11 +29,12 @@ The compiler is a filter: the concatenated source on stdin, a Windows PE on stdo
 `build.sh` does the full build + fixed-point check; by hand:
 
 ```
-../alpha-rs/target/debug/alpha.exe alpha.alp x64.alp pe.alp alpha0.exe  # on-ramp builds it
-cat alpha.alp x64.alp pe.alp | ./alpha0.exe > alpha1.exe                # it builds itself
-cat alpha.alp x64.alp pe.alp | ./alpha1.exe > alpha2.exe                # ...and again
-cmp alpha1.exe alpha2.exe                                               # byte-identical
-printf '42' | ./alpha1.exe > out.exe && ./out.exe; echo $?             # compiles "42" -> 42
+SRC="src/beta.alp src/x64.alp src/pe.alp"
+../beta-rs/target/debug/beta.exe $SRC build/beta0.exe       # on-ramp builds it
+cat $SRC | ./build/beta0.exe > build/beta1.exe             # it builds itself
+cat $SRC | ./build/beta1.exe > build/beta2.exe             # ...and again
+cmp build/beta1.exe build/beta2.exe                        # byte-identical
+printf '42' | ./build/beta1.exe > build/out.exe && ./build/out.exe; echo $?   # "42" -> 42
 ```
 
 (The on-ramp takes the file list on argv and concatenates it; the self-hosted
@@ -134,34 +137,34 @@ compiler reads the concatenation on stdin.)
 
 ## ✅ SELF-HOSTING REACHED
 
-`alpha.alp` compiles itself to a byte-identical fixed point:
+`src/beta.alp` (+ `x64.alp` + `pe.alp`) compiles itself to a byte-identical fixed point:
 
 ```
-alpha-rs (on-ramp)  --compiles-->  alpha0      (throwaway-built)
-alpha0             --compiles-->  alpha1      (first Alpha-built)
-alpha1             --compiles-->  alpha2      (alpha1 == alpha2, byte-identical)
-alpha2             --compiles-->  alpha3      (== alpha2)
+beta-rs (on-ramp)  --compiles-->  beta0      (throwaway-built)
+beta0              --compiles-->  beta1      (first Beta-built)
+beta1              --compiles-->  beta2      (beta1 == beta2, byte-identical)
 ```
 
-alpha1 == alpha2 == alpha3 (same MD5), and the Alpha-built compiler compiles the
-full language (arithmetic + precedence + parens, control flow + loops, a DAG of
-machines with params/returns, `data` + mutable `self` fields, scalar/byte arrays with
-trapping indexing, and byte stdin/stdout I/O). The on-ramp (`../alpha-rs`) is now
-discardable — Alpha builds Alpha.
+beta1 == beta2 (same MD5), and the Beta-built compiler compiles the full language
+(arithmetic + precedence + parens, control flow + loops, a DAG of machines with
+params/returns, `data` + mutable `self` fields, scalar/byte arrays with trapping
+indexing, and byte stdin/stdout I/O). The on-ramp (`../beta-rs`) is now discardable —
+Beta builds Beta.
 
 The bug that blocked convergence: `compile_expr` ignored parentheses (it flushed at
-`)`), so the on-ramp-built `alpha0` correctly ran `align_up`'s `((v+a-1)/a)*a` while
-`alpha1` (built by `alpha0`, which couldn't parse the parens) miscomputed every PE
-size by `+code_length`. Adding shunting-yard paren handling (push a `(` marker, pop to
-it on `)`, with `(` ranked below every operator) closed the fixed point.
+`)`), so the on-ramp-built `beta0` correctly ran `align_up`'s `((v+a-1)/a)*a` while
+the next generation (which couldn't parse the parens) miscomputed every PE size by
+`+code_length`. Adding shunting-yard paren handling (push a `(` marker, pop to it on
+`)`, with `(` ranked below every operator) closed the fixed point.
 
 ### Rebuild + verify the fixed point
 
 ```
-../alpha-rs/target/debug/alpha.exe alpha.alp alpha0.exe
-./alpha0.exe < alpha.alp > alpha1.exe
-./alpha1.exe < alpha.alp > alpha2.exe
-cmp alpha1.exe alpha2.exe && echo "self-hosting holds"
+SRC="src/beta.alp src/x64.alp src/pe.alp"
+../beta-rs/target/debug/beta.exe $SRC build/beta0.exe
+cat $SRC | ./build/beta0.exe > build/beta1.exe
+cat $SRC | ./build/beta1.exe > build/beta2.exe
+cmp build/beta1.exe build/beta2.exe && echo "self-hosting holds"
 ```
 
 ## Known gaps to fix in the on-ramp as they surface
