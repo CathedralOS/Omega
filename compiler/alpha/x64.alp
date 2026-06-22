@@ -1,0 +1,234 @@
+// alpha/x64.alp — the x86-64 instruction encoders (per-arch backend).
+//
+// Concatenated with alpha.alp + pe.alp into one Alpha translation unit; these
+// machines append x86-64 machine code into self.code (emit_byte/emit_i32 and the
+// instruction/host-call encoders) and patch it (patch_i32). A new target
+// (aarch64) would be a sibling file, not an edit here.
+
+
+// arithmetic shift right by 8 bits = floor(value/256). Alpha's `/` truncates toward
+// zero, so for negatives we bias by -255 to get floor. Used to emit the bytes of
+// a (possibly negative) i32 in two's complement, since there are no bitwise ops.
+machine arithmetic_shift_8(value: i32) -> i32 {
+    transition value < 0 { true -> negative() false -> positive() }
+    state negative() { return (value - 255) / 256; }
+    state positive() { return value / 256; }
+}
+
+// Emit the address of `self.<field>[index]` into rax, with the index already on
+// top of the stack: pop the index, trap (ud2) if it is >= the element count, then
+// rax = self_ptr + field_offset + index * element_width.
+machine Main::emit_self_element_addr(&mut self, offset: i32, count: i32, elem_bytes: i32) {
+    self.emit_byte(88);                                          // pop rax (index)
+    self.emit_byte(137); self.emit_byte(192);                    // mov eax, eax (zero-extend to rax)
+    self.emit_byte(61); self.emit_i32(count);                    // cmp eax, count
+    self.emit_byte(114); self.emit_byte(2);                      // jb +2 (skip the trap)
+    self.emit_byte(15); self.emit_byte(11);                      // ud2 (index out of bounds)
+    transition elem_bytes { 8 -> scale8() _ -> after_scale() }   // 1-byte elements need no scaling
+    state scale8() {
+        self.emit_byte(72); self.emit_byte(193); self.emit_byte(224); self.emit_byte(3); // shl rax, 3
+        transition 0 { _ -> after_scale() }
+    }
+    state after_scale() {
+        transition offset { 0 -> add_self_pointer() _ -> add_offset() }
+    }
+    state add_offset() {
+        self.emit_byte(72); self.emit_byte(5); self.emit_i32(offset); // add rax, offset (48 05 id)
+        transition 0 { _ -> add_self_pointer() }
+    }
+    state add_self_pointer() {
+        self.emit_byte(72); self.emit_byte(3); self.emit_byte(133); self.emit_i32(0 - 512); // add rax, [rbp-512]
+    }
+}
+
+// Emit the ModRM + disp32 for an `[rbp+disp]` memory operand with register field
+// `reg` (0=rax/al, 1=rcx/r9, 2=rdx, ... ; ModRM mod=10, rm=101=rbp). The opcode (and
+// any REX prefix) is emitted by the caller.
+machine Main::emit_rbp_operand(&mut self, reg: i32, disp: i32) {
+    self.emit_byte(133 + reg * 8); // 0x85 | (reg << 3)
+    self.emit_i32(disp);
+}
+
+// Emit `call [rip+disp32]` through the import address table, recording the
+// relocation for the disp32 (patched in write_pe). slot: 0 GetStdHandle, 1 WriteFile,
+// 2 ReadFile.
+machine Main::emit_import_call(&mut self, slot: i32) {
+    self.uses_imports = 1;
+    self.emit_byte(255); self.emit_byte(21); // FF 15 (call r/m64, RIP-relative)
+    self.import_reloc_at[self.import_reloc_count] = self.code_length;
+    self.import_reloc_slot[self.import_reloc_count] = slot;
+    self.import_reloc_count = self.import_reloc_count + 1;
+    self.emit_i32(0); // placeholder disp32
+}
+
+// Emit WriteFile(GetStdHandle(STDOUT), &io_byte, 1, &written, NULL) with the byte
+// value already on top of the stack. Frame slots: handle -520, written -528,
+// io_byte -536. Win64 ABI: rcx/rdx/r8/r9 + the 5th arg at [rsp+0x20].
+machine Main::emit_write_byte_code(&mut self) {
+    self.emit_byte(88);                                                       // pop rax (value)
+    self.emit_byte(136); self.emit_rbp_operand(0, 0 - 536);                   // mov [rbp+io_byte], al
+    self.emit_byte(185); self.emit_i32(0 - 11);                              // mov ecx, -11 (STD_OUTPUT)
+    self.emit_import_call(0);                                                 // GetStdHandle
+    self.emit_byte(72); self.emit_byte(137); self.emit_rbp_operand(0, 0 - 520); // mov [rbp+handle], rax
+    self.emit_byte(72); self.emit_byte(139); self.emit_rbp_operand(1, 0 - 520); // mov rcx, [rbp+handle]
+    self.emit_byte(72); self.emit_byte(141); self.emit_rbp_operand(2, 0 - 536); // lea rdx, [rbp+io_byte]
+    self.emit_byte(65); self.emit_byte(184); self.emit_i32(1);               // mov r8d, 1
+    self.emit_byte(76); self.emit_byte(141); self.emit_rbp_operand(1, 0 - 528); // lea r9, [rbp+written]
+    self.emit_byte(72); self.emit_byte(199); self.emit_byte(68); self.emit_byte(36); self.emit_byte(32); self.emit_i32(0); // mov qword [rsp+0x20], 0
+    self.emit_import_call(1);                                                 // WriteFile
+}
+
+// Emit ReadFile(GetStdHandle(STDIN), &io_byte, 1, &count, NULL) and leave the byte
+// read (or -1 at EOF, branchless via cmove) pushed on the stack. count reuses the
+// `written` slot (-528).
+machine Main::emit_read_byte_code(&mut self) {
+    self.emit_byte(185); self.emit_i32(0 - 10);                              // mov ecx, -10 (STD_INPUT)
+    self.emit_import_call(0);                                                 // GetStdHandle
+    self.emit_byte(72); self.emit_byte(137); self.emit_rbp_operand(0, 0 - 520); // mov [rbp+handle], rax
+    self.emit_byte(72); self.emit_byte(139); self.emit_rbp_operand(1, 0 - 520); // mov rcx, [rbp+handle]
+    self.emit_byte(72); self.emit_byte(141); self.emit_rbp_operand(2, 0 - 536); // lea rdx, [rbp+io_byte]
+    self.emit_byte(65); self.emit_byte(184); self.emit_i32(1);               // mov r8d, 1
+    self.emit_byte(76); self.emit_byte(141); self.emit_rbp_operand(1, 0 - 528); // lea r9, [rbp+count]
+    self.emit_byte(72); self.emit_byte(199); self.emit_byte(68); self.emit_byte(36); self.emit_byte(32); self.emit_i32(0); // mov qword [rsp+0x20], 0
+    self.emit_import_call(2);                                                 // ReadFile
+    self.emit_byte(15); self.emit_byte(182); self.emit_rbp_operand(0, 0 - 536); // movzx eax, byte [rbp+io_byte]
+    self.emit_byte(185); self.emit_i32(0 - 1);                               // mov ecx, -1
+    self.emit_byte(131); self.emit_rbp_operand(7, 0 - 528); self.emit_byte(0); // cmp dword [rbp+count], 0
+    self.emit_byte(15); self.emit_byte(68); self.emit_byte(193);             // cmove eax, ecx
+    self.emit_byte(80);                                                       // push rax
+}
+
+// --- machine-code emission into self.code ---
+
+machine Main::emit_byte(&mut self, byte: i32) {
+    self.code[self.code_length] = byte;
+    self.code_length = self.code_length + 1;
+}
+
+// emit a little-endian i32 into the code (two's complement, handles negatives)
+machine Main::emit_i32(&mut self, value: i32) {
+    let scratch: i32 = value;
+    self.emit_byte(scratch); scratch = arithmetic_shift_8(scratch);
+    self.emit_byte(scratch); scratch = arithmetic_shift_8(scratch);
+    self.emit_byte(scratch); scratch = arithmetic_shift_8(scratch);
+    self.emit_byte(scratch);
+}
+
+machine Main::emit_push_immediate(&mut self, value: i32) {
+    self.emit_byte(184);          // mov eax, imm32 (0xB8)
+    self.emit_i32(value);
+    self.emit_byte(80);           // push rax
+}
+
+// mov eax, [rbp + disp32] ; push rax     (load local `slot` onto the stack)
+machine Main::emit_load_local(&mut self, slot: i32) {
+    self.emit_byte(139); self.emit_byte(133);   // 8B /0 mod=10 rm=rbp
+    self.emit_i32(0 - 8 * (slot + 1));
+    self.emit_byte(80);                          // push rax
+}
+
+// pop rax ; mov [rbp + disp32], eax     (store top of stack into local `slot`)
+machine Main::emit_store_local(&mut self, slot: i32) {
+    self.emit_byte(88);                          // pop rax
+    self.emit_byte(137); self.emit_byte(133);    // 89 /0 mod=10 rm=rbp
+    self.emit_i32(0 - 8 * (slot + 1));
+}
+
+// Spill an incoming register argument into the callee's frame slot.
+// `register_index` 0..3 = rcx/rdx/r8/r9; stores `mov [rbp+disp32], <reg>` (64-bit).
+machine Main::emit_spill_param(&mut self, slot: i32, register_index: i32) {
+    transition register_index {
+        0 -> rcx()
+        1 -> rdx()
+        2 -> r8()
+        _ -> r9()
+    }
+    state rcx() { self.emit_byte(72); self.emit_byte(137); self.emit_byte(141); transition 0 { _ -> disp() } } // 48 89 8D
+    state rdx() { self.emit_byte(72); self.emit_byte(137); self.emit_byte(149); transition 0 { _ -> disp() } } // 48 89 95
+    state r8()  { self.emit_byte(76); self.emit_byte(137); self.emit_byte(133); transition 0 { _ -> disp() } } // 4C 89 85
+    state r9()  { self.emit_byte(76); self.emit_byte(137); self.emit_byte(141); transition 0 { _ -> disp() } } // 4C 89 8D
+    state disp() { self.emit_i32(0 - 8 * (slot + 1)); }
+}
+
+// Load a pushed call argument from the stack into its ABI register:
+// `mov <reg>, [rsp + disp8]` (64-bit). register_index 0..3 = rcx/rdx/r8/r9.
+machine Main::emit_load_arg(&mut self, register_index: i32, disp: i32) {
+    transition register_index {
+        0 -> rcx()
+        1 -> rdx()
+        2 -> r8()
+        _ -> r9()
+    }
+    state rcx() { self.emit_byte(72); self.emit_byte(139); self.emit_byte(76); self.emit_byte(36); transition 0 { _ -> tail() } } // 48 8B 4C 24
+    state rdx() { self.emit_byte(72); self.emit_byte(139); self.emit_byte(84); self.emit_byte(36); transition 0 { _ -> tail() } } // 48 8B 54 24
+    state r8()  { self.emit_byte(76); self.emit_byte(139); self.emit_byte(68); self.emit_byte(36); transition 0 { _ -> tail() } } // 4C 8B 44 24
+    state r9()  { self.emit_byte(76); self.emit_byte(139); self.emit_byte(76); self.emit_byte(36); transition 0 { _ -> tail() } } // 4C 8B 4C 24
+    state tail() { self.emit_byte(disp); } // disp8 (0..24)
+}
+
+// Overwrite the 4 code bytes at `offset` with a little-endian i32.
+machine Main::patch_i32(&mut self, offset: i32, value: i32) {
+    let scratch: i32 = value;
+    self.code[offset] = scratch;
+    scratch = arithmetic_shift_8(scratch);
+    self.code[offset + 1] = scratch;
+    scratch = arithmetic_shift_8(scratch);
+    self.code[offset + 2] = scratch;
+    scratch = arithmetic_shift_8(scratch);
+    self.code[offset + 3] = scratch;
+}
+
+// pop rcx (rhs); pop rax (lhs); <op> eax,ecx [+ overflow trap]; push rax
+machine Main::emit_binary_op(&mut self, operator: i32) {
+    let setcc_byte: i32 = 0; // setcc opcode chosen for a comparison operator
+    self.emit_byte(89);  // pop rcx
+    self.emit_byte(88);  // pop rax
+    transition operator {
+        16 -> emit_add()
+        17 -> emit_sub()
+        18 -> emit_mul()
+        19 -> emit_div()
+        20 -> set_less()
+        21 -> set_greater()
+        22 -> set_less_equal()
+        23 -> set_greater_equal()
+        24 -> set_equal()
+        25 -> set_not_equal()
+        _  -> emit_add()
+    }
+    state emit_add() {
+        self.emit_byte(1); self.emit_byte(200);   // add eax,ecx
+        transition 0 { _ -> trap() }
+    }
+    state emit_sub() {
+        self.emit_byte(41); self.emit_byte(200);  // sub eax,ecx
+        transition 0 { _ -> trap() }
+    }
+    state emit_mul() {
+        self.emit_byte(15); self.emit_byte(175); self.emit_byte(193); // imul eax,ecx
+        transition 0 { _ -> trap() }
+    }
+    state emit_div() {
+        self.emit_byte(153); self.emit_byte(247); self.emit_byte(249); // cdq; idiv ecx
+        transition 0 { _ -> push_result() }
+    }
+    state trap() {
+        self.emit_byte(113); self.emit_byte(2); self.emit_byte(15); self.emit_byte(11); // jno +2 ; ud2
+        transition 0 { _ -> push_result() }
+    }
+    // comparisons: a setter picks the setcc opcode, then emit_comparison emits
+    // cmp eax,ecx ; setcc al ; movzx eax,al  (result is 0 or 1)
+    state set_less()          { setcc_byte = 156; transition 0 { _ -> emit_comparison() } } // setl  0x9C
+    state set_greater()       { setcc_byte = 159; transition 0 { _ -> emit_comparison() } } // setg  0x9F
+    state set_less_equal()    { setcc_byte = 158; transition 0 { _ -> emit_comparison() } } // setle 0x9E
+    state set_greater_equal() { setcc_byte = 157; transition 0 { _ -> emit_comparison() } } // setge 0x9D
+    state set_equal()         { setcc_byte = 148; transition 0 { _ -> emit_comparison() } } // sete  0x94
+    state set_not_equal()     { setcc_byte = 149; transition 0 { _ -> emit_comparison() } } // setne 0x95
+    state emit_comparison() {
+        self.emit_byte(57); self.emit_byte(200);                              // cmp eax, ecx
+        self.emit_byte(15); self.emit_byte(setcc_byte); self.emit_byte(192); // setcc al
+        self.emit_byte(15); self.emit_byte(182); self.emit_byte(192);         // movzx eax, al
+        transition 0 { _ -> push_result() }
+    }
+    state push_result() { self.emit_byte(80); } // push rax
+}
