@@ -294,8 +294,25 @@ impl<'a> Parser<'a> {
             }
             return Ok(Statement::Transition(subject, arms));
         }
+        // first identifier: either a local reassignment `name = expr` or the
+        // start of a call path `receiver.op(...)`.
+        let first_identifier = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+        if self.current_kind() == TokenKind::Eq {
+            self.bump(); // =
+            let value = self.parse_expression()?;
+            if self.current_kind() == TokenKind::Semi {
+                self.bump();
+            }
+            let local_index = self.find_local_index(&first_identifier).ok_or_else(|| {
+                format!(
+                    "alpha-onramp: assignment to undeclared local '{}'",
+                    String::from_utf8_lossy(&first_identifier)
+                )
+            })?;
+            return Ok(Statement::Assign(local_index, value));
+        }
         // call statement: path "(" arg ")" — last path segment selects the boundary op
-        let mut last_segment = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+        let mut last_segment = first_identifier;
         while self.current_kind() == TokenKind::Dot {
             self.bump();
             last_segment = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();

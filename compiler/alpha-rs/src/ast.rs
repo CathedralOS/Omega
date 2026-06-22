@@ -34,9 +34,10 @@ pub struct TransitionArm {
 }
 
 pub enum Statement {
-    Let(usize, usize),                   // local index, init expr node
-    Exit(usize),                         // exit-code expr node
-    WriteLine(usize),                    // index into Program.strings (bytes include trailing '\n')
+    Let(usize, usize),                     // local index, init expr node
+    Assign(usize, usize),                  // local index, value expr node (reassignment)
+    Exit(usize),                           // exit-code expr node
+    WriteLine(usize),                      // index into Program.strings (bytes include trailing '\n')
     Transition(usize, Vec<TransitionArm>), // subject expr node, arms (jump to a state)
 }
 

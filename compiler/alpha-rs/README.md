@@ -52,9 +52,14 @@ cargo run -- samples/exit7.alpha out.exe
   loops). Verified: 3-arm int dispatch (1→11, 2→22, default→99), boolean
   transition, no regression. This is Omega's core execution model.
 
+- **Slice 5 — mutable reassignment + loops: DONE.** `x = e` reassigns a declared
+  local (stores to its existing frame slot); combined with the slice-4 back-edge
+  transition this gives real loops. Verified: a counter loops 0→3 and exits 3; a
+  loop with a `write_line` side effect prints `tick` three times. See
+  `samples/loop.alpha`.
+
 ## Next slices (grow the grammar feature-by-feature)
 
-5. Mutable reassignment (`x = e`) → enables real loops (counter + back-edge).
 6. Machine calls: a second machine + a call (the call-frame / DAG model).
 7. `data` structs + field access; `[T;N]` arrays + indexing (the IR arenas).
 8. File I/O: CreateFile/ReadFile/WriteFile — the compiler reads a source file and
