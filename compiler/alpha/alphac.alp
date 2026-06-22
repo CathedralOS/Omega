@@ -38,6 +38,15 @@ data Main {
     acc: i32;             // tok_int accumulator
     j: i32;               // tok_int byte cursor
     jend: i32;            // tok_int byte end
+    op_stack: [i32; 64];  // shunting-yard operator stack (token kinds)
+    op_top: i32;
+    curop: i32;
+    pa: i32;              // precedence scratch
+    pb: i32;
+    kw: [u8; 32];         // keyword-compare buffer
+    ki: i32;
+    ca: i32;              // byte-compare scratch
+    cb: i32;
     code: [u8; 512];      // generated machine code
     code_len: i32;
     value: i32;
@@ -102,6 +111,13 @@ machine emit_zeros(n: i32) {
 
 machine align_up(v: i32, a: i32) -> i32 {
     return ((v + a - 1) / a) * a;
+}
+
+// operator precedence: * / bind tighter (2) than + - (1)
+machine prec(op: i32) -> i32 {
+    transition op { 18 -> two() 19 -> two() _ -> one() }
+    state two() { return 2; }
+    state one() { return 1; }
 }
 
 // --- the lexer ---
@@ -341,33 +357,137 @@ machine Main::tok_int(&mut self, t: i32) -> i32 {
     state done() { return self.acc; }
 }
 
-// Increment 3: the accepted grammar is a program containing `exit_process(<int>)`.
-// We take the first integer literal as the exit code. (Increment 4 will match
-// keywords and parse real statements + expressions.)
-machine Main::parse(&mut self) {
-    self.value = 0;
-    self.tp = 0;
+// Is token t the identifier "exit_process"?
+machine Main::is_exit_process(&mut self, t: i32) -> i32 {
+    transition self.tok_len[t] == 12 { false -> no() _ -> setup() }
+    state setup() {
+        self.kw[0] = 101; self.kw[1] = 120; self.kw[2] = 105; self.kw[3] = 116;   // e x i t
+        self.kw[4] = 95;  self.kw[5] = 112; self.kw[6] = 114; self.kw[7] = 111;   // _ p r o
+        self.kw[8] = 99;  self.kw[9] = 101; self.kw[10] = 115; self.kw[11] = 115; // c e s s
+        self.ki = 0;
+        transition 0 { _ -> cmp() }
+    }
+    state cmp() { transition self.ki < 12 { true -> cmp1() false -> yes() } }
+    state cmp1() {
+        self.ca = self.src[self.tok_start[t] + self.ki];
+        self.cb = self.kw[self.ki];
+        transition self.ca == self.cb { true -> adv() false -> no() }
+    }
+    state adv() { self.ki = self.ki + 1; transition 0 { _ -> cmp() } }
+    state yes() { return 1; }
+    state no() { return 0; }
+}
+
+// --- machine-code emission into self.code ---
+
+machine Main::emit_code(&mut self, b: i32) {
+    self.code[self.code_len] = b;
+    self.code_len = self.code_len + 1;
+}
+
+machine Main::emit_push_imm(&mut self, v: i32) {
+    self.emit_code(184);          // mov eax, imm32 (0xB8)
+    self.emit_code(v);
+    self.emit_code(v / 256);
+    self.emit_code(v / 65536);
+    self.emit_code(v / 16777216);
+    self.emit_code(80);           // push rax
+}
+
+// pop rcx (rhs); pop rax (lhs); <op> eax,ecx [+ overflow trap]; push rax
+machine Main::emit_binop(&mut self, op: i32) {
+    self.emit_code(89);  // pop rcx
+    self.emit_code(88);  // pop rax
+    transition op {
+        16 -> em_add()
+        17 -> em_sub()
+        18 -> em_mul()
+        19 -> em_div()
+        _  -> em_add()
+    }
+    state em_add() { self.emit_code(1); self.emit_code(200); transition 0 { _ -> trap() } }            // add eax,ecx
+    state em_sub() { self.emit_code(41); self.emit_code(200); transition 0 { _ -> trap() } }           // sub eax,ecx
+    state em_mul() { self.emit_code(15); self.emit_code(175); self.emit_code(193); transition 0 { _ -> trap() } } // imul eax,ecx
+    state em_div() { self.emit_code(153); self.emit_code(247); self.emit_code(249); transition 0 { _ -> res() } } // cdq; idiv ecx
+    state trap() {
+        self.emit_code(113); self.emit_code(2); self.emit_code(15); self.emit_code(11); // jno +2 ; ud2
+        transition 0 { _ -> res() }
+    }
+    state res() { self.emit_code(80); } // push rax
+}
+
+// Compile an arithmetic expression (Int / + - * /) from self.tp until ')' or Eof,
+// emitting stack-machine code. Iterative shunting-yard (no recursion).
+machine Main::compile_expr(&mut self) {
+    self.op_top = 0;
     transition 0 { _ -> step() }
-    state step() { transition self.tp < self.tok_count { true -> check() false -> done() } }
-    state check() { transition self.tok_kind[self.tp] { 2 -> got_int() _ -> next() } } // 2 = Int
-    state got_int() { self.value = self.tok_int(self.tp); transition 0 { _ -> done() } }
-    state next() { self.tp = self.tp + 1; transition 0 { _ -> step() } }
+    state step() { transition self.tok_kind[self.tp] { 6 -> flush() 0 -> flush() _ -> item() } } // 6=RParen 0=Eof
+    state item() {
+        transition self.tok_kind[self.tp] {
+            2 -> operand() 16 -> binop() 17 -> binop() 18 -> binop() 19 -> binop() _ -> skip()
+        }
+    }
+    state operand() {
+        self.value = self.tok_int(self.tp);
+        self.emit_push_imm(self.value);
+        self.tp = self.tp + 1;
+        transition 0 { _ -> step() }
+    }
+    state skip() { self.tp = self.tp + 1; transition 0 { _ -> step() } }
+    state binop() { self.curop = self.tok_kind[self.tp]; transition 0 { _ -> pop_loop() } }
+    state pop_loop() { transition self.op_top > 0 { true -> pop_test() false -> push_op() } }
+    state pop_test() {
+        self.pa = prec(self.op_stack[self.op_top - 1]);
+        self.pb = prec(self.curop);
+        transition self.pa < self.pb { true -> push_op() false -> pop_emit() } // emit while top prec >= cur
+    }
+    state pop_emit() {
+        self.op_top = self.op_top - 1;
+        self.emit_binop(self.op_stack[self.op_top]);
+        transition 0 { _ -> pop_loop() }
+    }
+    state push_op() {
+        self.op_stack[self.op_top] = self.curop;
+        self.op_top = self.op_top + 1;
+        self.tp = self.tp + 1;
+        transition 0 { _ -> step() }
+    }
+    state flush() { transition self.op_top > 0 { true -> flush_emit() false -> done() } }
+    state flush_emit() {
+        self.op_top = self.op_top - 1;
+        self.emit_binop(self.op_stack[self.op_top]);
+        transition 0 { _ -> flush() }
+    }
+    state done() { }
+}
+
+// Increment 4: find `exit_process ( <expr> )`, compile the expr, and make the
+// entry exit with its value.  (Still single-machine; widens in later increments.)
+machine Main::parse(&mut self) {
+    self.code_len = 0;
+    self.tp = 0;
+    transition 0 { _ -> find() }
+    state find() { transition self.tp < self.tok_count { true -> find_check() false -> emit_zero() } }
+    state find_check() { transition self.is_exit_process(self.tp) { 1 -> found() _ -> find_next() } }
+    state find_next() { self.tp = self.tp + 1; transition 0 { _ -> find() } }
+    state found() {
+        self.tp = self.tp + 2;   // skip `exit_process` and `(`
+        self.compile_expr();      // emits the expr; result left on the stack
+        self.emit_code(88);       // pop rax (result)
+        self.emit_code(195);      // ret
+        transition 0 { _ -> done() }
+    }
+    state emit_zero() {
+        self.emit_code(49); self.emit_code(192); self.emit_code(195); // xor eax,eax ; ret
+        transition 0 { _ -> done() }
+    }
     state done() { }
 }
 
 machine Main::main(&mut self) {
     self.read_source();
     self.lex();
-    self.parse(); // sets self.value to the exit code
-
-    // emit the entry stub: mov eax, <value> ; ret
-    self.code[0] = 184;
-    self.code[1] = self.value;
-    self.code[2] = self.value / 256;
-    self.code[3] = self.value / 65536;
-    self.code[4] = self.value / 16777216;
-    self.code[5] = 195;
-    self.code_len = 6;
+    self.parse();      // builds self.code / self.code_len
     self.write_pe();
     self.console.exit_process(0)
 }
