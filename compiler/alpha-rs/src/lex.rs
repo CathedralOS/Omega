@@ -8,6 +8,8 @@ pub enum TokKind {
     RBrace,
     LParen,
     RParen,
+    LBracket,
+    RBracket,
     Semi,
     Colon,
     ColonColon,
@@ -19,6 +21,7 @@ pub enum TokKind {
     Minus,
     Star,
     Slash,
+    Str, // string literal; span (start..start+len) covers the bytes BETWEEN the quotes
     Eof,
 }
 
@@ -65,6 +68,22 @@ pub fn lex(src: &[u8]) -> Result<Vec<Token>, String> {
             toks.push(Token { kind: TokKind::Int, start, len: i - start });
             continue;
         }
+        if c == b'"' {
+            let start = i + 1;
+            i += 1;
+            while i < n && src[i] != b'"' {
+                i += 1;
+            }
+            if i >= n {
+                return Err(format!(
+                    "alpha-onramp: lex error: unterminated string starting at offset {}",
+                    start - 1
+                ));
+            }
+            toks.push(Token { kind: TokKind::Str, start, len: i - start });
+            i += 1; // consume closing quote
+            continue;
+        }
         if c == b':' && i + 1 < n && src[i + 1] == b':' {
             toks.push(Token { kind: TokKind::ColonColon, start: i, len: 2 });
             i += 2;
@@ -75,6 +94,8 @@ pub fn lex(src: &[u8]) -> Result<Vec<Token>, String> {
             b'}' => TokKind::RBrace,
             b'(' => TokKind::LParen,
             b')' => TokKind::RParen,
+            b'[' => TokKind::LBracket,
+            b']' => TokKind::RBracket,
             b';' => TokKind::Semi,
             b':' => TokKind::Colon,
             b',' => TokKind::Comma,

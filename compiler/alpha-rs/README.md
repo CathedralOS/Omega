@@ -36,13 +36,19 @@ cargo run -- samples/exit7.alpha out.exe
   deterministic, and **trap-on-overflow** (i32 overflow → `ud2`/Illegal
   instruction — the "trap everything" decision enforced in codegen; `/` traps on
   div-by-zero via hardware `idiv`).
+- **Slice 3 — host output: DONE.** `write_line("...")` → a `.rdata` section + a
+  kernel32 import table (IDT/ILT/IAT/hint-name) + `GetStdHandle`/`WriteFile`
+  lowered to the full x64 ABI (rcx/rdx/r8/r9 + 32-byte shadow + 5th arg + 16-byte
+  alignment), with RIP-relative relocations patched by the PE writer (now a
+  generic multi-section assembler). Verified: `hello, alpha` prints; multiple
+  `write_line`s; deterministic; slices 1-2 unregressed (single-section path
+  byte-identical). This is the I/O backbone — the self-hosting compiler reads
+  source and writes its output through this same machinery.
 
 ## Next slices (grow the grammar feature-by-feature)
 
-3. Host output ("hello"): the import table (kernel32) + a read-only data section
-   + the `{ptr,len}` slice descriptor + the x64 calling convention. The big
-   unlock — every later host call rides this, including the self-hosting
-   compiler's own file read/write.
 4. Control flow: `transition` / guards → cmp + jcc, the state/jump model
    (Omega's core execution shape).
 5. A second machine + a call: the call-frame / DAG-call model.
+6. File I/O: `read`/`open`/`write` to a file (CreateFile/ReadFile) — the compiler
+   reads a source file and writes a `.exe`.

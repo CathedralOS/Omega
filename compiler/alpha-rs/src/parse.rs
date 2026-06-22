@@ -19,6 +19,7 @@ pub struct Parser<'a> {
     pos: usize,
     exprs: Vec<ExprKind>,
     local_names: Vec<Vec<u8>>,
+    strings: Vec<Vec<u8>>,
 }
 
 impl<'a> Parser<'a> {
@@ -29,6 +30,7 @@ impl<'a> Parser<'a> {
             pos: 0,
             exprs: Vec::new(),
             local_names: Vec::new(),
+            strings: Vec::new(),
         }
     }
 
@@ -88,6 +90,7 @@ impl<'a> Parser<'a> {
             stmts,
             exprs: std::mem::take(&mut self.exprs),
             n_locals,
+            strings: std::mem::take(&mut self.strings),
         })
     }
 
@@ -158,25 +161,35 @@ impl<'a> Parser<'a> {
             self.local_names.push(name);
             return Ok(Stmt::Let(idx, init));
         }
-        // call statement: path "(" expr ")" — path's last segment must be exit_process
+        // call statement: path "(" arg ")" — last path segment selects the boundary op
         let mut last = tok_text(&self.expect(TokKind::Ident)?, self.src).to_vec();
         while self.kind() == TokKind::Dot {
             self.bump();
             last = tok_text(&self.expect(TokKind::Ident)?, self.src).to_vec();
         }
-        if last != b"exit_process" {
-            return Err(format!(
-                "alpha-onramp: unsupported call '{}' (slice 2 supports exit_process only)",
-                String::from_utf8_lossy(&last)
-            ));
-        }
         self.expect(TokKind::LParen)?;
-        let arg = self.parse_expr()?;
+        let stmt = match last.as_slice() {
+            b"exit_process" => Stmt::Exit(self.parse_expr()?),
+            b"write_line" => {
+                let s = self.expect(TokKind::Str)?;
+                let mut bytes = tok_text(&s, self.src).to_vec();
+                bytes.push(b'\n'); // write_line appends a newline
+                let idx = self.strings.len();
+                self.strings.push(bytes);
+                Stmt::WriteLine(idx)
+            }
+            other => {
+                return Err(format!(
+                    "alpha-onramp: unsupported call '{}' (supported: exit_process, write_line)",
+                    String::from_utf8_lossy(other)
+                ))
+            }
+        };
         self.expect(TokKind::RParen)?;
         if self.kind() == TokKind::Semi {
             self.bump();
         }
-        Ok(Stmt::Exit(arg))
+        Ok(stmt)
     }
 
     fn parse_expr(&mut self) -> Result<usize, String> {

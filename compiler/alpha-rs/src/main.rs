@@ -36,8 +36,8 @@ fn compile(src: &[u8]) -> Result<Vec<u8>, String> {
     let toks = lex::lex(src)?;
     let mut parser = parse::Parser::new(&toks, src);
     let program = parser.parse_program()?;
-    let code = x64::lower_main(&program);
-    Ok(pe::build_pe(&code))
+    let lowered = x64::lower_main(&program);
+    Ok(pe::build_pe(&lowered))
 }
 
 fn main() {
