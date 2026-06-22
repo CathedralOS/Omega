@@ -38,14 +38,10 @@ data Main {
     operator_stack: [i32; 64];    // shunting-yard operator stack (token kinds)
     operator_count: i32;
     keyword_bytes: [u8; 32];      // keyword-compare buffer
-    compare_position: i32;
-    left_byte: i32;               // byte-compare scratch
-    right_byte: i32;
     local_token: [i32; 128];      // symbol table: token index naming each local
     local_count: i32;
     current_slot: i32;            // current let's slot
     resolve_position: i32;        // resolve_local cursor
-    emit_scratch: i32;            // emit_i32 scratch
     brace_depth: i32;             // brace depth while finding the top-level machine
     code: [u8; 98304];            // generated machine code (alpha's own .text is ~50 KB)
     code_length: i32;
@@ -747,21 +743,20 @@ machine Main::token_int(&mut self, token: i32) -> i32 {
 // Does `token`'s source text equal the `length` bytes already placed in
 // keyword_bytes? The thin is_<keyword> wrappers below fill keyword_bytes and call this.
 machine Main::keyword_equals(&mut self, token: i32, length: i32) -> i32 {
-    transition self.token_length[token] == length { false -> return_false() _ -> setup() }
-    state setup() {
-        self.compare_position = 0;
-        transition 0 { _ -> compare() }
-    }
+    let position: i32 = 0;
+    let left_byte: i32 = 0;
+    let right_byte: i32 = 0;
+    transition self.token_length[token] == length { false -> return_false() _ -> compare() }
     state compare() {
-        transition self.compare_position < length { true -> compare_byte() false -> return_true() }
+        transition position < length { true -> compare_byte() false -> return_true() }
     }
     state compare_byte() {
-        self.left_byte = self.source[self.token_start[token] + self.compare_position];
-        self.right_byte = self.keyword_bytes[self.compare_position];
-        transition self.left_byte == self.right_byte { true -> advance() false -> return_false() }
+        left_byte = self.source[self.token_start[token] + position];
+        right_byte = self.keyword_bytes[position];
+        transition left_byte == right_byte { true -> advance() false -> return_false() }
     }
     state advance() {
-        self.compare_position = self.compare_position + 1;
+        position = position + 1;
         transition 0 { _ -> compare() }
     }
     state return_true() { return 1; }
@@ -777,21 +772,20 @@ machine Main::is_exit_process(&mut self, token: i32) -> i32 {
 
 // Do tokens first and second have identical source text?
 machine Main::tokens_equal(&mut self, first: i32, second: i32) -> i32 {
-    transition self.token_length[first] == self.token_length[second] { false -> return_false() _ -> setup() }
-    state setup() {
-        self.compare_position = 0;
-        transition 0 { _ -> compare() }
-    }
+    let position: i32 = 0;
+    let left_byte: i32 = 0;
+    let right_byte: i32 = 0;
+    transition self.token_length[first] == self.token_length[second] { false -> return_false() _ -> compare() }
     state compare() {
-        transition self.compare_position < self.token_length[first] { true -> compare_byte() false -> return_true() }
+        transition position < self.token_length[first] { true -> compare_byte() false -> return_true() }
     }
     state compare_byte() {
-        self.left_byte = self.source[self.token_start[first] + self.compare_position];
-        self.right_byte = self.source[self.token_start[second] + self.compare_position];
-        transition self.left_byte == self.right_byte { true -> advance() false -> return_false() }
+        left_byte = self.source[self.token_start[first] + position];
+        right_byte = self.source[self.token_start[second] + position];
+        transition left_byte == right_byte { true -> advance() false -> return_false() }
     }
     state advance() {
-        self.compare_position = self.compare_position + 1;
+        position = position + 1;
         transition 0 { _ -> compare() }
     }
     state return_true() { return 1; }
@@ -1030,6 +1024,7 @@ machine Main::patch_calls(&mut self) {
 // `[u8;N]`/`[i32;N]` is N*1 / N*8. Records each field's name token + byte offset,
 // and the total instance size (the .data section). alpha.alp has one data type.
 machine Main::prescan_data(&mut self) {
+    let left_byte: i32 = 0; // first byte of a field's type name (uppercase = capability)
     self.field_count = 0;
     self.data_size = 0;
     self.scan_position = 0;
@@ -1076,8 +1071,8 @@ machine Main::prescan_data(&mut self) {
         }
     }
     state scalar_field() {
-        self.left_byte = self.source[self.token_start[self.scan_position]];
-        transition self.left_byte < 97 { true -> boundary_size() false -> scalar_size() } // < 'a' = uppercase = boundary
+        left_byte = self.source[self.token_start[self.scan_position]];
+        transition left_byte < 97 { true -> boundary_size() false -> scalar_size() } // < 'a' = uppercase = boundary
     }
     state scalar_size() {
         self.data_size = self.data_size + 8;
@@ -1245,11 +1240,11 @@ machine Main::emit_byte(&mut self, byte: i32) {
 
 // emit a little-endian i32 into the code (two's complement, handles negatives)
 machine Main::emit_i32(&mut self, value: i32) {
-    self.emit_scratch = value;
-    self.emit_byte(self.emit_scratch); self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
-    self.emit_byte(self.emit_scratch); self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
-    self.emit_byte(self.emit_scratch); self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
-    self.emit_byte(self.emit_scratch);
+    let scratch: i32 = value;
+    self.emit_byte(scratch); scratch = arithmetic_shift_8(scratch);
+    self.emit_byte(scratch); scratch = arithmetic_shift_8(scratch);
+    self.emit_byte(scratch); scratch = arithmetic_shift_8(scratch);
+    self.emit_byte(scratch);
 }
 
 machine Main::emit_push_immediate(&mut self, value: i32) {
@@ -1315,14 +1310,14 @@ machine Main::record_jump(&mut self, target_state: i32) {
 
 // Overwrite the 4 code bytes at `offset` with a little-endian i32.
 machine Main::patch_i32(&mut self, offset: i32, value: i32) {
-    self.emit_scratch = value;
-    self.code[offset] = self.emit_scratch;
-    self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
-    self.code[offset + 1] = self.emit_scratch;
-    self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
-    self.code[offset + 2] = self.emit_scratch;
-    self.emit_scratch = arithmetic_shift_8(self.emit_scratch);
-    self.code[offset + 3] = self.emit_scratch;
+    let scratch: i32 = value;
+    self.code[offset] = scratch;
+    scratch = arithmetic_shift_8(scratch);
+    self.code[offset + 1] = scratch;
+    scratch = arithmetic_shift_8(scratch);
+    self.code[offset + 2] = scratch;
+    scratch = arithmetic_shift_8(scratch);
+    self.code[offset + 3] = scratch;
 }
 
 // Patch every recorded jump: rel32 = target_state_offset - (rel32_position + 4).
