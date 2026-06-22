@@ -20,6 +20,7 @@ pub enum Expr {
     Int(i32),
     Local(usize),                   // index into the locals frame
     SelfField(i32),                 // read self.<field> (scalar at this byte offset)
+    SelfIndex(i32, i32, usize),     // read self.<array at byte offset>[index]; (offset, count, index node)
     Binary(BinaryOp, usize, usize), // op, lhs node, rhs node (indices into `expressions`)
     Call(usize, usize, usize),      // machine index, args_start (into call_args), arg_count
 }
@@ -39,6 +40,7 @@ pub enum Statement {
     Let(usize, usize),                     // local index, init expr node
     Assign(usize, usize),                  // local index, value expr node (reassignment)
     StoreSelfField(i32, usize),            // self.<field at this byte offset> = value expr node
+    StoreSelfIndex(i32, i32, usize, usize), // self.<array @offset>[index] = value; (offset, count, index, value)
     Return(usize),                         // return value expr node (yields to the caller)
     Exit(usize),                           // exit-code expr node (process exit; entry machine only)
     WriteLine(usize),                      // index into Program.strings (bytes include trailing '\n')

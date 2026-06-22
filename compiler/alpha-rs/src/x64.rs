@@ -85,6 +85,28 @@ fn emit_rax_indirect(code: &mut Vec<u8>, opcode: u8, reg_field: u8, offset: i32)
     }
 }
 
+// Consume a pushed index off the stack and leave `&self.<array>[index]` in rax:
+// bounds-check (trap on out-of-bounds, per the Alpha spec), then
+// rax = self_ptr + field_offset + index*8.
+fn emit_self_element_address(
+    code: &mut Vec<u8>,
+    self_ptr_displacement: i32,
+    field_offset: i32,
+    count: i32,
+) {
+    code.push(0x58); // pop rax (index)
+    code.extend_from_slice(&[0x89, 0xC0]); // mov eax, eax (zero-extend index into rax)
+    code.push(0x3D);
+    code.extend_from_slice(&count.to_le_bytes()); // cmp eax, count
+    code.extend_from_slice(&[0x72, 0x02, 0x0F, 0x0B]); // jb +2 ; ud2 (trap if index >= count, unsigned)
+    code.extend_from_slice(&[0x48, 0xC1, 0xE0, 0x03]); // shl rax, 3 (index * 8)
+    if field_offset != 0 {
+        code.extend_from_slice(&[0x48, 0x05]);
+        code.extend_from_slice(&field_offset.to_le_bytes()); // add rax, field_offset
+    }
+    emit_rbp_memory_operand(code, &[0x48, 0x03], 0, self_ptr_displacement); // add rax, [rbp+self]
+}
+
 // Load a pushed call argument off the stack into its ABI register:
 // mov <rcx|rdx|r8|r9>, [rsp + displacement].
 fn emit_load_argument_register(code: &mut Vec<u8>, arg_position: usize, displacement: i32) {
@@ -150,6 +172,12 @@ fn lower_expression(
         Expr::SelfField(offset) => {
             emit_rbp_memory_operand(code, &[0x48, 0x8B], 0, context.self_ptr_displacement); // mov rax, [rbp+self]
             emit_rax_indirect(code, 0x8B, 0, offset); // mov eax, [rax+offset]
+            code.push(0x50); // push rax
+        }
+        Expr::SelfIndex(field_offset, count, index) => {
+            lower_expression(index, context, code, call_fixups); // push index
+            emit_self_element_address(code, context.self_ptr_displacement, field_offset, count);
+            code.extend_from_slice(&[0x8B, 0x00]); // mov eax, [rax]
             code.push(0x50); // push rax
         }
         Expr::Call(machine_index, args_start, arg_count) => {
@@ -239,6 +267,13 @@ fn lower_statement(
             code.push(0x59); // pop rcx (value)
             emit_rbp_memory_operand(code, &[0x48, 0x8B], 0, context.self_ptr_displacement); // mov rax, [rbp+self]
             emit_rax_indirect(code, 0x89, 1, *offset); // mov [rax+offset], ecx
+        }
+        Statement::StoreSelfIndex(field_offset, count, index, value) => {
+            lower_expression(*value, context, code, call_fixups); // push value
+            lower_expression(*index, context, code, call_fixups); // push index (popped first)
+            emit_self_element_address(code, context.self_ptr_displacement, *field_offset, *count);
+            code.push(0x59); // pop rcx (value)
+            code.extend_from_slice(&[0x89, 0x08]); // mov [rax], ecx
         }
         Statement::Return(expression) => {
             lower_expression(*expression, context, code, call_fixups);
