@@ -1,0 +1,114 @@
+; ===========================================================================
+; Hand-assembled Alpha tape VM — Windows x64 PE.  Milestone 1: a real interpreter
+; for opcodes imm(1)/mul(5)/halt(0), running a tape embedded in .text, with the 16
+; virtual registers in a writable .data (BSS) region. The embedded tape computes
+; 6*7 and halts r0, so the process exits 42 — proving the dispatch loop + opcode
+; handlers + register memory, all from hand-assembled bytes.
+;
+; Convention: rbx = &vregs[0] (.data), rsi = pc (into the tape). vregs[i] at rbx+i*8.
+; PE32+, no imports, sections .text (RVA 0x1000) + .data (RVA 0x2000, BSS).
+; ===========================================================================
+
+; --- DOS header ---
+4D 5A z58
+40 00 00 00              ; e_lfanew = 0x40
+
+; --- PE signature + COFF ---
+50 45 00 00              ; "PE\0\0"
+64 86                    ; Machine = AMD64
+02 00                    ; NumberOfSections = 2
+00 00 00 00              ; TimeDateStamp
+00 00 00 00              ; PointerToSymbolTable
+00 00 00 00              ; NumberOfSymbols
+F0 00                    ; SizeOfOptionalHeader = 240
+22 00                    ; Characteristics
+
+; --- Optional header (PE32+) ---
+0B 02                    ; PE32+
+00 00                    ; linker version
+00 02 00 00              ; SizeOfCode = 0x200
+00 00 00 00              ; SizeOfInitializedData
+00 10 00 00              ; SizeOfUninitializedData = 0x1000 (.data)
+00 10 00 00              ; AddressOfEntryPoint = 0x1000
+00 10 00 00              ; BaseOfCode = 0x1000
+00 00 00 40 01 00 00 00  ; ImageBase = 0x140000000
+00 10 00 00              ; SectionAlignment = 0x1000
+00 02 00 00              ; FileAlignment = 0x200
+06 00 00 00              ; OS version 6.0
+00 00 00 00              ; image version
+06 00 00 00              ; subsystem version 6.0
+00 00 00 00              ; Win32VersionValue
+00 30 00 00              ; SizeOfImage = 0x3000
+00 02 00 00              ; SizeOfHeaders = 0x200
+00 00 00 00              ; CheckSum
+03 00                    ; Subsystem = console
+00 00                    ; DllCharacteristics
+00 00 10 00 00 00 00 00  ; SizeOfStackReserve = 0x100000
+00 10 00 00 00 00 00 00  ; SizeOfStackCommit  = 0x1000
+00 00 10 00 00 00 00 00  ; SizeOfHeapReserve
+00 10 00 00 00 00 00 00  ; SizeOfHeapCommit
+00 00 00 00              ; LoaderFlags
+10 00 00 00              ; NumberOfRvaAndSizes = 16
+z128                     ; 16 data directories (no imports)
+
+; --- section header: .text ---
+2E 74 65 78 74 00 00 00  ; ".text"
+8B 00 00 00              ; VirtualSize = 0x8B (139)
+00 10 00 00              ; VirtualAddress = 0x1000
+00 02 00 00              ; SizeOfRawData = 0x200
+00 02 00 00              ; PointerToRawData = 0x200
+00 00 00 00 00 00 00 00  ; relocations / linenumbers ptrs
+00 00 00 00              ; counts
+20 00 00 60              ; CODE | EXECUTE | READ
+
+; --- section header: .data (BSS) ---
+2E 64 61 74 61 00 00 00  ; ".data"
+00 10 00 00              ; VirtualSize = 0x1000
+00 20 00 00              ; VirtualAddress = 0x2000
+00 00 00 00              ; SizeOfRawData = 0 (BSS)
+00 00 00 00              ; PointerToRawData = 0
+00 00 00 00 00 00 00 00
+00 00 00 00
+80 00 00 C0              ; UNINIT | READ | WRITE  (0xC0000080)
+z104                     ; pad headers to 0x200
+
+; --- .text (RVA 0x1000) ---
+; 00: setup
+48 BB 00 20 00 40 01 00 00 00   ; mov rbx, 0x140002000   (&vregs)
+48 BE 72 10 00 40 01 00 00 00   ; mov rsi, 0x140001072   (pc -> embedded tape)
+; 14 next: fetch + dispatch
+0F B6 06                        ; movzx eax, byte [rsi]   (opcode)
+48 FF C6                        ; inc rsi
+83 F8 00                        ; cmp eax, 0
+0F 84 48 00 00 00               ; je halt
+83 F8 01                        ; cmp eax, 1
+0F 84 0B 00 00 00               ; je do_imm
+83 F8 05                        ; cmp eax, 5
+0F 84 18 00 00 00               ; je do_mul
+0F 0B                           ; ud2  (unknown opcode)
+; 37 do_imm: rD <- imm64
+0F B6 0E                        ; movzx ecx, byte [rsi]   (rD)
+48 FF C6                        ; inc rsi
+48 8B 06                        ; mov rax, [rsi]          (imm64)
+48 83 C6 08                     ; add rsi, 8
+48 89 04 CB                     ; mov [rbx+rcx*8], rax
+E9 C7 FF FF FF                  ; jmp next
+; 4D do_mul: rD *= rS
+0F B6 0E                        ; movzx ecx, byte [rsi]   (rD)
+48 FF C6                        ; inc rsi
+0F B6 16                        ; movzx edx, byte [rsi]   (rS)
+48 FF C6                        ; inc rsi
+48 8B 04 CB                     ; mov rax, [rbx+rcx*8]
+48 0F AF 04 D3                  ; imul rax, [rbx+rdx*8]
+48 89 04 CB                     ; mov [rbx+rcx*8], rax
+E9 A9 FF FF FF                  ; jmp next
+; 6B halt: exit with vregs[rD] (low 32)
+0F B6 0E                        ; movzx ecx, byte [rsi]   (rD)
+8B 04 CB                        ; mov eax, [rbx+rcx*8]
+C3                              ; ret
+; 72 tape:  imm r0,6 ; imm r1,7 ; mul r0,r1 ; halt r0
+01 00 06 00 00 00 00 00 00 00
+01 01 07 00 00 00 00 00 00 00
+05 00 01
+00 00
+z373                            ; pad .text to FileAlignment
