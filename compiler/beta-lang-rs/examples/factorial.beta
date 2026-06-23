@@ -1,0 +1,10 @@
+; recursive factorial in Beta (matches examples/factorial.alpha, hand-written). -> 120
+proc main() {
+    return fact(5)
+}
+proc fact(n) {
+    if n < 2 {
+        return 1
+    }
+    return n * fact(n - 1)
+}

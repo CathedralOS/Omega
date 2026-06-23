@@ -33,11 +33,14 @@ seed-stamp. Needs `cargo`.
   params, calls in expressions, parameters addressed via the frame pointer — i.e.
   the [calling convention](../beta/CALLING_CONVENTION.md) generated mechanically.
   `double.beta` → 42, `calls.beta` (nested `add(mul(2,3),4)`) → 10.
+- **Slice 3 — control flow + locals: DONE.** Multi-statement bodies, `let` locals
+  (function-scoped frame slots), assignment, `if`/`else` and `while` (→ `jz`/`jmp`),
+  and the six comparisons (`< > == != <= >=`, materialized to 0/1). **Unlocks
+  recursion + loops:** `factorial.beta` → 120 and `fib.beta` → 55 match the hand
+  `.alpha` proofs; `sumto.beta` (while + let) → 55.
 
 ## Next slices
 
-3. `if` / `while` + multi-statement bodies + `let` locals → unlocks **recursion**
-   (re-derive `factorial`/`fib` as `.beta`, matching the hand-written `.alpha`).
 4. Explicit memory (`byte[]` / `word[]`) → arrays/buffers.
 5. A symbol table (named globals/procs beyond the flat list).
 6. Self-check: write something compiler-shaped in Beta; then transcribe the
