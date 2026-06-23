@@ -19,9 +19,10 @@ emits assembly; the chain targets one level down at each step:
 ./build.sh examples/answer.gam && ./build/answer.exe   # exits with the program's value
 ```
 
-**Status: v3** — variables + statements. A program is newline-separated `var = expr`
-statements (`var` is a letter `a`–`j`, held in registers `r6`–`r15`); it exits with the
-last statement's value. Expressions have precedence (recursive descent, two
-accumulators); factors are numbers or variables. No parens yet (needs a runtime value
-stack), ≤10 variables (needs memory slots + int→decimal for more). Growing next:
-`if`/`while` → `print`.
+**Status: v4** — variables, statements, and control flow (`if`):
+`statement := var '=' expr | 'if' expr '{' statement* '}'`. An `if` runs its body when
+the condition is nonzero; ifs nest (label numbers `L<n>e` via a counter + a label-number
+stack). The program exits with the value of the last variable assigned. Expressions have
+precedence (recursive descent, two accumulators); factors are numbers or variables
+(`a`–`j` in `r6`–`r15`). New: `emit_dec` (int→decimal). No parens / >10 vars yet (need a
+value stack / memory slots). Growing next: `while`, comparison operators, `print`.
