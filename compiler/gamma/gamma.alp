@@ -1,0 +1,63 @@
+; gamma.alp — the gamma compiler, v0, written in alpha assembly.
+;
+; gamma is the rung above beta: a language a bit higher than raw assembly. It reads
+; gamma source on stdin and emits alpha assembly on stdout; beta then lowers that to a
+; tape, which is stamped into the alpha seed to make a standalone .exe.
+;
+; v0 (pipeline proof): read a decimal integer and emit a program that exits with it.
+;   input:  42
+;   output: imm r0, 42
+;           halt r0
+; Grows from here (operators, variables, if/while, print) one increment at a time.
+
+        ; --- emit "imm r0, " ---
+        imm   r0, 105          ; i
+        write r0
+        imm   r0, 109          ; m
+        write r0
+        imm   r0, 109          ; m
+        write r0
+        imm   r0, 32           ; (space)
+        write r0
+        imm   r0, 114          ; r
+        write r0
+        imm   r0, 48           ; 0
+        write r0
+        imm   r0, 44           ; ,
+        write r0
+        imm   r0, 32           ; (space)
+        write r0
+
+        ; --- copy the leading decimal digits of stdin to stdout ---
+copy:
+        read  r1
+        imm   r2, 0
+        jlt   r1, r2, done     ; EOF (read returned -1)
+        imm   r2, 48
+        jlt   r1, r2, done     ; c < '0'  -> stop
+        imm   r2, 57
+        jlt   r2, r1, done     ; c > '9'  -> stop
+        write r1
+        jmp   copy
+done:
+        ; --- emit "\nhalt r0\n" ---
+        imm   r0, 10           ; \n
+        write r0
+        imm   r0, 104          ; h
+        write r0
+        imm   r0, 97           ; a
+        write r0
+        imm   r0, 108          ; l
+        write r0
+        imm   r0, 116          ; t
+        write r0
+        imm   r0, 32           ; (space)
+        write r0
+        imm   r0, 114          ; r
+        write r0
+        imm   r0, 48           ; 0
+        write r0
+        imm   r0, 10           ; \n
+        write r0
+        imm   r0, 0
+        halt  r0
