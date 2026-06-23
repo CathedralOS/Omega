@@ -19,10 +19,15 @@ emits assembly; the chain targets one level down at each step:
 ./build.sh examples/answer.gam && ./build/answer.exe   # exits with the program's value
 ```
 
-**Status: v5** — variables, statements, and control flow (`if` **and `while`**):
-`statement := var '=' expr | 'if' expr '{' …'}' | 'while' expr '{' …'}'`. Both run/loop
-while the condition is nonzero; they nest (label numbers via a counter + a label-number
-stack). `while` emits `L<n>t: <cond> jz L<n>e <body> jmp L<n>t L<n>e:`. The program exits
-with the value of the last variable assigned. Expressions have precedence; factors are
-numbers or variables (`a`–`j` in `r6`–`r15`). No parens / >10 vars yet (need a value
-stack / memory slots). Growing next: comparison operators (`<`, `==`), then `print`.
+**Status: v6** — variables, arithmetic (with precedence), `if`, `while`, and `print`:
+`statement := var '=' expr | 'if' expr '{'…'}' | 'while' expr '{'…'}' | 'print' expr`.
+`if`/`while` run/loop while the condition is nonzero (nestable). `print expr` writes the
+low byte of the result (one character) to stdout — so programs produce visible output,
+not just an exit code. The program exits with the value of the last variable assigned;
+vars are `a`–`j` in `r6`–`r15`. No parens / >10 vars yet. Growing next: comparison
+operators (`<`, `==`), decimal-number printing, then parens + a value stack.
+
+```
+print 72  print 105  print 10            -> Hi
+a = 5  while a { print 42  a = a - 1 }    -> *****
+```
