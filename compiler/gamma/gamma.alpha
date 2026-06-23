@@ -1,4 +1,4 @@
-; gamma.alp — the gamma compiler, written in alpha assembly.
+; gamma.alpha — the gamma compiler, written in alpha assembly.
 ;
 ; gamma reads gamma source on stdin and emits alpha assembly on stdout; beta lowers
 ; that to a tape, which is stamped into the alpha seed to make a standalone .exe.

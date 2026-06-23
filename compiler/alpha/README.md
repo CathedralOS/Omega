@@ -33,7 +33,7 @@ the binary. The binary is the small per-platform shim the tape runs on.
 
 ## Where the rest is
 
-- `../beta/` — the assembler, written in alpha (`.alp`); turns text into tape, then
+- `../beta/` — the assembler, written in alpha (`.alpha`); turns text into tape, then
   memcpy's it into a seed to make a standalone `.exe`.
 - The hex→binary forge (a no-Python transcriber + label resolver) lived under `dev/`;
   it isn't trust-bearing (you audit the committed binary, not the tool that emitted it),

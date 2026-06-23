@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# ./build.sh PROGRAM.alp   ->   build/PROGRAM.exe   (a standalone Windows exe)
+# ./build.sh PROGRAM.alpha   ->   build/PROGRAM.exe   (a standalone Windows exe)
 #
 # Pure alpha, no Rust: beta_x64_windows.exe (which is itself the alpha seed with the
 # assembler tape in its hole) assembles the program to bytecode; we memcpy that into a
@@ -9,11 +9,11 @@ cd "$(dirname "$0")"
 mkdir -p build
 SEED=../alpha/alpha_x64_windows.exe
 
-SRC=${1:-examples/multiply.alp}
-NAME=$(basename "$SRC" .alp)
+SRC=${1:-examples/multiply.alpha}
+NAME=$(basename "$SRC" .alpha)
 OUT="build/$NAME.exe"
 
-# 1. .alp text -> bytecode, via beta (the assembler, running on the seed)
+# 1. .alpha text -> bytecode, via beta (the assembler, running on the seed)
 ./beta_x64_windows.exe < "$SRC" > "build/$NAME.tape"
 TLEN=$(wc -c < "build/$NAME.tape")
 [ $((TLEN + 4)) -le 32768 ] || { echo "FAIL: $NAME tape is $TLEN B, exceeds the seed's 32 KB hole" >&2; exit 1; }
