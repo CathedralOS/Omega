@@ -19,10 +19,10 @@ emits assembly; the chain targets one level down at each step:
 ./build.sh examples/answer.gam && ./build/answer.exe   # exits with the program's value
 ```
 
-**Status: v4** — variables, statements, and control flow (`if`):
-`statement := var '=' expr | 'if' expr '{' statement* '}'`. An `if` runs its body when
-the condition is nonzero; ifs nest (label numbers `L<n>e` via a counter + a label-number
-stack). The program exits with the value of the last variable assigned. Expressions have
-precedence (recursive descent, two accumulators); factors are numbers or variables
-(`a`–`j` in `r6`–`r15`). New: `emit_dec` (int→decimal). No parens / >10 vars yet (need a
-value stack / memory slots). Growing next: `while`, comparison operators, `print`.
+**Status: v5** — variables, statements, and control flow (`if` **and `while`**):
+`statement := var '=' expr | 'if' expr '{' …'}' | 'while' expr '{' …'}'`. Both run/loop
+while the condition is nonzero; they nest (label numbers via a counter + a label-number
+stack). `while` emits `L<n>t: <cond> jz L<n>e <body> jmp L<n>t L<n>e:`. The program exits
+with the value of the last variable assigned. Expressions have precedence; factors are
+numbers or variables (`a`–`j` in `r6`–`r15`). No parens / >10 vars yet (need a value
+stack / memory slots). Growing next: comparison operators (`<`, `==`), then `print`.
