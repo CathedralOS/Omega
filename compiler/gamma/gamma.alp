@@ -994,6 +994,8 @@ pt_loop:
         jeq   r0, r2, pt_mul
         imm   r2, 47
         jeq   r0, r2, pt_div
+        imm   r2, 37
+        jeq   r0, r2, pt_mod
         ret
 pt_mul:
         call  advance
@@ -1014,6 +1016,17 @@ pt_div:
         imm   r0, 105
         write r0
         imm   r0, 118
+        write r0
+        call  emit_r4r5
+        jmp   pt_loop
+pt_mod:
+        call  advance
+        call  parse_factor_next
+        imm   r0, 109              ; m
+        write r0
+        imm   r0, 111              ; o
+        write r0
+        imm   r0, 100              ; d
         write r0
         call  emit_r4r5
         jmp   pt_loop
