@@ -71,6 +71,12 @@ main_halt:
         write r0
         imm   r0, 10
         write r0
+        imm   r1, 524352
+        load  r0, r1               ; PRINTED
+        imm   r2, 0
+        jeq   r0, r2, main_done
+        call  emit_pd_routine
+main_done:
         imm   r0, 0
         halt  r0
 
@@ -389,24 +395,25 @@ pw_fin:
 ; ---------------- parse_print: 'print' expr  (writes the low byte of expr) ----------------
 parse_print:
         call  parse_expr           ; value -> r0
-        imm   r0, 119              ; w
+        imm   r0, 99
         write r0
-        imm   r0, 114              ; r
+        imm   r0, 97
         write r0
-        imm   r0, 105              ; i
+        imm   r0, 108
         write r0
-        imm   r0, 116              ; t
-        write r0
-        imm   r0, 101              ; e
+        imm   r0, 108
         write r0
         imm   r0, 32
         write r0
-        imm   r0, 114              ; r
+        imm   r0, 80
         write r0
-        imm   r0, 48               ; 0
+        imm   r0, 68
         write r0
         imm   r0, 10
         write r0
+        imm   r1, 524352
+        imm   r0, 1
+        store r1, r0               ; PRINTED = 1
         ret
 
 ; ---------------- parse_expr: comparison level  sum (('<'|'>'|'==') sum)? ----------------
@@ -1016,4 +1023,834 @@ copy_digits:
         call  advance
         jmp   copy_digits
 cd_done:
+        ret
+
+; ---------------- emit_pd_routine: emit the runtime decimal-print routine ----
+emit_pd_routine:
+        imm   r0, 80
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 57
+        write r0
+        imm   r0, 55
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 53
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 106
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 113
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 80
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 122
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 80
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 99
+        write r0
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 106
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 113
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 80
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 118
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 56
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 97
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 118
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 53
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 97
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 53
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 115
+        write r0
+        imm   r0, 116
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 98
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 53
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 97
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 118
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 106
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 112
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 80
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 99
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 80
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 122
+        write r0
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 56
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 118
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 53
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 115
+        write r0
+        imm   r0, 116
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 98
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 53
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 80
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 106
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 113
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 80
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 115
+        write r0
+        imm   r0, 117
+        write r0
+        imm   r0, 98
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 118
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 53
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 97
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 53
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 108
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 97
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 98
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 53
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 119
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 116
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 106
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 112
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 80
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 80
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 119
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 116
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 116
+        write r0
+        imm   r0, 10
+        write r0
         ret
