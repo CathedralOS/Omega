@@ -38,12 +38,22 @@ seed-stamp. Needs `cargo`.
   and the six comparisons (`< > == != <= >=`, materialized to 0/1). **Unlocks
   recursion + loops:** `factorial.beta` → 120 and `fib.beta` → 55 match the hand
   `.alpha` proofs; `sumto.beta` (while + let) → 55.
+- **Slice 4 — explicit memory: DONE.** `byte[addr]` / `word[addr]` load and store,
+  lowered to `loadb`/`load`/`storeb`/`store`. Raw arrays/buffers, addresses managed
+  by the programmer (above the data stack). `arrays.beta` (fill + sum `i*i`) → 30,
+  `bytes.beta` → 131.
 
-## Next slices
+## Next
 
-4. Explicit memory (`byte[]` / `word[]`) → arrays/buffers.
-5. A symbol table (named globals/procs beyond the flat list).
-6. Self-check: write something compiler-shaped in Beta; then transcribe the
-   trusted compiler to assembly and rewrite gamma **in Beta**.
+Beta is now *more* capable than the assembler ever needed (which was hand-written
+in raw Alpha asm with none of this), so it is plausibly already compiler-grade.
+The remaining steps are ergonomics + validation, not raw capability:
+
+5. Ergonomics for compiler-writing — char literals (`'a'`), and likely fixed-address
+   globals / `>4` args only if the self-check demands them.
+6. **Self-check:** write something compiler-shaped in Beta (a tokenizer / tiny
+   expression evaluator) to confirm it is genuinely pleasant.
+7. Transcribe the trusted compiler to Alpha assembly (the one unavoidable time),
+   cross-check against this on-ramp, then rewrite gamma **in Beta**.
 
 See [`../beta/LANGUAGE.md`](../beta/LANGUAGE.md) for the language surface.
