@@ -19,6 +19,7 @@ emits assembly; the chain targets one level down at each step:
 ./build.sh examples/answer.gam && ./build/answer.exe   # exits with the program's value
 ```
 
-**Status: v0** — compiles a decimal literal into "exit with that value" (the increment
-that proves the whole gamma→beta→stamp pipeline). Growing from here, one increment at a
-time: arithmetic expressions → variables → `if`/`while` → `print`.
+**Status: v2** — integer arithmetic expressions with precedence (`* /` bind tighter than
+`+ -`), via recursive descent (`expr := term (('+'|'-') term)*`, `term := factor …`) on
+the VM call stack; codegen uses two accumulators (`r0` sums, `r4` products). No parens
+yet (that needs a runtime value stack). Growing next: variables → `if`/`while` → `print`.
