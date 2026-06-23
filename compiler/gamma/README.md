@@ -24,8 +24,9 @@ emits assembly; the chain targets one level down at each step:
 `if`/`while` run/loop while the condition is nonzero (nestable). `print expr` writes the
 low byte of the result (one character) to stdout — so programs produce visible output,
 not just an exit code. The program exits with the value of the last variable assigned;
-vars are `a`–`j` in `r6`–`r15`. No parens / >10 vars yet. Growing next: comparison
-operators (`<`, `==`), decimal-number printing, then parens + a value stack.
+vars are `a`–`j` in `r6`–`r15`. **Comparison operators** `<` `>` `==` form a precedence
+level above `+`/`-` and yield 0/1 (so `while i < n { … }`, `if a == b { … }`). No parens
+/ >10 vars yet. Growing next: decimal-number printing, then parens + a value stack.
 
 ```
 print 72  print 105  print 10            -> Hi
