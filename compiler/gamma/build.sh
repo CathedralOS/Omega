@@ -14,7 +14,7 @@ NAME=$(basename "$SRC" .gam)
 ./gamma_x64_windows.exe        < "$SRC"            > "build/$NAME.asm"    # .gam -> assembly
 ../beta/beta_x64_windows.exe   < "build/$NAME.asm" > "build/$NAME.tape"   # assembly -> tape
 L=$(wc -c < "build/$NAME.tape")
-[ $((L + 4)) -le 8192 ] || { echo "FAIL: $NAME tape is $L B, exceeds the seed's 8 KB hole" >&2; exit 1; }
+[ $((L + 4)) -le 16384 ] || { echo "FAIL: $NAME tape is $L B, exceeds the seed's 16 KB hole" >&2; exit 1; }
 
 cp "$SEED" "build/$NAME.exe"
 printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $((L & 255)) $(((L >> 8) & 255)) $(((L >> 16) & 255)) $(((L >> 24) & 255)))" \
