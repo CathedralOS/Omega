@@ -1,30 +1,59 @@
 ; gamma.alp — the gamma compiler, written in alpha assembly.
 ;
-; gamma is the rung above beta: a language a bit higher than raw assembly. It reads
-; gamma source on stdin and emits alpha assembly on stdout; beta lowers that to a tape,
-; which is stamped into the alpha seed to make a standalone .exe.
+; gamma reads gamma source on stdin and emits alpha assembly on stdout; beta lowers
+; that to a tape, which is stamped into the alpha seed to make a standalone .exe.
 ;
-; v3: variables + statements.
-;   program   := statement (newline statement)*
-;   statement := var '=' expr        (var is a single letter a..j)
-;   expr      := term (('+'|'-') term)*        term := factor (('*'|'/') factor)*
+; v4: variables, statements, AND control flow (if).
+;   program   := statement*
+;   statement := var '=' expr  |  'if' expr '{' statement* '}'
+;   expr      := term (('+'|'-') term)*    term := factor (('*'|'/') factor)*
 ;   factor    := number | var
-; Variables a..j live in registers r6..r15 (the emitted program is straight-line, so
-; they persist; no runtime stack/allocator yet -> no parens, <=10 vars). The program
-; exits with the value of its last statement (held in r0).
-;     a = 6 * 7        -> 42
-;     a = 6 * 7        \n  b = a + 1   -> 43
-; Codegen: r4 accumulates a term's product, r0 the expression's sum; an assignment
-; copies r0 into the var's register.
+; var = a letter a..j held in registers r6..r15. An `if` runs its body when the
+; condition is nonzero. The program exits with the value of its last expression (r0).
+;     a = 1   \n  if a { a = 42 }      -> 42
+;     a = 0   \n  if a { a = 42 }      -> 0
+; Labels are generated L<n>e via a label counter; a label-number stack lets ifs nest.
 ;
-; One-char lookahead + two scratch globals (calls clobber registers):
-;   524288 LA   (lookahead char, -1 at EOF)
-;   524296 TGT  (assignment target register number)
-;   524304 REGN (argument to emit_reg)
+; Globals (calls clobber registers, so cross-call state lives in memory):
+;   524288 LA   524296 TGT   524304 REGN   524312 LSP   524320 NUMV   524328 LCTR
+;   label-number stack at 524400 ; emit_dec digit buffer at 525000
 
 ; ---------------- main ----------------
+        imm   r0, 0                ; LCTR = 0
+        imm   r1, 524328
+        store r1, r0
+        imm   r0, 524400           ; LSP = stack base
+        imm   r1, 524312
+        store r1, r0
         call  advance              ; prime the lookahead
         call  parse_program
+        ; exit with the last variable assigned: if LASTREG != 0, emit "mov r0, r<LASTREG>\n"
+        imm   r1, 524336
+        load  r3, r1               ; LASTREG (0 = no assignment; valid regs are 6..15)
+        imm   r2, 0
+        jeq   r3, r2, main_halt
+        imm   r0, 109              ; m
+        write r0
+        imm   r0, 111              ; o
+        write r0
+        imm   r0, 118              ; v
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114              ; r
+        write r0
+        imm   r0, 48               ; 0
+        write r0
+        imm   r0, 44               ; ,
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r1, 524304
+        store r1, r3               ; REGN = LASTREG
+        call  emit_reg
+        imm   r0, 10
+        write r0
+main_halt:
         ; emit "halt r0\n"
         imm   r0, 104
         write r0
@@ -49,7 +78,7 @@
 parse_program:
         call  skip_spaces
         imm   r1, 524288
-        load  r0, r1               ; LA
+        load  r0, r1
         imm   r2, 0
         jlt   r0, r2, pp_done      ; EOF
         call  parse_statement
@@ -57,46 +86,105 @@ parse_program:
 pp_done:
         ret
 
-; ---------------- parse_statement: var '=' expr ----------------
+; ---------------- parse_statement: assignment or if ----------------
 parse_statement:
         call  skip_spaces
         imm   r1, 524288
-        load  r3, r1               ; LA = target letter
+        load  r3, r1               ; c = LA
+        imm   r2, 105
+        jeq   r3, r2, ps_i         ; 'i' -> maybe "if", maybe var i
         imm   r2, 97
         jlt   r3, r2, ps_err       ; < 'a'
         imm   r2, 106
         jlt   r2, r3, ps_err       ; > 'j'
         imm   r2, 91
-        sub   r3, r2               ; regnum = letter - 91  (a->6 .. j->15)
+        sub   r3, r2               ; regnum
         imm   r1, 524296
-        store r1, r3               ; TGT = regnum
+        store r1, r3               ; TGT
         call  advance              ; consume the letter
+        jmp   ps_eq
+ps_i:
+        call  advance              ; consume 'i'
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 102
+        jeq   r3, r2, ps_if        ; 'f' -> "if"
+        imm   r3, 14               ; var 'i' -> r14
+        imm   r1, 524296
+        store r1, r3               ; TGT = 14
+        jmp   ps_eq
+ps_if:
+        call  advance              ; consume 'f'
+        call  parse_if
+        ret
+ps_err:
+        imm   r0, 8
+        halt  r0
+ps_eq:
         call  skip_spaces
         imm   r1, 524288
         load  r0, r1
         imm   r2, 61
-        jeq   r0, r2, ps_eq        ; '='
-ps_err:
-        imm   r0, 8                ; syntax error
+        jeq   r0, r2, ps_do        ; '='
+        imm   r0, 8
         halt  r0
-ps_eq:
+ps_do:
         call  advance              ; consume '='
         call  parse_expr           ; value -> r0
         ; emit "mov r<TGT>, r0\n"
-        imm   r0, 109              ; m
+        imm   r0, 109
         write r0
-        imm   r0, 111              ; o
+        imm   r0, 111
         write r0
-        imm   r0, 118              ; v
+        imm   r0, 118
         write r0
         imm   r0, 32
         write r0
         imm   r1, 524296
-        load  r3, r1               ; TGT
+        load  r3, r1
         imm   r1, 524304
         store r1, r3               ; REGN = TGT
         call  emit_reg
-        imm   r0, 44               ; ,
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        ; remember this as the last assignment (for the program's exit value)
+        imm   r1, 524296
+        load  r3, r1               ; TGT
+        imm   r1, 524336
+        store r1, r3               ; LASTREG = TGT
+        ret
+
+; ---------------- parse_if: 'if' expr '{' statement* '}' ----------------
+parse_if:
+        ; n = LCTR; LCTR = n + 1
+        imm   r1, 524328
+        load  r3, r1
+        mov   r4, r3
+        imm   r2, 1
+        add   r4, r2
+        store r1, r4
+        ; push n on the label stack
+        imm   r1, 524312
+        load  r5, r1               ; LSP
+        store r5, r3
+        imm   r2, 8
+        add   r5, r2
+        imm   r1, 524312
+        store r1, r5
+        ; condition -> r0
+        call  parse_expr
+        ; emit "jz r0, L<n>e\n"
+        imm   r0, 106              ; j
+        write r0
+        imm   r0, 122              ; z
         write r0
         imm   r0, 32
         write r0
@@ -104,18 +192,67 @@ ps_eq:
         write r0
         imm   r0, 48               ; 0
         write r0
-        imm   r0, 10               ; \n
+        imm   r0, 44               ; ,
         write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 76               ; L
+        write r0
+        call  emit_top_lnum
+        imm   r0, 101              ; e
+        write r0
+        imm   r0, 10
+        write r0
+        ; expect '{'
+        call  skip_spaces
+        imm   r1, 524288
+        load  r0, r1
+        imm   r2, 123
+        jeq   r0, r2, pi_brace
+        imm   r0, 8
+        halt  r0
+pi_brace:
+        call  advance              ; consume '{'
+pi_body:
+        call  skip_spaces
+        imm   r1, 524288
+        load  r0, r1
+        imm   r2, 125
+        jeq   r0, r2, pi_close      ; '}'
+        imm   r2, 0
+        jlt   r0, r2, pi_fin        ; EOF -> end (unterminated)
+        call  parse_statement
+        jmp   pi_body
+pi_close:
+        call  advance              ; consume '}'
+pi_fin:
+        ; emit "L<n>e:\n"
+        imm   r0, 76
+        write r0
+        call  emit_top_lnum
+        imm   r0, 101
+        write r0
+        imm   r0, 58               ; :
+        write r0
+        imm   r0, 10
+        write r0
+        ; pop n
+        imm   r1, 524312
+        load  r5, r1
+        imm   r2, 8
+        sub   r5, r2
+        imm   r1, 524312
+        store r1, r5
         ret
 
-; ---------------- parse_expr: term (('+'|'-') term)*  -> r0 ----------------
+; ---------------- parse_expr / parse_term ----------------
 parse_expr:
         call  parse_term
         imm   r0, 109              ; m  (mov r0, r4)
         write r0
-        imm   r0, 111              ; o
+        imm   r0, 111
         write r0
-        imm   r0, 118              ; v
+        imm   r0, 118
         write r0
         call  emit_r0r4
 pe_loop:
@@ -130,27 +267,25 @@ pe_loop:
 pe_add:
         call  advance
         call  parse_term
-        imm   r0, 97               ; a
+        imm   r0, 97
         write r0
-        imm   r0, 100              ; d
+        imm   r0, 100
         write r0
-        imm   r0, 100              ; d
+        imm   r0, 100
         write r0
         call  emit_r0r4
         jmp   pe_loop
 pe_sub:
         call  advance
         call  parse_term
-        imm   r0, 115              ; s
+        imm   r0, 115
         write r0
-        imm   r0, 117              ; u
+        imm   r0, 117
         write r0
-        imm   r0, 98               ; b
+        imm   r0, 98
         write r0
         call  emit_r0r4
         jmp   pe_loop
-
-; ---------------- parse_term: factor (('*'|'/') factor)*  -> r4 ----------------
 parse_term:
         call  parse_factor_first
 pt_loop:
@@ -165,36 +300,35 @@ pt_loop:
 pt_mul:
         call  advance
         call  parse_factor_next
-        imm   r0, 109              ; m
+        imm   r0, 109
         write r0
-        imm   r0, 117              ; u
+        imm   r0, 117
         write r0
-        imm   r0, 108              ; l
+        imm   r0, 108
         write r0
         call  emit_r4r5
         jmp   pt_loop
 pt_div:
         call  advance
         call  parse_factor_next
-        imm   r0, 100              ; d
+        imm   r0, 100
         write r0
-        imm   r0, 105              ; i
+        imm   r0, 105
         write r0
-        imm   r0, 118              ; v
+        imm   r0, 118
         write r0
         call  emit_r4r5
         jmp   pt_loop
 
-; ---------------- factors: a number or a variable, into r4 (first) / r5 (next) ------
+; ---------------- factors: number or variable ----------------
 parse_factor_first:
         call  skip_spaces
         imm   r1, 524288
-        load  r0, r1               ; LA
+        load  r0, r1
         imm   r2, 48
-        jlt   r0, r2, pff_var      ; < '0' -> not a digit
+        jlt   r0, r2, pff_var
         imm   r2, 57
-        jlt   r2, r0, pff_var      ; > '9' -> not a digit
-        ; number -> "imm r4, <digits>\n"
+        jlt   r2, r0, pff_var
         imm   r0, 105
         write r0
         imm   r0, 109
@@ -216,27 +350,26 @@ parse_factor_first:
         write r0
         ret
 pff_var:
-        ; variable -> "mov r4, r<reg>\n"
         imm   r1, 524288
         load  r3, r1
         imm   r2, 97
-        jlt   r3, r2, pff_err      ; < 'a'
+        jlt   r3, r2, pf_err
         imm   r2, 106
-        jlt   r2, r3, pff_err      ; > 'j'
+        jlt   r2, r3, pf_err
         imm   r2, 91
-        sub   r3, r2               ; regnum
+        sub   r3, r2
         imm   r1, 524304
-        store r1, r3               ; REGN
-        call  advance              ; consume letter
-        imm   r0, 109              ; m
+        store r1, r3
+        call  advance
+        imm   r0, 109
         write r0
-        imm   r0, 111              ; o
+        imm   r0, 111
         write r0
-        imm   r0, 118              ; v
+        imm   r0, 118
         write r0
         imm   r0, 32
         write r0
-        imm   r0, 114              ; r
+        imm   r0, 114
         write r0
         imm   r0, 52               ; 4
         write r0
@@ -248,7 +381,7 @@ pff_var:
         imm   r0, 10
         write r0
         ret
-pff_err:
+pf_err:
         imm   r0, 8
         halt  r0
 parse_factor_next:
@@ -259,7 +392,6 @@ parse_factor_next:
         jlt   r0, r2, pfn_var
         imm   r2, 57
         jlt   r2, r0, pfn_var
-        ; number -> "imm r5, <digits>\n"
         imm   r0, 105
         write r0
         imm   r0, 109
@@ -284,23 +416,23 @@ pfn_var:
         imm   r1, 524288
         load  r3, r1
         imm   r2, 97
-        jlt   r3, r2, pff_err
+        jlt   r3, r2, pf_err
         imm   r2, 106
-        jlt   r2, r3, pff_err
+        jlt   r2, r3, pf_err
         imm   r2, 91
         sub   r3, r2
         imm   r1, 524304
-        store r1, r3               ; REGN
+        store r1, r3
         call  advance
-        imm   r0, 109              ; m
+        imm   r0, 109
         write r0
-        imm   r0, 111              ; o
+        imm   r0, 111
         write r0
-        imm   r0, 118              ; v
+        imm   r0, 118
         write r0
         imm   r0, 32
         write r0
-        imm   r0, 114              ; r
+        imm   r0, 114
         write r0
         imm   r0, 53               ; 5
         write r0
@@ -313,18 +445,18 @@ pfn_var:
         write r0
         ret
 
-; ---------------- emit_reg: emit "r" + decimal of REGN (6..15) ----------------
+; ---------------- emit_reg: "r" + decimal of REGN (6..15) ----------------
 emit_reg:
-        imm   r0, 114              ; r
+        imm   r0, 114
         write r0
         imm   r1, 524304
-        load  r3, r1               ; REGN
+        load  r3, r1
         imm   r2, 10
         jlt   r3, r2, er_single
         imm   r0, 49               ; '1'
         write r0
         imm   r2, 10
-        sub   r3, r2               ; regn - 10
+        sub   r3, r2
         imm   r2, 48
         add   r3, r2
         write r3
@@ -335,13 +467,66 @@ er_single:
         write r3
         ret
 
-; ---------------- emit_r0r4: " r0, r4\n"   emit_r4r5: " r4, r5\n" ----------------
+; ---------------- emit_top_lnum: emit decimal of the top label number ----------------
+emit_top_lnum:
+        imm   r1, 524312
+        load  r5, r1
+        imm   r2, 8
+        sub   r5, r2
+        load  r3, r5
+        imm   r1, 524320
+        store r1, r3               ; NUMV = top
+        call  emit_dec
+        ret
+
+; ---------------- emit_dec: emit the decimal text of NUMV (>= 0) ----------------
+emit_dec:
+        imm   r1, 524320
+        load  r3, r1               ; value
+        imm   r2, 0
+        jeq   r3, r2, ed_zero
+        imm   r5, 525000           ; digit buffer
+        imm   r4, 0                ; count
+ed_collect:
+        imm   r2, 0
+        jeq   r3, r2, ed_emit
+        mov   r6, r3
+        imm   r2, 10
+        mod   r6, r2               ; digit
+        imm   r2, 48
+        add   r6, r2
+        mov   r7, r5
+        add   r7, r4
+        storeb r7, r6
+        imm   r2, 1
+        add   r4, r2
+        imm   r2, 10
+        div   r3, r2
+        jmp   ed_collect
+ed_emit:
+        imm   r2, 0
+        jeq   r4, r2, ed_done
+        imm   r2, 1
+        sub   r4, r2
+        mov   r7, r5
+        add   r7, r4
+        loadb r6, r7
+        write r6
+        jmp   ed_emit
+ed_done:
+        ret
+ed_zero:
+        imm   r0, 48
+        write r0
+        ret
+
+; ---------------- emit_r0r4 / emit_r4r5 ----------------
 emit_r0r4:
         imm   r0, 32
         write r0
         imm   r0, 114
         write r0
-        imm   r0, 48               ; 0
+        imm   r0, 48
         write r0
         imm   r0, 44
         write r0
@@ -349,7 +534,7 @@ emit_r0r4:
         write r0
         imm   r0, 114
         write r0
-        imm   r0, 52               ; 4
+        imm   r0, 52
         write r0
         imm   r0, 10
         write r0
@@ -359,7 +544,7 @@ emit_r4r5:
         write r0
         imm   r0, 114
         write r0
-        imm   r0, 52               ; 4
+        imm   r0, 52
         write r0
         imm   r0, 44
         write r0
@@ -367,7 +552,7 @@ emit_r4r5:
         write r0
         imm   r0, 114
         write r0
-        imm   r0, 53               ; 5
+        imm   r0, 53
         write r0
         imm   r0, 10
         write r0
