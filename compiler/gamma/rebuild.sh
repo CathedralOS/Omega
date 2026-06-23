@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
 # Rebuild gamma_x64_windows.exe = the alpha seed with gamma's tape stamped into its hole.
-# gamma.alp is assembled by beta (the rung below). No Rust, no Python.
+# gamma.alpha is assembled by beta (the rung below). No Rust, no Python.
 set -e
 cd "$(dirname "$0")"
 SEED=../alpha/alpha_x64_windows.exe
 mkdir -p build
-../beta/beta_x64_windows.exe < gamma.alp > build/gamma.tape
+../beta/beta_x64_windows.exe < gamma.alpha > build/gamma.tape
 L=$(wc -c < build/gamma.tape)
 [ $((L + 4)) -le 32768 ] || { echo "FAIL: gamma tape is $L B, exceeds the seed's 32 KB hole" >&2; exit 1; }
 cp "$SEED" gamma_x64_windows.exe

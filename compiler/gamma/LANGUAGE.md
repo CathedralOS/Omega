@@ -46,8 +46,8 @@ while b <= a {
 }
 ```
 
-`gcd.gam` (Euclid), `fib.gam` (iterative Fibonacci), `primes.gam`, `squares.gam`,
-`countdown.gam`, … — build any with `./build.sh examples/NAME.gam` then run
+`gcd.gamma` (Euclid), `fib.gamma` (iterative Fibonacci), `primes.gamma`, `squares.gamma`,
+`countdown.gamma`, … — build any with `./build.sh examples/NAME.gamma` then run
 `./build/NAME.exe` (pipe input for the ones that `read`).
 
 ## Limits (current)

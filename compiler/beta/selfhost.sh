@@ -1,12 +1,12 @@
 #!/usr/bin/env sh
-# Verify beta self-hosts: beta assembles its own source (assembler.alp) and the result,
+# Verify beta self-hosts: beta assembles its own source (assembler.alpha) and the result,
 # stamped into the seed, is byte-identical to beta_x64_windows.exe. No Rust.
 set -e
 cd "$(dirname "$0")"
 SEED=../alpha/alpha_x64_windows.exe
 mkdir -p build
 
-./beta_x64_windows.exe < assembler.alp > build/assembler.tape
+./beta_x64_windows.exe < assembler.alpha > build/assembler.tape
 L=$(wc -c < build/assembler.tape)
 [ $((L + 4)) -le 32768 ] || { echo "FAIL: assembler tape is $L B, exceeds the seed's 32 KB hole" >&2; exit 1; }
 cp "$SEED" build/beta.exe
@@ -15,7 +15,7 @@ printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $((L & 255)) $(((L >> 8) & 255)) $((
 dd if=build/assembler.tape of=build/beta.exe bs=1 seek=5124 conv=notrunc status=none
 
 if cmp -s beta_x64_windows.exe build/beta.exe; then
-    echo "self-host ✓ — beta rebuilds itself from assembler.alp, byte-identical, no Rust"
+    echo "self-host ✓ — beta rebuilds itself from assembler.alpha, byte-identical, no Rust"
 else
     echo "FAIL: beta does not reproduce itself" >&2; exit 1
 fi

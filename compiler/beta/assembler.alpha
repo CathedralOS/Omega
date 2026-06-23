@@ -1,11 +1,11 @@
-; assembler.alp — the Alpha assembler, written in Alpha assembly. Reads assembly text
+; assembler.alpha — the Alpha assembler, written in Alpha assembly. Reads assembly text
 ; on stdin, writes a bytecode tape on stdout. Two passes: pass 1 records label
 ; addresses, pass 2 emits, resolving label references. This is the self-hosting
 ; target: assembled to a tape, which the alpha seed then runs to reproduce that tape.
 ;
 ; The source language is human mnemonics: opcode names (imm/mov/add/.../ret), registers
 ; written `rN`, decimal immediates, and label names. Commas are treated as whitespace.
-; `;` starts a comment. No Rust/--num step — beta reads .alp directly.
+; `;` starts a comment. No Rust/--num step — beta reads .alpha directly.
 ;
 ; Cross-call state lives in fixed memory (calls clobber registers). Globals (i64):
 ;   524288 SRCLEN   524296 CUR     524304 TSTART  524312 TLEN    524320 TDONE
