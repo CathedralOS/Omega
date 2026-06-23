@@ -42,7 +42,7 @@ F0 00
 00 00 00 00
 06 00 00 00
 00 00 00 00
-00 60 00 04              ; SizeOfImage = 0x4006000 (covers the .tape hole)
+00 80 00 04              ; SizeOfImage = 0x4008000 (covers the .tape hole)
 00 02 00 00              ; SizeOfHeaders
 00 00 00 00
 03 00
@@ -85,9 +85,9 @@ z24
 00 00 00 00
 80 00 00 C0
 2E 74 61 70 65 00 00 00          ; .tape — the embedded-program hole
-00 20 00 00                      ; VirtualSize  0x2000 (8 KB)
+00 40 00 00                      ; VirtualSize  0x4000 (16 KB)
 00 40 00 04                      ; VirtualAddress 0x4004000
-00 20 00 00                      ; SizeOfRawData 0x2000
+00 40 00 00                      ; SizeOfRawData 0x4000
 00 14 00 00                      ; PointerToRawData 0x1400
 00 00 00 00 00 00 00 00
 00 00 00 00
@@ -403,6 +403,6 @@ dllname:
 .pad 0x1400
 
 ; ===================== .tape (RVA 0x4004000, file 0x1400) =====================
-; The hole: 0x2000 (8 KB) zero bytes. A built program is this exe with [4-byte LE
+; The hole: 0x4000 (16 KB) zero bytes. A built program is this exe with [4-byte LE
 ; length][tape bytes] memcpy'd in here at file offset 0x1400.
-.pad 0x3400
+.pad 0x5400
