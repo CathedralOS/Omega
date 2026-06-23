@@ -1,0 +1,10 @@
+; tree-recursive Fibonacci in Beta (matches examples/fib.alpha, hand-written). -> 55
+proc main() {
+    return fib(10)
+}
+proc fib(n) {
+    if n < 2 {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
