@@ -164,8 +164,14 @@ main_halt:
         imm   r1, 524352
         load  r0, r1               ; PRINTED
         imm   r2, 0
-        jeq   r0, r2, main_done
+        jeq   r0, r2, main_rd
         call  emit_pd_routine
+main_rd:
+        imm   r1, 524360
+        load  r0, r1
+        imm   r2, 0
+        jeq   r0, r2, main_done
+        call  emit_rd_routine
 main_done:
         imm   r0, 0
         halt  r0
@@ -193,6 +199,8 @@ parse_statement:
         jeq   r3, r2, ps_w         ; 'w' -> "while"
         imm   r2, 112
         jeq   r3, r2, ps_p         ; 'p' -> "print"
+        imm   r2, 114
+        jeq   r3, r2, ps_r         ; 'r' -> "read"
         imm   r2, 97
         jlt   r3, r2, ps_err       ; < 'a'
         imm   r2, 106
@@ -244,6 +252,20 @@ psp_skip:
         jmp   psp_skip
 psp_done:
         call  parse_print
+        ret
+ps_r:
+        call  advance              ; consume 'r'
+psr_skip:
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 97
+        jlt   r3, r2, psr_done
+        imm   r2, 122
+        jlt   r2, r3, psr_done
+        call  advance
+        jmp   psr_skip
+psr_done:
+        call  parse_read
         ret
 ps_err:
         imm   r0, 8
@@ -3038,6 +3060,373 @@ pfnp_ok:
         imm   r0, 114
         write r0
         imm   r0, 50
+        write r0
+        imm   r0, 10
+        write r0
+        ret
+
+; ---------------- parse_read: 'read' var ----------------
+parse_read:
+        call  skip_spaces
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 97
+        jlt   r3, r2, pr_err
+        imm   r2, 106
+        jlt   r2, r3, pr_err
+        imm   r2, 91
+        sub   r3, r2
+        imm   r1, 524304
+        store r1, r3
+        imm   r1, 524336
+        store r1, r3
+        call  advance
+        imm   r0, 99
+        write r0
+        imm   r0, 97
+        write r0
+        imm   r0, 108
+        write r0
+        imm   r0, 108
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 82
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 118
+        write r0
+        imm   r0, 32
+        write r0
+        call  emit_reg
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r1, 524360
+        imm   r0, 1
+        store r1, r0
+        ret
+pr_err:
+        imm   r0, 8
+        halt  r0
+emit_rd_routine:
+        imm   r0, 82
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 82
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 99
+        write r0
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 97
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 56
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 106
+        write r0
+        imm   r0, 108
+        write r0
+        imm   r0, 116
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 82
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 53
+        write r0
+        imm   r0, 55
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 106
+        write r0
+        imm   r0, 108
+        write r0
+        imm   r0, 116
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 82
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 117
+        write r0
+        imm   r0, 108
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 52
+        write r0
+        imm   r0, 56
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 115
+        write r0
+        imm   r0, 117
+        write r0
+        imm   r0, 98
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 50
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 97
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 106
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 112
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 82
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 99
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 82
+        write r0
+        imm   r0, 68
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 116
         write r0
         imm   r0, 10
         write r0
