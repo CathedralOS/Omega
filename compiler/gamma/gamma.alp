@@ -93,6 +93,8 @@ parse_statement:
         load  r3, r1               ; c = LA
         imm   r2, 105
         jeq   r3, r2, ps_i         ; 'i' -> maybe "if", maybe var i
+        imm   r2, 119
+        jeq   r3, r2, ps_w         ; 'w' -> "while"
         imm   r2, 97
         jlt   r3, r2, ps_err       ; < 'a'
         imm   r2, 106
@@ -116,6 +118,20 @@ ps_i:
 ps_if:
         call  advance              ; consume 'f'
         call  parse_if
+        ret
+ps_w:
+        call  advance              ; consume 'w'
+psw_skip:
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 97
+        jlt   r3, r2, psw_done     ; past the keyword's letters
+        imm   r2, 122
+        jlt   r2, r3, psw_done
+        call  advance
+        jmp   psw_skip
+psw_done:
+        call  parse_while
         ret
 ps_err:
         imm   r0, 8
@@ -231,6 +247,115 @@ pi_fin:
         write r0
         call  emit_top_lnum
         imm   r0, 101
+        write r0
+        imm   r0, 58               ; :
+        write r0
+        imm   r0, 10
+        write r0
+        ; pop n
+        imm   r1, 524312
+        load  r5, r1
+        imm   r2, 8
+        sub   r5, r2
+        imm   r1, 524312
+        store r1, r5
+        ret
+
+; ---------------- parse_while: 'while' expr '{' statement* '}' ----------------
+parse_while:
+        ; n = LCTR; LCTR = n + 1
+        imm   r1, 524328
+        load  r3, r1
+        mov   r4, r3
+        imm   r2, 1
+        add   r4, r2
+        store r1, r4
+        ; push n on the label stack
+        imm   r1, 524312
+        load  r5, r1
+        store r5, r3
+        imm   r2, 8
+        add   r5, r2
+        imm   r1, 524312
+        store r1, r5
+        ; emit "L<n>t:\n" (loop top)
+        imm   r0, 76               ; L
+        write r0
+        call  emit_top_lnum
+        imm   r0, 116              ; t
+        write r0
+        imm   r0, 58               ; :
+        write r0
+        imm   r0, 10
+        write r0
+        ; condition -> r0
+        call  parse_expr
+        ; emit "jz r0, L<n>e\n"
+        imm   r0, 106              ; j
+        write r0
+        imm   r0, 122              ; z
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114              ; r
+        write r0
+        imm   r0, 48               ; 0
+        write r0
+        imm   r0, 44               ; ,
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 76               ; L
+        write r0
+        call  emit_top_lnum
+        imm   r0, 101              ; e
+        write r0
+        imm   r0, 10
+        write r0
+        ; expect '{'
+        call  skip_spaces
+        imm   r1, 524288
+        load  r0, r1
+        imm   r2, 123
+        jeq   r0, r2, pw_brace
+        imm   r0, 8
+        halt  r0
+pw_brace:
+        call  advance              ; consume '{'
+pw_body:
+        call  skip_spaces
+        imm   r1, 524288
+        load  r0, r1
+        imm   r2, 125
+        jeq   r0, r2, pw_close      ; '}'
+        imm   r2, 0
+        jlt   r0, r2, pw_fin        ; EOF
+        call  parse_statement
+        jmp   pw_body
+pw_close:
+        call  advance              ; consume '}'
+pw_fin:
+        ; emit "jmp L<n>t\n"
+        imm   r0, 106              ; j
+        write r0
+        imm   r0, 109              ; m
+        write r0
+        imm   r0, 112              ; p
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 76               ; L
+        write r0
+        call  emit_top_lnum
+        imm   r0, 116              ; t
+        write r0
+        imm   r0, 10
+        write r0
+        ; emit "L<n>e:\n"
+        imm   r0, 76               ; L
+        write r0
+        call  emit_top_lnum
+        imm   r0, 101              ; e
         write r0
         imm   r0, 58               ; :
         write r0
