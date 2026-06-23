@@ -1,0 +1,3 @@
+read a
+b = a * a
+print b

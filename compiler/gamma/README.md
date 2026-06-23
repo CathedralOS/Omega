@@ -19,10 +19,11 @@ emits assembly; the chain targets one level down at each step:
 ./build.sh examples/answer.gam && ./build/answer.exe   # exits with the program's value
 ```
 
-**Status: v10** — variables, arithmetic (with precedence), comparisons, `if`, `while`,
+**Status: v11** — variables, arithmetic (with precedence), comparisons, `if`, `while`,
 and `print`:
 `statement := var '=' expr | 'if' expr '{'…'}' | 'while' expr '{'…'}' | 'print' expr`.
-`if`/`while` run/loop while the condition is nonzero (nestable). **`print expr` writes
+`if`/`while` run/loop while the condition is nonzero (nestable). **`read var`** reads a decimal from stdin into a variable (runtime decimal-parse
+routine, like print's). **`print expr` writes
 the decimal value of the result followed by a newline** (via a runtime int→decimal
 routine emitted once, called per print). The program exits with the value of the last
 variable assigned; vars are `a`–`j` in `r6`–`r15`. Comparison operators `< > == <= >= !=`
