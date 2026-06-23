@@ -19,7 +19,9 @@ emits assembly; the chain targets one level down at each step:
 ./build.sh examples/answer.gam && ./build/answer.exe   # exits with the program's value
 ```
 
-**Status: v2** — integer arithmetic expressions with precedence (`* /` bind tighter than
-`+ -`), via recursive descent (`expr := term (('+'|'-') term)*`, `term := factor …`) on
-the VM call stack; codegen uses two accumulators (`r0` sums, `r4` products). No parens
-yet (that needs a runtime value stack). Growing next: variables → `if`/`while` → `print`.
+**Status: v3** — variables + statements. A program is newline-separated `var = expr`
+statements (`var` is a letter `a`–`j`, held in registers `r6`–`r15`); it exits with the
+last statement's value. Expressions have precedence (recursive descent, two
+accumulators); factors are numbers or variables. No parens yet (needs a runtime value
+stack), ≤10 variables (needs memory slots + int→decimal for more). Growing next:
+`if`/`while` → `print`.
