@@ -988,10 +988,23 @@ skip_spaces:
         jeq   r0, r2, ss_adv
         imm   r2, 9
         jeq   r0, r2, ss_adv
+        imm   r2, 35
+        jeq   r0, r2, ss_comment    ; '#' -> line comment
         ret
 ss_adv:
         call  advance
         jmp   skip_spaces
+ss_comment:
+        call  advance               ; consume '#', then run to end of line
+        imm   r1, 524288
+        load  r0, r1
+        imm   r2, 0
+        jlt   r0, r2, ss_cdone       ; EOF ends the comment
+        imm   r2, 10
+        jeq   r0, r2, skip_spaces    ; newline ends the comment; resume skipping
+        jmp   ss_comment
+ss_cdone:
+        ret
 copy_digits:
         imm   r1, 524288
         load  r0, r1
