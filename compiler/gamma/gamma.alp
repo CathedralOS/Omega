@@ -4,19 +4,27 @@
 ; gamma source on stdin and emits alpha assembly on stdout; beta lowers that to a tape,
 ; which is stamped into the alpha seed to make a standalone .exe.
 ;
-; v2: integer arithmetic expressions WITH precedence (* / bind tighter than + -):
-;       2 + 3 * 4   ->  14        6 * 7  ->  42        42  ->  42
-;     Recursive descent  expr := term (('+'|'-') term)*  /  term := factor (('*'|'/') factor)*
-;     using the VM call stack. Codegen uses two accumulators (no runtime stack yet, so
-;     no parens): r4 accumulates a term's product, r0 accumulates the expression's sum.
-;     The program exits with the result (low byte).
+; v3: variables + statements.
+;   program   := statement (newline statement)*
+;   statement := var '=' expr        (var is a single letter a..j)
+;   expr      := term (('+'|'-') term)*        term := factor (('*'|'/') factor)*
+;   factor    := number | var
+; Variables a..j live in registers r6..r15 (the emitted program is straight-line, so
+; they persist; no runtime stack/allocator yet -> no parens, <=10 vars). The program
+; exits with the value of its last statement (held in r0).
+;     a = 6 * 7        -> 42
+;     a = 6 * 7        \n  b = a + 1   -> 43
+; Codegen: r4 accumulates a term's product, r0 the expression's sum; an assignment
+; copies r0 into the var's register.
 ;
-; One-char lookahead in a fixed global (calls clobber registers):
+; One-char lookahead + two scratch globals (calls clobber registers):
 ;   524288 LA   (lookahead char, -1 at EOF)
+;   524296 TGT  (assignment target register number)
+;   524304 REGN (argument to emit_reg)
 
 ; ---------------- main ----------------
         call  advance              ; prime the lookahead
-        call  parse_expr           ; result computed into r0
+        call  parse_program
         ; emit "halt r0\n"
         imm   r0, 104
         write r0
@@ -37,11 +45,73 @@
         imm   r0, 0
         halt  r0
 
+; ---------------- parse_program: statement* ----------------
+parse_program:
+        call  skip_spaces
+        imm   r1, 524288
+        load  r0, r1               ; LA
+        imm   r2, 0
+        jlt   r0, r2, pp_done      ; EOF
+        call  parse_statement
+        jmp   parse_program
+pp_done:
+        ret
+
+; ---------------- parse_statement: var '=' expr ----------------
+parse_statement:
+        call  skip_spaces
+        imm   r1, 524288
+        load  r3, r1               ; LA = target letter
+        imm   r2, 97
+        jlt   r3, r2, ps_err       ; < 'a'
+        imm   r2, 106
+        jlt   r2, r3, ps_err       ; > 'j'
+        imm   r2, 91
+        sub   r3, r2               ; regnum = letter - 91  (a->6 .. j->15)
+        imm   r1, 524296
+        store r1, r3               ; TGT = regnum
+        call  advance              ; consume the letter
+        call  skip_spaces
+        imm   r1, 524288
+        load  r0, r1
+        imm   r2, 61
+        jeq   r0, r2, ps_eq        ; '='
+ps_err:
+        imm   r0, 8                ; syntax error
+        halt  r0
+ps_eq:
+        call  advance              ; consume '='
+        call  parse_expr           ; value -> r0
+        ; emit "mov r<TGT>, r0\n"
+        imm   r0, 109              ; m
+        write r0
+        imm   r0, 111              ; o
+        write r0
+        imm   r0, 118              ; v
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r1, 524296
+        load  r3, r1               ; TGT
+        imm   r1, 524304
+        store r1, r3               ; REGN = TGT
+        call  emit_reg
+        imm   r0, 44               ; ,
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114              ; r
+        write r0
+        imm   r0, 48               ; 0
+        write r0
+        imm   r0, 10               ; \n
+        write r0
+        ret
+
 ; ---------------- parse_expr: term (('+'|'-') term)*  -> r0 ----------------
 parse_expr:
-        call  parse_term           ; first term -> r4
-        ; emit "mov r0, r4\n"
-        imm   r0, 109              ; m
+        call  parse_term
+        imm   r0, 109              ; m  (mov r0, r4)
         write r0
         imm   r0, 111              ; o
         write r0
@@ -51,25 +121,25 @@ parse_expr:
 pe_loop:
         call  skip_spaces
         imm   r1, 524288
-        load  r0, r1               ; LA
+        load  r0, r1
         imm   r2, 43
-        jeq   r0, r2, pe_add       ; +
+        jeq   r0, r2, pe_add
         imm   r2, 45
-        jeq   r0, r2, pe_sub       ; -
+        jeq   r0, r2, pe_sub
         ret
 pe_add:
-        call  advance              ; consume '+'
-        call  parse_term           ; next term -> r4
+        call  advance
+        call  parse_term
         imm   r0, 97               ; a
         write r0
         imm   r0, 100              ; d
         write r0
         imm   r0, 100              ; d
         write r0
-        call  emit_r0r4            ; -> "add r0, r4\n"
+        call  emit_r0r4
         jmp   pe_loop
 pe_sub:
-        call  advance              ; consume '-'
+        call  advance
         call  parse_term
         imm   r0, 115              ; s
         write r0
@@ -77,34 +147,34 @@ pe_sub:
         write r0
         imm   r0, 98               ; b
         write r0
-        call  emit_r0r4            ; -> "sub r0, r4\n"
+        call  emit_r0r4
         jmp   pe_loop
 
 ; ---------------- parse_term: factor (('*'|'/') factor)*  -> r4 ----------------
 parse_term:
-        call  parse_factor_first   ; first factor -> "imm r4, N"
+        call  parse_factor_first
 pt_loop:
         call  skip_spaces
         imm   r1, 524288
-        load  r0, r1               ; LA
+        load  r0, r1
         imm   r2, 42
-        jeq   r0, r2, pt_mul       ; *
+        jeq   r0, r2, pt_mul
         imm   r2, 47
-        jeq   r0, r2, pt_div       ; /
+        jeq   r0, r2, pt_div
         ret
 pt_mul:
-        call  advance              ; consume '*'
-        call  parse_factor_next    ; "imm r5, M"
+        call  advance
+        call  parse_factor_next
         imm   r0, 109              ; m
         write r0
         imm   r0, 117              ; u
         write r0
         imm   r0, 108              ; l
         write r0
-        call  emit_r4r5            ; -> "mul r4, r5\n"
+        call  emit_r4r5
         jmp   pt_loop
 pt_div:
-        call  advance              ; consume '/'
+        call  advance
         call  parse_factor_next
         imm   r0, 100              ; d
         write r0
@@ -112,17 +182,57 @@ pt_div:
         write r0
         imm   r0, 118              ; v
         write r0
-        call  emit_r4r5            ; -> "div r4, r5\n"
+        call  emit_r4r5
         jmp   pt_loop
 
-; ---------------- factors: emit a number into r4 (first) or r5 (subsequent) ----------------
+; ---------------- factors: a number or a variable, into r4 (first) / r5 (next) ------
 parse_factor_first:
         call  skip_spaces
-        imm   r0, 105              ; i
+        imm   r1, 524288
+        load  r0, r1               ; LA
+        imm   r2, 48
+        jlt   r0, r2, pff_var      ; < '0' -> not a digit
+        imm   r2, 57
+        jlt   r2, r0, pff_var      ; > '9' -> not a digit
+        ; number -> "imm r4, <digits>\n"
+        imm   r0, 105
         write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 52               ; 4
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        call  copy_digits
+        imm   r0, 10
+        write r0
+        ret
+pff_var:
+        ; variable -> "mov r4, r<reg>\n"
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 97
+        jlt   r3, r2, pff_err      ; < 'a'
+        imm   r2, 106
+        jlt   r2, r3, pff_err      ; > 'j'
+        imm   r2, 91
+        sub   r3, r2               ; regnum
+        imm   r1, 524304
+        store r1, r3               ; REGN
+        call  advance              ; consume letter
         imm   r0, 109              ; m
         write r0
-        imm   r0, 109              ; m
+        imm   r0, 111              ; o
+        write r0
+        imm   r0, 118              ; v
         write r0
         imm   r0, 32
         write r0
@@ -130,21 +240,63 @@ parse_factor_first:
         write r0
         imm   r0, 52               ; 4
         write r0
-        imm   r0, 44               ; ,
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        call  emit_reg
+        imm   r0, 10
+        write r0
+        ret
+pff_err:
+        imm   r0, 8
+        halt  r0
+parse_factor_next:
+        call  skip_spaces
+        imm   r1, 524288
+        load  r0, r1
+        imm   r2, 48
+        jlt   r0, r2, pfn_var
+        imm   r2, 57
+        jlt   r2, r0, pfn_var
+        ; number -> "imm r5, <digits>\n"
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 53               ; 5
+        write r0
+        imm   r0, 44
         write r0
         imm   r0, 32
         write r0
         call  copy_digits
-        imm   r0, 10               ; \n
+        imm   r0, 10
         write r0
         ret
-parse_factor_next:
-        call  skip_spaces
-        imm   r0, 105              ; i
-        write r0
+pfn_var:
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 97
+        jlt   r3, r2, pff_err
+        imm   r2, 106
+        jlt   r2, r3, pff_err
+        imm   r2, 91
+        sub   r3, r2
+        imm   r1, 524304
+        store r1, r3               ; REGN
+        call  advance
         imm   r0, 109              ; m
         write r0
-        imm   r0, 109              ; m
+        imm   r0, 111              ; o
+        write r0
+        imm   r0, 118              ; v
         write r0
         imm   r0, 32
         write r0
@@ -152,61 +304,81 @@ parse_factor_next:
         write r0
         imm   r0, 53               ; 5
         write r0
-        imm   r0, 44               ; ,
+        imm   r0, 44
         write r0
         imm   r0, 32
         write r0
-        call  copy_digits
-        imm   r0, 10               ; \n
+        call  emit_reg
+        imm   r0, 10
         write r0
+        ret
+
+; ---------------- emit_reg: emit "r" + decimal of REGN (6..15) ----------------
+emit_reg:
+        imm   r0, 114              ; r
+        write r0
+        imm   r1, 524304
+        load  r3, r1               ; REGN
+        imm   r2, 10
+        jlt   r3, r2, er_single
+        imm   r0, 49               ; '1'
+        write r0
+        imm   r2, 10
+        sub   r3, r2               ; regn - 10
+        imm   r2, 48
+        add   r3, r2
+        write r3
+        ret
+er_single:
+        imm   r2, 48
+        add   r3, r2
+        write r3
         ret
 
 ; ---------------- emit_r0r4: " r0, r4\n"   emit_r4r5: " r4, r5\n" ----------------
 emit_r0r4:
         imm   r0, 32
         write r0
-        imm   r0, 114              ; r
+        imm   r0, 114
         write r0
         imm   r0, 48               ; 0
         write r0
-        imm   r0, 44               ; ,
+        imm   r0, 44
         write r0
         imm   r0, 32
         write r0
-        imm   r0, 114              ; r
+        imm   r0, 114
         write r0
         imm   r0, 52               ; 4
         write r0
-        imm   r0, 10               ; \n
+        imm   r0, 10
         write r0
         ret
 emit_r4r5:
         imm   r0, 32
         write r0
-        imm   r0, 114              ; r
+        imm   r0, 114
         write r0
         imm   r0, 52               ; 4
         write r0
-        imm   r0, 44               ; ,
+        imm   r0, 44
         write r0
         imm   r0, 32
         write r0
-        imm   r0, 114              ; r
+        imm   r0, 114
         write r0
         imm   r0, 53               ; 5
         write r0
-        imm   r0, 10               ; \n
+        imm   r0, 10
         write r0
         ret
 
-; ---------------- advance: LA = next stdin char (-1 at EOF) ----------------
+; ---------------- advance / skip_spaces / copy_digits ----------------
 advance:
         read  r0
         imm   r1, 524288
         store r1, r0
         ret
-
-; ---------------- skip_spaces: advance past spaces/newlines/tabs ----------------
 skip_spaces:
         imm   r1, 524288
         load  r0, r1
@@ -222,15 +394,13 @@ skip_spaces:
 ss_adv:
         call  advance
         jmp   skip_spaces
-
-; ---------------- copy_digits: copy decimal digits from LA, advancing ----------------
 copy_digits:
         imm   r1, 524288
         load  r0, r1
         imm   r2, 48
-        jlt   r0, r2, cd_done      ; < '0'
+        jlt   r0, r2, cd_done
         imm   r2, 57
-        jlt   r2, r0, cd_done      ; > '9'
+        jlt   r2, r0, cd_done
         write r0
         call  advance
         jmp   copy_digits
