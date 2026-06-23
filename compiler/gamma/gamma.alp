@@ -374,19 +374,104 @@ pi_body:
         call  parse_statement
         jmp   pi_body
 pi_close:
-        call  advance              ; consume '}'
+        call  advance              ; consume close brace
+        call  skip_spaces
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 101
+        jeq   r3, r2, pi_maybe_else
+        jmp   pi_noelse
 pi_fin:
-        ; emit "L<n>e:\n"
+pi_noelse:
         imm   r0, 76
         write r0
         call  emit_top_lnum
         imm   r0, 101
         write r0
-        imm   r0, 58               ; :
+        imm   r0, 58
         write r0
         imm   r0, 10
         write r0
-        ; pop n
+        jmp   pi_pop
+pi_maybe_else:
+        call  advance
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 108
+        jeq   r3, r2, pi_else
+        imm   r1, 524368
+        store r1, r3
+        imm   r1, 524288
+        imm   r0, 101
+        store r1, r0
+        jmp   pi_noelse
+pi_else:
+pie_idskip:
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 97
+        jlt   r3, r2, pie_iddone
+        imm   r2, 122
+        jlt   r2, r3, pie_iddone
+        call  advance
+        jmp   pie_idskip
+pie_iddone:
+        imm   r0, 106
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 112
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 76
+        write r0
+        call  emit_top_lnum
+        imm   r0, 120
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 76
+        write r0
+        call  emit_top_lnum
+        imm   r0, 101
+        write r0
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+        call  skip_spaces
+        imm   r1, 524288
+        load  r0, r1
+        imm   r2, 123
+        jeq   r0, r2, pie_brace
+        imm   r0, 8
+        halt  r0
+pie_brace:
+        call  advance
+pie_body:
+        call  skip_spaces
+        imm   r1, 524288
+        load  r0, r1
+        imm   r2, 125
+        jeq   r0, r2, pie_eclose
+        imm   r2, 0
+        jlt   r0, r2, pie_efin
+        call  parse_statement
+        jmp   pie_body
+pie_eclose:
+        call  advance
+pie_efin:
+        imm   r0, 76
+        write r0
+        call  emit_top_lnum
+        imm   r0, 120
+        write r0
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+pi_pop:
         imm   r1, 524312
         load  r5, r1
         imm   r2, 8
@@ -394,7 +479,6 @@ pi_fin:
         imm   r1, 524312
         store r1, r5
         ret
-
 ; ---------------- parse_while: 'while' expr '{' statement* '}' ----------------
 parse_while:
         ; n = LCTR; LCTR = n + 1
@@ -1178,6 +1262,16 @@ emit_r4r5:
 
 ; ---------------- advance / skip_spaces / copy_digits ----------------
 advance:
+        imm   r1, 524368
+        load  r0, r1               ; PUSHED
+        imm   r2, 0
+        jeq   r0, r2, adv_read
+        imm   r2, 0
+        store r1, r2               ; clear PUSHED
+        imm   r1, 524288
+        store r1, r0               ; LA = pushed char
+        ret
+adv_read:
         read  r0
         imm   r1, 524288
         store r1, r0

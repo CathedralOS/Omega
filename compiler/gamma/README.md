@@ -19,7 +19,7 @@ emits assembly; the chain targets one level down at each step:
 ./build.sh examples/answer.gam && ./build/answer.exe   # exits with the program's value
 ```
 
-**Status: v11** — variables, arithmetic (with precedence), comparisons, `if`, `while`,
+**Status: v12** — variables, arithmetic (with precedence), comparisons, `if`, `while`,
 and `print`:
 `statement := var '=' expr | 'if' expr '{'…'}' | 'while' expr '{'…'}' | 'print' expr`.
 `if`/`while` run/loop while the condition is nonzero (nestable). **`read var`** reads a decimal from stdin into a variable (runtime decimal-parse
@@ -30,7 +30,7 @@ variable assigned; vars are `a`–`j` in `r6`–`r15`. Comparison operators `< >
 yield 0/1 (so `while i < n`, `if a == b`). **Parentheses** `(expr)` work to any
 nesting depth, via a runtime value stack (saving the sum/term accumulators around the
 sub-expression). Source supports `#` line comments. >10 vars not yet (needs memory
-slots). Growing next: `else`, then more vars; factor gamma's emission to curb tape size.
+slots). Growing next: more variables (memory slots), then functions; factor gamma's emission to curb tape size.
 
 ```
 a = 6 * 7  print a                          -> 42
