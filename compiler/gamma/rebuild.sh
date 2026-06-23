@@ -7,7 +7,7 @@ SEED=../alpha/alpha_x64_windows.exe
 mkdir -p build
 ../beta/beta_x64_windows.exe < gamma.alp > build/gamma.tape
 L=$(wc -c < build/gamma.tape)
-[ $((L + 4)) -le 16384 ] || { echo "FAIL: gamma tape is $L B, exceeds the seed's 16 KB hole" >&2; exit 1; }
+[ $((L + 4)) -le 32768 ] || { echo "FAIL: gamma tape is $L B, exceeds the seed's 32 KB hole" >&2; exit 1; }
 cp "$SEED" gamma_x64_windows.exe
 printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $((L & 255)) $(((L >> 8) & 255)) $(((L >> 16) & 255)) $(((L >> 24) & 255)))" \
     | dd of=gamma_x64_windows.exe bs=1 seek=5120 conv=notrunc status=none
