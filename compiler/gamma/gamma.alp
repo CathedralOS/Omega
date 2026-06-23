@@ -95,6 +95,8 @@ parse_statement:
         jeq   r3, r2, ps_i         ; 'i' -> maybe "if", maybe var i
         imm   r2, 119
         jeq   r3, r2, ps_w         ; 'w' -> "while"
+        imm   r2, 112
+        jeq   r3, r2, ps_p         ; 'p' -> "print"
         imm   r2, 97
         jlt   r3, r2, ps_err       ; < 'a'
         imm   r2, 106
@@ -132,6 +134,20 @@ psw_skip:
         jmp   psw_skip
 psw_done:
         call  parse_while
+        ret
+ps_p:
+        call  advance              ; consume 'p'
+psp_skip:
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 97
+        jlt   r3, r2, psp_done
+        imm   r2, 122
+        jlt   r2, r3, psp_done
+        call  advance
+        jmp   psp_skip
+psp_done:
+        call  parse_print
         ret
 ps_err:
         imm   r0, 8
@@ -368,6 +384,29 @@ pw_fin:
         sub   r5, r2
         imm   r1, 524312
         store r1, r5
+        ret
+
+; ---------------- parse_print: 'print' expr  (writes the low byte of expr) ----------------
+parse_print:
+        call  parse_expr           ; value -> r0
+        imm   r0, 119              ; w
+        write r0
+        imm   r0, 114              ; r
+        write r0
+        imm   r0, 105              ; i
+        write r0
+        imm   r0, 116              ; t
+        write r0
+        imm   r0, 101              ; e
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114              ; r
+        write r0
+        imm   r0, 48               ; 0
+        write r0
+        imm   r0, 10
+        write r0
         ret
 
 ; ---------------- parse_expr / parse_term ----------------
