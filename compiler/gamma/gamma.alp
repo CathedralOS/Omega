@@ -409,8 +409,257 @@ parse_print:
         write r0
         ret
 
-; ---------------- parse_expr / parse_term ----------------
+; ---------------- parse_expr: comparison level  sum (('<'|'>'|'==') sum)? ----------------
+; A comparison yields 0/1 in r0. Uses target regs r1 (saved left) and r3 (result),
+; which are free (expressions use r0/r4/r5, variables use r6..r15).
 parse_expr:
+        call  parse_sum            ; left -> r0
+        call  skip_spaces
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 60
+        jeq   r3, r2, pc_lt        ; '<'
+        imm   r2, 62
+        jeq   r3, r2, pc_gt        ; '>'
+        imm   r2, 61
+        jeq   r3, r2, pc_eq        ; '=' -> '=='
+        ret
+pc_lt:
+        call  advance
+        imm   r6, 0
+        imm   r1, 524344
+        store r1, r6               ; CMPMODE = 0  (<)
+        jmp   pc_common
+pc_gt:
+        call  advance
+        imm   r6, 1
+        imm   r1, 524344
+        store r1, r6               ; CMPMODE = 1  (>)
+        jmp   pc_common
+pc_eq:
+        call  advance              ; first '='
+        imm   r1, 524288
+        load  r3, r1
+        imm   r2, 61
+        jeq   r3, r2, pc_eq2
+        imm   r0, 8
+        halt  r0
+pc_eq2:
+        call  advance              ; second '='
+        imm   r6, 2
+        imm   r1, 524344
+        store r1, r6               ; CMPMODE = 2  (==)
+pc_common:
+        call  emit_save_left       ; "mov r1, r0\n"
+        call  parse_sum            ; right -> r0
+        call  cmp_alloc            ; r9 = n
+        call  emit_imm_r3_1        ; "imm r3, 1\n"
+        imm   r1, 524344
+        load  r3, r1               ; CMPMODE
+        imm   r2, 0
+        jeq   r3, r2, pcc_lt
+        imm   r2, 1
+        jeq   r3, r2, pcc_gt
+        ; "jeq r1, r0, "
+        imm   r0, 106
+        write r0
+        imm   r0, 101
+        write r0
+        imm   r0, 113
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        jmp   pcc_emit
+pcc_lt:
+        ; "jlt r1, r0, "
+        imm   r0, 106
+        write r0
+        imm   r0, 108
+        write r0
+        imm   r0, 116
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        jmp   pcc_emit
+pcc_gt:
+        ; "jlt r0, r1, "
+        imm   r0, 106
+        write r0
+        imm   r0, 108
+        write r0
+        imm   r0, 116
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+pcc_emit:
+        call  emit_cnum            ; "C<n>"
+        imm   r0, 10
+        write r0
+        call  emit_cmp_finish      ; "imm r3, 0\nC<n>:\nmov r0, r3\n"
+        ret
+
+; comparison helpers
+emit_save_left:
+        imm   r0, 109
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 118
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 49               ; 1
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48               ; 0
+        write r0
+        imm   r0, 10
+        write r0
+        ret
+emit_imm_r3_1:
+        imm   r0, 105
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51               ; 3
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 49               ; 1
+        write r0
+        imm   r0, 10
+        write r0
+        ret
+cmp_alloc:
+        imm   r1, 524328
+        load  r9, r1               ; n = LCTR
+        mov   r3, r9
+        imm   r2, 1
+        add   r3, r2
+        store r1, r3               ; LCTR = n+1
+        ret
+emit_cnum:
+        imm   r0, 67               ; C
+        write r0
+        imm   r1, 524320
+        store r1, r9               ; NUMV = n
+        call  emit_dec
+        ret
+emit_cmp_finish:
+        imm   r0, 105              ; "imm r3, 0\n"
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 109
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51               ; 3
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 48               ; 0
+        write r0
+        imm   r0, 10
+        write r0
+        call  emit_cnum            ; "C<n>:\n"
+        imm   r0, 58
+        write r0
+        imm   r0, 10
+        write r0
+        imm   r0, 109              ; "mov r0, r3\n"
+        write r0
+        imm   r0, 111
+        write r0
+        imm   r0, 118
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 48               ; 0
+        write r0
+        imm   r0, 44
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114
+        write r0
+        imm   r0, 51               ; 3
+        write r0
+        imm   r0, 10
+        write r0
+        ret
+
+; ---------------- parse_sum / parse_term ----------------
+parse_sum:
         call  parse_term
         imm   r0, 109              ; m  (mov r0, r4)
         write r0
