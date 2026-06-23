@@ -1,0 +1,4 @@
+; the canonical answer, in Beta.
+proc main() {
+    return 6 * 7
+}
