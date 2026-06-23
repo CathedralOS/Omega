@@ -1,63 +1,200 @@
-; gamma.alp — the gamma compiler, v0, written in alpha assembly.
+; gamma.alp — the gamma compiler, written in alpha assembly.
 ;
 ; gamma is the rung above beta: a language a bit higher than raw assembly. It reads
-; gamma source on stdin and emits alpha assembly on stdout; beta then lowers that to a
-; tape, which is stamped into the alpha seed to make a standalone .exe.
+; gamma source on stdin and emits alpha assembly on stdout; beta lowers that to a tape,
+; which is stamped into the alpha seed to make a standalone .exe.
 ;
-; v0 (pipeline proof): read a decimal integer and emit a program that exits with it.
-;   input:  42
-;   output: imm r0, 42
-;           halt r0
-; Grows from here (operators, variables, if/while, print) one increment at a time.
+; v1: integer arithmetic expressions, left-to-right (no precedence yet), operators
+;     + - * /.  The program exits with the result (low byte).
+;       6 * 7        -> exits 42
+;       2 + 3 * 4    -> (2+3)*4 = 20
+;     Codegen is a running accumulator in r0; each "op N" loads N into r1 and applies.
+;
+; Single pass with a one-char lookahead held in memory (calls clobber registers, so
+; cross-call state lives in fixed globals):
+;   524288 LA   (lookahead char, -1 at EOF)
+;   524296 OP   (saved operator char)
+;   524304 REGCH (the register-digit char to emit in "imm rN, ")
 
-        ; --- emit "imm r0, " ---
-        imm   r0, 105          ; i
+; ---------------- main ----------------
+        call  advance              ; prime the lookahead
+        call  skip_spaces
+        ; first operand -> r0
+        imm   r0, 48               ; REGCH = '0'
+        imm   r1, 524304
+        store r1, r0
+        call  emit_imm             ; "imm r0, "
+        call  emit_number          ; <digits>
+        imm   r0, 10               ; newline
         write r0
-        imm   r0, 109          ; m
-        write r0
-        imm   r0, 109          ; m
-        write r0
-        imm   r0, 32           ; (space)
-        write r0
-        imm   r0, 114          ; r
-        write r0
-        imm   r0, 48           ; 0
-        write r0
-        imm   r0, 44           ; ,
-        write r0
-        imm   r0, 32           ; (space)
-        write r0
-
-        ; --- copy the leading decimal digits of stdin to stdout ---
-copy:
-        read  r1
+loop:
+        call  skip_spaces
+        imm   r1, 524288
+        load  r0, r1               ; LA
         imm   r2, 0
-        jlt   r1, r2, done     ; EOF (read returned -1)
-        imm   r2, 48
-        jlt   r1, r2, done     ; c < '0'  -> stop
-        imm   r2, 57
-        jlt   r2, r1, done     ; c > '9'  -> stop
-        write r1
-        jmp   copy
-done:
-        ; --- emit "\nhalt r0\n" ---
-        imm   r0, 10           ; \n
+        jlt   r0, r2, end          ; EOF -> done
+        ; LA is an operator; save it and consume
+        imm   r1, 524296
+        store r1, r0               ; OP = LA
+        call  advance
+        call  skip_spaces
+        ; next operand -> r1
+        imm   r0, 49               ; REGCH = '1'
+        imm   r1, 524304
+        store r1, r0
+        call  emit_imm             ; "imm r1, "
+        call  emit_number          ; <digits>
+        imm   r0, 10               ; newline
         write r0
-        imm   r0, 104          ; h
+        call  emit_op              ; "<op> r0, r1\n"
+        jmp   loop
+end:
+        ; emit "halt r0\n"
+        imm   r0, 104
         write r0
-        imm   r0, 97           ; a
+        imm   r0, 97
         write r0
-        imm   r0, 108          ; l
+        imm   r0, 108
         write r0
-        imm   r0, 116          ; t
+        imm   r0, 116
         write r0
-        imm   r0, 32           ; (space)
+        imm   r0, 32
         write r0
-        imm   r0, 114          ; r
+        imm   r0, 114
         write r0
-        imm   r0, 48           ; 0
+        imm   r0, 48
         write r0
-        imm   r0, 10           ; \n
+        imm   r0, 10
         write r0
         imm   r0, 0
         halt  r0
+
+; ---------------- advance: LA = next stdin char (-1 at EOF) ----------------
+advance:
+        read  r0
+        imm   r1, 524288
+        store r1, r0
+        ret
+
+; ---------------- skip_spaces: advance past spaces/newlines/tabs ----------------
+skip_spaces:
+        imm   r1, 524288
+        load  r0, r1               ; LA
+        imm   r2, 32
+        jeq   r0, r2, ss_adv
+        imm   r2, 10
+        jeq   r0, r2, ss_adv
+        imm   r2, 13
+        jeq   r0, r2, ss_adv
+        imm   r2, 9
+        jeq   r0, r2, ss_adv
+        ret
+ss_adv:
+        call  advance
+        jmp   skip_spaces
+
+; ---------------- emit_number: copy decimal digits from LA, advancing ----------------
+emit_number:
+        imm   r1, 524288
+        load  r0, r1               ; LA
+        imm   r2, 48
+        jlt   r0, r2, en_done      ; < '0'
+        imm   r2, 57
+        jlt   r2, r0, en_done      ; > '9'
+        write r0                   ; emit the digit
+        call  advance
+        jmp   emit_number
+en_done:
+        ret
+
+; ---------------- emit_imm: emit "imm r" + REGCH + ", " ----------------
+emit_imm:
+        imm   r0, 105              ; i
+        write r0
+        imm   r0, 109              ; m
+        write r0
+        imm   r0, 109              ; m
+        write r0
+        imm   r0, 32               ; (space)
+        write r0
+        imm   r0, 114              ; r
+        write r0
+        imm   r1, 524304
+        load  r0, r1               ; REGCH
+        write r0
+        imm   r0, 44               ; ,
+        write r0
+        imm   r0, 32               ; (space)
+        write r0
+        ret
+
+; ---------------- emit_operands: emit " r0, r1\n" ----------------
+emit_operands:
+        imm   r0, 32
+        write r0
+        imm   r0, 114              ; r
+        write r0
+        imm   r0, 48               ; 0
+        write r0
+        imm   r0, 44               ; ,
+        write r0
+        imm   r0, 32
+        write r0
+        imm   r0, 114              ; r
+        write r0
+        imm   r0, 49               ; 1
+        write r0
+        imm   r0, 10               ; \n
+        write r0
+        ret
+
+; ---------------- emit_op: emit the instruction for OP ----------------
+emit_op:
+        imm   r1, 524296
+        load  r3, r1               ; OP
+        imm   r2, 43
+        jeq   r3, r2, eo_add       ; +
+        imm   r2, 45
+        jeq   r3, r2, eo_sub       ; -
+        imm   r2, 42
+        jeq   r3, r2, eo_mul       ; *
+        imm   r2, 47
+        jeq   r3, r2, eo_div       ; /
+        imm   r0, 9                ; unknown operator
+        halt  r0
+eo_add:
+        imm   r0, 97
+        write r0
+        imm   r0, 100
+        write r0
+        imm   r0, 100
+        write r0
+        call  emit_operands
+        ret
+eo_sub:
+        imm   r0, 115
+        write r0
+        imm   r0, 117
+        write r0
+        imm   r0, 98
+        write r0
+        call  emit_operands
+        ret
+eo_mul:
+        imm   r0, 109
+        write r0
+        imm   r0, 117
+        write r0
+        imm   r0, 108
+        write r0
+        call  emit_operands
+        ret
+eo_div:
+        imm   r0, 100
+        write r0
+        imm   r0, 105
+        write r0
+        imm   r0, 118
+        write r0
+        call  emit_operands
+        ret
