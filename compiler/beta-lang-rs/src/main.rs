@@ -45,6 +45,10 @@ enum Tok {
     Ge,
     EqEq,
     Ne,
+    Byte,
+    Word,
+    LBracket,
+    RBracket,
     Eof,
 }
 
@@ -84,6 +88,8 @@ fn lex(src: &str) -> Vec<Tok> {
                 "else" => Tok::Else,
                 "while" => Tok::While,
                 "let" => Tok::Let,
+                "byte" => Tok::Byte,
+                "word" => Tok::Word,
                 w => Tok::Ident(w.to_string()),
             });
             continue;
@@ -95,6 +101,8 @@ fn lex(src: &str) -> Vec<Tok> {
             b'{' => (Tok::LBrace, 1),
             b'}' => (Tok::RBrace, 1),
             b',' => (Tok::Comma, 1),
+            b'[' => (Tok::LBracket, 1),
+            b']' => (Tok::RBracket, 1),
             b'+' => (Tok::Plus, 1),
             b'-' => (Tok::Minus, 1),
             b'*' => (Tok::Star, 1),
@@ -123,6 +131,7 @@ enum Node {
     Bin(u8, usize, usize),    // + - * / %
     Cmp(u8, usize, usize),    // 0=< 1=> 2=== 3=!= 4=<= 5=>=  (yields 0/1)
     Call(String, Vec<usize>), // callee, argument indices
+    Load(u8, usize),          // width (1=byte, 8=word), address expr
 }
 
 enum Stmt {
@@ -131,6 +140,7 @@ enum Stmt {
     Return(usize),                    // expr
     If(usize, Vec<Stmt>, Vec<Stmt>),  // cond, then, else
     While(usize, Vec<Stmt>),          // cond, body
+    Store(u8, usize, usize),          // width, address, value
 }
 
 struct Proc {
@@ -262,6 +272,16 @@ impl Parser {
                 let body = self.block();
                 Stmt::While(cond, body)
             }
+            Tok::Byte | Tok::Word => {
+                let w = if *self.peek() == Tok::Byte { 1 } else { 8 };
+                self.pos += 1;
+                self.eat(Tok::LBracket);
+                let addr = self.expr();
+                self.eat(Tok::RBracket);
+                self.eat(Tok::Assign);
+                let val = self.expr();
+                Stmt::Store(w, addr, val)
+            }
             Tok::Ident(_) => {
                 let name = self.ident();
                 self.eat(Tok::Assign);
@@ -323,6 +343,18 @@ impl Parser {
                 let e = self.expr();
                 self.eat(Tok::RParen);
                 e
+            }
+            Tok::Byte => {
+                self.eat(Tok::LBracket);
+                let a = self.expr();
+                self.eat(Tok::RBracket);
+                self.push(Node::Load(1, a))
+            }
+            Tok::Word => {
+                self.eat(Tok::LBracket);
+                let a = self.expr();
+                self.eat(Tok::RBracket);
+                self.push(Node::Load(8, a))
             }
             Tok::Ident(name) => {
                 if *self.peek() == Tok::LParen {
@@ -450,6 +482,15 @@ impl<'a> Gen<'a> {
                 }
                 self.line(&format!("call  {}", name));
             }
+            Node::Load(w, addr) => {
+                let (w, addr) = (*w, *addr);
+                self.expr(addr);
+                if w == 1 {
+                    self.line("loadb r0, r0");
+                } else {
+                    self.line("load  r0, r0");
+                }
+            }
         }
     }
 
@@ -500,6 +541,17 @@ impl<'a> Gen<'a> {
                 self.block(body);
                 self.line(&format!("jmp   {}", top));
                 self.at(&end);
+            }
+            Stmt::Store(w, addr, val) => {
+                self.expr(*addr);
+                self.push_r0();
+                self.expr(*val);
+                self.pop_into(1); // r1 = address
+                if *w == 1 {
+                    self.line("storeb r1, r0");
+                } else {
+                    self.line("store r1, r0");
+                }
             }
         }
     }
