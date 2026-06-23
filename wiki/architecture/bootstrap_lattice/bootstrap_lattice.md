@@ -7,6 +7,9 @@
 > chosen). Only `alpha`, `beta`, and `gamma` exist today; everything above is
 > design. This document exists so the construction is **designed on paper rather
 > than drifted into**.
+>
+> **Live build status + onboarding for a fresh agent:**
+> [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md).
 
 This is the architecture for how Omega builds *itself* — a tower of small
 languages rising from a tiny hand-audited seed, ending at the full language. It
@@ -213,7 +216,7 @@ idea** and is implemented in the rung below.
 | Rung | Adds (one idea) | Implemented in | Meaning defined by | Status |
 | --- | --- | --- | --- | --- |
 | [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA) | the VM's own small-step semantics | **EXISTS** — 21-opcode tape VM; beta self-hosts on it |
-| [beta](rungs/beta.md) | names + structure: labels, structured data, symbolic assembly | alpha | a beta interpreter/assembler written in alpha | **EXISTS** — assembler in alpha-asm; byte-identical fixed point |
+| [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) — *and* the assembler beneath it | alpha | the assembler in alpha-asm; the Beta-language compiler prototyped in Rust, then transcribed | **EXISTS** (assembler self-hosts) + **ACTIVE** (Beta language, `beta-lang-rs` slices 1–4) |
 | [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure/total functions, a simple type system | beta | a gamma reference interpreter written in beta | **PARTIAL** — today's gamma is a compiler-first imperative language (v13); the architecture wants interpreter-first |
 | [delta](rungs/delta.md) | **evidence**: a small logical calculus + a certificate checker | gamma | the delta checker (a gamma program) *is* the definition of a valid proof | DIRECTION |
 | [epsilon](rungs/epsilon.md) | safe systems programming: mutable memory, ownership, regions, effects | delta / gamma | an epsilon reference interpreter | DIRECTION — note: unrelated legacy `compiler/epsilon/` is to be cleared |

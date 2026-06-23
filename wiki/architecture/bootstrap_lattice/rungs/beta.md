@@ -44,6 +44,16 @@ faithfulness — a Thompson seed reproduces identically too. It is a determinism
 precondition for future Diverse Double-Compiling, not a correctness result. See
 the [trust ledger](../bootstrap_lattice.md#the-irreducible-trust-ledger).
 
+**Beyond the assembler — Beta is growing into a real language.** The assembler is
+only 1:1 mnemonics; the point of the rung is a *structured systems language* (tiny
+C / Oberon-0: procedures, locals, `if`/`while`, `byte[]`/`word[]` memory) so that
+gamma and everything above is written in something pleasant instead of assembly.
+That language is specified in
+[`compiler/beta/LANGUAGE.md`](../../../../compiler/beta/LANGUAGE.md) and is being
+built as a throwaway Rust on-ramp (`compiler/beta-lang-rs/`, slices 1–4 done:
+arithmetic, procedures+calls, recursion+loops, memory) to be transcribed to Alpha
+assembly later. Live status: [TASKS_BOOTSTRAP.md](../../../../TASKS_BOOTSTRAP.md).
+
 ## Calling convention (proven 2026-06-22)
 
 The one thing that turns beta from "an assembler" into "a language": a **frame
