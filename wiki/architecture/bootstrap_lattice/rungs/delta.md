@@ -2,8 +2,16 @@
 
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next: [Epsilon](epsilon.md)
 
-> **Status: DIRECTION.** Does not exist yet. This is the rung where the whole
-> trust-by-checking architecture earns its keep: proof objects first appear here.
+> **Status: DIRECTION + a first prototype.** The target checker (a Gamma program,
+> with a real soundness bridge) does not exist yet. But a minimal **Beta prototype**
+> now runs: [`compiler/delta/check.beta`](../../../../compiler/delta/check.beta) is
+> a natural-deduction proof checker (implication + conjunction; by Curry-Howard a
+> simply-typed-lambda type checker) — compiled by the self-hosting `bc`, run on the
+> seed, accepting valid certificates and rejecting invalid ones. It demonstrates
+> the checker architecture (tiny trusted checker, unbounded untrusted producer) end
+> to end, and its hand-encoded term/type trees are the concrete pull for the Gamma
+> rung. This is the rung where the whole trust-by-checking architecture earns its
+> keep: proof objects first appear here.
 
 Delta introduces a small logical calculus and the **certificate checker** that
 validates evidence. It is the second hand-audited trust anchor in the system —

@@ -32,6 +32,7 @@ honest edges) lives in
 | `compiler/beta-rs/` | Throwaway Rust on-ramp for the *assembler* (cold-start only). | parked |
 | `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | slices 1–6 done; self-check passed |
 | `compiler/beta-lang/` | The Beta compiler **written in Beta** (`bc.beta`) — slice 7. | **DONE — self-hosts** (byte-for-byte fixed point) |
+| `compiler/delta/` | **The certificate checker** (`check.beta`) — the trust anchor. A natural-deduction / simply-typed-lambda proof checker, compiled by `bc`. | **PROTOTYPE** (in Beta; target is a Gamma program) |
 | `compiler/gamma/` | A v13 imperative language; compiler hand-written in Alpha asm (`gamma.alpha`). The thing Beta exists to **supersede**. | parked at v13 |
 | `compiler/epsilon*`, `compiler/alpha-rs` | Old/renamed experiment soup. | **IGNORE** |
 | `compiler/omega-rs/` | The real Omega compiler, in Rust. Separate concern: the *producer*, not the lattice. | (other workstream) |
@@ -88,9 +89,23 @@ write in it. The next move is the transcription, not more features.
    self-tape is ~45 KB; logic-dominated, not emit-dominated). The Rust on-ramp
    (`beta-lang-rs`) is now discardable from the steady state.
 8. **Rewrite gamma in Beta**, retiring `gamma.alpha` (this is the whole point:
-   never hand-write a compiler in assembly again).
-9. **Climb:** Delta (the checker / evidence rung — where trust actually starts),
-   then up.
+   never hand-write a compiler in assembly again). The target gamma is the
+   *interpreter-first, functional, ADT + pattern-matching* language the Delta
+   checker is meant to be written in (rungs/gamma.md), not the parked imperative
+   v13. Writing the Delta prototype (below) made the need concrete: its hand-encoded
+   tagged-node trees + if-cascade `infer` are exactly what ADTs + pattern matching
+   erase.
+9. **Delta — the checker / evidence rung (where trust actually starts):
+   FIRST PROTOTYPE DONE.** [`compiler/delta/check.beta`](compiler/delta/check.beta)
+   is a natural-deduction proof checker (implication + conjunction; Curry-Howard =
+   simply-typed-lambda type checker), compiled by the self-hosting `bc` and run on
+   the seed: valid certificates `accept`, invalid ones `reject` (`sh
+   compiler/delta/test.sh`, 10/10 — full stack seed→assembler→bc→checker).
+   Demonstrates the architecture (tiny trusted checker, unbounded untrusted
+   producer). Still a *Beta* prototype (target: a Gamma program), propositional
+   only, and with **no soundness bridge** to program execution — the deep open
+   problem. Caught a real calling-convention bug (the prologue clobbered argument
+   3 — the checker's 3-arg `alloc` was the first witness).
 
 ## How to build & verify (repo root; Git Bash on Windows, plain `sh` on macOS; `cargo` needed for `beta-lang-rs`)
 

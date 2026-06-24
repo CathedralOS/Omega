@@ -1,0 +1,337 @@
+; check.beta — a minimal Delta-rung certificate checker, written in Beta.
+;
+; This is the first appearance of the lattice's whole point (rungs/delta.md): a
+; SMALL, hand-auditable checker that validates evidence. An untrusted, arbitrarily
+; clever proof-SEARCH engine may produce certificates; this checker has the only
+; authority — a false proposition cannot get past it, however the certificate was
+; found.
+;
+; The logic is propositional natural deduction (implication + conjunction). By
+; Curry-Howard the checker IS a simply-typed lambda-calculus type checker:
+;   proposition A -> B   =   function type A -> B        (implication / ->intro,elim)
+;   proposition A & B    =   product type A x B          (conjunction / &intro,elim)
+;   a proof of A         =   a term of type A
+;   ->intro = lambda   ->elim = application(modus ponens)
+;   &intro  = pair     &elim  = fst / snd     hypothesis = variable (de Bruijn)
+; So "does this certificate prove this proposition?" = "does this term have this
+; type?" — decided by structural type inference. The checker accepts iff it does.
+;
+; Note on rungs: delta.md says the checker is a *Gamma* program (ADTs + pattern
+; matching make it small). Gamma doesn't exist yet, so this is a Beta prototype —
+; and writing it shows exactly what Gamma must provide: sum types for the term/type
+; trees and pattern matching for infer(), both hand-encoded here as tagged nodes in
+; raw memory with if-cascades. That is the motivation for the Gamma rung, made
+; concrete.
+;
+; Input (stdin): a goal proposition, then a certificate term, in prefix syntax.
+;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
+;   term        := ( hyp N ) | ( lam prop term ) | ( app term term )
+;                | ( pair term term ) | ( fst term ) | ( snd term )
+; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
+; Example — the identity proof of P -> P :   (-> P P)  (lam P (hyp 0))   -> accept
+;
+; Memory:  2097152 SRC   2097144 CUR   2097136 LEN   2097128 APTR (arena bump)
+;          2097120 CTXN (context depth)   3145728 ARENA   4194304 CTX (type stack)
+; Nodes are 3 words [tag, f0, f1] at 24-byte stride. 0 is the reject/none sentinel
+; (no real node lives at address 0).
+;
+; Tags:  type  0 ATOM(char)  1 ARROW(l,r)  2 AND(l,r)
+;        term 10 HYP(idx)   11 LAM(ty,body) 12 APP(f,a) 13 PAIR(a,b) 14 FST(p) 15 SND(p)
+
+proc slurp() {
+    let n = 0
+    let c = read_byte()
+    while c >= 0 {
+        byte[2097152 + n] = c
+        n = n + 1
+        c = read_byte()
+    }
+    word[2097136] = n            ; LEN
+    word[2097144] = 0            ; CUR
+    word[2097128] = 3145728      ; APTR = ARENA base
+    word[2097120] = 0            ; CTXN
+}
+
+proc cbyte() {
+    let i = word[2097144]
+    if i < word[2097136] {
+        return byte[2097152 + i]
+    }
+    return 0
+}
+
+proc adv() {
+    word[2097144] = word[2097144] + 1
+}
+
+proc is_space(c) {
+    if c == ' ' {
+        return 1
+    }
+    if c == 9 {
+        return 1
+    }
+    if c == 10 {
+        return 1
+    }
+    if c == 13 {
+        return 1
+    }
+    return 0
+}
+
+proc skip_ws() {
+    while is_space(cbyte()) == 1 {
+        adv()
+    }
+}
+
+proc is_digit(c) {
+    if c < '0' {
+        return 0
+    }
+    if c > '9' {
+        return 0
+    }
+    return 1
+}
+
+proc is_upper(c) {
+    if c < 'A' {
+        return 0
+    }
+    if c > 'Z' {
+        return 0
+    }
+    return 1
+}
+
+proc is_lower(c) {
+    if c < 'a' {
+        return 0
+    }
+    if c > 'z' {
+        return 0
+    }
+    return 1
+}
+
+proc parse_number() {
+    let v = 0
+    while is_digit(cbyte()) == 1 {
+        v = v * 10 + (cbyte() - '0')
+        adv()
+    }
+    return v
+}
+
+proc skip_ident() {              ; advance over an alphabetic keyword
+    while is_lower(cbyte()) == 1 {
+        adv()
+    }
+}
+
+proc expect(ch) {
+    skip_ws()
+    if cbyte() == ch {
+        adv()
+    }
+}
+
+; ---- node arena: 3 words per node, bump-allocated ----
+proc alloc(tag, f0, f1) {
+    let p = word[2097128]
+    word[p] = tag
+    word[p + 8] = f0
+    word[p + 16] = f1
+    word[2097128] = p + 24
+    return p
+}
+
+; ---- parsers ----
+
+proc parse_type() {
+    skip_ws()
+    let a = 0                    ; one declaration each (function-scoped locals)
+    let b = 0
+    if cbyte() == '(' {
+        adv()
+        skip_ws()
+        if cbyte() == '-' {      ; -> implication
+            adv()
+            adv()                ; the '>'
+            a = parse_type()
+            b = parse_type()
+            expect(')')
+            return alloc(1, a, b)
+        }
+        adv()                    ; '&' conjunction
+        a = parse_type()
+        b = parse_type()
+        expect(')')
+        return alloc(2, a, b)
+    }
+    a = cbyte()                  ; atom: a single uppercase letter
+    adv()
+    return alloc(0, a, 0)
+}
+
+proc parse_term() {
+    skip_ws()
+    expect('(')
+    skip_ws()
+    let kc = cbyte()             ; first letter of the rule keyword
+    skip_ident()
+    let x = 0
+    let y = 0
+    if kc == 'h' {               ; (hyp N)
+        skip_ws()
+        x = parse_number()
+        expect(')')
+        return alloc(10, x, 0)
+    }
+    if kc == 'l' {               ; (lam type body)
+        x = parse_type()
+        y = parse_term()
+        expect(')')
+        return alloc(11, x, y)
+    }
+    if kc == 'a' {               ; (app fn arg)
+        x = parse_term()
+        y = parse_term()
+        expect(')')
+        return alloc(12, x, y)
+    }
+    if kc == 'p' {               ; (pair a b)
+        x = parse_term()
+        y = parse_term()
+        expect(')')
+        return alloc(13, x, y)
+    }
+    if kc == 'f' {               ; (fst p)
+        x = parse_term()
+        expect(')')
+        return alloc(14, x, 0)
+    }
+    x = parse_term()             ; (snd p)
+    expect(')')
+    return alloc(15, x, 0)
+}
+
+; ---- structural type equality ----
+proc type_eq(a, b) {
+    if word[a] != word[b] {
+        return 0
+    }
+    if word[a] == 0 {            ; ATOM: compare the char
+        if word[a + 8] == word[b + 8] {
+            return 1
+        }
+        return 0
+    }
+    if type_eq(word[a + 8], word[b + 8]) == 0 {
+        return 0
+    }
+    return type_eq(word[a + 16], word[b + 16])
+}
+
+; ---- the checker: infer the proposition a term proves, or 0 (reject) ----
+proc ctx_push(ty) {
+    let n = word[2097120]
+    word[4194304 + n * 8] = ty
+    word[2097120] = n + 1
+}
+
+proc ctx_pop() {
+    word[2097120] = word[2097120] - 1
+}
+
+proc infer(term) {
+    let tag = word[term]
+    let t1 = 0                   ; shared temps (function-scoped, declared once)
+    let t2 = 0
+    if tag == 10 {               ; HYP idx — de Bruijn: 0 is the innermost binder
+        t1 = word[term + 8]      ; idx
+        t2 = word[2097120]       ; ctx depth
+        if t1 < t2 {
+            return word[4194304 + (t2 - 1 - t1) * 8]
+        }
+        return 0                 ; unbound hypothesis
+    }
+    if tag == 11 {               ; LAM ty body  ->  ty -> typeof(body in ctx+ty)
+        t1 = word[term + 8]      ; ty
+        ctx_push(t1)
+        t2 = infer(word[term + 16])
+        ctx_pop()
+        if t2 == 0 {
+            return 0
+        }
+        return alloc(1, t1, t2)
+    }
+    if tag == 12 {               ; APP f a  (modus ponens)
+        t1 = infer(word[term + 8])
+        if t1 == 0 {
+            return 0
+        }
+        if word[t1] != 1 {       ; f must prove an implication
+            return 0
+        }
+        t2 = infer(word[term + 16])
+        if t2 == 0 {
+            return 0
+        }
+        if type_eq(word[t1 + 8], t2) == 0 {   ; the antecedent must match the arg
+            return 0
+        }
+        return word[t1 + 16]     ; the consequent
+    }
+    if tag == 13 {               ; PAIR a b  (&-intro)
+        t1 = infer(word[term + 8])
+        if t1 == 0 {
+            return 0
+        }
+        t2 = infer(word[term + 16])
+        if t2 == 0 {
+            return 0
+        }
+        return alloc(2, t1, t2)
+    }
+    if tag == 14 {               ; FST p  (&-elim left)
+        t1 = infer(word[term + 8])
+        if t1 == 0 {
+            return 0
+        }
+        if word[t1] != 2 {
+            return 0
+        }
+        return word[t1 + 8]
+    }
+    if tag == 15 {               ; SND p  (&-elim right)
+        t1 = infer(word[term + 8])
+        if t1 == 0 {
+            return 0
+        }
+        if word[t1] != 2 {
+            return 0
+        }
+        return word[t1 + 16]
+    }
+    return 0
+}
+
+proc main() {
+    slurp()
+    let goal = parse_type()
+    let term = parse_term()
+    let proved = infer(term)
+    if proved == 0 {
+        emit("reject\n")
+        return 0
+    }
+    if type_eq(proved, goal) == 1 {
+        emit("accept\n")
+        return 1
+    }
+    emit("reject\n")
+    return 0
+}
