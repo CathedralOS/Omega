@@ -1,0 +1,67 @@
+; checker_typed.gamma — the Delta checker, fully type-annotated, so that GAMMA'S OWN
+; STATIC TYPE CHECKER (typeck.beta) accepts it. This is the point of gamma.md's
+; "simple static type system — just enough to make the delta checker safe to write":
+; here the trust anchor's code is shown to be statically TYPE-SAFE. Same logic as
+; checker.gamma (and check.beta); the only additions are the data declarations and
+; the parameter/return type annotations the type checker reads.
+;
+;   sh test-typeck.sh-style:  typeck < this  -> 1 (well-typed)
+
+(data Nat (Ze) (Su Nat) (Pl Nat Nat))
+(data Type (Atom Int) (Arrow Type Type) (And Type Type) (Or Type Type) (Bot) (Eq Nat Nat) (Bad))
+(data Term (Hyp Int) (Lam Type Term) (App Term Term) (Pair Term Term) (Fst Term) (Snd Term)
+           (Inl Type Term) (Inr Type Term) (Case Term Term Term) (Absurd Type Term) (Refl Nat))
+(data Ctx (Nil) (Cons Type Ctx))
+
+(def nth ((ctx Ctx) (n Int)) Type
+  (match ctx
+    (Nil Bad)
+    ((Cons h t) (if (eq n 0) h (nth t (- n 1))))))
+
+(def padd ((a Nat) (b Nat)) Nat (match a (Ze b) ((Su x) (Su (padd x b)))))
+(def pnorm ((t Nat)) Nat
+  (match t (Ze Ze) ((Su x) (Su (pnorm x))) ((Pl a b) (padd (pnorm a) (pnorm b)))))
+(def nateq ((a Nat) (b Nat)) Int
+  (match a (Ze (match b (Ze 1) (z 0))) ((Su x) (match b ((Su y) (nateq x y)) (z 0)))))
+(def conveq ((a Nat) (b Nat)) Int (nateq (pnorm a) (pnorm b)))
+
+(def teq ((a Type) (b Type)) Int
+  (match a
+    ((Atom x)    (match b ((Atom y) (eq x y))                  (z 0)))
+    ((Arrow p q) (match b ((Arrow r s) (if (teq p r) (teq q s) 0)) (z 0)))
+    ((And p q)   (match b ((And r s)   (if (teq p r) (teq q s) 0)) (z 0)))
+    ((Or p q)    (match b ((Or r s)    (if (teq p r) (teq q s) 0)) (z 0)))
+    (Bot         (match b (Bot 1) (z 0)))
+    ((Eq t1 t2)  (match b ((Eq u1 u2) (if (conveq t1 u1) (conveq t2 u2) 0)) (z 0)))
+    (z 0)))
+
+(def isbad ((t Type)) Int (match t (Bad 1) (z 0)))
+
+(def infcase ((tp Type) (tf Type) (tg Type)) Type
+  (match tp
+    ((Or a b)
+      (match tf
+        ((Arrow fa fc)
+          (match tg
+            ((Arrow ga gc) (if (teq fa a) (if (teq ga b) (if (teq fc gc) fc Bad) Bad) Bad))
+            (z Bad)))
+        (z Bad)))
+    (z Bad)))
+
+(def infer ((tm Term) (ctx Ctx)) Type
+  (match tm
+    ((Hyp n)        (nth ctx n))
+    ((Lam ty body)  (let bt (infer body (Cons ty ctx)) (if (isbad bt) Bad (Arrow ty bt))))
+    ((App f a)      (match (infer f ctx) ((Arrow p q) (if (teq (infer a ctx) p) q Bad)) (z Bad)))
+    ((Pair a b)     (let ta (infer a ctx) (let tb (infer b ctx)
+                      (if (isbad ta) Bad (if (isbad tb) Bad (And ta tb))))))
+    ((Fst p)        (match (infer p ctx) ((And r s) r) (z Bad)))
+    ((Snd p)        (match (infer p ctx) ((And r s) s) (z Bad)))
+    ((Inl bty p)    (let tp (infer p ctx) (if (isbad tp) Bad (Or tp bty))))
+    ((Inr aty p)    (let tp (infer p ctx) (if (isbad tp) Bad (Or aty tp))))
+    ((Case p f g)   (infcase (infer p ctx) (infer f ctx) (infer g ctx)))
+    ((Absurd cty p) (match (infer p ctx) (Bot cty) (z Bad)))
+    ((Refl t)       (Eq t t))
+    (z Bad)))
+
+(def check ((tm Term) (goal Type)) Int (teq (infer tm Nil) goal))
