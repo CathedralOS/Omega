@@ -14,6 +14,7 @@ use super::super::storage_places::{
     enum_variant_value, enum_variant_value_in_table,
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
+    resolve_runtime_frame_indexed_is_fat_slice_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_frame_indexed_primitive_type_in_table, resolve_runtime_storage_place,
@@ -912,6 +913,12 @@ fn resolve_runtime_text_descriptor_place_operand_in_table(
         ),
         Some(PrimitiveType::String)
     ) || resolve_runtime_storage_place_is_fat_slice_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) || resolve_runtime_frame_indexed_is_fat_slice_in_table(
         input,
         dispatch_index,
         source_key,
