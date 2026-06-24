@@ -31,7 +31,14 @@ simply-typed lambda-calculus type checker (with a void type):
 | proposition `A & B` | product type | `&`-intro = `pair`, `&`-elim = `fst` / `snd` |
 | proposition `A + B` | sum type | `+`-intro = `inl` / `inr`, `+`-elim = `case` |
 | proposition `⊥` | the empty type `Void` | ex falso = `absurd` (a `⊥`-proof yields anything) |
+| proposition `t1 = t2` | identity type (over Peano) | `refl` — valid iff `t1 ≡ t2` *by reduction* (the conversion rule) |
 | a proof of `A` | a term of type `A` | hypothesis = variable (`hyp`, de Bruijn) |
+
+`check.beta` now spans both faces: it proves logical propositions **and**, via
+`refl` + the conversion rule, computational equations like `2+2 = 4` — which are
+themselves first-class propositions that combine with `-> & + ⊥`. `refl` is
+discharged by normalizing both sides (the same fuel-bounded reducer as `eq.beta`),
+so "logic meets computation" — the gamma/delta soundness seam — is concrete here.
 
 So "does this certificate prove this proposition?" = "does this term have this
 type?", decided by structural type inference (`infer`) + structural equality.

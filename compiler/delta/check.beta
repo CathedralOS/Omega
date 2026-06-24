@@ -6,10 +6,17 @@
 ; authority — a false proposition cannot get past it, however the certificate was
 ; found.
 ;
-; The logic is full intuitionistic propositional natural deduction (implication,
-; conjunction, disjunction, and falsity — so negation is ¬A = A -> ⊥). By
-; Curry-Howard the checker IS a simply-typed lambda-calculus type checker (sums,
-; products, function and void types):
+; Full intuitionistic propositional natural deduction (implication, conjunction,
+; disjunction, falsity — so ¬A = A -> ⊥) PLUS equality of Peano terms with a
+; computation-aware `refl`. That last part is the CONVERSION RULE: an equation
+; (= t1 t2) is provable by `refl` exactly when t1 and t2 reduce to the same normal
+; form under the definitional rules — so "2+2 = 4" is proved by *computation*, and
+; equations are first-class propositions that combine with ->, &, +, ⊥. This is
+; the heart of how logic meets computation (the gamma/delta soundness seam), in a
+; checker small enough to read.
+;
+; By Curry-Howard the checker IS a simply-typed lambda-calculus type checker (sums,
+; products, function and void types) with a definitional-equality (conversion) rule:
 ;   proposition A -> B   =   function type A -> B        (implication / ->intro,elim)
 ;   proposition A & B    =   product type A x B          (conjunction / &intro,elim)
 ;   proposition A + B    =   sum type A + B              (disjunction / +intro,elim)
@@ -30,11 +37,13 @@
 ;
 ; Input (stdin): a goal proposition, then a certificate term, in prefix syntax.
 ;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
-;                | ( + prop prop ) | ( bot )
+;                | ( + prop prop ) | ( bot ) | ( = nat nat )
+;   nat         := z | ( s nat ) | ( p nat nat )     ; Peano: zero, succ, plus
 ;   term        := ( hyp N ) | ( lam prop term ) | ( app term term )
 ;                | ( pair term term ) | ( fst term ) | ( snd term )
 ;                | ( inl prop term ) | ( inr prop term ) | ( case term term term )
 ;                | ( absurd prop term )           ; ex falso: prop from a ⊥-proof
+;                | ( refl nat )                   ; proves (= t t) up to reduction
 ; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
 ; Example — the identity proof of P -> P :   (-> P P)  (lam P (hyp 0))   -> accept
 ;
@@ -43,10 +52,11 @@
 ; Nodes are 3 words [tag, f0, f1] at 24-byte stride. 0 is the reject/none sentinel
 ; (no real node lives at address 0).
 ;
-; Tags:  type  0 ATOM(char)  1 ARROW(l,r)  2 AND(l,r)  3 FALSE  4 OR(l,r)
+; Tags:  type  0 ATOM(char) 1 ARROW(l,r) 2 AND(l,r) 3 FALSE 4 OR(l,r) 5 EQ(t1,t2)
 ;        term 10 HYP(idx)   11 LAM(ty,body) 12 APP(f,a) 13 PAIR(a,b) 14 FST(p)
 ;             15 SND(p)     16 ABSURD(Cty,p) 17 INL(Bty,p) 18 INR(Aty,p)
-;             19 CASE(p, aux)   ; aux = tag-99 holder of (f, g)
+;             19 CASE(p, aux)  20 REFL(t)    ; aux = tag-99 holder of (f, g)
+;        nat  30 ZERO  31 SUC(x)  32 PLUS(a,b)
 
 proc slurp() {
     let n = 0
@@ -135,6 +145,81 @@ proc parse_number() {
     return v
 }
 
+; ---- Peano terms (for equality propositions): z, (s t), (p a b) ----
+; tags 30 ZERO, 31 SUC(x), 32 PLUS(a,b). Definitional rules drive `refl` below.
+proc parse_nat() {
+    skip_ws()
+    let a = 0
+    let b = 0
+    if cbyte() == 'z' {
+        adv()
+        return alloc(30, 0, 0)
+    }
+    adv()                        ; '('
+    skip_ws()
+    let op = cbyte()
+    adv()
+    if op == 's' {               ; (s x)
+        a = parse_nat()
+        skip_ws()
+        adv()                    ; ')'
+        return alloc(31, a, 0)
+    }
+    a = parse_nat()              ; (p a b)
+    b = parse_nat()
+    skip_ws()
+    adv()                        ; ')'
+    return alloc(32, a, b)
+}
+
+; reduce a Peano term to normal form, fuel-bounded (total — the slow ref route).
+proc normalize(t, fuel) {
+    if fuel < 1 {
+        return t
+    }
+    let tag = word[t]
+    if tag == 30 {
+        return t
+    }
+    let a = 0
+    let b = 0
+    if tag == 31 {
+        a = normalize(word[t + 8], fuel - 1)
+        return alloc(31, a, 0)
+    }
+    a = normalize(word[t + 8], fuel - 1)        ; (p a b)
+    b = normalize(word[t + 16], fuel - 1)
+    if word[a] == 30 {           ; p z b => b
+        return b
+    }
+    if word[a] == 31 {           ; p (s x) b => s (p x b)
+        a = normalize(alloc(32, word[a + 8], b), fuel - 1)
+        return alloc(31, a, 0)
+    }
+    return alloc(32, a, b)
+}
+
+proc nat_eq(a, b) {
+    if word[a] != word[b] {
+        return 0
+    }
+    if word[a] == 30 {
+        return 1
+    }
+    if word[a] == 31 {
+        return nat_eq(word[a + 8], word[b + 8])
+    }
+    if nat_eq(word[a + 8], word[b + 8]) == 0 {
+        return 0
+    }
+    return nat_eq(word[a + 16], word[b + 16])
+}
+
+; definitional equality: normalize both, then compare (the conversion rule).
+proc conv_eq(a, b) {
+    return nat_eq(normalize(a, 100000), normalize(b, 100000))
+}
+
 proc skip_ident() {              ; advance over an alphabetic keyword
     while is_lower(cbyte()) == 1 {
         adv()
@@ -186,6 +271,13 @@ proc parse_type() {
             b = parse_type()
             expect(')')
             return alloc(4, a, b)
+        }
+        if cbyte() == '=' {      ; (= t1 t2) equality of Peano terms
+            adv()
+            a = parse_nat()
+            b = parse_nat()
+            expect(')')
+            return alloc(5, a, b)
         }
         adv()                    ; '&' conjunction
         a = parse_type()
@@ -260,6 +352,11 @@ proc parse_term() {
         expect(')')
         return alloc(19, x, alloc(99, y, z))   ; nest (f,g) in an aux node
     }
+    if kc == 'r' {               ; (refl t): proves (= t t) — discharged by reduction
+        x = parse_nat()
+        expect(')')
+        return alloc(20, x, 0)
+    }
     x = parse_term()             ; (snd p)
     expect(')')
     return alloc(15, x, 0)
@@ -278,6 +375,12 @@ proc type_eq(a, b) {
     }
     if word[a] == 3 {            ; FALSE (⊥): a leaf, no payload — equal by tag
         return 1
+    }
+    if word[a] == 5 {            ; EQ(t1,t2): compare sides up to DEFINITIONAL equality
+        if conv_eq(word[a + 8], word[b + 8]) == 0 {   ; the conversion rule
+            return 0
+        }
+        return conv_eq(word[a + 16], word[b + 16])
     }
     if type_eq(word[a + 8], word[b + 8]) == 0 {
         return 0
@@ -423,6 +526,9 @@ proc infer(term) {
             return 0
         }
         return word[t2 + 16]                    ; C
+    }
+    if tag == 20 {               ; REFL t : proves (= t t)
+        return alloc(5, word[term + 8], word[term + 8])
     }
     return 0
 }
