@@ -9,7 +9,7 @@
 ; Gamma program — small, audited"; gamma.md: ADTs + match keep it small).
 ;
 ; Types: (Atom n) | (Arrow a b) | (And a b) | (Or a b) | Bot | (Eq t1 t2) | Bad
-;      | (All body) | (Exists body) | (Pred id nat)        ; first-order: ∀ ∃ predicate
+;      | (All body) | (Exists body) | (Pred id nat) | (Rel id nat nat)  ; ∀ ∃ + atoms
 ; Terms: (Hyp n) | (Lam ty body) | (App f a) | (Pair a b) | (Fst p) | (Snd p)
 ;      | (Inl bty p) | (Inr aty p) | (Case p f g) | (Absurd cty p) | (Refl nat)
 ;      | (Gen pf) | (Inst pf nat) | (Wit body nat pf) | (Unpack epf handler)  ; ∀/∃
@@ -54,6 +54,7 @@
 (def ivp (p)                       ; ivar-in-prop
   (match p
     ((Pred id t)  (ivt t))
+    ((Rel id s t) (if (ivt s) 1 (ivt t)))
     ((Eq a b)     (if (ivt a) 1 (ivt b)))
     ((All x)      (ivp x))
     ((Exists x)   (ivp x))
@@ -73,6 +74,7 @@
 (def subp (p s d)
   (match p
     ((Pred id t) (Pred id (subt t s d)))
+    ((Rel id u v) (Rel id (subt u s d) (subt v s d)))
     ((Eq a b)    (Eq (subt a s d) (subt b s d)))
     ((All x)     (All (subp x s (+ d 1))))
     ((Exists x)  (Exists (subp x s (+ d 1))))
@@ -93,6 +95,7 @@
 (def freep (p d)
   (match p
     ((Pred id t) (freet t d))
+    ((Rel id s t) (if (freet s d) 1 (freet t d)))
     ((Eq a b)    (if (freet a d) 1 (freet b d)))
     ((All x)     (freep x (+ d 1)))
     ((Exists x)  (freep x (+ d 1)))
@@ -124,6 +127,7 @@
     ((All x)     (match b ((All y) (teq x y)) (z 0)))
     ((Exists x)  (match b ((Exists y) (teq x y)) (z 0)))
     ((Pred id t) (match b ((Pred jd u) (if (eq id jd) (conveq t u) 0)) (z 0)))
+    ((Rel id s t) (match b ((Rel jd u v) (if (eq id jd) (if (conveq s u) (conveq t v) 0) 0)) (z 0)))
     (z 0)))
 
 (def isbad (t) (match t (Bad 1) (z 0)))

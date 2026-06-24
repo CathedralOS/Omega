@@ -10,7 +10,7 @@
 
 (data Nat (Ze) (Su Nat) (Pl Nat Nat) (Mu Nat Nat) (Iv Int))
 (data Type (Atom Int) (Arrow Type Type) (And Type Type) (Or Type Type) (Bot) (Eq Nat Nat) (Bad)
-           (All Type) (Exists Type) (Pred Int Nat))
+           (All Type) (Exists Type) (Pred Int Nat) (Rel Int Nat Nat))
 (data Term (Hyp Int) (Lam Type Term) (App Term Term) (Pair Term Term) (Fst Term) (Snd Term)
            (Inl Type Term) (Inr Type Term) (Case Term Term Term) (Absurd Type Term) (Refl Nat)
            (Gen Term) (Inst Term Nat) (Wit Type Nat Term) (Unpack Term Term))
@@ -35,7 +35,7 @@
   (match t ((Iv k) 1) (Ze 0) ((Su x) (ivt x))
            ((Pl a b) (if (ivt a) 1 (ivt b))) ((Mu a b) (if (ivt a) 1 (ivt b)))))
 (def ivp ((p Type)) Int
-  (match p ((Pred id t) (ivt t)) ((Eq a b) (if (ivt a) 1 (ivt b)))
+  (match p ((Pred id t) (ivt t)) ((Rel id s t) (if (ivt s) 1 (ivt t))) ((Eq a b) (if (ivt a) 1 (ivt b)))
            ((All x) (ivp x)) ((Exists x) (ivp x))
            ((Arrow a b) (if (ivp a) 1 (ivp b))) ((And a b) (if (ivp a) 1 (ivp b)))
            ((Or a b) (if (ivp a) 1 (ivp b))) (z 0)))
@@ -44,7 +44,7 @@
            ((Su x) (Su (subt x s d))) ((Pl a b) (Pl (subt a s d) (subt b s d)))
            ((Mu a b) (Mu (subt a s d) (subt b s d)))))
 (def subp ((p Type) (s Nat) (d Int)) Type
-  (match p ((Pred id t) (Pred id (subt t s d))) ((Eq a b) (Eq (subt a s d) (subt b s d)))
+  (match p ((Pred id t) (Pred id (subt t s d))) ((Rel id u v) (Rel id (subt u s d) (subt v s d))) ((Eq a b) (Eq (subt a s d) (subt b s d)))
            ((All x) (All (subp x s (+ d 1)))) ((Exists x) (Exists (subp x s (+ d 1))))
            ((Arrow a b) (Arrow (subp a s d) (subp b s d))) ((And a b) (And (subp a s d) (subp b s d)))
            ((Or a b) (Or (subp a s d) (subp b s d))) (z p)))
@@ -52,7 +52,7 @@
   (match t ((Iv k) (if (lt k d) 0 1)) (Ze 0) ((Su x) (freet x d))
            ((Pl a b) (if (freet a d) 1 (freet b d))) ((Mu a b) (if (freet a d) 1 (freet b d)))))
 (def freep ((p Type) (d Int)) Int
-  (match p ((Pred id t) (freet t d)) ((Eq a b) (if (freet a d) 1 (freet b d)))
+  (match p ((Pred id t) (freet t d)) ((Rel id s t) (if (freet s d) 1 (freet t d))) ((Eq a b) (if (freet a d) 1 (freet b d)))
            ((All x) (freep x (+ d 1))) ((Exists x) (freep x (+ d 1)))
            ((Arrow a b) (if (freep a d) 1 (freep b d))) ((And a b) (if (freep a d) 1 (freep b d)))
            ((Or a b) (if (freep a d) 1 (freep b d))) (z 0)))
@@ -72,6 +72,7 @@
     ((All x)     (match b ((All y) (teq x y)) (z 0)))
     ((Exists x)  (match b ((Exists y) (teq x y)) (z 0)))
     ((Pred id t) (match b ((Pred jd u) (if (eq id jd) (conveq t u) 0)) (z 0)))
+    ((Rel id s t) (match b ((Rel jd u v) (if (eq id jd) (if (conveq s u) (conveq t v) 0) 0)) (z 0)))
     (z 0)))
 
 (def isbad ((t Type)) Int (match t (Bad 1) (z 0)))
