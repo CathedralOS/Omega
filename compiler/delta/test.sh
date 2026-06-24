@@ -103,6 +103,8 @@ chk "0=2 -> anything" "(-> (= z (s (s z))) P) (lam (= z (s (s z))) (absurd P (di
 chk "succ injective"  "(-> (= (s (v 0)) (s z)) (= (v 0) z)) (lam (= (s (v 0)) (s z)) (sinj (hyp 0)))"          accept
 chk "disj needs s/0"  "(-> (= (s z) (s z)) (bot)) (lam (= (s z) (s z)) (disj (hyp 0)))"                         reject
 chk "sinj wrong"      "(-> (= (s z) (s z)) (= z (s z))) (lam (= (s z) (s z)) (sinj (hyp 0)))"                    reject
+# flagship: ∀n. n ≠ s n — induction, base by disj, step by sinj + the hypothesis
+chk "n != s n"        "(All (-> (= (v 0) (s (v 0))) (bot))) (natind (-> (= (v 0) (s (v 0))) (bot)) (lam (= z (s z)) (disj (hyp 0))) (gen (lam (-> (= (v 0) (s (v 0))) (bot)) (lam (= (s (v 0)) (s (s (v 0)))) (app (hyp 1) (sinj (hyp 0)))))))" accept
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"

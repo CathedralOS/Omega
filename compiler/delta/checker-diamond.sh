@@ -67,5 +67,6 @@ dia "n+0=n by induct" "(All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0))
 dia "n*0=0 by induct" "(All (= (m (v 0) z) z)) (natind (= (m (v 0) z) z) (refl z) (gen (lam (= (m (v 0) z) z) (hyp 0))))" "(check (Natind (Eq (Mu (Iv 0) Ze) Ze) (Refl Ze) (Gen (Lam (Eq (Mu (Iv 0) Ze) Ze) (Hyp 0)))) (All (Eq (Mu (Iv 0) Ze) Ze)))" accept
 dia "0 != 1 (disj)"  "(-> (= z (s z)) (bot)) (lam (= z (s z)) (disj (hyp 0)))" "(check (Lam (Eq Ze (Su Ze)) (Disj (Hyp 0))) (Arrow (Eq Ze (Su Ze)) Bot))" accept
 dia "succ injective" "(-> (= (s (v 0)) (s z)) (= (v 0) z)) (lam (= (s (v 0)) (s z)) (sinj (hyp 0)))" "(check (Lam (Eq (Su (Iv 0)) (Su Ze)) (Sinj (Hyp 0))) (Arrow (Eq (Su (Iv 0)) (Su Ze)) (Eq (Iv 0) Ze)))" accept
+dia "n != s n"       "(All (-> (= (v 0) (s (v 0))) (bot))) (natind (-> (= (v 0) (s (v 0))) (bot)) (lam (= z (s z)) (disj (hyp 0))) (gen (lam (-> (= (v 0) (s (v 0))) (bot)) (lam (= (s (v 0)) (s (s (v 0)))) (app (hyp 1) (sinj (hyp 0)))))))" "(check (Natind (Arrow (Eq (Iv 0) (Su (Iv 0))) Bot) (Lam (Eq Ze (Su Ze)) (Disj (Hyp 0))) (Gen (Lam (Arrow (Eq (Iv 0) (Su (Iv 0))) Bot) (Lam (Eq (Su (Iv 0)) (Su (Su (Iv 0)))) (App (Hyp 1) (Sinj (Hyp 0))))))) (All (Arrow (Eq (Iv 0) (Su (Iv 0))) Bot)))" accept
 echo "checker diamond (check.beta vs checker.gamma): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
