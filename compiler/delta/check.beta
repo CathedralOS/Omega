@@ -41,8 +41,8 @@
 ;                | ( All prop ) | ( Exists prop )                      ; ∀, ∃
 ;                | ( Pred id nat ) | ( Rel id nat nat )               ; unary / binary atoms
 ;   term        := z | ( s term ) | ( p term term ) | ( m term term ) | ( v k )
-;                | nil | ( cons term term ) | ( app term term )
-;                  ; Peano (zero/succ/plus/mul) + (v k) indiv var + Lists (nil/cons/append)
+;                | nil | ( cons term term ) | ( app term term ) | ( len term )
+;                  ; Peano (zero/succ/plus/mul) + (v k) indiv var + Lists (nil/cons/append/length)
 ;   term        := ( hyp N ) | ( lam prop term ) | ( app term term )
 ;                | ( pair term term ) | ( fst term ) | ( snd term )
 ;                | ( inl prop term ) | ( inr prop term ) | ( case term term term )
@@ -74,7 +74,7 @@
 ;             25 NATIND(motive, (99 base step))  26 EQELIM(motive, (99 pf_eq pf_pa))
 ;             27 DISJ(pf)  28 SINJ(pf)  29 LISTIND(motive, (99 base step))
 ;        term 30 ZERO 31 SUC(x) 32 PLUS(a,b) 33 MUL(a,b) 34 IVAR(k)
-;             35 NIL  36 CONS(h,t)  37 APPEND(l1,l2)
+;             35 NIL  36 CONS(h,t)  37 APPEND(l1,l2)  38 LEN(l)
 
 proc slurp() {
     let n = 0
@@ -216,6 +216,12 @@ proc parse_nat() {
         adv()                    ; ')'
         return alloc(37, a, b)
     }
+    if op == 'l' {               ; (len l) list length : List -> Nat
+        a = parse_nat()
+        skip_ws()
+        adv()                    ; ')'
+        return alloc(38, a, 0)
+    }
     a = parse_nat()              ; (p a b) plus
     b = parse_nat()
     skip_ws()
@@ -283,6 +289,17 @@ proc normalize(t, fuel) {
         }
         return alloc(33, a, word[t + 16])
     }
+    if tag == 38 {                              ; (len l) -- len nil => z ; len (cons h t) => s (len t)
+        a = normalize(word[t + 8], fuel - 1)
+        if word[a] == 35 {
+            return alloc(30, 0, 0)
+        }
+        if word[a] == 36 {
+            b = normalize(alloc(38, word[a + 16], 0), fuel - 1)
+            return alloc(31, b, 0)
+        }
+        return alloc(38, a, 0)
+    }
     return t
 }
 
@@ -305,6 +322,9 @@ proc nat_eq(a, b) {
     if word[a] == 31 {
         return nat_eq(word[a + 8], word[b + 8])
     }
+    if word[a] == 38 {                ; len — unary, compare the child
+        return nat_eq(word[a + 8], word[b + 8])
+    }
     if nat_eq(word[a + 8], word[b + 8]) == 0 {
         return 0
     }
@@ -323,6 +343,9 @@ proc ivar_in_term(t) {
         return 0
     }
     if word[t] == 31 {
+        return ivar_in_term(word[t + 8])
+    }
+    if word[t] == 38 {                ; len — unary
         return ivar_in_term(word[t + 8])
     }
     if ivar_in_term(word[t + 8]) == 1 {
@@ -385,6 +408,9 @@ proc free_ivt(t, depth) {
     if word[t] == 31 {
         return free_ivt(word[t + 8], depth)
     }
+    if word[t] == 38 {                ; len — unary
+        return free_ivt(word[t + 8], depth)
+    }
     if free_ivt(word[t + 8], depth) == 1 {
         return 1
     }
@@ -445,6 +471,9 @@ proc shift_term(t, d, cutoff) {
     if word[t] == 31 {
         return alloc(31, shift_term(word[t + 8], d, cutoff), 0)
     }
+    if word[t] == 38 {                ; len — unary
+        return alloc(38, shift_term(word[t + 8], d, cutoff), 0)
+    }
     return alloc(word[t], shift_term(word[t + 8], d, cutoff), shift_term(word[t + 16], d, cutoff))
 }
 
@@ -468,6 +497,9 @@ proc subst_term(t, s, depth) {
     }
     if word[t] == 31 {
         return alloc(31, subst_term(word[t + 8], s, depth), 0)
+    }
+    if word[t] == 38 {                ; len — unary
+        return alloc(38, subst_term(word[t + 8], s, depth), 0)
     }
     return alloc(word[t], subst_term(word[t + 8], s, depth), subst_term(word[t + 16], s, depth))
 }
@@ -519,6 +551,9 @@ proc subst_term_keep(t, s, depth) {
     }
     if word[t] == 31 {
         return alloc(31, subst_term_keep(word[t + 8], s, depth), 0)
+    }
+    if word[t] == 38 {                ; len — unary
+        return alloc(38, subst_term_keep(word[t + 8], s, depth), 0)
     }
     return alloc(word[t], subst_term_keep(word[t + 8], s, depth), subst_term_keep(word[t + 16], s, depth))
 }
