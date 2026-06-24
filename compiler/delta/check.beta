@@ -38,7 +38,8 @@
 ; Input (stdin): a goal proposition, then a certificate term, in prefix syntax.
 ;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
 ;                | ( + prop prop ) | ( bot ) | ( = nat nat )
-;                | ( All prop ) | ( Exists prop ) | ( Pred id nat )    ; ∀, ∃, predicate
+;                | ( All prop ) | ( Exists prop )                      ; ∀, ∃
+;                | ( Pred id nat ) | ( Rel id nat nat )               ; unary / binary atoms
 ;   nat         := z | ( s nat ) | ( p nat nat ) | ( m nat nat ) | ( v k )
 ;                  ; Peano: zero, succ, plus, multiply, and (v k) = individual var
 ;   term        := ( hyp N ) | ( lam prop term ) | ( app term term )
@@ -59,7 +60,7 @@
 ; (no real node lives at address 0).
 ;
 ; Tags:  type  0 ATOM(char) 1 ARROW(l,r) 2 AND(l,r) 3 FALSE 4 OR(l,r) 5 EQ(t1,t2)
-;             6 ALL(body)  7 PRED(id,term)  8 EXISTS(body)
+;             6 ALL(body)  7 PRED(id,term)  8 EXISTS(body)  9 REL(id,(99 t1 t2))
 ;        term 10 HYP(idx)   11 LAM(ty,body) 12 APP(f,a) 13 PAIR(a,b) 14 FST(p)
 ;             15 SND(p)     16 ABSURD(Cty,p) 17 INL(Bty,p) 18 INR(Aty,p)
 ;             19 CASE(p, aux)  20 REFL(t)  21 GEN(pf)  22 INST(pf,term)
@@ -286,6 +287,12 @@ proc ivar_in_prop(p) {
     if tag == 7 {                     ; Pred id term
         return ivar_in_term(word[p + 16])
     }
+    if tag == 9 {                     ; Rel id (t1,t2)
+        if ivar_in_term(word[word[p + 16] + 8]) == 1 {
+            return 1
+        }
+        return ivar_in_term(word[word[p + 16] + 16])
+    }
     if tag == 5 {                     ; Eq t1 t2
         if ivar_in_term(word[p + 8]) == 1 {
             return 1
@@ -336,6 +343,12 @@ proc free_ivp(p, depth) {
     }
     if tag == 7 {                     ; Pred id term
         return free_ivt(word[p + 16], depth)
+    }
+    if tag == 9 {                     ; Rel id (t1,t2)
+        if free_ivt(word[word[p + 16] + 8], depth) == 1 {
+            return 1
+        }
+        return free_ivt(word[word[p + 16] + 16], depth)
     }
     if tag == 5 {                     ; Eq t1 t2
         if free_ivt(word[p + 8], depth) == 1 {
@@ -419,6 +432,11 @@ proc subst_prop(p, s, depth) {
     }
     if tag == 7 {                     ; Pred id term
         return alloc(7, word[p + 8], subst_term(word[p + 16], s, depth))
+    }
+    if tag == 9 {                     ; Rel id (t1,t2)
+        return alloc(9, word[p + 8],
+            alloc(99, subst_term(word[word[p + 16] + 8], s, depth),
+                      subst_term(word[word[p + 16] + 16], s, depth)))
     }
     if tag == 5 {                     ; Eq t1 t2
         return alloc(5, subst_term(word[p + 8], s, depth), subst_term(word[p + 16], s, depth))
@@ -534,6 +552,15 @@ proc parse_type() {
             b = parse_nat()
             expect(')')
             return alloc(7, a, b)
+        }
+        if cbyte() == 'R' {      ; (Rel id t1 t2) a binary relation of two individuals
+            skip_kw()
+            skip_ws()
+            a = parse_number()
+            b = parse_nat()
+            b = alloc(99, b, parse_nat())   ; aux holds (t1, t2)
+            expect(')')
+            return alloc(9, a, b)
         }
         adv()                    ; '&' conjunction
         a = parse_type()
@@ -673,6 +700,15 @@ proc type_eq(a, b) {
             return 0
         }
         return conv_eq(word[a + 16], word[b + 16])
+    }
+    if word[a] == 9 {            ; Rel id (t1,t2) — same id, both args defn'lly equal
+        if word[a + 8] != word[b + 8] {
+            return 0
+        }
+        if conv_eq(word[word[a + 16] + 8], word[word[b + 16] + 8]) == 0 {
+            return 0
+        }
+        return conv_eq(word[word[a + 16] + 16], word[word[b + 16] + 16])
     }
     if type_eq(word[a + 8], word[b + 8]) == 0 {
         return 0
