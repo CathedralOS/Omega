@@ -30,5 +30,13 @@ ev '(def fac (n) (if (eq n 0) 1 (* n (fac (- n 1))))) (fac 5)' 120
 ev '(def fib (n) (if (lt n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 10)' 55
 ev '(def gcd (a b) (if (eq b 0) a (gcd b (% a b)))) (gcd 48 36)' 12
 ev '(def sumto (n) (if (eq n 0) 0 (+ n (sumto (- n 1))))) (sumto 10)' 55
+# stage 2 — algebraic data types + pattern matching
+ev '(def toint (n) (match n (Z 0) ((S m) (+ 1 (toint m))))) (toint (S (S (S Z))))' 3
+ev '(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (len t))))) (len (Cons 7 (Cons 8 (Cons 9 Nil))))' 3
+ev '(def sum (xs) (match xs (Nil 0) ((Cons h t) (+ h (sum t))))) (sum (Cons 10 (Cons 20 (Cons 12 Nil))))' 42
+ev '(def plus (a b) (match a (Z b) ((S m) (S (plus m b))))) (def toint (n) (match n (Z 0) ((S m) (+ 1 (toint m))))) (toint (plus (S (S Z)) (S (S Z))))' 4
+ev '(def fst (p) (match p ((Pair a b) a))) (fst (Pair 42 99))' 42
+ev '(def isnil (xs) (match xs (Nil 1) (other 0))) (isnil (Cons 1 Nil))' 0
+ev '(def isnil (xs) (match xs (Nil 1) (other 0))) (isnil Nil)' 1
 echo "gamma interp: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
