@@ -53,6 +53,8 @@
 ;                | ( unpack term term )           ; ∃-elim (handler is a ∀(body -> C))
 ;                | ( natind prop term term )      ; Peano induction: base P(0), step ∀n.P(n)->P(s n)
 ;                | ( eqelim prop term term )      ; Leibniz: motive P, pf of a=b, pf of P(a) -> P(b)
+;                | ( disj term )                  ; no-confusion: from (0 = s t), falsity
+;                | ( sinj term )                  ; successor injective: from (s a = s b), (a = b)
 ; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
 ; Example — the identity proof of P -> P :   (-> P P)  (lam P (hyp 0))   -> accept
 ;
@@ -68,6 +70,7 @@
 ;             19 CASE(p, aux)  20 REFL(t)  21 GEN(pf)  22 INST(pf,term)
 ;             23 WIT(body, (99 t pf))  24 UNPACK(epf, handler)
 ;             25 NATIND(motive, (99 base step))  26 EQELIM(motive, (99 pf_eq pf_pa))
+;             27 DISJ(pf)  28 SINJ(pf)
 ;        nat  30 ZERO  31 SUC(x)  32 PLUS(a,b)  33 MUL(a,b)  34 IVAR(k)
 
 proc slurp() {
@@ -715,6 +718,18 @@ proc parse_term() {
         expect(')')
         return alloc(20, x, 0)
     }
+    if kc == 'd' {               ; (disj pf): from a proof of (0 = s t) derive falsity
+        x = parse_term()
+        expect(')')
+        return alloc(27, x, 0)
+    }
+    if kc == 's' {               ; (sinj pf): from (s a = s b) derive (a = b)
+        if kc2 == 'i' {
+            x = parse_term()
+            expect(')')
+            return alloc(28, x, 0)
+        }
+    }
     x = parse_term()             ; (snd p)
     expect(')')
     return alloc(15, x, 0)
@@ -1028,6 +1043,46 @@ proc infer(term) {
             return 0
         }
         return subst_prop(word[term + 8], word[t1 + 16], 0)   ; P(b)
+    }
+    if tag == 27 {               ; DISJ pf : 0 and (s t) are distinct -> from (0=s t), ⊥
+        t1 = infer(word[term + 8])
+        if t1 == 0 {
+            return 0
+        }
+        if word[t1] != 5 {                               ; pf must prove an equality
+            return 0
+        }
+        t2 = normalize(word[t1 + 8], 100000)
+        t3 = normalize(word[t1 + 16], 100000)
+        if word[t2] == 30 {                              ; ZERO  vs  SUC
+            if word[t3] == 31 {
+                return alloc(3, 0, 0)                    ; falsity
+            }
+        }
+        if word[t2] == 31 {                              ; SUC   vs  ZERO
+            if word[t3] == 30 {
+                return alloc(3, 0, 0)
+            }
+        }
+        return 0
+    }
+    if tag == 28 {               ; SINJ pf : s is injective -> from (s a = s b), (a = b)
+        t1 = infer(word[term + 8])
+        if t1 == 0 {
+            return 0
+        }
+        if word[t1] != 5 {
+            return 0
+        }
+        t2 = normalize(word[t1 + 8], 100000)
+        t3 = normalize(word[t1 + 16], 100000)
+        if word[t2] != 31 {                              ; both sides must be successors
+            return 0
+        }
+        if word[t3] != 31 {
+            return 0
+        }
+        return alloc(5, word[t2 + 8], word[t3 + 8])      ; (= a b)
     }
     return 0
 }

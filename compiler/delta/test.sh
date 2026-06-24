@@ -97,6 +97,12 @@ chk "n+0=n not refl"  "(All (= (p (v 0) z) (v 0))) (gen (refl (v 0)))"          
 chk "eqelim mismatch" "(-> (Pred 0 (s z)) (Pred 0 (s (s z)))) (lam (Pred 0 (s z)) (eqelim (Pred 0 (v 0)) (refl (s (s z))) (hyp 0)))" reject
 chk "n*0=0 induction" "(All (= (m (v 0) z) z)) (natind (= (m (v 0) z) z) (refl z) (gen (lam (= (m (v 0) z) z) (hyp 0))))" accept
 chk "0*n=0 definit'l" "(All (= (m z (v 0)) z)) (gen (refl z))"                                                  accept
+# Peano no-confusion: disjointness (0 != s n) and injectivity of successor
+chk "0 != 1"         "(-> (= z (s z)) (bot)) (lam (= z (s z)) (disj (hyp 0)))"                                  accept
+chk "0=2 -> anything" "(-> (= z (s (s z))) P) (lam (= z (s (s z))) (absurd P (disj (hyp 0))))"                  accept
+chk "succ injective"  "(-> (= (s (v 0)) (s z)) (= (v 0) z)) (lam (= (s (v 0)) (s z)) (sinj (hyp 0)))"          accept
+chk "disj needs s/0"  "(-> (= (s z) (s z)) (bot)) (lam (= (s z) (s z)) (disj (hyp 0)))"                         reject
+chk "sinj wrong"      "(-> (= (s z) (s z)) (= z (s z))) (lam (= (s z) (s z)) (sinj (hyp 0)))"                    reject
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"

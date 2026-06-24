@@ -145,11 +145,12 @@ against a capture discriminator, and `natind` against an identity-shaped step th
 broken rule would use to derive `∀n.P(n)` from `P(0)` alone. `soundness.sh` confirms
 no false certificate — nor any non-constructive classical tautology — gets through.
 
+The Peano axioms are now complete enough to refute as well as prove: `disj`
+(no-confusion, `0 ≠ s n`) and `sinj` (injectivity of the successor) are sound
+primitive rules, so `¬(0 = 1)` and `s n = s 0 ⊢ n = 0` check.
+
 What it is **not** (yet), tracked in `rungs/delta.md`:
 
-- **No no-confusion / disjointness** (`s n ≠ 0`, injectivity of `s`). Induction and
-  `eqelim` give the *positive* Peano reasoning; the negative axioms (needed to refute
-  equations) are not yet rules.
 - **No soundness bridge** to program execution. `semantics-diamond.sh` *exhibits* the
   gamma/delta seam (the checker's definitional `=` agreeing with the interpreter's
   operational evaluation), but the theorem `provable ⟹ true-about-the-reference-
