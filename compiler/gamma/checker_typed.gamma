@@ -8,7 +8,7 @@
 ;
 ;   sh test-typeck.sh-style:  typeck < this  -> 1 (well-typed)
 
-(data Nat (Ze) (Su Nat) (Pl Nat Nat) (Mu Nat Nat) (Iv Int) (Lnil) (Lcons Nat Nat) (Lapp Nat Nat))
+(data Nat (Ze) (Su Nat) (Pl Nat Nat) (Mu Nat Nat) (Iv Int) (Lnil) (Lcons Nat Nat) (Lapp Nat Nat) (Llen Nat))
 (data Type (Atom Int) (Arrow Type Type) (And Type Type) (Or Type Type) (Bot) (Eq Nat Nat) (Bad)
            (All Type) (Exists Type) (Pred Int Nat) (Rel Int Nat Nat))
 (data Term (Hyp Int) (Lam Type Term) (App Term Term) (Pair Term Term) (Fst Term) (Snd Term)
@@ -26,10 +26,11 @@
 (def padd ((a Nat) (b Nat)) Nat (match a (Ze b) ((Su x) (Su (padd x b))) (z (Pl a b))))
 (def pmul ((a Nat) (b Nat)) Nat (match a (Ze Ze) ((Su x) (padd b (pmul x b))) (z (Mu a b))))
 (def lapp ((a Nat) (b Nat)) Nat (match a (Lnil b) ((Lcons h t) (Lcons h (lapp t b))) (z (Lapp a b))))
+(def llen ((l Nat)) Nat (match l (Lnil Ze) ((Lcons h t) (Su (llen t))) (z (Llen l))))
 (def pnorm ((t Nat)) Nat
   (match t (Ze Ze) ((Su x) (Su (pnorm x))) ((Iv k) (Iv k))
            ((Pl a b) (padd (pnorm a) (pnorm b))) ((Mu a b) (pmul (pnorm a) (pnorm b)))
-           (Lnil Lnil) ((Lcons h t) (Lcons (pnorm h) (pnorm t))) ((Lapp a b) (lapp (pnorm a) (pnorm b)))))
+           (Lnil Lnil) ((Lcons h t) (Lcons (pnorm h) (pnorm t))) ((Lapp a b) (lapp (pnorm a) (pnorm b))) ((Llen l) (llen (pnorm l)))))
 (def nateq ((a Nat) (b Nat)) Int
   (match a (Ze (match b (Ze 1) (z 0))) ((Iv k) (match b ((Iv j) (eq k j)) (z 0)))
            ((Su x) (match b ((Su y) (nateq x y)) (z 0)))
@@ -37,13 +38,13 @@
            ((Mu p q) (match b ((Mu r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
            (Lnil (match b (Lnil 1) (z 0)))
            ((Lcons p q) (match b ((Lcons r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
-           ((Lapp p q) (match b ((Lapp r s) (if (nateq p r) (nateq q s) 0)) (z 0)))))
+           ((Lapp p q) (match b ((Lapp r s) (if (nateq p r) (nateq q s) 0)) (z 0))) ((Llen x) (match b ((Llen y) (nateq x y)) (z 0)))))
 (def conveq ((a Nat) (b Nat)) Int (nateq (pnorm a) (pnorm b)))
 
 (def ivt ((t Nat)) Int
   (match t ((Iv k) 1) (Ze 0) ((Su x) (ivt x))
            ((Pl a b) (if (ivt a) 1 (ivt b))) ((Mu a b) (if (ivt a) 1 (ivt b)))
-           (Lnil 0) ((Lcons a b) (if (ivt a) 1 (ivt b))) ((Lapp a b) (if (ivt a) 1 (ivt b)))))
+           (Lnil 0) ((Lcons a b) (if (ivt a) 1 (ivt b))) ((Lapp a b) (if (ivt a) 1 (ivt b))) ((Llen a) (ivt a))))
 (def ivp ((p Type)) Int
   (match p ((Pred id t) (ivt t)) ((Rel id s t) (if (ivt s) 1 (ivt t))) ((Eq a b) (if (ivt a) 1 (ivt b)))
            ((All x) (ivp x)) ((Exists x) (ivp x))
@@ -53,7 +54,7 @@
   (match t ((Iv k) (if (eq k d) s (if (lt d k) (Iv (- k 1)) (Iv k)))) (Ze Ze)
            ((Su x) (Su (subt x s d))) ((Pl a b) (Pl (subt a s d) (subt b s d)))
            ((Mu a b) (Mu (subt a s d) (subt b s d)))
-           (Lnil Lnil) ((Lcons a b) (Lcons (subt a s d) (subt b s d))) ((Lapp a b) (Lapp (subt a s d) (subt b s d)))))
+           (Lnil Lnil) ((Lcons a b) (Lcons (subt a s d) (subt b s d))) ((Lapp a b) (Lapp (subt a s d) (subt b s d))) ((Llen a) (Llen (subt a s d)))))
 (def subp ((p Type) (s Nat) (d Int)) Type
   (match p ((Pred id t) (Pred id (subt t s d))) ((Rel id u v) (Rel id (subt u s d) (subt v s d))) ((Eq a b) (Eq (subt a s d) (subt b s d)))
            ((All x) (All (subp x (shiftt s 1 0) (+ d 1)))) ((Exists x) (Exists (subp x (shiftt s 1 0) (+ d 1))))
@@ -62,7 +63,7 @@
 (def freet ((t Nat) (d Int)) Int
   (match t ((Iv k) (if (lt k d) 0 1)) (Ze 0) ((Su x) (freet x d))
            ((Pl a b) (if (freet a d) 1 (freet b d))) ((Mu a b) (if (freet a d) 1 (freet b d)))
-           (Lnil 0) ((Lcons a b) (if (freet a d) 1 (freet b d))) ((Lapp a b) (if (freet a d) 1 (freet b d)))))
+           (Lnil 0) ((Lcons a b) (if (freet a d) 1 (freet b d))) ((Lapp a b) (if (freet a d) 1 (freet b d))) ((Llen a) (freet a d))))
 (def freep ((p Type) (d Int)) Int
   (match p ((Pred id t) (freet t d)) ((Rel id s t) (if (freet s d) 1 (freet t d))) ((Eq a b) (if (freet a d) 1 (freet b d)))
            ((All x) (freep x (+ d 1))) ((Exists x) (freep x (+ d 1)))
@@ -71,7 +72,7 @@
 (def shiftt ((t Nat) (d Int) (c Int)) Nat
   (match t ((Iv k) (if (lt k c) (Iv k) (Iv (+ k d)))) (Ze Ze) ((Su x) (Su (shiftt x d c)))
            ((Pl a b) (Pl (shiftt a d c) (shiftt b d c))) ((Mu a b) (Mu (shiftt a d c) (shiftt b d c)))
-           (Lnil Lnil) ((Lcons a b) (Lcons (shiftt a d c) (shiftt b d c))) ((Lapp a b) (Lapp (shiftt a d c) (shiftt b d c)))))
+           (Lnil Lnil) ((Lcons a b) (Lcons (shiftt a d c) (shiftt b d c))) ((Lapp a b) (Lapp (shiftt a d c) (shiftt b d c))) ((Llen a) (Llen (shiftt a d c)))))
 (def shiftp ((p Type) (d Int) (c Int)) Type
   (match p ((Pred id t) (Pred id (shiftt t d c))) ((Rel id u v) (Rel id (shiftt u d c) (shiftt v d c)))
            ((Eq a b) (Eq (shiftt a d c) (shiftt b d c)))
@@ -97,7 +98,7 @@
 (def subtk ((t Nat) (s Nat) (d Int)) Nat
   (match t ((Iv k) (if (eq k d) s (Iv k))) (Ze Ze) ((Su x) (Su (subtk x s d)))
            ((Pl a b) (Pl (subtk a s d) (subtk b s d))) ((Mu a b) (Mu (subtk a s d) (subtk b s d)))
-           (Lnil Lnil) ((Lcons a b) (Lcons (subtk a s d) (subtk b s d))) ((Lapp a b) (Lapp (subtk a s d) (subtk b s d)))))
+           (Lnil Lnil) ((Lcons a b) (Lcons (subtk a s d) (subtk b s d))) ((Lapp a b) (Lapp (subtk a s d) (subtk b s d))) ((Llen a) (Llen (subtk a s d)))))
 (def subpk ((p Type) (s Nat) (d Int)) Type
   (match p ((Pred id t) (Pred id (subtk t s d))) ((Rel id u v) (Rel id (subtk u s d) (subtk v s d)))
            ((Eq a b) (Eq (subtk a s d) (subtk b s d)))
