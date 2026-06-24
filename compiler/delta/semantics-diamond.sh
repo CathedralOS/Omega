@@ -18,8 +18,8 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" && "$ASM" < "$T/x.asm" > "$T/x.tape" && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b eq.beta "$T/eq.exe"           || { echo "build eq.beta failed"; exit 1; }
 b ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
-# gamma defs: plus (operational addition) + neq (structural Nat equality -> 1/0)
-DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def neq (a b) (match a (Ze (match b (Ze 1) (w 0))) ((S x) 0) ((Su x) (match b ((Su y) (neq x y)) (w 0)))))'
+# gamma defs: plus + mult (operational) + neq (structural Nat equality -> 1/0)
+DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def neq (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (neq x y)) (w 0)))))'
 
 PASS=0; FAIL=0
 # dia DESC  EQ_BETA_INPUT(p/s/z)  GAMMA_EXPR(Su/Ze + plus)  EXPECT(equal|differ)
@@ -37,5 +37,8 @@ dia "3+0 = 3"    "(p (s (s (s z))) z)  (s (s (s z)))"                  "(plus (S
 dia "1+2 = 3"    "(p (s z) (s (s z)))  (s (s (s z)))"                  "(plus (Su Ze) (Su (Su Ze))) (Su (Su (Su Ze)))"                     equal
 dia "2+2 != 5"   "(p (s (s z)) (s (s z)))  (s (s (s (s (s z)))))"      "(plus (Su (Su Ze)) (Su (Su Ze))) (Su (Su (Su (Su (Su Ze)))))"      differ
 dia "1+1 != 1"   "(p (s z) (s z))  (s z)"                              "(plus (Su Ze) (Su Ze)) (Su Ze)"                                   differ
+dia "2*3 = 6"    "(m (s (s z)) (s (s (s z))))  (s (s (s (s (s (s z))))))" "(mult (Su (Su Ze)) (Su (Su (Su Ze)))) (Su (Su (Su (Su (Su (Su Ze))))))" equal
+dia "3*0 = 0"    "(m (s (s (s z))) z)  z"                              "(mult (Su (Su (Su Ze))) Ze) Ze"                                   equal
+dia "2*3 != 5"   "(m (s (s z)) (s (s (s z))))  (s (s (s (s (s z)))))"  "(mult (Su (Su Ze)) (Su (Su (Su Ze)))) (Su (Su (Su (Su (Su Ze)))))" differ
 echo "semantics diamond (definitional eq vs operational eval): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
