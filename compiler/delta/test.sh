@@ -53,6 +53,8 @@ chk "refl 0+3=3"      "(= (p z (s (s (s z)))) (s (s (s z))))  (refl (s (s (s z))
 chk "reject 1+1=1"    "(= (p (s z) (s z)) (s z))  (refl (s z))"                                                     reject
 chk "reject 2+2=5"    "(= (p (s (s z)) (s (s z))) (s (s (s (s (s z))))))  (refl (s (s (s (s z)))))"                 reject
 chk "eq is first-class" "(-> (= (p (s z) (s z)) (s (s z))) (= (p (s z) (s z)) (s (s z)))) (lam (= (p (s z) (s z)) (s (s z))) (hyp 0))" accept
+chk "refl 2*3=6"     "(= (m (s (s z)) (s (s (s z)))) (s (s (s (s (s (s z)))))))  (refl (s (s (s (s (s (s z)))))))" accept
+chk "reject 2*3=5"   "(= (m (s (s z)) (s (s (s z)))) (s (s (s (s (s z))))))  (refl (s (s (s (s (s z))))))"        reject
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
@@ -66,6 +68,9 @@ eqk "n+0 = n"         "(p (s (s (s z))) z)  (s (s (s z)))"                equal
 eqk "associativity"  "(p (s z) (p (s (s z)) (s z)))  (p (p (s z) (s (s z))) (s z))" equal
 eqk "2+2 != 5"        "(p (s (s z)) (s (s z)))  (s (s (s (s (s z)))))"    differ
 eqk "1+1 != 1"        "(p (s z) (s z))  (s z)"                            differ
+eqk "2*3 = 6"         "(m (s (s z)) (s (s (s z))))  (s (s (s (s (s (s z))))))" equal
+eqk "0*5 = 0"         "(m z (s (s (s (s (s z))))))  z"                    equal
+eqk "2*2 != 5"        "(m (s (s z)) (s (s z)))  (s (s (s (s (s z)))))"    differ
 
 echo "delta (check.beta + eq.beta): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

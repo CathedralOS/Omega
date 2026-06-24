@@ -16,8 +16,9 @@
 ; Signature (Peano arithmetic, enough to demonstrate proof-by-computation):
 ;   z          zero
 ;   (s t)      successor
-;   (p a b)    plus, with the definitional rules   p z b      => b
-;                                                   p (s x) b  => s (p x b)
+;   (p a b)    plus  ;  (m a b)  multiply
+;            rules:  p z b => b   p (s x) b => s (p x b)
+;                    m z y => z   m (s x) y => p y (m x y)
 ;
 ; Input (stdin): two terms. Output: "equal\n" (exit 1) if they have the same
 ; normal form, else "differ\n" (exit 0).
@@ -100,7 +101,14 @@ proc parse_term() {
         adv()                    ; ')'
         return alloc(1, a, 0)
     }
-    a = parse_term()             ; (p a b)
+    if op == 'm' {               ; (m a b) multiply
+        a = parse_term()
+        b = parse_term()
+        skip_ws()
+        adv()                    ; ')'
+        return alloc(3, a, b)
+    }
+    a = parse_term()             ; (p a b) plus
     b = parse_term()
     skip_ws()
     adv()                        ; ')'
@@ -122,17 +130,28 @@ proc normalize(t, fuel) {
         a = normalize(word[t + 8], fuel - 1)
         return alloc(1, a, 0)
     }
-    ; tag == 2 : (p a b)
+    if tag == 2 {                ; (p a b)
+        a = normalize(word[t + 8], fuel - 1)
+        b = normalize(word[t + 16], fuel - 1)
+        if word[a] == 0 {        ; p z b  =>  b
+            return b
+        }
+        if word[a] == 1 {        ; p (s x) b  =>  s (p x b)
+            a = normalize(alloc(2, word[a + 8], b), fuel - 1)
+            return alloc(1, a, 0)
+        }
+        return alloc(2, a, b)    ; stuck
+    }
+    ; tag == 3 : (m a b)  -- m z y => z ;  m (s x) y => p y (m x y)
     a = normalize(word[t + 8], fuel - 1)
-    b = normalize(word[t + 16], fuel - 1)
-    if word[a] == 0 {            ; p z b  =>  b
-        return b
+    if word[a] == 0 {
+        return alloc(0, 0, 0)
     }
-    if word[a] == 1 {            ; p (s x) b  =>  s (p x b)
-        a = normalize(alloc(2, word[a + 8], b), fuel - 1)
-        return alloc(1, a, 0)
+    if word[a] == 1 {
+        b = alloc(3, word[a + 8], word[t + 16])              ; m x y
+        return normalize(alloc(2, word[t + 16], b), fuel - 1) ; p y (m x y)
     }
-    return alloc(2, a, b)        ; stuck (does not happen for closed terms)
+    return alloc(3, a, word[t + 16])
 }
 
 proc term_eq(a, b) {
