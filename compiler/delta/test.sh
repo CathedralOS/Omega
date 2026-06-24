@@ -9,12 +9,15 @@ SEED=../alpha/$ALPHA_SEED
 ASM=../beta/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-# build check.exe via bc (cold-start bc through the on-ramp, then bc compiles check)
+# build a .beta program with bc (cold-start bc through the on-ramp once)
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
-../beta-lang-rs/build/bc.exe < check.beta > "$T/check.asm" || { echo "bc(check.beta) failed"; exit 1; }
-"$ASM" < "$T/check.asm" > "$T/check.tape" || { echo "assemble failed"; exit 1; }
-stamp_seed "$T/check.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1
-echo "check tape: $(wc -c < "$T/check.tape" | tr -d ' ') B (compiled by bc)"
+buildbc() { # src.beta -> $T/out.exe
+  ../beta-lang-rs/build/bc.exe < "$1" > "$T/p.asm" || { echo "bc($1) failed"; exit 1; }
+  "$ASM" < "$T/p.asm" > "$T/p.tape" || { echo "assemble $1 failed"; exit 1; }
+  stamp_seed "$T/p.tape" "$SEED" "$2" >/dev/null 2>&1
+  echo "$1 tape: $(wc -c < "$T/p.tape" | tr -d ' ') B (compiled by bc)"
+}
+buildbc check.beta "$T/check.exe"
 
 PASS=0; FAIL=0
 chk() { # description  "goal term"  expect
@@ -44,5 +47,19 @@ chk "or-commute"      "(-> (+ P Q) (+ Q P)) (lam (+ P Q) (case (hyp 0) (lam P (i
 chk "case to common"  "(-> (+ P P) P) (lam (+ P P) (case (hyp 0) (lam P (hyp 0)) (lam P (hyp 0))))"                  accept
 chk "branches differ" "(-> (+ P Q) P) (lam (+ P Q) (case (hyp 0) (lam P (hyp 0)) (lam Q (hyp 0))))"                  reject
 chk "inl wrong goal"  "(-> P (+ Q Q)) (lam P (inl Q (hyp 0)))"                                                       reject
-echo "delta check.beta: $PASS passed, $FAIL failed"
+
+# eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
+buildbc eq.beta "$T/eq.exe"
+eqk() { # description  "t1 t2"  expect
+  out=$(printf '%s' "$2" | "$T/eq.exe")
+  if [ "$out" = "$3" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL want $3 got '$out' : $1"; fi
+}
+eqk "2+2 = 4"         "(p (s (s z)) (s (s z)))  (s (s (s (s z))))"        equal
+eqk "0+n = n"         "(p z (s (s (s z))))  (s (s (s z)))"                equal
+eqk "n+0 = n"         "(p (s (s (s z))) z)  (s (s (s z)))"                equal
+eqk "associativity"  "(p (s z) (p (s (s z)) (s z)))  (p (p (s z) (s (s z))) (s z))" equal
+eqk "2+2 != 5"        "(p (s (s z)) (s (s z)))  (s (s (s (s (s z)))))"    differ
+eqk "1+1 != 1"        "(p (s z) (s z))  (s z)"                            differ
+
+echo "delta (check.beta + eq.beta): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

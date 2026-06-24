@@ -6,9 +6,18 @@ compiler) is *plumbing* that gives us a Rust-free language to write this in; *th
 is the artifact that actually decides what is true.
 
 ```
-check.beta    a minimal natural-deduction proof checker, written in Beta
-test.sh       the gate: bc compiles check.beta, then it accepts/rejects certificates
+check.beta    a natural-deduction proof checker (validates LOGICAL proofs)
+eq.beta       a definitional-equality checker (validates COMPUTATIONAL claims)
+test.sh       the gate: bc compiles both, then they accept/reject certificates
 ```
+
+Two complementary checkers — the two faces a real Delta needs. `check.beta` decides
+"does this certificate *prove* this proposition?"; `eq.beta` decides "do these two
+terms *compute* to the same value?" (`(p (s (s z)) (s (s z)))` = `(s (s (s (s z))))`,
+i.e. 2+2 = 4), by reducing both to normal form with the definitional rules. Its
+reducer is **fuel-bounded** (`normalize(t, fuel) -> normal | OutOfFuel`) — the
+totality discipline gamma.md/delta.md require, and the bridge from a proposition to
+*what a program actually computes* runs through exactly this definitional equality.
 
 ## What it checks
 

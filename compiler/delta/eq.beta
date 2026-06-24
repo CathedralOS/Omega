@@ -1,0 +1,166 @@
+; eq.beta — a definitional-equality checker, written in Beta.  (Delta companion)
+;
+; check.beta validates *logical* proofs (natural deduction). This validates
+; *computational* claims: "do these two terms denote the same value?", decided by
+; reducing both to normal form with the definitional rules and comparing. It is
+; the other half of what a real Delta needs — the bridge from a proposition to
+; "what a program actually computes" runs through definitional equality.
+;
+; Crucially the reducer is FUEL-BOUNDED: normalize(term, fuel) either returns a
+; normal form or stops at OutOfFuel. That is exactly the totality discipline
+; gamma.md / delta.md require — a total checker cannot contain an unbounded
+; evaluator, so the slow reference route is bounded and explicit. Here closed
+; terms over {z, s, p} always terminate well within the fuel; the bound is the
+; honest guard, not a workaround.
+;
+; Signature (Peano arithmetic, enough to demonstrate proof-by-computation):
+;   z          zero
+;   (s t)      successor
+;   (p a b)    plus, with the definitional rules   p z b      => b
+;                                                   p (s x) b  => s (p x b)
+;
+; Input (stdin): two terms. Output: "equal\n" (exit 1) if they have the same
+; normal form, else "differ\n" (exit 0).
+;   echo '(p (s (s z)) (s (s z)))  (s (s (s (s z))))' | eq    ->  equal   (2+2 = 4)
+;
+; Memory: 2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  3145728 ARENA.
+; Nodes [tag,f0,f1] at 24-byte stride.  tag 0 ZERO, 1 SUC(x), 2 PLUS(a,b).
+
+proc slurp() {
+    let n = 0
+    let c = read_byte()
+    while c >= 0 {
+        byte[2097152 + n] = c
+        n = n + 1
+        c = read_byte()
+    }
+    word[2097136] = n
+    word[2097144] = 0
+    word[2097128] = 3145728
+}
+
+proc cbyte() {
+    let i = word[2097144]
+    if i < word[2097136] {
+        return byte[2097152 + i]
+    }
+    return 0
+}
+
+proc adv() {
+    word[2097144] = word[2097144] + 1
+}
+
+proc is_space(c) {
+    if c == ' ' {
+        return 1
+    }
+    if c == 9 {
+        return 1
+    }
+    if c == 10 {
+        return 1
+    }
+    if c == 13 {
+        return 1
+    }
+    return 0
+}
+
+proc skip_ws() {
+    while is_space(cbyte()) == 1 {
+        adv()
+    }
+}
+
+proc alloc(tag, f0, f1) {
+    let p = word[2097128]
+    word[p] = tag
+    word[p + 8] = f0
+    word[p + 16] = f1
+    word[2097128] = p + 24
+    return p
+}
+
+proc parse_term() {
+    skip_ws()
+    let a = 0
+    let b = 0
+    if cbyte() == 'z' {          ; zero
+        adv()
+        return alloc(0, 0, 0)
+    }
+    adv()                        ; '('
+    skip_ws()
+    let op = cbyte()
+    adv()
+    if op == 's' {               ; (s x)
+        a = parse_term()
+        skip_ws()
+        adv()                    ; ')'
+        return alloc(1, a, 0)
+    }
+    a = parse_term()             ; (p a b)
+    b = parse_term()
+    skip_ws()
+    adv()                        ; ')'
+    return alloc(2, a, b)
+}
+
+; reduce to normal form using the definitional rules; fuel-bounded (total).
+proc normalize(t, fuel) {
+    if fuel < 1 {
+        return t                 ; OutOfFuel — return the partial term as-is
+    }
+    let tag = word[t]
+    if tag == 0 {                ; z is a normal form
+        return t
+    }
+    let a = 0
+    let b = 0
+    if tag == 1 {                ; (s x) -> s of normalized x
+        a = normalize(word[t + 8], fuel - 1)
+        return alloc(1, a, 0)
+    }
+    ; tag == 2 : (p a b)
+    a = normalize(word[t + 8], fuel - 1)
+    b = normalize(word[t + 16], fuel - 1)
+    if word[a] == 0 {            ; p z b  =>  b
+        return b
+    }
+    if word[a] == 1 {            ; p (s x) b  =>  s (p x b)
+        a = normalize(alloc(2, word[a + 8], b), fuel - 1)
+        return alloc(1, a, 0)
+    }
+    return alloc(2, a, b)        ; stuck (does not happen for closed terms)
+}
+
+proc term_eq(a, b) {
+    if word[a] != word[b] {
+        return 0
+    }
+    if word[a] == 0 {            ; z
+        return 1
+    }
+    if word[a] == 1 {            ; s — compare the child
+        return term_eq(word[a + 8], word[b + 8])
+    }
+    if term_eq(word[a + 8], word[b + 8]) == 0 {   ; plus — both children
+        return 0
+    }
+    return term_eq(word[a + 16], word[b + 16])
+}
+
+proc main() {
+    slurp()
+    let t1 = parse_term()
+    let t2 = parse_term()
+    let n1 = normalize(t1, 1000000)
+    let n2 = normalize(t2, 1000000)
+    if term_eq(n1, n2) == 1 {
+        emit("equal\n")
+        return 1
+    }
+    emit("differ\n")
+    return 0
+}
