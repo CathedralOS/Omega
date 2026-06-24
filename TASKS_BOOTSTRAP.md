@@ -30,7 +30,8 @@ honest edges) lives in
 | `compiler/alpha/` | **The seed**: a 21-opcode register tape VM. **Two independent hand-authored realizations** — x64 Windows PE (`.exe` + audited `.hex`) and arm64 macOS Mach-O (`alpha_arm64_macos` + `.s` + `.lst`). The provenance root, and the first lattice diamond (same source → byte-identical tapes on both). | DONE (x64 + arm64-macOS) |
 | `compiler/beta/` | **The assembler** (`assembler.alpha`, written in Alpha assembly) + the Beta-language docs/examples. | DONE — self-hosts byte-identically |
 | `compiler/beta-rs/` | Throwaway Rust on-ramp for the *assembler* (cold-start only). | parked |
-| `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | **ACTIVE** — slices 1–6 done; self-check passed |
+| `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | slices 1–6 done; self-check passed |
+| `compiler/beta-lang/` | The Beta compiler **written in Beta** (`bc.beta`) — the self-hosting path (slice 7). | **ACTIVE** — slice 1 (arithmetic) done |
 | `compiler/gamma/` | A v13 imperative language; compiler hand-written in Alpha asm (`gamma.alpha`). The thing Beta exists to **supersede**. | parked at v13 |
 | `compiler/epsilon*`, `compiler/alpha-rs` | Old/renamed experiment soup. | **IGNORE** |
 | `compiler/omega-rs/` | The real Omega compiler, in Rust. Separate concern: the *producer*, not the lattice. | (other workstream) |
@@ -73,9 +74,17 @@ write in it. The next move is the transcription, not more features.
 
 ## Roadmap (next)
 
-7. **Transcribe** the trusted Beta compiler to Alpha assembly — the *one* time we
-   write a structured-language compiler in assembly — cross-check it against
-   `beta-lang-rs` (a "diamond"), and discard the Rust on-ramp.
+7. **Self-hosting Beta compiler — IN PROGRESS.** Rather than hand-write the
+   compiler in assembly (the old framing), it is being written *in Beta*
+   (`compiler/beta-lang/bc.beta`) and lowered through the on-ramp — the same
+   on-ramp-then-discard pattern the assembler uses, reaching a self-hosting fixed
+   point (`bc` compiles `bc.beta` to a tape that recompiles `bc.beta` identically).
+   Slice 1 (arithmetic) **done + gated** (`sh compiler/beta-lang/test.sh`, 8/8).
+   **Blocker surfaced:** `bc.beta` at slice 1 already lowers to a ~15.5 KB tape
+   (the `emit` host-string lowering costs ~12 tape bytes per output character), so
+   the full compiler will exceed the **32 KB tape hole**. Finishing slice 7 needs
+   either the hole-as-parameter VM change (both seeds) or a compact string-emit
+   (assembler `.db` data + a `write_str` loop). See `compiler/beta-lang/README.md`.
 8. **Rewrite gamma in Beta**, retiring `gamma.alpha` (this is the whole point:
    never hand-write a compiler in assembly again).
 9. **Climb:** Delta (the checker / evidence rung — where trust actually starts),

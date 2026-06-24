@@ -1,0 +1,243 @@
+; bc.beta — the Beta compiler, WRITTEN IN BETA.  (slice 1: arithmetic)
+;
+; Reads Beta source on stdin, emits Alpha assembly on stdout — the same job as
+; the Rust on-ramp `beta-lang-rs`, but written in Beta itself. This is the
+; self-hosting path (slice 7): once bc.beta compiles its own source to a fixed
+; point, Rust leaves the lineage (it only cold-starts the first bc, exactly as
+; beta-rs cold-starts the assembler).
+;
+; SLICE 1 handles exactly:  proc main() { return <expr> }  where <expr> is integer
+; arithmetic with + - * / %, parentheses, and the usual precedence. Verified by
+; running the emitted program: its exit code equals the arithmetic value. Built
+; slice-by-slice, mirroring how beta-lang-rs was grown.
+;
+; The codegen is a stack machine matching beta-lang-rs: each (sub)expression
+; leaves its value in r0; a binary op pushes the left onto the r15 data stack,
+; computes the right into r0, then pops the left into r1-then-r0 and combines.
+;
+; Memory, above the 1 MiB data stack:  buf=2 MiB source; buf-8 cursor; buf-16 len.
+
+proc main() {
+    let buf = 2097152
+    let n = 0
+    let c = read_byte()
+    while c >= 0 {                       ; slurp stdin (read_byte() = -1 at EOF)
+        byte[buf + n] = c
+        n = n + 1
+        c = read_byte()
+    }
+    word[buf - 16] = n                   ; length
+    word[buf - 8] = 0                    ; cursor
+    skip_to_return(buf)                  ; past `proc main() { return`
+    emit_header()
+    gen_expr(buf)                        ; the return expression
+    emit_epilogue()                      ; the `return` tear-down
+    emit_epilogue()                      ; the fall-through tear-down (matches on-ramp)
+    return 0
+}
+
+; ---- cursor over the source buffer ----
+
+proc peek(buf) {                         ; byte at cursor, or 0 (sentinel) past end
+    let i = word[buf - 8]
+    if i < word[buf - 16] {
+        return byte[buf + i]
+    }
+    return 0
+}
+
+proc advance(buf) {
+    word[buf - 8] = word[buf - 8] + 1
+}
+
+proc skip_ws(buf) {
+    while peek(buf) == ' ' {
+        advance(buf)
+    }
+}
+
+; ---- character classes ----
+
+proc is_digit(c) {
+    if c < '0' {
+        return 0
+    }
+    if c > '9' {
+        return 0
+    }
+    return 1
+}
+
+proc is_muldiv(c) {
+    if c == '*' {
+        return 1
+    }
+    if c == '/' {
+        return 1
+    }
+    if c == '%' {
+        return 1
+    }
+    return 0
+}
+
+proc is_addsub(c) {
+    if c == '+' {
+        return 1
+    }
+    if c == '-' {
+        return 1
+    }
+    return 0
+}
+
+proc parse_number(buf) {
+    let v = 0
+    while is_digit(peek(buf)) {
+        v = v * 10 + (peek(buf) - '0')
+        advance(buf)
+    }
+    return v
+}
+
+; advance the cursor past the literal keyword `return` (skip the fixed prologue).
+proc skip_to_return(buf) {
+    while is_return_here(buf) == 0 {
+        advance(buf)
+    }
+    let k = 0
+    while k < 6 {                        ; consume r e t u r n
+        advance(buf)
+        k = k + 1
+    }
+}
+
+proc is_return_here(buf) {
+    let i = word[buf - 8]
+    if byte[buf + i] == 'r' {
+        if byte[buf + i + 1] == 'e' {
+            if byte[buf + i + 2] == 't' {
+                if byte[buf + i + 3] == 'u' {
+                    if byte[buf + i + 4] == 'r' {
+                        if byte[buf + i + 5] == 'n' {
+                            return 1
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0
+}
+
+; ---- emit decimal of a non-negative integer (into the asm text) ----
+proc emit_dec(n) {
+    if n >= 10 {
+        emit_dec(n / 10)
+    }
+    write_byte(n % 10 + '0')
+}
+
+; ---- fixed asm fragments ----
+
+proc emit_header() {
+    emit("; bc.beta (Beta -> Alpha assembly)\n")
+    emit("        imm   r15, 1048576\n")
+    emit("        imm   r14, 1048576\n")
+    emit("        call  main\n")
+    emit("        halt  r0\n")
+    emit("main:\n")
+    emit("        imm   r2, 8\n")
+    emit("        sub   r15, r2\n")
+    emit("        store r15, r14\n")
+    emit("        mov   r14, r15\n")
+}
+
+proc emit_epilogue() {
+    emit("        mov   r15, r14\n")
+    emit("        load  r14, r15\n")
+    emit("        imm   r2, 8\n")
+    emit("        add   r15, r2\n")
+    emit("        ret\n")
+}
+
+proc emit_push() {                       ; push r0 onto the r15 data stack
+    emit("        imm   r2, 8\n")
+    emit("        sub   r15, r2\n")
+    emit("        store r15, r0\n")
+}
+
+proc emit_mnemonic(op) {
+    if op == '+' {
+        emit("add")
+    }
+    if op == '-' {
+        emit("sub")
+    }
+    if op == '*' {
+        emit("mul")
+    }
+    if op == '/' {
+        emit("div")
+    }
+    if op == '%' {
+        emit("mod")
+    }
+}
+
+; r0 = right operand; pop the saved left into r0, move right to r1, combine.
+proc emit_combine(op) {
+    emit("        mov   r1, r0\n")
+    emit("        load  r0, r15\n")
+    emit("        imm   r5, 8\n")
+    emit("        add   r15, r5\n")
+    emit("        ")
+    emit_mnemonic(op)
+    emit("   r0, r1\n")
+}
+
+; ---- recursive-descent codegen (precedence: expr -> term -> factor) ----
+
+proc gen_factor(buf) {
+    skip_ws(buf)
+    if peek(buf) == '(' {
+        advance(buf)
+        gen_expr(buf)
+        skip_ws(buf)
+        advance(buf)                     ; consume ')'
+        return 0
+    }
+    let v = parse_number(buf)
+    emit("        imm   r0, ")
+    emit_dec(v)
+    emit("\n")
+    return 0
+}
+
+proc gen_term(buf) {
+    gen_factor(buf)
+    skip_ws(buf)
+    while is_muldiv(peek(buf)) {
+        let op = peek(buf)
+        advance(buf)
+        emit_push()
+        gen_factor(buf)
+        emit_combine(op)
+        skip_ws(buf)
+    }
+    return 0
+}
+
+proc gen_expr(buf) {
+    gen_term(buf)
+    skip_ws(buf)
+    while is_addsub(peek(buf)) {
+        let op = peek(buf)
+        advance(buf)
+        emit_push()
+        gen_term(buf)
+        emit_combine(op)
+        skip_ws(buf)
+    }
+    return 0
+}
