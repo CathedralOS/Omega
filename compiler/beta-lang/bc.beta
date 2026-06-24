@@ -33,6 +33,18 @@ proc slurp() {
     word[2097136] = n        ; LEN
     word[2097144] = 0        ; CUR
     word[2097128] = 0        ; NLOC
+    word[2097104] = 0        ; LBL (label counter)
+}
+
+proc new_label() {
+    let n = word[2097104]
+    word[2097104] = n + 1
+    return n
+}
+
+proc emit_lref(n) {          ; emit a label name _L<n>
+    emit("_L")
+    emit_dec(n)
 }
 
 proc cur() {
@@ -166,6 +178,49 @@ proc is_return() {
                             if id_char(5) == 'n' {
                                 return 1
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0
+}
+
+proc is_if() {
+    if word[2097112] == 2 {
+        if id_char(0) == 'i' {
+            if id_char(1) == 'f' {
+                return 1
+            }
+        }
+    }
+    return 0
+}
+
+proc is_else() {
+    if word[2097112] == 4 {
+        if id_char(0) == 'e' {
+            if id_char(1) == 'l' {
+                if id_char(2) == 's' {
+                    if id_char(3) == 'e' {
+                        return 1
+                    }
+                }
+            }
+        }
+    }
+    return 0
+}
+
+proc is_while() {
+    if word[2097112] == 5 {
+        if id_char(0) == 'w' {
+            if id_char(1) == 'h' {
+                if id_char(2) == 'i' {
+                    if id_char(3) == 'l' {
+                        if id_char(4) == 'e' {
+                            return 1
                         }
                     }
                 }
@@ -432,7 +487,7 @@ proc gen_term() {
     return 0
 }
 
-proc gen_expr() {
+proc gen_sum() {
     gen_term()
     skip_ws()
     while is_addsub(cbyte()) == 1 {
@@ -446,11 +501,179 @@ proc gen_expr() {
     return 0
 }
 
+; comparison operator at the cursor -> code 0..5 (consumed), or -1 if none.
+;   0 '<'   1 '>'   2 '=='   3 '!='   4 '<='   5 '>='
+proc cmp_op() {
+    let c = cbyte()
+    if c == '<' {
+        adv()
+        if cbyte() == '=' {
+            adv()
+            return 4
+        }
+        return 0
+    }
+    if c == '>' {
+        adv()
+        if cbyte() == '=' {
+            adv()
+            return 5
+        }
+        return 1
+    }
+    if c == '!' {
+        adv()
+        adv()                ; '!='
+        return 3
+    }
+    if c == '=' {
+        let i = word[2097144]
+        if byte[2097152 + i + 1] == '=' {
+            adv()
+            adv()
+            return 2
+        }
+    }
+    return 0 - 1
+}
+
+; r0 = right operand; pop left into r0 (right into r1), branch-materialize 0/1.
+proc emit_cmp(code) {
+    emit("mov r1,r0\n")
+    emit("load r0,r15\n")
+    emit("imm r5,8\n")
+    emit("add r15,r5\n")
+    let set = new_label()
+    let done = new_label()
+    if code == 0 {
+        emit("jlt r0,r1,")
+    }
+    if code == 1 {
+        emit("jlt r1,r0,")
+    }
+    if code == 2 {
+        emit("jeq r0,r1,")
+    }
+    if code == 3 {
+        emit("jeq r0,r1,")
+    }
+    if code == 4 {
+        emit("jlt r1,r0,")
+    }
+    if code == 5 {
+        emit("jlt r0,r1,")
+    }
+    emit_lref(set)
+    emit("\n")
+    if code < 3 {
+        emit("imm r0,0\n")   ; fall-through value
+    } else {
+        emit("imm r0,1\n")
+    }
+    emit("jmp ")
+    emit_lref(done)
+    emit("\n")
+    emit_lref(set)
+    emit(":\n")
+    if code < 3 {
+        emit("imm r0,1\n")   ; branch-taken value
+    } else {
+        emit("imm r0,0\n")
+    }
+    emit_lref(done)
+    emit(":\n")
+    return 0
+}
+
+proc gen_expr() {
+    gen_sum()
+    skip_ws()
+    let code = cmp_op()
+    if code >= 0 {
+        emit_push()
+        gen_sum()
+        emit_cmp(code)
+    }
+    return 0
+}
+
 ; ---------------- statements ----------------
+
+proc gen_stmts() {               ; parse statements until '}', consume the '}'
+    skip_ws()
+    while cbyte() != '}' {
+        if cbyte() == 0 {
+            return 0
+        }
+        gen_stmt()
+        skip_ws()
+    }
+    adv()
+    return 0
+}
+
+proc gen_block() {               ; { statements }
+    expect('{')
+    gen_stmts()
+    return 0
+}
+
+; was there an `else` next? consume it and return 1, else leave the cursor and 0.
+proc has_else() {
+    skip_ws()
+    let save = word[2097144]
+    if is_alpha(cbyte()) == 1 {
+        read_ident()
+        if is_else() == 1 {
+            return 1
+        }
+    }
+    word[2097144] = save
+    return 0
+}
+
+proc gen_if() {
+    let elsel = new_label()
+    let endl = new_label()
+    gen_expr()                   ; condition -> r0
+    emit("jz r0,")
+    emit_lref(elsel)
+    emit("\n")
+    gen_block()                  ; then-block
+    emit("jmp ")
+    emit_lref(endl)
+    emit("\n")
+    emit_lref(elsel)
+    emit(":\n")
+    if has_else() == 1 {
+        gen_block()              ; else-block
+    }
+    emit_lref(endl)
+    emit(":\n")
+    return 0
+}
+
+proc gen_while() {
+    let top = new_label()
+    let endl = new_label()
+    emit_lref(top)
+    emit(":\n")
+    gen_expr()                   ; condition -> r0
+    emit("jz r0,")
+    emit_lref(endl)
+    emit("\n")
+    gen_block()                  ; body
+    emit("jmp ")
+    emit_lref(top)
+    emit("\n")
+    emit_lref(endl)
+    emit(":\n")
+    return 0
+}
 
 proc gen_stmt() {
     skip_ws()
-    read_ident()                 ; statements start with let / return / an lvalue
+    read_ident()                 ; let / return / if / while / an lvalue
     let slot = 0                 ; one declaration (Beta locals are function-scoped)
     if is_let() == 1 {
         skip_ws()
@@ -466,6 +689,14 @@ proc gen_stmt() {
         emit_epilogue()
         return 0
     }
+    if is_if() == 1 {
+        gen_if()
+        return 0
+    }
+    if is_while() == 1 {
+        gen_while()
+        return 0
+    }
     ; otherwise the ident just read is an assignment target
     slot = lookup()
     expect('=')
@@ -474,25 +705,12 @@ proc gen_stmt() {
     return 0
 }
 
-proc gen_body() {
-    skip_ws()
-    while cbyte() != '}' {
-        if cbyte() == 0 {
-            return 0
-        }
-        gen_stmt()
-        skip_ws()
-    }
-    adv()                        ; consume '}'
-    return 0
-}
-
 proc main() {
     slurp()
     skip_to_lbrace()             ; past `proc main () {`
     let nslots = count_lets()
     emit_header(nslots)
-    gen_body()
+    gen_stmts()                  ; cursor is just after the opening '{'
     emit_epilogue()              ; fall-through tear-down (matches on-ramp)
     return 0
 }
