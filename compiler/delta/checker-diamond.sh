@@ -65,5 +65,7 @@ dia "identity step"  "(-> (Pred 0 z) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))
 # the capstone: ∀n.(n+0 = n) proved by induction + Leibniz eqelim — both checkers agree
 dia "n+0=n by induct" "(All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0)) (refl z) (gen (lam (= (p (v 0) z) (v 0)) (eqelim (= (s (p (v 1) z)) (s (v 0))) (hyp 0) (refl (s (p (v 0) z)))))))" "(check (Natind (Eq (Pl (Iv 0) Ze) (Iv 0)) (Refl Ze) (Gen (Lam (Eq (Pl (Iv 0) Ze) (Iv 0)) (Eqelim (Eq (Su (Pl (Iv 1) Ze)) (Su (Iv 0))) (Hyp 0) (Refl (Su (Pl (Iv 0) Ze))))))) (All (Eq (Pl (Iv 0) Ze) (Iv 0))))" accept
 dia "n*0=0 by induct" "(All (= (m (v 0) z) z)) (natind (= (m (v 0) z) z) (refl z) (gen (lam (= (m (v 0) z) z) (hyp 0))))" "(check (Natind (Eq (Mu (Iv 0) Ze) Ze) (Refl Ze) (Gen (Lam (Eq (Mu (Iv 0) Ze) Ze) (Hyp 0)))) (All (Eq (Mu (Iv 0) Ze) Ze)))" accept
+dia "0 != 1 (disj)"  "(-> (= z (s z)) (bot)) (lam (= z (s z)) (disj (hyp 0)))" "(check (Lam (Eq Ze (Su Ze)) (Disj (Hyp 0))) (Arrow (Eq Ze (Su Ze)) Bot))" accept
+dia "succ injective" "(-> (= (s (v 0)) (s z)) (= (v 0) z)) (lam (= (s (v 0)) (s z)) (sinj (hyp 0)))" "(check (Lam (Eq (Su (Iv 0)) (Su Ze)) (Sinj (Hyp 0))) (Arrow (Eq (Su (Iv 0)) (Su Ze)) (Eq (Iv 0) Ze)))" accept
 echo "checker diamond (check.beta vs checker.gamma): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
