@@ -30,7 +30,7 @@ honest edges) lives in
 | `compiler/alpha/` | **The seed**: a 21-opcode register tape VM. **Two independent hand-authored realizations** — x64 Windows PE (`.exe` + audited `.hex`) and arm64 macOS Mach-O (`alpha_arm64_macos` + `.s` + `.lst`). The provenance root, and the first lattice diamond (same source → byte-identical tapes on both). | DONE (x64 + arm64-macOS) |
 | `compiler/beta/` | **The assembler** (`assembler.alpha`, written in Alpha assembly) + the Beta-language docs/examples. | DONE — self-hosts byte-identically |
 | `compiler/beta-rs/` | Throwaway Rust on-ramp for the *assembler* (cold-start only). | parked |
-| `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | **ACTIVE** — slices 1–4 done |
+| `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | **ACTIVE** — slices 1–6 done; self-check passed |
 | `compiler/gamma/` | A v13 imperative language; compiler hand-written in Alpha asm (`gamma.alpha`). The thing Beta exists to **supersede**. | parked at v13 |
 | `compiler/epsilon*`, `compiler/alpha-rs` | Old/renamed experiment soup. | **IGNORE** |
 | `compiler/omega-rs/` | The real Omega compiler, in Rust. Separate concern: the *producer*, not the lattice. | (other workstream) |
@@ -42,28 +42,37 @@ language (tiny-C / Oberon-0 shape) so we stop hand-writing compilers in assembly
 `beta-lang-rs` compiles `.beta` → Alpha assembly; the assembler lowers it; the seed
 runs it. (It's a *throwaway Rust on-ramp* — see "on-ramp pattern" below.)
 
-Slices 1–4 done and **verified on the seed**:
+Slices 1–6 done and **verified on the seed**:
 
 1. arithmetic
 2. procedures, ≤4 params, calls (the calling convention, generated mechanically)
 3. `if`/`else`, `while`, `let` locals, assignment, comparisons → **recursion + loops**
 4. explicit memory (`byte[]` / `word[]`) → raw arrays/buffers
+5. ergonomics + host boundary: char literals (`'a'` + escapes), `read_byte()`/
+   `write_byte(x)` intrinsics, call-as-statement
+6. **the self-check** (see below)
 
 8 example programs pass (`answer 42 · double 42 · calls 10 · factorial 120 · fib 55
 · sumto 55 · arrays 30 · bytes 131`). `factorial.beta`/`fib.beta` produce the same
 answers as the hand-written `.alpha` proofs in `compiler/beta/examples/`.
 
-**Key judgment:** Beta is now *more capable than the assembler ever was* (the
-assembler was hand-written in raw asm with none of procedures/recursion/locals/
-memory), so it is plausibly already compiler-grade. The next move is to **prove
-that**, not to pile on features.
+**Self-check PASSED (slice 6).** [`beta-lang-rs/examples/calc.beta`](compiler/beta-lang-rs/examples/calc.beta)
+is a **recursive-descent calculator written in Beta** — reads an arithmetic
+expression from stdin (decimal ints, `+ - * /`, parens, precedence, whitespace),
+evaluates it, prints the decimal result, returns it as the exit code. It exercises
+the whole surface (char literals, the I/O boundary, a memory-backed buffer +
+cursor, recursion through the grammar). `2+3*4`→14, `(2+3)*4`→20, `2*(3+4)*5`→70;
+calc tape ≈ 6.7 KB. `sh compiler/beta-lang-rs/test.sh` runs the gate (8 examples +
+9 calc cases, all green). **Beta is now demonstrably compiler-grade** — the key
+judgment below is confirmed, not just plausible.
+
+**Key judgment (confirmed):** Beta is *more capable than the assembler ever was*
+(the assembler was hand-written in raw asm with none of procedures/recursion/
+locals/memory), and the self-check proves a real parser/evaluator is pleasant to
+write in it. The next move is the transcription, not more features.
 
 ## Roadmap (next)
 
-5. **Ergonomics:** char literals (`'a'`), plus anything small the self-check needs.
-6. **Self-check:** write something genuinely compiler-shaped *in Beta* (a tokenizer
-   or tiny expression evaluator) to confirm the language is pleasant to write a
-   compiler in.
 7. **Transcribe** the trusted Beta compiler to Alpha assembly — the *one* time we
    write a structured-language compiler in assembly — cross-check it against
    `beta-lang-rs` (a "diamond"), and discard the Rust on-ramp.

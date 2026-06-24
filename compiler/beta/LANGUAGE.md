@@ -37,15 +37,19 @@ statement  := 'let' IDENT '=' expr            ; declare + init a local
 expr       := sum (cmpop sum)?                ; a comparison yields 0 / 1
 sum        := term (('+' | '-') term)*
 term       := factor (('*' | '/' | '%') factor)*
-factor     := INT | IDENT | call | load | '(' expr ')'
+factor     := INT | CHAR | IDENT | call | load | '(' expr ')'
 call       := IDENT '(' (expr (',' expr)*)? ')'
 load       := 'byte' '[' expr ']'   |   'word' '[' expr ']'
 store      := ('byte' | 'word') '[' expr ']' '=' expr
 cmpop      := '<' | '>' | '==' | '<=' | '>=' | '!='
+CHAR       := "'" (char | '\' ('n'|'t'|'r'|'0'|'\'|"'")) "'"   ; the byte value
 ```
 
 `;`-to-end-of-line comments. `read_byte()` / `write_byte(x)` are built-in calls
-(the only host boundary, straight to Alpha `read`/`write`).
+(the only host boundary, straight to Alpha `read`/`write`); a call may also stand
+alone as a statement (`f(x)`), evaluated for effect with its result discarded.
+A char literal `'a'` is just its byte value (an `INT`), so text-processing code
+reads in characters instead of magic numbers (`peek() - '0'`, `c == '('`).
 
 ## Lowering (every construct maps to what we already have)
 
@@ -71,9 +75,12 @@ codegen, reused.
 2. Procedures + locals + `return` over the convention (the new codegen).
 3. Explicit memory (`byte[]`/`word[]`) — gives arrays/buffers without records.
 4. Named identifiers + a symbol table (beyond gamma's fixed `a`–`j`).
-5. Self-check: write a non-trivial program in Beta (e.g. re-express the assembler's
-   core loop) to confirm it is actually pleasant to write a compiler in.
-6. Then: rewrite gamma **in Beta**, never again in assembly.
+5. ✅ Ergonomics: char literals (`'a'`), `read_byte`/`write_byte` intrinsics,
+   call-as-statement.
+6. ✅ Self-check: a recursive-descent calculator written in Beta
+   (`beta-lang-rs/examples/calc.beta`) — reads an expression from stdin, evaluates
+   with precedence + parens, prints the result. Confirms Beta is compiler-grade.
+7. Then: rewrite gamma **in Beta**, never again in assembly.
 
 ## Open questions (to iterate)
 

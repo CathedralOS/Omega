@@ -94,6 +94,37 @@ fn lex(src: &str) -> Vec<Tok> {
             });
             continue;
         }
+        if c == b'\'' {
+            // char literal: 'x' or '\n' '\t' '\r' '\0' '\\' '\'' -> the byte value
+            i += 1;
+            if i >= b.len() {
+                panic!("beta-lang: unterminated char literal");
+            }
+            let v: i64 = if b[i] == b'\\' {
+                i += 1;
+                match b.get(i) {
+                    Some(b'n') => 10,
+                    Some(b't') => 9,
+                    Some(b'r') => 13,
+                    Some(b'0') => 0,
+                    Some(b'\\') => 92,
+                    Some(b'\'') => 39,
+                    other => panic!(
+                        "beta-lang: unknown escape '\\{}'",
+                        other.map(|c| *c as char).unwrap_or('?')
+                    ),
+                }
+            } else {
+                b[i] as i64
+            };
+            i += 1;
+            if i >= b.len() || b[i] != b'\'' {
+                panic!("beta-lang: unterminated char literal");
+            }
+            i += 1;
+            toks.push(Tok::Int(v));
+            continue;
+        }
         let c2 = if i + 1 < b.len() { b[i + 1] } else { 0 };
         let (tok, adv) = match c {
             b'(' => (Tok::LParen, 1),
@@ -141,6 +172,7 @@ enum Stmt {
     If(usize, Vec<Stmt>, Vec<Stmt>),  // cond, then, else
     While(usize, Vec<Stmt>),          // cond, body
     Store(u8, usize, usize),          // width, address, value
+    CallStmt(usize),                  // call expr evaluated for effect (result discarded)
 }
 
 struct Proc {
@@ -283,10 +315,16 @@ impl Parser {
                 Stmt::Store(w, addr, val)
             }
             Tok::Ident(_) => {
-                let name = self.ident();
-                self.eat(Tok::Assign);
-                let e = self.expr();
-                Stmt::Assign(self.slot_of(&name), e)
+                // `f(args)` -> call for effect; `x = e` -> assignment.
+                if self.toks[self.pos + 1] == Tok::LParen {
+                    let e = self.expr(); // factor() parses the whole call
+                    Stmt::CallStmt(e)
+                } else {
+                    let name = self.ident();
+                    self.eat(Tok::Assign);
+                    let e = self.expr();
+                    Stmt::Assign(self.slot_of(&name), e)
+                }
             }
             _ => panic!("beta-lang: expected a statement"),
         }
@@ -473,6 +511,18 @@ impl<'a> Gen<'a> {
             Node::Call(name, args) => {
                 let name = name.clone();
                 let args = args.clone();
+                // Built-in host-boundary intrinsics (the only path to Alpha read/write).
+                if name == "read_byte" {
+                    assert!(args.is_empty(), "beta-lang: read_byte() takes no arguments");
+                    self.line("read  r0"); // -> byte in r0, or -1 at EOF
+                    return;
+                }
+                if name == "write_byte" {
+                    assert!(args.len() == 1, "beta-lang: write_byte(x) takes one argument");
+                    self.expr(args[0]);
+                    self.line("write r0"); // write low byte of r0
+                    return;
+                }
                 for &a in &args {
                     self.expr(a);
                     self.push_r0(); // stage args left-to-right
@@ -552,6 +602,9 @@ impl<'a> Gen<'a> {
                 } else {
                     self.line("store r1, r0");
                 }
+            }
+            Stmt::CallStmt(e) => {
+                self.expr(*e); // evaluate for effect; result in r0 is discarded
             }
         }
     }
