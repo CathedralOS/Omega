@@ -69,6 +69,8 @@ term        := ( hyp N ) | ( lam prop term ) | ( app term term )
              | ( inl prop term ) | ( inr prop term ) | ( case term term term )
              | ( absurd prop term ) | ( refl nat )
              | ( gen term ) | ( inst term nat ) | ( wit prop nat term ) | ( unpack term term )
+             | ( natind prop term term )    ; Peano induction: base P(0), step ∀n.P(n)->P(s n)
+             | ( eqelim prop term term )    ; Leibniz: motive P, pf of a=b, pf of P(a) -> P(b)
 ```
 
 Output: `accept` (exit 1) iff the term proves the goal, else `reject` (exit 0).
@@ -131,18 +133,23 @@ the difference is the point:
   fully annotated, and Gamma's own static type checker (`gamma/typeck.beta`) accepts
   it — so the trust anchor's *code* is shown statically type-safe.
 
-The logic is now **complete first-order intuitionistic predicate logic**: all
-propositional connectives, equality with the conversion rule, and `∀`/`∃` with
-capture-avoiding instantiation over unary and binary predicates. `gen`'s freshness
-guard and `inst`'s de Bruijn shifting are *adversarially* tested — including a
-capture discriminator a buggy substitution would fail — and `soundness.sh` confirms
-no false certificate (nor any non-constructive classical tautology) gets through.
+The logic is now **first-order intuitionistic predicate logic with induction**: all
+propositional connectives, equality with the conversion rule, `∀`/`∃` with
+capture-avoiding instantiation over unary and binary predicates, **Peano induction**
+(`natind`), and **Leibniz equality elimination** (`eqelim`, the identity-type `J` /
+transport). Together those prove genuine arithmetic — e.g. `∀n. n+0 = n`, which the
+conversion rule cannot reach on its own (`n+0` is stuck), is proved by induction with
+`eqelim` rewriting along the hypothesis. Every soundness-critical rule is
+*adversarially* tested: `gen`'s freshness guard and `inst`'s de Bruijn shifting
+against a capture discriminator, and `natind` against an identity-shaped step that a
+broken rule would use to derive `∀n.P(n)` from `P(0)` alone. `soundness.sh` confirms
+no false certificate — nor any non-constructive classical tautology — gets through.
 
 What it is **not** (yet), tracked in `rungs/delta.md`:
 
-- **No induction.** First-order logic reasons about individuals but cannot yet prove
-  `∀n. P(n)` by induction — that needs an inductive `Nat` with a recursor / dependent
-  elimination, i.e. dependent types, which is the Omega rung's job.
+- **No no-confusion / disjointness** (`s n ≠ 0`, injectivity of `s`). Induction and
+  `eqelim` give the *positive* Peano reasoning; the negative axioms (needed to refute
+  equations) are not yet rules.
 - **No soundness bridge** to program execution. `semantics-diamond.sh` *exhibits* the
   gamma/delta seam (the checker's definitional `=` agreeing with the interpreter's
   operational evaluation), but the theorem `provable ⟹ true-about-the-reference-
@@ -151,4 +158,4 @@ What it is **not** (yet), tracked in `rungs/delta.md`:
 
 The thing the whole architecture exists to produce — a tiny, hand-auditable checker
 with sole authority over what is true — is here, end-to-end runnable on the seed,
-doing real first-order logic, and double-checked by an independent twin.
+proving real arithmetic by induction, and double-checked by an independent twin.

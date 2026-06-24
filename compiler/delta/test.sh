@@ -95,6 +95,8 @@ chk "transport"      "(-> (Pred 0 (p (s z) (s z))) (Pred 0 (s (s z)))) (lam (Pre
 chk "n+0=n induction" "(All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0)) (refl z) (gen (lam (= (p (v 0) z) (v 0)) (eqelim (= (s (p (v 1) z)) (s (v 0))) (hyp 0) (refl (s (p (v 0) z)))))))" accept
 chk "n+0=n not refl"  "(All (= (p (v 0) z) (v 0))) (gen (refl (v 0)))"                                            reject
 chk "eqelim mismatch" "(-> (Pred 0 (s z)) (Pred 0 (s (s z)))) (lam (Pred 0 (s z)) (eqelim (Pred 0 (v 0)) (refl (s (s z))) (hyp 0)))" reject
+chk "n*0=0 induction" "(All (= (m (v 0) z) z)) (natind (= (m (v 0) z) z) (refl z) (gen (lam (= (m (v 0) z) z) (hyp 0))))" accept
+chk "0*n=0 definit'l" "(All (= (m z (v 0)) z)) (gen (refl z))"                                                  accept
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
