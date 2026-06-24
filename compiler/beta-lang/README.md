@@ -39,11 +39,20 @@ sh test.sh        # builds bc, compiles arithmetic programs with it, checks resu
   `;` comments) and a per-proc symbol table, so `let` locals, assignment, and
   variable references work (`let a = 6 let b = 7 return a * b` → 42). Single pass
   with one pre-scan (`count_lets`) to size the frame before the prologue, since
-  single-pass codegen can't know the local count up front. 13/13 in `test.sh`.
+  single-pass codegen can't know the local count up front.
+- **Slice 2b — control flow: DONE.** `if`/`else`, `while`, and the six
+  comparisons (`< > == != <= >=`, branch-materialized to 0/1 with generated
+  labels). `while i <= n { s = s + i ... }` sums 1..n → 55. 20/20 in `test.sh`.
 
-Next slices follow the on-ramp's path: `if`/`else` + `while` + comparisons,
-`byte[]`/`word[]` memory, char/string literals, then procedures + parameters +
-calls — at which point bc can compile its own source (self-hosting).
+**The hole is now the hard blocker.** Slice 2b lands bc at **30.7 KB — only ~2 KB
+under the 32 KB tape hole**. The next slice (memory, char/string literals, or
+procedures/calls) cannot fit. Resolving the hole (the assembler `.db` data section
++ `write_str`, so emitted strings cost ~1 tape byte/char instead of ~12) is the
+prerequisite for the remaining slices and for self-hosting. See `TASKS_BOOTSTRAP.md`.
+
+Next slices follow the on-ramp's path: `byte[]`/`word[]` memory, char/string
+literals, then procedures + parameters + calls — at which point bc can compile its
+own source (self-hosting).
 
 ## Known constraint — the 32 KB hole (real, now measured)
 

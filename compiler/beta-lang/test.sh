@@ -39,5 +39,13 @@ ret "proc main() { let x = 10 let y = x * x return y - x }" 90
 ret "proc main() { let a = 2 let b = 3 let c = 4 return a + b * c }" 14
 ret "proc main() { let n = 5 let s = 0 s = s + n s = s + n return s }" 10
 ret "proc main() { let a = 100 a = a - 58 return a }" 42
-echo "bc.beta (slices 1-2a): $PASS passed, $FAIL failed"
+# slice 2b — if/else, while, the six comparisons
+ret "proc main() { let a = 5 if a < 10 { return 1 } return 0 }" 1
+ret "proc main() { let a = 5 if a > 10 { return 1 } return 0 }" 0
+ret "proc main() { let a = 5 if a == 5 { return 42 } else { return 7 } }" 42
+ret "proc main() { let a = 9 if a == 5 { return 42 } else { return 7 } }" 7
+ret "proc main() { let i = 0 let s = 0 while i < 5 { s = s + i i = i + 1 } return s }" 10
+ret "proc main() { let n = 10 let s = 0 let i = 1 while i <= n { s = s + i i = i + 1 } return s }" 55
+ret "proc main() { let a = 3 if a != 3 { return 1 } if a >= 3 { return 99 } return 0 }" 99
+echo "bc.beta (slices 1-2b): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
