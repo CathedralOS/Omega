@@ -20,6 +20,7 @@ simply-typed lambda-calculus type checker (with a void type):
 | --- | --- | --- |
 | proposition `A -> B` | function type | `->`-intro = `lam`, `->`-elim (modus ponens) = `app` |
 | proposition `A & B` | product type | `&`-intro = `pair`, `&`-elim = `fst` / `snd` |
+| proposition `A + B` | sum type | `+`-intro = `inl` / `inr`, `+`-elim = `case` |
 | proposition `⊥` | the empty type `Void` | ex falso = `absurd` (a `⊥`-proof yields anything) |
 | a proof of `A` | a term of type `A` | hypothesis = variable (`hyp`, de Bruijn) |
 
@@ -29,9 +30,11 @@ type?", decided by structural type inference (`infer`) + structural equality.
 Input (stdin): a goal proposition, then a certificate term, prefix syntax.
 
 ```
-proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop ) | ( bot )
+proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop ) | ( + prop prop ) | ( bot )
 term        := ( hyp N ) | ( lam prop term ) | ( app term term )
-             | ( pair term term ) | ( fst term ) | ( snd term ) | ( absurd prop term )
+             | ( pair term term ) | ( fst term ) | ( snd term )
+             | ( inl prop term ) | ( inr prop term ) | ( case term term term )
+             | ( absurd prop term )
 ```
 
 Output: `accept` (exit 1) iff the term proves the goal, else `reject` (exit 0).
@@ -75,10 +78,10 @@ matching would erase. So this prototype is also the design pull for the Gamma ru
 
 What it is **not** (yet), all tracked in `rungs/delta.md`:
 
-- The logic is intuitionistic *propositional* (`->`, `&`, `⊥`/negation; no
-  disjunction yet, no quantifiers, no induction). It demonstrates the *checker
-  architecture*, not a foundation for real math. (Disjunction `∨` needs a 3-child
-  `case` node — a small arena widening — and is the natural next addition.)
+- The logic is *full intuitionistic propositional* (`->`, `&`, `+`, `⊥`/negation)
+  — but no quantifiers and no induction, so it demonstrates the *checker
+  architecture*, not yet a foundation for real math. First-order quantifiers and
+  an inductive `Nat` are the natural next additions.
 - No **soundness bridge** to program execution — the deep open problem
   (`provable ⟹ true-about-the-Gamma-reference-interpreter`) is untouched. This
   checks proofs *in the calculus*; connecting the calculus to "what a program

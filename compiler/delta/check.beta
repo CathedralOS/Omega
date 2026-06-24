@@ -6,16 +6,18 @@
 ; authority — a false proposition cannot get past it, however the certificate was
 ; found.
 ;
-; The logic is intuitionistic propositional natural deduction (implication,
-; conjunction, and falsity — so negation is ¬A = A -> ⊥). By Curry-Howard the
-; checker IS a simply-typed lambda-calculus type checker (with a void type):
+; The logic is full intuitionistic propositional natural deduction (implication,
+; conjunction, disjunction, and falsity — so negation is ¬A = A -> ⊥). By
+; Curry-Howard the checker IS a simply-typed lambda-calculus type checker (sums,
+; products, function and void types):
 ;   proposition A -> B   =   function type A -> B        (implication / ->intro,elim)
 ;   proposition A & B    =   product type A x B          (conjunction / &intro,elim)
+;   proposition A + B    =   sum type A + B              (disjunction / +intro,elim)
 ;   proposition ⊥        =   the empty type Void         (falsity / ex falso)
 ;   a proof of A         =   a term of type A
 ;   ->intro = lambda   ->elim = application(modus ponens)
 ;   &intro  = pair     &elim  = fst / snd     hypothesis = variable (de Bruijn)
-;   ex falso = absurd (from a proof of ⊥, a proof of anything)
+;   +intro  = inl/inr  +elim  = case          ex falso = absurd
 ; So "does this certificate prove this proposition?" = "does this term have this
 ; type?" — decided by structural type inference. The checker accepts iff it does.
 ;
@@ -27,9 +29,11 @@
 ; concrete.
 ;
 ; Input (stdin): a goal proposition, then a certificate term, in prefix syntax.
-;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop ) | ( bot )
+;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
+;                | ( + prop prop ) | ( bot )
 ;   term        := ( hyp N ) | ( lam prop term ) | ( app term term )
 ;                | ( pair term term ) | ( fst term ) | ( snd term )
+;                | ( inl prop term ) | ( inr prop term ) | ( case term term term )
 ;                | ( absurd prop term )           ; ex falso: prop from a ⊥-proof
 ; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
 ; Example — the identity proof of P -> P :   (-> P P)  (lam P (hyp 0))   -> accept
@@ -39,9 +43,10 @@
 ; Nodes are 3 words [tag, f0, f1] at 24-byte stride. 0 is the reject/none sentinel
 ; (no real node lives at address 0).
 ;
-; Tags:  type  0 ATOM(char)  1 ARROW(l,r)  2 AND(l,r)  3 FALSE
+; Tags:  type  0 ATOM(char)  1 ARROW(l,r)  2 AND(l,r)  3 FALSE  4 OR(l,r)
 ;        term 10 HYP(idx)   11 LAM(ty,body) 12 APP(f,a) 13 PAIR(a,b) 14 FST(p)
-;             15 SND(p)     16 ABSURD(Cty,p)
+;             15 SND(p)     16 ABSURD(Cty,p) 17 INL(Bty,p) 18 INR(Aty,p)
+;             19 CASE(p, aux)   ; aux = tag-99 holder of (f, g)
 
 proc slurp() {
     let n = 0
@@ -175,6 +180,13 @@ proc parse_type() {
             expect(')')
             return alloc(3, 0, 0)
         }
+        if cbyte() == '+' {      ; (+ A B) disjunction A ∨ B
+            adv()
+            a = parse_type()
+            b = parse_type()
+            expect(')')
+            return alloc(4, a, b)
+        }
         adv()                    ; '&' conjunction
         a = parse_type()
         b = parse_type()
@@ -192,9 +204,11 @@ proc parse_term() {
     skip_ws()
     let kc = cbyte()             ; first letter of the rule keyword
     let kc2 = byte[2097152 + word[2097144] + 1]   ; second letter (app vs absurd)
+    let kc3 = byte[2097152 + word[2097144] + 2]   ; third letter (inl vs inr)
     skip_ident()
     let x = 0
     let y = 0
+    let z = 0
     if kc == 'h' {               ; (hyp N)
         skip_ws()
         x = parse_number()
@@ -229,6 +243,22 @@ proc parse_term() {
         x = parse_term()
         expect(')')
         return alloc(14, x, 0)
+    }
+    if kc == 'i' {               ; (inl Bty p) / (inr Aty p) — inject into a sum
+        x = parse_type()         ; the OTHER summand's type
+        y = parse_term()         ; the proof of this summand
+        expect(')')
+        if kc3 == 'l' {
+            return alloc(17, x, y)   ; inl: (typeof y) ∨ x
+        }
+        return alloc(18, x, y)       ; inr: x ∨ (typeof y)
+    }
+    if kc == 'c' {               ; (case p f g): p:A∨B, f:A->C, g:B->C => C
+        x = parse_term()         ; p
+        y = parse_term()         ; f
+        z = parse_term()         ; g
+        expect(')')
+        return alloc(19, x, alloc(99, y, z))   ; nest (f,g) in an aux node
     }
     x = parse_term()             ; (snd p)
     expect(')')
@@ -270,6 +300,7 @@ proc infer(term) {
     let tag = word[term]
     let t1 = 0                   ; shared temps (function-scoped, declared once)
     let t2 = 0
+    let t3 = 0
     if tag == 10 {               ; HYP idx — de Bruijn: 0 is the innermost binder
         t1 = word[term + 8]      ; idx
         t2 = word[2097120]       ; ctx depth
@@ -345,6 +376,53 @@ proc infer(term) {
             return 0
         }
         return word[term + 8]          ; the claimed Cty
+    }
+    if tag == 17 {               ; INL Bty p  :  (typeof p) ∨ Bty
+        t1 = infer(word[term + 16])
+        if t1 == 0 {
+            return 0
+        }
+        return alloc(4, t1, word[term + 8])
+    }
+    if tag == 18 {               ; INR Aty p  :  Aty ∨ (typeof p)
+        t1 = infer(word[term + 16])
+        if t1 == 0 {
+            return 0
+        }
+        return alloc(4, word[term + 8], t1)
+    }
+    if tag == 19 {               ; CASE p (aux f g) : p:A∨B, f:A->C, g:B->C => C
+        t1 = infer(word[term + 8])              ; tp = OR(A, B)
+        if t1 == 0 {
+            return 0
+        }
+        if word[t1] != 4 {
+            return 0
+        }
+        t2 = infer(word[word[term + 16] + 8])   ; tf = infer(f) = A' -> C1
+        if t2 == 0 {
+            return 0
+        }
+        if word[t2] != 1 {
+            return 0
+        }
+        if type_eq(word[t2 + 8], word[t1 + 8]) == 0 {    ; A' == A
+            return 0
+        }
+        t3 = infer(word[word[term + 16] + 16])  ; tg = infer(g) = B' -> C2
+        if t3 == 0 {
+            return 0
+        }
+        if word[t3] != 1 {
+            return 0
+        }
+        if type_eq(word[t3 + 8], word[t1 + 16]) == 0 {   ; B' == B
+            return 0
+        }
+        if type_eq(word[t2 + 16], word[t3 + 16]) == 0 {  ; C1 == C2
+            return 0
+        }
+        return word[t2 + 16]                    ; C
     }
     return 0
 }
