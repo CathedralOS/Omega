@@ -6,13 +6,16 @@
 ; authority — a false proposition cannot get past it, however the certificate was
 ; found.
 ;
-; The logic is propositional natural deduction (implication + conjunction). By
-; Curry-Howard the checker IS a simply-typed lambda-calculus type checker:
+; The logic is intuitionistic propositional natural deduction (implication,
+; conjunction, and falsity — so negation is ¬A = A -> ⊥). By Curry-Howard the
+; checker IS a simply-typed lambda-calculus type checker (with a void type):
 ;   proposition A -> B   =   function type A -> B        (implication / ->intro,elim)
 ;   proposition A & B    =   product type A x B          (conjunction / &intro,elim)
+;   proposition ⊥        =   the empty type Void         (falsity / ex falso)
 ;   a proof of A         =   a term of type A
 ;   ->intro = lambda   ->elim = application(modus ponens)
 ;   &intro  = pair     &elim  = fst / snd     hypothesis = variable (de Bruijn)
+;   ex falso = absurd (from a proof of ⊥, a proof of anything)
 ; So "does this certificate prove this proposition?" = "does this term have this
 ; type?" — decided by structural type inference. The checker accepts iff it does.
 ;
@@ -24,9 +27,10 @@
 ; concrete.
 ;
 ; Input (stdin): a goal proposition, then a certificate term, in prefix syntax.
-;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
+;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop ) | ( bot )
 ;   term        := ( hyp N ) | ( lam prop term ) | ( app term term )
 ;                | ( pair term term ) | ( fst term ) | ( snd term )
+;                | ( absurd prop term )           ; ex falso: prop from a ⊥-proof
 ; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
 ; Example — the identity proof of P -> P :   (-> P P)  (lam P (hyp 0))   -> accept
 ;
@@ -35,8 +39,9 @@
 ; Nodes are 3 words [tag, f0, f1] at 24-byte stride. 0 is the reject/none sentinel
 ; (no real node lives at address 0).
 ;
-; Tags:  type  0 ATOM(char)  1 ARROW(l,r)  2 AND(l,r)
-;        term 10 HYP(idx)   11 LAM(ty,body) 12 APP(f,a) 13 PAIR(a,b) 14 FST(p) 15 SND(p)
+; Tags:  type  0 ATOM(char)  1 ARROW(l,r)  2 AND(l,r)  3 FALSE
+;        term 10 HYP(idx)   11 LAM(ty,body) 12 APP(f,a) 13 PAIR(a,b) 14 FST(p)
+;             15 SND(p)     16 ABSURD(Cty,p)
 
 proc slurp() {
     let n = 0
@@ -165,6 +170,11 @@ proc parse_type() {
             expect(')')
             return alloc(1, a, b)
         }
+        if cbyte() == 'b' {      ; (bot) falsity ⊥ — a leaf
+            skip_ident()
+            expect(')')
+            return alloc(3, 0, 0)
+        }
         adv()                    ; '&' conjunction
         a = parse_type()
         b = parse_type()
@@ -181,6 +191,7 @@ proc parse_term() {
     expect('(')
     skip_ws()
     let kc = cbyte()             ; first letter of the rule keyword
+    let kc2 = byte[2097152 + word[2097144] + 1]   ; second letter (app vs absurd)
     skip_ident()
     let x = 0
     let y = 0
@@ -196,8 +207,14 @@ proc parse_term() {
         expect(')')
         return alloc(11, x, y)
     }
-    if kc == 'a' {               ; (app fn arg)
-        x = parse_term()
+    if kc == 'a' {
+        if kc2 == 'b' {          ; (absurd Cty p)  ex falso
+            x = parse_type()
+            y = parse_term()
+            expect(')')
+            return alloc(16, x, y)
+        }
+        x = parse_term()         ; (app fn arg)
         y = parse_term()
         expect(')')
         return alloc(12, x, y)
@@ -228,6 +245,9 @@ proc type_eq(a, b) {
             return 1
         }
         return 0
+    }
+    if word[a] == 3 {            ; FALSE (⊥): a leaf, no payload — equal by tag
+        return 1
     }
     if type_eq(word[a + 8], word[b + 8]) == 0 {
         return 0
@@ -315,6 +335,16 @@ proc infer(term) {
             return 0
         }
         return word[t1 + 16]
+    }
+    if tag == 16 {               ; ABSURD Cty p  (ex falso: from ⊥, anything)
+        t1 = infer(word[term + 16])    ; p must prove falsity
+        if t1 == 0 {
+            return 0
+        }
+        if word[t1] != 3 {
+            return 0
+        }
+        return word[term + 8]          ; the claimed Cty
     }
     return 0
 }
