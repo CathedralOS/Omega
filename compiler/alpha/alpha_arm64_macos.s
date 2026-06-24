@@ -27,6 +27,11 @@
 //
 // macOS wrinkle: dd-stamping a tape invalidates the Mach-O code signature, so a
 // stamped seed must be re-signed (codesign -f -s -) before it will exec.
+//
+// Build (reproducible — -no_uuid drops the nondeterministic Mach-O UUID, so the
+// binary is byte-identical across builds modulo the OS code signature):
+//   clang -arch arm64 -Wl,-no_uuid -o alpha_arm64_macos alpha_arm64_macos.s
+// `verify.sh` re-derives the committed binary this way and checks it matches.
 // ============================================================================
 .global _main
 .align 4
