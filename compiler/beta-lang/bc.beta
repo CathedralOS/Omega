@@ -237,14 +237,31 @@ proc expect(ch) {            ; skip ws then consume ch if present
     }
 }
 
-proc skip_to_lbrace() {      ; consume the fixed `proc main ( ) ` prologue tokens
-    while cbyte() != '{' {
-        if cbyte() == 0 {
-            return 0
+proc gen_call() {            ; f(args): callee name is in IDOFF/IDLEN, cursor at '('
+    let nameoff = word[2097120]    ; IDOFF — save before arg parsing clobbers it
+    let namelen = word[2097112]    ; IDLEN
+    expect('(')
+    let nargs = 0
+    skip_ws()
+    while cbyte() != ')' {
+        gen_expr()                 ; stage each arg onto the data stack, left to right
+        emit_push()
+        nargs = nargs + 1
+        skip_ws()
+        if cbyte() == ',' {
+            adv()
+            skip_ws()
         }
-        adv()
     }
-    adv()                    ; consume '{'
+    adv()                          ; consume ')'
+    let k = nargs                  ; unstage top..bottom into r(nargs-1)..r0
+    while k > 0 {
+        k = k - 1
+        emit_pop_into(k)
+    }
+    emit("call ")
+    emit_ident_at(nameoff, namelen)
+    emit("\n")
     return 0
 }
 
@@ -343,13 +360,15 @@ proc emit_dec(n) {
 
 ; ---------------- fixed asm fragments (compact) ----------------
 
-proc emit_header(nslots) {
+proc emit_prelude() {            ; program entry: init sp/fp, call main, halt
     emit("; bc\n")
     emit("imm r15,1048576\n")
     emit("imm r14,1048576\n")
     emit("call main\n")
     emit("halt r0\n")
-    emit("main:\n")
+}
+
+proc emit_proc_prologue(nslots) {
     emit("imm r2,8\n")
     emit("sub r15,r2\n")
     emit("store r15,r14\n")
@@ -359,6 +378,33 @@ proc emit_header(nslots) {
         emit_dec(nslots * 8)
         emit("\n")
         emit("sub r15,r2\n")
+    }
+}
+
+proc emit_param_store(k) {       ; store arg register r<k> into frame slot k
+    emit("mov r5,r14\n")
+    emit("imm r4,")
+    emit_dec(8 + 8 * k)
+    emit("\n")
+    emit("sub r5,r4\n")
+    emit("store r5,r")
+    emit_dec(k)
+    emit("\n")
+}
+
+proc emit_pop_into(k) {          ; pop the data stack top into r<k>
+    emit("load r")
+    emit_dec(k)
+    emit(",r15\n")
+    emit("imm r5,8\n")
+    emit("add r15,r5\n")
+}
+
+proc emit_ident_at(off, len) {   ; write `len` source bytes starting at SRC[off]
+    let k = 0
+    while k < len {
+        write_byte(byte[2097152 + off + k])
+        k = k + 1
     }
 }
 
@@ -463,7 +509,12 @@ proc gen_factor() {
     }
     if is_alpha(c) == 1 {
         read_ident()
-        emit_load_slot(lookup())
+        skip_ws()
+        if cbyte() == '(' {
+            gen_call()              ; f(args) — uses the ident just read as the callee
+            return 0
+        }
+        emit_load_slot(lookup())    ; variable reference
         return 0
     }
     let v = parse_number()
@@ -705,12 +756,49 @@ proc gen_stmt() {
     return 0
 }
 
+proc parse_proc() {
+    word[2097128] = 0            ; NLOC = 0 (locals are per-proc)
+    skip_ws()
+    read_ident()                 ; "proc"
+    skip_ws()
+    read_ident()                 ; the proc name
+    let nameoff = word[2097120]  ; save it (param/let parsing clobbers IDOFF/IDLEN)
+    let namelen = word[2097112]
+    expect('(')                  ; parameters -> slots 0..nparams-1
+    skip_ws()
+    while cbyte() != ')' {
+        read_ident()
+        declare()
+        skip_ws()
+        if cbyte() == ',' {
+            adv()
+            skip_ws()
+        }
+    }
+    adv()                        ; consume ')'
+    let nparams = word[2097128]  ; NLOC after the params
+    expect('{')
+    let nslots = nparams + count_lets()
+    emit_ident_at(nameoff, namelen)
+    emit(":\n")
+    emit_proc_prologue(nslots)
+    let k = 0
+    while k < nparams {
+        emit_param_store(k)
+        k = k + 1
+    }
+    gen_stmts()                  ; body (consumes the closing '}')
+    emit_epilogue()              ; fall-through tear-down (matches on-ramp)
+    return 0
+}
+
 proc main() {
     slurp()
-    skip_to_lbrace()             ; past `proc main () {`
-    let nslots = count_lets()
-    emit_header(nslots)
-    gen_stmts()                  ; cursor is just after the opening '{'
-    emit_epilogue()              ; fall-through tear-down (matches on-ramp)
+    emit_prelude()
+    skip_ws()
+    while cbyte() != 0 {
+        parse_proc()
+        skip_ws()
+    }
     return 0
 }

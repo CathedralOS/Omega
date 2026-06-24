@@ -47,5 +47,11 @@ ret "proc main() { let a = 9 if a == 5 { return 42 } else { return 7 } }" 7
 ret "proc main() { let i = 0 let s = 0 while i < 5 { s = s + i i = i + 1 } return s }" 10
 ret "proc main() { let n = 10 let s = 0 let i = 1 while i <= n { s = s + i i = i + 1 } return s }" 55
 ret "proc main() { let a = 3 if a != 3 { return 1 } if a >= 3 { return 99 } return 0 }" 99
-echo "bc.beta (slices 1-2b): $PASS passed, $FAIL failed"
+# slice 3 — procedures, parameters, calls, recursion
+ret "proc main() { return double(21) } proc double(x) { return x + x }" 42
+ret "proc main() { return add(mul(2, 3), 4) } proc add(a, b) { return a + b } proc mul(a, b) { return a * b }" 10
+ret "proc main() { return fact(5) } proc fact(n) { if n < 2 { return 1 } return n * fact(n - 1) }" 120
+ret "proc main() { return fib(10) } proc fib(n) { if n < 2 { return n } return fib(n - 1) + fib(n - 2) }" 55
+ret "proc main() { return sumto(10) } proc sumto(n) { let t = 0 let i = 1 while i <= n { t = t + i i = i + 1 } return t }" 55
+echo "bc.beta (slices 1-3): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
