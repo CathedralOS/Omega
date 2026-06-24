@@ -1,0 +1,146 @@
+; calc.beta — a recursive-descent calculator, written in Beta. (slice 6: the self-check)
+;
+; Reads ONE arithmetic expression from stdin — decimal integers, the operators
+; + - * / with the usual precedence, and parentheses — evaluates it, prints the
+; result in decimal, and also returns it as the process exit code. This is the
+; "is Beta actually pleasant to write a compiler in?" test: it exercises char
+; literals, the read_byte/write_byte host boundary, a memory-backed input buffer
+; + cursor, recursion (recursive descent calls back into parse_expr through
+; parentheses), and the whole expression/statement surface.
+;
+;   echo "2+3*4"     ->  14        echo "(2+3)*4"   ->  20
+;   echo "100-58"    ->  42        echo "2*(3+4)*5" ->  70
+;
+; Memory layout, just above the 1 MiB data stack (which grows down from 1 MiB):
+;   buf      = 2 MiB      input bytes, growing up
+;   buf - 8  = cursor     (word) index of the next unread byte
+;   buf - 16 = length     (word) number of bytes read
+
+proc main() {
+    let buf = 2097152
+    let n = 0
+    let c = read_byte()
+    while c >= 0 {                     ; read_byte() returns -1 at EOF
+        byte[buf + n] = c
+        n = n + 1
+        c = read_byte()
+    }
+    word[buf - 16] = n                 ; length
+    word[buf - 8] = 0                  ; cursor
+    let result = parse_expr(buf)
+    print_num(result)
+    write_byte('\n')
+    return result
+}
+
+; the byte at the cursor, or 0 (a sentinel no expression char equals) past the end
+proc peek(buf) {
+    let i = word[buf - 8]
+    if i < word[buf - 16] {
+        return byte[buf + i]
+    }
+    return 0
+}
+
+proc advance(buf) {
+    word[buf - 8] = word[buf - 8] + 1
+}
+
+proc skip_ws(buf) {
+    while peek(buf) == ' ' {
+        advance(buf)
+    }
+}
+
+proc is_digit(c) {
+    if c < '0' {
+        return 0
+    }
+    if c > '9' {
+        return 0
+    }
+    return 1
+}
+
+proc is_muldiv(c) {
+    if c == '*' {
+        return 1
+    }
+    if c == '/' {
+        return 1
+    }
+    return 0
+}
+
+proc is_addsub(c) {
+    if c == '+' {
+        return 1
+    }
+    if c == '-' {
+        return 1
+    }
+    return 0
+}
+
+proc parse_number(buf) {
+    let v = 0
+    while is_digit(peek(buf)) {
+        v = v * 10 + (peek(buf) - '0')
+        advance(buf)
+    }
+    return v
+}
+
+proc parse_factor(buf) {
+    skip_ws(buf)
+    if peek(buf) == '(' {
+        advance(buf)                   ; consume '('
+        let v = parse_expr(buf)
+        skip_ws(buf)
+        advance(buf)                   ; consume ')'
+        return v
+    }
+    return parse_number(buf)
+}
+
+proc parse_term(buf) {
+    let v = parse_factor(buf)
+    skip_ws(buf)
+    while is_muldiv(peek(buf)) {
+        let op = peek(buf)
+        advance(buf)
+        let rhs = parse_factor(buf)
+        if op == '*' {
+            v = v * rhs
+        } else {
+            v = v / rhs
+        }
+        skip_ws(buf)
+    }
+    return v
+}
+
+proc parse_expr(buf) {
+    let v = parse_term(buf)
+    skip_ws(buf)
+    while is_addsub(peek(buf)) {
+        let op = peek(buf)
+        advance(buf)
+        let rhs = parse_term(buf)
+        if op == '+' {
+            v = v + rhs
+        } else {
+            v = v - rhs
+        }
+        skip_ws(buf)
+    }
+    return v
+}
+
+; print n in decimal (n >= 0), most-significant digit first
+proc print_num(n) {
+    if n >= 10 {
+        print_num(n / 10)
+    }
+    write_byte(n % 10 + '0')
+}

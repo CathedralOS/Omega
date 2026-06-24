@@ -50,9 +50,12 @@ C / Oberon-0: procedures, locals, `if`/`while`, `byte[]`/`word[]` memory) so tha
 gamma and everything above is written in something pleasant instead of assembly.
 That language is specified in
 [`compiler/beta/LANGUAGE.md`](../../../../compiler/beta/LANGUAGE.md) and is being
-built as a throwaway Rust on-ramp (`compiler/beta-lang-rs/`, slices 1–4 done:
-arithmetic, procedures+calls, recursion+loops, memory) to be transcribed to Alpha
-assembly later. Live status: [TASKS_BOOTSTRAP.md](../../../../TASKS_BOOTSTRAP.md).
+built as a throwaway Rust on-ramp (`compiler/beta-lang-rs/`, slices 1–6 done:
+arithmetic, procedures+calls, recursion+loops, memory, char literals + the
+`read_byte`/`write_byte` host boundary, and **the self-check** — a recursive-descent
+calculator written *in Beta* (`examples/calc.beta`) proving the language is
+compiler-grade) to be transcribed to Alpha assembly later. Live status:
+[TASKS_BOOTSTRAP.md](../../../../TASKS_BOOTSTRAP.md).
 
 ## Calling convention (proven 2026-06-22)
 
