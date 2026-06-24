@@ -110,19 +110,20 @@ pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mu
 }
 
 /// #66 param entry-assumption: an IMMUTABLE state parameter declared with an
-/// encoding domain (`check_text(text: &[u8] in Utf8)`) carries that domain as an
-/// always-holding STATE invariant. The param's implicit `requires param in Domain`
+/// encoding domain (`check_text(text: &[u8] in Utf8)`) carries that domain
+/// throughout the state body. The param's implicit `requires param in Domain`
 /// (Phase 1) makes every caller prove membership, and immutability means it can
 /// never be reassigned out of the domain -- so it holds at every program point in
-/// the state with NO invalidation possible. Surfaced at `ProgramPoint::State`
-/// (the param belongs to the state) and consulted DIRECTLY by `check_call_requires`
-/// (see calls.rs), bypassing the flow's per-statement context threading, which
-/// drops machine/state facts on some branch-leaf and dispatch-specialized paths.
+/// the state. Surfaced at `ProgramPoint::State` (the param belongs to the state),
+/// which `build_state_flow_fact` folds into the state entry; the flow's context
+/// threading then carries it to every call, including guarded-transition
+/// fallthrough arms (now that a transition no longer leaks its branch-taken exit
+/// context onto its sibling fallthrough -- see flow/statements.rs).
 ///
 /// Needs no empty/ZII soundness gate (a param is an argument a caller proved
-/// in-domain, never a default). MUTABLE params are excluded: a reassignment could
-/// move them out of the domain, so they are not an unconditional invariant and
-/// must go through the (invalidation-aware) flow instead.
+/// in-domain, never a default). MUTABLE params are excluded for now: a
+/// reassignment would have to invalidate the fact, which the flow does handle, but
+/// the conservative immutable-only surface is enough for the current corpus.
 pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
