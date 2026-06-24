@@ -134,23 +134,35 @@ h_mul:
     mul  x11, x11, x12
     str  x11, [x19, w9,  uxtw #3]
     b    next
-h_div:
+h_div:                            // signed; div-by-zero and INT_MIN/-1 -> trap
     ldrb w9,  [x21], #1
     ldrb w10, [x21], #1
     ldr  x11, [x19, w9,  uxtw #3]
     ldr  x12, [x19, w10, uxtw #3]
-    cbz  x12, Ldz
+    cbz  x12, Ldz                  // /0 -> trap (matches x86 idiv #DE)
+    cmn  x12, #1                   // divisor == -1 ?
+    b.ne Ldiv_ok
+    movz x13, #0x8000, lsl #48     // INT64_MIN
+    cmp  x11, x13
+    b.eq Ldz                       // INT_MIN / -1 overflow -> trap (x86 idiv #DE)
+Ldiv_ok:
     sdiv x11, x11, x12
     str  x11, [x19, w9,  uxtw #3]
     b    next
 Ldz:
     udf  #0
-h_mod:
+h_mod:                            // signed remainder; same two trap conditions
     ldrb w9,  [x21], #1
     ldrb w10, [x21], #1
     ldr  x11, [x19, w9,  uxtw #3]
     ldr  x12, [x19, w10, uxtw #3]
     cbz  x12, Ldz
+    cmn  x12, #1
+    b.ne Lmod_ok
+    movz x14, #0x8000, lsl #48
+    cmp  x11, x14
+    b.eq Ldz
+Lmod_ok:
     sdiv x13, x11, x12
     msub x11, x13, x12, x11
     str  x11, [x19, w9,  uxtw #3]
