@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // A library that ACQUIRES filesystem authority. The `Disk` boundary is held in a
 // machine-owned field and the package exercises `filesystem_io` directly through
 // it, rather than receiving the authority from a caller. That makes the call an
@@ -5,7 +8,7 @@
 // is an approved (toolchain) provider edge.
 
 boundary trait Disk {
-    machine write_line(text: String)
+    machine write_line(text: &[u8] in Utf8)
     effects
         filesystem_io;
 }

@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // Chapter 18 "Capabilities And Authority Flow" (Derives, nested): a helper
 // machine DERIVES a narrower `File` authority from a caller-provided `Folder`
 // at the `Filesystem` boundary and returns it. The outer `Worker::open_main_log`
@@ -15,7 +18,7 @@ domain File::Writable {
 }
 
 boundary trait Filesystem {
-    machine open(folder: Folder, path: String) -> File
+    machine open(folder: Folder, path: &[u8] in Utf8) -> File
     ensures
         result in File::Writable
     effects

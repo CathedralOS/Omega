@@ -1,10 +1,13 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // Chapter 18 "Standard Effects": a single boundary machine may declare more than
 // one standard effect; the declared set is the ceiling for that surface. Here a
 // network fetch declares both `network_io` and `alloc`, exercising a multi-effect
 // boundary declaration that propagates to its caller.
 
 boundary trait Net {
-    machine write_line(text: String)
+    machine write_line(text: &[u8] in Utf8)
     effects
         network_io
         alloc;

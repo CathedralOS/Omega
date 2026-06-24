@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // Chapter 18 "Capabilities And Authority Flow" (Acquires, nested): a helper
 // machine ACQUIRES fresh host authority at the `Desktop` boundary and hands it
 // onward through its capability-typed return. `Backup::stage` and `Main::main`
@@ -13,7 +16,7 @@ domain Folder::Writable {
 }
 
 boundary trait Desktop {
-    machine choose_folder(prompt: String) -> Folder
+    machine choose_folder(prompt: &[u8] in Utf8) -> Folder
     ensures
         result in Folder::Writable
     effects

@@ -1,10 +1,13 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // A library that USES a caller-provided capability. The `Folder` writer surface
 // enters through a caller-provided parameter and the boundary write uses that
 // authority without ever minting its own. The boundary has no in-package
 // implementation, so it is an approved provider edge.
 
 boundary trait Folder {
-    machine write_line(text: String)
+    machine write_line(text: &[u8] in Utf8)
     effects
         filesystem_io;
 }

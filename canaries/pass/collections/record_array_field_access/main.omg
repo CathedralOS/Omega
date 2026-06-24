@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 data CellId {
     case Empty;
     case A1;
@@ -5,19 +8,19 @@ data CellId {
 }
 
 data Exit {
-    command: String;
+    command: &[u8] in Utf8;
     destination: CellId;
 }
 
 data Room {
     cell: CellId;
-    label: String;
-    description: String;
+    label: &[u8] in Utf8;
+    description: &[u8] in Utf8;
     exits: [Exit; 2];
 }
 
 boundary trait Console {
-    machine write_line(text: String);
+    machine write_line(text: &[u8] in Utf8);
     machine exit_process(return_code: i32);
 }
 

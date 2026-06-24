@@ -1,9 +1,12 @@
-// `!=` over an Equatable record with a String field in VALUE position:
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+// `!=` over an Equatable record with a &[u8] in Utf8 field in VALUE position:
 // `self.left != self.right` must see the differing `name` fields ("gold" vs
 // "iron"; the scalar `id` fields are equal) and exit 70. The state-values
 // simplifier De-Morgans the synthesized `equality == false` spelling into
-// per-field `!=` compares, so the String term reaches instruction selection
-// as a direct `String != String` binary; it lowers as the negated text-equals
+// per-field `!=` compares, so the &[u8] in Utf8 term reaches instruction selection
+// as a direct `&[u8] in Utf8 != &[u8] in Utf8` binary; it lowers as the negated text-equals
 // leaf (`text_equals(..) == 0`). Before that lowering existed the whole
 // initializer write was silently dropped (ZII false -> native exit 71 while
 // the interpreter exited 70).
@@ -13,7 +16,7 @@ boundary trait Console {
 }
 
 data Tag {
-    name: String;
+    name: &[u8] in Utf8;
     id: i32;
 }
 
