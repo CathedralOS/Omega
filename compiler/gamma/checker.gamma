@@ -9,9 +9,11 @@
 ; Gamma program — small, audited"; gamma.md: ADTs + match keep it small).
 ;
 ; Types: (Atom n) | (Arrow a b) | (And a b) | (Or a b) | Bot | (Eq t1 t2) | Bad
+;      | (All body) | (Exists body) | (Pred id nat)        ; first-order: ∀ ∃ predicate
 ; Terms: (Hyp n) | (Lam ty body) | (App f a) | (Pair a b) | (Fst p) | (Snd p)
 ;      | (Inl bty p) | (Inr aty p) | (Case p f g) | (Absurd cty p) | (Refl nat)
-; Peano (inside Eq/Refl):  Ze | (Su x) | (Pl a b)
+;      | (Gen pf) | (Inst pf nat) | (Wit body nat pf) | (Unpack epf handler)  ; ∀/∃
+; Peano (inside Eq/Refl/Pred):  Ze | (Su x) | (Pl a b) | (Mu a b) | (Iv k)  ; Iv=indiv var
 ; Context: a list  Nil | (Cons ty rest)   (de Bruijn: Hyp 0 is the innermost).
 ; infer returns a type (or Bad); check = "the inferred type equals the goal".
 ;
@@ -26,16 +28,61 @@
 
 ; Peano normalization (the conversion rule's engine): Pl reduced away.
 (def padd (a b) (match a (Ze b) ((Su x) (Su (padd x b)))))
-(def pnorm (t)
+(def pmul (a b) (match a (Ze Ze) ((Su x) (padd b (pmul x b)))))
+(def pnorm (t)                     ; (Iv k) is a free individual var — a normal form
   (match t
     (Ze Ze)
     ((Su x) (Su (pnorm x)))
-    ((Pl a b) (padd (pnorm a) (pnorm b)))))
+    ((Iv k) (Iv k))
+    ((Pl a b) (padd (pnorm a) (pnorm b)))
+    ((Mu a b) (pmul (pnorm a) (pnorm b)))))
 (def nateq (a b)
   (match a
     (Ze (match b (Ze 1) (z 0)))
+    ((Iv k) (match b ((Iv j) (eq k j)) (z 0)))
     ((Su x) (match b ((Su y) (nateq x y)) (z 0)))))
 (def conveq (a b) (nateq (pnorm a) (pnorm b)))   ; definitional equality
+
+; ---- first-order machinery: does a term/prop mention an individual var? ----
+(def ivt (t)                       ; ivar-in-term
+  (match t
+    ((Iv k) 1)
+    (Ze 0)
+    ((Su x) (ivt x))
+    ((Pl a b) (if (ivt a) 1 (ivt b)))
+    ((Mu a b) (if (ivt a) 1 (ivt b)))))
+(def ivp (p)                       ; ivar-in-prop
+  (match p
+    ((Pred id t)  (ivt t))
+    ((Eq a b)     (if (ivt a) 1 (ivt b)))
+    ((All x)      (ivp x))
+    ((Exists x)   (ivp x))
+    ((Arrow a b)  (if (ivp a) 1 (ivp b)))
+    ((And a b)    (if (ivp a) 1 (ivp b)))
+    ((Or a b)     (if (ivp a) 1 (ivp b)))
+    (z 0)))                        ; Atom / Bot / Bad
+
+; substitute closed individual term s for the var bound at depth d
+(def subt (t s d)
+  (match t
+    ((Iv k)   (if (eq k d) s (if (lt d k) (Iv (- k 1)) (Iv k))))
+    (Ze Ze)
+    ((Su x)   (Su (subt x s d)))
+    ((Pl a b) (Pl (subt a s d) (subt b s d)))
+    ((Mu a b) (Mu (subt a s d) (subt b s d)))))
+(def subp (p s d)
+  (match p
+    ((Pred id t) (Pred id (subt t s d)))
+    ((Eq a b)    (Eq (subt a s d) (subt b s d)))
+    ((All x)     (All (subp x s (+ d 1))))
+    ((Exists x)  (Exists (subp x s (+ d 1))))
+    ((Arrow a b) (Arrow (subp a s d) (subp b s d)))
+    ((And a b)   (And (subp a s d) (subp b s d)))
+    ((Or a b)    (Or (subp a s d) (subp b s d)))
+    (z p)))                        ; Atom / Bot unchanged
+
+; gen's freshness guard: no hypothesis in scope mentions an individual var
+(def ctxclean (ctx) (match ctx (Nil 1) ((Cons h t) (if (ivp h) 0 (ctxclean t)))))
 
 (def teq (a b)                     ; structural type equality (defn'l for Eq) -> 1/0
   (match a
@@ -45,6 +92,9 @@
     ((Or p q)    (match b ((Or r s)    (if (teq p r) (teq q s) 0)) (z 0)))
     (Bot         (match b (Bot 1) (z 0)))
     ((Eq t1 t2)  (match b ((Eq u1 u2) (if (conveq t1 u1) (conveq t2 u2) 0)) (z 0)))
+    ((All x)     (match b ((All y) (teq x y)) (z 0)))
+    ((Exists x)  (match b ((Exists y) (teq x y)) (z 0)))
+    ((Pred id t) (match b ((Pred jd u) (if (eq id jd) (conveq t u) 0)) (z 0)))
     (z 0)))
 
 (def isbad (t) (match t (Bad 1) (z 0)))
@@ -80,6 +130,27 @@
     ((Case p f g)   (infcase (infer p ctx) (infer f ctx) (infer g ctx)))
     ((Absurd cty p) (match (infer p ctx) (Bot cty) (z Bad)))
     ((Refl t)       (Eq t t))
+    ((Gen pf)       (if (ctxclean ctx)                       ; ∀-intro (conservative)
+                      (let bt (infer pf ctx) (if (isbad bt) Bad (All bt)))
+                      Bad))
+    ((Inst pf t)    (if (ivt t) Bad                          ; ∀-elim (closed witness)
+                      (match (infer pf ctx)
+                        ((All body) (subp body t 0))
+                        (z Bad))))
+    ((Wit body t pf) (if (ivt t) Bad                         ; ∃-intro
+                      (let pt (infer pf ctx)
+                        (if (isbad pt) Bad
+                          (if (teq pt (subp body t 0)) (Exists body) Bad)))))
+    ((Unpack epf h) (match (infer epf ctx)                   ; ∃-elim
+                      ((Exists b)
+                        (match (infer h ctx)
+                          ((All inner)
+                            (match inner
+                              ((Arrow ante c)
+                                (if (teq ante b) (if (ivp c) Bad c) Bad))
+                              (z Bad)))
+                          (z Bad)))
+                      (z Bad)))
     (z Bad)))
 
 (def check (tm goal) (teq (infer tm Nil) goal))

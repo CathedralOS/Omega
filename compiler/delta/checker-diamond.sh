@@ -42,5 +42,12 @@ dia "ex falso"       "(-> (bot) P) (lam (bot) (absurd P (hyp 0)))"              
 dia "unbound hyp"    "P (hyp 0)"                                                 "(check (Hyp 0) (Atom 0))"                                                              reject
 dia "refl 2+2=4"     "(= (p (s (s z)) (s (s z))) (s (s (s (s z)))))  (refl (s (s (s (s z)))))" "(check (Refl (Su (Su (Su (Su Ze))))) (Eq (Pl (Su (Su Ze)) (Su (Su Ze))) (Su (Su (Su (Su Ze))))))" accept
 dia "reject 2+2=5"   "(= (p (s (s z)) (s (s z))) (s (s (s (s (s z))))))  (refl (s (s (s (s z)))))" "(check (Refl (Su (Su (Su (Su Ze))))) (Eq (Pl (Su (Su Ze)) (Su (Su Ze))) (Su (Su (Su (Su (Su Ze)))))))" reject
+# first-order predicate logic: ∀ (gen/inst) and ∃ (wit/unpack)
+dia "forall-intro"   "(All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (gen (lam (Pred 0 (v 0)) (hyp 0)))" "(check (Gen (Lam (Pred 0 (Iv 0)) (Hyp 0))) (All (Arrow (Pred 0 (Iv 0)) (Pred 0 (Iv 0)))))" accept
+dia "forall-elim"    "(-> (All (Pred 0 (v 0))) (Pred 0 z)) (lam (All (Pred 0 (v 0))) (inst (hyp 0) z))" "(check (Lam (All (Pred 0 (Iv 0))) (Inst (Hyp 0) Ze)) (Arrow (All (Pred 0 (Iv 0))) (Pred 0 Ze)))" accept
+dia "P0 not forall"  "(-> (Pred 0 z) (All (Pred 0 (v 0)))) (lam (Pred 0 z) (gen (hyp 0)))" "(check (Lam (Pred 0 Ze) (Gen (Hyp 0))) (Arrow (Pred 0 Ze) (All (Pred 0 (Iv 0)))))" reject
+dia "exists-intro"   "(-> (Pred 0 z) (Exists (Pred 0 (v 0)))) (lam (Pred 0 z) (wit (Pred 0 (v 0)) z (hyp 0)))" "(check (Lam (Pred 0 Ze) (Wit (Pred 0 (Iv 0)) Ze (Hyp 0))) (Arrow (Pred 0 Ze) (Exists (Pred 0 (Iv 0)))))" accept
+dia "exists-elim"    "(-> (Exists (Pred 0 (v 0))) (-> (All (-> (Pred 0 (v 0)) Q)) Q)) (lam (Exists (Pred 0 (v 0))) (lam (All (-> (Pred 0 (v 0)) Q)) (unpack (hyp 1) (hyp 0))))" "(check (Lam (Exists (Pred 0 (Iv 0))) (Lam (All (Arrow (Pred 0 (Iv 0)) (Atom 9))) (Unpack (Hyp 1) (Hyp 0)))) (Arrow (Exists (Pred 0 (Iv 0))) (Arrow (All (Arrow (Pred 0 (Iv 0)) (Atom 9))) (Atom 9))))" accept
+dia "witness leak"   "(-> (Exists (Pred 0 (v 0))) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (Pred 0 (v 0)))) (lam (Exists (Pred 0 (v 0))) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (unpack (hyp 1) (hyp 0))))" "(check (Lam (Exists (Pred 0 (Iv 0))) (Lam (All (Arrow (Pred 0 (Iv 0)) (Pred 0 (Iv 0)))) (Unpack (Hyp 1) (Hyp 0)))) (Arrow (Exists (Pred 0 (Iv 0))) (Arrow (All (Arrow (Pred 0 (Iv 0)) (Pred 0 (Iv 0)))) (Pred 0 (Iv 0)))))" reject
 echo "checker diamond (check.beta vs checker.gamma): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
