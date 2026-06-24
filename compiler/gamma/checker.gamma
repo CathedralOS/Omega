@@ -134,6 +134,19 @@
     (Lnil Lnil)
     ((Lcons a b) (Lcons (shiftt a d c) (shiftt b d c)))
     ((Lapp a b) (Lapp (shiftt a d c) (shiftt b d c)))))
+; shift free individual vars (>= c) up by d in a PROPOSITION — list induction lifts the
+; motive's parameters past the extra h binder the step (forall h t. ...) introduces.
+(def shiftp (p d c)
+  (match p
+    ((Pred id t) (Pred id (shiftt t d c)))
+    ((Rel id u v) (Rel id (shiftt u d c) (shiftt v d c)))
+    ((Eq a b) (Eq (shiftt a d c) (shiftt b d c)))
+    ((All x) (All (shiftp x d (+ c 1))))
+    ((Exists x) (Exists (shiftp x d (+ c 1))))
+    ((Arrow a b) (Arrow (shiftp a d c) (shiftp b d c)))
+    ((And a b) (And (shiftp a d c) (shiftp b d c)))
+    ((Or a b) (Or (shiftp a d c) (shiftp b d c)))
+    (z p)))
 ; gen's freshness guard: no hypothesis in scope has a FREE individual var
 (def ctxclean (ctx) (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
 
@@ -228,6 +241,16 @@
                   (All motive)                              ; ∀n. P(n)
                   Bad)
                 Bad))))))
+    ((Listind motive base step)                             ; list induction
+      (let tb (infer base ctx)
+        (let ts (infer step ctx)
+          (let m2 (shiftp motive 1 1)
+            (if (isbad tb) Bad
+              (if (isbad ts) Bad
+                (if (teq tb (subp motive Lnil 0))            ; base : P(nil)
+                  (if (teq ts (All (All (Arrow m2 (subpk m2 (Lcons (Iv 1) (Iv 0)) 0)))))
+                    (All motive) Bad)
+                  Bad)))))))
     ((Eqelim motive pfeq pfpa)                              ; Leibniz: P(a), a=b |- P(b)
       (match (infer pfeq ctx)
         ((Eq a b) (if (teq (infer pfpa ctx) (subp motive a 0)) (subp motive b 0) Bad))

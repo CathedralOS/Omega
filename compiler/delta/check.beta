@@ -53,6 +53,7 @@
 ;                | ( wit prop nat term )          ; ∃-intro (witness + proof of body[t])
 ;                | ( unpack term term )           ; ∃-elim (handler is a ∀(body -> C))
 ;                | ( natind prop term term )      ; Peano induction: base P(0), step ∀n.P(n)->P(s n)
+;                | ( listind prop term term )     ; list induction: base P(nil), step ∀h t.P(t)->P(cons h t)
 ;                | ( eqelim prop term term )      ; Leibniz: motive P, pf of a=b, pf of P(a) -> P(b)
 ;                | ( disj term )                  ; no-confusion: from (0 = s t), falsity
 ;                | ( sinj term )                  ; successor injective: from (s a = s b), (a = b)
@@ -71,7 +72,7 @@
 ;             19 CASE(p, aux)  20 REFL(t)  21 GEN(pf)  22 INST(pf,term)
 ;             23 WIT(body, (99 t pf))  24 UNPACK(epf, handler)
 ;             25 NATIND(motive, (99 base step))  26 EQELIM(motive, (99 pf_eq pf_pa))
-;             27 DISJ(pf)  28 SINJ(pf)
+;             27 DISJ(pf)  28 SINJ(pf)  29 LISTIND(motive, (99 base step))
 ;        term 30 ZERO 31 SUC(x) 32 PLUS(a,b) 33 MUL(a,b) 34 IVAR(k)
 ;             35 NIL  36 CONS(h,t)  37 APPEND(l1,l2)
 
@@ -550,6 +551,37 @@ proc subst_prop_keep(p, s, depth) {
     return alloc(tag, subst_prop_keep(word[p + 8], s, depth), subst_prop_keep(word[p + 16], s, depth))
 }
 
+; shift free individual variables (index >= cutoff) up by `d` in a PROPOSITION. Used
+; by list induction to lift the motive's outer parameters past the extra `h` binder
+; that the step (forall h. forall t. ...) introduces beyond the conclusion's binder.
+proc shift_prop(p, d, cutoff) {
+    let tag = word[p]
+    if tag == 0 {
+        return p
+    }
+    if tag == 3 {
+        return p
+    }
+    if tag == 7 {                     ; Pred id term
+        return alloc(7, word[p + 8], shift_term(word[p + 16], d, cutoff))
+    }
+    if tag == 9 {                     ; Rel id (t1,t2)
+        return alloc(9, word[p + 8],
+            alloc(99, shift_term(word[word[p + 16] + 8], d, cutoff),
+                      shift_term(word[word[p + 16] + 16], d, cutoff)))
+    }
+    if tag == 5 {                     ; Eq t1 t2
+        return alloc(5, shift_term(word[p + 8], d, cutoff), shift_term(word[p + 16], d, cutoff))
+    }
+    if tag == 6 {                     ; All — deeper binder
+        return alloc(6, shift_prop(word[p + 8], d, cutoff + 1), 0)
+    }
+    if tag == 8 {                     ; Exists — likewise
+        return alloc(8, shift_prop(word[p + 8], d, cutoff + 1), 0)
+    }
+    return alloc(tag, shift_prop(word[p + 8], d, cutoff), shift_prop(word[p + 16], d, cutoff))
+}
+
 ; definitional equality: normalize both, then compare (the conversion rule).
 proc conv_eq(a, b) {
     return nat_eq(normalize(a, 100000), normalize(b, 100000))
@@ -690,8 +722,15 @@ proc parse_term() {
         expect(')')
         return alloc(10, x, 0)
     }
-    if kc == 'l' {               ; (lam type body)
-        x = parse_type()
+    if kc == 'l' {
+        if kc2 == 'i' {          ; (listind motive base step) — list induction
+            x = parse_type()     ; motive P(l), list var = Ivar 0
+            y = parse_term()     ; base : P(nil)
+            z = parse_term()     ; step : All h. All t. (P(t) -> P(cons h t))
+            expect(')')
+            return alloc(29, x, alloc(99, y, z))
+        }
+        x = parse_type()         ; (lam type body)
         y = parse_term()
         expect(')')
         return alloc(11, x, y)
@@ -1080,6 +1119,31 @@ proc infer(term) {
             return 0
         }
         return alloc(6, word[term + 8], 0)               ; forall n. P(n)
+    }
+    if tag == 29 {               ; LISTIND motive base step : list induction -> All(motive)
+        ; node = (29, motive, (99, base, step)).  The schema
+        ;   P(nil) -> (forall h t. P(t) -> P(cons h t)) -> forall l. P(l)
+        t1 = infer(word[word[term + 16] + 8])            ; typeof base
+        if t1 == 0 {
+            return 0
+        }
+        if type_eq(t1, subst_prop(word[term + 8], alloc(35, 0, 0), 0)) == 0 {   ; base : P(nil)
+            return 0
+        }
+        t1 = infer(word[word[term + 16] + 16])           ; typeof step
+        if t1 == 0 {
+            return 0
+        }
+        ; the step lives under TWO binders (h, t), so the motive's outer parameters
+        ; shift up by one (past h); the list var stays Ivar 0 (= t).
+        t2 = shift_prop(word[term + 8], 1, 1)            ; motive', for P(t)
+        ; P(cons h t): rename the list var to (cons h t) = (cons Iv1 Iv0), keep binders
+        t3 = subst_prop_keep(t2, alloc(36, alloc(34, 1, 0), alloc(34, 0, 0)), 0)
+        t2 = alloc(6, alloc(6, alloc(1, t2, t3), 0), 0)  ; All h. All t. (P(t) -> P(cons h t))
+        if type_eq(t1, t2) == 0 {
+            return 0
+        }
+        return alloc(6, word[term + 8], 0)               ; forall l. P(l)
     }
     if tag == 26 {               ; EQELIM motive pf_eq pf_pa : Leibniz  P(a), a=b |- P(b)
         ; node = (26, motive, (99, pf_eq, pf_pa)).  pf_eq proves (= a b); given a proof

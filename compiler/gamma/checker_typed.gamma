@@ -14,7 +14,8 @@
 (data Term (Hyp Int) (Lam Type Term) (App Term Term) (Pair Term Term) (Fst Term) (Snd Term)
            (Inl Type Term) (Inr Type Term) (Case Term Term Term) (Absurd Type Term) (Refl Nat)
            (Gen Term) (Inst Term Nat) (Wit Type Nat Term) (Unpack Term Term)
-           (Natind Type Term Term) (Eqelim Type Term Term) (Disj Term) (Sinj Term))
+           (Natind Type Term Term) (Eqelim Type Term Term) (Disj Term) (Sinj Term)
+           (Listind Type Term Term))
 (data Ctx (Nil) (Cons Type Ctx))
 
 (def nth ((ctx Ctx) (n Int)) Type
@@ -71,6 +72,12 @@
   (match t ((Iv k) (if (lt k c) (Iv k) (Iv (+ k d)))) (Ze Ze) ((Su x) (Su (shiftt x d c)))
            ((Pl a b) (Pl (shiftt a d c) (shiftt b d c))) ((Mu a b) (Mu (shiftt a d c) (shiftt b d c)))
            (Lnil Lnil) ((Lcons a b) (Lcons (shiftt a d c) (shiftt b d c))) ((Lapp a b) (Lapp (shiftt a d c) (shiftt b d c)))))
+(def shiftp ((p Type) (d Int) (c Int)) Type
+  (match p ((Pred id t) (Pred id (shiftt t d c))) ((Rel id u v) (Rel id (shiftt u d c) (shiftt v d c)))
+           ((Eq a b) (Eq (shiftt a d c) (shiftt b d c)))
+           ((All x) (All (shiftp x d (+ c 1)))) ((Exists x) (Exists (shiftp x d (+ c 1))))
+           ((Arrow a b) (Arrow (shiftp a d c) (shiftp b d c))) ((And a b) (And (shiftp a d c) (shiftp b d c)))
+           ((Or a b) (Or (shiftp a d c) (shiftp b d c))) (z p)))
 (def ctxclean ((ctx Ctx)) Int (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
 
 (def teq ((a Type) (b Type)) Int
@@ -138,6 +145,15 @@
               (if (teq tb (subp motive Ze 0))
                 (if (teq ts (All (Arrow motive (subpk motive (Su (Iv 0)) 0)))) (All motive) Bad)
                 Bad))))))
+    ((Listind motive base step)
+      (let tb (infer base ctx)
+        (let ts (infer step ctx)
+          (let m2 (shiftp motive 1 1)
+            (if (isbad tb) Bad
+              (if (isbad ts) Bad
+                (if (teq tb (subp motive Lnil 0))
+                  (if (teq ts (All (All (Arrow m2 (subpk m2 (Lcons (Iv 1) (Iv 0)) 0))))) (All motive) Bad)
+                  Bad)))))))
     ((Eqelim motive pfeq pfpa)
       (match (infer pfeq ctx)
         ((Eq a b) (if (teq (infer pfpa ctx) (subp motive a 0)) (subp motive b 0) Bad))
