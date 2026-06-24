@@ -79,12 +79,20 @@ write in it. The next move is the transcription, not more features.
    (`compiler/beta-lang/bc.beta`) and lowered through the on-ramp — the same
    on-ramp-then-discard pattern the assembler uses, reaching a self-hosting fixed
    point (`bc` compiles `bc.beta` to a tape that recompiles `bc.beta` identically).
-   Slice 1 (arithmetic) **done + gated** (`sh compiler/beta-lang/test.sh`, 8/8).
-   **Blocker surfaced:** `bc.beta` at slice 1 already lowers to a ~15.5 KB tape
-   (the `emit` host-string lowering costs ~12 tape bytes per output character), so
-   the full compiler will exceed the **32 KB tape hole**. Finishing slice 7 needs
-   either the hole-as-parameter VM change (both seeds) or a compact string-emit
-   (assembler `.db` data + a `write_str` loop). See `compiler/beta-lang/README.md`.
+   Slices **1, 2a, 2b done + gated** (`sh compiler/beta-lang/test.sh`, 20/20):
+   arithmetic; a real tokenizer + per-proc symbol table with `let` locals,
+   assignment, variable refs; `if`/`else`/`while` + the six comparisons. bc has a
+   full single-proc front end (compact-asm output, pre-scan frame sizing).
+   **Blocker now HIT:** bc's tape is **30.7 KB of the 32 KB hole** — the next slice
+   (memory, char/string literals, or procedures/calls) cannot fit. `emit` lowers
+   each output byte to an `imm`+`write` (~12 tape bytes/char). Two resolutions:
+   (a) **assembler `.db` data section + `write_str`** — ~1 tape byte/char,
+   *preserves both-seeds lockstep* and shrinks tapes ~10×, but is surgery on the
+   trusted self-hosting assembler (must stay byte-identical); **recommended**.
+   (b) **enlarge the tape hole** — one-line `.space`/`.hex` change, but must be
+   done on *both* seeds to keep the diamond; the x64 forge isn't available on this
+   host, so doing only arm64 introduces a flagged asymmetry. See
+   `compiler/beta-lang/README.md`.
 8. **Rewrite gamma in Beta**, retiring `gamma.alpha` (this is the whole point:
    never hand-write a compiler in assembly again).
 9. **Climb:** Delta (the checker / evidence rung — where trust actually starts),
