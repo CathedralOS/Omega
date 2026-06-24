@@ -33,7 +33,7 @@ honest edges) lives in
 | `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | slices 1–6 done; self-check passed |
 | `compiler/beta-lang/` | The Beta compiler **written in Beta** (`bc.beta`) — slice 7. | **DONE — self-hosts** (byte-for-byte fixed point) |
 | `compiler/delta/` | **The certificate checker** (`check.beta`) — the trust anchor. A natural-deduction / simply-typed-lambda proof checker, compiled by `bc`. | **PROTOTYPE** (in Beta; target is a Gamma program) |
-| `compiler/gamma/` | `gamma.alpha` = parked v13 imperative compiler. **`interp.beta`** = the new interpreter-first reference interpreter (stage 1: functional, fuel-bounded), written in Beta. | interp.beta stage 1 done |
+| `compiler/gamma/` | `gamma.alpha` = parked v13 imperative compiler. **`interp.beta`** = interpreter-first reference interpreter (functional, ADTs + pattern matching, fuel-bounded) + **`typeck.beta`** = a static type checker + **`checker.gamma`** = the Delta checker in gamma, all in Beta. | interpreter + type system done |
 | `compiler/epsilon*`, `compiler/alpha-rs` | Old/renamed experiment soup. | **IGNORE** |
 | `compiler/omega-rs/` | The real Omega compiler, in Rust. Separate concern: the *producer*, not the lattice. | (other workstream) |
 
@@ -86,9 +86,11 @@ The lattice's thesis — *trust by checking, not pedigree* — is now a working 
    the reference interpreter — *meaning is the interpreter*, fuel-bounded (totality)
    — stage 1: a pure functional core (ints, top-level recursive functions, `if`,
    `let`, arithmetic/comparisons; `fac 5→120`, `fib 10→55`, `gcd→12`), compiled
-   Rust-free by `bc`. 11/11 in `test-interp.sh`. **Next: stage 2 = ADTs + pattern
-   matching**, then rewrite the Delta checker in gamma (its hand-encoded tagged-node
-   trees + if-cascade `infer` are exactly what ADTs + match erase).
+   Rust-free by `bc`. 11/11 in `test-interp.sh`. Stage 2 (ADTs + pattern matching) DONE; a static type system (`typeck.beta`,
+   Int + ADTs, catches Int-vs-List etc.) DONE; the Delta checker rewritten in gamma
+   (`checker.gamma`, full parity, ~12 functions vs ~350 lines) DONE — runs on the
+   reference route and agrees with check.beta (`checker-diamond.sh`). Remaining:
+   type-annotate checker.gamma so the type system validates the checker itself.
 9. **Delta — the checker / evidence rung (where trust actually starts): PROTOTYPE
    DONE + GROWN.** [`compiler/delta/check.beta`](compiler/delta/check.beta) is now a
    **full intuitionistic propositional** proof checker (`-> & + ⊥`; Curry-Howard =

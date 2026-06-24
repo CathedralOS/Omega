@@ -69,6 +69,15 @@ reconciled — `interp.beta` is the start of that reconciliation:
   pattern matching, or totality. `interp.beta` is functional + fuel-bounded;
   ADTs + pattern matching landed in stage 2 (`Z`/`S`, `Nil`/`Cons`, `Pair`; `match` with nullary, applied-binding, and catch-all patterns).
 
+The **simple static type system** gamma.md calls for now exists too:
+[`typeck.beta`](../../../../compiler/gamma/typeck.beta) (run by `test-typeck.sh`),
+a monomorphic, fully-annotated type checker — Int + `(data T (C ArgTy...)...)`
+declarations, typed functions, and type checking of `if`/`let`/calls/constructor
+application/`match`. It catches the errors you want (an Int op on a `List`, a
+constructor given the wrong argument type, divergent `match` arms, a pattern from
+the wrong type, a return-type mismatch) and accepts well-typed `Nat`/`List` code —
+"just enough to make the delta checker safe to write, no more."
+
 The pragmatic question is whether to grow the current gamma toward the target or
 to treat the current gamma as a stepping stone and introduce the
 interpreter-first functional gamma as its successor.
