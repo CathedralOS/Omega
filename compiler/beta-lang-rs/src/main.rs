@@ -28,6 +28,7 @@ enum Tok {
     Let,
     Ident(String),
     Int(i64),
+    Str(Vec<u8>), // string literal payload (decoded bytes), only as emit("...")
     LParen,
     RParen,
     LBrace,
@@ -92,6 +93,41 @@ fn lex(src: &str) -> Vec<Tok> {
                 "word" => Tok::Word,
                 w => Tok::Ident(w.to_string()),
             });
+            continue;
+        }
+        if c == b'"' {
+            // string literal: only valid as emit("..."); decoded to bytes here.
+            i += 1;
+            let mut bytes = Vec::new();
+            loop {
+                if i >= b.len() {
+                    panic!("beta-lang: unterminated string literal");
+                }
+                if b[i] == b'"' {
+                    i += 1;
+                    break;
+                }
+                if b[i] == b'\\' {
+                    i += 1;
+                    bytes.push(match b.get(i) {
+                        Some(b'n') => 10,
+                        Some(b't') => 9,
+                        Some(b'r') => 13,
+                        Some(b'0') => 0,
+                        Some(b'\\') => 92,
+                        Some(b'"') => 34,
+                        other => panic!(
+                            "beta-lang: unknown escape '\\{}'",
+                            other.map(|c| *c as char).unwrap_or('?')
+                        ),
+                    });
+                    i += 1;
+                } else {
+                    bytes.push(b[i]);
+                    i += 1;
+                }
+            }
+            toks.push(Tok::Str(bytes));
             continue;
         }
         if c == b'\'' {
@@ -163,6 +199,7 @@ enum Node {
     Cmp(u8, usize, usize),    // 0=< 1=> 2=== 3=!= 4=<= 5=>=  (yields 0/1)
     Call(String, Vec<usize>), // callee, argument indices
     Load(u8, usize),          // width (1=byte, 8=word), address expr
+    Emit(Vec<u8>),            // emit("...") -> write each byte; no string type
 }
 
 enum Stmt {
@@ -395,6 +432,16 @@ impl Parser {
                 self.push(Node::Load(8, a))
             }
             Tok::Ident(name) => {
+                if name == "emit" {
+                    // emit("literal") — the sole place a string literal is valid.
+                    self.eat(Tok::LParen);
+                    let bytes = match self.next() {
+                        Tok::Str(b) => b,
+                        _ => panic!("beta-lang: emit(...) takes a string literal"),
+                    };
+                    self.eat(Tok::RParen);
+                    return self.push(Node::Emit(bytes));
+                }
                 if *self.peek() == Tok::LParen {
                     self.pos += 1;
                     let mut args = Vec::new();
@@ -539,6 +586,13 @@ impl<'a> Gen<'a> {
                     self.line("loadb r0, r0");
                 } else {
                     self.line("load  r0, r0");
+                }
+            }
+            Node::Emit(bytes) => {
+                // write each byte; no string type, just a sequence of writes.
+                for &byte in bytes {
+                    self.line(&format!("imm   r0, {}", byte));
+                    self.line("write r0");
                 }
             }
         }

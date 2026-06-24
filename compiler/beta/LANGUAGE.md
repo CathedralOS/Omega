@@ -51,6 +51,11 @@ alone as a statement (`f(x)`), evaluated for effect with its result discarded.
 A char literal `'a'` is just its byte value (an `INT`), so text-processing code
 reads in characters instead of magic numbers (`peek() - '0'`, `c == '('`).
 
+`emit("text")` is the one place a string literal is allowed: it writes the bytes
+to stdout (lowering to a `write` per byte). There is **no string type** — it is a
+write-only convenience so a compiler written in Beta can emit fixed output (e.g.
+assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \\ \"`.
+
 ## Lowering (every construct maps to what we already have)
 
 | Construct | Lowers to |
