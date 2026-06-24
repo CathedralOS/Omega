@@ -13,11 +13,16 @@ alpha_arm64_macos.s      the hand-authored arm64 source it's built from  (audit 
 alpha_arm64_macos.lst    a committed disassembly, to ease reading the binary against the source
 
 seed_env.sh              per-platform seed selection + tape-stamping, sourced by the build scripts
+
+SEMANTICS.md             the written small-step operational semantics — the meaning a seed is audited AGAINST
+conformance.sh           executable companion: hand-built tapes pinning every opcode + edge; any seed must pass
 ```
 
 To audit a seed: disassemble the binary and read it against its listing (the `.hex` for
-x64, the `.s` + `.lst` for arm64). That's the entire trust obligation for the platform —
-a few hundred instructions.
+x64, the `.s` + `.lst` for arm64), checking that each opcode realizes the transition in
+`SEMANTICS.md`. That's the entire trust obligation for the platform — a few hundred
+instructions. `conformance.sh` mechanically checks the runtime behavior against the spec
+(`sh conformance.sh` runs the host seed through every case).
 
 ## Two independent implementations = a real diamond
 

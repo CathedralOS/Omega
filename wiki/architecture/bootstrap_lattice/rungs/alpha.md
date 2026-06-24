@@ -68,13 +68,22 @@ reproduces the x64 VM's assembler bytecode from `assembler.alpha` byte-for-byte
 
 Gaps versus this target, all small and self-contained:
 
-- **No written small-step semantics** — only the `.hex` encoding. Write it.
+- **Written small-step semantics — DONE.**
+  [`compiler/alpha/SEMANTICS.md`](../../../../compiler/alpha/SEMANTICS.md) is the
+  per-opcode operational spec the seeds are audited against, and
+  [`conformance.sh`](../../../../compiler/alpha/conformance.sh) is its executable
+  companion — hand-built tapes pinning every rule and edge (signed div/mod,
+  signed `jlt`, EOF, the three traps) that any seed must pass. (The two committed
+  seeds both implement it; div/mod now trap on `INT_MIN/-1` to match the x64
+  `idiv` overflow.)
 - **Fixed memory hole** (currently 32 KB) — memory size should be an execution
   *parameter* with a defined out-of-memory result, not baked into the artifact.
 - **Memory accesses are unchecked** — out-of-bounds is silent, not a defined
-  trap. A trust-root executor should trap, not corrupt.
-- **The seed is large** (~37 KB / ~400 audited lines) versus a stage0-scale seed
-  (~256 bytes). Acceptable, but it is a per-platform audit cost; track it.
+  trap. A trust-root executor should trap, not corrupt. (Spelled out as the only
+  *undefined* corner in SEMANTICS.md §8; the hardening is the next step here.)
+- **The seed is large** (x64 ~37 KB / ~400 lines; arm64 ~290 lines of asm)
+  versus a stage0-scale seed (~256 bytes). Acceptable, but it is a per-platform
+  audit cost; track it.
 
 See [`alpha_language.md`](../../../design_briefs/alpha_language.md) for the
 salvageable constraint list (resource budgets, banned features, trap-everything),
