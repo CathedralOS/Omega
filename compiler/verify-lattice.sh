@@ -21,10 +21,11 @@ step "Beta  — language compiler (on-ramp) + corpus"   beta-lang-rs test.sh
 step "bc    — Beta compiler in Beta self-hosts"       beta-lang   selfhost.sh
 step "bc    — per-feature gate"                       beta-lang   test.sh
 step "delta — certificate checker"                    delta       test.sh
+step "gamma — reference interpreter (stage 1)"        gamma       test-interp.sh
 
 echo ""
 if [ "$fail" = 0 ]; then
-  echo "LATTICE VERIFIED ✓ — seed → assembler → Beta → self-hosting bc → checker, all green"
+  echo "LATTICE VERIFIED ✓ — seed → assembler → Beta → self-hosting bc → checker + gamma interp, all green"
 else
   echo "LATTICE: one or more rungs FAILED"; exit 1
 fi

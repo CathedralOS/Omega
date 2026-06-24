@@ -45,21 +45,29 @@ Decide it deliberately; it reshapes every interpreter in the spine.
 
 ## Current repo reality
 
-`compiler/gamma/` is a small **compiler-first imperative** language (v13):
-variables `a`–`j` in registers, arithmetic with precedence, comparisons,
-`if`/`else`, `while`, `print`/`read`, `%`, parentheses. Its compiler is written in
-alpha-asm (`gamma.alpha`, ~3540 lines), assembled by beta. It is **not yet
-self-hosting**.
+Two things live here, pulling in opposite directions:
 
-This diverges from the target gamma in two ways the architecture wants
-reconciled:
+- `gamma.alpha` (~3540 lines) — the **old compiler-first imperative** v13:
+  variables `a`–`j` in registers, arithmetic, `if`/`else`, `while`, `print`/`read`.
+  Compiler written in alpha-asm, assembled by beta; not self-hosting. Parked.
+- `interp.beta` — a **new interpreter-first reference interpreter**, stage 1
+  (`test-interp.sh`), written in **Beta** (compiled by the self-hosting `bc`). A
+  pure functional, **fuel-bounded** core: integers, top-level recursive functions,
+  `if`, `let`, arithmetic/comparisons (`fac 5 → 120`, `fib 10 → 55`, `gcd → 12`).
+  This is the architecturally-favored shape — *meaning is the interpreter* — and
+  resolves the first divergence below. Stage 2 adds the gamma-defining features
+  (ADTs + pattern matching), at which point the Delta checker can be rewritten in
+  it cleanly (its hand-encoded tagged nodes are exactly that pull).
 
-- **Compiler-first, not interpreter-first** — today the compiler *is* the
+The old gamma diverges from the target in two ways the architecture wants
+reconciled — `interp.beta` is the start of that reconciliation:
+
+- **Compiler-first, not interpreter-first** — `gamma.alpha`'s compiler *is* the
   definition; the lattice wants a reference interpreter to define meaning, with
-  the compiler checked against it.
-- **Imperative, not functional/total** — today's gamma has no algebraic data,
-  pattern matching, or totality. The target gamma is the safe definitional layer
-  the delta checker is written in.
+  the compiler checked against it. `interp.beta` is that reference interpreter.
+- **Imperative, not functional/total** — `gamma.alpha` has no algebraic data,
+  pattern matching, or totality. `interp.beta` is functional + fuel-bounded;
+  ADTs + pattern matching are stage 2.
 
 The pragmatic question is whether to grow the current gamma toward the target or
 to treat the current gamma as a stepping stone and introduce the
