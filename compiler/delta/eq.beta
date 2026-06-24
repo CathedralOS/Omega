@@ -24,8 +24,11 @@
 ; normal form, else "differ\n" (exit 0).
 ;   echo '(p (s (s z)) (s (s z)))  (s (s (s (s z))))' | eq    ->  equal   (2+2 = 4)
 ;
+; Also Lists (a second inductive type): nil, (cons h t), (app l1 l2) append, (len l)
+; length — append/length compute, so e.g. ([0]++[1] = [0,1]) and (len [0,1] = 2) decide.
+;
 ; Memory: 2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  3145728 ARENA.
-; Nodes [tag,f0,f1] at 24-byte stride.  tag 0 ZERO, 1 SUC(x), 2 PLUS(a,b).
+; Nodes [tag,f0,f1] at 24-byte stride.  tag 0 ZERO 1 SUC 2 PLUS 3 MUL ; 4 NIL 5 CONS 6 APPEND 7 LEN.
 
 proc slurp() {
     let n = 0
@@ -83,6 +86,22 @@ proc alloc(tag, f0, f1) {
     return p
 }
 
+proc is_lower(c) {
+    if c < 'a' {
+        return 0
+    }
+    if c > 'z' {
+        return 0
+    }
+    return 1
+}
+
+proc skip_ident() {              ; consume a lowercase keyword (s / m / cons / app / len ...)
+    while is_lower(cbyte()) == 1 {
+        adv()
+    }
+}
+
 proc parse_term() {
     skip_ws()
     let a = 0
@@ -91,10 +110,14 @@ proc parse_term() {
         adv()
         return alloc(0, 0, 0)
     }
+    if cbyte() == 'n' {          ; nil (empty list)
+        skip_ident()
+        return alloc(4, 0, 0)
+    }
     adv()                        ; '('
     skip_ws()
     let op = cbyte()
-    adv()
+    skip_ident()                 ; consume the whole operator keyword
     if op == 's' {               ; (s x)
         a = parse_term()
         skip_ws()
@@ -107,6 +130,26 @@ proc parse_term() {
         skip_ws()
         adv()                    ; ')'
         return alloc(3, a, b)
+    }
+    if op == 'c' {               ; (cons h t)
+        a = parse_term()
+        b = parse_term()
+        skip_ws()
+        adv()                    ; ')'
+        return alloc(5, a, b)
+    }
+    if op == 'a' {               ; (app l1 l2) list append
+        a = parse_term()
+        b = parse_term()
+        skip_ws()
+        adv()                    ; ')'
+        return alloc(6, a, b)
+    }
+    if op == 'l' {               ; (len l) list length
+        a = parse_term()
+        skip_ws()
+        adv()                    ; ')'
+        return alloc(7, a, 0)
     }
     a = parse_term()             ; (p a b) plus
     b = parse_term()
@@ -124,11 +167,19 @@ proc normalize(t, fuel) {
     if tag == 0 {                ; z is a normal form
         return t
     }
+    if tag == 4 {                ; nil is a normal form
+        return t
+    }
     let a = 0
     let b = 0
     if tag == 1 {                ; (s x) -> s of normalized x
         a = normalize(word[t + 8], fuel - 1)
         return alloc(1, a, 0)
+    }
+    if tag == 5 {                ; (cons h t) -> reduce both
+        a = normalize(word[t + 8], fuel - 1)
+        b = normalize(word[t + 16], fuel - 1)
+        return alloc(5, a, b)
     }
     if tag == 2 {                ; (p a b)
         a = normalize(word[t + 8], fuel - 1)
@@ -142,16 +193,40 @@ proc normalize(t, fuel) {
         }
         return alloc(2, a, b)    ; stuck
     }
-    ; tag == 3 : (m a b)  -- m z y => z ;  m (s x) y => p y (m x y)
-    a = normalize(word[t + 8], fuel - 1)
-    if word[a] == 0 {
-        return alloc(0, 0, 0)
+    if tag == 6 {                ; (app l1 l2)  -- app nil l2 => l2 ; app (cons h t) l2 => cons h (app t l2)
+        a = normalize(word[t + 8], fuel - 1)
+        if word[a] == 4 {
+            return normalize(word[t + 16], fuel - 1)
+        }
+        if word[a] == 5 {
+            b = alloc(6, word[a + 16], word[t + 16])
+            return alloc(5, word[a + 8], normalize(b, fuel - 1))
+        }
+        return alloc(6, a, normalize(word[t + 16], fuel - 1))
     }
-    if word[a] == 1 {
-        b = alloc(3, word[a + 8], word[t + 16])              ; m x y
-        return normalize(alloc(2, word[t + 16], b), fuel - 1) ; p y (m x y)
+    if tag == 7 {                ; (len l)  -- len nil => z ; len (cons h t) => s (len t)
+        a = normalize(word[t + 8], fuel - 1)
+        if word[a] == 4 {
+            return alloc(0, 0, 0)
+        }
+        if word[a] == 5 {
+            b = normalize(alloc(7, word[a + 16], 0), fuel - 1)
+            return alloc(1, b, 0)
+        }
+        return alloc(7, a, 0)
     }
-    return alloc(3, a, word[t + 16])
+    if tag == 3 {                ; (m a b) -- m z y => z ; m (s x) y => p y (m x y)
+        a = normalize(word[t + 8], fuel - 1)
+        if word[a] == 0 {
+            return alloc(0, 0, 0)
+        }
+        if word[a] == 1 {
+            b = alloc(3, word[a + 8], word[t + 16])              ; m x y
+            return normalize(alloc(2, word[t + 16], b), fuel - 1) ; p y (m x y)
+        }
+        return alloc(3, a, word[t + 16])
+    }
+    return t
 }
 
 proc term_eq(a, b) {
@@ -161,10 +236,16 @@ proc term_eq(a, b) {
     if word[a] == 0 {            ; z
         return 1
     }
+    if word[a] == 4 {            ; nil
+        return 1
+    }
     if word[a] == 1 {            ; s — compare the child
         return term_eq(word[a + 8], word[b + 8])
     }
-    if term_eq(word[a + 8], word[b + 8]) == 0 {   ; plus — both children
+    if word[a] == 7 {            ; len — unary, compare the child
+        return term_eq(word[a + 8], word[b + 8])
+    }
+    if term_eq(word[a + 8], word[b + 8]) == 0 {   ; plus/mul/cons/app — both children
         return 0
     }
     return term_eq(word[a + 16], word[b + 16])

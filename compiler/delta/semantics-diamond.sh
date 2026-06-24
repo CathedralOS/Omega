@@ -18,14 +18,22 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" && "$ASM" < "$T/x.asm" > "$T/x.tape" && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b eq.beta "$T/eq.exe"           || { echo "build eq.beta failed"; exit 1; }
 b ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
-# gamma defs: plus + mult (operational) + neq (structural Nat equality -> 1/0)
-DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def neq (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (neq x y)) (w 0)))))'
+# gamma operational defs: plus/mult + neq (Nat eq); append/length + leq (List eq).
+DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def neq (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (neq x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (neq h i) (leq t u) 0)) (w 0)))))'
 
 PASS=0; FAIL=0
 # dia DESC  EQ_BETA_INPUT(p/s/z)  GAMMA_EXPR(Su/Ze + plus)  EXPECT(equal|differ)
 dia() {
   veq=$(printf '%s' "$2" | "$T/eq.exe")                              # eq.beta: equal/differ
   printf '%s\n(neq %s)\n' "$DEFS" "$3" | "$T/interp.exe" >/dev/null; n=$?  # interp: 1/0
+  vop=differ; [ "$n" = 1 ] && vop=equal
+  if [ "$veq" = "$vop" ] && [ "$veq" = "$4" ]; then PASS=$((PASS+1))
+  else FAIL=$((FAIL+1)); echo "  FAIL $1 : definitional=$veq operational=$vop expect=$4"; fi
+}
+# dial — same, for LIST-valued results (compared with leq instead of neq)
+dial() {
+  veq=$(printf '%s' "$2" | "$T/eq.exe")
+  printf '%s\n(leq %s)\n' "$DEFS" "$3" | "$T/interp.exe" >/dev/null; n=$?
   vop=differ; [ "$n" = 1 ] && vop=equal
   if [ "$veq" = "$vop" ] && [ "$veq" = "$4" ]; then PASS=$((PASS+1))
   else FAIL=$((FAIL+1)); echo "  FAIL $1 : definitional=$veq operational=$vop expect=$4"; fi
@@ -40,5 +48,11 @@ dia "1+1 != 1"   "(p (s z) (s z))  (s z)"                              "(plus (S
 dia "2*3 = 6"    "(m (s (s z)) (s (s (s z))))  (s (s (s (s (s (s z))))))" "(mult (Su (Su Ze)) (Su (Su (Su Ze)))) (Su (Su (Su (Su (Su (Su Ze))))))" equal
 dia "3*0 = 0"    "(m (s (s (s z))) z)  z"                              "(mult (Su (Su (Su Ze))) Ze) Ze"                                   equal
 dia "2*3 != 5"   "(m (s (s z)) (s (s (s z))))  (s (s (s (s (s z)))))"  "(mult (Su (Su Ze)) (Su (Su (Su Ze)))) (Su (Su (Su (Su (Su Ze)))))" differ
+# Lists: append/length, definitional (eq.beta) vs operational (interpreter)
+dia "len[_,_]=2"   "(len (cons z (cons z nil)))  (s (s z))"                "(length (Lcons Ze (Lcons Ze Lnil))) (Su (Su Ze))"                  equal
+dia "len(a++b)=2"  "(len (app (cons z nil) (cons z nil)))  (s (s z))"      "(length (append (Lcons Ze Lnil) (Lcons Ze Lnil))) (Su (Su Ze))"    equal
+dial "[0]++[1]"    "(app (cons z nil) (cons (s z) nil))  (cons z (cons (s z) nil))" "(append (Lcons Ze Lnil) (Lcons (Su Ze) Lnil)) (Lcons Ze (Lcons (Su Ze) Lnil))" equal
+dial "[]++[0]"     "(app nil (cons z nil))  (cons z nil)"                  "(append Lnil (Lcons Ze Lnil)) (Lcons Ze Lnil)"                     equal
+dial "[0] != []"   "(app (cons z nil) nil)  nil"                          "(append (Lcons Ze Lnil) Lnil) Lnil"                               differ
 echo "semantics diamond (definitional eq vs operational eval): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
