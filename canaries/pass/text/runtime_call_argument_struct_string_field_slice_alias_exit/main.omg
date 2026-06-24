@@ -1,9 +1,12 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
 data Exit {
-    command: String;
+    command: &[u8] in Utf8;
     direction: u32;
     destination: u32;
 }
@@ -52,7 +55,7 @@ machine Main::connect(&mut self, room: &mut Room, direction: u32) {
 machine Main::append_exit(
     &mut self,
     room: &mut Room,
-    command: String,
+    command: &[u8] in Utf8,
     direction: u32,
     destination: u32
 )
@@ -65,7 +68,7 @@ machine Main::append_exit(
     state append_exit_slot_0(
         &mut self,
         room: &mut Room,
-        command: String,
+        command: &[u8] in Utf8,
         direction: u32,
         destination: u32
     ) {
@@ -80,7 +83,7 @@ machine Main::append_exit(
     }
 }
 
-machine Main::direction_command(&mut self, direction: u32) -> String {
+machine Main::direction_command(&mut self, direction: u32) -> &[u8] in Utf8 {
     transition {
         direction == 1 -> "east"
         _ -> "west"

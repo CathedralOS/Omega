@@ -2,6 +2,7 @@ use omega_checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{FactPayload, FactPlace, PlaceRoot};
+use omega_typed_trees::expression::ExpressionNode;
 
 use super::places::expression_is_boolean_place_like;
 use super::prover::{
@@ -73,7 +74,13 @@ pub(super) fn check_call_requires(
             // domain without a validating boundary call -- this is how a literal
             // flows into a `&[u8] in Utf8` (or any classifier-backed) target.
             let satisfied = satisfied
-                || string_literal_grants_domain(program, &facts.semantic, fact.payload, fact.place);
+                || string_literal_grants_domain(program, &facts.semantic, fact.payload, fact.place)
+                || value_call_return_domain_grants(
+                    program,
+                    &facts.semantic,
+                    fact.payload,
+                    fact.place,
+                );
 
             if !satisfied {
                 let detail = match fact.payload {
@@ -136,6 +143,52 @@ fn string_literal_grants_domain(
         return false;
     };
     crate::field_domain::string_literal_expression_grants_domain(program, expression, domain_symbol)
+}
+
+/// #66 return-domain forwarding: a `requires <arg> in D` obligation whose argument
+/// is a VALUE CALL (`self.direction_command(direction)`) is satisfied when the
+/// callee's DECLARED return type carries a domain implying `D`. This is the same
+/// trust basis as a declared param domain at a call site (the signature's domain
+/// is trusted at use sites; the callee's return body is enforced separately, the
+/// deferred returns-domain check) -- and the call-argument analog of the field
+/// write that already trusts a declared return domain (checks/contracts/writes.rs
+/// `value_call_return_domain_implies`). The subject must be the call expression
+/// itself (an expression-rooted place with no field/index segments).
+fn value_call_return_domain_grants(
+    program: &omega_typed_trees::TypedTrees,
+    semantic: &omega_facts::FactPlan,
+    payload: FactPayload,
+    place: FactPlace,
+) -> bool {
+    let FactPayload::ContractDomainMembership { domain_symbol, .. } = payload else {
+        return false;
+    };
+    let FactPlace::Place(place_handle) = place else {
+        return false;
+    };
+    let resolved = semantic.places.get(place_handle);
+    if !resolved.segments.is_empty() {
+        return false;
+    }
+    let PlaceRoot::Expression(expression) = resolved.root else {
+        return false;
+    };
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let Some(target) = crate::find_state(program, call.target_symbol) else {
+        return false;
+    };
+    if !target.return_type.is_valid() {
+        return false;
+    }
+    let Some(return_domain) =
+        crate::field_domain::domain_constraint_name(program, target.return_type)
+            .and_then(|name| crate::field_domain::resolve_domain_symbol(program, &name))
+    else {
+        return false;
+    };
+    semantic.domain_implies(return_domain, domain_symbol)
 }
 
 /// Clear "needs fact X here" guidance for a proof-backed operator/contract that

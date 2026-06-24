@@ -1,14 +1,17 @@
-// ARRAY-literal struct-element initialization lowers natively, String fields
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+// ARRAY-literal struct-element initialization lowers natively, &[u8] in Utf8 fields
 // included. Before the fix, `let rooms: [Room; 2] = [Room { .. }, Room { .. }]`
 // selected NO writes at all: the local-initializer mutation path had a
 // StructLiteral arm but no ArrayLiteral arm, so the whole initializer fell
 // through to the scalar path and silently emitted nothing -- every element
-// frame slot stayed zeroed natively (scalar fields read 0, String descriptors
+// frame slot stayed zeroed natively (scalar fields read 0, &[u8] in Utf8 descriptors
 // read empty) while the interpreter initialized them. The string rodata was
 // already collected (data planning walks array-literal elements), only the
-// frame writes were missing -- spotted by the now-honest String guards.
+// frame writes were missing -- spotted by the now-honest &[u8] in Utf8 guards.
 //
-// Each element's scalar sibling and String field is guarded through a RUNTIME
+// Each element's scalar sibling and &[u8] in Utf8 field is guarded through a RUNTIME
 // index so the reads hit the frame (a literal index could fold statically),
 // with distinct literals per element so element 1's write cannot masquerade
 // as element 0's. A cross check (element 0 against element 1's literal) pins
@@ -20,7 +23,7 @@ boundary trait Console {
 
 data Room {
     number: u32;
-    label: String;
+    label: &[u8] in Utf8;
 }
 
 data Main {

@@ -1,4 +1,7 @@
-// A String field of a slice element compared against a literal in GUARD
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+// A &[u8] in Utf8 field of a slice element compared against a literal in GUARD
 // position must compare CONTENT, in all three regimes:
 //   1. an EMPTY (default-zeroed) field never equals a non-empty literal,
 //   2. a field holding the literal's exact bytes equals it,
@@ -11,7 +14,7 @@ boundary trait Console {
 }
 
 data Room {
-    name: String;
+    name: &[u8] in Utf8;
 }
 
 data Main {

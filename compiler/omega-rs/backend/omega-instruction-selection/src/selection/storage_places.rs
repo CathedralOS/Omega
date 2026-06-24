@@ -1285,6 +1285,51 @@ pub(super) fn resolve_runtime_frame_indexed_primitive_type_in_table(
     descriptor_primitive_type(cursor.type_descriptor())
 }
 
+/// Whether a runtime-frame-INDEXED element field (`rooms[i].label`) is a fat
+/// `{ptr, len}` slice descriptor (`&[u8]`, including `&[u8] in Utf8`) -- the
+/// indexed-element analog of `resolve_runtime_frame_indexed_primitive_type_in_table`
+/// returning `Some(PrimitiveType::String)`. Lets a `text == "literal"` guard over
+/// a `&[u8] in Utf8` element resolve to the content-compare text leaf instead of
+/// falling through to a raw scalar compare of the descriptor's pointer words.
+pub(super) fn resolve_runtime_frame_indexed_is_fat_slice_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    (|| {
+        let indexed = indexed_target_path_in_table(expressions, expression)?;
+        let collection_slot = runtime_frame_slot_for_expression_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            indexed.collection,
+        )?;
+        let element_descriptor = collection_slot.type_descriptor.element_type()?;
+        let element_layout = descriptor_layout(input, element_descriptor);
+        let root_field = FieldLayout {
+            symbol: collection_slot.symbol,
+            name: collection_slot.name.clone(),
+            offset: 0,
+            type_symbol: element_descriptor.storage_symbol(),
+            type_name: "".into(),
+            type_descriptor: element_descriptor.clone(),
+            layout: element_layout,
+        };
+        let cursor = NestedFieldLayoutCursor::from_root(&root_field);
+        let cursor = resolve_indexed_target_suffix_cursor_in_table(
+            &input.layouts,
+            cursor,
+            expressions,
+            indexed.suffix_root,
+        )?;
+        Some(descriptor_is_fat_slice(cursor.type_descriptor()))
+    })()
+    .unwrap_or(false)
+}
+
 pub(super) fn resolve_runtime_frame_indexed_target_near_slot_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
