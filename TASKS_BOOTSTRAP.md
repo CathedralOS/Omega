@@ -27,7 +27,7 @@ honest edges) lives in
 
 | Path | What it is | Status |
 | --- | --- | --- |
-| `compiler/alpha/` | **The seed**: a 21-opcode register tape VM, hand-written x64 (`.exe` + audited `.hex`). The provenance root. | DONE |
+| `compiler/alpha/` | **The seed**: a 21-opcode register tape VM. **Two independent hand-authored realizations** — x64 Windows PE (`.exe` + audited `.hex`) and arm64 macOS Mach-O (`alpha_arm64_macos` + `.s` + `.lst`). The provenance root, and the first lattice diamond (same source → byte-identical tapes on both). | DONE (x64 + arm64-macOS) |
 | `compiler/beta/` | **The assembler** (`assembler.alpha`, written in Alpha assembly) + the Beta-language docs/examples. | DONE — self-hosts byte-identically |
 | `compiler/beta-rs/` | Throwaway Rust on-ramp for the *assembler* (cold-start only). | parked |
 | `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | **ACTIVE** — slices 1–4 done |
@@ -72,10 +72,15 @@ that**, not to pile on features.
 9. **Climb:** Delta (the checker / evidence rung — where trust actually starts),
    then up.
 
-## How to build & verify (repo root, Git Bash; `cargo` needed for `beta-lang-rs`)
+## How to build & verify (repo root; Git Bash on Windows, plain `sh` on macOS; `cargo` needed for `beta-lang-rs`)
+
+The build scripts are **platform-aware** (`compiler/alpha/seed_env.sh` picks the
+seed + stamping per host), so the same commands work on Windows (x64 PE seed) and
+macOS arm64 (Mach-O seed, auto re-signed after stamping). On macOS the self-host
+fixed point is asserted on the program bytes, not the OS-imposed code signature.
 
 ```sh
-# beta self-hosts (byte-identical fixed point):
+# beta self-hosts (byte-identical program-byte fixed point):
 sh compiler/beta/selfhost.sh                                   # -> "self-host ✓"
 
 # gamma still rebuilds + runs from .gamma source:
