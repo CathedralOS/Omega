@@ -122,6 +122,8 @@ chk "list ind princ"  "(-> (Pred 0 nil) (-> (All (All (-> (Pred 0 (v 0)) (Pred 0
 chk "l ++ nil = l"    "(All (= (app (v 0) nil) (v 0))) (listind (= (app (v 0) nil) (v 0)) (refl nil) (gen (gen (lam (= (app (v 0) nil) (v 0)) (eqelim (= (cons (v 2) (app (v 1) nil)) (cons (v 2) (v 0))) (hyp 0) (refl (cons (v 1) (app (v 0) nil))))))))" accept
 chk "l++nil not refl" "(All (= (app (v 0) nil) (v 0))) (gen (refl (v 0)))"                                        reject
 chk "list ident step" "(-> (Pred 0 nil) (-> (All (All (-> (Pred 0 (v 0)) (Pred 0 (v 0))))) (All (Pred 0 (v 0))))) (lam (Pred 0 nil) (lam (All (All (-> (Pred 0 (v 0)) (Pred 0 (v 0))))) (listind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
+# capstone: append is associative — ∀a b c. (a++b)++c = a++(b++c), induction on a
+chk "append assoc"   "(All (All (All (= (app (app (v 0) (v 2)) (v 1)) (app (v 0) (app (v 2) (v 1))))))) (gen (gen (listind (= (app (app (v 0) (v 2)) (v 1)) (app (v 0) (app (v 2) (v 1)))) (refl (app (v 1) (v 0))) (gen (gen (lam (= (app (app (v 0) (v 3)) (v 2)) (app (v 0) (app (v 3) (v 2)))) (eqelim (= (cons (v 2) (app (app (v 1) (v 4)) (v 3))) (cons (v 2) (v 0))) (hyp 0) (refl (cons (v 1) (app (app (v 0) (v 3)) (v 2)))))))))))" accept
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
