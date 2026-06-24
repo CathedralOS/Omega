@@ -117,6 +117,11 @@ chk "[]++[0] = [0]"   "(= (app nil (cons z nil)) (cons z nil)) (refl (cons z nil
 chk "concat 3 lists"  "(= (app (cons z (cons (s z) nil)) (cons (s (s z)) nil)) (cons z (cons (s z) (cons (s (s z)) nil)))) (refl (cons z (cons (s z) (cons (s (s z)) nil))))" accept
 chk "append assoc(c)" "(= (app (app (cons z nil) (cons (s z) nil)) (cons (s (s z)) nil)) (app (cons z nil) (app (cons (s z) nil) (cons (s (s z)) nil)))) (refl (cons z (cons (s z) (cons (s (s z)) nil))))" accept
 chk "[0] != [1]"      "(= (cons z nil) (cons (s z) nil)) (refl (cons z nil))"                                     reject
+# list induction (listind) + a real theorem: forall l. l ++ nil = l
+chk "list ind princ"  "(-> (Pred 0 nil) (-> (All (All (-> (Pred 0 (v 0)) (Pred 0 (cons (v 1) (v 0)))))) (All (Pred 0 (v 0))))) (lam (Pred 0 nil) (lam (All (All (-> (Pred 0 (v 0)) (Pred 0 (cons (v 1) (v 0)))))) (listind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" accept
+chk "l ++ nil = l"    "(All (= (app (v 0) nil) (v 0))) (listind (= (app (v 0) nil) (v 0)) (refl nil) (gen (gen (lam (= (app (v 0) nil) (v 0)) (eqelim (= (cons (v 2) (app (v 1) nil)) (cons (v 2) (v 0))) (hyp 0) (refl (cons (v 1) (app (v 0) nil))))))))" accept
+chk "l++nil not refl" "(All (= (app (v 0) nil) (v 0))) (gen (refl (v 0)))"                                        reject
+chk "list ident step" "(-> (Pred 0 nil) (-> (All (All (-> (Pred 0 (v 0)) (Pred 0 (v 0))))) (All (Pred 0 (v 0))))) (lam (Pred 0 nil) (lam (All (All (-> (Pred 0 (v 0)) (Pred 0 (v 0))))) (listind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
