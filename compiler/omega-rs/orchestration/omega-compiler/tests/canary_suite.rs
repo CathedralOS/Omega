@@ -6629,6 +6629,55 @@ fn runtime_struct_literal_string_field_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_param_domain_forward_exit_canary_runs() {
+    // #66 domain-fact forwarding: an IMMUTABLE `&[u8] in Utf8` parameter, forwarded
+    // as a call argument to another domained param, discharges `text in Utf8` via
+    // the param's always-holding state invariant (caller-enforced `requires` +
+    // immutability). Before the param-domain producer + direct state-invariant
+    // consultation this rejected at compile time on the branch-dispatch path
+    // (`consume: text in Utf8` saw 0 entry contexts).
+    let canary = pass_canary("text/runtime_param_domain_forward_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("param domain forward canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for a forwarded domained param, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-param-domain-forward-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("param domain forward canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("param domain forward canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected forwarded immutable domained param to discharge and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_tuple_transition_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_tuple_transition_exit");
     let main_path = canary.join("main.omg");

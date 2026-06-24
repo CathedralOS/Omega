@@ -116,6 +116,14 @@ pub enum FactOrigin {
     MachineFieldDomain {
         machine_symbol: SymbolHandle,
     },
+    /// A declared encoding-domain refinement on a state PARAMETER
+    /// (`check_text(text: &[u8] in Utf8)`), surfaced as an entry assumption for
+    /// the machine (#66). Sound: the param's implicit `requires param in Domain`
+    /// is a CALLER obligation, so inside any state the membership always holds.
+    StateParameterDomain {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
     StateSignatureContract {
         owner_symbol: SymbolHandle,
         state_symbol: SymbolHandle,

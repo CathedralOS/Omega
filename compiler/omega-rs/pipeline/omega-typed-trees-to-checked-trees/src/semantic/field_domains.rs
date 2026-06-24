@@ -109,6 +109,68 @@ pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mu
     }
 }
 
+/// #66 param entry-assumption: an IMMUTABLE state parameter declared with an
+/// encoding domain (`check_text(text: &[u8] in Utf8)`) carries that domain as an
+/// always-holding STATE invariant. The param's implicit `requires param in Domain`
+/// (Phase 1) makes every caller prove membership, and immutability means it can
+/// never be reassigned out of the domain -- so it holds at every program point in
+/// the state with NO invalidation possible. Surfaced at `ProgramPoint::State`
+/// (the param belongs to the state) and consulted DIRECTLY by `check_call_requires`
+/// (see calls.rs), bypassing the flow's per-statement context threading, which
+/// drops machine/state facts on some branch-leaf and dispatch-specialized paths.
+///
+/// Needs no empty/ZII soundness gate (a param is an argument a caller proved
+/// in-domain, never a default). MUTABLE params are excluded: a reassignment could
+/// move them out of the domain, so they are not an unconditional invariant and
+/// must go through the (invalidation-aware) flow instead.
+pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut refs = omega_core::arena::HandleSpan::empty();
+            for parameter in program.state_parameters(state) {
+                if parameter.is_self || parameter.is_mutable {
+                    continue;
+                }
+                let Some(domain_symbol) = field_domain_symbol(program, parameter.type_reference)
+                    .filter(|symbol| symbol.is_valid())
+                else {
+                    continue;
+                };
+
+                let place = facts.append_symbol_place(parameter.symbol);
+                let fact = facts.append_fact(Fact {
+                    place: FactPlace::Place(place),
+                    point: ProgramPoint::State {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                    },
+                    origin: FactOrigin::StateParameterDomain {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                    },
+                    payload: FactPayload::DomainMembership {
+                        value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+                        domain: omega_core::arena::HandleSpan::empty(),
+                        domain_symbol,
+                    },
+                });
+                facts.append_ref(&mut refs, fact);
+            }
+
+            if refs.is_empty() {
+                continue;
+            }
+            facts.append_context(
+                ProgramPoint::State {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                },
+                refs,
+            );
+        }
+    }
+}
+
 /// A symbol named `self` for the machine's receiver -- the `is_self` parameter
 /// of any of its states (all spelled `self`, so the canonical label is identical
 /// regardless of which state's receiver symbol is used).
