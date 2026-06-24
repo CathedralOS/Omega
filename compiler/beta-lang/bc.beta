@@ -1,15 +1,24 @@
-; bc.beta — the Beta compiler, WRITTEN IN BETA.  (slice 2a: named locals)
+; bc.beta — the Beta compiler, WRITTEN IN BETA.  *** SELF-HOSTING ***
 ;
-; Reads Beta source on stdin, emits Alpha assembly on stdout — the self-hosting
-; path (slice 7): once bc compiles its own source to a fixed point, Rust leaves
-; the lineage. Built slice-by-slice, mirroring beta-lang-rs.
+; Reads Beta source on stdin, emits Alpha assembly on stdout — the same job as the
+; Rust on-ramp (beta-lang-rs), but written in Beta itself. It compiles its OWN
+; source to a fixed point (selfhost.sh): bc(bc.beta) assembles to a compiler that
+; reproduces bc(bc.beta) byte-for-byte, so from that compiler on, Rust is out of
+; the lineage — it only cold-started the very first bc.
 ;
-;   slice 1  : proc main() { return <arith> }
-;   slice 2a : + `let` locals, assignment, variable references  (THIS)
+; Implements the whole Beta language (LANGUAGE.md):
+;   1   arithmetic (+ - * / %, parens, precedence)
+;   2a  let locals, assignment, variable references (tokenizer + symbol table)
+;   2b  if/else, while, the six comparisons
+;   3   procedures, parameters, calls, recursion
+;   4   byte[]/word[] memory load/store
+;   5   char literals 'x' (+ escapes), read_byte/write_byte intrinsics, call stmts
+;   6   string literals via emit("...") (inline db data + write_str)
 ;
-; Single pass with one pre-scan: to emit the prologue's frame allocation we must
-; know how many locals the proc has, so count_lets() scans the body once before
-; codegen. Locals are addressed at [fp - 8 - 8*slot], matching the on-ramp.
+; Single pass with one pre-scan: to emit a proc's frame allocation we must know
+; its local count first, so count_lets() scans the body once (skipping char/string
+; literals) before codegen. Locals are addressed at [fp - 8 - 8*slot], matching
+; the on-ramp's calling convention.
 ;
 ; emit() costs ~12 tape bytes/char, so bc emits COMPACT asm (no indent, commas
 ; attached — the assembler treats those as whitespace) to stay within the hole.
@@ -260,6 +269,56 @@ proc is_word() {
     return 0
 }
 
+proc is_read_byte() {        ; current ident == "read_byte" (9 chars)
+    if word[2097112] == 9 {
+        if id_char(0) == 'r' {
+        if id_char(1) == 'e' {
+        if id_char(2) == 'a' {
+        if id_char(3) == 'd' {
+        if id_char(4) == '_' {
+        if id_char(5) == 'b' {
+        if id_char(6) == 'y' {
+        if id_char(7) == 't' {
+        if id_char(8) == 'e' {
+            return 1
+        } } } } } } } } }
+    }
+    return 0
+}
+
+proc is_write_byte() {       ; current ident == "write_byte" (10 chars)
+    if word[2097112] == 10 {
+        if id_char(0) == 'w' {
+        if id_char(1) == 'r' {
+        if id_char(2) == 'i' {
+        if id_char(3) == 't' {
+        if id_char(4) == 'e' {
+        if id_char(5) == '_' {
+        if id_char(6) == 'b' {
+        if id_char(7) == 'y' {
+        if id_char(8) == 't' {
+        if id_char(9) == 'e' {
+            return 1
+        } } } } } } } } } }
+    }
+    return 0
+}
+
+proc is_emit() {             ; current ident == "emit" (4 chars)
+    if word[2097112] == 4 {
+        if id_char(0) == 'e' {
+            if id_char(1) == 'm' {
+                if id_char(2) == 'i' {
+                    if id_char(3) == 't' {
+                        return 1
+                    }
+                }
+            }
+        }
+    }
+    return 0
+}
+
 proc expect(ch) {            ; skip ws then consume ch if present
     skip_ws()
     if cbyte() == ch {
@@ -295,7 +354,101 @@ proc gen_store(w) {          ; byte[addr] = val / word[addr] = val
     return 0
 }
 
+; copy the string-literal body (cursor at opening ") verbatim — its \-escapes are
+; exactly what the assembler's db decodes — into the db output; return decoded len.
+proc emit_str_body() {
+    adv()                    ; opening "
+    let len = 0
+    while cbyte() != 34 {
+        if cbyte() == 0 {
+            return len
+        }
+        if cbyte() == 92 {   ; backslash escape: copy '\' and the next char (1 byte)
+            write_byte(92)
+            adv()
+            write_byte(cbyte())
+            adv()
+        } else {
+            write_byte(cbyte())
+            adv()
+        }
+        len = len + 1
+    }
+    adv()                    ; closing "
+    return len
+}
+
+; emit("...") -> inline db data (jumped over) + a call to __write_str. Inline so
+; the single-pass streaming compiler needs no end-of-program data buffering.
+proc gen_emit() {
+    expect('(')
+    skip_ws()
+    let slbl = new_label()
+    let albl = new_label()
+    emit("jmp ")
+    emit_lref(albl)
+    emit("\n")
+    emit_lref(slbl)
+    emit(":\n")
+    emit("db \"")
+    let len = emit_str_body()
+    emit("\"\n")
+    emit_lref(albl)
+    emit(":\n")
+    emit("imm r0,")
+    emit_lref(slbl)
+    emit("\n")
+    emit("imm r1,")
+    emit_dec(len)
+    emit("\n")
+    emit("call __write_str\n")
+    expect(')')
+    return 0
+}
+
+proc emit_write_str() {      ; leaf helper: r0=addr, r1=len; write len bytes from [addr]
+    emit("__write_str:\n")
+    emit("__ws_loop:\n")
+    emit("imm r3,0\n")
+    emit("jeq r1,r3,__ws_done\n")
+    emit("loadb r2,r0\n")
+    emit("write r2\n")
+    emit("imm r3,1\n")
+    emit("add r0,r3\n")
+    emit("sub r1,r3\n")
+    emit("jmp __ws_loop\n")
+    emit("__ws_done:\n")
+    emit("ret\n")
+}
+
+proc gen_read_byte() {       ; read_byte() -> read into r0 (-1 at EOF)
+    expect('(')
+    expect(')')
+    emit("read r0\n")
+    return 0
+}
+
+proc gen_write_byte() {      ; write_byte(x) -> write low byte of x
+    expect('(')
+    gen_expr()
+    expect(')')
+    emit("write r0\n")
+    return 0
+}
+
 proc gen_call() {            ; f(args): callee name is in IDOFF/IDLEN, cursor at '('
+    if is_read_byte() == 1 {
+        gen_read_byte()
+        return 0
+    }
+    if is_write_byte() == 1 {
+        gen_write_byte()
+        return 0
+    }
+    if is_emit() == 1 {
+        gen_emit()
+        return 0
+    }
     let nameoff = word[2097120]    ; IDOFF — save before arg parsing clobbers it
     let namelen = word[2097112]    ; IDLEN
     expect('(')
@@ -373,6 +526,30 @@ proc lookup() {              ; slot of the current IDOFF/IDLEN (0 if unknown)
 
 ; count `let` declarations in the body from the cursor to the matching `}`,
 ; leaving the cursor unmoved. (Slice 2a programs have no char/string literals.)
+proc skip_char_lit() {       ; cursor at opening '; consume the whole 'x' / '\x'
+    adv()                    ; opening '
+    if cbyte() == 92 {       ; backslash
+        adv()
+    }
+    adv()                    ; the char
+    adv()                    ; closing '
+}
+
+proc skip_str_lit() {        ; cursor at opening "; consume the whole "..."
+    adv()                    ; opening "
+    while cbyte() != 34 {
+        if cbyte() == 0 {
+            return 0
+        }
+        if cbyte() == 92 {   ; backslash escape -> skip the next char too
+            adv()
+        }
+        adv()
+    }
+    adv()                    ; closing "
+    return 0
+}
+
 proc count_lets() {
     let start = word[2097144]
     let depth = 1
@@ -383,21 +560,29 @@ proc count_lets() {
         if c == 0 {
             depth = 0
         } else {
-            if c == '{' {
-                depth = depth + 1
-                adv()
+            if c == 39 {                 ; ' char literal — skip as a unit
+                skip_char_lit()
             } else {
-                if c == '}' {
-                    depth = depth - 1
-                    adv()
+                if c == 34 {             ; " string literal — skip as a unit
+                    skip_str_lit()
                 } else {
-                    if is_alpha(c) == 1 {
-                        read_ident()
-                        if is_let() == 1 {
-                            count = count + 1
-                        }
-                    } else {
+                    if c == '{' {
+                        depth = depth + 1
                         adv()
+                    } else {
+                        if c == '}' {
+                            depth = depth - 1
+                            adv()
+                        } else {
+                            if is_alpha(c) == 1 {
+                                read_ident()
+                                if is_let() == 1 {
+                                    count = count + 1
+                                }
+                            } else {
+                                adv()
+                            }
+                        }
                     }
                 }
             }
@@ -583,11 +768,42 @@ proc gen_factor() {
         emit_load_slot(lookup())    ; variable reference
         return 0
     }
+    if c == 39 {                    ; char literal 'x' -> its byte value
+        emit("imm r0,")
+        emit_dec(parse_char())
+        emit("\n")
+        return 0
+    }
     let v = parse_number()
     emit("imm r0,")
     emit_dec(v)
     emit("\n")
     return 0
+}
+
+proc parse_char() {                 ; cursor at opening '; return the byte value
+    adv()                           ; opening '
+    let v = cbyte()
+    if v == 92 {                    ; backslash escape
+        adv()
+        v = cbyte()
+        if v == 'n' {
+            v = 10
+        }
+        if v == 't' {
+            v = 9
+        }
+        if v == 'r' {
+            v = 13
+        }
+        if v == '0' {
+            v = 0
+        }
+        ; \\ and \' keep v as 92 / 39 already
+    }
+    adv()                           ; the (escaped) char
+    adv()                           ; closing '
+    return v
 }
 
 proc gen_term() {
@@ -822,6 +1038,11 @@ proc gen_stmt() {
         gen_store(8)             ; word[addr] = val
         return 0
     }
+    skip_ws()
+    if cbyte() == '(' {
+        gen_call()               ; call statement (e.g. write_byte(x), advance(buf))
+        return 0
+    }
     ; otherwise the ident just read is an assignment target
     slot = lookup()
     expect('=')
@@ -869,6 +1090,7 @@ proc parse_proc() {
 proc main() {
     slurp()
     emit_prelude()
+    emit_write_str()             ; the emit() helper (after halt; harmless if unused)
     skip_ws()
     while cbyte() != 0 {
         parse_proc()
