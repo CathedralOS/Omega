@@ -637,6 +637,51 @@ proc eval(expr, fuel) {
     return 0
 }
 
+; ---- print a value (so a program can return data, not just an int) ----
+
+proc emit_dec(n) {
+    if n < 0 {
+        write_byte('-')
+        emit_dec(0 - n)
+        return 0
+    }
+    if n >= 10 {
+        emit_dec(n / 10)
+    }
+    write_byte(n % 10 + '0')
+    return 0
+}
+
+proc print_con_name(off) {           ; the constructor name lives at SRC[off]
+    let i = 0
+    while is_delim(byte[2097152 + off + i]) == 0 {
+        write_byte(byte[2097152 + off + i])
+        i = i + 1
+    }
+    return 0
+}
+
+proc print_value(v) {
+    if word[v] == 100 {              ; VINT
+        emit_dec(word[v + 8])
+        return 0
+    }
+    let args = word[v + 16]          ; VCON con_off arglist
+    if args == 0 {
+        print_con_name(word[v + 8])  ; nullary constructor: just its name
+        return 0
+    }
+    write_byte('(')
+    print_con_name(word[v + 8])
+    while args != 0 {
+        write_byte(' ')
+        print_value(word[args + 8])
+        args = word[args + 16]
+    }
+    write_byte(')')
+    return 0
+}
+
 proc main() {
     slurp()
     skip_ws()
@@ -644,6 +689,8 @@ proc main() {
         parse_def()
         skip_ws()
     }
-    let final = parse_expr()
-    return get_int(eval(final, 1000000))
+    let result = eval(parse_expr(), 1000000)
+    print_value(result)              ; render the value (int or constructor tree)
+    write_byte(10)
+    return get_int(result)           ; and deliver an int result as the exit code
 }
