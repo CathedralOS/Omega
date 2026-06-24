@@ -105,6 +105,9 @@ chk "disj needs s/0"  "(-> (= (s z) (s z)) (bot)) (lam (= (s z) (s z)) (disj (hy
 chk "sinj wrong"      "(-> (= (s z) (s z)) (= z (s z))) (lam (= (s z) (s z)) (sinj (hyp 0)))"                    reject
 # flagship: ∀n. n ≠ s n — induction, base by disj, step by sinj + the hypothesis
 chk "n != s n"        "(All (-> (= (v 0) (s (v 0))) (bot))) (natind (-> (= (v 0) (s (v 0))) (bot)) (lam (= z (s z)) (disj (hyp 0))) (gen (lam (-> (= (v 0) (s (v 0))) (bot)) (lam (= (s (v 0)) (s (s (v 0)))) (app (hyp 1) (sinj (hyp 0)))))))" accept
+# ∃-intro now admits an OPEN witness (capture-avoiding), enabling the cover theorem
+chk "exists open wit" "(All (-> (Rel 0 z (v 0)) (Exists (Rel 0 z (v 0))))) (gen (lam (Rel 0 z (v 0)) (wit (Rel 0 z (v 0)) (v 0) (hyp 0))))" accept
+chk "0 or successor"  "(All (+ (= (v 0) z) (Exists (= (v 1) (s (v 0)))))) (natind (+ (= (v 0) z) (Exists (= (v 1) (s (v 0))))) (inl (Exists (= z (s (v 0)))) (refl z)) (gen (lam (+ (= (v 0) z) (Exists (= (v 1) (s (v 0))))) (inr (= (s (v 0)) z) (wit (= (s (v 1)) (s (v 0))) (v 0) (refl (s (v 0))))))))" accept
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
