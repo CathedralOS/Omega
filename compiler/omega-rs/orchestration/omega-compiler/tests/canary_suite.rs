@@ -6678,6 +6678,55 @@ fn runtime_param_domain_forward_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_case_payload_domain_forward_exit_canary_runs() {
+    // #66 case-payload domain forwarding: a local constructed as `Command::First
+    // { text: "ok" }` (payload `text: &[u8] in Utf8`) carries `cmd.<payload> in
+    // Utf8` -- construction enforcement (#60-1c) proved it. Destructuring the
+    // payload and forwarding it (`Command::First { text } -> consume(text)`)
+    // discharges `consume: <payload> in Utf8` via the case-payload producer +
+    // guarded-transition fallthrough threading. Before, this rejected at compile.
+    let canary = pass_canary("text/runtime_case_payload_domain_forward_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("case payload domain forward canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for a forwarded case payload, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-case-payload-domain-forward-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("case payload domain forward canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("case payload domain forward canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected forwarded case payload to discharge and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_tuple_transition_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_tuple_transition_exit");
     let main_path = canary.join("main.omg");

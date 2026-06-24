@@ -124,6 +124,16 @@ pub enum FactOrigin {
         machine_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
     },
+    /// The declared encoding domain on a sum-CASE PAYLOAD field, surfaced for a
+    /// local constructed as that case (`let cmd = Command::Say { text: "ok" }`):
+    /// construction enforcement (#60-1c) proved the payload in-domain, so any
+    /// later read of `cmd.<payload>` (e.g. a destructured `Command::Say { text }`
+    /// forwarded as a call argument) carries the domain. Invalidation-aware via
+    /// the flow (a reassignment of `cmd` drops it).
+    LocalCasePayloadDomain {
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    },
     StateSignatureContract {
         owner_symbol: SymbolHandle,
         state_symbol: SymbolHandle,

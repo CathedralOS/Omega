@@ -1,0 +1,36 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+// #66 case-payload domain forwarding: a local constructed as a sum case with a
+// domain-refined payload (`Command::First { text: "ok" }`, where the payload
+// `text` is `&[u8] in Utf8`) carries that payload domain. Destructuring the
+// payload in a match arm and FORWARDING it as a `requires <arg> in Utf8` call
+// argument (`consume(text)`) must discharge with no re-proof -- construction
+// enforcement (#60-1c) already proved the payload in-domain. Before the
+// case-payload producer + the guarded-transition fallthrough fix this rejected
+// `consume: cmd.<payload> in Utf8`.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    case First(text: &[u8] in Utf8);
+    case Second(text: &[u8] in Utf8);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let cmd: Command = Command::First { text: "ok" };
+    transition cmd {
+        Command::First { text } -> consume(text)
+        Command::Second { text } -> consume(text)
+    }
+
+    state consume(&mut self, text: &[u8] in Utf8) {
+        self.console.exit_process(70);
+    }
+}
