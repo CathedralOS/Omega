@@ -1,4 +1,7 @@
-// A String field of a slice element at a CONSTANT index (the frame
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+// A &[u8] in Utf8 field of a slice element at a CONSTANT index (the frame
 // FIXED-indexed place: descriptor deref + folded constant offset, no runtime
 // index load) compared against a literal in GUARD position must compare
 // CONTENT, in all three regimes:
@@ -14,7 +17,7 @@ boundary trait Console {
 }
 
 data Room {
-    label: String;
+    label: &[u8] in Utf8;
 }
 
 data Main {

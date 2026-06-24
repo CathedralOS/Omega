@@ -1,4 +1,4 @@
-// A machine-owned String FIELD compared against a literal in GUARD position
+// A machine-owned &[u8] in Utf8 FIELD compared against a literal in GUARD position
 // (the storage-place sibling of the slice-indexed shape): an empty
 // (default-zeroed) field must not equal a non-empty literal, and a written
 // field must equal its exact bytes. Pinned alongside

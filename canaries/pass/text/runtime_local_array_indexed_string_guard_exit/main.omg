@@ -1,4 +1,7 @@
-// A String field of a LOCAL inline fixed array element (frame base + scaled
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+// A &[u8] in Utf8 field of a LOCAL inline fixed array element (frame base + scaled
 // runtime index -- the frame-BASE-indexed place, not the slice-descriptor
 // place) compared against a literal in GUARD position must compare CONTENT,
 // in all three regimes:
@@ -13,7 +16,7 @@ boundary trait Console {
 }
 
 data Room {
-    label: String;
+    label: &[u8] in Utf8;
 }
 
 data Main {
@@ -39,7 +42,7 @@ machine Main::main(&mut self) {
             Room { label: "" },
             Room { label: "" }
         ];
-        // The write goes through a slice alias (the supported indexed String
+        // The write goes through a slice alias (the supported indexed &[u8] in Utf8
         // write path); the GUARD reads the array directly so its place stays
         // base-indexed.
         let room_slice: &mut [Room] = rooms.as_mut_slice();

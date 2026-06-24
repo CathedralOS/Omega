@@ -1,11 +1,14 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // Wire REPEATED + STRING-LAST in ONE message: a packed repeated field
-// (runtime-sized payload via the count companion) followed by the String
-// field carrying the highest field number (the String must encode last --
+// (runtime-sized payload via the count companion) followed by the &[u8] in Utf8
+// field carrying the highest field number (the &[u8] in Utf8 must encode last --
 // fail/wire/encode_string_field_not_last pins the rejection). Two
-// runtime-sized appends in sequence is the edge: the String's cursor must
+// runtime-sized appends in sequence is the edge: the &[u8] in Utf8's cursor must
 // start wherever the packed payload actually ended, not at a
-// statically-precomputed offset. Encode-only: String DECODE has not landed
-// (the wire stage-2 String work is encode-only by design).
+// statically-precomputed offset. Encode-only: &[u8] in Utf8 DECODE has not landed
+// (the wire stage-2 &[u8] in Utf8 work is encode-only by design).
 //
 // Encoded bytes for { samples: [150, -2], samples_count: 2, label: "hi" }:
 //   era 0          -> 0x00        (no version blocks)
@@ -25,13 +28,13 @@ boundary trait Console {
 
 wire data Report {
     0: samples: [i32; 4];
-    1: label: String;
+    1: label: &[u8] in Utf8;
 }
 
 data ReportValue {
     samples: [i32; 4];
     samples_count: usize;
-    label: String;
+    label: &[u8] in Utf8;
 }
 
 data Main {
@@ -41,9 +44,9 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    // Field-assignment form for the String (struct-literal String fields and
+    // Field-assignment form for the &[u8] in Utf8 (struct-literal &[u8] in Utf8 fields and
     // assignments both lower; assignment keeps parity with the other
-    // encode-String canary).
+    // encode-&[u8] in Utf8 canary).
     let msg: ReportValue;
     msg.samples = [150, 0 - 2, 0, 0];
     msg.samples_count = 2;

@@ -1,7 +1,10 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 use omega::language::core::str;
 
 data Main {
-    text: String;
+    text: &[u8] in Utf8;
 }
 
 machine Main::main(&mut self) {
