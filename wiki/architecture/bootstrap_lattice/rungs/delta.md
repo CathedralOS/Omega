@@ -56,7 +56,16 @@ Delta checker (Gamma)
   executed by the native Alpha VM
 ```
 
-Catastrophically slow, and that does not matter — it is the reference route.
+**This route now runs end to end** (propositional fragment):
+[`compiler/gamma/checker.gamma`](../../../../compiler/gamma/checker.gamma) is the
+simply-typed-lambda checker as ~6 Gamma functions (ADTs + pattern matching),
+interpreted by [`interp.beta`](../../../../compiler/gamma/interp.beta) (the Gamma
+reference interpreter in Beta), compiled by the self-hosting `bc`, run on the seed
+— accepting valid proofs, rejecting invalid ones (`compiler/gamma/test-checker.sh`).
+The Beta version [`check.beta`](../../../../compiler/delta/check.beta) (the same
+checker hand-encoded with tagged memory nodes) is the faster path; the Gamma one is
+the small, auditable reference. Catastrophically slow, and that does not matter — it
+is the reference route.
 Later, produce a fast native delta checker and reconcile it against the slow
 reference (by proof that the fast one refines the slow one, or by per-run
 double-execution). **This reconciliation is an honest open cost** — "just certify
