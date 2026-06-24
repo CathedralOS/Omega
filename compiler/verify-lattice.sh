@@ -25,6 +25,7 @@ step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.
 step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — the Delta checker, written IN gamma"    gamma       test-checker.sh
 step "diamond — two checkers (Beta vs Gamma) agree"   delta       checker-diamond.sh
+step "diamond — definitional eq vs operational eval"  delta       semantics-diamond.sh
 
 echo ""
 if [ "$fail" = 0 ]; then
