@@ -29,5 +29,15 @@ ck "and-commute"         "(check (Lam (And (Atom 0) (Atom 1)) (Pair (Snd (Hyp 0)
 ck "modus ponens"        "(check (Lam (And (Arrow (Atom 0) (Atom 1)) (Atom 0)) (App (Fst (Hyp 0)) (Snd (Hyp 0)))) (Arrow (And (Arrow (Atom 0) (Atom 1)) (Atom 0)) (Atom 1)))" 1
 ck "unbound hyp"         "(check (Hyp 0) (Atom 0))" 0
 ck "ill-typed app"       "(check (App (Lam (Atom 0) (Hyp 0)) (Lam (Atom 1) (Hyp 0))) (Atom 1))" 0
+# disjunction +
+ck "inl P->(P+Q)"        "(check (Lam (Atom 0) (Inl (Atom 1) (Hyp 0))) (Arrow (Atom 0) (Or (Atom 0) (Atom 1))))" 1
+ck "or-commute"          "(check (Lam (Or (Atom 0) (Atom 1)) (Case (Hyp 0) (Lam (Atom 0) (Inr (Atom 1) (Hyp 0))) (Lam (Atom 1) (Inl (Atom 0) (Hyp 0))))) (Arrow (Or (Atom 0) (Atom 1)) (Or (Atom 1) (Atom 0))))" 1
+ck "case branches differ" "(check (Lam (Or (Atom 0) (Atom 1)) (Case (Hyp 0) (Lam (Atom 0) (Hyp 0)) (Lam (Atom 1) (Hyp 0)))) (Arrow (Or (Atom 0) (Atom 1)) (Atom 0)))" 0
+# falsity / negation
+ck "ex falso bot->P"     "(check (Lam Bot (Absurd (Atom 0) (Hyp 0))) (Arrow Bot (Atom 0)))" 1
+ck "no ex falso"         "(check (Lam Bot (Hyp 0)) (Arrow Bot (Atom 0)))" 0
+# equality + the conversion rule (Peano: Ze Su Pl)
+ck "refl 2+2=4"          "(check (Refl (Su (Su (Su (Su Ze))))) (Eq (Pl (Su (Su Ze)) (Su (Su Ze))) (Su (Su (Su (Su Ze))))))" 1
+ck "reject 2+2=5"        "(check (Refl (Su (Su (Su (Su Ze))))) (Eq (Pl (Su (Su Ze)) (Su (Su Ze))) (Su (Su (Su (Su (Su Ze)))))))" 0
 echo "delta-checker-in-gamma: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
