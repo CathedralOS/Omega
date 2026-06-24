@@ -41,6 +41,18 @@ pub(super) fn append_state_statement_flow_facts(
             entry_semantic_contexts: *active_contexts,
             entry_constraints: *active_constraints,
         });
+        // A multi-arm transition desugars to a SEQUENCE of guarded transition
+        // statements (an if/elseif chain): statement N is taken when its guard
+        // holds (and the state exits), else control falls through to statement
+        // N+1. A guarded transition's TARGET call exits the state, so threading
+        // its (empty) exit context to the next statement is wrong -- the next
+        // statement is the FALLTHROUGH (this guard was false), which never ran the
+        // branch, so it must keep the PRE-transition context. Without this, an
+        // else-arm call (`false -> consume(text)`) saw 0 entry contexts and a
+        // forwarded domain fact never reached it. Snapshot the entry context so we
+        // can restore it for the fallthrough after this statement is flowed.
+        let fallthrough_contexts = *active_contexts;
+        let fallthrough_constraints = *active_constraints;
         append_statement_ownership_events(program, ctx, state.symbol, statement_index, statement);
 
         while let Some(borrow_call) = borrow_calls.get(call_index) {
@@ -145,6 +157,19 @@ pub(super) fn append_state_statement_flow_facts(
             active_contexts,
             active_constraints,
         );
+
+        // Restore the pre-transition context for the fallthrough path (see the
+        // snapshot above). A guarded transition either takes its branch and exits
+        // -- so its exit context belongs to the target state's flow, not to the
+        // sibling fallthrough -- or its guard is false and control continues to the
+        // next statement with the context unchanged by the (untaken) branch.
+        if matches!(
+            statement,
+            omega_typed_trees::statement::StatementNode::Transition(_)
+        ) {
+            *active_contexts = fallthrough_contexts;
+            *active_constraints = fallthrough_constraints;
+        }
     }
 
     state_calls
