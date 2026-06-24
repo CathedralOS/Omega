@@ -22,6 +22,7 @@ step "bc    — Beta compiler in Beta self-hosts"       beta-lang   selfhost.sh
 step "bc    — per-feature gate"                       beta-lang   test.sh
 step "delta — certificate checker"                    delta       test.sh
 step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.sh
+step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — the Delta checker, written IN gamma"    gamma       test-checker.sh
 step "diamond — two checkers (Beta vs Gamma) agree"   delta       checker-diamond.sh
 
