@@ -1,4 +1,7 @@
-// Struct-LITERAL String field initialization lowers natively. Before the fix,
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+// Struct-LITERAL &[u8] in Utf8 field initialization lowers natively. Before the fix,
 // `let msg: LabelSample = LabelSample { count: 7, label: "hi" };` silently
 // emitted no descriptor write for `label`: data planning collected string
 // literals from assignments, state values, and branch targets, but never from
@@ -18,7 +21,7 @@
 //   'i'            -> 0x69 (105)
 // written = 7. An unwritten descriptor encodes length 0 (written = 5 -> bad()).
 //
-// Also covers the CASE-literal form with a String payload (`Command::Say
+// Also covers the CASE-literal form with a &[u8] in Utf8 payload (`Command::Say
 // { text: "ok" }` as a local initializer) -- same root cause, observed by
 // destructuring the payload and comparing it natively. A distinct literal
 // ("ok", not "hi") so it cannot accidentally ride the record literal's data
@@ -30,17 +33,17 @@ boundary trait Console {
 
 wire data LabelMessage {
     0: count: u32;
-    1: label: String;
+    1: label: &[u8] in Utf8;
 }
 
 data LabelSample {
     count: u32;
-    label: String;
+    label: &[u8] in Utf8;
 }
 
 data Command {
     case None;
-    case Say(text: String);
+    case Say(text: &[u8] in Utf8);
 }
 
 data Main {
@@ -76,7 +79,7 @@ machine Main::main(&mut self) {
     }
 
     state check_case(&mut self) {
-        // Case-literal form: the String payload field rides the same
+        // Case-literal form: the &[u8] in Utf8 payload field rides the same
         // local-initializer path.
         let cmd: Command = Command::Say { text: "ok" };
         transition cmd {
@@ -85,7 +88,7 @@ machine Main::main(&mut self) {
         }
     }
 
-    state check_text(&mut self, text: String) {
+    state check_text(&mut self, text: &[u8] in Utf8) {
         transition text == "ok" {
             true -> good()
             false -> bad()
