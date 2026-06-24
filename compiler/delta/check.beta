@@ -165,7 +165,14 @@ proc parse_nat() {
         adv()                    ; ')'
         return alloc(31, a, 0)
     }
-    a = parse_nat()              ; (p a b)
+    if op == 'm' {               ; (m a b) multiply
+        a = parse_nat()
+        b = parse_nat()
+        skip_ws()
+        adv()                    ; ')'
+        return alloc(33, a, b)
+    }
+    a = parse_nat()              ; (p a b) plus
     b = parse_nat()
     skip_ws()
     adv()                        ; ')'
@@ -187,16 +194,28 @@ proc normalize(t, fuel) {
         a = normalize(word[t + 8], fuel - 1)
         return alloc(31, a, 0)
     }
-    a = normalize(word[t + 8], fuel - 1)        ; (p a b)
-    b = normalize(word[t + 16], fuel - 1)
-    if word[a] == 30 {           ; p z b => b
-        return b
+    if tag == 32 {                              ; (p a b)
+        a = normalize(word[t + 8], fuel - 1)
+        b = normalize(word[t + 16], fuel - 1)
+        if word[a] == 30 {       ; p z b => b
+            return b
+        }
+        if word[a] == 31 {       ; p (s x) b => s (p x b)
+            a = normalize(alloc(32, word[a + 8], b), fuel - 1)
+            return alloc(31, a, 0)
+        }
+        return alloc(32, a, b)
     }
-    if word[a] == 31 {           ; p (s x) b => s (p x b)
-        a = normalize(alloc(32, word[a + 8], b), fuel - 1)
-        return alloc(31, a, 0)
+    ; tag == 33 : (m a b)  -- m z y => z ; m (s x) y => p y (m x y)
+    a = normalize(word[t + 8], fuel - 1)
+    if word[a] == 30 {
+        return alloc(30, 0, 0)
     }
-    return alloc(32, a, b)
+    if word[a] == 31 {
+        b = alloc(33, word[a + 8], word[t + 16])
+        return normalize(alloc(32, word[t + 16], b), fuel - 1)
+    }
+    return alloc(33, a, word[t + 16])
 }
 
 proc nat_eq(a, b) {
