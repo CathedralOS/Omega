@@ -19,6 +19,10 @@ ev() { # program  expected
   printf '%s' "$1" | "$T/g.exe"; got=$?
   if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL got $got want $2 : $1"; fi
 }
+ov() { # program  expected-printed-value   (programs returning data structures)
+  got=$(printf '%s' "$1" | "$T/g.exe")
+  if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL out '$got' want '$2' : $1"; fi
+}
 ev '(+ 2 3)' 5
 ev '(- 50 8)' 42
 ev '(let x 10 (* x x))' 100
@@ -38,5 +42,10 @@ ev '(def plus (a b) (match a (Z b) ((S m) (S (plus m b))))) (def toint (n) (matc
 ev '(def fst (p) (match p ((Pair a b) a))) (fst (Pair 42 99))' 42
 ev '(def isnil (xs) (match xs (Nil 1) (other 0))) (isnil (Cons 1 Nil))' 0
 ev '(def isnil (xs) (match xs (Nil 1) (other 0))) (isnil Nil)' 1
+# returning data structures (printed)
+ov '(def sq (xs) (match xs (Nil Nil) ((Cons h t) (Cons (* h h) (sq t))))) (sq (Cons 1 (Cons 2 (Cons 3 Nil))))' '(Cons 1 (Cons 4 (Cons 9 Nil)))'
+ov '(def app (xs ys) (match xs (Nil ys) ((Cons h t) (Cons h (app t ys))))) (app (Cons 1 (Cons 2 Nil)) (Cons 3 Nil))' '(Cons 1 (Cons 2 (Cons 3 Nil)))'
+ov '(def rev (xs acc) (match xs (Nil acc) ((Cons h t) (rev t (Cons h acc))))) (rev (Cons 1 (Cons 2 (Cons 3 Nil))) Nil)' '(Cons 3 (Cons 2 (Cons 1 Nil)))'
+ov '(Pair (S (S Z)) Nil)' '(Pair (S (S Z)) Nil)'
 echo "gamma interp: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
