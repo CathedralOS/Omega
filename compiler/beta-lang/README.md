@@ -44,21 +44,21 @@ point it can compile its own source.
 
 ## Known constraint — the 32 KB hole (real, now measured)
 
-`bc.beta` at **slice 1 already lowers to a ~15.5 KB tape** — and that is *only*
-arithmetic. The cost is `emit("...")`: every output byte lowers to an `imm`+`write`
-pair (~12 bytes of tape per character of emitted asm), and a compiler is mostly
-fixed output strings. The full self-hosting compiler will comfortably exceed the
-seed's **fixed 32 KB tape hole** (flagged in
-[`TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md) — "the Beta compiler's own tape
-will eventually outgrow it"). This is now the concrete blocker for finishing
-slice 7, and it forces one of:
+`emit("...")` lowers every output byte to an `imm`+`write` pair (~12 tape bytes
+per character of emitted asm), and a compiler is mostly fixed output strings, so
+`bc`'s own tape grows fast. Two mitigations are in play:
 
-- **make the tape hole an execution parameter** (the flagged small VM change —
-  rebuild both seeds), and/or
-- **a compact string-emit** (e.g. an assembler `.db` data directive + a
-  `write_str(addr,len)` loop, so fixed output is *data* looped over rather than
-  one `imm`+`write` per byte) — which would shrink emitted tapes dramatically and
-  is independently worthwhile.
+1. **bc emits compact asm** (no indent, no alignment, commas attached — the
+   assembler treats those as whitespace). This is a zero-infra, both-seeds-safe
+   win that keeps the tape small. Slice 1 is **~12.4 KB** (was ~15.5 KB verbose).
+2. Still, the *full* self-hosting compiler may exceed the seed's **fixed 32 KB
+   tape hole** (flagged in [`TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md)). If it
+   does, the order-of-magnitude fix is a **data section** — an assembler `.db`
+   directive + a `write_str(addr,len)` loop, so fixed output is *data* (1 tape
+   byte/char) looped over instead of an `imm`+`write` per byte. (Enlarging the
+   hole is the cruder alternative, but it must be done on *both* seeds to keep the
+   diamond; the x64 forge isn't available here, so the data-section route is
+   preferred.)
 
-The slice-1 milestone holds regardless; this is the next thing to resolve before
-the compiler can grow to self-hosting size.
+The slice-1 milestone holds regardless; compact emit buys the runway to grow
+several more slices before #2 is forced.

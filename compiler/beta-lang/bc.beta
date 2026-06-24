@@ -140,31 +140,36 @@ proc emit_dec(n) {
 
 ; ---- fixed asm fragments ----
 
+; NOTE: emit() lowers each output byte to an imm+write (~12 tape bytes/char), so
+; bc emits COMPACT asm — no indent, no alignment padding, commas attached (the
+; assembler treats commas/indent as whitespace). This roughly halves bc's own
+; tape, keeping it within the seed's 32 KB hole as the compiler grows.
+
 proc emit_header() {
-    emit("; bc.beta (Beta -> Alpha assembly)\n")
-    emit("        imm   r15, 1048576\n")
-    emit("        imm   r14, 1048576\n")
-    emit("        call  main\n")
-    emit("        halt  r0\n")
+    emit("; bc\n")
+    emit("imm r15,1048576\n")
+    emit("imm r14,1048576\n")
+    emit("call main\n")
+    emit("halt r0\n")
     emit("main:\n")
-    emit("        imm   r2, 8\n")
-    emit("        sub   r15, r2\n")
-    emit("        store r15, r14\n")
-    emit("        mov   r14, r15\n")
+    emit("imm r2,8\n")
+    emit("sub r15,r2\n")
+    emit("store r15,r14\n")
+    emit("mov r14,r15\n")
 }
 
 proc emit_epilogue() {
-    emit("        mov   r15, r14\n")
-    emit("        load  r14, r15\n")
-    emit("        imm   r2, 8\n")
-    emit("        add   r15, r2\n")
-    emit("        ret\n")
+    emit("mov r15,r14\n")
+    emit("load r14,r15\n")
+    emit("imm r2,8\n")
+    emit("add r15,r2\n")
+    emit("ret\n")
 }
 
 proc emit_push() {                       ; push r0 onto the r15 data stack
-    emit("        imm   r2, 8\n")
-    emit("        sub   r15, r2\n")
-    emit("        store r15, r0\n")
+    emit("imm r2,8\n")
+    emit("sub r15,r2\n")
+    emit("store r15,r0\n")
 }
 
 proc emit_mnemonic(op) {
@@ -187,13 +192,12 @@ proc emit_mnemonic(op) {
 
 ; r0 = right operand; pop the saved left into r0, move right to r1, combine.
 proc emit_combine(op) {
-    emit("        mov   r1, r0\n")
-    emit("        load  r0, r15\n")
-    emit("        imm   r5, 8\n")
-    emit("        add   r15, r5\n")
-    emit("        ")
+    emit("mov r1,r0\n")
+    emit("load r0,r15\n")
+    emit("imm r5,8\n")
+    emit("add r15,r5\n")
     emit_mnemonic(op)
-    emit("   r0, r1\n")
+    emit(" r0,r1\n")
 }
 
 ; ---- recursive-descent codegen (precedence: expr -> term -> factor) ----
@@ -208,7 +212,7 @@ proc gen_factor(buf) {
         return 0
     }
     let v = parse_number(buf)
-    emit("        imm   r0, ")
+    emit("imm r0,")
     emit_dec(v)
     emit("\n")
     return 0
