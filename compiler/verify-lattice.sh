@@ -21,6 +21,7 @@ step "Beta  — language compiler (on-ramp) + corpus"   beta-lang-rs test.sh
 step "bc    — Beta compiler in Beta self-hosts"       beta-lang   selfhost.sh
 step "bc    — per-feature gate"                       beta-lang   test.sh
 step "delta — certificate checker"                    delta       test.sh
+step "delta — soundness battery (no false proof)"     delta       soundness.sh
 step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.sh
 step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — the Delta checker, written IN gamma"    gamma       test-checker.sh
