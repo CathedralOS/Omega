@@ -16,7 +16,16 @@ seed_env.sh              per-platform seed selection + tape-stamping, sourced by
 
 SEMANTICS.md             the written small-step operational semantics — the meaning a seed is audited AGAINST
 conformance.sh           executable companion: hand-built tapes pinning every opcode + edge; any seed must pass
+verify.sh                the per-platform acceptance gate: provenance + conformance + diamond, one command
 ```
+
+`sh verify.sh` runs the whole local trust check for the host's seed:
+
+- **provenance** — re-derives the committed binary from its source and confirms a match
+  (arm64: `clang -arch arm64 -Wl,-no_uuid …`, reproducible modulo the OS signature; x64:
+  audit the `.exe` against its `.hex` by hand, as no committed forge ships);
+- **behavior** — `conformance.sh` (every opcode + edge realizes `SEMANTICS.md`);
+- **diamond** — `../beta/selfhost.sh` (the VM reproduces the canonical assembler bytecode).
 
 To audit a seed: disassemble the binary and read it against its listing (the `.hex` for
 x64, the `.s` + `.lst` for arm64), checking that each opcode realizes the transition in
