@@ -33,7 +33,7 @@ honest edges) lives in
 | `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | slices 1–6 done; self-check passed |
 | `compiler/beta-lang/` | The Beta compiler **written in Beta** (`bc.beta`) — slice 7. | **DONE — self-hosts** (byte-for-byte fixed point) |
 | `compiler/delta/` | **The certificate checker** (`check.beta`) — the trust anchor. A natural-deduction / simply-typed-lambda proof checker, compiled by `bc`. | **PROTOTYPE** (in Beta; target is a Gamma program) |
-| `compiler/gamma/` | A v13 imperative language; compiler hand-written in Alpha asm (`gamma.alpha`). The thing Beta exists to **supersede**. | parked at v13 |
+| `compiler/gamma/` | `gamma.alpha` = parked v13 imperative compiler. **`interp.beta`** = the new interpreter-first reference interpreter (stage 1: functional, fuel-bounded), written in Beta. | interp.beta stage 1 done |
 | `compiler/epsilon*`, `compiler/alpha-rs` | Old/renamed experiment soup. | **IGNORE** |
 | `compiler/omega-rs/` | The real Omega compiler, in Rust. Separate concern: the *producer*, not the lattice. | (other workstream) |
 

@@ -1,0 +1,481 @@
+; interp.beta — a Gamma REFERENCE INTERPRETER, written in Beta.  (stage 1)
+;
+; The lattice wants Gamma defined interpreter-first (rungs/gamma.md): "a gamma
+; program means what a gamma reference interpreter written in beta does with it",
+; with any compiler demoted to an acceleration checked against this. This is that
+; interpreter — the meaning, not a compiler. (The parked compiler-first
+; gamma.alpha is a separate, older experiment; see README.)
+;
+; Stage 1 is the pure functional, fuel-bounded core: integer values, top-level
+; recursive functions, `if`, `let`, arithmetic and comparisons. Being FUEL-bounded
+; is the totality discipline gamma.md asks for — eval(e, fuel) returns a value or
+; runs out; a total reference interpreter cannot loop forever on looping input.
+; Stage 2 adds the gamma-defining features: algebraic data types + pattern
+; matching (the thing the Delta checker's hand-encoded tagged nodes are crying out
+; for).
+;
+; Surface (prefix s-expressions; `;` comments):
+;   program := (def NAME (PARAM...) EXPR)*  EXPR        ; defs, then the goal expr
+;   EXPR    := INT | VAR | (if E E E) | (let NAME E E)
+;            | (+ E E) | (- E E) | (* E E) | (/ E E) | (% E E) | (eq E E) | (lt E E)
+;            | (NAME E...)                              ; call a top-level function
+; The final EXPR is evaluated; its integer value is the process exit code.
+;   (def fac (n) (if (eq n 0) 1 (* n (fac (- n 1)))))  (fac 5)    -> 120
+;
+; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUNC
+;          2097112 ENVN 2097104 FRAMEBASE   3145728 ARENA   4194304 FUNCS   5242880 ENV
+; AST nodes are 4 words [tag,f0,f1,f2] (32-byte stride). Func entries 3 words
+; [name_off, paramlist, body]. Env entries 2 words [name_off, value]; name_off -1
+; marks a not-yet-named arg slot.
+;
+; Node tags: 0 INT(v)  1 VAR(off)  2 PRIM(op,a,b)  3 IF(c,t,e)  4 LET(off,e,body)
+;            5 CALL(foff,args)  6 CONS(head,tail)
+
+proc slurp() {
+    let n = 0
+    let c = read_byte()
+    while c >= 0 {
+        byte[2097152 + n] = c
+        n = n + 1
+        c = read_byte()
+    }
+    word[2097136] = n        ; LEN
+    word[2097144] = 0        ; CUR
+    word[2097128] = 3145728  ; APTR
+    word[2097120] = 0        ; NFUNC
+    word[2097112] = 0        ; ENVN
+    word[2097104] = 0        ; FRAMEBASE
+}
+
+proc cbyte() {
+    let i = word[2097144]
+    if i < word[2097136] {
+        return byte[2097152 + i]
+    }
+    return 0
+}
+
+proc adv() {
+    word[2097144] = word[2097144] + 1
+}
+
+proc is_space(c) {
+    if c == ' ' {
+        return 1
+    }
+    if c == 9 {
+        return 1
+    }
+    if c == 10 {
+        return 1
+    }
+    if c == 13 {
+        return 1
+    }
+    return 0
+}
+
+proc skip_ws() {
+    let go = 1
+    while go == 1 {
+        let c = cbyte()
+        if is_space(c) == 1 {
+            adv()
+        } else {
+            if c == ';' {
+                while cbyte() != 10 {
+                    if cbyte() == 0 {
+                        return 0
+                    }
+                    adv()
+                }
+            } else {
+                go = 0
+            }
+        }
+    }
+    return 0
+}
+
+proc is_digit(c) {
+    if c < '0' {
+        return 0
+    }
+    if c > '9' {
+        return 0
+    }
+    return 1
+}
+
+proc is_delim(c) {
+    if is_space(c) == 1 {
+        return 1
+    }
+    if c == '(' {
+        return 1
+    }
+    if c == ')' {
+        return 1
+    }
+    if c == 0 {
+        return 1
+    }
+    return 0
+}
+
+proc is_op(c) {
+    if c == '+' {
+        return 1
+    }
+    if c == '-' {
+        return 1
+    }
+    if c == '*' {
+        return 1
+    }
+    if c == '/' {
+        return 1
+    }
+    if c == '%' {
+        return 1
+    }
+    return 0
+}
+
+proc skip_ident() {
+    while is_delim(cbyte()) == 0 {
+        adv()
+    }
+}
+
+proc parse_number() {
+    let v = 0
+    while is_digit(cbyte()) == 1 {
+        v = v * 10 + (cbyte() - '0')
+        adv()
+    }
+    return v
+}
+
+proc alloc(tag, f0, f1, f2) {
+    let p = word[2097128]
+    word[p] = tag
+    word[p + 8] = f0
+    word[p + 16] = f1
+    word[p + 24] = f2
+    word[2097128] = p + 32
+    return p
+}
+
+; do the names at SRC offsets o1 and o2 (each ending at a delimiter) match?
+proc name_eq(o1, o2) {
+    let i = 0
+    let go = 1
+    let result = 0
+    while go == 1 {
+        let c1 = byte[2097152 + o1 + i]
+        let c2 = byte[2097152 + o2 + i]
+        if is_delim(c1) == 1 {
+            result = is_delim(c2)
+            go = 0
+        } else {
+            if is_delim(c2) == 1 {
+                go = 0
+            } else {
+                if c1 != c2 {
+                    go = 0
+                } else {
+                    i = i + 1
+                }
+            }
+        }
+    }
+    return result
+}
+
+proc name_is2(off, a, b) {
+    if byte[2097152 + off] == a {
+        if byte[2097152 + off + 1] == b {
+            if is_delim(byte[2097152 + off + 2]) == 1 {
+                return 1
+            }
+        }
+    }
+    return 0
+}
+
+proc name_is3(off, a, b, c) {
+    if byte[2097152 + off] == a {
+        if byte[2097152 + off + 1] == b {
+            if byte[2097152 + off + 2] == c {
+                if is_delim(byte[2097152 + off + 3]) == 1 {
+                    return 1
+                }
+            }
+        }
+    }
+    return 0
+}
+
+; ---- parser ----
+
+proc parse_args() {              ; exprs until ')', as a CONS list
+    skip_ws()
+    if cbyte() == ')' {
+        return 0
+    }
+    let h = parse_expr()
+    let t = parse_args()
+    return alloc(6, h, t, 0)
+}
+
+proc parse_params() {            ; param NAMES until ')', as a CONS of name-offsets
+    skip_ws()
+    if cbyte() == ')' {
+        return 0
+    }
+    let poff = word[2097144]
+    skip_ident()
+    let t = parse_params()
+    return alloc(6, poff, t, 0)
+}
+
+proc parse_expr() {
+    skip_ws()
+    let c = cbyte()
+    if is_digit(c) == 1 {
+        return alloc(0, parse_number(), 0, 0)
+    }
+    if c == '(' {
+        adv()
+        skip_ws()
+        let h = cbyte()
+        if is_op(h) == 1 {
+            adv()
+            let a = parse_expr()
+            let b = parse_expr()
+            skip_ws()
+            adv()
+            return alloc(2, h, a, b)
+        }
+        let hoff = word[2097144]
+        skip_ident()
+        if name_is2(hoff, 'i', 'f') == 1 {
+            let c1 = parse_expr()
+            let t1 = parse_expr()
+            let e1 = parse_expr()
+            skip_ws()
+            adv()
+            return alloc(3, c1, t1, e1)
+        }
+        if name_is3(hoff, 'l', 'e', 't') == 1 {
+            skip_ws()
+            let noff = word[2097144]
+            skip_ident()
+            let e2 = parse_expr()
+            let body = parse_expr()
+            skip_ws()
+            adv()
+            return alloc(4, noff, e2, body)
+        }
+        if name_is2(hoff, 'e', 'q') == 1 {
+            let a2 = parse_expr()
+            let b2 = parse_expr()
+            skip_ws()
+            adv()
+            return alloc(2, 'e', a2, b2)
+        }
+        if name_is2(hoff, 'l', 't') == 1 {
+            let a3 = parse_expr()
+            let b3 = parse_expr()
+            skip_ws()
+            adv()
+            return alloc(2, 'l', a3, b3)
+        }
+        let args = parse_args()
+        skip_ws()
+        adv()
+        return alloc(5, hoff, args, 0)
+    }
+    let voff = word[2097144]
+    skip_ident()
+    return alloc(1, voff, 0, 0)
+}
+
+proc parse_def() {               ; (def NAME (PARAMS) BODY) -> add to the func table
+    adv()                        ; '('
+    skip_ws()
+    skip_ident()                 ; "def"
+    skip_ws()
+    let noff = word[2097144]
+    skip_ident()
+    skip_ws()
+    adv()                        ; '('
+    let params = parse_params()
+    skip_ws()
+    adv()                        ; ')'
+    let body = parse_expr()
+    skip_ws()
+    adv()                        ; ')'
+    let i = word[2097120]
+    word[4194304 + i * 24] = noff
+    word[4194304 + i * 24 + 8] = params
+    word[4194304 + i * 24 + 16] = body
+    word[2097120] = i + 1
+    return 0
+}
+
+proc is_def() {
+    if cbyte() != '(' {
+        return 0
+    }
+    let save = word[2097144]
+    adv()
+    skip_ws()
+    let r = name_is3(word[2097144], 'd', 'e', 'f')
+    word[2097144] = save
+    return r
+}
+
+proc func_lookup(noff) {
+    let n = word[2097120]
+    let i = 0
+    while i < n {
+        if name_eq(noff, word[4194304 + i * 24]) == 1 {
+            return i
+        }
+        i = i + 1
+    }
+    return 0 - 1
+}
+
+; ---- environment (named bindings; lookup is frame-local) ----
+
+proc env_push(off, val) {
+    let n = word[2097112]
+    word[5242880 + n * 16] = off
+    word[5242880 + n * 16 + 8] = val
+    word[2097112] = n + 1
+}
+
+proc env_lookup(qoff) {
+    let j = word[2097112] - 1
+    let base = word[2097104]
+    let go = 1
+    let result = 0
+    while go == 1 {
+        if j < base {
+            go = 0
+        } else {
+            let boff = word[5242880 + j * 16]
+            if boff >= 0 {
+                if name_eq(qoff, boff) == 1 {
+                    result = word[5242880 + j * 16 + 8]
+                    go = 0
+                }
+            }
+            j = j - 1
+        }
+    }
+    return result
+}
+
+; ---- evaluator (fuel-bounded) ----
+
+proc eval_call(foff, args, fuel) {
+    let fi = func_lookup(foff)
+    let base = word[2097112]         ; env depth before args
+    let a = args
+    while a != 0 {                   ; eval args in the CALLER frame, push anonymous
+        let v = eval(word[a + 8], fuel)
+        env_push(0 - 1, v)
+        a = word[a + 16]
+    }
+    let savebase = word[2097104]
+    word[2097104] = base             ; the callee's frame starts where its args began
+    let p = word[4194304 + fi * 24 + 8]   ; paramlist
+    let j = base
+    while p != 0 {                   ; rename the anonymous arg slots to the params
+        word[5242880 + j * 16] = word[p + 8]
+        j = j + 1
+        p = word[p + 16]
+    }
+    let r = eval(word[4194304 + fi * 24 + 16], fuel - 1)   ; eval the body
+    word[2097112] = base             ; pop the frame
+    word[2097104] = savebase
+    return r
+}
+
+proc eval(expr, fuel) {
+    if fuel < 1 {
+        return 0                     ; OutOfFuel — total: bail with a sentinel
+    }
+    let tag = word[expr]
+    if tag == 0 {
+        return word[expr + 8]        ; INT
+    }
+    if tag == 1 {
+        return env_lookup(word[expr + 8])   ; VAR
+    }
+    if tag == 2 {                    ; PRIM op a b
+        let a = eval(word[expr + 16], fuel)
+        let b = eval(word[expr + 24], fuel)
+        let op = word[expr + 8]
+        if op == '+' {
+            return a + b
+        }
+        if op == '-' {
+            return a - b
+        }
+        if op == '*' {
+            return a * b
+        }
+        if op == '/' {
+            return a / b
+        }
+        if op == '%' {
+            return a % b
+        }
+        if op == 'e' {
+            if a == b {
+                return 1
+            }
+            return 0
+        }
+        if op == 'l' {
+            if a < b {
+                return 1
+            }
+            return 0
+        }
+        return 0
+    }
+    if tag == 3 {                    ; IF c t e
+        if eval(word[expr + 8], fuel) != 0 {
+            return eval(word[expr + 16], fuel)
+        }
+        return eval(word[expr + 24], fuel)
+    }
+    if tag == 4 {                    ; LET off e body
+        let v = eval(word[expr + 16], fuel)
+        env_push(word[expr + 8], v)
+        let r = eval(word[expr + 24], fuel)
+        word[2097112] = word[2097112] - 1
+        return r
+    }
+    if tag == 5 {                    ; CALL foff args
+        return eval_call(word[expr + 8], word[expr + 16], fuel)
+    }
+    return 0
+}
+
+proc main() {
+    slurp()
+    skip_ws()
+    while is_def() == 1 {
+        parse_def()
+        skip_ws()
+    }
+    let final = parse_expr()
+    return eval(final, 1000000)
+}

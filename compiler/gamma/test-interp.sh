@@ -1,0 +1,34 @@
+#!/usr/bin/env sh
+# Gate for the Gamma reference interpreter (interp.beta, stage 1). Compiles it
+# with bc (the self-hosting Rust-free Beta compiler), then evaluates Gamma
+# programs and checks the integer result (the process exit code).
+cd "$(dirname "$0")"
+. ../alpha/seed_env.sh
+SEED=../alpha/$ALPHA_SEED
+ASM=../beta/$BETA_SEED
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+
+( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
+../beta-lang-rs/build/bc.exe < interp.beta > "$T/g.asm" || { echo "bc(interp.beta) failed"; exit 1; }
+"$ASM" < "$T/g.asm" > "$T/g.tape" || { echo "assemble failed"; exit 1; }
+stamp_seed "$T/g.tape" "$SEED" "$T/g.exe" >/dev/null 2>&1
+echo "interp tape: $(wc -c < "$T/g.tape" | tr -d ' ') B (compiled by bc)"
+
+PASS=0; FAIL=0
+ev() { # program  expected
+  printf '%s' "$1" | "$T/g.exe"; got=$?
+  if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL got $got want $2 : $1"; fi
+}
+ev '(+ 2 3)' 5
+ev '(- 50 8)' 42
+ev '(let x 10 (* x x))' 100
+ev '(if (lt 3 5) 42 0)' 42
+ev '(if (eq 3 5) 1 0)' 0
+ev '(def sq (x) (* x x)) (sq 9)' 81
+ev '(def add (a b) (+ a b)) (add 10 20)' 30
+ev '(def fac (n) (if (eq n 0) 1 (* n (fac (- n 1))))) (fac 5)' 120
+ev '(def fib (n) (if (lt n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 10)' 55
+ev '(def gcd (a b) (if (eq b 0) a (gcd b (% a b)))) (gcd 48 36)' 12
+ev '(def sumto (n) (if (eq n 0) 0 (+ n (sumto (- n 1))))) (sumto 10)' 55
+echo "gamma interp: $PASS passed, $FAIL failed"
+[ "$FAIL" = 0 ] || exit 1
