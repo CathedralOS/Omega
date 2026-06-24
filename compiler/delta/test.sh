@@ -111,6 +111,12 @@ chk "0 or successor"  "(All (+ (= (v 0) z) (Exists (= (v 1) (s (v 0)))))) (natin
 # equality is an equivalence relation: symmetry and transitivity via eqelim
 chk "eq symmetric"    "(All (All (-> (= (v 1) (v 0)) (= (v 0) (v 1))))) (gen (gen (lam (= (v 1) (v 0)) (eqelim (= (v 0) (v 2)) (hyp 0) (refl (v 1))))))" accept
 chk "eq transitive"   "(All (All (All (-> (= (v 2) (v 1)) (-> (= (v 1) (v 0)) (= (v 2) (v 0))))))) (gen (gen (gen (lam (= (v 2) (v 1)) (lam (= (v 1) (v 0)) (eqelim (= (v 3) (v 0)) (hyp 0) (hyp 1)))))))" accept
+# Lists — a SECOND inductive type; append computes under the conversion rule
+chk "[0]++[] = [0]"   "(= (app (cons z nil) nil) (cons z nil)) (refl (cons z nil))"                              accept
+chk "[]++[0] = [0]"   "(= (app nil (cons z nil)) (cons z nil)) (refl (cons z nil))"                              accept
+chk "concat 3 lists"  "(= (app (cons z (cons (s z) nil)) (cons (s (s z)) nil)) (cons z (cons (s z) (cons (s (s z)) nil)))) (refl (cons z (cons (s z) (cons (s (s z)) nil))))" accept
+chk "append assoc(c)" "(= (app (app (cons z nil) (cons (s z) nil)) (cons (s (s z)) nil)) (app (cons z nil) (app (cons (s z) nil) (cons (s (s z)) nil)))) (refl (cons z (cons (s z) (cons (s (s z)) nil))))" accept
+chk "[0] != [1]"      "(= (cons z nil) (cons (s z) nil)) (refl (cons z nil))"                                     reject
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"

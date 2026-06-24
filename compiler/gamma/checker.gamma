@@ -31,20 +31,27 @@
 ; check.beta's normalize does — so open Peano terms like n+0 have a normal form.
 (def padd (a b) (match a (Ze b) ((Su x) (Su (padd x b))) (z (Pl a b))))
 (def pmul (a b) (match a (Ze Ze) ((Su x) (padd b (pmul x b))) (z (Mu a b))))
-(def pnorm (t)                     ; (Iv k) is a free individual var — a normal form
+(def lapp (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (lapp t b))) (z (Lapp a b))))
+(def pnorm (t)                     ; Nat (Ze/Su/Pl/Mu), (Iv k) indiv var, Lists (Lnil/Lcons/Lapp)
   (match t
     (Ze Ze)
     ((Su x) (Su (pnorm x)))
     ((Iv k) (Iv k))
     ((Pl a b) (padd (pnorm a) (pnorm b)))
-    ((Mu a b) (pmul (pnorm a) (pnorm b)))))
+    ((Mu a b) (pmul (pnorm a) (pnorm b)))
+    (Lnil Lnil)
+    ((Lcons h t) (Lcons (pnorm h) (pnorm t)))
+    ((Lapp a b) (lapp (pnorm a) (pnorm b)))))
 (def nateq (a b)                   ; structural — incl. stuck Pl/Mu (open normal forms)
   (match a
     (Ze (match b (Ze 1) (z 0)))
     ((Iv k) (match b ((Iv j) (eq k j)) (z 0)))
     ((Su x) (match b ((Su y) (nateq x y)) (z 0)))
     ((Pl p q) (match b ((Pl r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
-    ((Mu p q) (match b ((Mu r s) (if (nateq p r) (nateq q s) 0)) (z 0)))))
+    ((Mu p q) (match b ((Mu r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
+    (Lnil (match b (Lnil 1) (z 0)))
+    ((Lcons p q) (match b ((Lcons r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
+    ((Lapp p q) (match b ((Lapp r s) (if (nateq p r) (nateq q s) 0)) (z 0)))))
 (def conveq (a b) (nateq (pnorm a) (pnorm b)))   ; definitional equality
 
 ; ---- first-order machinery: does a term/prop mention an individual var? ----
@@ -54,7 +61,10 @@
     (Ze 0)
     ((Su x) (ivt x))
     ((Pl a b) (if (ivt a) 1 (ivt b)))
-    ((Mu a b) (if (ivt a) 1 (ivt b)))))
+    ((Mu a b) (if (ivt a) 1 (ivt b)))
+    (Lnil 0)
+    ((Lcons a b) (if (ivt a) 1 (ivt b)))
+    ((Lapp a b) (if (ivt a) 1 (ivt b)))))
 (def ivp (p)                       ; ivar-in-prop
   (match p
     ((Pred id t)  (ivt t))
@@ -74,7 +84,10 @@
     (Ze Ze)
     ((Su x)   (Su (subt x s d)))
     ((Pl a b) (Pl (subt a s d) (subt b s d)))
-    ((Mu a b) (Mu (subt a s d) (subt b s d)))))
+    ((Mu a b) (Mu (subt a s d) (subt b s d)))
+    (Lnil Lnil)
+    ((Lcons a b) (Lcons (subt a s d) (subt b s d)))
+    ((Lapp a b) (Lapp (subt a s d) (subt b s d)))))
 (def subp (p s d)
   (match p
     ((Pred id t) (Pred id (subt t s d)))
@@ -95,7 +108,10 @@
     (Ze 0)
     ((Su x) (freet x d))
     ((Pl a b) (if (freet a d) 1 (freet b d)))
-    ((Mu a b) (if (freet a d) 1 (freet b d)))))
+    ((Mu a b) (if (freet a d) 1 (freet b d)))
+    (Lnil 0)
+    ((Lcons a b) (if (freet a d) 1 (freet b d)))
+    ((Lapp a b) (if (freet a d) 1 (freet b d)))))
 (def freep (p d)
   (match p
     ((Pred id t) (freet t d))
@@ -114,7 +130,10 @@
     (Ze Ze)
     ((Su x) (Su (shiftt x d c)))
     ((Pl a b) (Pl (shiftt a d c) (shiftt b d c)))
-    ((Mu a b) (Mu (shiftt a d c) (shiftt b d c)))))
+    ((Mu a b) (Mu (shiftt a d c) (shiftt b d c)))
+    (Lnil Lnil)
+    ((Lcons a b) (Lcons (shiftt a d c) (shiftt b d c)))
+    ((Lapp a b) (Lapp (shiftt a d c) (shiftt b d c)))))
 ; gen's freshness guard: no hypothesis in scope has a FREE individual var
 (def ctxclean (ctx) (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
 
@@ -140,7 +159,10 @@
     (Ze Ze)
     ((Su x) (Su (subtk x s d)))
     ((Pl a b) (Pl (subtk a s d) (subtk b s d)))
-    ((Mu a b) (Mu (subtk a s d) (subtk b s d)))))
+    ((Mu a b) (Mu (subtk a s d) (subtk b s d)))
+    (Lnil Lnil)
+    ((Lcons a b) (Lcons (subtk a s d) (subtk b s d)))
+    ((Lapp a b) (Lapp (subtk a s d) (subtk b s d)))))
 (def subpk (p s d)
   (match p
     ((Pred id t) (Pred id (subtk t s d)))
