@@ -10,7 +10,10 @@ pub(crate) use crate::semantic_calls::{
 pub(crate) use crate::semantic_places::instantiate_call_contract_place;
 use contracts::append_contract_semantic_facts;
 pub(crate) use contracts::contract_fact_place;
-use field_domains::{append_machine_field_domain_facts, append_state_parameter_domain_facts};
+use field_domains::{
+    append_local_case_payload_domain_facts, append_machine_field_domain_facts,
+    append_state_parameter_domain_facts,
+};
 use points::proof_obligation_point;
 
 pub(crate) fn build_semantic_facts(
@@ -26,6 +29,11 @@ pub(crate) fn build_semantic_facts(
     // #66: surface declared state-parameter domains as machine entry assumptions
     // (sound because the param's implicit `requires` is caller-enforced).
     append_state_parameter_domain_facts(program, &mut facts);
+    // #66: surface a case-constructed local's payload domain (`let cmd =
+    // Command::Say { text: "ok" }` -> `cmd.<payload> in Utf8`) so a destructured
+    // payload forwarded as a call argument discharges; construction enforcement
+    // guarantees soundness, the flow handles invalidation.
+    append_local_case_payload_domain_facts(program, &mut facts);
 
     facts
 }

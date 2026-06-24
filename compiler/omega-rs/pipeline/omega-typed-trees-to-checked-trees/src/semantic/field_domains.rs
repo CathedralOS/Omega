@@ -27,6 +27,9 @@
 use omega_core::symbols::SymbolHandle;
 use omega_facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint};
 use omega_typed_trees::TypedTrees;
+use omega_typed_trees::data::DataMember;
+use omega_typed_trees::expression::ExpressionNode;
+use omega_typed_trees::statement::StatementNode;
 use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
@@ -156,6 +159,110 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                     },
                 });
                 facts.append_ref(&mut refs, fact);
+            }
+
+            if refs.is_empty() {
+                continue;
+            }
+            facts.append_context(
+                ProgramPoint::State {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                },
+                refs,
+            );
+        }
+    }
+}
+
+/// #66 case-payload forwarding: a local constructed as a sum CASE with a
+/// domain-refined payload (`let cmd = Command::Say { text: "ok" }`, where
+/// `Command::Say`'s `text` is `&[u8] in Utf8`) carries that payload domain on
+/// `cmd.<payload>`. Construction enforcement (#60-1c, checks::contracts::writes)
+/// already proved the payload value in-domain at construction, so a later read of
+/// the payload -- in particular a destructured `Command::Say { text }` forwarded
+/// as a `requires <arg> in D` call argument, which resolves to `cmd.<payload>` --
+/// discharges with no re-proof. Surfaced at `ProgramPoint::State`, folded into the
+/// state entry and threaded to the matched arm's calls; the flow's mutation
+/// invalidation drops it if `cmd` is reassigned (so it is sound for mutable locals
+/// too -- no immutability gate needed).
+///
+/// CONSERVATIVE: a sibling arm that matches a DIFFERENT case is dead when `cmd` was
+/// constructed as one specific case; its `cmd.<other-payload>` obligation shares
+/// the same canonical place label, so it discharges only when the domains agree
+/// (a mixed-domain dead arm would be rejected -- sound, just incomplete).
+pub(super) fn append_local_case_payload_domain_facts(program: &TypedTrees, facts: &mut FactPlan) {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut refs = omega_core::arena::HandleSpan::empty();
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::LocalData(local_data) = statement else {
+                    continue;
+                };
+                if !local_data.initial_value.is_valid() {
+                    continue;
+                }
+                let ExpressionNode::StructLiteral(literal) =
+                    program.expression_table.expression(local_data.initial_value)
+                else {
+                    continue;
+                };
+                let Some(case_name) = literal.case_name.as_ref() else {
+                    continue;
+                };
+                let Some(data) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.name.as_str() == literal.type_name.as_str())
+                else {
+                    continue;
+                };
+                let Some(variant) = program.data_members(data).iter().find_map(|member| match member
+                {
+                    DataMember::Variant(variant) if variant.name.as_str() == case_name.as_str() => {
+                        Some(variant)
+                    }
+                    _ => None,
+                }) else {
+                    continue;
+                };
+
+                for payload_field in program.data_payload_fields(variant) {
+                    let Some(domain_symbol) =
+                        field_domain_symbol(program, payload_field.type_reference)
+                            .filter(|symbol| symbol.is_valid())
+                    else {
+                        continue;
+                    };
+
+                    // Place `cmd.<payload-field>`: root the local symbol + a Field
+                    // segment for the variant's payload field, matching how a
+                    // destructured payload arg resolves at the call site.
+                    let place = facts.append_symbol_place(local_data.symbol);
+                    facts.push_place_segment(
+                        place,
+                        PlaceSegment::Field {
+                            symbol: payload_field.symbol,
+                        },
+                    );
+                    let fact = facts.append_fact(Fact {
+                        place: FactPlace::Place(place),
+                        point: ProgramPoint::State {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                        },
+                        origin: FactOrigin::LocalCasePayloadDomain {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                        },
+                        payload: FactPayload::DomainMembership {
+                            value: omega_typed_trees::expression::ExpressionHandle::invalid(),
+                            domain: omega_core::arena::HandleSpan::empty(),
+                            domain_symbol,
+                        },
+                    });
+                    facts.append_ref(&mut refs, fact);
+                }
             }
 
             if refs.is_empty() {
