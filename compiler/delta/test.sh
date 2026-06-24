@@ -47,6 +47,12 @@ chk "or-commute"      "(-> (+ P Q) (+ Q P)) (lam (+ P Q) (case (hyp 0) (lam P (i
 chk "case to common"  "(-> (+ P P) P) (lam (+ P P) (case (hyp 0) (lam P (hyp 0)) (lam P (hyp 0))))"                  accept
 chk "branches differ" "(-> (+ P Q) P) (lam (+ P Q) (case (hyp 0) (lam P (hyp 0)) (lam Q (hyp 0))))"                  reject
 chk "inl wrong goal"  "(-> P (+ Q Q)) (lam P (inl Q (hyp 0)))"                                                       reject
+# equality + the conversion rule (refl discharged by definitional computation)
+chk "refl 2+2=4"      "(= (p (s (s z)) (s (s z))) (s (s (s (s z)))))  (refl (s (s (s (s z)))))"                     accept
+chk "refl 0+3=3"      "(= (p z (s (s (s z)))) (s (s (s z))))  (refl (s (s (s z))))"                                 accept
+chk "reject 1+1=1"    "(= (p (s z) (s z)) (s z))  (refl (s z))"                                                     reject
+chk "reject 2+2=5"    "(= (p (s (s z)) (s (s z))) (s (s (s (s (s z))))))  (refl (s (s (s (s z)))))"                 reject
+chk "eq is first-class" "(-> (= (p (s z) (s z)) (s (s z))) (= (p (s z) (s z)) (s (s z)))) (lam (= (p (s z) (s z)) (s (s z))) (hyp 0))" accept
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
