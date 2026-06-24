@@ -31,5 +31,11 @@ chk "type mismatch"   "(-> (& P Q) Q) (lam (& P Q) (fst (hyp 0)))"              
 chk "unbound hyp"     "P (hyp 0)"                                                                   reject
 chk "ill-typed app"   "Q (app (lam P (hyp 0)) (lam Q (hyp 0)))"                                     reject
 chk "composition"     "(-> (-> P Q) (-> (-> Q R) (-> P R))) (lam (-> P Q) (lam (-> Q R) (lam P (app (hyp 1) (app (hyp 2) (hyp 0))))))" accept
+# falsity ⊥ / negation (¬A = A -> ⊥)
+chk "ex falso"        "(-> (bot) P) (lam (bot) (absurd P (hyp 0)))"                                                  accept
+chk "neg-elim"        "(-> (-> P (bot)) (-> P Q)) (lam (-> P (bot)) (lam P (absurd Q (app (hyp 1) (hyp 0)))))"       accept
+chk "contradiction"   "(-> P (-> (-> P (bot)) Q)) (lam P (lam (-> P (bot)) (absurd Q (app (hyp 0) (hyp 1)))))"       accept
+chk "no ex falso"     "(-> (bot) P) (lam (bot) (hyp 0))"                                                             reject
+chk "absurd non-bot"  "(-> P Q) (lam P (absurd Q (hyp 0)))"                                                          reject
 echo "delta check.beta: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

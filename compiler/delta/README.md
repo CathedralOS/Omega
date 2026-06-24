@@ -12,13 +12,15 @@ test.sh       the gate: bc compiles check.beta, then it accepts/rejects certific
 
 ## What it checks
 
-Propositional natural deduction over implication and conjunction. By Curry-Howard
-the checker *is* a simply-typed lambda-calculus type checker:
+Intuitionistic propositional natural deduction over implication, conjunction, and
+falsity (so negation is `¬A = A -> ⊥`). By Curry-Howard the checker *is* a
+simply-typed lambda-calculus type checker (with a void type):
 
 | logic | type theory | rule |
 | --- | --- | --- |
 | proposition `A -> B` | function type | `->`-intro = `lam`, `->`-elim (modus ponens) = `app` |
 | proposition `A & B` | product type | `&`-intro = `pair`, `&`-elim = `fst` / `snd` |
+| proposition `⊥` | the empty type `Void` | ex falso = `absurd` (a `⊥`-proof yields anything) |
 | a proof of `A` | a term of type `A` | hypothesis = variable (`hyp`, de Bruijn) |
 
 So "does this certificate prove this proposition?" = "does this term have this
@@ -27,9 +29,9 @@ type?", decided by structural type inference (`infer`) + structural equality.
 Input (stdin): a goal proposition, then a certificate term, prefix syntax.
 
 ```
-proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
+proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop ) | ( bot )
 term        := ( hyp N ) | ( lam prop term ) | ( app term term )
-             | ( pair term term ) | ( fst term ) | ( snd term )
+             | ( pair term term ) | ( fst term ) | ( snd term ) | ( absurd prop term )
 ```
 
 Output: `accept` (exit 1) iff the term proves the goal, else `reject` (exit 0).
@@ -73,8 +75,10 @@ matching would erase. So this prototype is also the design pull for the Gamma ru
 
 What it is **not** (yet), all tracked in `rungs/delta.md`:
 
-- The logic is propositional (no quantifiers, no `⊥`/negation, no induction). It
-  demonstrates the *checker architecture*, not a foundation for real math.
+- The logic is intuitionistic *propositional* (`->`, `&`, `⊥`/negation; no
+  disjunction yet, no quantifiers, no induction). It demonstrates the *checker
+  architecture*, not a foundation for real math. (Disjunction `∨` needs a 3-child
+  `case` node — a small arena widening — and is the natural next addition.)
 - No **soundness bridge** to program execution — the deep open problem
   (`provable ⟹ true-about-the-Gamma-reference-interpreter`) is untouched. This
   checks proofs *in the calculus*; connecting the calculus to "what a program
