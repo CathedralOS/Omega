@@ -51,6 +51,7 @@
 ;                | ( inst term nat )              ; ∀-elim (instantiate at a closed nat)
 ;                | ( wit prop nat term )          ; ∃-intro (witness + proof of body[t])
 ;                | ( unpack term term )           ; ∃-elim (handler is a ∀(body -> C))
+;                | ( natind prop term term )      ; Peano induction: base P(0), step ∀n.P(n)->P(s n)
 ; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
 ; Example — the identity proof of P -> P :   (-> P P)  (lam P (hyp 0))   -> accept
 ;
@@ -65,6 +66,7 @@
 ;             15 SND(p)     16 ABSURD(Cty,p) 17 INL(Bty,p) 18 INR(Aty,p)
 ;             19 CASE(p, aux)  20 REFL(t)  21 GEN(pf)  22 INST(pf,term)
 ;             23 WIT(body, (99 t pf))  24 UNPACK(epf, handler)
+;             25 NATIND(motive, (99 base step))
 ;        nat  30 ZERO  31 SUC(x)  32 PLUS(a,b)  33 MUL(a,b)  34 IVAR(k)
 
 proc slurp() {
@@ -436,6 +438,54 @@ proc subst_prop(p, s, depth) {
     return alloc(tag, subst_prop(word[p + 8], s, depth), subst_prop(word[p + 16], s, depth))
 }
 
+; --- substitution that KEEPS the binder (induction's P(s n), not inst's P(t)) ---
+; Identical to subst_term/subst_prop except the variable at `depth` is replaced WITHOUT
+; lowering the variables above it: the binder is not removed, the index is just renamed
+; (so motive(x) becomes motive(s x) while every outer individual stays put).
+proc subst_term_keep(t, s, depth) {
+    if word[t] == 34 {
+        if word[t + 8] == depth {
+            return s
+        }
+        return t                      ; no decrement — the binder remains
+    }
+    if word[t] == 30 {
+        return t
+    }
+    if word[t] == 31 {
+        return alloc(31, subst_term_keep(word[t + 8], s, depth), 0)
+    }
+    return alloc(word[t], subst_term_keep(word[t + 8], s, depth), subst_term_keep(word[t + 16], s, depth))
+}
+
+proc subst_prop_keep(p, s, depth) {
+    let tag = word[p]
+    if tag == 0 {
+        return p
+    }
+    if tag == 3 {
+        return p
+    }
+    if tag == 7 {                     ; Pred id term
+        return alloc(7, word[p + 8], subst_term_keep(word[p + 16], s, depth))
+    }
+    if tag == 9 {                     ; Rel id (t1,t2)
+        return alloc(9, word[p + 8],
+            alloc(99, subst_term_keep(word[word[p + 16] + 8], s, depth),
+                      subst_term_keep(word[word[p + 16] + 16], s, depth)))
+    }
+    if tag == 5 {                     ; Eq t1 t2
+        return alloc(5, subst_term_keep(word[p + 8], s, depth), subst_term_keep(word[p + 16], s, depth))
+    }
+    if tag == 6 {                     ; All — lift the renamer across the binder
+        return alloc(6, subst_prop_keep(word[p + 8], shift_term(s, 1, 0), depth + 1), 0)
+    }
+    if tag == 8 {                     ; Exists — likewise
+        return alloc(8, subst_prop_keep(word[p + 8], shift_term(s, 1, 0), depth + 1), 0)
+    }
+    return alloc(tag, subst_prop_keep(word[p + 8], s, depth), subst_prop_keep(word[p + 16], s, depth))
+}
+
 ; definitional equality: normalize both, then compare (the conversion rule).
 proc conv_eq(a, b) {
     return nat_eq(normalize(a, 100000), normalize(b, 100000))
@@ -637,6 +687,13 @@ proc parse_term() {
         y = parse_term()             ; handler : All (body -> C)
         expect(')')
         return alloc(24, x, y)
+    }
+    if kc == 'n' {                   ; (natind motive base step) — Peano induction
+        x = parse_type()             ; motive P(x), induction var = Ivar 0
+        y = parse_term()             ; base : P(0)
+        z = parse_term()             ; step : All (P(n) -> P(s n))
+        expect(')')
+        return alloc(25, x, alloc(99, y, z))
     }
     if kc == 'c' {               ; (case p f g): p:A∨B, f:A->C, g:B->C => C
         x = parse_term()         ; p
@@ -917,6 +974,31 @@ proc infer(term) {
             return 0
         }
         return word[word[t2 + 8] + 16]                   ; the conclusion C
+    }
+    if tag == 25 {               ; NATIND motive base step : Peano induction -> All(motive)
+        ; node = (25, motive, (99, base, step)).  The induction schema
+        ;   P(0) -> (forall n. P(n) -> P(s n)) -> forall n. P(n)
+        ; is sound for ANY motive, so the checker just verifies the two premises.
+        t1 = infer(word[word[term + 16] + 8])            ; typeof base
+        if t1 == 0 {
+            return 0
+        }
+        ; base must prove P(0): substitute zero for the induction variable (binder gone)
+        if type_eq(t1, subst_prop(word[term + 8], alloc(30, 0, 0), 0)) == 0 {
+            return 0
+        }
+        t1 = infer(word[word[term + 16] + 16])           ; typeof step
+        if t1 == 0 {
+            return 0
+        }
+        ; step must prove  All( P(n) -> P(s n) ).  P(s n) renames the induction var to
+        ; its successor WITHOUT removing the binder (subst_prop_keep).
+        t2 = subst_prop_keep(word[term + 8], alloc(31, alloc(34, 0, 0), 0), 0)
+        t2 = alloc(6, alloc(1, word[term + 8], t2), 0)
+        if type_eq(t1, t2) == 0 {
+            return 0
+        }
+        return alloc(6, word[term + 8], 0)               ; forall n. P(n)
     }
     return 0
 }

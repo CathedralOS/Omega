@@ -128,6 +128,27 @@
     ((Rel id s t) (match b ((Rel jd u v) (if (eq id jd) (if (conveq s u) (conveq t v) 0) 0)) (z 0)))
     (z 0)))
 
+; keep-the-binder substitution (induction's P(s n)): rename the var at d to s, do NOT
+; lower the variables above it.  shiftt lifts the renamer across inner binders.
+(def subtk (t s d)
+  (match t
+    ((Iv k) (if (eq k d) s (Iv k)))
+    (Ze Ze)
+    ((Su x) (Su (subtk x s d)))
+    ((Pl a b) (Pl (subtk a s d) (subtk b s d)))
+    ((Mu a b) (Mu (subtk a s d) (subtk b s d)))))
+(def subpk (p s d)
+  (match p
+    ((Pred id t) (Pred id (subtk t s d)))
+    ((Rel id u v) (Rel id (subtk u s d) (subtk v s d)))
+    ((Eq a b) (Eq (subtk a s d) (subtk b s d)))
+    ((All x) (All (subpk x (shiftt s 1 0) (+ d 1))))
+    ((Exists x) (Exists (subpk x (shiftt s 1 0) (+ d 1))))
+    ((Arrow a b) (Arrow (subpk a s d) (subpk b s d)))
+    ((And a b) (And (subpk a s d) (subpk b s d)))
+    ((Or a b) (Or (subpk a s d) (subpk b s d)))
+    (z p)))
+
 (def isbad (t) (match t (Bad 1) (z 0)))
 
 ; the +-elim (case) rule, factored out: p:A+B, f:A->C, g:B->C  =>  C
@@ -171,6 +192,16 @@
                       (let pt (infer pf ctx)
                         (if (isbad pt) Bad
                           (if (teq pt (subp body t 0)) (Exists body) Bad)))))
+    ((Natind motive base step)                              ; Peano induction
+      (let tb (infer base ctx)
+        (let ts (infer step ctx)
+          (if (isbad tb) Bad
+            (if (isbad ts) Bad
+              (if (teq tb (subp motive Ze 0))               ; base : P(0)
+                (if (teq ts (All (Arrow motive (subpk motive (Su (Iv 0)) 0))))  ; step
+                  (All motive)                              ; ∀n. P(n)
+                  Bad)
+                Bad))))))
     ((Unpack epf h) (match (infer epf ctx)                   ; ∃-elim
                       ((Exists b)
                         (match (infer h ctx)

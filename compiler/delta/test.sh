@@ -84,6 +84,12 @@ chk "rel args ordered" "(-> (Rel 0 z (s z)) (Rel 0 (s z) z)) (lam (Rel 0 z (s z)
 chk "inst nested ∀"   "(-> (All (All (Rel 0 (v 1) (v 0)))) (All (Rel 0 (v 0) (v 0)))) (lam (All (All (Rel 0 (v 1) (v 0)))) (gen (inst (inst (hyp 0) (v 0)) (v 0))))" accept
 chk "shift correct"   "(-> (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0))))) (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0)))))) (lam (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0))))) (gen (inst (hyp 0) (v 0))))" accept
 chk "no capture"      "(-> (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0))))) (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 0) (v 0)))))) (lam (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0))))) (gen (inst (hyp 0) (v 0))))" reject
+# Peano induction (natind motive base step)
+chk "induction princ" "(-> (Pred 0 z) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (s (v 0))))) (All (Pred 0 (v 0))))) (lam (Pred 0 z) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (s (v 0))))) (natind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" accept
+chk "induction param" "(All (-> (Rel 0 (v 0) z) (-> (All (-> (Rel 0 (v 1) (v 0)) (Rel 0 (v 1) (s (v 0))))) (All (Rel 0 (v 1) (v 0)))))) (gen (lam (Rel 0 (v 0) z) (lam (All (-> (Rel 0 (v 1) (v 0)) (Rel 0 (v 1) (s (v 0))))) (natind (Rel 0 (v 1) (v 0)) (hyp 1) (hyp 0)))))" accept
+chk "induction n=n"   "(All (= (v 0) (v 0))) (natind (= (v 0) (v 0)) (refl z) (gen (lam (= (v 0) (v 0)) (refl (s (v 0))))))" accept
+chk "identity step"   "(-> (Pred 0 z) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (All (Pred 0 (v 0))))) (lam (Pred 0 z) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (natind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
+chk "wrong base"      "(-> (Pred 0 (s z)) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (s (v 0))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (s z)) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (s (v 0))))) (natind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
