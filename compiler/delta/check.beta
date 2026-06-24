@@ -219,6 +219,18 @@ proc parse_nat() {
         adv()                    ; ')'
         return alloc(37, a, b)
     }
+    if op == 'k' {               ; (k cid args...) a USER constructor: CON head + APPLY spine
+        skip_ws()
+        a = parse_number()       ; constructor id
+        b = alloc(50, a, 0)      ; CON(cid)
+        skip_ws()
+        while cbyte() != ')' {
+            b = alloc(51, b, parse_nat())   ; APPLY(b, next-arg)
+            skip_ws()
+        }
+        adv()                    ; ')'
+        return b
+    }
     if op == 'l' {               ; (len l) list length : List -> Nat
         a = parse_nat()
         skip_ws()
@@ -247,8 +259,16 @@ proc normalize(t, fuel) {
     if tag == 35 {                              ; nil — a normal form
         return t
     }
+    if tag == 50 {                              ; CON(cid) — a user constructor head, normal
+        return t
+    }
     let a = 0
     let b = 0
+    if tag == 51 {                              ; APPLY(f,a) — inert: just reduce both sides
+        a = normalize(word[t + 8], fuel - 1)
+        b = normalize(word[t + 16], fuel - 1)
+        return alloc(51, a, b)
+    }
     if tag == 31 {
         a = normalize(word[t + 8], fuel - 1)
         return alloc(31, a, 0)
@@ -316,6 +336,12 @@ proc nat_eq(a, b) {
     if word[a] == 35 {                ; nil — equal (tags already match)
         return 1
     }
+    if word[a] == 50 {                ; CON(cid) — equal iff same constructor id
+        if word[a + 8] == word[b + 8] {
+            return 1
+        }
+        return 0
+    }
     if word[a] == 34 {                ; Ivar: equal iff same de Bruijn index
         if word[a + 8] == word[b + 8] {
             return 1
@@ -343,6 +369,9 @@ proc ivar_in_term(t) {
         return 0
     }
     if word[t] == 35 {
+        return 0
+    }
+    if word[t] == 50 {                ; CON(cid) — a leaf
         return 0
     }
     if word[t] == 31 {
@@ -408,6 +437,9 @@ proc free_ivt(t, depth) {
     if word[t] == 35 {
         return 0
     }
+    if word[t] == 50 {                ; CON(cid) — a leaf
+        return 0
+    }
     if word[t] == 31 {
         return free_ivt(word[t + 8], depth)
     }
@@ -471,6 +503,9 @@ proc shift_term(t, d, cutoff) {
     if word[t] == 35 {
         return t
     }
+    if word[t] == 50 {                ; CON(cid) — a leaf
+        return t
+    }
     if word[t] == 31 {
         return alloc(31, shift_term(word[t + 8], d, cutoff), 0)
     }
@@ -496,6 +531,9 @@ proc subst_term(t, s, depth) {
         return t
     }
     if word[t] == 35 {
+        return t
+    }
+    if word[t] == 50 {                ; CON(cid) — a leaf
         return t
     }
     if word[t] == 31 {
@@ -550,6 +588,9 @@ proc subst_term_keep(t, s, depth) {
         return t
     }
     if word[t] == 35 {
+        return t
+    }
+    if word[t] == 50 {                ; CON(cid) — a leaf
         return t
     }
     if word[t] == 31 {
