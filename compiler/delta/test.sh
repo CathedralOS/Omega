@@ -70,6 +70,11 @@ chk "exists-elim"     "(-> (Exists (Pred 0 (v 0))) (-> (All (-> (Pred 0 (v 0)) Q
 chk "wit mismatch"    "(-> (Pred 0 z) (Exists (Pred 0 (v 0)))) (lam (Pred 0 z) (wit (Pred 0 (v 0)) (s z) (hyp 0)))" reject
 chk "witness leak"    "(-> (Exists (Pred 0 (v 0))) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (Pred 0 (v 0)))) (lam (Exists (Pred 0 (v 0))) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (unpack (hyp 1) (hyp 0))))" reject
 chk "handler mismatch" "(-> (Exists (Pred 0 (v 0))) (-> (All (-> (Pred 1 (v 0)) Q)) Q)) (lam (Exists (Pred 0 (v 0))) (lam (All (-> (Pred 1 (v 0)) Q)) (unpack (hyp 1) (hyp 0))))" reject
+# REAL first-order reasoning: instantiate at the gen-bound variable (open witness)
+chk "forall-distrib"  "(-> (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (-> (All (Pred 0 (v 0))) (All (Pred 1 (v 0))))) (lam (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (lam (All (Pred 0 (v 0))) (gen (app (inst (hyp 1) (v 0)) (inst (hyp 0) (v 0))))))" accept
+chk "forall over &"   "(-> (All (& (Pred 0 (v 0)) (Pred 1 (v 0)))) (All (Pred 0 (v 0)))) (lam (All (& (Pred 0 (v 0)) (Pred 1 (v 0)))) (gen (fst (inst (hyp 0) (v 0)))))" accept
+chk "forall reconstruct" "(-> (All (Pred 0 (v 0))) (All (Pred 0 (v 0)))) (lam (All (Pred 0 (v 0))) (gen (inst (hyp 0) (v 0))))" accept
+chk "false converse"  "(-> (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (-> (All (Pred 1 (v 0))) (All (Pred 0 (v 0))))) (lam (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (lam (All (Pred 1 (v 0))) (gen (app (inst (hyp 1) (v 0)) (inst (hyp 0) (v 0))))))" reject
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"

@@ -304,7 +304,92 @@ proc ivar_in_prop(p) {
     return ivar_in_prop(word[p + 16])
 }
 
-; substitute individual term `s` (assumed closed) for Ivar `depth`, in a term.
+; does a term / prop mention a FREE individual variable (index >= depth)? This is
+; the precise freshness test: an Ivar bound by a quantifier *inside* the prop is not
+; free, so a hypothesis like (All P(v0)) does NOT block generalization.
+proc free_ivt(t, depth) {
+    if word[t] == 34 {
+        if word[t + 8] >= depth {
+            return 1
+        }
+        return 0
+    }
+    if word[t] == 30 {
+        return 0
+    }
+    if word[t] == 31 {
+        return free_ivt(word[t + 8], depth)
+    }
+    if free_ivt(word[t + 8], depth) == 1 {
+        return 1
+    }
+    return free_ivt(word[t + 16], depth)
+}
+
+proc free_ivp(p, depth) {
+    let tag = word[p]
+    if tag == 0 {
+        return 0
+    }
+    if tag == 3 {
+        return 0
+    }
+    if tag == 7 {                     ; Pred id term
+        return free_ivt(word[p + 16], depth)
+    }
+    if tag == 5 {                     ; Eq t1 t2
+        if free_ivt(word[p + 8], depth) == 1 {
+            return 1
+        }
+        return free_ivt(word[p + 16], depth)
+    }
+    if tag == 6 {                     ; All — its bound var is one level deeper
+        return free_ivp(word[p + 8], depth + 1)
+    }
+    if tag == 8 {                     ; Exists — likewise
+        return free_ivp(word[p + 8], depth + 1)
+    }
+    if free_ivp(word[p + 8], depth) == 1 {   ; Arrow/And/Or
+        return 1
+    }
+    return free_ivp(word[p + 16], depth)
+}
+
+; does a prop contain a quantifier (All/Exists)?  Used to keep open-witness
+; instantiation sound without de Bruijn shifting: substituting an OPEN witness is
+; capture-free only when the quantifier body has no binder to cross.
+proc has_quant(p) {
+    let tag = word[p]
+    if tag == 6 {
+        return 1
+    }
+    if tag == 8 {
+        return 1
+    }
+    if tag == 1 {                     ; Arrow
+        if has_quant(word[p + 8]) == 1 {
+            return 1
+        }
+        return has_quant(word[p + 16])
+    }
+    if tag == 2 {                     ; And
+        if has_quant(word[p + 8]) == 1 {
+            return 1
+        }
+        return has_quant(word[p + 16])
+    }
+    if tag == 4 {                     ; Or
+        if has_quant(word[p + 8]) == 1 {
+            return 1
+        }
+        return has_quant(word[p + 16])
+    }
+    return 0                          ; Atom / Bot / Eq / Pred
+}
+
+; substitute individual term `s` for Ivar `depth`, in a term.  (Sound for a closed
+; `s`, or for an open `s` when the surrounding prop has no binder to cross — the two
+; cases inst() admits; either way no shifting of `s` is required.)
 proc subst_term(t, s, depth) {
     if word[t] == 34 {
         if word[t + 8] == depth {
@@ -738,13 +823,13 @@ proc infer(term) {
         return alloc(5, word[term + 8], word[term + 8])
     }
     if tag == 21 {               ; GEN pf : ∀-intro  ->  All (typeof pf)
-        ; freshness (sound, conservative): no hypothesis in scope may mention an
-        ; individual variable — then the fresh ∀-bound var cannot be captured and
-        ; no de Bruijn shifting of the context is needed.
+        ; freshness: no hypothesis in scope may have a FREE individual variable. A
+        ; hypothesis may quantify its own (bound) individuals — only a free one,
+        ; carried in from an enclosing gen, could be captured by the new binder.
         t1 = 0
         t2 = word[2097120]                    ; CTXN
         while t1 < t2 {
-            if ivar_in_prop(word[4194304 + t1 * 8]) == 1 {
+            if free_ivp(word[4194304 + t1 * 8], 0) == 1 {
                 return 0
             }
             t1 = t1 + 1
@@ -756,15 +841,21 @@ proc infer(term) {
         return alloc(6, t1, 0)
     }
     if tag == 22 {               ; INST pf t : ∀-elim  ->  body[t / bound var]
-        if ivar_in_term(word[term + 16]) == 1 {   ; instantiate with a CLOSED term
-            return 0
-        }
         t1 = infer(word[term + 8])
         if t1 == 0 {
             return 0
         }
         if word[t1] != 6 {                    ; pf must prove a universal
             return 0
+        }
+        ; an OPEN witness (one mentioning a free individual, e.g. the gen-bound var —
+        ; this is what makes ∀-distribution provable) is admitted only when the body
+        ; has no inner quantifier, so substitution crosses no binder and cannot
+        ; capture. A closed witness is always safe.
+        if ivar_in_term(word[term + 16]) == 1 {
+            if has_quant(word[t1 + 8]) == 1 {
+                return 0
+            }
         }
         return subst_prop(word[t1 + 8], word[term + 16], 0)
     }

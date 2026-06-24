@@ -48,7 +48,18 @@
            ((All x) (All (subp x s (+ d 1)))) ((Exists x) (Exists (subp x s (+ d 1))))
            ((Arrow a b) (Arrow (subp a s d) (subp b s d))) ((And a b) (And (subp a s d) (subp b s d)))
            ((Or a b) (Or (subp a s d) (subp b s d))) (z p)))
-(def ctxclean ((ctx Ctx)) Int (match ctx (Nil 1) ((Cons h t) (if (ivp h) 0 (ctxclean t)))))
+(def freet ((t Nat) (d Int)) Int
+  (match t ((Iv k) (if (lt k d) 0 1)) (Ze 0) ((Su x) (freet x d))
+           ((Pl a b) (if (freet a d) 1 (freet b d))) ((Mu a b) (if (freet a d) 1 (freet b d)))))
+(def freep ((p Type) (d Int)) Int
+  (match p ((Pred id t) (freet t d)) ((Eq a b) (if (freet a d) 1 (freet b d)))
+           ((All x) (freep x (+ d 1))) ((Exists x) (freep x (+ d 1)))
+           ((Arrow a b) (if (freep a d) 1 (freep b d))) ((And a b) (if (freep a d) 1 (freep b d)))
+           ((Or a b) (if (freep a d) 1 (freep b d))) (z 0)))
+(def hasq ((p Type)) Int
+  (match p ((All x) 1) ((Exists x) 1) ((Arrow a b) (if (hasq a) 1 (hasq b)))
+           ((And a b) (if (hasq a) 1 (hasq b))) ((Or a b) (if (hasq a) 1 (hasq b))) (z 0)))
+(def ctxclean ((ctx Ctx)) Int (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
 
 (def teq ((a Type) (b Type)) Int
   (match a
@@ -91,7 +102,9 @@
     ((Absurd cty p) (match (infer p ctx) (Bot cty) (z Bad)))
     ((Refl t)       (Eq t t))
     ((Gen pf)       (if (ctxclean ctx) (let bt (infer pf ctx) (if (isbad bt) Bad (All bt))) Bad))
-    ((Inst pf t)    (if (ivt t) Bad (match (infer pf ctx) ((All body) (subp body t 0)) (z Bad))))
+    ((Inst pf t)    (match (infer pf ctx)
+                      ((All body) (if (ivt t) (if (hasq body) Bad (subp body t 0)) (subp body t 0)))
+                      (z Bad)))
     ((Wit body t pf) (if (ivt t) Bad
                        (let pt (infer pf ctx)
                          (if (isbad pt) Bad (if (teq pt (subp body t 0)) (Exists body) Bad)))))

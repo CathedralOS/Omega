@@ -81,8 +81,37 @@
     ((Or a b)    (Or (subp a s d) (subp b s d)))
     (z p)))                        ; Atom / Bot unchanged
 
-; gen's freshness guard: no hypothesis in scope mentions an individual var
-(def ctxclean (ctx) (match ctx (Nil 1) ((Cons h t) (if (ivp h) 0 (ctxclean t)))))
+; depth-aware FREE-variable check: an Ivar bound by a quantifier inside the prop is
+; not free, so (All P(Iv0)) does not block generalization.
+(def freet (t d)
+  (match t
+    ((Iv k) (if (lt k d) 0 1))
+    (Ze 0)
+    ((Su x) (freet x d))
+    ((Pl a b) (if (freet a d) 1 (freet b d)))
+    ((Mu a b) (if (freet a d) 1 (freet b d)))))
+(def freep (p d)
+  (match p
+    ((Pred id t) (freet t d))
+    ((Eq a b)    (if (freet a d) 1 (freet b d)))
+    ((All x)     (freep x (+ d 1)))
+    ((Exists x)  (freep x (+ d 1)))
+    ((Arrow a b) (if (freep a d) 1 (freep b d)))
+    ((And a b)   (if (freep a d) 1 (freep b d)))
+    ((Or a b)    (if (freep a d) 1 (freep b d)))
+    (z 0)))
+; does a prop contain a quantifier?  (open-witness instantiation is capture-free
+; only when the quantifier body has no inner binder to cross)
+(def hasq (p)
+  (match p
+    ((All x) 1)
+    ((Exists x) 1)
+    ((Arrow a b) (if (hasq a) 1 (hasq b)))
+    ((And a b)   (if (hasq a) 1 (hasq b)))
+    ((Or a b)    (if (hasq a) 1 (hasq b)))
+    (z 0)))
+; gen's freshness guard: no hypothesis in scope has a FREE individual var
+(def ctxclean (ctx) (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
 
 (def teq (a b)                     ; structural type equality (defn'l for Eq) -> 1/0
   (match a
@@ -133,10 +162,12 @@
     ((Gen pf)       (if (ctxclean ctx)                       ; ∀-intro (conservative)
                       (let bt (infer pf ctx) (if (isbad bt) Bad (All bt)))
                       Bad))
-    ((Inst pf t)    (if (ivt t) Bad                          ; ∀-elim (closed witness)
-                      (match (infer pf ctx)
-                        ((All body) (subp body t 0))
-                        (z Bad))))
+    ((Inst pf t)    (match (infer pf ctx)                    ; ∀-elim
+                      ((All body)                            ; open witness ok if body
+                        (if (ivt t)                          ; has no binder to cross
+                          (if (hasq body) Bad (subp body t 0))
+                          (subp body t 0)))
+                      (z Bad)))
     ((Wit body t pf) (if (ivt t) Bad                         ; ∃-intro
                       (let pt (infer pf ctx)
                         (if (isbad pt) Bad
