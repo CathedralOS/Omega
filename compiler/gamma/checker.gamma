@@ -1,0 +1,49 @@
+; checker.gamma — the Delta checker's core, in Gamma.  THE PAYOFF OF THE RUNG.
+;
+; This is the same simply-typed-lambda / natural-deduction type checker as
+; compiler/delta/check.beta — but where check.beta hand-encodes term and type
+; trees as tagged 3-word memory nodes and decides everything with if-cascades on
+; integer tags, here they are ALGEBRAIC DATA + PATTERN MATCHING: ~6 tiny functions,
+; no manual memory, no tags. That contrast IS why the Gamma rung exists (rungs/
+; delta.md: "the checker is a Gamma program — small, audited, frozen"; gamma.md:
+; ADTs + pattern matching are what keep it small and auditable).
+;
+; Types: (Atom n) | (Arrow a b) | (And a b) | Bad      (Bad = inference failure)
+; Terms: (Hyp n) | (Lam ty body) | (App f a) | (Pair a b) | (Fst p) | (Snd p)
+; Context: a list  Nil | (Cons ty rest)   (de Bruijn: Hyp 0 is the innermost).
+; infer returns a type (or Bad); check = "the inferred type equals the goal".
+;
+; Run via the Gamma reference interpreter (interp.beta) by appending a goal:
+;   ...defs...  (check (Lam (Atom 0) (Hyp 0)) (Arrow (Atom 0) (Atom 0)))   -> 1
+; That proof is the identity λx:P. x  of  P -> P.
+
+(def nth (ctx n)
+  (match ctx
+    (Nil Bad)
+    ((Cons h t) (if (eq n 0) h (nth t (- n 1))))))
+
+(def teq (a b)                     ; structural type equality -> 1 / 0
+  (match a
+    ((Atom x)    (match b ((Atom y)  (eq x y))              (z 0)))
+    ((Arrow p q) (match b ((Arrow r s) (if (teq p r) (teq q s) 0)) (z 0)))
+    ((And p q)   (match b ((And r s)   (if (teq p r) (teq q s) 0)) (z 0)))
+    (z 0)))
+
+(def isbad (t) (match t (Bad 1) (z 0)))
+
+(def infer (tm ctx)                ; the proposition a term proves, or Bad
+  (match tm
+    ((Hyp n)       (nth ctx n))
+    ((Lam ty body) (let bt (infer body (Cons ty ctx))
+                     (if (isbad bt) Bad (Arrow ty bt))))
+    ((App f a)     (match (infer f ctx)
+                     ((Arrow p q) (if (teq (infer a ctx) p) q Bad))
+                     (z Bad)))
+    ((Pair a b)    (let ta (infer a ctx)
+                     (let tb (infer b ctx)
+                       (if (isbad ta) Bad (if (isbad tb) Bad (And ta tb))))))
+    ((Fst p)       (match (infer p ctx) ((And r s) r) (z Bad)))
+    ((Snd p)       (match (infer p ctx) ((And r s) s) (z Bad)))
+    (z Bad)))
+
+(def check (tm goal) (teq (infer tm Nil) goal))
