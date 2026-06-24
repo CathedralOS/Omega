@@ -1,11 +1,16 @@
 # `String` retirement — execution recipe (#66 Phase B2–B4)
 
-> **Status: READY — verified 2026-06-22, not yet executed.** This is an **atomic**
-> change (no green-preserving incremental step): the tree is red from the keystone
-> edit until the last site + corpus file is migrated, then `cargo test --workspace`
-> comes back green. Run it as one focused push (worktree or the dedicated branch;
-> `abc38382` is the last green commit). Everything below was traced against the
-> real code so the push is mechanical, not exploratory.
+> **Status: NOT mechanical — bigger than first scoped (corrected 2026-06-22).**
+> Examining the real corpus overturned an earlier optimistic read: **owned `String`
+> is pervasively NATIVE**, not a gated afterthought. ~120 passing canaries — the
+> **entire dungeon** and every runtime text canary (`runtime_string_concat_exit`,
+> `runtime_text_builder`, `runtime_string_field_concat_exit`, …) — compile, run, and
+> are oracle-matched *today* on owned `String` (fields, copy, concat-into-buffer,
+> text builders). Retiring the type means migrating **all of that** onto *bounded*
+> carriers (`FixedVec<u8>`/`[u8;N] in Utf8`) without regressing the dungeon, and the
+> growable bits (`with_capacity`/`push_str`) genuinely need the allocator. This is a
+> real, risky migration arc — **partly allocator-gated** — not a quick rip. `cb165c24`
+> is the last green commit.
 
 ## Why it's atomic
 
@@ -18,20 +23,26 @@ sites are live** — `String` is *implemented as* the fat-slice/text descriptor
 So there is no dead branch to delete incrementally; the variant and its uses come
 out together.
 
-## Allocator: NOT a blocker (verified)
+## Allocator: a PARTIAL blocker (corrected — the earlier "not a blocker" was wrong)
 
-The allocator is still stage-1 design, and `Vec<u8> in Utf8` (owned/growable heap
-text) is genuinely gated on it — **but that is orthogonal to this retirement**:
+The split that actually matters:
 
-- The owned surface (`with_capacity`, `push_str`, `Capacity`, `from_utf8`, …) is
-  declared in `omega/language/core/str.omg` as **`boundary operator`s** — host/
-  runtime-provided, *not natively lowered today*. There is no native owned-string
-  behavior to regress.
-- The bulk — literals, borrowed `&string`, bounded `[u8;N]` / `FixedVec<u8>`
-  (ships today) — is **not** gated.
-- Retiring `String` routes owned text onto `Vec<u8> in Utf8` (the same already-gated
-  boundary path) and borrowed text onto `&[u8] in Utf8`. **Net regression: zero.**
-- The dungeon and samples use **no** owned-growable strings, so they migrate clean.
+- **borrowed `&string`** → `&[u8] in Utf8` — ungated, the easy part.
+- **owned-FIXED `String`** (struct/machine fields, field-copy, concat-into-buffer,
+  text builders) — **lowers and RUNS today** via fixed/inline buffer storage, no
+  allocator. This is the pervasive part: **~120 passing canaries + the whole
+  dungeon**. Retiring it means migrating every one onto a bounded carrier
+  (`FixedVec<u8>` / `[u8;N] in Utf8`, which ship today) **without regressing the
+  runtime behavior or the differential oracle**. Ungated, but the hard, careful
+  core of the arc — not mechanical.
+- **owned-GROWABLE `String`** (`with_capacity`/`push_str`/`from_utf8`, the
+  `boundary operator` surface in `str.omg`) → `Vec<u8> in Utf8` — **genuinely
+  allocator-gated** (stage-1, not built). Few sites (the str/vec library surface),
+  but this part cannot complete until the allocator does.
+
+So the original instinct that the allocator was tangled up with full `String`
+cleanup is correct: the growable surface waits on it, and the fixed surface is a
+large careful migration of the live corpus + dungeon.
 
 ## The model (target)
 
@@ -95,7 +106,10 @@ semantics/omega-validation/src/wire.rs                                          
 
 ## Notes
 
-- `~3–6` owned-growable usages are confined to library surface (`str.omg`,
-  `vec.omg`, `fixed_vec.omg`) — none in samples; they ride the gated `Vec<u8>` path.
+- Distinguish **growable** from **owned-fixed**: growable ops
+  (`with_capacity`/`push_str`) are confined to library surface (`str.omg`,
+  `vec.omg`, `fixed_vec.omg`) and ride the gated `Vec<u8>` path — but **owned-fixed
+  `String` fields are everywhere** (~120 canaries + the dungeon) and are the real
+  migration work (→ `FixedVec<u8>`/`[u8;N] in Utf8`).
 - This recipe is the main-compiler counterpart to the memory note
   `string-encoding-domain-model`; keep them in sync.
