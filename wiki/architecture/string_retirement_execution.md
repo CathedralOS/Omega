@@ -30,6 +30,27 @@
 > `select_runtime_string_descriptor_write`, and all three local-init writers
 > (straight-line / prelude / mutation) are never even called for the failing canary.
 > The clean-green baseline is `26f89ff3` (34 canaries migrated).
+>
+> **The feature, scoped to three carrier/domain-generic pieces** (a param-domain
+> producer alone was built, proven sound + non-regressing at 321 green, but
+> INEFFECTIVE — see the memory note `string-encoding-domain-model`,
+> "PROVER-INTERNALS DEEP DIVE", for the full instrumented trace):
+> 1. **Forwarded-arg place canonicalization** — a bare param/local arg (`consume(text)`)
+>    canonicalizes as `PlaceRoot::Expression`, which `places_match` (omega-facts
+>    `view.rs`) does not equate to a symbol-rooted domain fact; the field case
+>    works only because `self.out` roots symbol+Field-segment. Canonicalize the arg
+>    to a symbol place, or root the fact to match.
+> 2. **Guarded-transition leaf context propagation** — a `transition x==lit { true->a
+>    false->b }` leaf target's entry contexts (`build_call_flow_fact` →
+>    `build_call_entry_contexts` from threaded `active_contexts`, `flow/calls.rs`)
+>    come back EMPTY, so no machine/state domain fact reaches it. A *matched*
+>    `transition v { pat->target(arg) }` target does get contexts.
+> 3. **Payload-read narrowing** — a producer for destructured case payloads
+>    (`cmd.<payload>`), mirroring `append_machine_field_domain_facts` but placed
+>    for the matched arm and gated on construction-enforcement (#60-1c), not ZII.
+>
+> The guard obligation is the `text == "ok"` content-compare's domain precondition
+> (`requires text in Utf8`) checked at the leaf dispatch.
 
 > **Earlier status (still true for the owned-`String` surface): NOT mechanical — bigger than first scoped (corrected 2026-06-22).**
 > Examining the real corpus overturned an earlier optimistic read: **owned `String`
