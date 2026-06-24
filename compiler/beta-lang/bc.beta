@@ -1,62 +1,57 @@
-; bc.beta — the Beta compiler, WRITTEN IN BETA.  (slice 1: arithmetic)
+; bc.beta — the Beta compiler, WRITTEN IN BETA.  (slice 2a: named locals)
 ;
-; Reads Beta source on stdin, emits Alpha assembly on stdout — the same job as
-; the Rust on-ramp `beta-lang-rs`, but written in Beta itself. This is the
-; self-hosting path (slice 7): once bc.beta compiles its own source to a fixed
-; point, Rust leaves the lineage (it only cold-starts the first bc, exactly as
-; beta-rs cold-starts the assembler).
+; Reads Beta source on stdin, emits Alpha assembly on stdout — the self-hosting
+; path (slice 7): once bc compiles its own source to a fixed point, Rust leaves
+; the lineage. Built slice-by-slice, mirroring beta-lang-rs.
 ;
-; SLICE 1 handles exactly:  proc main() { return <expr> }  where <expr> is integer
-; arithmetic with + - * / %, parentheses, and the usual precedence. Verified by
-; running the emitted program: its exit code equals the arithmetic value. Built
-; slice-by-slice, mirroring how beta-lang-rs was grown.
+;   slice 1  : proc main() { return <arith> }
+;   slice 2a : + `let` locals, assignment, variable references  (THIS)
 ;
-; The codegen is a stack machine matching beta-lang-rs: each (sub)expression
-; leaves its value in r0; a binary op pushes the left onto the r15 data stack,
-; computes the right into r0, then pops the left into r1-then-r0 and combines.
+; Single pass with one pre-scan: to emit the prologue's frame allocation we must
+; know how many locals the proc has, so count_lets() scans the body once before
+; codegen. Locals are addressed at [fp - 8 - 8*slot], matching the on-ramp.
 ;
-; Memory, above the 1 MiB data stack:  buf=2 MiB source; buf-8 cursor; buf-16 len.
+; emit() costs ~12 tape bytes/char, so bc emits COMPACT asm (no indent, commas
+; attached — the assembler treats those as whitespace) to stay within the hole.
+;
+; Fixed memory (above the 1 MiB data stack):
+;   2097152 SRC    source bytes        2097144 CUR    cursor (index into SRC)
+;   2097136 LEN    source length       2097128 NLOC   declared local count
+;   2097120 IDOFF  last ident offset    2097112 IDLEN  last ident length
+;   3145728 NAMEOFF[i] (word)          3153920 NAMELEN[i] (word)   ; i = slot
 
-proc main() {
-    let buf = 2097152
+; ---------------- reading the source ----------------
+
+proc slurp() {
     let n = 0
     let c = read_byte()
-    while c >= 0 {                       ; slurp stdin (read_byte() = -1 at EOF)
-        byte[buf + n] = c
+    while c >= 0 {
+        byte[2097152 + n] = c
         n = n + 1
         c = read_byte()
     }
-    word[buf - 16] = n                   ; length
-    word[buf - 8] = 0                    ; cursor
-    skip_to_return(buf)                  ; past `proc main() { return`
-    emit_header()
-    gen_expr(buf)                        ; the return expression
-    emit_epilogue()                      ; the `return` tear-down
-    emit_epilogue()                      ; the fall-through tear-down (matches on-ramp)
-    return 0
+    word[2097136] = n        ; LEN
+    word[2097144] = 0        ; CUR
+    word[2097128] = 0        ; NLOC
 }
 
-; ---- cursor over the source buffer ----
+proc cur() {
+    return word[2097144]
+}
 
-proc peek(buf) {                         ; byte at cursor, or 0 (sentinel) past end
-    let i = word[buf - 8]
-    if i < word[buf - 16] {
-        return byte[buf + i]
+proc cbyte() {               ; byte at cursor, or 0 past end
+    let i = word[2097144]
+    if i < word[2097136] {
+        return byte[2097152 + i]
     }
     return 0
 }
 
-proc advance(buf) {
-    word[buf - 8] = word[buf - 8] + 1
+proc adv() {
+    word[2097144] = word[2097144] + 1
 }
 
-proc skip_ws(buf) {
-    while peek(buf) == ' ' {
-        advance(buf)
-    }
-}
-
-; ---- character classes ----
+; ---------------- character classes ----------------
 
 proc is_digit(c) {
     if c < '0' {
@@ -67,6 +62,315 @@ proc is_digit(c) {
     }
     return 1
 }
+
+proc is_alpha(c) {
+    if c == '_' {
+        return 1
+    }
+    if c < 'A' {
+        return 0
+    }
+    if c <= 'Z' {
+        return 1
+    }
+    if c < 'a' {
+        return 0
+    }
+    if c <= 'z' {
+        return 1
+    }
+    return 0
+}
+
+proc is_alnum(c) {
+    if is_alpha(c) == 1 {
+        return 1
+    }
+    return is_digit(c)
+}
+
+proc is_space(c) {
+    if c == ' ' {
+        return 1
+    }
+    if c == 9 {
+        return 1
+    }
+    if c == 10 {
+        return 1
+    }
+    if c == 13 {
+        return 1
+    }
+    return 0
+}
+
+; ---------------- tokenizer ----------------
+
+proc skip_ws() {             ; spaces, newlines, and ;-to-end-of-line comments
+    while skip_ws_step() == 1 {
+    }
+}
+
+proc skip_ws_step() {        ; advance over one ws/comment run; 1 if it did, else 0
+    let c = cbyte()
+    if is_space(c) == 1 {
+        adv()
+        return 1
+    }
+    if c == ';' {
+        while cbyte() != 10 {
+            if cbyte() == 0 {
+                return 0
+            }
+            adv()
+        }
+        return 1
+    }
+    return 0
+}
+
+proc read_ident() {          ; cursor at an alpha; record IDOFF/IDLEN, consume it
+    word[2097120] = word[2097144]                  ; IDOFF = CUR
+    while is_alnum(cbyte()) == 1 {
+        adv()
+    }
+    word[2097112] = word[2097144] - word[2097120]  ; IDLEN = CUR - IDOFF
+}
+
+; does the last-read ident (IDOFF/IDLEN) equal a keyword?
+proc id_char(k) {            ; k-th byte of the current ident
+    return byte[2097152 + word[2097120] + k]
+}
+
+proc is_let() {
+    if word[2097112] == 3 {
+        if id_char(0) == 'l' {
+            if id_char(1) == 'e' {
+                if id_char(2) == 't' {
+                    return 1
+                }
+            }
+        }
+    }
+    return 0
+}
+
+proc is_return() {
+    if word[2097112] == 6 {
+        if id_char(0) == 'r' {
+            if id_char(1) == 'e' {
+                if id_char(2) == 't' {
+                    if id_char(3) == 'u' {
+                        if id_char(4) == 'r' {
+                            if id_char(5) == 'n' {
+                                return 1
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0
+}
+
+proc expect(ch) {            ; skip ws then consume ch if present
+    skip_ws()
+    if cbyte() == ch {
+        adv()
+    }
+}
+
+proc skip_to_lbrace() {      ; consume the fixed `proc main ( ) ` prologue tokens
+    while cbyte() != '{' {
+        if cbyte() == 0 {
+            return 0
+        }
+        adv()
+    }
+    adv()                    ; consume '{'
+    return 0
+}
+
+proc parse_number() {
+    let v = 0
+    while is_digit(cbyte()) == 1 {
+        v = v * 10 + (cbyte() - '0')
+        adv()
+    }
+    return v
+}
+
+; ---------------- symbol table (per-proc locals) ----------------
+
+proc declare() {             ; declare a local named by IDOFF/IDLEN; return its slot
+    let s = word[2097128]                          ; NLOC
+    word[3145728 + s * 8] = word[2097120]          ; NAMEOFF[s] = IDOFF
+    word[3153920 + s * 8] = word[2097112]          ; NAMELEN[s] = IDLEN
+    word[2097128] = s + 1
+    return s
+}
+
+proc name_eq(i) {            ; does local i's name match the current IDOFF/IDLEN?
+    if word[3153920 + i * 8] == word[2097112] {
+        let a = word[3145728 + i * 8]              ; local i name offset
+        let b = word[2097120]                      ; IDOFF
+        let len = word[2097112]
+        let k = 0
+        while k < len {
+            if byte[2097152 + a + k] != byte[2097152 + b + k] {
+                return 0
+            }
+            k = k + 1
+        }
+        return 1
+    }
+    return 0
+}
+
+proc lookup() {              ; slot of the current IDOFF/IDLEN (0 if unknown)
+    let n = word[2097128]
+    let i = 0
+    while i < n {
+        if name_eq(i) == 1 {
+            return i
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+; count `let` declarations in the body from the cursor to the matching `}`,
+; leaving the cursor unmoved. (Slice 2a programs have no char/string literals.)
+proc count_lets() {
+    let start = word[2097144]
+    let depth = 1
+    let count = 0
+    while depth > 0 {
+        skip_ws()
+        let c = cbyte()
+        if c == 0 {
+            depth = 0
+        } else {
+            if c == '{' {
+                depth = depth + 1
+                adv()
+            } else {
+                if c == '}' {
+                    depth = depth - 1
+                    adv()
+                } else {
+                    if is_alpha(c) == 1 {
+                        read_ident()
+                        if is_let() == 1 {
+                            count = count + 1
+                        }
+                    } else {
+                        adv()
+                    }
+                }
+            }
+        }
+    }
+    word[2097144] = start
+    return count
+}
+
+; ---------------- emit decimal ----------------
+
+proc emit_dec(n) {
+    if n >= 10 {
+        emit_dec(n / 10)
+    }
+    write_byte(n % 10 + '0')
+}
+
+; ---------------- fixed asm fragments (compact) ----------------
+
+proc emit_header(nslots) {
+    emit("; bc\n")
+    emit("imm r15,1048576\n")
+    emit("imm r14,1048576\n")
+    emit("call main\n")
+    emit("halt r0\n")
+    emit("main:\n")
+    emit("imm r2,8\n")
+    emit("sub r15,r2\n")
+    emit("store r15,r14\n")
+    emit("mov r14,r15\n")
+    if nslots > 0 {
+        emit("imm r2,")
+        emit_dec(nslots * 8)
+        emit("\n")
+        emit("sub r15,r2\n")
+    }
+}
+
+proc emit_epilogue() {
+    emit("mov r15,r14\n")
+    emit("load r14,r15\n")
+    emit("imm r2,8\n")
+    emit("add r15,r2\n")
+    emit("ret\n")
+}
+
+proc emit_push() {
+    emit("imm r2,8\n")
+    emit("sub r15,r2\n")
+    emit("store r15,r0\n")
+}
+
+proc emit_mnemonic(op) {
+    if op == '+' {
+        emit("add")
+    }
+    if op == '-' {
+        emit("sub")
+    }
+    if op == '*' {
+        emit("mul")
+    }
+    if op == '/' {
+        emit("div")
+    }
+    if op == '%' {
+        emit("mod")
+    }
+}
+
+proc emit_combine(op) {
+    emit("mov r1,r0\n")
+    emit("load r0,r15\n")
+    emit("imm r5,8\n")
+    emit("add r15,r5\n")
+    emit_mnemonic(op)
+    emit(" r0,r1\n")
+}
+
+proc emit_slot_addr(reg, slot) {   ; reg = &slot  (reg is 0 or 1)
+    emit("mov r")
+    emit_dec(reg)
+    emit(",r14\n")
+    emit("imm r2,")
+    emit_dec(8 + 8 * slot)
+    emit("\n")
+    emit("sub r")
+    emit_dec(reg)
+    emit(",r2\n")
+}
+
+proc emit_load_slot(slot) {        ; r0 = local[slot]
+    emit_slot_addr(0, slot)
+    emit("load r0,r0\n")
+}
+
+proc emit_store_slot(slot) {       ; local[slot] = r0
+    emit_slot_addr(1, slot)
+    emit("store r1,r0\n")
+}
+
+; ---------------- character classes for operators ----------------
 
 proc is_muldiv(c) {
     if c == '*' {
@@ -91,157 +395,104 @@ proc is_addsub(c) {
     return 0
 }
 
-proc parse_number(buf) {
-    let v = 0
-    while is_digit(peek(buf)) {
-        v = v * 10 + (peek(buf) - '0')
-        advance(buf)
-    }
-    return v
-}
+; ---------------- recursive-descent codegen ----------------
 
-; advance the cursor past the literal keyword `return` (skip the fixed prologue).
-proc skip_to_return(buf) {
-    while is_return_here(buf) == 0 {
-        advance(buf)
-    }
-    let k = 0
-    while k < 6 {                        ; consume r e t u r n
-        advance(buf)
-        k = k + 1
-    }
-}
-
-proc is_return_here(buf) {
-    let i = word[buf - 8]
-    if byte[buf + i] == 'r' {
-        if byte[buf + i + 1] == 'e' {
-            if byte[buf + i + 2] == 't' {
-                if byte[buf + i + 3] == 'u' {
-                    if byte[buf + i + 4] == 'r' {
-                        if byte[buf + i + 5] == 'n' {
-                            return 1
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return 0
-}
-
-; ---- emit decimal of a non-negative integer (into the asm text) ----
-proc emit_dec(n) {
-    if n >= 10 {
-        emit_dec(n / 10)
-    }
-    write_byte(n % 10 + '0')
-}
-
-; ---- fixed asm fragments ----
-
-; NOTE: emit() lowers each output byte to an imm+write (~12 tape bytes/char), so
-; bc emits COMPACT asm — no indent, no alignment padding, commas attached (the
-; assembler treats commas/indent as whitespace). This roughly halves bc's own
-; tape, keeping it within the seed's 32 KB hole as the compiler grows.
-
-proc emit_header() {
-    emit("; bc\n")
-    emit("imm r15,1048576\n")
-    emit("imm r14,1048576\n")
-    emit("call main\n")
-    emit("halt r0\n")
-    emit("main:\n")
-    emit("imm r2,8\n")
-    emit("sub r15,r2\n")
-    emit("store r15,r14\n")
-    emit("mov r14,r15\n")
-}
-
-proc emit_epilogue() {
-    emit("mov r15,r14\n")
-    emit("load r14,r15\n")
-    emit("imm r2,8\n")
-    emit("add r15,r2\n")
-    emit("ret\n")
-}
-
-proc emit_push() {                       ; push r0 onto the r15 data stack
-    emit("imm r2,8\n")
-    emit("sub r15,r2\n")
-    emit("store r15,r0\n")
-}
-
-proc emit_mnemonic(op) {
-    if op == '+' {
-        emit("add")
-    }
-    if op == '-' {
-        emit("sub")
-    }
-    if op == '*' {
-        emit("mul")
-    }
-    if op == '/' {
-        emit("div")
-    }
-    if op == '%' {
-        emit("mod")
-    }
-}
-
-; r0 = right operand; pop the saved left into r0, move right to r1, combine.
-proc emit_combine(op) {
-    emit("mov r1,r0\n")
-    emit("load r0,r15\n")
-    emit("imm r5,8\n")
-    emit("add r15,r5\n")
-    emit_mnemonic(op)
-    emit(" r0,r1\n")
-}
-
-; ---- recursive-descent codegen (precedence: expr -> term -> factor) ----
-
-proc gen_factor(buf) {
-    skip_ws(buf)
-    if peek(buf) == '(' {
-        advance(buf)
-        gen_expr(buf)
-        skip_ws(buf)
-        advance(buf)                     ; consume ')'
+proc gen_factor() {
+    skip_ws()
+    let c = cbyte()
+    if c == '(' {
+        adv()
+        gen_expr()
+        expect(')')
         return 0
     }
-    let v = parse_number(buf)
+    if is_alpha(c) == 1 {
+        read_ident()
+        emit_load_slot(lookup())
+        return 0
+    }
+    let v = parse_number()
     emit("imm r0,")
     emit_dec(v)
     emit("\n")
     return 0
 }
 
-proc gen_term(buf) {
-    gen_factor(buf)
-    skip_ws(buf)
-    while is_muldiv(peek(buf)) {
-        let op = peek(buf)
-        advance(buf)
+proc gen_term() {
+    gen_factor()
+    skip_ws()
+    while is_muldiv(cbyte()) == 1 {
+        let op = cbyte()
+        adv()
         emit_push()
-        gen_factor(buf)
+        gen_factor()
         emit_combine(op)
-        skip_ws(buf)
+        skip_ws()
     }
     return 0
 }
 
-proc gen_expr(buf) {
-    gen_term(buf)
-    skip_ws(buf)
-    while is_addsub(peek(buf)) {
-        let op = peek(buf)
-        advance(buf)
+proc gen_expr() {
+    gen_term()
+    skip_ws()
+    while is_addsub(cbyte()) == 1 {
+        let op = cbyte()
+        adv()
         emit_push()
-        gen_term(buf)
+        gen_term()
         emit_combine(op)
-        skip_ws(buf)
+        skip_ws()
     }
+    return 0
+}
+
+; ---------------- statements ----------------
+
+proc gen_stmt() {
+    skip_ws()
+    read_ident()                 ; statements start with let / return / an lvalue
+    let slot = 0                 ; one declaration (Beta locals are function-scoped)
+    if is_let() == 1 {
+        skip_ws()
+        read_ident()             ; the new local's name
+        slot = declare()
+        expect('=')
+        gen_expr()
+        emit_store_slot(slot)
+        return 0
+    }
+    if is_return() == 1 {
+        gen_expr()
+        emit_epilogue()
+        return 0
+    }
+    ; otherwise the ident just read is an assignment target
+    slot = lookup()
+    expect('=')
+    gen_expr()
+    emit_store_slot(slot)
+    return 0
+}
+
+proc gen_body() {
+    skip_ws()
+    while cbyte() != '}' {
+        if cbyte() == 0 {
+            return 0
+        }
+        gen_stmt()
+        skip_ws()
+    }
+    adv()                        ; consume '}'
+    return 0
+}
+
+proc main() {
+    slurp()
+    skip_to_lbrace()             ; past `proc main () {`
+    let nslots = count_lets()
+    emit_header(nslots)
+    gen_body()
+    emit_epilogue()              ; fall-through tear-down (matches on-ramp)
     return 0
 }
