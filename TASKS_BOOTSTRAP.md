@@ -115,6 +115,9 @@ macOS arm64 (Mach-O seed, auto re-signed after stamping). On macOS the self-host
 fixed point is asserted on the program bytes, not the OS-imposed code signature.
 
 ```sh
+# verify the WHOLE lattice in one command (seed -> assembler -> Beta -> bc -> checker):
+sh compiler/verify-lattice.sh                                  # -> "LATTICE VERIFIED ✓"
+
 # beta self-hosts (byte-identical program-byte fixed point):
 sh compiler/beta/selfhost.sh                                   # -> "self-host ✓"
 
