@@ -150,6 +150,11 @@ chk "Leaf != Node"   "(= (k 0) (k 1 (k 0) (k 0))) (refl (k 0))"                 
 chk "subtrees differ" "(= (k 1 (k 0) (k 0)) (k 1 (k 0) (k 1 (k 0) (k 0)))) (refl (k 1 (k 0) (k 0)))"           reject
 chk "Node field conv" "(= (k 1 (p (s z) (s z)) (k 0)) (k 1 (s (s z)) (k 0))) (refl (k 1 (s (s z)) (k 0)))"     accept
 chk "Node field diff" "(= (k 1 (s z) (k 0)) (k 1 (s (s z)) (k 0))) (refl (k 1 (s z) (k 0)))"                   reject
+# GENERAL structural induction (rec) over a user-DECLARED type, from (data cid arity r0 r1)
+chk "Tree induction"  "(data 0 0 0 0) (data 1 2 1 1) (-> (Pred 0 (k 0)) (-> (All (All (-> (Pred 0 (v 1)) (-> (Pred 0 (v 0)) (Pred 0 (k 1 (v 1) (v 0))))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (k 0)) (lam (All (All (-> (Pred 0 (v 1)) (-> (Pred 0 (v 0)) (Pred 0 (k 1 (v 1) (v 0))))))) (rec 0 1 (Pred 0 (v 0)) (hyp 1) (hyp 0))))" accept
+chk "user-Nat induct" "(data 2 0 0 0) (data 3 1 1 0) (-> (Pred 0 (k 2)) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (k 3 (v 0))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (k 2)) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (k 3 (v 0))))) (rec 2 3 (Pred 0 (v 0)) (hyp 1) (hyp 0))))" accept
+chk "rec missing IH"  "(data 0 0 0 0) (data 1 2 1 1) (-> (Pred 0 (k 0)) (-> (All (All (-> (Pred 0 (v 1)) (Pred 0 (k 1 (v 1) (v 0)))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (k 0)) (lam (All (All (-> (Pred 0 (v 1)) (Pred 0 (k 1 (v 1) (v 0)))))) (rec 0 1 (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
+chk "rec wrong base"  "(data 0 0 0 0) (data 1 2 1 1) (-> (Pred 0 (k 1 (k 0) (k 0))) (-> (All (All (-> (Pred 0 (v 1)) (-> (Pred 0 (v 0)) (Pred 0 (k 1 (v 1) (v 0))))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (k 1 (k 0) (k 0))) (lam (All (All (-> (Pred 0 (v 1)) (-> (Pred 0 (v 0)) (Pred 0 (k 1 (v 1) (v 0))))))) (rec 0 1 (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
 eqk() { # description  "t1 t2"  expect

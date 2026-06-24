@@ -35,10 +35,15 @@
 ; raw memory with if-cascades. That is the motivation for the Gamma rung, made
 ; concrete.
 ;
-; Input (stdin): zero or more lemma definitions, then a goal proposition and a
-; certificate term, in prefix syntax. A lemma  ( def N prop term )  is checked like
-; any proof; afterwards  ( use N )  cites it as a proof of that proposition. So big
-; theorems factor into named, independently-verified lemmas instead of one monolith.
+; Input (stdin): zero or more declarations, then a goal proposition and a certificate
+; term, in prefix syntax.
+;   ( def N prop term )        a lemma: checked like any proof, then citable by ( use N )
+;   ( data CID ARITY R0 R1 )   a user constructor: arity (0/1/2) and which args recurse
+; A user constructor term is  ( k CID args... )  — inert, structural-equality data; and
+;   ( rec CIDa CIDb prop term term )  is general structural induction over the type whose
+; constructors are CIDa,CIDb (subsuming the natind/listind shapes for declared types).
+; So big theorems factor into named, independently-verified lemmas instead of one
+; monolith, and induction is no longer limited to the two built-in inductive types.
 ;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
 ;                | ( + prop prop ) | ( bot ) | ( = nat nat )
 ;                | ( All prop ) | ( Exists prop )                      ; ∀, ∃
@@ -78,6 +83,8 @@
 ;             27 DISJ(pf)  28 SINJ(pf)  29 LISTIND(motive, (99 base step))
 ;        term 30 ZERO 31 SUC(x) 32 PLUS(a,b) 33 MUL(a,b) 34 IVAR(k)
 ;             35 NIL  36 CONS(h,t)  37 APPEND(l1,l2)  38 LEN(l)
+;             50 CON(cid)  51 APPLY(f,a)   ; user constructors: CON head + APPLY spine
+;        term  40 USE(N)  41 REC((99 (98 cidA cidB) motive) (99 caseA caseB))
 
 proc slurp() {
     let n = 0
@@ -897,8 +904,21 @@ proc parse_term() {
         expect(')')
         return alloc(19, x, alloc(99, y, z))   ; nest (f,g) in an aux node
     }
-    if kc == 'r' {               ; (refl t): proves (= t t) — discharged by reduction
-        x = parse_nat()
+    if kc == 'r' {
+        if kc3 == 'c' {          ; (rec CIDa CIDb motive caseA caseB) — structural induction
+            skip_ws()
+            x = parse_number()   ; constructor id A
+            skip_ws()
+            y = parse_number()   ; constructor id B
+            z = parse_type()     ; motive P(x), induction var = Ivar 0
+            ; pack (cidA, cidB) into a 99-aux, (caseA, caseB) into another, nest
+            z = alloc(99, alloc(98, x, y), z)        ; (98 cidA cidB) + motive
+            x = parse_term()     ; caseA
+            y = parse_term()     ; caseB
+            expect(')')
+            return alloc(41, z, alloc(99, x, y))
+        }
+        x = parse_nat()          ; (refl t): proves (= t t) — discharged by reduction
         expect(')')
         return alloc(20, x, 0)
     }
@@ -975,6 +995,43 @@ proc ctx_push(ty) {
 
 proc ctx_pop() {
     word[2097120] = word[2097120] - 1
+}
+
+; build the expected CASE type for constructor `cid` under motive P (var = Ivar 0),
+; from the declared arity and recursion flags. This generalises natind's and listind's
+; step shapes to any constructor:
+;   arity 0 (e.g. Leaf):      P(C)
+;   arity 1, rec  (e.g. s n):  forall a. P(a) -> P(C a)
+;   arity 1, base:             forall a. P(C a)
+;   arity 2 (e.g. Node l r):   forall a0 a1. (P(a0) ->)? (P(a1) ->)? P(C a0 a1)
+; Constructor terms are CON(cid)=alloc(50,cid,0) applied via APPLY=alloc(51,_,_).
+; Tables: ARITY 5505024, REC0 5636096, REC1 5767168 (indexed by cid).
+proc con_case(cid, motive) {
+    let arity = word[5505024 + cid * 8]
+    let r0 = word[5636096 + cid * 8]
+    let r1 = word[5767168 + cid * 8]
+    let body = 0
+    if arity == 0 {                          ; P(CON cid) — nullary, binder removed
+        return subst_prop(motive, alloc(50, cid, 0), 0)
+    }
+    if arity == 1 {                          ; forall a0. (P(a0) ->)? P(C a0)
+        body = subst_prop_keep(motive, alloc(51, alloc(50, cid, 0), alloc(34, 0, 0)), 0)
+        if r0 == 1 {
+            body = alloc(1, motive, body)    ; IH P(a0) = motive
+        }
+        return alloc(6, body, 0)
+    }
+    ; arity 2 — two binders, so the motive's parameters shift up by one (cf. listind)
+    let mp = shift_prop(motive, 1, 1)
+    ; C a0 a1 = APPLY(APPLY(CON cid, Iv1), Iv0)
+    body = subst_prop_keep(mp, alloc(51, alloc(51, alloc(50, cid, 0), alloc(34, 1, 0)), alloc(34, 0, 0)), 0)
+    if r1 == 1 {                             ; IH for a1 (= Iv0): P(a1) = mp
+        body = alloc(1, mp, body)
+    }
+    if r0 == 1 {                             ; IH for a0 (= Iv1): P(a0) = mp[var := Iv1]
+        body = alloc(1, subst_prop_keep(mp, alloc(34, 1, 0), 0), body)
+    }
+    return alloc(6, alloc(6, body, 0), 0)
 }
 
 proc infer(term) {
@@ -1107,6 +1164,26 @@ proc infer(term) {
     }
     if tag == 20 {               ; REFL t : proves (= t t)
         return alloc(5, word[term + 8], word[term + 8])
+    }
+    if tag == 41 {               ; REC cidA cidB motive caseA caseB : structural induction
+        ; node = (41, (99 (98 cidA cidB) motive), (99 caseA caseB))
+        t1 = word[term + 8]      ; (99 (98 cidA cidB) motive)
+        t2 = word[t1 + 8]        ; (98 cidA cidB)
+        t3 = infer(word[word[term + 16] + 8])            ; typeof caseA
+        if t3 == 0 {
+            return 0
+        }
+        if type_eq(t3, con_case(word[t2 + 8], word[t1 + 16])) == 0 {
+            return 0
+        }
+        t3 = infer(word[word[term + 16] + 16])           ; typeof caseB
+        if t3 == 0 {
+            return 0
+        }
+        if type_eq(t3, con_case(word[t2 + 16], word[t1 + 16])) == 0 {
+            return 0
+        }
+        return alloc(6, word[t1 + 16], 0)                ; forall x. P(x)
     }
     if tag == 40 {               ; USE N : the type of lemma N (already verified at its def)
         ; LEMMAS at 5242880, indexed by number; a closed prop, valid in any context.
@@ -1324,26 +1401,40 @@ proc main() {
     let lt = 0
     let lp = 0
     let n = 0
+    let kind = 0
     while at_def() == 1 {
         skip_ws()
         adv()                    ; '('
         skip_ws()
-        skip_ident()             ; "def"
+        adv()                    ; 'd'
+        kind = cbyte()           ; 'e' = def (lemma) ; 'a' = data (constructor decl)
+        skip_ident()             ; rest of "def" / "data"
         skip_ws()
-        n = parse_number()       ; lemma number
-        lt = parse_type()        ; the lemma's proposition
-        lp = parse_term()        ; its proof
-        expect(')')
-        lp = infer(lp)
-        if lp == 0 {
-            emit("reject\n")
-            return 0
+        n = parse_number()       ; lemma number OR constructor id
+        if kind == 'a' {         ; (data CID ARITY R0 R1) — record a constructor's shape
+            skip_ws()
+            word[5505024 + n * 8] = parse_number()       ; ARITY
+            skip_ws()
+            word[5636096 + n * 8] = parse_number()       ; REC0
+            skip_ws()
+            word[5767168 + n * 8] = parse_number()       ; REC1
+            expect(')')
         }
-        if type_eq(lp, lt) == 0 {
-            emit("reject\n")
-            return 0
+        if kind == 'e' {         ; (def N type proof) — a verified-then-cited lemma
+            lt = parse_type()
+            lp = parse_term()
+            expect(')')
+            lp = infer(lp)
+            if lp == 0 {
+                emit("reject\n")
+                return 0
+            }
+            if type_eq(lp, lt) == 0 {
+                emit("reject\n")
+                return 0
+            }
+            word[5242880 + n * 8] = lt
         }
-        word[5242880 + n * 8] = lt
     }
     let goal = parse_type()
     let term = parse_term()
