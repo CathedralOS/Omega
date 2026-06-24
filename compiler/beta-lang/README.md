@@ -63,14 +63,24 @@ per character of emitted asm), and a compiler is mostly fixed output strings, so
 1. **bc emits compact asm** (no indent, no alignment, commas attached — the
    assembler treats those as whitespace). This is a zero-infra, both-seeds-safe
    win that keeps the tape small. Slice 1 is **~12.4 KB** (was ~15.5 KB verbose).
-2. Still, the *full* self-hosting compiler may exceed the seed's **fixed 32 KB
-   tape hole** (flagged in [`TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md)). If it
-   does, the order-of-magnitude fix is a **data section** — an assembler `.db`
-   directive + a `write_str(addr,len)` loop, so fixed output is *data* (1 tape
-   byte/char) looped over instead of an `imm`+`write` per byte. (Enlarging the
-   hole is the cruder alternative, but it must be done on *both* seeds to keep the
-   diamond; the x64 forge isn't available here, so the data-section route is
-   preferred.)
+2. The data-section fix (**now required** — slice 2b lands bc at 30.7 KB): add a
+   `db "..."` directive to the assembler so fixed output is *data* (1 tape
+   byte/char), with a `write_str(addr,len)` loop, instead of an `imm`+`write` per
+   byte (~12). This **preserves both-seeds lockstep** (the assembler's own source
+   uses no `db`, so its tape — and the self-host fixed point — is unchanged) and
+   shrinks emitted tapes ~10×. Enlarging the hole is the cruder alternative but
+   needs *both* seeds changed to keep the diamond, and the x64 forge isn't on this
+   host — so the data-section route is preferred.
 
-The slice-1 milestone holds regardless; compact emit buys the runway to grow
-several more slices before #2 is forced.
+   **De-risking finding (assembler read):** `emit_operand`'s `eo_label` path
+   already resolves a label name as an 8-byte immediate, so **`imm rD, Lstr` works
+   today with no assembler change**. The remaining work is therefore *only* the
+   `db` directive (string tokenization in `next_token` — quotes + escapes, since a
+   string can contain spaces/newlines — plus length accounting in pass 1 and byte
+   emission in pass 2), then change `emit` lowering in `beta-lang-rs` (and, later,
+   in bc's own string-literal slice) to: emit the bytes as `Lstr_N: db "..."` in a
+   trailing data section, and at the use site `imm r0,Lstr_N / imm r1,<len> / call
+   __write_str`. Verify `../beta/selfhost.sh` stays byte-identical after the
+   assembler change.
+
+The slices-1–2b milestone holds regardless; this is the next focused task.
