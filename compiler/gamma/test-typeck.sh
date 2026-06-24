@@ -35,5 +35,8 @@ tc '(data List (Nil) (Cons Int List)) (def bad () List (Cons Nil Nil))' 0 'Cons 
 tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Int (match n (Z 0) ((S m) m)))' 0 'match arms differ'
 tc '(data Nat (Z) (S Nat)) (data List (Nil) (Cons Int List)) (def bad ((n Nat)) Int (match n (Nil 0) (x 1)))' 0 'Nil pattern on a Nat'
 tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Nat (+ n 1))' 0 'return Nat but body Int'
+# the Delta checker's OWN code is statically type-safe under gamma's type system
+printf '%s' "$(cat checker_typed.gamma)" | "$T/tc.exe"; ct=$?
+if [ "$ct" = 1 ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL checker_typed.gamma should be well-typed (got $ct)"; fi
 echo "gamma typeck: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
