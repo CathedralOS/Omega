@@ -76,8 +76,8 @@
     ((Pred id t) (Pred id (subt t s d)))
     ((Rel id u v) (Rel id (subt u s d) (subt v s d)))
     ((Eq a b)    (Eq (subt a s d) (subt b s d)))
-    ((All x)     (All (subp x s (+ d 1))))
-    ((Exists x)  (Exists (subp x s (+ d 1))))
+    ((All x)     (All (subp x (shiftt s 1 0) (+ d 1))))
+    ((Exists x)  (Exists (subp x (shiftt s 1 0) (+ d 1))))
     ((Arrow a b) (Arrow (subp a s d) (subp b s d)))
     ((And a b)   (And (subp a s d) (subp b s d)))
     ((Or a b)    (Or (subp a s d) (subp b s d)))
@@ -103,16 +103,14 @@
     ((And a b)   (if (freep a d) 1 (freep b d)))
     ((Or a b)    (if (freep a d) 1 (freep b d)))
     (z 0)))
-; does a prop contain a quantifier?  (open-witness instantiation is capture-free
-; only when the quantifier body has no inner binder to cross)
-(def hasq (p)
-  (match p
-    ((All x) 1)
-    ((Exists x) 1)
-    ((Arrow a b) (if (hasq a) 1 (hasq b)))
-    ((And a b)   (if (hasq a) 1 (hasq b)))
-    ((Or a b)    (if (hasq a) 1 (hasq b)))
-    (z 0)))
+; shift free individual vars (index >= c) up by d — lifts a witness across a binder
+(def shiftt (t d c)
+  (match t
+    ((Iv k) (if (lt k c) (Iv k) (Iv (+ k d))))
+    (Ze Ze)
+    ((Su x) (Su (shiftt x d c)))
+    ((Pl a b) (Pl (shiftt a d c) (shiftt b d c)))
+    ((Mu a b) (Mu (shiftt a d c) (shiftt b d c)))))
 ; gen's freshness guard: no hypothesis in scope has a FREE individual var
 (def ctxclean (ctx) (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
 
@@ -166,11 +164,8 @@
     ((Gen pf)       (if (ctxclean ctx)                       ; ∀-intro (conservative)
                       (let bt (infer pf ctx) (if (isbad bt) Bad (All bt)))
                       Bad))
-    ((Inst pf t)    (match (infer pf ctx)                    ; ∀-elim
-                      ((All body)                            ; open witness ok if body
-                        (if (ivt t)                          ; has no binder to cross
-                          (if (hasq body) Bad (subp body t 0))
-                          (subp body t 0)))
+    ((Inst pf t)    (match (infer pf ctx)                    ; ∀-elim — capture-avoiding
+                      ((All body) (subp body t 0))           ; subst, so any witness ok
                       (z Bad)))
     ((Wit body t pf) (if (ivt t) Bad                         ; ∃-intro
                       (let pt (infer pf ctx)

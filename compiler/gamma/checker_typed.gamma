@@ -45,7 +45,7 @@
            ((Mu a b) (Mu (subt a s d) (subt b s d)))))
 (def subp ((p Type) (s Nat) (d Int)) Type
   (match p ((Pred id t) (Pred id (subt t s d))) ((Rel id u v) (Rel id (subt u s d) (subt v s d))) ((Eq a b) (Eq (subt a s d) (subt b s d)))
-           ((All x) (All (subp x s (+ d 1)))) ((Exists x) (Exists (subp x s (+ d 1))))
+           ((All x) (All (subp x (shiftt s 1 0) (+ d 1)))) ((Exists x) (Exists (subp x (shiftt s 1 0) (+ d 1))))
            ((Arrow a b) (Arrow (subp a s d) (subp b s d))) ((And a b) (And (subp a s d) (subp b s d)))
            ((Or a b) (Or (subp a s d) (subp b s d))) (z p)))
 (def freet ((t Nat) (d Int)) Int
@@ -56,9 +56,9 @@
            ((All x) (freep x (+ d 1))) ((Exists x) (freep x (+ d 1)))
            ((Arrow a b) (if (freep a d) 1 (freep b d))) ((And a b) (if (freep a d) 1 (freep b d)))
            ((Or a b) (if (freep a d) 1 (freep b d))) (z 0)))
-(def hasq ((p Type)) Int
-  (match p ((All x) 1) ((Exists x) 1) ((Arrow a b) (if (hasq a) 1 (hasq b)))
-           ((And a b) (if (hasq a) 1 (hasq b))) ((Or a b) (if (hasq a) 1 (hasq b))) (z 0)))
+(def shiftt ((t Nat) (d Int) (c Int)) Nat
+  (match t ((Iv k) (if (lt k c) (Iv k) (Iv (+ k d)))) (Ze Ze) ((Su x) (Su (shiftt x d c)))
+           ((Pl a b) (Pl (shiftt a d c) (shiftt b d c))) ((Mu a b) (Mu (shiftt a d c) (shiftt b d c)))))
 (def ctxclean ((ctx Ctx)) Int (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
 
 (def teq ((a Type) (b Type)) Int
@@ -103,9 +103,7 @@
     ((Absurd cty p) (match (infer p ctx) (Bot cty) (z Bad)))
     ((Refl t)       (Eq t t))
     ((Gen pf)       (if (ctxclean ctx) (let bt (infer pf ctx) (if (isbad bt) Bad (All bt))) Bad))
-    ((Inst pf t)    (match (infer pf ctx)
-                      ((All body) (if (ivt t) (if (hasq body) Bad (subp body t 0)) (subp body t 0)))
-                      (z Bad)))
+    ((Inst pf t)    (match (infer pf ctx) ((All body) (subp body t 0)) (z Bad)))
     ((Wit body t pf) (if (ivt t) Bad
                        (let pt (infer pf ctx)
                          (if (isbad pt) Bad (if (teq pt (subp body t 0)) (Exists body) Bad)))))
