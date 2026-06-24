@@ -31,6 +31,21 @@ Snapshot refreshed 2026-06-19. Decisions 8-17 implemented (stage 1+); harness
 canary suite 303, differential oracle fully matched (11), `cargo test
 --workspace` green, tree clean. Ordered roughly by leverage.
 
+> **Audit reconciliation (2026-06-22).** Verified against git + a full green
+> `cargo test --workspace`: canary suite is now **321** (the 621-pass/271-fail
+> corpus + differential oracle pass). Since the 06-19 snapshot the Rust compiler
+> **moved to `compiler/omega-rs/`** (`f3ee813b`, 06-21) — the bare crate names
+> below are unaffected, but `wiki/architecture/repository_layout.md`'s tree is now
+> stale. Status drift to fold into the bullets below:
+> - **encoding domains #66** — Phase C (carrier+name resolution, `&[u8] in Utf8`
+>   operator set) and **Phase B1a** (string literal → `[u8]` coercion) **landed**;
+>   remaining is **Phase B2–B4** (the ~185-file corpus migration + retiring
+>   builtin `string`/`String` + ~16 sites — the big-bang, best in a worktree).
+> - **ch15 / decision-18 fact catalog** (#60–#64: facts on sum-case payloads,
+>   plain struct fields, construction values, field-assignment enforcement,
+>   modular return-range inference) **landed**; remaining is the `abort` effect
+>   (#65, ch16-gated) and the recoverable-error propagation arms.
+
 Also closed this wave (later commits): S4 result-interval narrowing for
 modulo/div + min/max clamp (14978462/5c7d308e); a native miscompile where a
 min/max value-call result fed into arithmetic dropped its write (0e4a88d3);
