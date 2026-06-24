@@ -53,5 +53,8 @@ ret "proc main() { return add(mul(2, 3), 4) } proc add(a, b) { return a + b } pr
 ret "proc main() { return fact(5) } proc fact(n) { if n < 2 { return 1 } return n * fact(n - 1) }" 120
 ret "proc main() { return fib(10) } proc fib(n) { if n < 2 { return n } return fib(n - 1) + fib(n - 2) }" 55
 ret "proc main() { return sumto(10) } proc sumto(n) { let t = 0 let i = 1 while i <= n { t = t + i i = i + 1 } return t }" 55
-echo "bc.beta (slices 1-3): $PASS passed, $FAIL failed"
+# slice 4 — byte[]/word[] memory
+ret "proc main() { let b = 2097152 byte[b] = 65 byte[b + 1] = 66 return byte[b] + byte[b + 1] }" 131
+ret "proc main() { let base = 2097152 let i = 0 while i < 5 { word[base + i * 8] = i * i i = i + 1 } let t = 0 i = 0 while i < 5 { t = t + word[base + i * 8] i = i + 1 } return t }" 30
+echo "bc.beta (slices 1-4): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

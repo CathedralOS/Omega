@@ -230,11 +230,69 @@ proc is_while() {
     return 0
 }
 
+proc is_byte() {
+    if word[2097112] == 4 {
+        if id_char(0) == 'b' {
+            if id_char(1) == 'y' {
+                if id_char(2) == 't' {
+                    if id_char(3) == 'e' {
+                        return 1
+                    }
+                }
+            }
+        }
+    }
+    return 0
+}
+
+proc is_word() {
+    if word[2097112] == 4 {
+        if id_char(0) == 'w' {
+            if id_char(1) == 'o' {
+                if id_char(2) == 'r' {
+                    if id_char(3) == 'd' {
+                        return 1
+                    }
+                }
+            }
+        }
+    }
+    return 0
+}
+
 proc expect(ch) {            ; skip ws then consume ch if present
     skip_ws()
     if cbyte() == ch {
         adv()
     }
+}
+
+proc gen_load(w) {           ; byte[addr] / word[addr] -> r0
+    expect('[')
+    gen_expr()
+    expect(']')
+    if w == 1 {
+        emit("loadb r0,r0\n")
+    } else {
+        emit("load r0,r0\n")
+    }
+    return 0
+}
+
+proc gen_store(w) {          ; byte[addr] = val / word[addr] = val
+    expect('[')
+    gen_expr()               ; addr
+    expect(']')
+    emit_push()              ; save addr
+    expect('=')
+    gen_expr()               ; val -> r0
+    emit_pop_into(1)         ; r1 = addr
+    if w == 1 {
+        emit("storeb r1,r0\n")
+    } else {
+        emit("store r1,r0\n")
+    }
+    return 0
 }
 
 proc gen_call() {            ; f(args): callee name is in IDOFF/IDLEN, cursor at '('
@@ -509,6 +567,14 @@ proc gen_factor() {
     }
     if is_alpha(c) == 1 {
         read_ident()
+        if is_byte() == 1 {
+            gen_load(1)             ; byte[addr]
+            return 0
+        }
+        if is_word() == 1 {
+            gen_load(8)             ; word[addr]
+            return 0
+        }
         skip_ws()
         if cbyte() == '(' {
             gen_call()              ; f(args) — uses the ident just read as the callee
@@ -746,6 +812,14 @@ proc gen_stmt() {
     }
     if is_while() == 1 {
         gen_while()
+        return 0
+    }
+    if is_byte() == 1 {
+        gen_store(1)             ; byte[addr] = val
+        return 0
+    }
+    if is_word() == 1 {
+        gen_store(8)             ; word[addr] = val
         return 0
     }
     ; otherwise the ident just read is an assignment target
