@@ -192,10 +192,10 @@
     ((Inst pf t)    (match (infer pf ctx)                    ; ∀-elim — capture-avoiding
                       ((All body) (subp body t 0))           ; subst, so any witness ok
                       (z Bad)))
-    ((Wit body t pf) (if (ivt t) Bad                         ; ∃-intro
+    ((Wit body t pf)                                         ; ∃-intro (witness may be open)
                       (let pt (infer pf ctx)
                         (if (isbad pt) Bad
-                          (if (teq pt (subp body t 0)) (Exists body) Bad)))))
+                          (if (teq pt (subp body t 0)) (Exists body) Bad))))
     ((Natind motive base step)                              ; Peano induction
       (let tb (infer base ctx)
         (let ts (infer step ctx)

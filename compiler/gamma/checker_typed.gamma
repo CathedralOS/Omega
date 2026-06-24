@@ -117,9 +117,9 @@
     ((Refl t)       (Eq t t))
     ((Gen pf)       (if (ctxclean ctx) (let bt (infer pf ctx) (if (isbad bt) Bad (All bt))) Bad))
     ((Inst pf t)    (match (infer pf ctx) ((All body) (subp body t 0)) (z Bad)))
-    ((Wit body t pf) (if (ivt t) Bad
+    ((Wit body t pf)
                        (let pt (infer pf ctx)
-                         (if (isbad pt) Bad (if (teq pt (subp body t 0)) (Exists body) Bad)))))
+                         (if (isbad pt) Bad (if (teq pt (subp body t 0)) (Exists body) Bad))))
     ((Natind motive base step)
       (let tb (infer base ctx)
         (let ts (infer step ctx)

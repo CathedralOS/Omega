@@ -957,10 +957,8 @@ proc infer(term) {
         return subst_prop(word[t1 + 8], word[term + 16], 0)
     }
     if tag == 23 {               ; WIT body t pf : ∃-intro  ->  Exists body
-        ; node = (23, body, (99, t, pf)).  pf must prove body[t/x] for a CLOSED t.
-        if ivar_in_term(word[word[term + 16] + 8]) == 1 {
-            return 0
-        }
+        ; node = (23, body, (99, t, pf)).  pf must prove body[t/x]; substitution is
+        ; capture-avoiding, so the witness t may be open (e.g. an in-scope variable).
         t1 = infer(word[word[term + 16] + 16])           ; typeof pf
         if t1 == 0 {
             return 0
