@@ -6,9 +6,12 @@ compiler) is *plumbing* that gives us a Rust-free language to write this in; *th
 is the artifact that actually decides what is true.
 
 ```
-check.beta    a natural-deduction proof checker (validates LOGICAL proofs)
-eq.beta       a definitional-equality checker (validates COMPUTATIONAL claims)
-test.sh       the gate: bc compiles both, then they accept/reject certificates
+check.beta           a natural-deduction proof checker (validates LOGICAL proofs)
+eq.beta              a definitional-equality checker (validates COMPUTATIONAL claims)
+test.sh              the gate: bc compiles both, then they accept/reject certificates
+soundness.sh         adversarial battery — invalid certificates must ALL be rejected
+checker-diamond.sh   diverse double-check: check.beta vs checker.gamma must agree
+semantics-diamond.sh definitional equality vs the interpreter's operational eval
 ```
 
 Two complementary checkers — the two faces a real Delta needs. `check.beta` decides
@@ -21,9 +24,11 @@ totality discipline gamma.md/delta.md require, and the bridge from a proposition
 
 ## What it checks
 
-Intuitionistic propositional natural deduction over implication, conjunction, and
-falsity (so negation is `¬A = A -> ⊥`). By Curry-Howard the checker *is* a
-simply-typed lambda-calculus type checker (with a void type):
+Full intuitionistic **first-order** predicate logic: the propositional connectives
+(implication, conjunction, disjunction, falsity — so negation is `¬A = A -> ⊥`),
+equality of Peano terms with a computation-aware `refl`, and the quantifiers `∀`/`∃`
+over individuals with unary and binary atomic predicates. By Curry-Howard the
+checker *is* a dependently-flavoured lambda-calculus type checker:
 
 | logic | type theory | rule |
 | --- | --- | --- |
@@ -32,7 +37,16 @@ simply-typed lambda-calculus type checker (with a void type):
 | proposition `A + B` | sum type | `+`-intro = `inl` / `inr`, `+`-elim = `case` |
 | proposition `⊥` | the empty type `Void` | ex falso = `absurd` (a `⊥`-proof yields anything) |
 | proposition `t1 = t2` | identity type (over Peano) | `refl` — valid iff `t1 ≡ t2` *by reduction* (the conversion rule) |
+| proposition `∀x. P` | dependent function | `∀`-intro = `gen` (freshness-guarded), `∀`-elim = `inst` (capture-avoiding) |
+| proposition `∃x. P` | dependent pair | `∃`-intro = `wit` (witness + proof), `∃`-elim = `unpack` |
 | a proof of `A` | a term of type `A` | hypothesis = variable (`hyp`, de Bruijn) |
+
+Individuals are Peano terms (`z`, `s`, `+`, `*`) plus de Bruijn individual variables
+`(v k)`; `gen` introduces a fresh one and is guarded so a variable free in an open
+hypothesis cannot be captured, while `inst` substitutes capture-avoidingly (de
+Bruijn shifting), so the full instantiation laws — e.g. `∀x.∀y.R(x,y) -> ∀z.R(z,z)`
+— hold. Predicate arguments are compared up to the conversion rule, so `P(1+1)` and
+`P(2)` are the same proposition.
 
 `check.beta` now spans both faces: it proves logical propositions **and**, via
 `refl` + the conversion rule, computational equations like `2+2 = 4` — which are
@@ -47,10 +61,14 @@ Input (stdin): a goal proposition, then a certificate term, prefix syntax.
 
 ```
 proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop ) | ( + prop prop ) | ( bot )
+             | ( = nat nat ) | ( All prop ) | ( Exists prop )
+             | ( Pred id nat ) | ( Rel id nat nat )
+nat         := z | ( s nat ) | ( p nat nat ) | ( m nat nat ) | ( v k )   ; (v k) = indiv var
 term        := ( hyp N ) | ( lam prop term ) | ( app term term )
              | ( pair term term ) | ( fst term ) | ( snd term )
              | ( inl prop term ) | ( inr prop term ) | ( case term term term )
-             | ( absurd prop term )
+             | ( absurd prop term ) | ( refl nat )
+             | ( gen term ) | ( inst term nat ) | ( wit prop nat term ) | ( unpack term term )
 ```
 
 Output: `accept` (exit 1) iff the term proves the goal, else `reject` (exit 0).
@@ -58,11 +76,23 @@ Output: `accept` (exit 1) iff the term proves the goal, else `reject` (exit 0).
 ```sh
 echo '(-> P P) (lam P (hyp 0))' | check     # identity proof of P->P  -> accept
 echo '(-> (& P Q) P) (lam (& P Q) (fst (hyp 0)))' | check   # and-elim -> accept
+# ∀x.(P x -> Q x) -> (∀x.P x -> ∀x.Q x)   (first-order distribution)
+echo '(-> (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (-> (All (Pred 0 (v 0))) (All (Pred 1 (v 0))))) (lam (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (lam (All (Pred 0 (v 0))) (gen (app (inst (hyp 1) (v 0)) (inst (hyp 0) (v 0))))))' | check   # -> accept
 ```
 
-`sh test.sh` runs the battery (identity, modus ponens, currying, &-intro/elim,
-and-commutativity, function composition all accept; wrong goal, type mismatch,
-unbound hypothesis, ill-typed application all reject).
+`sh test.sh` runs the battery across the whole logic — propositional (modus ponens,
+currying, and-commutativity, or-elimination, composition, ex falso), arithmetic
+(`2+2=4`, `2*3=6` by computation), and first-order (∀-distribution, ∃-intro/elim,
+instantiation under nested quantifiers, binary relations) — with matched accept/reject
+pairs. Three further gates harden the trust anchor:
+
+- `sh soundness.sh` — a battery of *invalid* certificates that must all be rejected,
+  including classical tautologies (excluded middle, double-negation, Peirce, the
+  drinker paradox) that have no constructive proof.
+- `sh checker-diamond.sh` — the same proofs through **two independent checkers**
+  (`check.beta` and `gamma/checker.gamma`); every verdict must agree.
+- `sh semantics-diamond.sh` — the checker's definitional `=` vs the interpreter's
+  operational evaluation, agreeing on every equation (the gamma/delta seam).
 
 ## The full stack
 
@@ -82,27 +112,43 @@ certificates; it has no authority — a false proposition cannot get past `check
 however the certificate was found. That asymmetry (tiny trusted checker, unbounded
 untrusted producer) is the entire point.
 
-## Honest status — this is a Beta *prototype* of Delta
+## Status — diverse, type-checked, adversarially tested
 
-[`rungs/delta.md`](../../wiki/architecture/bootstrap_lattice/rungs/delta.md) says
-the checker should be a **Gamma** program — Gamma's algebraic data types + pattern
-matching are what keep such a checker small and auditable. Gamma doesn't exist
-yet, so this is written in Beta, and it *shows exactly why Gamma is wanted*: the
-term/type trees are hand-encoded as tagged 3-word nodes in raw memory, and `infer`
-is an if-cascade on integer tags — precisely the boilerplate sum types + pattern
-matching would erase. So this prototype is also the design pull for the Gamma rung.
+[`rungs/delta.md`](../../wiki/architecture/bootstrap_lattice/rungs/delta.md) says the
+checker should be a **Gamma** program — Gamma's algebraic data types + pattern
+matching keep such a checker small and auditable. That now exists *both* ways, and
+the difference is the point:
 
-What it is **not** (yet), all tracked in `rungs/delta.md`:
+- `check.beta` (this file) hand-encodes the term/type trees as tagged 3-word nodes in
+  raw memory and decides everything with an if-cascade on integer tags — exactly the
+  boilerplate that motivated the Gamma rung.
+- [`gamma/checker.gamma`](../gamma/checker.gamma) is the *same logic* as a dozen tiny
+  functions over algebraic data + pattern matching. `checker-diamond.sh` runs proofs
+  through **both** and requires identical verdicts — two independent implementations,
+  in different languages at different rungs, cross-checking the trust anchor
+  (diversity = security, applied to the checker itself).
+- [`gamma/checker_typed.gamma`](../gamma/checker_typed.gamma) is that Gamma checker
+  fully annotated, and Gamma's own static type checker (`gamma/typeck.beta`) accepts
+  it — so the trust anchor's *code* is shown statically type-safe.
 
-- The logic is *full intuitionistic propositional* (`->`, `&`, `+`, `⊥`/negation)
-  — but no quantifiers and no induction, so it demonstrates the *checker
-  architecture*, not yet a foundation for real math. First-order quantifiers and
-  an inductive `Nat` are the natural next additions.
-- No **soundness bridge** to program execution — the deep open problem
-  (`provable ⟹ true-about-the-Gamma-reference-interpreter`) is untouched. This
-  checks proofs *in the calculus*; connecting the calculus to "what a program
-  does" is the gamma/delta seam and the core of the proof ambition.
+The logic is now **complete first-order intuitionistic predicate logic**: all
+propositional connectives, equality with the conversion rule, and `∀`/`∃` with
+capture-avoiding instantiation over unary and binary predicates. `gen`'s freshness
+guard and `inst`'s de Bruijn shifting are *adversarially* tested — including a
+capture discriminator a buggy substitution would fail — and `soundness.sh` confirms
+no false certificate (nor any non-constructive classical tautology) gets through.
+
+What it is **not** (yet), tracked in `rungs/delta.md`:
+
+- **No induction.** First-order logic reasons about individuals but cannot yet prove
+  `∀n. P(n)` by induction — that needs an inductive `Nat` with a recursor / dependent
+  elimination, i.e. dependent types, which is the Omega rung's job.
+- **No soundness bridge** to program execution. `semantics-diamond.sh` *exhibits* the
+  gamma/delta seam (the checker's definitional `=` agreeing with the interpreter's
+  operational evaluation), but the theorem `provable ⟹ true-about-the-reference-
+  interpreter` is the deep open problem, untouched.
 - It is the *reference* checker (small + audited), not a fast one.
 
-Even so: the lattice now has a working checker. The thing the whole architecture
-exists to produce has its first, end-to-end-runnable instance.
+The thing the whole architecture exists to produce — a tiny, hand-auditable checker
+with sole authority over what is true — is here, end-to-end runnable on the seed,
+doing real first-order logic, and double-checked by an independent twin.
