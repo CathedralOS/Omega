@@ -18,7 +18,7 @@ NAME=$(basename "$SRC" .beta)
 cargo run --quiet < "$SRC"            > "build/$NAME.asm"    # .beta -> Alpha assembly
 "$ASM"            < "build/$NAME.asm" > "build/$NAME.tape"   # assembly -> tape
 L=$(wc -c < "build/$NAME.tape")
-[ $((L + 4)) -le 32768 ] || { echo "FAIL: $NAME tape is $L B, exceeds the seed's 32 KB hole" >&2; exit 1; }
+[ $((L + 4)) -le "$HOLE_SIZE" ] || { echo "FAIL: $NAME tape is $L B, exceeds the seed's tape hole ($HOLE_SIZE B)" >&2; exit 1; }
 
 stamp_seed "build/$NAME.tape" "$SEED" "build/$NAME.exe"
 echo "built build/$NAME.exe  (beta -> asm -> tape -> stamp)"

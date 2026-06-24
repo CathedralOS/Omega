@@ -137,8 +137,11 @@ rung doc; they are **not** yet specified behavior:
   overflow): currently unchecked — the implementations may corrupt adjacent state
   or fault. A trust root *should* trap; until it does, programs must stay in
   bounds and this document does not assign a meaning to violations.
-- **Memory size is fixed** (`MEMSIZE`, and the 32 KiB tape hole) rather than an
-  execution parameter with a defined out-of-memory result.
+- **Memory size is fixed** (`MEMSIZE`, and the tape hole) rather than an
+  execution parameter with a defined out-of-memory result. The tape hole is
+  currently 256 KiB on the arm64 seed and 32 KiB on the x64 seed (the latter
+  pending a forge rebuild to match) — a per-platform capacity, not a semantic
+  difference: the same tape runs identically on both where it fits.
 
 Everything in §5–§7 is pinned by `conformance.sh`; §8 is deliberately out of
 scope until the hardening lands.
