@@ -37,5 +37,12 @@ chk "neg-elim"        "(-> (-> P (bot)) (-> P Q)) (lam (-> P (bot)) (lam P (absu
 chk "contradiction"   "(-> P (-> (-> P (bot)) Q)) (lam P (lam (-> P (bot)) (absurd Q (app (hyp 0) (hyp 1)))))"       accept
 chk "no ex falso"     "(-> (bot) P) (lam (bot) (hyp 0))"                                                             reject
 chk "absurd non-bot"  "(-> P Q) (lam P (absurd Q (hyp 0)))"                                                          reject
+# disjunction ∨ (inl / inr / case)
+chk "inl"             "(-> P (+ P Q)) (lam P (inl Q (hyp 0)))"                                                       accept
+chk "inr"             "(-> Q (+ P Q)) (lam Q (inr P (hyp 0)))"                                                       accept
+chk "or-commute"      "(-> (+ P Q) (+ Q P)) (lam (+ P Q) (case (hyp 0) (lam P (inr Q (hyp 0))) (lam Q (inl P (hyp 0)))))" accept
+chk "case to common"  "(-> (+ P P) P) (lam (+ P P) (case (hyp 0) (lam P (hyp 0)) (lam P (hyp 0))))"                  accept
+chk "branches differ" "(-> (+ P Q) P) (lam (+ P Q) (case (hyp 0) (lam P (hyp 0)) (lam Q (hyp 0))))"                  reject
+chk "inl wrong goal"  "(-> P (+ Q Q)) (lam P (inl Q (hyp 0)))"                                                       reject
 echo "delta check.beta: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
