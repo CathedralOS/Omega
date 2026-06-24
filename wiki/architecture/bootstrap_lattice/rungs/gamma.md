@@ -55,9 +55,9 @@ Two things live here, pulling in opposite directions:
   pure functional, **fuel-bounded** core: integers, top-level recursive functions,
   `if`, `let`, arithmetic/comparisons (`fac 5 → 120`, `fib 10 → 55`, `gcd → 12`).
   This is the architecturally-favored shape — *meaning is the interpreter* — and
-  resolves the first divergence below. Stage 2 adds the gamma-defining features
-  (ADTs + pattern matching), at which point the Delta checker can be rewritten in
-  it cleanly (its hand-encoded tagged nodes are exactly that pull).
+  resolves the first divergence below. Stage 2 (DONE) adds the
+  gamma-defining features (ADTs + pattern matching), so the Delta checker can now
+  be rewritten in it cleanly (its hand-encoded tagged nodes are exactly that pull).
 
 The old gamma diverges from the target in two ways the architecture wants
 reconciled — `interp.beta` is the start of that reconciliation:
@@ -67,7 +67,7 @@ reconciled — `interp.beta` is the start of that reconciliation:
   the compiler checked against it. `interp.beta` is that reference interpreter.
 - **Imperative, not functional/total** — `gamma.alpha` has no algebraic data,
   pattern matching, or totality. `interp.beta` is functional + fuel-bounded;
-  ADTs + pattern matching are stage 2.
+  ADTs + pattern matching landed in stage 2 (`Z`/`S`, `Nil`/`Cons`, `Pair`; `match` with nullary, applied-binding, and catch-all patterns).
 
 The pragmatic question is whether to grow the current gamma toward the target or
 to treat the current gamma as a stepping stone and introduce the
