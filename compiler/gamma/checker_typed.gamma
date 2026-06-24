@@ -13,7 +13,8 @@
            (All Type) (Exists Type) (Pred Int Nat) (Rel Int Nat Nat))
 (data Term (Hyp Int) (Lam Type Term) (App Term Term) (Pair Term Term) (Fst Term) (Snd Term)
            (Inl Type Term) (Inr Type Term) (Case Term Term Term) (Absurd Type Term) (Refl Nat)
-           (Gen Term) (Inst Term Nat) (Wit Type Nat Term) (Unpack Term Term))
+           (Gen Term) (Inst Term Nat) (Wit Type Nat Term) (Unpack Term Term)
+           (Natind Type Term Term))
 (data Ctx (Nil) (Cons Type Ctx))
 
 (def nth ((ctx Ctx) (n Int)) Type
@@ -75,6 +76,16 @@
     ((Rel id s t) (match b ((Rel jd u v) (if (eq id jd) (if (conveq s u) (conveq t v) 0) 0)) (z 0)))
     (z 0)))
 
+(def subtk ((t Nat) (s Nat) (d Int)) Nat
+  (match t ((Iv k) (if (eq k d) s (Iv k))) (Ze Ze) ((Su x) (Su (subtk x s d)))
+           ((Pl a b) (Pl (subtk a s d) (subtk b s d))) ((Mu a b) (Mu (subtk a s d) (subtk b s d)))))
+(def subpk ((p Type) (s Nat) (d Int)) Type
+  (match p ((Pred id t) (Pred id (subtk t s d))) ((Rel id u v) (Rel id (subtk u s d) (subtk v s d)))
+           ((Eq a b) (Eq (subtk a s d) (subtk b s d)))
+           ((All x) (All (subpk x (shiftt s 1 0) (+ d 1)))) ((Exists x) (Exists (subpk x (shiftt s 1 0) (+ d 1))))
+           ((Arrow a b) (Arrow (subpk a s d) (subpk b s d))) ((And a b) (And (subpk a s d) (subpk b s d)))
+           ((Or a b) (Or (subpk a s d) (subpk b s d))) (z p)))
+
 (def isbad ((t Type)) Int (match t (Bad 1) (z 0)))
 
 (def infcase ((tp Type) (tf Type) (tg Type)) Type
@@ -107,6 +118,14 @@
     ((Wit body t pf) (if (ivt t) Bad
                        (let pt (infer pf ctx)
                          (if (isbad pt) Bad (if (teq pt (subp body t 0)) (Exists body) Bad)))))
+    ((Natind motive base step)
+      (let tb (infer base ctx)
+        (let ts (infer step ctx)
+          (if (isbad tb) Bad
+            (if (isbad ts) Bad
+              (if (teq tb (subp motive Ze 0))
+                (if (teq ts (All (Arrow motive (subpk motive (Su (Iv 0)) 0)))) (All motive) Bad)
+                Bad))))))
     ((Unpack epf h) (match (infer epf ctx)
                       ((Exists b)
                         (match (infer h ctx)
