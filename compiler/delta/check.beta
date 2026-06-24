@@ -35,7 +35,10 @@
 ; raw memory with if-cascades. That is the motivation for the Gamma rung, made
 ; concrete.
 ;
-; Input (stdin): a goal proposition, then a certificate term, in prefix syntax.
+; Input (stdin): zero or more lemma definitions, then a goal proposition and a
+; certificate term, in prefix syntax. A lemma  ( def N prop term )  is checked like
+; any proof; afterwards  ( use N )  cites it as a proof of that proposition. So big
+; theorems factor into named, independently-verified lemmas instead of one monolith.
 ;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
 ;                | ( + prop prop ) | ( bot ) | ( = nat nat )
 ;                | ( All prop ) | ( Exists prop )                      ; ∀, ∃
@@ -820,9 +823,15 @@ proc parse_term() {
         expect(')')
         return alloc(23, x, alloc(99, y, z))
     }
-    if kc == 'u' {                   ; (unpack epf handler) — ∃-elim
-        x = parse_term()             ; epf : Exists body
-        y = parse_term()             ; handler : All (body -> C)
+    if kc == 'u' {
+        if kc2 == 's' {              ; (use N) — cite a previously-proved lemma N
+            skip_ws()
+            x = parse_number()
+            expect(')')
+            return alloc(40, x, 0)
+        }
+        x = parse_term()             ; (unpack epf handler) — ∃-elim
+        y = parse_term()             ; epf : Exists body ; handler : All (body -> C)
         expect(')')
         return alloc(24, x, y)
     }
@@ -1058,6 +1067,10 @@ proc infer(term) {
     if tag == 20 {               ; REFL t : proves (= t t)
         return alloc(5, word[term + 8], word[term + 8])
     }
+    if tag == 40 {               ; USE N : the type of lemma N (already verified at its def)
+        ; LEMMAS at 5242880, indexed by number; a closed prop, valid in any context.
+        return word[5242880 + word[term + 8] * 8]
+    }
     if tag == 21 {               ; GEN pf : ∀-intro  ->  All (typeof pf)
         ; freshness: no hypothesis in scope may have a FREE individual variable. A
         ; hypothesis may quantify its own (bound) individuals — only a free one,
@@ -1244,8 +1257,53 @@ proc infer(term) {
     return 0
 }
 
+; peek (without consuming) whether the next form is a lemma definition "(def ...".
+; No goal proposition begins "(d", so the first letter after '(' disambiguates.
+proc at_def() {
+    let save = word[2097144]
+    skip_ws()
+    let r = 0
+    if cbyte() == '(' {
+        adv()
+        skip_ws()
+        if cbyte() == 'd' {
+            r = 1
+        }
+    }
+    word[2097144] = save
+    return r
+}
+
 proc main() {
     slurp()
+    ; Lemma definitions first: (def N type proof).  Each proof is VERIFIED against its
+    ; stated type by the same checker before the lemma is usable; (use N) then cites
+    ; the verified (closed) type. A later def may cite earlier ones. This is sound by
+    ; construction — a citation only ever returns an already-checked fact.
+    let lt = 0
+    let lp = 0
+    let n = 0
+    while at_def() == 1 {
+        skip_ws()
+        adv()                    ; '('
+        skip_ws()
+        skip_ident()             ; "def"
+        skip_ws()
+        n = parse_number()       ; lemma number
+        lt = parse_type()        ; the lemma's proposition
+        lp = parse_term()        ; its proof
+        expect(')')
+        lp = infer(lp)
+        if lp == 0 {
+            emit("reject\n")
+            return 0
+        }
+        if type_eq(lp, lt) == 0 {
+            emit("reject\n")
+            return 0
+        }
+        word[5242880 + n * 8] = lt
+    }
     let goal = parse_type()
     let term = parse_term()
     let proved = infer(term)

@@ -129,6 +129,13 @@ chk "len [_,_,_]=3"  "(= (len (cons z (cons z (cons z nil)))) (s (s (s z)))) (re
 chk "len(a++b)"     "(All (All (= (len (app (v 0) (v 1))) (p (len (v 0)) (len (v 1)))))) (gen (listind (= (len (app (v 0) (v 1))) (p (len (v 0)) (len (v 1)))) (refl (len (v 0))) (gen (gen (lam (= (len (app (v 0) (v 2))) (p (len (v 0)) (len (v 2)))) (eqelim (= (s (len (app (v 1) (v 3)))) (s (v 0))) (hyp 0) (refl (s (len (app (v 0) (v 2)))))))))))" accept
 chk "n+1 = s n"     "(All (= (p (v 0) (s z)) (s (v 0)))) (natind (= (p (v 0) (s z)) (s (v 0))) (refl (s z)) (gen (lam (= (p (v 0) (s z)) (s (v 0))) (eqelim (= (s (p (v 1) (s z))) (s (v 0))) (hyp 0) (refl (s (p (v 0) (s z))))))))" accept
 chk "n+sm=s(n+m)"   "(All (All (= (p (v 0) (s (v 1))) (s (p (v 0) (v 1)))))) (gen (natind (= (p (v 0) (s (v 1))) (s (p (v 0) (v 1)))) (refl (s (v 0))) (gen (lam (= (p (v 0) (s (v 1))) (s (p (v 0) (v 1)))) (eqelim (= (s (p (v 1) (s (v 2)))) (s (v 0))) (hyp 0) (refl (s (p (v 0) (s (v 1))))))))))" accept
+# named lemmas: (def N type proof) verified up front, then (use N) cites it
+chk "lemma define/cite" "(def 0 (-> P P) (lam P (hyp 0))) (-> P P) (use 0)"                                       accept
+chk "lemma must check" "(def 0 (-> P Q) (lam P (hyp 0))) (-> P Q) (use 0)"                                        reject
+chk "cite must match"  "(def 0 (-> P P) (lam P (hyp 0))) (-> Q Q) (use 0)"                                        reject
+chk "lemma cites lemma" "(def 0 (-> P P) (lam P (hyp 0))) (def 1 (-> (-> P P) (-> P P)) (lam (-> P P) (use 0))) (-> (-> P P) (-> P P)) (use 1)" accept
+# multi-lemma composition: (a+0)+0 = a  via  n+0=n (cited twice) + transitivity
+chk "(a+0)+0 = a"   "(def 0 (All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0)) (refl z) (gen (lam (= (p (v 0) z) (v 0)) (eqelim (= (s (p (v 1) z)) (s (v 0))) (hyp 0) (refl (s (p (v 0) z))))))) ) (def 1 (All (All (All (-> (= (v 2) (v 1)) (-> (= (v 1) (v 0)) (= (v 2) (v 0))))))) (gen (gen (gen (lam (= (v 2) (v 1)) (lam (= (v 1) (v 0)) (eqelim (= (v 3) (v 0)) (hyp 0) (hyp 1)))))))) (All (= (p (p (v 0) z) z) (v 0))) (gen (app (app (inst (inst (inst (use 1) (p (p (v 0) z) z)) (p (v 0) z)) (v 0)) (inst (use 0) (p (v 0) z))) (inst (use 0) (v 0))))" accept
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
