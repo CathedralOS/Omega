@@ -1,0 +1,46 @@
+#!/usr/bin/env sh
+# CHECKER DIAMOND — diverse double-checking of the trust anchor.
+#
+# The lattice's security thesis is "diversity = security": independent
+# implementations that must agree. The most important place to apply it is the
+# CHECKER itself. We have two: check.beta (Beta; term/type trees hand-encoded as
+# tagged memory nodes, decided by integer-tag if-cascades) and checker.gamma
+# (Gamma; the same logic as algebraic data + pattern matching, run on the gamma
+# reference interpreter). They were written differently, in different languages,
+# at different rungs. For each proof below — expressed in BOTH input syntaxes — the
+# two checkers must return the SAME verdict, and it must be the expected one. A
+# disagreement would expose a bug (or a backdoor) in one of them.
+cd "$(dirname "$0")"
+. ../alpha/seed_env.sh
+SEED=../alpha/$ALPHA_SEED
+ASM=../beta/$BETA_SEED
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+
+( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
+bcc() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/a.asm" && "$ASM" < "$T/a.asm" > "$T/a.tape" && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
+bcc check.beta "$T/check.exe"          || { echo "build check.beta failed"; exit 1; }
+bcc ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
+DEFS=$(cat ../gamma/checker.gamma)
+
+PASS=0; FAIL=0
+# dia DESC  BETA_INPUT  GAMMA_CHECK_EXPR  EXPECT(accept|reject)
+dia() {
+  vb=$(printf '%s' "$2" | "$T/check.exe")                       # check.beta -> accept/reject
+  printf '%s\n%s\n' "$DEFS" "$3" | "$T/interp.exe" >/dev/null; vg=$?   # gamma -> 1/0
+  gv=reject; [ "$vg" = 1 ] && gv=accept
+  if [ "$vb" = "$gv" ] && [ "$vb" = "$4" ]; then PASS=$((PASS+1))
+  else FAIL=$((FAIL+1)); echo "  FAIL $1 : beta=$vb gamma=$gv expect=$4"; fi
+}
+#    desc            check.beta syntax                                          checker.gamma syntax                                                                   expect
+dia "identity"       "(-> P P) (lam P (hyp 0))"                                  "(check (Lam (Atom 0) (Hyp 0)) (Arrow (Atom 0) (Atom 0)))"                              accept
+dia "wrong goal"     "(-> P Q) (lam P (hyp 0))"                                  "(check (Lam (Atom 0) (Hyp 0)) (Arrow (Atom 0) (Atom 1)))"                              reject
+dia "and-elim"       "(-> (& P Q) P) (lam (& P Q) (fst (hyp 0)))"                "(check (Lam (And (Atom 0) (Atom 1)) (Fst (Hyp 0))) (Arrow (And (Atom 0) (Atom 1)) (Atom 0)))" accept
+dia "mismatch"       "(-> (& P Q) Q) (lam (& P Q) (fst (hyp 0)))"                "(check (Lam (And (Atom 0) (Atom 1)) (Fst (Hyp 0))) (Arrow (And (Atom 0) (Atom 1)) (Atom 1)))" reject
+dia "modus ponens"   "(-> (& (-> P Q) P) Q) (lam (& (-> P Q) P) (app (fst (hyp 0)) (snd (hyp 0))))" "(check (Lam (And (Arrow (Atom 0) (Atom 1)) (Atom 0)) (App (Fst (Hyp 0)) (Snd (Hyp 0)))) (Arrow (And (Arrow (Atom 0) (Atom 1)) (Atom 0)) (Atom 1)))" accept
+dia "or-commute"     "(-> (+ P Q) (+ Q P)) (lam (+ P Q) (case (hyp 0) (lam P (inr Q (hyp 0))) (lam Q (inl P (hyp 0)))))" "(check (Lam (Or (Atom 0) (Atom 1)) (Case (Hyp 0) (Lam (Atom 0) (Inr (Atom 1) (Hyp 0))) (Lam (Atom 1) (Inl (Atom 0) (Hyp 0))))) (Arrow (Or (Atom 0) (Atom 1)) (Or (Atom 1) (Atom 0))))" accept
+dia "ex falso"       "(-> (bot) P) (lam (bot) (absurd P (hyp 0)))"               "(check (Lam Bot (Absurd (Atom 0) (Hyp 0))) (Arrow Bot (Atom 0)))"                      accept
+dia "unbound hyp"    "P (hyp 0)"                                                 "(check (Hyp 0) (Atom 0))"                                                              reject
+dia "refl 2+2=4"     "(= (p (s (s z)) (s (s z))) (s (s (s (s z)))))  (refl (s (s (s (s z)))))" "(check (Refl (Su (Su (Su (Su Ze))))) (Eq (Pl (Su (Su Ze)) (Su (Su Ze))) (Su (Su (Su (Su Ze))))))" accept
+dia "reject 2+2=5"   "(= (p (s (s z)) (s (s z))) (s (s (s (s (s z))))))  (refl (s (s (s (s z)))))" "(check (Refl (Su (Su (Su (Su Ze))))) (Eq (Pl (Su (Su Ze)) (Su (Su Ze))) (Su (Su (Su (Su (Su Ze)))))))" reject
+echo "checker diamond (check.beta vs checker.gamma): $PASS agree, $FAIL disagree"
+[ "$FAIL" = 0 ] || exit 1
