@@ -31,7 +31,7 @@ honest edges) lives in
 | `compiler/beta/` | **The assembler** (`assembler.alpha`, written in Alpha assembly) + the Beta-language docs/examples. | DONE — self-hosts byte-identically |
 | `compiler/beta-rs/` | Throwaway Rust on-ramp for the *assembler* (cold-start only). | parked |
 | `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | slices 1–6 done; self-check passed |
-| `compiler/beta-lang/` | The Beta compiler **written in Beta** (`bc.beta`) — the self-hosting path (slice 7). | **ACTIVE** — slice 1 (arithmetic) done |
+| `compiler/beta-lang/` | The Beta compiler **written in Beta** (`bc.beta`) — slice 7. | **DONE — self-hosts** (byte-for-byte fixed point) |
 | `compiler/gamma/` | A v13 imperative language; compiler hand-written in Alpha asm (`gamma.alpha`). The thing Beta exists to **supersede**. | parked at v13 |
 | `compiler/epsilon*`, `compiler/alpha-rs` | Old/renamed experiment soup. | **IGNORE** |
 | `compiler/omega-rs/` | The real Omega compiler, in Rust. Separate concern: the *producer*, not the lattice. | (other workstream) |
@@ -74,25 +74,19 @@ write in it. The next move is the transcription, not more features.
 
 ## Roadmap (next)
 
-7. **Self-hosting Beta compiler — IN PROGRESS.** Rather than hand-write the
-   compiler in assembly (the old framing), it is being written *in Beta*
-   (`compiler/beta-lang/bc.beta`) and lowered through the on-ramp — the same
-   on-ramp-then-discard pattern the assembler uses, reaching a self-hosting fixed
-   point (`bc` compiles `bc.beta` to a tape that recompiles `bc.beta` identically).
-   Slices **1, 2a, 2b done + gated** (`sh compiler/beta-lang/test.sh`, 20/20):
-   arithmetic; a real tokenizer + per-proc symbol table with `let` locals,
-   assignment, variable refs; `if`/`else`/`while` + the six comparisons. bc has a
-   full single-proc front end (compact-asm output, pre-scan frame sizing).
-   **Blocker now HIT:** bc's tape is **30.7 KB of the 32 KB hole** — the next slice
-   (memory, char/string literals, or procedures/calls) cannot fit. `emit` lowers
-   each output byte to an `imm`+`write` (~12 tape bytes/char). Two resolutions:
-   (a) **assembler `.db` data section + `write_str`** — ~1 tape byte/char,
-   *preserves both-seeds lockstep* and shrinks tapes ~10×, but is surgery on the
-   trusted self-hosting assembler (must stay byte-identical); **recommended**.
-   (b) **enlarge the tape hole** — one-line `.space`/`.hex` change, but must be
-   done on *both* seeds to keep the diamond; the x64 forge isn't available on this
-   host, so doing only arm64 introduces a flagged asymmetry. See
-   `compiler/beta-lang/README.md`.
+7. **Self-hosting Beta compiler — DONE.** Rather than hand-write the compiler in
+   assembly (the old framing), it is written *in Beta* (`compiler/beta-lang/bc.beta`)
+   and cold-started through the on-ramp — the same on-ramp-then-discard pattern the
+   assembler uses. **`bc` self-hosts:** it compiles its own source to a compiler
+   that reproduces that compilation byte-for-byte (`sh compiler/beta-lang/selfhost.sh`),
+   so from that compiler on, Rust is out of the lineage. bc implements the whole
+   language — arithmetic, locals + symbol table, `if`/`else`/`while` + comparisons,
+   procedures/params/calls/recursion, `byte[]`/`word[]` memory, char literals +
+   `read_byte`/`write_byte` + call statements, and string literals via `emit("...")`.
+   30/30 per-feature gate + the self-host fixed point. Enabled by the assembler
+   `db` data directive (#46) and growing the arm64 tape hole 32 KB → 256 KB (bc's
+   self-tape is ~45 KB; logic-dominated, not emit-dominated). The Rust on-ramp
+   (`beta-lang-rs`) is now discardable from the steady state.
 8. **Rewrite gamma in Beta**, retiring `gamma.alpha` (this is the whole point:
    never hand-write a compiler in assembly again).
 9. **Climb:** Delta (the checker / evidence rung — where trust actually starts),

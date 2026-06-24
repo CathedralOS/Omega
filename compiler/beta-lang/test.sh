@@ -56,5 +56,9 @@ ret "proc main() { return sumto(10) } proc sumto(n) { let t = 0 let i = 1 while 
 # slice 4 — byte[]/word[] memory
 ret "proc main() { let b = 2097152 byte[b] = 65 byte[b + 1] = 66 return byte[b] + byte[b + 1] }" 131
 ret "proc main() { let base = 2097152 let i = 0 while i < 5 { word[base + i * 8] = i * i i = i + 1 } let t = 0 i = 0 while i < 5 { t = t + word[base + i * 8] i = i + 1 } return t }" 30
-echo "bc.beta (slices 1-4): $PASS passed, $FAIL failed"
+# slice 5 — char literals (intrinsics/emit/IO are covered end-to-end by selfhost.sh)
+ret "proc main() { return 'A' }" 65
+ret "proc main() { return '0' + 9 }" 57
+ret "proc main() { let c = 'Z' if c == 90 { return 42 } return 0 }" 42
+echo "bc.beta (slices 1-6, per-feature): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

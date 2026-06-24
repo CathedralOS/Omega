@@ -1,14 +1,16 @@
-# `compiler/beta-lang/` — the Beta compiler, written in Beta
+# `compiler/beta-lang/` — the Beta compiler, written in Beta (SELF-HOSTING)
 
-This is **slice 7 of the lattice**: the Beta-language compiler, written *in Beta
-itself* (`bc.beta`), rather than in the throwaway Rust on-ramp (`../beta-lang-rs`)
-or hand-written in assembly. It is the self-hosting path — once `bc.beta` compiles
-its own source to a fixed point, Rust leaves the trusted lineage entirely (it only
-cold-starts the first `bc`, exactly as `beta-rs` cold-starts the assembler).
+This is **slice 7 of the lattice, done**: the Beta-language compiler written *in
+Beta itself* (`bc.beta`), not in the throwaway Rust on-ramp (`../beta-lang-rs`) and
+not hand-written in assembly. **It self-hosts** — `bc` compiles its own source to a
+compiler that reproduces that compilation byte-for-byte (`selfhost.sh`), so from
+that compiler on, Rust is out of the lineage; it only cold-started the first `bc`,
+exactly as `beta-rs` cold-starts the assembler.
 
 ```
-bc.beta     the Beta compiler, in Beta:  reads .beta on stdin, emits Alpha asm on stdout
-test.sh     the gate: build bc via the on-ramp, then use bc to compile + run programs
+bc.beta       the Beta compiler, in Beta:  reads .beta on stdin, emits Alpha asm
+selfhost.sh   THE gate: bc compiles bc.beta -> bc1; assert bc1(bc.beta) == bc(bc.beta)
+test.sh       per-feature gate: bc compiles + runs small programs across slices 1-6
 ```
 
 ## How it bootstraps
@@ -30,65 +32,50 @@ Run the gate:
 sh test.sh        # builds bc, compiles arithmetic programs with it, checks results
 ```
 
-## Status — built slice by slice (mirroring `beta-lang-rs`)
+## Status — SELF-HOSTING (slices 1–6 done)
 
-- **Slice 1 — arithmetic: DONE.** `proc main() { return <expr> }` with `+ - * / %`,
-  parentheses, precedence, over integer literals. Recursive-descent codegen
-  emitting the same stack-machine asm shape as the on-ramp.
-- **Slice 2a — named locals: DONE.** A real tokenizer (identifiers, keywords,
-  `;` comments) and a per-proc symbol table, so `let` locals, assignment, and
-  variable references work (`let a = 6 let b = 7 return a * b` → 42). Single pass
-  with one pre-scan (`count_lets`) to size the frame before the prologue, since
-  single-pass codegen can't know the local count up front.
-- **Slice 2b — control flow: DONE.** `if`/`else`, `while`, and the six
-  comparisons (`< > == != <= >=`, branch-materialized to 0/1 with generated
-  labels). `while i <= n { s = s + i ... }` sums 1..n → 55. 20/20 in `test.sh`.
+bc implements the whole Beta language and compiles its own source to a byte-for-byte
+fixed point. Built slice by slice, mirroring `beta-lang-rs`:
 
-**The hole.** Slice 2b lands bc at 30.7 KB; the assembler `db` data section (now
-done — `emit` lowers to a deduped `db` pool + a `write_str` loop) brings it to
-**27 KB**. But that is only ~12% off, not ~10×: **bc's tape is dominated by its own
-compiled *logic* (tokenizer + symbol table + codegen), not by emit strings** — a
-compiler is mostly code, and each Beta statement is several alpha instructions.
-So `db` buys headroom (and matters more as emit grows) but the *full* compiler
-(memory + char/string literals + procedures/params/calls roughly doubles the
-source) will exceed 32 KB. **Done:** the arm64 tape hole was grown to **256 KB**
-(`.space 0x40000`; `HOLE_SIZE` in `seed_env.sh` is now per-platform), giving bc
-room to grow to self-hosting. The x64 hole stays 32 KB until a forge rebuild
-matches it — a flagged, capacity-only asymmetry (the diamond holds for any tape
-that fits both). So the self-hosting bc tape is arm64-runnable now; x64 catch-up
-is one `.hex`/`.space` change for whoever has the forge.
+| Slice | Adds | Notes |
+| --- | --- | --- |
+| 1  | arithmetic (`+ - * / %`, parens, precedence) | stack-machine codegen, same shape as the on-ramp |
+| 2a | `let` locals, assignment, variable refs | tokenizer + per-proc symbol table; a pre-scan (`count_lets`) sizes the frame |
+| 2b | `if`/`else`, `while`, the six comparisons | generated labels; 0/1 materialization |
+| 3  | procedures, parameters, calls, recursion | the calling convention (args r0..r3, frames via fp) |
+| 4  | `byte[]`/`word[]` memory | `loadb`/`load`/`storeb`/`store` |
+| 5  | char literals `'x'`, `read_byte`/`write_byte`, call statements | + prescan skips char/string literals |
+| 6  | string literals via `emit("...")` | inline `db` data jumped over + a `__write_str` loop |
 
-Next slices follow the on-ramp's path: `byte[]`/`word[]` memory, char/string
-literals, then procedures + parameters + calls — at which point bc can compile its
-own source (self-hosting).
+`sh selfhost.sh` is the proof; `sh test.sh` is the per-feature gate. bc's self-tape
+is ~45 KB — well within the 256 KB arm64 hole (see below).
 
-## Known constraint — the 32 KB hole (real, now measured)
+### The hole (resolved)
 
-`emit("...")` lowers every output byte to an `imm`+`write` pair (~12 tape bytes
-per character of emitted asm), and a compiler is mostly fixed output strings, so
-`bc`'s own tape grows fast. Two mitigations are in play:
+`emit` lowers each output byte to ~12 tape bytes, and a compiler is mostly fixed
+output, so bc's tape grew fast. Two things were done: the assembler gained a `db`
+data section (1 byte/char) — but that only trimmed ~12%, because **bc's tape is
+dominated by its own compiled *logic*, not emit strings**. So the arm64 tape hole
+was grown 32 KB → **256 KB** (`.space 0x40000`; `HOLE_SIZE` in `seed_env.sh` is now
+per-platform). The x64 hole stays 32 KB until a forge rebuild matches it — a
+flagged, capacity-only asymmetry (the diamond holds for any tape that fits both;
+the self-hosting bc tape is arm64-runnable now, x64 after that one-line catch-up).
 
-1. **bc emits compact asm** (no indent, no alignment, commas attached — the
-   assembler treats those as whitespace). This is a zero-infra, both-seeds-safe
-   win that keeps the tape small. Slice 1 is **~12.4 KB** (was ~15.5 KB verbose).
-2. The data-section fix (**now required** — slice 2b lands bc at 30.7 KB): add a
-   `db "..."` directive to the assembler so fixed output is *data* (1 tape
-   byte/char), with a `write_str(addr,len)` loop, instead of an `imm`+`write` per
-   byte (~12). This **preserves both-seeds lockstep** (the assembler's own source
-   uses no `db`, so its tape — and the self-host fixed point — is unchanged) and
-   shrinks emitted tapes ~10×. Enlarging the hole is the cruder alternative but
-   needs *both* seeds changed to keep the diamond, and the x64 forge isn't on this
-   host — so the data-section route is preferred.
+<details><summary>historical: the compact-asm + db steps</summary>
 
-   **De-risking finding (assembler read):** `emit_operand`'s `eo_label` path
-   already resolves a label name as an 8-byte immediate, so **`imm rD, Lstr` works
-   today with no assembler change**. The remaining work is therefore *only* the
-   `db` directive (string tokenization in `next_token` — quotes + escapes, since a
-   string can contain spaces/newlines — plus length accounting in pass 1 and byte
-   emission in pass 2), then change `emit` lowering in `beta-lang-rs` (and, later,
-   in bc's own string-literal slice) to: emit the bytes as `Lstr_N: db "..."` in a
-   trailing data section, and at the use site `imm r0,Lstr_N / imm r1,<len> / call
-   __write_str`. Verify `../beta/selfhost.sh` stays byte-identical after the
-   assembler change.
+bc emits compact asm (no indent/alignment — the assembler treats commas/indent as
+whitespace; slice 1 was ~12.4 KB vs ~15.5 verbose), and `emit("...")` lowers to a
+`db` data section + `__write_str` loop. Both preserve both-seeds lockstep (the
+assembler's own source uses no `db`, so its tape — and the self-host fixed point —
+is unchanged). `imm rD, label` already worked (the assembler's `eo_label` path
+resolves a label as an 8-byte immediate), so the only assembler change needed was
+the `db` directive itself.
 
-The slices-1–2b milestone holds regardless; this is the next focused task.
+</details>
+
+## Next
+
+The Beta rung is self-sufficient. Up the lattice: rewrite **gamma in Beta**
+(retiring `gamma.alpha`), then **Delta** — the checker / evidence rung, where trust
+actually starts. The Rust on-ramp (`../beta-lang-rs`) is now discardable from the
+steady state; keep it only as the documented cold-start.
