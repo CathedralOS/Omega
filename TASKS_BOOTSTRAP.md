@@ -39,39 +39,30 @@ honest edges) lives in
 
 ## Where we are RIGHT NOW
 
-**Active workstream: building Beta-the-language** — a small structured systems
-language (tiny-C / Oberon-0 shape) so we stop hand-writing compilers in assembly.
-`beta-lang-rs` compiles `.beta` → Alpha assembly; the assembler lowers it; the seed
-runs it. (It's a *throwaway Rust on-ramp* — see "on-ramp pattern" below.)
+**The lattice has a complete vertical slice, seed → checker, with no Rust in the
+runtime lineage.** One command verifies it all:
 
-Slices 1–6 done and **verified on the seed**:
+```sh
+sh compiler/verify-lattice.sh        # -> "LATTICE VERIFIED ✓"
+```
 
-1. arithmetic
-2. procedures, ≤4 params, calls (the calling convention, generated mechanically)
-3. `if`/`else`, `while`, `let` locals, assignment, comparisons → **recursion + loops**
-4. explicit memory (`byte[]` / `word[]`) → raw arrays/buffers
-5. ergonomics + host boundary: char literals (`'a'` + escapes), `read_byte()`/
-   `write_byte(x)` intrinsics, call-as-statement
-6. **the self-check** (see below)
+It walks every rung in dependency order:
 
-8 example programs pass (`answer 42 · double 42 · calls 10 · factorial 120 · fib 55
-· sumto 55 · arrays 30 · bytes 131`). `factorial.beta`/`fib.beta` produce the same
-answers as the hand-written `.alpha` proofs in `compiler/beta/examples/`.
+- **alpha** — seed re-derives from source + conforms to `SEMANTICS.md` + diamond
+  (`verify.sh`); 256 KB tape hole; both seeds in lockstep.
+- **beta** — the assembler self-hosts byte-identically; gained a `db` data directive.
+- **Beta language** — `beta-lang-rs` (throwaway Rust on-ramp) compiles the corpus.
+- **bc** — the Beta compiler **written in Beta** (`beta-lang/bc.beta`) **self-hosts**:
+  it compiles its own source to a compiler that reproduces that compilation
+  byte-for-byte. From `bc` on, Rust is out of the lineage.
+- **delta** — the **certificate checker** (the trust anchor): `check.beta` does full
+  intuitionistic propositional logic (`-> & + ⊥`) **plus equality with the
+  conversion rule** (`2+2=4` proved by computation), and `eq.beta` does definitional
+  equality by fuel-bounded normalization. Both compiled by `bc`, run on the seed.
+- **gamma** — `interp.beta`, the interpreter-first reference interpreter (stage 1:
+  functional, fuel-bounded).
 
-**Self-check PASSED (slice 6).** [`beta-lang-rs/examples/calc.beta`](compiler/beta-lang-rs/examples/calc.beta)
-is a **recursive-descent calculator written in Beta** — reads an arithmetic
-expression from stdin (decimal ints, `+ - * /`, parens, precedence, whitespace),
-evaluates it, prints the decimal result, returns it as the exit code. It exercises
-the whole surface (char literals, the I/O boundary, a memory-backed buffer +
-cursor, recursion through the grammar). `2+3*4`→14, `(2+3)*4`→20, `2*(3+4)*5`→70;
-calc tape ≈ 6.7 KB. `sh compiler/beta-lang-rs/test.sh` runs the gate (8 examples +
-9 calc cases, all green). **Beta is now demonstrably compiler-grade** — the key
-judgment below is confirmed, not just plausible.
-
-**Key judgment (confirmed):** Beta is *more capable than the assembler ever was*
-(the assembler was hand-written in raw asm with none of procedures/recursion/
-locals/memory), and the self-check proves a real parser/evaluator is pleasant to
-write in it. The next move is the transcription, not more features.
+The lattice's thesis — *trust by checking, not pedigree* — is now a working stack.
 
 ## Roadmap (next)
 
@@ -88,24 +79,30 @@ write in it. The next move is the transcription, not more features.
    `db` data directive (#46) and growing the arm64 tape hole 32 KB → 256 KB (bc's
    self-tape is ~45 KB; logic-dominated, not emit-dominated). The Rust on-ramp
    (`beta-lang-rs`) is now discardable from the steady state.
-8. **Rewrite gamma in Beta**, retiring `gamma.alpha` (this is the whole point:
-   never hand-write a compiler in assembly again). The target gamma is the
-   *interpreter-first, functional, ADT + pattern-matching* language the Delta
-   checker is meant to be written in (rungs/gamma.md), not the parked imperative
-   v13. Writing the Delta prototype (below) made the need concrete: its hand-encoded
-   tagged-node trees + if-cascade `infer` are exactly what ADTs + pattern matching
-   erase.
-9. **Delta — the checker / evidence rung (where trust actually starts):
-   FIRST PROTOTYPE DONE.** [`compiler/delta/check.beta`](compiler/delta/check.beta)
-   is a natural-deduction proof checker (implication + conjunction; Curry-Howard =
-   simply-typed-lambda type checker), compiled by the self-hosting `bc` and run on
-   the seed: valid certificates `accept`, invalid ones `reject` (`sh
-   compiler/delta/test.sh`, 10/10 — full stack seed→assembler→bc→checker).
-   Demonstrates the architecture (tiny trusted checker, unbounded untrusted
-   producer). Still a *Beta* prototype (target: a Gamma program), propositional
-   only, and with **no soundness bridge** to program execution — the deep open
-   problem. Caught a real calling-convention bug (the prologue clobbered argument
-   3 — the checker's 3-arg `alloc` was the first witness).
+8. **Gamma — STAGE 1 DONE (interpreter-first).** Rather than grow the parked
+   imperative `gamma.alpha`, the target gamma is the *interpreter-first, functional,
+   ADT + pattern-matching* language the Delta checker is meant to be written in
+   (rungs/gamma.md). [`compiler/gamma/interp.beta`](compiler/gamma/interp.beta) is
+   the reference interpreter — *meaning is the interpreter*, fuel-bounded (totality)
+   — stage 1: a pure functional core (ints, top-level recursive functions, `if`,
+   `let`, arithmetic/comparisons; `fac 5→120`, `fib 10→55`, `gcd→12`), compiled
+   Rust-free by `bc`. 11/11 in `test-interp.sh`. **Next: stage 2 = ADTs + pattern
+   matching**, then rewrite the Delta checker in gamma (its hand-encoded tagged-node
+   trees + if-cascade `infer` are exactly what ADTs + match erase).
+9. **Delta — the checker / evidence rung (where trust actually starts): PROTOTYPE
+   DONE + GROWN.** [`compiler/delta/check.beta`](compiler/delta/check.beta) is now a
+   **full intuitionistic propositional** proof checker (`-> & + ⊥`; Curry-Howard =
+   simply-typed-lambda type checker) **plus equality with the conversion rule** —
+   `(= t1 t2)` over Peano terms, with `refl` discharged by definitional computation,
+   so `2+2=4` is proved *by reduction* and equations compose with the connectives.
+   [`eq.beta`](compiler/delta/eq.beta) is a standalone definitional-equality checker
+   (fuel-bounded normalization). Both compiled by `bc`, run on the seed; 32/32 in
+   `compiler/delta/test.sh`. Demonstrates the architecture (tiny trusted checker,
+   unbounded untrusted producer) AND the logic↔computation seam. Caught a real
+   calling-convention bug (the prologue clobbered argument 3 — the checker's first
+   3-arg `alloc`). Still a *Beta* prototype (target: a Gamma program once stage 2
+   lands) and with **no soundness bridge** to actual program execution — the deep
+   open problem.
 
 ## How to build & verify (repo root; Git Bash on Windows, plain `sh` on macOS; `cargo` needed for `beta-lang-rs`)
 
