@@ -45,8 +45,10 @@ seed-stamp. Needs `cargo`.
 - **Slice 5 — ergonomics + the host boundary: DONE.** Char literals (`'a'`, with
   `\n \t \r \0 \\ \'` escapes) so text code reads in characters, not magic byte
   numbers; the `read_byte()` / `write_byte(x)` intrinsics (the only host boundary,
-  lowering straight to Alpha `read`/`write`); and call-as-statement (`f(x)` for
-  effect, result discarded — grammar-listed but previously unimplemented).
+  lowering straight to Alpha `read`/`write`); call-as-statement (`f(x)` for
+  effect, result discarded — grammar-listed but previously unimplemented); and
+  `emit("text")` (a string literal written byte-by-byte — no string type, just so
+  a Beta-written compiler can emit fixed output like asm mnemonics).
 - **Slice 6 — the self-check: DONE.** [`calc.beta`](examples/calc.beta) is a
   **recursive-descent calculator written in Beta**: it reads an arithmetic
   expression from stdin (decimal ints, `+ - * /`, parentheses, precedence,
