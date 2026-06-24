@@ -55,6 +55,14 @@ chk "reject 2+2=5"    "(= (p (s (s z)) (s (s z))) (s (s (s (s (s z))))))  (refl 
 chk "eq is first-class" "(-> (= (p (s z) (s z)) (s (s z))) (= (p (s z) (s z)) (s (s z)))) (lam (= (p (s z) (s z)) (s (s z))) (hyp 0))" accept
 chk "refl 2*3=6"     "(= (m (s (s z)) (s (s (s z)))) (s (s (s (s (s (s z)))))))  (refl (s (s (s (s (s (s z)))))))" accept
 chk "reject 2*3=5"   "(= (m (s (s z)) (s (s (s z)))) (s (s (s (s (s z))))))  (refl (s (s (s (s (s z))))))"        reject
+# first-order universal quantifier (All / Pred / individual var (v k) / gen / inst)
+chk "forall x.Px->Px" "(All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (gen (lam (Pred 0 (v 0)) (hyp 0)))"              accept
+chk "inst forall@0"   "(-> (All (Pred 0 (v 0))) (Pred 0 z)) (lam (All (Pred 0 (v 0))) (inst (hyp 0) z))"          accept
+chk "inst distributes" "(-> (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (-> (Pred 0 z) (Pred 1 z))) (lam (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (lam (Pred 0 z) (app (inst (hyp 1) z) (hyp 0))))" accept
+chk "pred arg conv"   "(-> (Pred 0 (p (s z) (s z))) (Pred 0 (s (s z)))) (lam (Pred 0 (p (s z) (s z))) (hyp 0))"   accept
+chk "P0 not forall"   "(-> (Pred 0 z) (All (Pred 0 (v 0)))) (lam (Pred 0 z) (gen (hyp 0)))"                       reject
+chk "capture blocked" "(All (-> (Pred 0 (v 0)) (All (Pred 0 (v 0))))) (gen (lam (Pred 0 (v 0)) (gen (hyp 0))))"   reject
+chk "inst gives P0"   "(-> (All (Pred 0 (v 0))) (Pred 1 z)) (lam (All (Pred 0 (v 0))) (inst (hyp 0) z))"          reject
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"

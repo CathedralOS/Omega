@@ -38,12 +38,16 @@
 ; Input (stdin): a goal proposition, then a certificate term, in prefix syntax.
 ;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
 ;                | ( + prop prop ) | ( bot ) | ( = nat nat )
-;   nat         := z | ( s nat ) | ( p nat nat )     ; Peano: zero, succ, plus
+;                | ( All prop ) | ( Pred id nat )    ; ∀ and a predicate of an individual
+;   nat         := z | ( s nat ) | ( p nat nat ) | ( m nat nat ) | ( v k )
+;                  ; Peano: zero, succ, plus, multiply, and (v k) = individual var
 ;   term        := ( hyp N ) | ( lam prop term ) | ( app term term )
 ;                | ( pair term term ) | ( fst term ) | ( snd term )
 ;                | ( inl prop term ) | ( inr prop term ) | ( case term term term )
 ;                | ( absurd prop term )           ; ex falso: prop from a ⊥-proof
 ;                | ( refl nat )                   ; proves (= t t) up to reduction
+;                | ( gen term )                   ; ∀-intro (fresh individual var)
+;                | ( inst term nat )              ; ∀-elim (instantiate at a closed nat)
 ; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
 ; Example — the identity proof of P -> P :   (-> P P)  (lam P (hyp 0))   -> accept
 ;
@@ -53,10 +57,11 @@
 ; (no real node lives at address 0).
 ;
 ; Tags:  type  0 ATOM(char) 1 ARROW(l,r) 2 AND(l,r) 3 FALSE 4 OR(l,r) 5 EQ(t1,t2)
+;             6 ALL(body)  7 PRED(id,term)
 ;        term 10 HYP(idx)   11 LAM(ty,body) 12 APP(f,a) 13 PAIR(a,b) 14 FST(p)
 ;             15 SND(p)     16 ABSURD(Cty,p) 17 INL(Bty,p) 18 INR(Aty,p)
-;             19 CASE(p, aux)  20 REFL(t)    ; aux = tag-99 holder of (f, g)
-;        nat  30 ZERO  31 SUC(x)  32 PLUS(a,b)
+;             19 CASE(p, aux)  20 REFL(t)  21 GEN(pf)  22 INST(pf,term)
+;        nat  30 ZERO  31 SUC(x)  32 PLUS(a,b)  33 MUL(a,b)  34 IVAR(k)
 
 proc slurp() {
     let n = 0
@@ -172,6 +177,13 @@ proc parse_nat() {
         adv()                    ; ')'
         return alloc(33, a, b)
     }
+    if op == 'v' {               ; (v k) individual variable (de Bruijn)
+        skip_ws()
+        a = parse_number()
+        skip_ws()
+        adv()                    ; ')'
+        return alloc(34, a, 0)
+    }
     a = parse_nat()              ; (p a b) plus
     b = parse_nat()
     skip_ws()
@@ -186,6 +198,9 @@ proc normalize(t, fuel) {
     }
     let tag = word[t]
     if tag == 30 {
+        return t
+    }
+    if tag == 34 {                              ; Ivar — a free individual var, normal
         return t
     }
     let a = 0
@@ -225,6 +240,12 @@ proc nat_eq(a, b) {
     if word[a] == 30 {
         return 1
     }
+    if word[a] == 34 {                ; Ivar: equal iff same de Bruijn index
+        if word[a + 8] == word[b + 8] {
+            return 1
+        }
+        return 0
+    }
     if word[a] == 31 {
         return nat_eq(word[a + 8], word[b + 8])
     }
@@ -234,13 +255,115 @@ proc nat_eq(a, b) {
     return nat_eq(word[a + 16], word[b + 16])
 }
 
+; does an individual term / proposition mention any Ivar?  (gen's freshness guard)
+proc ivar_in_term(t) {
+    if word[t] == 34 {
+        return 1
+    }
+    if word[t] == 30 {
+        return 0
+    }
+    if word[t] == 31 {
+        return ivar_in_term(word[t + 8])
+    }
+    if ivar_in_term(word[t + 8]) == 1 {
+        return 1
+    }
+    return ivar_in_term(word[t + 16])
+}
+
+proc ivar_in_prop(p) {
+    let tag = word[p]
+    if tag == 0 {                     ; Atom
+        return 0
+    }
+    if tag == 3 {                     ; Bot
+        return 0
+    }
+    if tag == 7 {                     ; Pred id term
+        return ivar_in_term(word[p + 16])
+    }
+    if tag == 5 {                     ; Eq t1 t2
+        if ivar_in_term(word[p + 8]) == 1 {
+            return 1
+        }
+        return ivar_in_term(word[p + 16])
+    }
+    if tag == 6 {                     ; All body
+        return ivar_in_prop(word[p + 8])
+    }
+    if ivar_in_prop(word[p + 8]) == 1 {   ; Arrow/And/Or
+        return 1
+    }
+    return ivar_in_prop(word[p + 16])
+}
+
+; substitute individual term `s` (assumed closed) for Ivar `depth`, in a term.
+proc subst_term(t, s, depth) {
+    if word[t] == 34 {
+        if word[t + 8] == depth {
+            return s
+        }
+        if word[t + 8] > depth {
+            return alloc(34, word[t + 8] - 1, 0)
+        }
+        return t
+    }
+    if word[t] == 30 {
+        return t
+    }
+    if word[t] == 31 {
+        return alloc(31, subst_term(word[t + 8], s, depth), 0)
+    }
+    return alloc(word[t], subst_term(word[t + 8], s, depth), subst_term(word[t + 16], s, depth))
+}
+
+proc subst_prop(p, s, depth) {
+    let tag = word[p]
+    if tag == 0 {                     ; Atom
+        return p
+    }
+    if tag == 3 {                     ; Bot
+        return p
+    }
+    if tag == 7 {                     ; Pred id term
+        return alloc(7, word[p + 8], subst_term(word[p + 16], s, depth))
+    }
+    if tag == 5 {                     ; Eq t1 t2
+        return alloc(5, subst_term(word[p + 8], s, depth), subst_term(word[p + 16], s, depth))
+    }
+    if tag == 6 {                     ; All body — bound var deeper
+        return alloc(6, subst_prop(word[p + 8], s, depth + 1), 0)
+    }
+    return alloc(tag, subst_prop(word[p + 8], s, depth), subst_prop(word[p + 16], s, depth))
+}
+
 ; definitional equality: normalize both, then compare (the conversion rule).
 proc conv_eq(a, b) {
     return nat_eq(normalize(a, 100000), normalize(b, 100000))
 }
 
-proc skip_ident() {              ; advance over an alphabetic keyword
+proc skip_ident() {              ; advance over a lowercase keyword
     while is_lower(cbyte()) == 1 {
+        adv()
+    }
+}
+
+proc is_kwchar(c) {              ; a letter, either case (for All / Pred keywords)
+    if is_lower(c) == 1 {
+        return 1
+    }
+    if c < 'A' {
+        return 0
+    }
+    if c > 'Z' {
+        return 0
+    }
+    return 1
+}
+
+proc skip_kw() {                 ; advance over a keyword of any case
+    while is_kwchar(cbyte()) == 1 {
         adv()
     }
 }
@@ -297,6 +420,20 @@ proc parse_type() {
             b = parse_nat()
             expect(')')
             return alloc(5, a, b)
+        }
+        if cbyte() == 'A' {      ; (All body) universal quantifier
+            skip_kw()
+            a = parse_type()
+            expect(')')
+            return alloc(6, a, 0)
+        }
+        if cbyte() == 'P' {      ; (Pred id term) a predicate applied to an individual
+            skip_kw()
+            skip_ws()
+            a = parse_number()
+            b = parse_nat()
+            expect(')')
+            return alloc(7, a, b)
         }
         adv()                    ; '&' conjunction
         a = parse_type()
@@ -355,14 +492,25 @@ proc parse_term() {
         expect(')')
         return alloc(14, x, 0)
     }
-    if kc == 'i' {               ; (inl Bty p) / (inr Aty p) — inject into a sum
-        x = parse_type()         ; the OTHER summand's type
-        y = parse_term()         ; the proof of this summand
+    if kc == 'i' {
+        if kc3 == 's' {              ; (inst pf term) — ∀-elim
+            x = parse_term()
+            y = parse_nat()
+            expect(')')
+            return alloc(22, x, y)
+        }
+        x = parse_type()             ; (inl/inr Bty p) — inject into a sum
+        y = parse_term()
         expect(')')
         if kc3 == 'l' {
             return alloc(17, x, y)   ; inl: (typeof y) ∨ x
         }
         return alloc(18, x, y)       ; inr: x ∨ (typeof y)
+    }
+    if kc == 'g' {                   ; (gen pf) — ∀-intro
+        x = parse_term()
+        expect(')')
+        return alloc(21, x, 0)
     }
     if kc == 'c' {               ; (case p f g): p:A∨B, f:A->C, g:B->C => C
         x = parse_term()         ; p
@@ -397,6 +545,15 @@ proc type_eq(a, b) {
     }
     if word[a] == 5 {            ; EQ(t1,t2): compare sides up to DEFINITIONAL equality
         if conv_eq(word[a + 8], word[b + 8]) == 0 {   ; the conversion rule
+            return 0
+        }
+        return conv_eq(word[a + 16], word[b + 16])
+    }
+    if word[a] == 6 {            ; All body
+        return type_eq(word[a + 8], word[b + 8])
+    }
+    if word[a] == 7 {            ; Pred id term — same predicate id, defn'lly-equal arg
+        if word[a + 8] != word[b + 8] {
             return 0
         }
         return conv_eq(word[a + 16], word[b + 16])
@@ -548,6 +705,37 @@ proc infer(term) {
     }
     if tag == 20 {               ; REFL t : proves (= t t)
         return alloc(5, word[term + 8], word[term + 8])
+    }
+    if tag == 21 {               ; GEN pf : ∀-intro  ->  All (typeof pf)
+        ; freshness (sound, conservative): no hypothesis in scope may mention an
+        ; individual variable — then the fresh ∀-bound var cannot be captured and
+        ; no de Bruijn shifting of the context is needed.
+        t1 = 0
+        t2 = word[2097120]                    ; CTXN
+        while t1 < t2 {
+            if ivar_in_prop(word[4194304 + t1 * 8]) == 1 {
+                return 0
+            }
+            t1 = t1 + 1
+        }
+        t1 = infer(word[term + 8])
+        if t1 == 0 {
+            return 0
+        }
+        return alloc(6, t1, 0)
+    }
+    if tag == 22 {               ; INST pf t : ∀-elim  ->  body[t / bound var]
+        if ivar_in_term(word[term + 16]) == 1 {   ; instantiate with a CLOSED term
+            return 0
+        }
+        t1 = infer(word[term + 8])
+        if t1 == 0 {
+            return 0
+        }
+        if word[t1] != 6 {                    ; pf must prove a universal
+            return 0
+        }
+        return subst_prop(word[t1 + 8], word[term + 16], 0)
     }
     return 0
 }
