@@ -368,41 +368,27 @@ proc free_ivp(p, depth) {
     return free_ivp(word[p + 16], depth)
 }
 
-; does a prop contain a quantifier (All/Exists)?  Used to keep open-witness
-; instantiation sound without de Bruijn shifting: substituting an OPEN witness is
-; capture-free only when the quantifier body has no binder to cross.
-proc has_quant(p) {
-    let tag = word[p]
-    if tag == 6 {
-        return 1
-    }
-    if tag == 8 {
-        return 1
-    }
-    if tag == 1 {                     ; Arrow
-        if has_quant(word[p + 8]) == 1 {
-            return 1
+; shift every FREE individual variable (index >= cutoff) in a term up by `d`. Used to
+; lift a witness as it is pushed under a quantifier during substitution, so its free
+; vars keep pointing at the same binders — this is what prevents variable capture.
+proc shift_term(t, d, cutoff) {
+    if word[t] == 34 {
+        if word[t + 8] >= cutoff {
+            return alloc(34, word[t + 8] + d, 0)
         }
-        return has_quant(word[p + 16])
+        return t
     }
-    if tag == 2 {                     ; And
-        if has_quant(word[p + 8]) == 1 {
-            return 1
-        }
-        return has_quant(word[p + 16])
+    if word[t] == 30 {
+        return t
     }
-    if tag == 4 {                     ; Or
-        if has_quant(word[p + 8]) == 1 {
-            return 1
-        }
-        return has_quant(word[p + 16])
+    if word[t] == 31 {
+        return alloc(31, shift_term(word[t + 8], d, cutoff), 0)
     }
-    return 0                          ; Atom / Bot / Eq / Pred
+    return alloc(word[t], shift_term(word[t + 8], d, cutoff), shift_term(word[t + 16], d, cutoff))
 }
 
-; substitute individual term `s` for Ivar `depth`, in a term.  (Sound for a closed
-; `s`, or for an open `s` when the surrounding prop has no binder to cross — the two
-; cases inst() admits; either way no shifting of `s` is required.)
+; substitute individual term `s` for Ivar `depth`, in a term.  Capture-avoiding: the
+; caller (subst_prop) lifts `s` by one each time it crosses a binder.
 proc subst_term(t, s, depth) {
     if word[t] == 34 {
         if word[t + 8] == depth {
@@ -441,11 +427,11 @@ proc subst_prop(p, s, depth) {
     if tag == 5 {                     ; Eq t1 t2
         return alloc(5, subst_term(word[p + 8], s, depth), subst_term(word[p + 16], s, depth))
     }
-    if tag == 6 {                     ; All body — bound var deeper
-        return alloc(6, subst_prop(word[p + 8], s, depth + 1), 0)
+    if tag == 6 {                     ; All body — cross a binder: lift the witness
+        return alloc(6, subst_prop(word[p + 8], shift_term(s, 1, 0), depth + 1), 0)
     }
-    if tag == 8 {                     ; Exists body — bound var deeper
-        return alloc(8, subst_prop(word[p + 8], s, depth + 1), 0)
+    if tag == 8 {                     ; Exists body — likewise
+        return alloc(8, subst_prop(word[p + 8], shift_term(s, 1, 0), depth + 1), 0)
     }
     return alloc(tag, subst_prop(word[p + 8], s, depth), subst_prop(word[p + 16], s, depth))
 }
@@ -884,15 +870,10 @@ proc infer(term) {
         if word[t1] != 6 {                    ; pf must prove a universal
             return 0
         }
-        ; an OPEN witness (one mentioning a free individual, e.g. the gen-bound var —
-        ; this is what makes ∀-distribution provable) is admitted only when the body
-        ; has no inner quantifier, so substitution crosses no binder and cannot
-        ; capture. A closed witness is always safe.
-        if ivar_in_term(word[term + 16]) == 1 {
-            if has_quant(word[t1 + 8]) == 1 {
-                return 0
-            }
-        }
+        ; substitution is capture-avoiding (subst_prop lifts the witness across each
+        ; binder), so ANY witness — closed, or open and instantiated under nested
+        ; quantifiers — is sound. This is what makes the full first-order
+        ; instantiation laws provable.
         return subst_prop(word[t1 + 8], word[term + 16], 0)
     }
     if tag == 23 {               ; WIT body t pf : ∃-intro  ->  Exists body

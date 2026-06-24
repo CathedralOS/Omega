@@ -55,5 +55,9 @@ dia "false converse" "(-> (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (-> (All (Pre
 # binary relations
 dia "rel tautology"  "(All (All (-> (Rel 0 (v 1) (v 0)) (Rel 0 (v 1) (v 0))))) (gen (gen (lam (Rel 0 (v 1) (v 0)) (hyp 0))))" "(check (Gen (Gen (Lam (Rel 0 (Iv 1) (Iv 0)) (Hyp 0)))) (All (All (Arrow (Rel 0 (Iv 1) (Iv 0)) (Rel 0 (Iv 1) (Iv 0))))))" accept
 dia "rel args ordered" "(-> (Rel 0 z (s z)) (Rel 0 (s z) z)) (lam (Rel 0 z (s z)) (hyp 0))" "(check (Lam (Rel 0 Ze (Su Ze)) (Hyp 0)) (Arrow (Rel 0 Ze (Su Ze)) (Rel 0 (Su Ze) Ze)))" reject
+# capture-avoiding substitution: instantiate under nested quantifiers, and the
+# discriminator (a capturing bug would accept the second) — both checkers must agree
+dia "inst nested ∀"  "(-> (All (All (Rel 0 (v 1) (v 0)))) (All (Rel 0 (v 0) (v 0)))) (lam (All (All (Rel 0 (v 1) (v 0)))) (gen (inst (inst (hyp 0) (v 0)) (v 0))))" "(check (Lam (All (All (Rel 0 (Iv 1) (Iv 0)))) (Gen (Inst (Inst (Hyp 0) (Iv 0)) (Iv 0)))) (Arrow (All (All (Rel 0 (Iv 1) (Iv 0)))) (All (Rel 0 (Iv 0) (Iv 0)))))" accept
+dia "no capture"     "(-> (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0))))) (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 0) (v 0)))))) (lam (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0))))) (gen (inst (hyp 0) (v 0))))" "(check (Lam (All (Arrow (Pred 0 (Iv 0)) (All (Rel 0 (Iv 1) (Iv 0))))) (Gen (Inst (Hyp 0) (Iv 0)))) (Arrow (All (Arrow (Pred 0 (Iv 0)) (All (Rel 0 (Iv 1) (Iv 0))))) (All (Arrow (Pred 0 (Iv 0)) (All (Rel 0 (Iv 0) (Iv 0)))))))" reject
 echo "checker diamond (check.beta vs checker.gamma): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1

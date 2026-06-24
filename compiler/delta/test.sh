@@ -80,6 +80,10 @@ chk "rel tautology"   "(All (All (-> (Rel 0 (v 1) (v 0)) (Rel 0 (v 1) (v 0))))) 
 chk "rel inst diag"   "(-> (All (Rel 0 (v 0) (v 0))) (Rel 0 z z)) (lam (All (Rel 0 (v 0) (v 0))) (inst (hyp 0) z))" accept
 chk "rel arg conv"    "(-> (Rel 0 (p (s z) (s z)) z) (Rel 0 (s (s z)) z)) (lam (Rel 0 (p (s z) (s z)) z) (hyp 0))" accept
 chk "rel args ordered" "(-> (Rel 0 z (s z)) (Rel 0 (s z) z)) (lam (Rel 0 z (s z)) (hyp 0))"                       reject
+# instantiation UNDER nested quantifiers — needs capture-avoiding substitution (shifting)
+chk "inst nested ∀"   "(-> (All (All (Rel 0 (v 1) (v 0)))) (All (Rel 0 (v 0) (v 0)))) (lam (All (All (Rel 0 (v 1) (v 0)))) (gen (inst (inst (hyp 0) (v 0)) (v 0))))" accept
+chk "shift correct"   "(-> (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0))))) (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0)))))) (lam (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0))))) (gen (inst (hyp 0) (v 0))))" accept
+chk "no capture"      "(-> (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0))))) (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 0) (v 0)))))) (lam (All (-> (Pred 0 (v 0)) (All (Rel 0 (v 1) (v 0))))) (gen (inst (hyp 0) (v 0))))" reject
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
