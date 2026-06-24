@@ -128,6 +128,7 @@ chk "append assoc"   "(All (All (All (= (app (app (v 0) (v 2)) (v 1)) (app (v 0)
 chk "len [_,_,_]=3"  "(= (len (cons z (cons z (cons z nil)))) (s (s (s z)))) (refl (s (s (s z))))"               accept
 chk "len(a++b)"     "(All (All (= (len (app (v 0) (v 1))) (p (len (v 0)) (len (v 1)))))) (gen (listind (= (len (app (v 0) (v 1))) (p (len (v 0)) (len (v 1)))) (refl (len (v 0))) (gen (gen (lam (= (len (app (v 0) (v 2))) (p (len (v 0)) (len (v 2)))) (eqelim (= (s (len (app (v 1) (v 3)))) (s (v 0))) (hyp 0) (refl (s (len (app (v 0) (v 2)))))))))))" accept
 chk "n+1 = s n"     "(All (= (p (v 0) (s z)) (s (v 0)))) (natind (= (p (v 0) (s z)) (s (v 0))) (refl (s z)) (gen (lam (= (p (v 0) (s z)) (s (v 0))) (eqelim (= (s (p (v 1) (s z))) (s (v 0))) (hyp 0) (refl (s (p (v 0) (s z))))))))" accept
+chk "n+sm=s(n+m)"   "(All (All (= (p (v 0) (s (v 1))) (s (p (v 0) (v 1)))))) (gen (natind (= (p (v 0) (s (v 1))) (s (p (v 0) (v 1)))) (refl (s (v 0))) (gen (lam (= (p (v 0) (s (v 1))) (s (p (v 0) (v 1)))) (eqelim (= (s (p (v 1) (s (v 2)))) (s (v 0))) (hyp 0) (refl (s (p (v 0) (s (v 1))))))))))" accept
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
