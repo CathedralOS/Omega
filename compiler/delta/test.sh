@@ -144,6 +144,11 @@ eqk "1+1 != 1"        "(p (s z) (s z))  (s z)"                            differ
 eqk "2*3 = 6"         "(m (s (s z)) (s (s (s z))))  (s (s (s (s (s (s z))))))" equal
 eqk "0*5 = 0"         "(m z (s (s (s (s (s z))))))  z"                    equal
 eqk "2*2 != 5"        "(m (s (s z)) (s (s z)))  (s (s (s (s (s z)))))"    differ
+eqk "[0]++[1]=[0,1]"  "(app (cons z nil) (cons (s z) nil))  (cons z (cons (s z) nil))" equal
+eqk "[]++[0]=[0]"     "(app nil (cons z nil))  (cons z nil)"              equal
+eqk "len [_,_]=2"     "(len (cons z (cons z nil)))  (s (s z))"            equal
+eqk "len(a++b)"       "(len (app (cons z nil) (cons z nil)))  (s (s z))"  equal
+eqk "[0] != []"       "(app (cons z nil) nil)  nil"                       differ
 
 echo "delta (check.beta + eq.beta): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
