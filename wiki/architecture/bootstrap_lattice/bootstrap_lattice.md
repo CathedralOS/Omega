@@ -1,12 +1,19 @@
 # The Bootstrap Lattice
 
-> **Status: DIRECTION (2026-06-22).** The *principles* here are decided. The
-> *rung breakdown* (alpha…omega) is a working decomposition, not a frozen
-> contract — per the project stance that rung names are version labels and the
-> count is emergent (it falls out of the machinery dependency DAG, it is not
-> chosen). Only `alpha`, `beta`, and `gamma` exist today; everything above is
-> design. This document exists so the construction is **designed on paper rather
-> than drifted into**.
+> **Status: DIRECTION + a working vertical slice.** The *principles* here are
+> decided. The *rung breakdown* (alpha…omega) is a working decomposition, not a
+> frozen contract — per the project stance that rung names are version labels and
+> the count is emergent (it falls out of the machinery dependency DAG, it is not
+> chosen). **As of now the lattice exists, in working form, from the seed up to a
+> first certificate checker** — `alpha` (seed) → `beta` (self-hosting assembler) →
+> a self-hosting **Beta compiler written in Beta** (Rust out of the lineage) →
+> `delta` (a checker: full intuitionistic propositional logic + equality with the
+> conversion rule) and `gamma` (an interpreter-first functional language with ADTs
+> + pattern matching, which runs the same checker cleanly). One command verifies it
+> all: `sh compiler/verify-lattice.sh`. Above delta (`epsilon`, `omega`) is still
+> design; the deep open problem — a *soundness bridge* from `provable` to
+> `true-about-execution` — is untouched. This document exists so the construction
+> is **designed on paper rather than drifted into**.
 >
 > **Live build status + onboarding for a fresh agent:**
 > [TASKS_BOOTSTRAP.md](../../../TASKS_BOOTSTRAP.md).
@@ -215,10 +222,10 @@ idea** and is implemented in the rung below.
 
 | Rung | Adds (one idea) | Implemented in | Meaning defined by | Status |
 | --- | --- | --- | --- | --- |
-| [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA) | the VM's own small-step semantics | **EXISTS** — 21-opcode tape VM; beta self-hosts on it |
-| [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) — *and* the assembler beneath it | alpha | the assembler in alpha-asm; the Beta-language compiler prototyped in Rust, then transcribed | **EXISTS** (assembler self-hosts) + **ACTIVE** (Beta language, `beta-lang-rs` slices 1–4) |
-| [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure/total functions, a simple type system | beta | a gamma reference interpreter written in beta | **PARTIAL** — today's gamma is a compiler-first imperative language (v13); the architecture wants interpreter-first |
-| [delta](rungs/delta.md) | **evidence**: a small logical calculus + a certificate checker | gamma | the delta checker (a gamma program) *is* the definition of a valid proof | DIRECTION |
+| [alpha](rungs/alpha.md) | raw computation: bytes, fixed-width arithmetic, bounded memory, load/store, branch, byte I/O, trap | native (hand-written per ISA) | the VM's own small-step semantics ([`SEMANTICS.md`](../../../compiler/alpha/SEMANTICS.md)) | **EXISTS** — 21-opcode tape VM, **two independent seeds** (x64, arm64) forming a diamond; written semantics + conformance suite; beta self-hosts on it |
+| [beta](rungs/beta.md) | names + structure: a small structured systems language (procedures, locals, control flow, memory) — *and* the assembler beneath it | alpha | the assembler in alpha-asm; the Beta-language compiler, **written in Beta** (`bc.beta`) | **EXISTS + SELF-HOSTS** — assembler self-hosts byte-identically; `bc` (the Beta compiler in Beta) self-hosts, so Rust is out of the lineage |
+| [gamma](rungs/gamma.md) | safe definitional computation: algebraic data, pattern matching, pure/total functions, a simple type system | beta | a gamma reference interpreter written in beta ([`interp.beta`](../../../compiler/gamma/interp.beta)) | **EXISTS** (interpreter-first) — fuel-bounded functional core + **ADTs + pattern matching**; runs the Delta checker ([`checker.gamma`](../../../compiler/gamma/checker.gamma)). (A simple static type system is the remaining piece; the old compiler-first v13 is parked.) |
+| [delta](rungs/delta.md) | **evidence**: a small logical calculus + a certificate checker | gamma | the delta checker (a gamma program) *is* the definition of a valid proof | **FIRST PROTOTYPE EXISTS** — a checker for full intuitionistic propositional logic + equality/conversion, in both Beta ([`check.beta`](../../../compiler/delta/check.beta)) and Gamma; **no soundness bridge yet** (the deep open problem) |
 | [epsilon](rungs/epsilon.md) | safe systems programming: mutable memory, ownership, regions, effects | delta / gamma | an epsilon reference interpreter | DIRECTION — note: unrelated legacy `compiler/epsilon/` is to be cleared |
 | [omega](rungs/omega.md) | the full language: contracts, refinement/dependent proofs, proof automation | epsilon | omega's written semantics + reference interpreter | DIRECTION — today realized by `omega-rs` (the Rust on-ramp) |
 
