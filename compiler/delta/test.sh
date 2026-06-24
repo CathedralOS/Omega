@@ -108,6 +108,9 @@ chk "n != s n"        "(All (-> (= (v 0) (s (v 0))) (bot))) (natind (-> (= (v 0)
 # ∃-intro now admits an OPEN witness (capture-avoiding), enabling the cover theorem
 chk "exists open wit" "(All (-> (Rel 0 z (v 0)) (Exists (Rel 0 z (v 0))))) (gen (lam (Rel 0 z (v 0)) (wit (Rel 0 z (v 0)) (v 0) (hyp 0))))" accept
 chk "0 or successor"  "(All (+ (= (v 0) z) (Exists (= (v 1) (s (v 0)))))) (natind (+ (= (v 0) z) (Exists (= (v 1) (s (v 0))))) (inl (Exists (= z (s (v 0)))) (refl z)) (gen (lam (+ (= (v 0) z) (Exists (= (v 1) (s (v 0))))) (inr (= (s (v 0)) z) (wit (= (s (v 1)) (s (v 0))) (v 0) (refl (s (v 0))))))))" accept
+# equality is an equivalence relation: symmetry and transitivity via eqelim
+chk "eq symmetric"    "(All (All (-> (= (v 1) (v 0)) (= (v 0) (v 1))))) (gen (gen (lam (= (v 1) (v 0)) (eqelim (= (v 0) (v 2)) (hyp 0) (refl (v 1))))))" accept
+chk "eq transitive"   "(All (All (All (-> (= (v 2) (v 1)) (-> (= (v 1) (v 0)) (= (v 2) (v 0))))))) (gen (gen (gen (lam (= (v 2) (v 1)) (lam (= (v 1) (v 0)) (eqelim (= (v 3) (v 0)) (hyp 0) (hyp 1)))))))" accept
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
