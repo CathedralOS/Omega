@@ -19,7 +19,7 @@ pub(super) fn check_call_requires(
     call_flow: &FlowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let entry_contexts: Vec<_> = facts
+    let mut entry_contexts: Vec<_> = facts
         .flow
         .state_call_entry_semantic_contexts(
             state_flow,
@@ -29,6 +29,20 @@ pub(super) fn check_call_requires(
             call_flow.receiver_symbol,
         )
         .collect();
+    // #66: immutable state-parameter domain facts (origin StateParameterDomain,
+    // surfaced at ProgramPoint::State by append_state_parameter_domain_facts) are
+    // always-holding STATE invariants -- the param's caller-enforced `requires`
+    // plus immutability means no invalidation is possible. The per-statement flow
+    // threading drops them on some branch-leaf and dispatch-specialized paths
+    // (a forwarded `consume(text)` saw 0 entry contexts), so consult the State
+    // context directly. Sound precisely because these facts cannot be invalidated;
+    // mutable params are excluded by the producer and stay on the flow path.
+    entry_contexts.extend(facts.semantic.context_handles_at_point(
+        omega_facts::ProgramPoint::State {
+            machine_symbol: state_flow.machine_symbol,
+            state_symbol: state_flow.state_symbol,
+        },
+    ));
     for requires_context in facts
         .flow
         .semantic_constraint_contexts(call_flow.requires_constraints)

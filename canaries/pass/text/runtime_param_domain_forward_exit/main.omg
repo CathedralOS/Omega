@@ -1,0 +1,36 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+// #66 param entry-assumption: a state parameter declared with an encoding
+// domain (`text: &[u8] in Utf8`) carries that domain through the state body,
+// because its implicit `requires param in Domain` makes every caller prove
+// membership. FORWARDING the param to another domained param must discharge
+// with no re-proof. `relay` gets the domain from the literal grant; `consume`
+// gets it from `relay`'s param assumption -- the case this canary pins. The
+// dispatch is on `go` (a plain bool), so `text` is never value-narrowed.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    transition true {
+        true -> relay("yes", true)
+        false -> relay("no", false)
+    }
+
+    state relay(&mut self, text: &[u8] in Utf8, go: bool) {
+        transition go {
+            true -> consume(text)
+            false -> consume(text)
+        }
+    }
+
+    state consume(&mut self, text: &[u8] in Utf8) {
+        self.console.exit_process(70);
+    }
+}
