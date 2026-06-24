@@ -34,13 +34,16 @@ sh test.sh        # builds bc, compiles arithmetic programs with it, checks resu
 
 - **Slice 1 — arithmetic: DONE.** `proc main() { return <expr> }` with `+ - * / %`,
   parentheses, precedence, over integer literals. Recursive-descent codegen
-  emitting the same stack-machine asm shape as the on-ramp. 8/8 in `test.sh`
-  (`6*7`→42, `2+3*4`→14, `(2+3)*4`→20, `2*(3+4)*5`→70, `100/7`→14, `17%5`→2).
+  emitting the same stack-machine asm shape as the on-ramp.
+- **Slice 2a — named locals: DONE.** A real tokenizer (identifiers, keywords,
+  `;` comments) and a per-proc symbol table, so `let` locals, assignment, and
+  variable references work (`let a = 6 let b = 7 return a * b` → 42). Single pass
+  with one pre-scan (`count_lets`) to size the frame before the prologue, since
+  single-pass codegen can't know the local count up front. 13/13 in `test.sh`.
 
-Next slices follow the on-ramp's path: procedures + calls, `if`/`while` + locals,
-`byte[]`/`word[]` memory, then a real tokenizer with a name/symbol table (so it
-can parse arbitrary identifiers, not just the fixed slice-1 prologue) — at which
-point it can compile its own source.
+Next slices follow the on-ramp's path: `if`/`else` + `while` + comparisons,
+`byte[]`/`word[]` memory, char/string literals, then procedures + parameters +
+calls — at which point bc can compile its own source (self-hosting).
 
 ## Known constraint — the 32 KB hole (real, now measured)
 
