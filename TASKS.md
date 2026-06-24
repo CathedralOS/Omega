@@ -40,7 +40,10 @@ canary suite 303, differential oracle fully matched (11), `cargo test
 > - **encoding domains #66** — Phase C (carrier+name resolution, `&[u8] in Utf8`
 >   operator set) and **Phase B1a** (string literal → `[u8]` coercion) **landed**;
 >   remaining is **Phase B2–B4** (the ~185-file corpus migration + retiring
->   builtin `string`/`String` + ~16 sites — the big-bang, best in a worktree).
+>   builtin `string`/`String` + 15 sites — the big-bang, best in a worktree).
+>   Verified, mechanical **execution recipe** (keystone + the 15 sites + order +
+>   allocator-cleared rationale):
+>   [wiki/architecture/string_retirement_execution.md](wiki/architecture/string_retirement_execution.md).
 > - **ch15 / decision-18 fact catalog** (#60–#64: facts on sum-case payloads,
 >   plain struct fields, construction values, field-assignment enforcement,
 >   modular return-range inference) **landed**; remaining is the `abort` effect
