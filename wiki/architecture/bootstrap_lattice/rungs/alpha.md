@@ -45,10 +45,26 @@ meaningful, or correct — only that it computes deterministically.
 
 `compiler/alpha/` is a 21-opcode register tape VM (`halt, imm, mov, add, sub,
 mul, div, mod, loadb, storeb, load, store, jmp, jz, jnz, jlt, jeq, read, write,
-call, ret`; unknown opcode → `ud2` trap). Shipped as a per-platform binary
-(`alpha_x64_windows.exe`, ~37 KB) plus an annotated `.hex` listing. A program is
-a "tape" memcpy'd into a fixed `.tape` hole; the same tape runs on every
-platform's seed. [Beta](beta.md) self-hosts on it (byte-identical fixed point).
+call, ret`; unknown opcode → trap). Shipped as **two independent per-platform
+seeds**, each hand-authored against the same semantics:
+
+- `alpha_x64_windows.exe` (~37 KB) + annotated `.hex` listing — x86-64 Windows PE.
+- `alpha_arm64_macos` (arm64 macOS Mach-O) + `alpha_arm64_macos.s` (the
+  hand-authored source) + `alpha_arm64_macos.lst` (a committed disassembly).
+
+A program is a "tape" stamped into a fixed `.tape`/`__tape` hole; the **same tape
+runs on every platform's seed**. [Beta](beta.md) self-hosts on both (byte-identical
+program-byte fixed point; on macOS the OS-imposed code signature is excluded from
+the comparison — see below). `seed_env.sh` selects the seed and stamps tapes
+per-platform, so one set of build scripts serves every host.
+
+**The two seeds form the first real diamond.** They are independent realizations
+(different ISA, OS, format, author), not transcriptions, so the *same source*
+through both must yield *byte-identical tapes* — verified: the arm64 macOS VM
+reproduces the x64 VM's assembler bytecode from `assembler.alpha` byte-for-byte
+(sha256 `945c8061…`), the assembler self-hosts on macOS, and the example corpus
+(`.alpha` and `.beta`) runs to identical answers on both. This is the
+"diversity is the security" property established at the seed, not bolted on.
 
 Gaps versus this target, all small and self-contained:
 
@@ -73,4 +89,8 @@ noting its trust-architecture framing is superseded by the
   (`Read/Write/Exit/Trap/OutOfMemory`).
 - The diversity plan: how many independent alpha implementations, on which ISAs,
   authored how — this is what turns lattice diamonds into real Thompson
-  resistance.
+  resistance. **First step taken:** two now exist (x86-64 Windows PE, arm64 macOS
+  Mach-O), independently hand-authored, producing byte-identical tapes. Open:
+  more ISAs (RISC-V, aarch64 Linux), and ideally an implementation authored by a
+  *different party / toolchain* so the diamond resists a shared-author bug, not
+  just a shared-machine one.
