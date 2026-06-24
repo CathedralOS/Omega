@@ -1,6 +1,37 @@
 # `String` retirement — execution recipe (#66 Phase B2–B4)
 
-> **Status: NOT mechanical — bigger than first scoped (corrected 2026-06-22).**
+> **REAL BLOCKER (empirically pinned 2026-06-23): the `Utf8` domain `requires`
+> contract, NOT codegen.** A full instrumented dig proved the structural canaries
+> (`runtime_struct_literal_string_field_exit`, `…array_literal…`,
+> `…slice_indexed…`, `…call_argument_struct…`) do **not** fail in instruction
+> selection — they fail to **compile**, in the prover:
+>
+> ```
+> cannot prove requires contract for call check_text: cmd.unknown in [u8]::Utf8
+> cannot prove requires contract for call bad: text in [u8]::Utf8
+> ```
+>
+> `domain [u8]::Utf8 when valid_utf8(self) {}` puts a `requires valid_utf8(self)`
+> obligation on every `&[u8] in Utf8` value crossing a call boundary. The split is
+> now principled:
+> - **A string literal directly establishes the `Utf8` fact** — so the 34 migrated
+>   canaries (`console.write_line("hi")`, literal→param) prove fine.
+> - **The fact is NOT forwarded** through a **destructured case payload**
+>   (`Command::Say { text } -> check_text(text)`), a **struct-field read**, or a
+>   **slice index** — so `text in Utf8` / `cmd.unknown in Utf8` is unprovable.
+>
+> The remaining work is **generic domain-fact forwarding** through
+> destructuring / field-read / index (a #60-class prover feature — facts-on-payloads
+> extended from range-facts to *domain* facts), and it MUST stay carrier/domain-generic
+> (no `Utf8`/text awareness in the compiler). Codegen (`descriptor_layout`,
+> `select_runtime_string_descriptor_write`, frame-slot writers) is NOT on the
+> critical path — the descriptor write is never reached. Instrumentation confirmed:
+> `select_runtime_resolved_target_value_source_mutation_writes`,
+> `select_runtime_string_descriptor_write`, and all three local-init writers
+> (straight-line / prelude / mutation) are never even called for the failing canary.
+> The clean-green baseline is `26f89ff3` (34 canaries migrated).
+
+> **Earlier status (still true for the owned-`String` surface): NOT mechanical — bigger than first scoped (corrected 2026-06-22).**
 > Examining the real corpus overturned an earlier optimistic read: **owned `String`
 > is pervasively NATIVE**, not a gated afterthought. ~120 passing canaries — the
 > **entire dungeon** and every runtime text canary (`runtime_string_concat_exit`,
