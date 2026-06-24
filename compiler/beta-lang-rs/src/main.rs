@@ -680,14 +680,16 @@ impl<'a> Gen<'a> {
 
     fn proc(&mut self, p: &Proc) {
         self.at(&p.name);
-        // prologue: push caller fp, fp = sp, allocate frame, store params
-        self.line("imm   r2, 8");
-        self.line("sub   r15, r2");
+        // prologue: push caller fp, fp = sp, allocate frame, store params.
+        // Scratch is r5, NOT r2 — args arrive live in r0..r3, and r2 (arg 3) must
+        // survive until it is stored to its frame slot below.
+        self.line("imm   r5, 8");
+        self.line("sub   r15, r5");
         self.line("store r15, r14");
         self.line("mov   r14, r15");
         if p.nslots > 0 {
-            self.line(&format!("imm   r2, {}", p.nslots * 8));
-            self.line("sub   r15, r2");
+            self.line(&format!("imm   r5, {}", p.nslots * 8));
+            self.line("sub   r15, r5");
         }
         for k in 0..p.nparams {
             self.slot_addr(5, 4, k); // r5 = &param k (scratch r4; never an arg register)
