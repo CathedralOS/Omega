@@ -130,6 +130,9 @@ chk "len(a++b)"     "(All (All (= (len (app (v 0) (v 1))) (p (len (v 0)) (len (v
 chk "n+1 = s n"     "(All (= (p (v 0) (s z)) (s (v 0)))) (natind (= (p (v 0) (s z)) (s (v 0))) (refl (s z)) (gen (lam (= (p (v 0) (s z)) (s (v 0))) (eqelim (= (s (p (v 1) (s z))) (s (v 0))) (hyp 0) (refl (s (p (v 0) (s z))))))))" accept
 chk "n+sm=s(n+m)"   "(All (All (= (p (v 0) (s (v 1))) (s (p (v 0) (v 1)))))) (gen (natind (= (p (v 0) (s (v 1))) (s (p (v 0) (v 1)))) (refl (s (v 0))) (gen (lam (= (p (v 0) (s (v 1))) (s (p (v 0) (v 1)))) (eqelim (= (s (p (v 1) (s (v 2)))) (s (v 0))) (hyp 0) (refl (s (p (v 0) (s (v 1))))))))))" accept
 chk "+ associative"  "(All (All (All (= (p (p (v 0) (v 2)) (v 1)) (p (v 0) (p (v 2) (v 1))))))) (gen (gen (natind (= (p (p (v 0) (v 2)) (v 1)) (p (v 0) (p (v 2) (v 1)))) (refl (p (v 1) (v 0))) (gen (lam (= (p (p (v 0) (v 2)) (v 1)) (p (v 0) (p (v 2) (v 1)))) (eqelim (= (s (p (p (v 1) (v 3)) (v 2))) (s (v 0))) (hyp 0) (refl (s (p (p (v 0) (v 2)) (v 1))))))))))" accept
+# multiplication identities: n*1 = n (induction) and 1*n = n (cites n+0=n via the lemma layer)
+chk "n*1 = n"       "(All (= (m (v 0) (s z)) (v 0))) (natind (= (m (v 0) (s z)) (v 0)) (refl z) (gen (lam (= (m (v 0) (s z)) (v 0)) (eqelim (= (s (m (v 1) (s z))) (s (v 0))) (hyp 0) (refl (s (m (v 0) (s z))))))))" accept
+chk "1*n = n"       "(def 0 (All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0)) (refl z) (gen (lam (= (p (v 0) z) (v 0)) (eqelim (= (s (p (v 1) z)) (s (v 0))) (hyp 0) (refl (s (p (v 0) z)))))))) (All (= (m (s z) (v 0)) (v 0))) (gen (inst (use 0) (v 0)))" accept
 # named lemmas: (def N type proof) verified up front, then (use N) cites it
 chk "lemma define/cite" "(def 0 (-> P P) (lam P (hyp 0))) (-> P P) (use 0)"                                       accept
 chk "lemma must check" "(def 0 (-> P Q) (lam P (hyp 0))) (-> P Q) (use 0)"                                        reject
