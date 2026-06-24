@@ -41,10 +41,12 @@ checker *is* a dependently-flavoured lambda-calculus type checker:
 | proposition `∃x. P` | dependent pair | `∃`-intro = `wit` (witness + proof), `∃`-elim = `unpack` |
 | a proof of `A` | a term of type `A` | hypothesis = variable (`hyp`, de Bruijn) |
 
-Individuals are Peano terms (`z`, `s`, `+`, `*`) plus de Bruijn individual variables
-`(v k)`; `gen` introduces a fresh one and is guarded so a variable free in an open
-hypothesis cannot be captured, while `inst` substitutes capture-avoidingly (de
-Bruijn shifting), so the full instantiation laws — e.g. `∀x.∀y.R(x,y) -> ∀z.R(z,z)`
+Individuals range over **two inductive types** — Peano naturals (`z`, `s`, `+`, `*`)
+and Lists (`nil`, `cons`, `++`) — plus de Bruijn individual variables `(v k)`; both
+have an induction rule (`natind`, `listind`), and list `append` computes under the
+conversion rule. `gen` introduces a fresh variable and is guarded so a variable free
+in an open hypothesis cannot be captured, while `inst` substitutes capture-avoidingly
+(de Bruijn shifting), so the full instantiation laws — e.g. `∀x.∀y.R(x,y) -> ∀z.R(z,z)`
 — hold. Predicate arguments are compared up to the conversion rule, so `P(1+1)` and
 `P(2)` are the same proposition.
 
@@ -63,14 +65,17 @@ Input (stdin): a goal proposition, then a certificate term, prefix syntax.
 proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop ) | ( + prop prop ) | ( bot )
              | ( = nat nat ) | ( All prop ) | ( Exists prop )
              | ( Pred id nat ) | ( Rel id nat nat )
-nat         := z | ( s nat ) | ( p nat nat ) | ( m nat nat ) | ( v k )   ; (v k) = indiv var
+term        := z | ( s term ) | ( p term term ) | ( m term term ) | ( v k )  ; Peano + indiv var
+             | nil | ( cons term term ) | ( app term term )                  ; Lists (append computes)
 term        := ( hyp N ) | ( lam prop term ) | ( app term term )
              | ( pair term term ) | ( fst term ) | ( snd term )
              | ( inl prop term ) | ( inr prop term ) | ( case term term term )
              | ( absurd prop term ) | ( refl nat )
              | ( gen term ) | ( inst term nat ) | ( wit prop nat term ) | ( unpack term term )
              | ( natind prop term term )    ; Peano induction: base P(0), step ∀n.P(n)->P(s n)
+             | ( listind prop term term )   ; list induction: base P(nil), step ∀h t.P(t)->P(cons h t)
              | ( eqelim prop term term )    ; Leibniz: motive P, pf of a=b, pf of P(a) -> P(b)
+             | ( disj term ) | ( sinj term )  ; no-confusion: 0≠s n / s injective
 ```
 
 Output: `accept` (exit 1) iff the term proves the goal, else `reject` (exit 0).
@@ -135,11 +140,12 @@ the difference is the point:
 
 The logic is now **first-order intuitionistic predicate logic with induction**: all
 propositional connectives, equality with the conversion rule, `∀`/`∃` with
-capture-avoiding instantiation over unary and binary predicates, **Peano induction**
-(`natind`), and **Leibniz equality elimination** (`eqelim`, the identity-type `J` /
-transport). Together those prove genuine arithmetic — e.g. `∀n. n+0 = n`, which the
-conversion rule cannot reach on its own (`n+0` is stuck), is proved by induction with
-`eqelim` rewriting along the hypothesis. Every soundness-critical rule is
+capture-avoiding instantiation over unary and binary predicates, induction over
+**two inductive types** (`natind`, `listind`), and **Leibniz equality elimination**
+(`eqelim`, the identity-type `J` / transport). Together those prove genuine theorems
+— e.g. `∀n. n+0 = n` and `∀l. l++nil = l`, neither reachable by the conversion rule
+alone (`n+0` and `l++nil` are stuck), are proved by induction with `eqelim` rewriting
+along the hypothesis. Every soundness-critical rule is
 *adversarially* tested: `gen`'s freshness guard and `inst`'s de Bruijn shifting
 against a capture discriminator, and `natind` against an identity-shaped step that a
 broken rule would use to derive `∀n.P(n)` from `P(0)` alone. `soundness.sh` confirms
