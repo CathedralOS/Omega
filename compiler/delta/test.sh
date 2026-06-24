@@ -90,6 +90,11 @@ chk "induction param" "(All (-> (Rel 0 (v 0) z) (-> (All (-> (Rel 0 (v 1) (v 0))
 chk "induction n=n"   "(All (= (v 0) (v 0))) (natind (= (v 0) (v 0)) (refl z) (gen (lam (= (v 0) (v 0)) (refl (s (v 0))))))" accept
 chk "identity step"   "(-> (Pred 0 z) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (All (Pred 0 (v 0))))) (lam (Pred 0 z) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (natind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
 chk "wrong base"      "(-> (Pred 0 (s z)) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (s (v 0))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (s z)) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (s (v 0))))) (natind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
+# Leibniz equality-elimination (eqelim) + a real theorem proved by induction
+chk "transport"      "(-> (Pred 0 (p (s z) (s z))) (Pred 0 (s (s z)))) (lam (Pred 0 (p (s z) (s z))) (eqelim (Pred 0 (v 0)) (refl (s (s z))) (hyp 0)))" accept
+chk "n+0=n induction" "(All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0)) (refl z) (gen (lam (= (p (v 0) z) (v 0)) (eqelim (= (s (p (v 1) z)) (s (v 0))) (hyp 0) (refl (s (p (v 0) z)))))))" accept
+chk "n+0=n not refl"  "(All (= (p (v 0) z) (v 0))) (gen (refl (v 0)))"                                            reject
+chk "eqelim mismatch" "(-> (Pred 0 (s z)) (Pred 0 (s (s z)))) (lam (Pred 0 (s z)) (eqelim (Pred 0 (v 0)) (refl (s (s z))) (hyp 0)))" reject
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
