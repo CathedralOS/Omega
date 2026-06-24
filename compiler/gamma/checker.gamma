@@ -27,8 +27,10 @@
     ((Cons h t) (if (eq n 0) h (nth t (- n 1))))))
 
 ; Peano normalization (the conversion rule's engine): Pl reduced away.
-(def padd (a b) (match a (Ze b) ((Su x) (Su (padd x b)))))
-(def pmul (a b) (match a (Ze Ze) ((Su x) (padd b (pmul x b)))))
+; padd/pmul keep a STUCK left operand (an Iv, i.e. an open term) as Pl/Mu, exactly as
+; check.beta's normalize does — so open Peano terms like n+0 have a normal form.
+(def padd (a b) (match a (Ze b) ((Su x) (Su (padd x b))) (z (Pl a b))))
+(def pmul (a b) (match a (Ze Ze) ((Su x) (padd b (pmul x b))) (z (Mu a b))))
 (def pnorm (t)                     ; (Iv k) is a free individual var — a normal form
   (match t
     (Ze Ze)
@@ -36,11 +38,13 @@
     ((Iv k) (Iv k))
     ((Pl a b) (padd (pnorm a) (pnorm b)))
     ((Mu a b) (pmul (pnorm a) (pnorm b)))))
-(def nateq (a b)
+(def nateq (a b)                   ; structural — incl. stuck Pl/Mu (open normal forms)
   (match a
     (Ze (match b (Ze 1) (z 0)))
     ((Iv k) (match b ((Iv j) (eq k j)) (z 0)))
-    ((Su x) (match b ((Su y) (nateq x y)) (z 0)))))
+    ((Su x) (match b ((Su y) (nateq x y)) (z 0)))
+    ((Pl p q) (match b ((Pl r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
+    ((Mu p q) (match b ((Mu r s) (if (nateq p r) (nateq q s) 0)) (z 0)))))
 (def conveq (a b) (nateq (pnorm a) (pnorm b)))   ; definitional equality
 
 ; ---- first-order machinery: does a term/prop mention an individual var? ----
@@ -202,6 +206,10 @@
                   (All motive)                              ; ∀n. P(n)
                   Bad)
                 Bad))))))
+    ((Eqelim motive pfeq pfpa)                              ; Leibniz: P(a), a=b |- P(b)
+      (match (infer pfeq ctx)
+        ((Eq a b) (if (teq (infer pfpa ctx) (subp motive a 0)) (subp motive b 0) Bad))
+        (z Bad)))
     ((Unpack epf h) (match (infer epf ctx)                   ; ∃-elim
                       ((Exists b)
                         (match (infer h ctx)

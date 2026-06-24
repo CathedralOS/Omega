@@ -52,6 +52,7 @@
 ;                | ( wit prop nat term )          ; ∃-intro (witness + proof of body[t])
 ;                | ( unpack term term )           ; ∃-elim (handler is a ∀(body -> C))
 ;                | ( natind prop term term )      ; Peano induction: base P(0), step ∀n.P(n)->P(s n)
+;                | ( eqelim prop term term )      ; Leibniz: motive P, pf of a=b, pf of P(a) -> P(b)
 ; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
 ; Example — the identity proof of P -> P :   (-> P P)  (lam P (hyp 0))   -> accept
 ;
@@ -66,7 +67,7 @@
 ;             15 SND(p)     16 ABSURD(Cty,p) 17 INL(Bty,p) 18 INR(Aty,p)
 ;             19 CASE(p, aux)  20 REFL(t)  21 GEN(pf)  22 INST(pf,term)
 ;             23 WIT(body, (99 t pf))  24 UNPACK(epf, handler)
-;             25 NATIND(motive, (99 base step))
+;             25 NATIND(motive, (99 base step))  26 EQELIM(motive, (99 pf_eq pf_pa))
 ;        nat  30 ZERO  31 SUC(x)  32 PLUS(a,b)  33 MUL(a,b)  34 IVAR(k)
 
 proc slurp() {
@@ -695,6 +696,13 @@ proc parse_term() {
         expect(')')
         return alloc(25, x, alloc(99, y, z))
     }
+    if kc == 'e' {                   ; (eqelim motive pf_eq pf_pa) — Leibniz / transport
+        x = parse_type()             ; motive P(x), substituted var = Ivar 0
+        y = parse_term()             ; pf_eq : a = b
+        z = parse_term()             ; pf_pa : P(a)
+        expect(')')
+        return alloc(26, x, alloc(99, y, z))
+    }
     if kc == 'c' {               ; (case p f g): p:A∨B, f:A->C, g:B->C => C
         x = parse_term()         ; p
         y = parse_term()         ; f
@@ -999,6 +1007,27 @@ proc infer(term) {
             return 0
         }
         return alloc(6, word[term + 8], 0)               ; forall n. P(n)
+    }
+    if tag == 26 {               ; EQELIM motive pf_eq pf_pa : Leibniz  P(a), a=b |- P(b)
+        ; node = (26, motive, (99, pf_eq, pf_pa)).  pf_eq proves (= a b); given a proof
+        ; of P(a) (the motive at a), transport it to P(b). This lets a PROVED equality
+        ; — e.g. an induction hypothesis n+0=n, which is not definitional — be used to
+        ; rewrite, which the conversion rule alone cannot do.
+        t1 = infer(word[word[term + 16] + 8])            ; pf_eq : a = b
+        if t1 == 0 {
+            return 0
+        }
+        if word[t1] != 5 {                               ; must be an equality
+            return 0
+        }
+        t2 = infer(word[word[term + 16] + 16])           ; pf_pa : P(a)
+        if t2 == 0 {
+            return 0
+        }
+        if type_eq(t2, subst_prop(word[term + 8], word[t1 + 8], 0)) == 0 {
+            return 0
+        }
+        return subst_prop(word[term + 8], word[t1 + 16], 0)   ; P(b)
     }
     return 0
 }

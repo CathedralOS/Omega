@@ -14,7 +14,7 @@
 (data Term (Hyp Int) (Lam Type Term) (App Term Term) (Pair Term Term) (Fst Term) (Snd Term)
            (Inl Type Term) (Inr Type Term) (Case Term Term Term) (Absurd Type Term) (Refl Nat)
            (Gen Term) (Inst Term Nat) (Wit Type Nat Term) (Unpack Term Term)
-           (Natind Type Term Term))
+           (Natind Type Term Term) (Eqelim Type Term Term))
 (data Ctx (Nil) (Cons Type Ctx))
 
 (def nth ((ctx Ctx) (n Int)) Type
@@ -22,14 +22,16 @@
     (Nil Bad)
     ((Cons h t) (if (eq n 0) h (nth t (- n 1))))))
 
-(def padd ((a Nat) (b Nat)) Nat (match a (Ze b) ((Su x) (Su (padd x b)))))
-(def pmul ((a Nat) (b Nat)) Nat (match a (Ze Ze) ((Su x) (padd b (pmul x b)))))
+(def padd ((a Nat) (b Nat)) Nat (match a (Ze b) ((Su x) (Su (padd x b))) (z (Pl a b))))
+(def pmul ((a Nat) (b Nat)) Nat (match a (Ze Ze) ((Su x) (padd b (pmul x b))) (z (Mu a b))))
 (def pnorm ((t Nat)) Nat
   (match t (Ze Ze) ((Su x) (Su (pnorm x))) ((Iv k) (Iv k))
            ((Pl a b) (padd (pnorm a) (pnorm b))) ((Mu a b) (pmul (pnorm a) (pnorm b)))))
 (def nateq ((a Nat) (b Nat)) Int
   (match a (Ze (match b (Ze 1) (z 0))) ((Iv k) (match b ((Iv j) (eq k j)) (z 0)))
-           ((Su x) (match b ((Su y) (nateq x y)) (z 0)))))
+           ((Su x) (match b ((Su y) (nateq x y)) (z 0)))
+           ((Pl p q) (match b ((Pl r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
+           ((Mu p q) (match b ((Mu r s) (if (nateq p r) (nateq q s) 0)) (z 0)))))
 (def conveq ((a Nat) (b Nat)) Int (nateq (pnorm a) (pnorm b)))
 
 (def ivt ((t Nat)) Int
@@ -126,6 +128,10 @@
               (if (teq tb (subp motive Ze 0))
                 (if (teq ts (All (Arrow motive (subpk motive (Su (Iv 0)) 0)))) (All motive) Bad)
                 Bad))))))
+    ((Eqelim motive pfeq pfpa)
+      (match (infer pfeq ctx)
+        ((Eq a b) (if (teq (infer pfpa ctx) (subp motive a 0)) (subp motive b 0) Bad))
+        (z Bad)))
     ((Unpack epf h) (match (infer epf ctx)
                       ((Exists b)
                         (match (infer h ctx)
