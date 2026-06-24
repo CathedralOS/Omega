@@ -12,12 +12,14 @@ case "$(uname -s)-$(uname -m)" in
     ALPHA_SEED=alpha_arm64_macos
     BETA_SEED=beta_arm64_macos
     HOLE_OFF=32768
+    HOLE_SIZE=262144     # 256 KB tape hole (.space 0x40000)
     SEED_SIGN=1
     ;;
   *)
     ALPHA_SEED=alpha_x64_windows.exe
     BETA_SEED=beta_x64_windows.exe
     HOLE_OFF=5120
+    HOLE_SIZE=32768      # 32 KB hole; grow to match arm64 when the forge is run
     SEED_SIGN=0
     ;;
 esac

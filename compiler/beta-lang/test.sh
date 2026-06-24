@@ -12,7 +12,7 @@ ASM=../beta/$BETA_SEED
 # build bc.exe = the bc.beta compiler, lowered through the on-ramp
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "bc build failed"; exit 1; }
 BC=../beta-lang-rs/build/bc.exe
-echo "bc tape: $(wc -c < ../beta-lang-rs/build/bc.tape | tr -d ' ') B (hole 32768)"
+echo "bc tape: $(wc -c < ../beta-lang-rs/build/bc.tape | tr -d ' ') B (hole $HOLE_SIZE)"
 
 PASS=0; FAIL=0
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

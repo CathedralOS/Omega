@@ -307,4 +307,4 @@ h_halt:
 .global _tape
 _tape:
 .long 0
-.space 0x8000
+.space 0x40000

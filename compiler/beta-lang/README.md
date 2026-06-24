@@ -51,10 +51,12 @@ compiled *logic* (tokenizer + symbol table + codegen), not by emit strings** —
 compiler is mostly code, and each Beta statement is several alpha instructions.
 So `db` buys headroom (and matters more as emit grows) but the *full* compiler
 (memory + char/string literals + procedures/params/calls roughly doubles the
-source) will likely still exceed 32 KB. The remaining lever is enlarging the tape
-hole — easy on arm64 (one `.space` in the `.s`), but the x64 hole lives in the PE
-and can't be grown from this host without the forge, so that step reintroduces the
-flagged seed asymmetry. Tracked in `TASKS_BOOTSTRAP.md`.
+source) will exceed 32 KB. **Done:** the arm64 tape hole was grown to **256 KB**
+(`.space 0x40000`; `HOLE_SIZE` in `seed_env.sh` is now per-platform), giving bc
+room to grow to self-hosting. The x64 hole stays 32 KB until a forge rebuild
+matches it — a flagged, capacity-only asymmetry (the diamond holds for any tape
+that fits both). So the self-hosting bc tape is arm64-runnable now; x64 catch-up
+is one `.hex`/`.space` change for whoever has the forge.
 
 Next slices follow the on-ramp's path: `byte[]`/`word[]` memory, char/string
 literals, then procedures + parameters + calls — at which point bc can compile its
