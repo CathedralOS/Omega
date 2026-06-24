@@ -612,15 +612,17 @@ proc emit_prelude() {            ; program entry: init sp/fp, call main, halt
 }
 
 proc emit_proc_prologue(nslots) {
-    emit("imm r2,8\n")
-    emit("sub r15,r2\n")
+    ; scratch is r5, NOT r2 — args arrive live in r0..r3 and r2 (arg 3) must
+    ; survive until stored to its slot below (else 3-arg calls corrupt arg 3).
+    emit("imm r5,8\n")
+    emit("sub r15,r5\n")
     emit("store r15,r14\n")
     emit("mov r14,r15\n")
     if nslots > 0 {
-        emit("imm r2,")
+        emit("imm r5,")
         emit_dec(nslots * 8)
         emit("\n")
-        emit("sub r15,r2\n")
+        emit("sub r15,r5\n")
     }
 }
 

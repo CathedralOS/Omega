@@ -60,5 +60,7 @@ ret "proc main() { let base = 2097152 let i = 0 while i < 5 { word[base + i * 8]
 ret "proc main() { return 'A' }" 65
 ret "proc main() { return '0' + 9 }" 57
 ret "proc main() { let c = 'Z' if c == 90 { return 42 } return 0 }" 42
+ret "proc main() { return f(10, 20, 30) } proc f(a, b, c) { return a + c }" 40
+ret "proc main() { return g(1, 2, 3, 4) } proc g(a, b, c, d) { return a + b + c + d }" 10
 echo "bc.beta (slices 1-6, per-feature): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
