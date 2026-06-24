@@ -63,6 +63,13 @@ chk "pred arg conv"   "(-> (Pred 0 (p (s z) (s z))) (Pred 0 (s (s z)))) (lam (Pr
 chk "P0 not forall"   "(-> (Pred 0 z) (All (Pred 0 (v 0)))) (lam (Pred 0 z) (gen (hyp 0)))"                       reject
 chk "capture blocked" "(All (-> (Pred 0 (v 0)) (All (Pred 0 (v 0))))) (gen (lam (Pred 0 (v 0)) (gen (hyp 0))))"   reject
 chk "inst gives P0"   "(-> (All (Pred 0 (v 0))) (Pred 1 z)) (lam (All (Pred 0 (v 0))) (inst (hyp 0) z))"          reject
+# first-order existential quantifier (Exists / wit (∃-intro) / unpack (∃-elim))
+chk "exists-intro"    "(-> (Pred 0 z) (Exists (Pred 0 (v 0)))) (lam (Pred 0 z) (wit (Pred 0 (v 0)) z (hyp 0)))"   accept
+chk "exists-intro@2"  "(-> (Pred 0 (s (s z))) (Exists (Pred 0 (v 0)))) (lam (Pred 0 (s (s z))) (wit (Pred 0 (v 0)) (s (s z)) (hyp 0)))" accept
+chk "exists-elim"     "(-> (Exists (Pred 0 (v 0))) (-> (All (-> (Pred 0 (v 0)) Q)) Q)) (lam (Exists (Pred 0 (v 0))) (lam (All (-> (Pred 0 (v 0)) Q)) (unpack (hyp 1) (hyp 0))))" accept
+chk "wit mismatch"    "(-> (Pred 0 z) (Exists (Pred 0 (v 0)))) (lam (Pred 0 z) (wit (Pred 0 (v 0)) (s z) (hyp 0)))" reject
+chk "witness leak"    "(-> (Exists (Pred 0 (v 0))) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (Pred 0 (v 0)))) (lam (Exists (Pred 0 (v 0))) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (unpack (hyp 1) (hyp 0))))" reject
+chk "handler mismatch" "(-> (Exists (Pred 0 (v 0))) (-> (All (-> (Pred 1 (v 0)) Q)) Q)) (lam (Exists (Pred 0 (v 0))) (lam (All (-> (Pred 1 (v 0)) Q)) (unpack (hyp 1) (hyp 0))))" reject
 
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
