@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // Chapter 18 "Capabilities And Authority Flow" (Derives): opening a file inside a
 // caller-provided folder produces a narrower authority. The boundary `open`
 // requires `folder in Folder::Writable` and guarantees `result in File::Writable`,
@@ -17,7 +20,7 @@ domain File::Writable {
 }
 
 boundary trait Filesystem {
-    machine open(folder: Folder, path: String) -> File
+    machine open(folder: Folder, path: &[u8] in Utf8) -> File
     requires
         folder in Folder::Writable
     ensures

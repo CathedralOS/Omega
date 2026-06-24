@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // Chapter 18 "Capabilities And Authority Flow": authority is modeled as ordinary
 // values plus domains. A boundary `write_bytes` requires `folder in
 // Folder::Writable`; the caller accepts a `Folder` under the same domain and
@@ -11,7 +14,7 @@ domain Folder::Writable {
 }
 
 boundary trait Filesystem {
-    machine write_bytes(folder: Folder, path: String)
+    machine write_bytes(folder: Folder, path: &[u8] in Utf8)
     requires
         folder in Folder::Writable
     effects

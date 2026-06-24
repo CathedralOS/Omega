@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
@@ -9,7 +12,7 @@ data CellId {
 }
 
 data Cell {
-    label: String;
+    label: &[u8] in Utf8;
     value: i32;
 }
 
@@ -55,7 +58,7 @@ machine Main::pick(&mut self, bag: &mut Bag, cell_id: CellId) -> &mut Cell {
     }
 }
 
-machine Main::label_for(&mut self, cell_id: CellId) -> String {
+machine Main::label_for(&mut self, cell_id: CellId) -> &[u8] in Utf8 {
     transition {
         cell_id == CellId::C0 -> "Gate"
         _ -> "Branch Room"

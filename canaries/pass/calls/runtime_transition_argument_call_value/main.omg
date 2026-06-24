@@ -1,7 +1,10 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 data NavigationChoice { case Invalid; case Move; }
 data CellId { case Empty; }
 data Navigation { choice: NavigationChoice; destination: CellId; }
-data ConsoleLine { text: String; }
+data ConsoleLine { text: &[u8] in Utf8; }
 
 data Main {
 }

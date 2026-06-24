@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 data CellId {
     case Empty;
     case A1;
@@ -6,15 +9,15 @@ data CellId {
 
 data Cell {
     id: CellId;
-    label: String;
+    label: &[u8] in Utf8;
 }
 
 data CellLine {
-    text: String;
+    text: &[u8] in Utf8;
 }
 
 boundary trait Console {
-    machine write_line(text: String);
+    machine write_line(text: &[u8] in Utf8);
 }
 
 data Main {

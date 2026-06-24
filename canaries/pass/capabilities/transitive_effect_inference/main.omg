@@ -1,10 +1,13 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // Chapter 18 "Standard Effects": effects propagate through the call graph. A
 // private helper omits its `effects` block (the compiler infers its reached
 // effects), and the caller declares the inferred `stdout_io` as its ceiling. The
 // transitively-reached effect satisfies the declared ceiling.
 
 boundary trait Console {
-    machine write_line(text: String)
+    machine write_line(text: &[u8] in Utf8)
     effects
         stdout_io;
 }

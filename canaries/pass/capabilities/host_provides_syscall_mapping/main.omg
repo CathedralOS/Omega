@@ -1,9 +1,12 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // Chapter 18 "Host Providers": a target can map a boundary trait's machines to a
 // raw syscall surface via `host <target> provides <Trait> { ... }`. This provider
 // metadata syntax is documented but not yet parsed.
 
 boundary trait Console {
-    machine write_line(text: String)
+    machine write_line(text: &[u8] in Utf8)
     effects
         stdout_io;
 }

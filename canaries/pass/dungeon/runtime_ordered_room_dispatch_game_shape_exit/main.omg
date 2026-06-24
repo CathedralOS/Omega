@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 use platform::console;
 
 data CommandParser {}
@@ -57,8 +60,8 @@ data Main {
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;
-    input: String;
-    output: String;
+    input: &[u8] in Utf8;
+    output: &[u8] in Utf8;
     current_room_index: usize;
     fountain_used: bool;
     bat_defeated: bool;

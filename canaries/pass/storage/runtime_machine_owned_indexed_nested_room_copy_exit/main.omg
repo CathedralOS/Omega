@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
@@ -12,7 +15,7 @@ data Event {
 }
 
 data Room {
-    description: String;
+    description: &[u8] in Utf8;
     exit_count: i32;
     exits: [Exit; 2];
     event: Event;

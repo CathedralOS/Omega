@@ -1,8 +1,11 @@
-// Wire stage 2a, String fields: `LabelMessage::encode_wire(&msg,
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+// Wire stage 2a, &[u8] in Utf8 fields: `LabelMessage::encode_wire(&msg,
 // &mut self.buffer, &mut self.written)` frames the schema's CURRENT era in
-// compact_binary v0. A String field rides as its tag varint, then a LENGTH
+// compact_binary v0. A &[u8] in Utf8 field rides as its tag varint, then a LENGTH
 // varint (byte count), then the raw UTF-8 bytes -- no NUL terminator, no
-// padding. The String field must carry the highest field number (it encodes
+// padding. The &[u8] in Utf8 field must carry the highest field number (it encodes
 // last; its byte-copy is the one runtime-sized append, bounds-checked
 // against the buffer's compile-time capacity).
 //
@@ -22,12 +25,12 @@ boundary trait Console {
 
 wire data LabelMessage {
     0: count: u32;
-    1: label: String;
+    1: label: &[u8] in Utf8;
 }
 
 data LabelSample {
     count: u32;
-    label: String;
+    label: &[u8] in Utf8;
 }
 
 data Main {
@@ -37,7 +40,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    // Field-assignment form: struct-literal String field initialization does
+    // Field-assignment form: struct-literal &[u8] in Utf8 field initialization does
     // not lower to a native descriptor write yet (assignments do).
     let msg: LabelSample;
     msg.count = 7;
