@@ -35,6 +35,14 @@ object-file writers, the linker crates, and Wasm/RISC-V ISA crates) are still
 folded into other crates or do not exist yet. They are placement intent, not
 current packages.
 
+> **STALE TREE (2026-06-21 move).** Every Rust-compiler crate drawn below now
+> lives under **`compiler/omega-rs/`** (e.g.
+> `compiler/omega-rs/semantics/omega-validation/`), not directly under
+> `compiler/`. `compiler/` also now holds the bootstrap rungs `alpha/ beta/
+> gamma/ beta-lang-rs/` (see [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md)). The
+> crate *names* and internal organization are unchanged; only the
+> `compiler/omega-rs/` prefix is new. A full tree re-draw is pending.
+
 ```text
 Omega/
 |-- Cargo.toml
