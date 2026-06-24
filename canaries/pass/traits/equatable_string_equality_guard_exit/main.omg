@@ -1,9 +1,12 @@
-// Structural `==` over an Equatable record with a String field DIRECTLY in
-// GUARD position (`transition self.left == self.right { ... }`). The String
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+// Structural `==` over an Equatable record with a &[u8] in Utf8 field DIRECTLY in
+// GUARD position (`transition self.left == self.right { ... }`). The &[u8] in Utf8
 // clause of the conjunction lowers through the same `TextEquals` content
 // compare (length + bounded byte loop) the value position uses, checked
 // against 1; the scalar clause stays an ordinary place compare. Before that
-// routing existed, the dispatch-guard path loaded the 16-byte String
+// routing existed, the dispatch-guard path loaded the 16-byte &[u8] in Utf8
 // descriptor as a raw runtime operand and rejected with "X86_64 MVP encoder
 // cannot load 16-byte runtime operands yet". Equal contents here take the
 // `true` arm -> exit 70.
@@ -13,7 +16,7 @@ boundary trait Console {
 }
 
 data Tag {
-    name: String;
+    name: &[u8] in Utf8;
     id: i32;
 }
 

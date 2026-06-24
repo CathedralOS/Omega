@@ -1,9 +1,12 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 // Equatable `!=` NEGATION in GUARD position over a scalar record: the
 // synthesized structural equality must drive the negated operator, and both
 // spellings must work as a DIRECT transition guard subject (the other
 // equatable canaries route every compare through a `let` first). Scalar-only
-// fields on purpose: the String-bearing variants are pinned as pending
-// canaries (equatable_string_not_equals_value drops the String term under
+// fields on purpose: the &[u8] in Utf8-bearing variants are pinned as pending
+// canaries (equatable_string_not_equals_value drops the &[u8] in Utf8 term under
 // negation natively; equatable_string_equality_guard_unlowered rejects with
 // the 16-byte operand error).
 //

@@ -1,3 +1,6 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
@@ -9,8 +12,8 @@ data CellId {
 }
 
 data Cell {
-    label: String;
-    description: String;
+    label: &[u8] in Utf8;
+    description: &[u8] in Utf8;
 }
 
 data Bag {
@@ -31,7 +34,7 @@ machine Main::main(&mut self) {
     }
 
     state render(&mut self) {
-        let line: String = "== " + self.bag.cells[0].label + " ==";
+        let line: &[u8] in Utf8 = "== " + self.bag.cells[0].label + " ==";
 
         transition line == "== Gate ==" {
             true -> good()
@@ -64,14 +67,14 @@ machine Main::pick(&mut self, bag: &mut Bag, cell_id: CellId) -> &mut Cell {
     }
 }
 
-machine Main::label_for(&mut self, cell_id: CellId) -> String {
+machine Main::label_for(&mut self, cell_id: CellId) -> &[u8] in Utf8 {
     transition {
         cell_id == CellId::C0 -> "Gate"
         _ -> "Branch Room"
     }
 }
 
-machine Main::description_for(&mut self, cell_id: CellId) -> String {
+machine Main::description_for(&mut self, cell_id: CellId) -> &[u8] in Utf8 {
     transition {
         cell_id == CellId::C0 -> "Deep room"
         _ -> "Other room"
