@@ -44,6 +44,8 @@ proc slurp() {
     word[2097128] = 3145728
     word[2097120] = 0        ; NFUN
     word[2097112] = 0        ; TENVN
+    word[2097104] = 1        ; NTY (id 0 reserved for the builtin Int)
+    word[2097096] = 0        ; NCON
 }
 
 proc cbyte() {
@@ -215,10 +217,57 @@ proc name_is3(off, a, b, c) {
     return 0
 }
 
-; resolve a type name to a type id. Phase 1: only Int (id 0); anything else -> -1.
+proc is_upper(c) {
+    if c < 'A' {
+        return 0
+    }
+    if c > 'Z' {
+        return 0
+    }
+    return 1
+}
+
+proc is_match_kw(off) {
+    if byte[2097152 + off] == 'm' {
+        if byte[2097152 + off + 1] == 'a' {
+            if byte[2097152 + off + 2] == 't' {
+                if byte[2097152 + off + 3] == 'c' {
+                    if byte[2097152 + off + 4] == 'h' {
+                        if is_delim(byte[2097152 + off + 5]) == 1 {
+                            return 1
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0
+}
+
+; resolve a type name to a type id: Int = 0, else a declared data type, else -1.
 proc tyid(off) {
     if name_is3(off, 'I', 'n', 't') == 1 {
         return 0
+    }
+    let n = word[2097104]            ; NTY
+    let i = 1
+    while i < n {
+        if name_eq(off, word[4259840 + i * 8]) == 1 {
+            return i
+        }
+        i = i + 1
+    }
+    return 0 - 1
+}
+
+proc con_lookup(coff) {              ; constructor index by name, or -1
+    let n = word[2097096]            ; NCON
+    let i = 0
+    while i < n {
+        if name_eq(coff, word[4325376 + i * 24]) == 1 {
+            return i
+        }
+        i = i + 1
     }
     return 0 - 1
 }
@@ -287,6 +336,19 @@ proc parse_expr() {
             adv()
             return alloc(2, 'l', a3, b3)
         }
+        if is_match_kw(hoff) == 1 {
+            let scrut = parse_expr()
+            let arms = parse_arms()
+            skip_ws()
+            adv()
+            return alloc(8, scrut, arms, 0)
+        }
+        if is_upper(byte[2097152 + hoff]) == 1 {
+            let cargs = parse_args()
+            skip_ws()
+            adv()
+            return alloc(7, hoff, cargs, 0)
+        }
         let args = parse_args()
         skip_ws()
         adv()
@@ -294,7 +356,55 @@ proc parse_expr() {
     }
     let voff = word[2097144]
     skip_ident()
+    if is_upper(byte[2097152 + voff]) == 1 {
+        return alloc(7, voff, 0, 0)               ; nullary constructor
+    }
     return alloc(1, voff, 0, 0)
+}
+
+proc parse_pvars() {
+    skip_ws()
+    if cbyte() == ')' {
+        return 0
+    }
+    let voff = word[2097144]
+    skip_ident()
+    let t = parse_pvars()
+    return alloc(6, voff, t, 0)
+}
+
+proc parse_pat() {
+    skip_ws()
+    if cbyte() == '(' {
+        adv()
+        skip_ws()
+        let coff = word[2097144]
+        skip_ident()
+        let vars = parse_pvars()
+        skip_ws()
+        adv()
+        return alloc(10, coff, vars, 0)           ; PCON
+    }
+    let voff = word[2097144]
+    skip_ident()
+    if is_upper(byte[2097152 + voff]) == 1 {
+        return alloc(10, voff, 0, 0)              ; nullary constructor pattern
+    }
+    return alloc(9, voff, 0, 0)                   ; PVAR
+}
+
+proc parse_arms() {
+    skip_ws()
+    if cbyte() == ')' {
+        return 0
+    }
+    adv()
+    let pat = parse_pat()
+    let body = parse_expr()
+    skip_ws()
+    adv()
+    let t = parse_arms()
+    return alloc(6, alloc(11, pat, body, 0), t, 0)
 }
 
 proc parse_typed_params() {       ; (pname Ty) pairs until ')', CONS of PARAM nodes
@@ -342,6 +452,71 @@ proc parse_def() {
     word[4194304 + i * 32 + 24] = body
     word[2097120] = i + 1
     return 0
+}
+
+proc parse_argtypes() {           ; constructor arg type names until ')', CONS of tyids
+    skip_ws()
+    if cbyte() == ')' {
+        return 0
+    }
+    let toff = word[2097144]
+    skip_ident()
+    let t = parse_argtypes()
+    return alloc(6, tyid(toff), t, 0)
+}
+
+proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + cons
+    adv()                         ; '('
+    skip_ws()
+    skip_ident()                  ; "data"
+    skip_ws()
+    let toff = word[2097144]
+    skip_ident()
+    let tid = word[2097104]        ; register the type first (self-recursion resolves)
+    word[4259840 + tid * 8] = toff
+    word[2097104] = tid + 1
+    skip_ws()
+    while cbyte() != ')' {
+        adv()                     ; '(' constructor
+        skip_ws()
+        let coff = word[2097144]
+        skip_ident()
+        let argtys = parse_argtypes()
+        skip_ws()
+        adv()                     ; ')'
+        let ci = word[2097096]
+        word[4325376 + ci * 24] = coff
+        word[4325376 + ci * 24 + 8] = tid
+        word[4325376 + ci * 24 + 16] = argtys
+        word[2097096] = ci + 1
+        skip_ws()
+    }
+    adv()                         ; ')' end data
+    return 0
+}
+
+proc is_data() {
+    if cbyte() != '(' {
+        return 0
+    }
+    let save = word[2097144]
+    adv()
+    skip_ws()
+    let o = word[2097144]
+    let r = 0
+    if byte[2097152 + o] == 'd' {
+        if byte[2097152 + o + 1] == 'a' {
+            if byte[2097152 + o + 2] == 't' {
+                if byte[2097152 + o + 3] == 'a' {
+                    if is_delim(byte[2097152 + o + 4]) == 1 {
+                        r = 1
+                    }
+                }
+            }
+        }
+    }
+    word[2097144] = save
+    return r
 }
 
 proc is_def() {
@@ -434,6 +609,106 @@ proc tc_call(fname, args) {
     return word[4194304 + fi * 32 + 16]       ; the return tyid
 }
 
+proc tc_conapp(coff, args) {
+    let ci = con_lookup(coff)
+    if ci == 0 - 1 {
+        return 0 - 1                          ; unknown constructor
+    }
+    let p = word[4325376 + ci * 24 + 16]      ; constructor arg types
+    let a = args
+    let fail = 0
+    let go = 1
+    while go == 1 {
+        if p == 0 {
+            go = 0
+        } else {
+            if a == 0 {
+                go = 0
+            } else {
+                if tc(word[a + 8]) != word[p + 8] {
+                    fail = 1
+                }
+                p = word[p + 16]
+                a = word[a + 16]
+            }
+        }
+    }
+    if p != 0 {
+        fail = 1
+    }
+    if a != 0 {
+        fail = 1
+    }
+    if fail == 1 {
+        return 0 - 1
+    }
+    return word[4325376 + ci * 24 + 8]        ; the constructor's result type
+}
+
+proc tc_match(scrut, arms) {
+    let st = tc(scrut)
+    if st == 0 - 1 {
+        return 0 - 1
+    }
+    let arm = arms
+    let rty = 0 - 2                            ; -2 = result type not yet seen
+    let fail = 0
+    while arm != 0 {
+        let armnode = word[arm + 8]
+        let pat = word[armnode + 8]
+        let base = word[2097112]
+        if word[pat] == 9 {                   ; PVAR : binds the scrutinee type
+            tenv_push(word[pat + 8], st)
+        } else {                              ; PCON : must be a constructor of st
+            let ci = con_lookup(word[pat + 8])
+            if ci == 0 - 1 {
+                fail = 1
+            } else {
+                if word[4325376 + ci * 24 + 8] != st {
+                    fail = 1
+                }
+                let pv = word[pat + 16]
+                let av = word[4325376 + ci * 24 + 16]
+                let go = 1
+                while go == 1 {
+                    if pv == 0 {
+                        go = 0
+                    } else {
+                        if av == 0 {
+                            fail = 1
+                            go = 0
+                        } else {
+                            tenv_push(word[pv + 8], word[av + 8])
+                            pv = word[pv + 16]
+                            av = word[av + 16]
+                        }
+                    }
+                }
+                if av != 0 {
+                    fail = 1
+                }
+            }
+        }
+        let bt = tc(word[armnode + 16])
+        word[2097112] = base
+        if bt == 0 - 1 {
+            fail = 1
+        }
+        if rty == 0 - 2 {
+            rty = bt
+        } else {
+            if bt != rty {
+                fail = 1
+            }
+        }
+        arm = word[arm + 16]
+    }
+    if fail == 1 {
+        return 0 - 1
+    }
+    return rty
+}
+
 proc tc(expr) {
     let tag = word[expr]
     if tag == 0 {
@@ -476,12 +751,22 @@ proc tc(expr) {
     if tag == 5 {                             ; CALL
         return tc_call(word[expr + 8], word[expr + 16])
     }
+    if tag == 7 {                             ; CONAPP
+        return tc_conapp(word[expr + 8], word[expr + 16])
+    }
+    if tag == 8 {                             ; MATCH
+        return tc_match(word[expr + 8], word[expr + 16])
+    }
     return 0 - 1
 }
 
 proc main() {
     slurp()
     skip_ws()
+    while is_data() == 1 {
+        parse_data()
+        skip_ws()
+    }
     while is_def() == 1 {
         parse_def()
         skip_ws()
