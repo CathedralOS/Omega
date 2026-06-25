@@ -57,6 +57,10 @@ dia "len(a++b)=2"  "(len (app (cons z nil) (cons z nil)))  (s (s z))"      "(len
 dia "fun g(S Z)=1"  "(fun 7 2 z) (fun 7 3 (s (rec 0))) (f 7 (k 3 (k 2)))  (s z)"            "(g (S Z)) (Su Ze)"            equal
 dia "fun g(SSZ)=2"  "(fun 7 2 z) (fun 7 3 (s (rec 0))) (f 7 (k 3 (k 3 (k 2))))  (s (s z))"  "(g (S (S Z))) (Su (Su Ze))"   equal
 dia "fun g(S Z)!=2" "(fun 7 2 z) (fun 7 3 (s (rec 0))) (f 7 (k 3 (k 2)))  (s (s z))"          "(g (S Z)) (Su (Su Ze))"       differ
+# BINARY user-function: eq.beta's user-add(x,y) over user-Nat reduces to the same value
+# as interp's built-in plus — a value-level cross-check of multi-argument reduction.
+dia "fun add(1,1)=2" "(fun 10 2 (y 0)) (fun 10 3 (k 3 (rec 0))) (f 10 (k 3 (k 2)) (k 3 (k 2)))  (k 3 (k 3 (k 2)))" "(plus (Su Ze) (Su Ze)) (Su (Su Ze))" equal
+dia "fun add(2,1)=3" "(fun 10 2 (y 0)) (fun 10 3 (k 3 (rec 0))) (f 10 (k 3 (k 3 (k 2))) (k 3 (k 2)))  (k 3 (k 3 (k 3 (k 2))))" "(plus (Su (Su Ze)) (Su Ze)) (Su (Su (Su Ze)))" equal
 dial "[0]++[1]"    "(app (cons z nil) (cons (s z) nil))  (cons z (cons (s z) nil))" "(append (Lcons Ze Lnil) (Lcons (Su Ze) Lnil)) (Lcons Ze (Lcons (Su Ze) Lnil))" equal
 dial "[]++[0]"     "(app nil (cons z nil))  (cons z nil)"                  "(append Lnil (Lcons Ze Lnil)) (Lcons Ze Lnil)"                     equal
 dial "[0] != []"   "(app (cons z nil) nil)  nil"                          "(append (Lcons Ze Lnil) Lnil) Lnil"                               differ
