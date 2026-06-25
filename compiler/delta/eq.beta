@@ -103,6 +103,20 @@ proc skip_ident() {              ; consume a lowercase keyword (s / m / cons / a
     }
 }
 
+proc is_digit(c) {
+    state c1 { to no when (c < '0')  to c2 }
+    state c2 { to no when (c > '9')  return 1 }
+    state no { return 0 }
+}
+
+proc parse_number() {
+    let v = 0
+    state loop { to body when (is_digit(cbyte()) == 1)  return v }
+    state body { v = v * 10 + (cbyte() - '0')  adv()  to loop }
+}
+
+; tags: Peano 0 z 1 s 2 p 3 m ; Lists 4 nil 5 cons 6 app 7 len ; user 34 IVAR 50 CON
+; 51 APPLY 52 FAPP 54 RECCALL.  (k cid args…) (f fid arg) (rec i) (v k) parse here too.
 proc parse_term() {
     skip_ws()
     let a = 0
@@ -126,8 +140,28 @@ proc parse_term() {
     state do_c { a = parse_term()  b = parse_term()  skip_ws()  adv()  return alloc(5, a, b) }
     state op_a { to do_a when (op == 'a')  to op_l }
     state do_a { a = parse_term()  b = parse_term()  skip_ws()  adv()  return alloc(6, a, b) }
-    state op_l { to do_l when (op == 'l')  to do_plus }
+    state op_l { to do_l when (op == 'l')  to op_v }
     state do_l { a = parse_term()  skip_ws()  adv()  return alloc(7, a, 0) }
+    state op_v { to do_v when (op == 'v')  to op_k }      ; (v k) pattern/indiv var
+    state do_v { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(34, a, 0) }
+    state op_k { to do_k when (op == 'k')  to op_f }      ; (k cid args…) user constructor
+    state do_k {
+        skip_ws()
+        a = parse_number()
+        b = alloc(50, a, 0)      ; CON(cid)
+        skip_ws()
+        to kloop
+    }
+    state kloop {
+        to kbody when (cbyte() != ')')
+        adv()
+        return b
+    }
+    state kbody { b = alloc(51, b, parse_term())  skip_ws()  to kloop }   ; APPLY(b, arg)
+    state op_f { to do_f when (op == 'f')  to op_r }      ; (f fid arg) function application
+    state do_f { skip_ws()  a = parse_number()  b = parse_term()  skip_ws()  adv()  return alloc(52, a, b) }
+    state op_r { to do_r when (op == 'r')  to do_plus }   ; (rec i) recursive call
+    state do_r { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(54, a, 0) }
     state do_plus {
         a = parse_term()         ; (p a b) plus
         b = parse_term()
@@ -135,6 +169,71 @@ proc parse_term() {
         adv()                    ; ')'
         return alloc(2, a, b)
     }
+}
+
+; one rewrite step of (f fid arg) — mirrors check.beta. FRULE table at 5898240.
+proc reduce_fun(fid, arg, fuel) {
+    let a = normalize(arg, fuel)
+    let cid = 0
+    let body = 0
+    state nullary { to do_null when (word[a] == 50)  to applied }
+    state do_null {
+        cid = word[a + 8]
+        body = word[5898240 + (fid * 64 + cid) * 8]
+        to stuck when (body == 0)
+        return instantiate(body, fid, 0, 0)
+    }
+    state applied { to do_app when (word[a] == 51)  to stuck }
+    state do_app {
+        to unary when (word[word[a + 8]] == 50)
+        to binary when (word[word[a + 8]] == 51)
+        to stuck
+    }
+    state unary {
+        cid = word[word[a + 8] + 8]
+        body = word[5898240 + (fid * 64 + cid) * 8]
+        to stuck when (body == 0)
+        return instantiate(body, fid, word[a + 16], 0)
+    }
+    state binary {
+        to bin_ok when (word[word[word[a + 8] + 8]] == 50)
+        to stuck
+    }
+    state bin_ok {
+        cid = word[word[word[a + 8] + 8] + 8]
+        body = word[5898240 + (fid * 64 + cid) * 8]
+        to stuck when (body == 0)
+        return instantiate(body, fid, word[word[a + 8] + 16], word[a + 16])
+    }
+    state stuck { return 0 }
+}
+
+proc instantiate(t, fid, a0, a1) {
+    state iv { to do_iv when (word[t] == 34)  to rc }
+    state do_iv {
+        to ret_a0 when (word[t + 8] == 0)
+        to ret_a1 when (word[t + 8] == 1)
+        return t
+    }
+    state ret_a0 { return a0 }
+    state ret_a1 { return a1 }
+    state rc { to do_rc when (word[t] == 54)  to fapp }
+    state do_rc {
+        to rec_a0 when (word[t + 8] == 0)
+        return alloc(52, fid, a1)
+    }
+    state rec_a0 { return alloc(52, fid, a0) }
+    state fapp { to do_fa when (word[t] == 52)  to z }
+    state do_fa { return alloc(52, word[t + 8], instantiate(word[t + 16], fid, a0, a1)) }
+    state z { to ret_t when (word[t] == 0)  to nilc }
+    state ret_t { return t }
+    state nilc { to ret_t when (word[t] == 4)  to con }
+    state con { to ret_t when (word[t] == 50)  to suc }
+    state suc { to do_suc when (word[t] == 1)  to lenc }
+    state do_suc { return alloc(1, instantiate(word[t + 8], fid, a0, a1), 0) }
+    state lenc { to do_len when (word[t] == 7)  to dflt }
+    state do_len { return alloc(7, instantiate(word[t + 8], fid, a0, a1), 0) }
+    state dflt { return alloc(word[t], instantiate(word[t + 8], fid, a0, a1), instantiate(word[t + 16], fid, a0, a1)) }
 }
 
 ; reduce to normal form using the definitional rules; fuel-bounded (total).
@@ -207,7 +306,7 @@ proc normalize(t, fuel) {
         b = normalize(alloc(7, word[a + 16], 0), fuel - 1)
         return alloc(1, b, 0)
     }
-    state t3 { to do_mul when (tag == 3)  return t }   ; default: stuck/normal
+    state t3 { to do_mul when (tag == 3)  to t_user }
     state do_mul {
         a = normalize(word[t + 8], fuel - 1)
         to mul_z when (word[a] == 0)             ; m z y => z
@@ -222,6 +321,22 @@ proc normalize(t, fuel) {
         b = alloc(3, word[a + 8], word[t + 16])              ; m x y
         return normalize(alloc(2, word[t + 16], b), fuel - 1) ; p y (m x y)
     }
+    state t_user { to ret_t when (tag == 50)  to t_iv }   ; CON(cid) — normal
+    state t_iv { to ret_t when (tag == 34)  to t_rec }    ; IVAR — normal
+    state t_rec { to ret_t when (tag == 54)  to t_apply } ; RECCALL — normal
+    state t_apply { to do_apply when (tag == 51)  to t_fapp }
+    state do_apply {                                      ; APPLY(f,a) — inert: reduce both
+        a = normalize(word[t + 8], fuel - 1)
+        b = normalize(word[t + 16], fuel - 1)
+        return alloc(51, a, b)
+    }
+    state t_fapp { to do_fapp when (tag == 52)  return t }   ; (f fid arg) — reduce or STUCK
+    state do_fapp {
+        a = reduce_fun(word[t + 8], word[t + 16], fuel - 1)
+        to fapp_stuck when (a == 0)
+        return normalize(a, fuel - 1)
+    }
+    state fapp_stuck { return alloc(52, word[t + 8], normalize(word[t + 16], fuel - 1)) }
 }
 
 proc term_eq(a, b) {
@@ -232,20 +347,68 @@ proc term_eq(a, b) {
     state e4 { to ret1 when (word[a] == 4)  to e_s }      ; nil
     state e_s { to do_child when (word[a] == 1)  to e_len }   ; s — compare the child
     state do_child { return term_eq(word[a + 8], word[b + 8]) }
-    state e_len { to do_child when (word[a] == 7)  to e_both }  ; len — unary
+    state e_len { to do_child when (word[a] == 7)  to e_con }  ; len — unary
+    state e_con { to id_eq when (word[a] == 50)  to e_iv }     ; CON: same cid?
+    state id_eq { to ret1 when (word[a + 8] == word[b + 8])  return 0 }
+    state e_iv { to id_eq when (word[a] == 34)  to e_fapp }    ; IVAR: same index
+    state e_fapp { to fapp_eq when (word[a] == 52)  to e_both }
+    state fapp_eq {
+        to both_neq when (word[a + 8] != word[b + 8])          ; (f fid arg): same fid + arg?
+        return term_eq(word[a + 16], word[b + 16])
+    }
     state e_both {
-        to both_neq when (term_eq(word[a + 8], word[b + 8]) == 0)   ; plus/mul/cons/app
+        to both_neq when (term_eq(word[a + 8], word[b + 8]) == 0)   ; plus/mul/cons/app/APPLY
         return term_eq(word[a + 16], word[b + 16])
     }
     state both_neq { return 0 }
 }
 
+proc at_fun() {                  ; peek for a (fun …) DECL — must be "(fu", not a (f …) app
+    let save = word[2097144]
+    skip_ws()
+    let r = 0
+    state p1 { to p2 when (cbyte() == '(')  to done }
+    state p2 {
+        adv()
+        to p3 when (cbyte() == 'f')
+        to done
+    }
+    state p3 {
+        adv()
+        to setr when (cbyte() == 'u')    ; "(fu…" = fun ; "(f …" / "(f0…" = application
+        to done
+    }
+    state setr { r = 1  to done }
+    state done { word[2097144] = save  return r }
+}
+
+proc parse_fun() {               ; (fun FID CID body) -> FRULE[fid][cid] = body
+    skip_ws()
+    adv()                        ; '('
+    skip_ws()
+    skip_ident()                 ; "fun"
+    skip_ws()
+    let fid = parse_number()
+    skip_ws()
+    let cid = parse_number()
+    let body = parse_term()
+    skip_ws()
+    adv()                        ; ')'
+    word[5898240 + (fid * 64 + cid) * 8] = body
+    return 0
+}
+
 proc main() {
     slurp()
-    let t1 = parse_term()
-    let t2 = parse_term()
-    let n1 = normalize(t1, 1000000)
-    let n2 = normalize(t2, 1000000)
+    state funloop { to funbody when (at_fun() == 1)  to terms }   ; (fun …) prefix, like check.beta
+    state funbody { parse_fun()  to funloop }
+    state terms {
+        let t1 = parse_term()
+        let t2 = parse_term()
+        let n1 = normalize(t1, 1000000)
+        let n2 = normalize(t2, 1000000)
+        to chk
+    }
     state chk { to eq when (term_eq(n1, n2) == 1)  to differ }
     state eq { emit("equal\n")  return 1 }
     state differ { emit("differ\n")  return 0 }
