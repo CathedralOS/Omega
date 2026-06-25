@@ -239,6 +239,49 @@ proc is_while() {
     return 0
 }
 
+proc is_state() {            ; CFG basic block (Omega-style)
+    if word[2097112] == 5 {
+        if id_char(0) == 's' {
+            if id_char(1) == 't' {
+                if id_char(2) == 'a' {
+                    if id_char(3) == 't' {
+                        if id_char(4) == 'e' {
+                            return 1
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0
+}
+
+proc is_to() {               ; transition keyword
+    if word[2097112] == 2 {
+        if id_char(0) == 't' {
+            if id_char(1) == 'o' {
+                return 1
+            }
+        }
+    }
+    return 0
+}
+
+proc is_when() {             ; transition guard keyword
+    if word[2097112] == 4 {
+        if id_char(0) == 'w' {
+            if id_char(1) == 'h' {
+                if id_char(2) == 'e' {
+                    if id_char(3) == 'n' {
+                        return 1
+                    }
+                }
+            }
+        }
+    }
+    return 0
+}
+
 proc is_byte() {
     if word[2097112] == 4 {
         if id_char(0) == 'b' {
@@ -1006,6 +1049,53 @@ proc gen_while() {
     return 0
 }
 
+; emit a CFG state label  <curproc>__<name>  (curproc saved at 2097096/2097088)
+proc emit_state_label(noff, nlen) {
+    emit_ident_at(word[2097096], word[2097088])
+    emit("__")
+    emit_ident_at(noff, nlen)
+    return 0
+}
+
+proc gen_state() {           ; (state) NAME { stmts } — a basic block: a label + body
+    skip_ws()
+    read_ident()             ; the state name
+    let noff = word[2097120]
+    let nlen = word[2097112]
+    emit_state_label(noff, nlen)
+    emit(":\n")
+    gen_block()              ; { stmts }
+    return 0
+}
+
+proc gen_to() {              ; (to) NAME [when EXPR] — a transition (jmp / guarded jmp)
+    skip_ws()
+    read_ident()             ; target state name
+    let noff = word[2097120]
+    let nlen = word[2097112]
+    skip_ws()
+    let save = word[2097144] ; lookahead-with-restore: is the next token `when`?
+    read_ident()
+    if is_when() == 1 {
+        gen_expr()           ; guard -> r0
+        let skipl = new_label()
+        emit("jz r0,")
+        emit_lref(skipl)
+        emit("\n")
+        emit("jmp ")
+        emit_state_label(noff, nlen)
+        emit("\n")
+        emit_lref(skipl)
+        emit(":\n")
+        return 0
+    }
+    word[2097144] = save     ; not a guard — that ident belongs to the next statement
+    emit("jmp ")
+    emit_state_label(noff, nlen)
+    emit("\n")
+    return 0
+}
+
 proc gen_stmt() {
     skip_ws()
     read_ident()                 ; let / return / if / while / an lvalue
@@ -1030,6 +1120,14 @@ proc gen_stmt() {
     }
     if is_while() == 1 {
         gen_while()
+        return 0
+    }
+    if is_state() == 1 {
+        gen_state()
+        return 0
+    }
+    if is_to() == 1 {
+        gen_to()
         return 0
     }
     if is_byte() == 1 {
@@ -1061,6 +1159,8 @@ proc parse_proc() {
     read_ident()                 ; the proc name
     let nameoff = word[2097120]  ; save it (param/let parsing clobbers IDOFF/IDLEN)
     let namelen = word[2097112]
+    word[2097096] = nameoff      ; CURPROC name, for emitting <proc>__<state> labels
+    word[2097088] = namelen
     expect('(')                  ; parameters -> slots 0..nparams-1
     skip_ws()
     while cbyte() != ')' {
