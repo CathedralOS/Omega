@@ -117,8 +117,14 @@ are an **ordered commutative semiring**.
 - `lt trans` — `a<b → b<c → a<c` (witness `k+Sj`, via associativity);
 - `lt to succ le` — `a<b → Sa≤b`, the successor bridge between `<` and `≤`.
 
-So `<` is a **strict order** (irreflexive + transitive) sitting beneath the total order `≤`.
-The naturals are now a fully **linearly ordered commutative semiring** with both the
-non-strict and strict relations and their bridge — all inside the trust anchor. Remaining
-threads: strict monotonicity (`a<b → a+c<b+c`), asymmetry (`a<b → ¬(b<a)`, from
-irreflexivity + transitivity), and trichotomy (`a<b ∨ a=b ∨ b<a`).
+- `lt asym` — `a<b → ¬(b<a)`: `a<b` and `b<a` give `a<a` by transitivity, refuted by
+  irreflexivity. So `<` is **irreflexive, transitive, and asymmetric** — a strict order in full.
+- `le split` — `a≤b → (a<b ∨ a=b)`: unpack the `≤` witness and case on 0-or-successor.
+- `trichotomy` — `∀a∀b. a<b ∨ a=b ∨ b<a`, the **defining law of a linear order**: from
+  totality (`a≤b ∨ b≤a`) and `le-split` applied to each branch.
+
+The naturals are now a fully **linearly ordered commutative semiring** inside the trust
+anchor: `≤` a total order compatible with `+` and `·`, `<` a strict order beneath it, the
+`Sa≤b` bridge between them, and trichotomy tying it all together. The order backbone is
+complete; remaining threads (e.g. strict additive monotonicity `a<b → a+c<b+c`) are
+straightforward extensions on the lemmas now in place.
