@@ -335,6 +335,103 @@ exclusivity-enables-the-theorem (MVS/Hylo); pluggable locality backend *below* t
 language (mimalloc/snmalloc); weakening/rewrite annotation hints (Pastis); in-place
 reuse via uniqueness (Perceus/FIP) as a later rung-2 optimization.
 
+> The table above uses ordinal "rung" numbers for continuity with the primer. The
+> refined architecture in §4.1–§4.6 (decided in design discussion) **supersedes
+> the lattice framing**: rename the levels **storage tiers**, demote them to UX
+> sugar over a *capability set*, and collapse the unbounded tier into
+> bounded-fallible. Read §4.1–§4.6 as the authoritative shape.
+
+### 4.1 Naming — "storage tiers", kept distinct from the bootstrap lattice
+
+The levels are **storage tiers**; a target/module declares an **allocation
+ceiling** (the most permissive tier it grants). Do **not** call them
+"lattice/rungs" — that term is reserved for the *bootstrap trust ladder* (tape-VM
+→ beta → gamma → omega), an unrelated partial order (what the compiler is *built
+from*, vs. how much memory authority a *program* grants itself). Two different
+ladders; reusing one word for both is a trap.
+
+### 4.2 Capabilities are the semantics; tiers are UX sugar
+
+The tiers are **not** a clean total order and need not be. The rule at every call
+is set-membership: *does the callee require a memory capability not in scope
+here?* A stricter callee asks for **fewer/weaker** capabilities, so a looser
+caller (holding more) can always call it; nothing relies on a perfect tier
+ordering. **The granted capability set is the truth; "tier"/"ceiling" is just a
+readable label for a common capability set.** This dissolves the "is the taxonomy
+perfect?" worry — you check capability *availability*, never tier comparison.
+
+### 4.3 Multiple named regions, not "the heap"
+
+The top of the stack is **not** a singleton heap; it is *"you may mint **named
+regions**, each its own capability with its own budget"* (`region frame`, `region
+assets`, `region request`). The global heap is just the root region. This
+separates the three multi-heap wins cleanly: **lifetime** (bulk-free at `}`),
+**isolation** (a ref into `frame` escaping into `assets` is an `outlives` *type
+error*), **accounting** (per-region budget). Per-core/NUMA locality stays an
+implementation detail *below* the region, never a type concept. (Open: capability
+granularity — likely split `Heap` / `Mmap` / `GrowableRegion` so a target can
+grant paging-to-disk but forbid true heap.)
+
+### 4.4 No "unbounded" tier — bounded-fallible with a declared (possibly huge) max
+
+There is no separate unbounded *semantics*. Every allocation site has (a) a bound
+and (b) a failure contract. "Unbounded" is just *a very large declared bound
+treated as `abort` on exhaustion*. **The no-OOM theorem unifies to: every
+allocation site has either a discharged bound OR a declared failure contract** —
+no special case. Avionics forbids the second clause (no abort-on-exhaustion; must
+prove-fits) — the ceiling doing its job. The language forces the fallibility
+contract regardless, so the cost is already priced in; "unbounded" is simply where
+you stop proving and start handling. (A genuinely runtime-measured bound — e.g. a
+128 GB map sized from the *known file size* — is bounded-fallible from a measured
+input, **not** this case; and paging that file is `Mmap`, bounded by disk/address
+space with a disk-full failure, also not this case. The truly-unbounded set is
+small: "grow until something external stops me, un-nameable even at runtime.")
+
+### 4.5 Opting in / disabling — the ceiling is capability provision, not a lint
+
+The entry point mints capabilities only up to the declared ceiling. Set `ceiling =
+proven` and the heap/region-minting capability is **never created**, so code that
+needs it **fails to type-check at the acquisition site** — and because the
+requirement is an *effect* (`alloc`/`oom`, declared where used and bubbled to every
+boundary), the compiler returns the **blame path**: *"`render_map` needs `Heap`
+(effect `oom`), not granted at ceiling=proven; reached via `load → parse →
+alloc`."* Disabling is the **absence of an authority**, not a switch you must trust
+— you cannot exercise a capability you were never handed. "Is this whole image
+bounded-memory?" is answered by reading `main`'s effect row, mechanically — a type
+check over the binary, not a coding-standard audit. (Open: ceiling declared in the
+target manifest, with optional module-level tightening; the cross-call rule is just
+§4.2 capability availability.)
+
+### 4.6 Where the friction lands (the cases) — and the ergonomics stance
+
+For `dst = a + b` on a growable collection:
+
+| Case | Bound source | Allocates? | Capability | Effect surfaced | Failure mode | Feels like |
+|---|---|---|---|---|---|---|
+| **Static** | literal/const sizes | **no** — sized `FixedVec` push | none | none | none (proven fits) | bare `a + b` |
+| **Runtime-measured** | declared `input.len ≤ N` | **no** — sized from `N` | none | none | none (proven fits) | `a + b` + one `≤ N` |
+| **Region-budgeted** | ambient region budget | yes, from the region | ambient (R2) | inside the region row | proven at `}` | normal code inside `region r { }` |
+| **Declared max** | a large declared cap | yes, named heap | named cap | `oom` to boundary | **fallible at reserve** | handle one failure point |
+| **(Truly unbounded)** | — | — | — | — | — | collapses into *Declared max* (§4.4) |
+
+**Friction is proportional to how little the compiler can prove — and that is
+acceptable.** (a) Bound-inferable concat/append (the common case) is a sized push
+with **no allocation and no effect** — strictly better than Rust/C++, which
+allocate and can OOM-*panic silently*; we don't allocate at all. (b) Where growth
+isn't statically provable, fallibility **hoists to a region boundary**: inside
+`region r { … }` per-op allocations are ambient draws from `r`, and the single
+failure point is `r`'s budget at `}`, not a `?` on every `+`. (c) Genuinely
+un-provable, un-region-scoped growth surfaces per-op fallibility — the honest
+minority case the other languages hide and then crash on.
+
+**Ergonomics is explicitly a SECONDARY objective.** LLMs write most code, and
+surfacing a real failure mode beats hiding it; we will trade ergonomics for the
+proof. But proof tricks that recover ergonomics *for free* — bound inference (no
+alloc, no effect), region-hoisting (one failure point per scope), `?`-sugar — are
+pure upside and worth pursuing. **Open:** the residual per-`+` fallibility when a
+site can be *neither* bound-proved *nor* region-scoped — whether an `a +? b` form,
+or letting the enclosing region's failure contract absorb it, is the right sugar.
+
 ---
 
 ## 5. Recommendation + ordered next steps
