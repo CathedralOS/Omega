@@ -28,6 +28,10 @@ step "gamma — the Delta checker, written IN gamma"    gamma       test-checker
 step "diamond — two checkers (Beta vs Gamma) agree"   delta       checker-diamond.sh
 step "diamond — definitional eq vs operational eval"  delta       semantics-diamond.sh
 step "seam — inductive universals vs operational eval" delta      induction-soundness.sh
+# untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
+if command -v python3 >/dev/null 2>&1; then
+  step "tool — proof elaborator (named binders -> check.beta)" delta elab-test.sh
+fi
 
 echo ""
 if [ "$fail" = 0 ]; then
