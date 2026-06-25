@@ -176,6 +176,14 @@ What it is **not** (yet), tracked in `rungs/delta.md`:
   gamma/delta seam (the checker's definitional `=` agreeing with the interpreter's
   operational evaluation), but the theorem `provable ⟹ true-about-the-reference-
   interpreter` is the deep open problem, untouched.
+- **`unpack` (∃-elim) is conservatively incomplete.** It rejects any conclusion `C`
+  that mentions *any* individual variable, when soundness only needs `C` to avoid the
+  *witness* variable (the one the handler's `∀` binds). So a `C` that legitimately
+  mentions an *outer* quantified variable is refused — which blocks the constructive
+  quantifier interchange `∃y.∀x.R(x,y) → ∀x.∃y.R(x,y)`. The sound fix is to replace the
+  blanket `ivar_in_prop(C)` check with "the witness var is not free in `C`" and to
+  shift `C` down past the removed binder; it is a small but soundness-critical change
+  (it must keep the capture discriminator and the whole soundness battery green).
 - It is the *reference* checker (small + audited), not a fast one.
 
 The thing the whole architecture exists to produce — a tiny, hand-auditable checker
