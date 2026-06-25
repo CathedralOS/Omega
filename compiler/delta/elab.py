@@ -17,7 +17,8 @@ Surface syntax (s-expressions). Binders name their bound variable; references us
           (k CID A...) (f FID A...) (rec I) (y K)    ; user types/functions
           NAME                 ; resolves to the individual var (v K)
   proofs: (gen x PF) (lam h P PF) NAME(=hyp) (use N)
-          (app F A) (pair A B) (fst P) (snd P) (inl Q P) (inr Q P) (case S F G)
+          (app F A) (app* F A B …) (inst PF T) (inst* PF T1 T2 …)   ; *-forms fold the nesting
+          (pair A B) (fst P) (snd P) (inl Q P) (inr Q P) (case S F G)
           (absurd Q P) (refl T) (inst PF T) (disj P) (sinj P) (unpack EPF H)
           (wit x BODY T PF)            ; BODY is the exists-body, binding x
           (eqelim x MOT EQ BASE)       ; MOT is the motive, binding the hole x
@@ -107,6 +108,14 @@ def epf(n, iv, hy):  # elaborate a proof term
     if h == 'lam':    return "(lam %s %s)" % (ep(n[2], iv), epf(n[3], iv, hy + [n[1]]))
     if h == 'use':    return "(use %s)" % n[1]
     if h == 'app':    return "(app %s %s)" % (epf(n[1], iv, hy), epf(n[2], iv, hy))
+    if h == 'app*':                               # (app* F a b …) -> (app (app F a) b) …
+        out = epf(n[1], iv, hy)
+        for a in n[2:]: out = "(app %s %s)" % (out, epf(a, iv, hy))
+        return out
+    if h == 'inst*':                              # (inst* PF t1 t2 …) -> nested inst, outermost first
+        out = epf(n[1], iv, hy)
+        for t in n[2:]: out = "(inst %s %s)" % (out, et(t, iv))
+        return out
     if h == 'pair':   return "(pair %s %s)" % (epf(n[1], iv, hy), epf(n[2], iv, hy))
     if h == 'fst':    return "(fst %s)" % epf(n[1], iv, hy)
     if h == 'snd':    return "(snd %s)" % epf(n[1], iv, hy)
