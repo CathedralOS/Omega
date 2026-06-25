@@ -92,6 +92,12 @@ chk "&-over-+ dist"   "(-> (& A (+ B C)) (+ (& A B) (& A C))) (lam (& A (+ B C))
 chk "case-curry ->"   "(-> (-> (+ A B) C) (& (-> A C) (-> B C))) (lam (-> (+ A B) C) (pair (lam A (app (hyp 1) (inl B (hyp 0)))) (lam B (app (hyp 1) (inr A (hyp 0))))))" accept
 chk "case-curry <-"   "(-> (& (-> A C) (-> B C)) (-> (+ A B) C)) (lam (& (-> A C) (-> B C)) (lam (+ A B) (case (hyp 0) (lam A (app (fst (hyp 2)) (hyp 0))) (lam B (app (snd (hyp 2)) (hyp 0))))))" accept
 chk "or-idempotent"   "(-> (+ A A) A) (lam (+ A A) (case (hyp 0) (lam A (hyp 0)) (lam A (hyp 0))))" accept
+# congruence / Leibniz substitutivity via eqelim (transport a proved equality)
+chk "s congruence"    "(All (All (-> (= (v 1) (v 0)) (= (s (v 1)) (s (v 0)))))) (gen (gen (lam (= (v 1) (v 0)) (eqelim (= (s (v 2)) (s (v 0))) (hyp 0) (refl (s (v 1)))))))" accept
+chk "+ cong left"     "(All (All (All (-> (= (v 2) (v 1)) (= (p (v 2) (v 0)) (p (v 1) (v 0))))))) (gen (gen (gen (lam (= (v 2) (v 1)) (eqelim (= (p (v 3) (v 1)) (p (v 0) (v 1))) (hyp 0) (refl (p (v 2) (v 0))))))))" accept
+chk "+ cong right"    "(All (All (All (-> (= (v 1) (v 0)) (= (p (v 2) (v 1)) (p (v 2) (v 0))))))) (gen (gen (gen (lam (= (v 1) (v 0)) (eqelim (= (p (v 3) (v 2)) (p (v 3) (v 0))) (hyp 0) (refl (p (v 2) (v 1))))))))" accept
+chk "Leibniz P transport" "(All (All (-> (= (v 1) (v 0)) (-> (Pred 0 (v 1)) (Pred 0 (v 0)))))) (gen (gen (lam (= (v 1) (v 0)) (lam (Pred 0 (v 1)) (eqelim (Pred 0 (v 0)) (hyp 1) (hyp 0))))))" accept
+chk "bogus s-cong"    "(All (All (-> (= (v 1) (v 0)) (= (s (v 1)) (v 0))))) (gen (gen (lam (= (v 1) (v 0)) (eqelim (= (s (v 2)) (s (v 0))) (hyp 0) (refl (s (v 1)))))))" reject
 # binary relations (Rel id t1 t2) — ordered args, conversion in each
 chk "rel tautology"   "(All (All (-> (Rel 0 (v 1) (v 0)) (Rel 0 (v 1) (v 0))))) (gen (gen (lam (Rel 0 (v 1) (v 0)) (hyp 0))))" accept
 chk "rel inst diag"   "(-> (All (Rel 0 (v 0) (v 0))) (Rel 0 z z)) (lam (All (Rel 0 (v 0) (v 0))) (inst (hyp 0) z))" accept
