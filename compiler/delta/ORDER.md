@@ -52,16 +52,22 @@ mentions any variable at all". Because `gen` does **not shift** the stored hypot
 props when it enters a new individual binder, it cannot tell the two apart, so it
 conservatively forbids the whole situation.
 
-## The fix (planned, soundness-critical)
+## The fix (DONE, soundness-critical)
 
 The principled cure is the standard de Bruijn move: when `gen` enters a binder, the
 context's hypotheses are one binder deeper, so their individual-variable indices must
-**shift up by 1** (cutoff 0). Track an individual-binder depth alongside `CTXN`; store it
-when a hypothesis is pushed (`ctx_push` / `lam`); and on `hyp` lookup shift the stored prop
-by `(current_idepth − stored_idepth)`. After this shift, no hypothesis can ever reference
-the freshly generalized variable (`Iv 0`) — it was pushed at a shallower depth — so the
-eigenvariable condition is satisfied **structurally**, and the conservative check is no
-longer needed.
+**shift up by 1** (cutoff 0). It is implemented across all three checkers:
+
+- **`check.beta`** — an individual-binder-depth counter `IDEP` (memory `2097112`) alongside
+  `CTXN`; `ctx_push` records `IDEP` per hypothesis (parallel array at `4718592`); `gen`
+  does `IDEP++ / infer / IDEP--`; and `hyp` lookup returns `shift_prop(stored, IDEP −
+  stored_idep, 0)`. The old conservative `free_ivp` reject in `gen` is gone.
+- **`gamma/checker.gamma`** and **`gamma/checker_typed.gamma`** — purely functional:
+  `(Gen pf) → All (infer pf (shiftctx ctx))`, where `shiftctx` maps `shiftp · 1 0` over the
+  context. `ctxclean` is no longer consulted.
+
+After the shift, no hypothesis can reference the freshly bound variable (`Iv 0`) — each was
+pushed at a shallower depth — so the eigenvariable condition holds **structurally**.
 
 Why this stays sound: in this checker you never "generalize an existing variable", you
 only introduce a **fresh** one via `gen`. A hypothesis like `x = 0` (about an outer `x`)
@@ -69,9 +75,9 @@ does not block `gen`, because `gen` binds a *new* variable `y ≠ x`; the proof 
 `∀y. (x=0 → …)`, never `∀x. x=0`. The de Bruijn structure already prevents the unsound
 conflation; correct shifting just lets the checker *see* that.
 
-The change touches the trust anchor's core, so it must be made in lockstep across
-`check.beta`, `gamma/checker.gamma`, and `gamma/checker_typed.gamma` (diamond + type
-safety), and verified against the full battery — every existing accept/reject unchanged,
-the soundness suite still rejecting every bad certificate, plus new cases: `≤`-transitivity
-and antisymmetry accepted, and adversarial "generalize a constrained variable" certs still
-rejected.
+**Verified** against the full battery (`verify-lattice.sh`): every prior accept/reject
+unchanged; the soundness suite still rejects every bad certificate, now including the
+minimal adversarial pair `P(x) → ∀y.P(y)` and `x=0 → ∀x.x=0` (both **rejected**), while the
+sound `P(x) → ∀y.P(x)` is accepted; both checkers agree on an open-hypothesis `unpack` and
+a `gen`-capture in the checker diamond; and `≤`-transitivity is now provable and pinned in
+the gate (`le trans`). Antisymmetry (needs additive cancellation) is the next order law.

@@ -198,6 +198,11 @@
     (z p)))
 ; gen's freshness guard: no hypothesis in scope has a FREE individual var
 (def ctxclean (ctx) (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
+; ∀-intro lifts every hypothesis one individual binder deeper, so its free individual
+; vars shift up by 1 (cutoff 0). After this the freshly bound variable (Iv 0) is mentioned
+; by NO hypothesis — the eigenvariable condition holds structurally, not by forbidding open
+; hypotheses. This makes ∃-elimination under an open context (e.g. <=-transitivity) provable.
+(def shiftctx (ctx) (match ctx (Nil Nil) ((Cons h t) (Cons (shiftp h 1 0) (shiftctx t)))))
 
 ; the expected CASE type for a constructor (cid, arity, recursion flags r0 r1) under
 ; motive P — general structural induction, subsuming natind/listind. (Con cid) is the
@@ -286,9 +291,8 @@
     ((Case p f g)   (infcase (infer p ctx) (infer f ctx) (infer g ctx)))
     ((Absurd cty p) (match (infer p ctx) (Bot cty) (z Bad)))
     ((Refl t)       (Eq t t))
-    ((Gen pf)       (if (ctxclean ctx)                       ; ∀-intro (conservative)
-                      (let bt (infer pf ctx) (if (isbad bt) Bad (All bt)))
-                      Bad))
+    ((Gen pf)       (let bt (infer pf (shiftctx ctx))        ; ∀-intro — shift ctx one binder
+                      (if (isbad bt) Bad (All bt))))
     ((Inst pf t)    (match (infer pf ctx)                    ; ∀-elim — capture-avoiding
                       ((All body) (subp body t 0))           ; subst, so any witness ok
                       (z Bad)))
