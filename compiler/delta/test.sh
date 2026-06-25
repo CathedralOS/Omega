@@ -83,6 +83,10 @@ chk "contrapositive"  "(-> (-> A B) (-> (-> B (bot)) (-> A (bot)))) (lam (-> A B
 chk "de Morgan ->"    "(-> (& (-> A (bot)) (-> B (bot))) (-> (+ A B) (bot))) (lam (& (-> A (bot)) (-> B (bot))) (lam (+ A B) (case (hyp 0) (lam A (app (fst (hyp 2)) (hyp 0))) (lam B (app (snd (hyp 2)) (hyp 0))))))" accept
 chk "excl-middle no"  "(+ A (-> A (bot))) (inl (-> A (bot)) (hyp 0))"                                              reject
 chk "double-neg-elim" "(-> (-> (-> A (bot)) (bot)) A) (lam (-> (-> A (bot)) (bot)) (hyp 0))"                       reject
+# first-order: the ¬∃ ↔ ∀¬ duality (both constructive); ¬∀ -> ∃¬ is classical -> reject
+chk "neg-ex->all-neg" "(-> (-> (Exists (Pred 0 (v 0))) (bot)) (All (-> (Pred 0 (v 0)) (bot)))) (lam (-> (Exists (Pred 0 (v 0))) (bot)) (gen (lam (Pred 0 (v 0)) (app (hyp 1) (wit (Pred 0 (v 0)) (v 0) (hyp 0))))))" accept
+chk "all-neg->neg-ex" "(-> (All (-> (Pred 0 (v 0)) (bot))) (-> (Exists (Pred 0 (v 0))) (bot))) (lam (All (-> (Pred 0 (v 0)) (bot))) (lam (Exists (Pred 0 (v 0))) (unpack (hyp 0) (gen (lam (Pred 0 (v 0)) (app (inst (hyp 2) (v 0)) (hyp 0)))))))" accept
+chk "neg-all->ex-neg" "(-> (-> (All (Pred 0 (v 0))) (bot)) (Exists (-> (Pred 0 (v 0)) (bot)))) (lam (-> (All (Pred 0 (v 0))) (bot)) (wit (-> (Pred 0 (v 0)) (bot)) (v 0) (lam (Pred 0 (v 0)) (app (hyp 1) (gen (hyp 0))))))" reject
 # binary relations (Rel id t1 t2) — ordered args, conversion in each
 chk "rel tautology"   "(All (All (-> (Rel 0 (v 1) (v 0)) (Rel 0 (v 1) (v 0))))) (gen (gen (lam (Rel 0 (v 1) (v 0)) (hyp 0))))" accept
 chk "rel inst diag"   "(-> (All (Rel 0 (v 0) (v 0))) (Rel 0 z z)) (lam (All (Rel 0 (v 0) (v 0))) (inst (hyp 0) z))" accept

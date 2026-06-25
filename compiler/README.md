@@ -58,11 +58,11 @@ induction**:
 
 The trust anchor is defended five independent ways (all under `verify-lattice.sh`):
 
-- **128-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
+- **131-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
 - **27-case soundness battery** (`soundness.sh`) — invalid certificates that must
   *all* be rejected, including classical-but-non-constructive tautologies (excluded
   middle, Peirce, the drinker paradox).
-- **51-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
+- **54-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
   to the checker itself: `check.beta` (Beta, tagged-memory + CFG guard-state dispatch) and
   `gamma/checker.gamma` (Gamma, ADTs + pattern matching) must return identical
   verdicts on every proof. It has caught real divergences.
