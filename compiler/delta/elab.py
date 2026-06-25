@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""
+elab.py — an UNTRUSTED proof elaborator for the delta certificate checker.
+
+The lattice's thesis is "trust by checking, not pedigree": only `check.beta` is trusted, so
+any tool that *produces* certificates may be arbitrarily clever and stays outside the trust
+path (like `beta-lang-rs` is throwaway scaffolding for `bc`). Writing certificates by hand
+means counting de Bruijn indices for individual variables `(v N)` and hypotheses `(hyp N)`
+under nested binders — the dominant source of errors. This tool lets proofs be written with
+NAMED binders and compiles them to the exact raw syntax `check.beta` consumes.
+
+Surface syntax (s-expressions). Binders name their bound variable; references use the name.
+
+  props : (all x P) (ex x P) (-> P Q) (& P Q) (or P Q) (= A B) bot (pred ID A) (rel ID A B)
+  terms : z | 0 1 2 ...        ; numerals expand to s/z
+          (s A) (+ A B) (* A B) | nil (cons H T) (++ A B) (len A)
+          (k CID A...) (f FID A...) (rec I) (y K)    ; user types/functions
+          NAME                 ; resolves to the individual var (v K)
+  proofs: (gen x PF) (lam h P PF) NAME(=hyp) (use N)
+          (app F A) (pair A B) (fst P) (snd P) (inl Q P) (inr Q P) (case S F G)
+          (absurd Q P) (refl T) (inst PF T) (disj P) (sinj P) (unpack EPF H)
+          (wit x BODY T PF)            ; BODY is the exists-body, binding x
+          (eqelim x MOT EQ BASE)       ; MOT is the motive, binding the hole x
+          (natind x MOT BASE STEP) (listind x MOT BASE STEP)
+          (rec cidA cidB x MOT BASE STEP)
+  top   : (def N P PF) ... GOAL_PROP PROOF      ; defs, then the goal prop and its proof
+
+Usage:  elab.py < proof.elab            # prints the raw certificate
+        elab.py --check < proof.elab    # elaborate, then run check.beta, print accept/reject
+"""
+import sys, re
+
+def tokenize(s):
+    s = re.sub(r';[^\n]*', ' ', s)               # strip ; comments
+    return re.findall(r'\(|\)|[^\s()]+', s)
+
+def parse(toks):
+    out = []
+    while toks:
+        out.append(parse_one(toks))
+    return out
+
+def parse_one(toks):
+    t = toks.pop(0)
+    if t == '(':
+        lst = []
+        while toks[0] != ')':
+            lst.append(parse_one(toks))
+        toks.pop(0)
+        return lst
+    return t
+
+def ix(stack, name):
+    for i in range(len(stack) - 1, -1, -1):
+        if stack[i] == name:
+            return len(stack) - 1 - i
+    raise SystemExit("elab error: unbound name %r (in scope: %s)" % (name, stack))
+
+def num(n):
+    out = "z"
+    for _ in range(int(n)):
+        out = "(s %s)" % out
+    return out
+
+def et(n, iv):  # elaborate a term
+    if isinstance(n, str):
+        for i in range(len(iv) - 1, -1, -1):      # a bound name shadows the z/nil literals
+            if iv[i] == n: return "(v %d)" % (len(iv) - 1 - i)
+        if n == 'z': return 'z'
+        if n == 'nil': return 'nil'
+        if re.fullmatch(r'\d+', n): return num(n)
+        raise SystemExit("elab error: unbound term name %r (in scope: %s)" % (n, iv))
+    h = n[0]
+    if h == 's':   return "(s %s)" % et(n[1], iv)
+    if h == '+':   return "(p %s %s)" % (et(n[1], iv), et(n[2], iv))
+    if h == '*':   return "(m %s %s)" % (et(n[1], iv), et(n[2], iv))
+    if h == 'cons':return "(cons %s %s)" % (et(n[1], iv), et(n[2], iv))
+    if h == '++':  return "(app %s %s)" % (et(n[1], iv), et(n[2], iv))
+    if h == 'len': return "(len %s)" % et(n[1], iv)
+    if h == 'k':   return "(k %s)" % ' '.join([n[1]] + [et(a, iv) for a in n[2:]])
+    if h == 'f':   return "(f %s)" % ' '.join([n[1]] + [et(a, iv) for a in n[2:]])
+    if h == 'rec': return "(rec %s)" % n[1]
+    if h == 'y':   return "(y %s)" % n[1]
+    raise SystemExit("elab error: bad term %r" % (n,))
+
+def ep(n, iv):  # elaborate a prop
+    if isinstance(n, str):
+        if n == 'bot': return '(bot)'
+        raise SystemExit("elab error: bad prop atom %r" % n)
+    h = n[0]
+    if h == 'all':  return "(All %s)"    % ep(n[2], iv + [n[1]])
+    if h == 'ex':   return "(Exists %s)" % ep(n[2], iv + [n[1]])
+    if h == '->':   return "(-> %s %s)"  % (ep(n[1], iv), ep(n[2], iv))
+    if h == '&':    return "(& %s %s)"   % (ep(n[1], iv), ep(n[2], iv))
+    if h == 'or':   return "(+ %s %s)"   % (ep(n[1], iv), ep(n[2], iv))
+    if h == '=':    return "(= %s %s)"   % (et(n[1], iv), et(n[2], iv))
+    if h == 'pred': return "(Pred %s %s)" % (n[1], et(n[2], iv))
+    if h == 'rel':  return "(Rel %s %s %s)" % (n[1], et(n[2], iv), et(n[3], iv))
+    if h == 'bot':  return '(bot)'
+    raise SystemExit("elab error: bad prop %r" % (n,))
+
+def epf(n, iv, hy):  # elaborate a proof term
+    if isinstance(n, str):
+        return "(hyp %d)" % ix(hy, n)             # hypothesis reference
+    h = n[0]
+    if h == 'gen':    return "(gen %s)" % epf(n[2], iv + [n[1]], hy)
+    if h == 'lam':    return "(lam %s %s)" % (ep(n[2], iv), epf(n[3], iv, hy + [n[1]]))
+    if h == 'use':    return "(use %s)" % n[1]
+    if h == 'app':    return "(app %s %s)" % (epf(n[1], iv, hy), epf(n[2], iv, hy))
+    if h == 'pair':   return "(pair %s %s)" % (epf(n[1], iv, hy), epf(n[2], iv, hy))
+    if h == 'fst':    return "(fst %s)" % epf(n[1], iv, hy)
+    if h == 'snd':    return "(snd %s)" % epf(n[1], iv, hy)
+    if h == 'inl':    return "(inl %s %s)" % (ep(n[1], iv), epf(n[2], iv, hy))
+    if h == 'inr':    return "(inr %s %s)" % (ep(n[1], iv), epf(n[2], iv, hy))
+    if h == 'case':   return "(case %s %s %s)" % (epf(n[1], iv, hy), epf(n[2], iv, hy), epf(n[3], iv, hy))
+    if h == 'absurd': return "(absurd %s %s)" % (ep(n[1], iv), epf(n[2], iv, hy))
+    if h == 'refl':   return "(refl %s)" % et(n[1], iv)
+    if h == 'inst':   return "(inst %s %s)" % (epf(n[1], iv, hy), et(n[2], iv))
+    if h == 'disj':   return "(disj %s)" % epf(n[1], iv, hy)
+    if h == 'sinj':   return "(sinj %s)" % epf(n[1], iv, hy)
+    if h == 'unpack': return "(unpack %s %s)" % (epf(n[1], iv, hy), epf(n[2], iv, hy))
+    if h == 'wit':    return "(wit %s %s %s)" % (ep(n[2], iv + [n[1]]), et(n[3], iv), epf(n[4], iv, hy))
+    if h == 'eqelim': return "(eqelim %s %s %s)" % (ep(n[2], iv + [n[1]]), epf(n[3], iv, hy), epf(n[4], iv, hy))
+    if h == 'natind': return "(natind %s %s %s)" % (ep(n[2], iv + [n[1]]), epf(n[3], iv, hy), epf(n[4], iv, hy))
+    if h == 'listind':return "(listind %s %s %s)" % (ep(n[2], iv + [n[1]]), epf(n[3], iv, hy), epf(n[4], iv, hy))
+    if h == 'rec':    return "(rec %s %s %s %s %s)" % (n[1], n[2], ep(n[4], iv + [n[3]]), epf(n[5], iv, hy), epf(n[6], iv, hy))
+    raise SystemExit("elab error: bad proof %r" % (n[0],))
+
+def elaborate(src):
+    forms = parse(tokenize(src))
+    out = []
+    i = 0
+    while i < len(forms):
+        f = forms[i]
+        if isinstance(f, list) and f and f[0] == 'def':
+            # (def N P PF)
+            out.append("(def %s %s %s)" % (f[1], ep(f[2], []), epf(f[3], [], [])))
+            i += 1
+        else:
+            # remaining two forms: goal prop, then proof
+            goal = ep(forms[i], [])
+            proof = epf(forms[i + 1], [], [])
+            out.append(goal); out.append(proof)
+            i += 2
+    return ' '.join(out)
+
+if __name__ == '__main__':
+    src = sys.stdin.read()
+    cert = elaborate(src)
+    if '--check' in sys.argv:
+        import subprocess
+        exe = sys.argv[sys.argv.index('--check') + 1] if len(sys.argv) > sys.argv.index('--check') + 1 else '/tmp/check.exe'
+        r = subprocess.run([exe], input=cert, capture_output=True, text=True)
+        print(r.stdout.strip())
+    else:
+        print(cert)
