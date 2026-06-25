@@ -186,6 +186,15 @@ chk "Tree induction"  "(data 0 0 0 0) (data 1 2 1 1) (-> (Pred 0 (k 0)) (-> (All
 chk "user-Nat induct" "(data 2 0 0 0) (data 3 1 1 0) (-> (Pred 0 (k 2)) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (k 3 (v 0))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (k 2)) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (k 3 (v 0))))) (rec 2 3 (Pred 0 (v 0)) (hyp 1) (hyp 0))))" accept
 chk "rec missing IH"  "(data 0 0 0 0) (data 1 2 1 1) (-> (Pred 0 (k 0)) (-> (All (All (-> (Pred 0 (v 1)) (Pred 0 (k 1 (v 1) (v 0)))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (k 0)) (lam (All (All (-> (Pred 0 (v 1)) (Pred 0 (k 1 (v 1) (v 0)))))) (rec 0 1 (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
 chk "rec wrong base"  "(data 0 0 0 0) (data 1 2 1 1) (-> (Pred 0 (k 1 (k 0) (k 0))) (-> (All (All (-> (Pred 0 (v 1)) (-> (Pred 0 (v 0)) (Pred 0 (k 1 (v 1) (v 0))))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (k 1 (k 0) (k 0))) (lam (All (All (-> (Pred 0 (v 1)) (-> (Pred 0 (v 0)) (Pred 0 (k 1 (v 1) (v 0))))))) (rec 0 1 (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
+# user-defined recursive FUNCTIONS over a declared type — one (fun FID CID body) rule per
+# constructor; (f FID t) applies, (rec i) is the recursive call. g embeds user-Nat
+# (Z=cid2, S=cid3) into built-in Peano: g(Z)=z, g(S x)=s(g x). Reductions feed refl.
+FG="(data 2 0 0 0) (data 3 1 1 0) (fun 7 2 z) (fun 7 3 (s (rec 0)))"
+chk "fun g(S Z)=s z"  "$FG (= (f 7 (k 3 (k 2))) (s z)) (refl (f 7 (k 3 (k 2))))" accept
+chk "fun g(S S Z)=2"  "$FG (= (f 7 (k 3 (k 3 (k 2)))) (s (s z))) (refl (f 7 (k 3 (k 3 (k 2)))))" accept
+chk "fun g(S n) law"  "$FG (All (= (f 7 (k 3 (v 0))) (s (f 7 (v 0))))) (gen (refl (f 7 (k 3 (v 0)))))" accept
+chk "fun wrong value" "$FG (= (f 7 (k 3 (k 2))) (s (s z))) (refl (f 7 (k 3 (k 2))))" reject
+chk "fun open stuck"  "$FG (= (f 7 (v 0)) z) (refl (f 7 (v 0)))" reject
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
 eqk() { # description  "t1 t2"  expect
