@@ -39,7 +39,8 @@ proofs: (gen x PF) (lam h P PF) NAME(→hyp) (use N)
         (eqelim x MOT EQ BASE)       ; MOT = the Leibniz motive, binding the hole x
         (natind x MOT BASE STEP) (listind x MOT BASE STEP)
         (rec cidA cidB x MOT BASE STEP)
-top   : (def N P PF) …  GOAL_PROP  PROOF
+top   : (data CID ARITY R0 R1) (fun FID CID BODY) …  (def N P PF) …  GOAL  PROOF
+        ; user data types / functions, then named lemmas, then the goal and its proof
 ```
 
 ### A conversion gotcha the elaborator exposes (not fixes)
