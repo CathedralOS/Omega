@@ -124,7 +124,30 @@ are an **ordered commutative semiring**.
   totality (`a≤b ∨ b≤a`) and `le-split` applied to each branch.
 
 The naturals are now a fully **linearly ordered commutative semiring** inside the trust
-anchor: `≤` a total order compatible with `+` and `·`, `<` a strict order beneath it, the
-`Sa≤b` bridge between them, and trichotomy tying it all together. The order backbone is
-complete; remaining threads (e.g. strict additive monotonicity `a<b → a+c<b+c`) are
-straightforward extensions on the lemmas now in place.
+anchor: `≤` a total order compatible with `+` and `·`, `<` a strict order beneath it
+(also `+`-monotone, `lt add mono`), the `Sa≤b` bridge between them, and trichotomy tying
+it all together.
+
+## The deep capstone: strong induction (well-foundedness of `<`)
+
+`strong induction` — for an **abstract predicate** `P = Pred 0`:
+
+```
+(∀n. (∀m. m<n → P m) → P n)  →  ∀n. P n
+```
+
+This is the well-founded-induction principle for `<` — not a fixed arithmetic fact but a
+*proof scheme* over an uninterpreted predicate, the strongest statement the first-order
+checker can make about the order. It is proved by ordinary `natind` on the auxiliary
+`Q(n) := ∀m. m<n → P m`:
+
+- **base** `Q(0)` is vacuous — `lt not zero` (`¬(m<0)`) discharges the antecedent by `absurd`;
+- **step** `Q(n') → Q(Sn')`: given `m<Sn'`, the bridge `lt S to le` gives `m≤n'`, then
+  `le split` gives `m<n' ∨ m=n'` — the first case uses the induction hypothesis `Q(n')`,
+  the second rewrites `m=n'` and applies the supplied hypothesis at `n'`.
+
+Then `P n = H(n)(Q(n))` for every `n`. A mismatched-predicate variant is **rejected**,
+confirming the checker genuinely checks it. This result leans on the whole stack — the
+eigenvariable fix (so `∃`-elimination and the abstract hypothesis thread through the nested
+induction), the order lemmas, and `le-split` — and is the natural summit of the order
+backbone.
