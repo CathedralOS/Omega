@@ -65,8 +65,10 @@ induction**:
   **commutative semiring** inside the checker, the same axioms built-in `+`/`*` meet;
 - real theorems, all pinned in the gate: `n+0=n`, `n≠s n`, every nat is `0` or a
   successor, `l++nil=l`, append associativity, `len(a++b)=len(a)+len(b)`, and — via
-  lemmas — **addition commutativity** and **right distributivity** `(a+b)*c=a*c+b*c`,
-  so the naturals satisfy the core semiring axioms inside the checker; plus pure-logic
+  lemmas — **addition *and* multiplication commutativity**, **both distributive laws**
+  (`(a+b)*c` and `a*(b+c)`), associativity, and the `0`/`1` identities, so the built-in
+  naturals are a full **commutative semiring** inside the checker (the same status shown
+  for a user-*defined* number type); plus pure-logic
   theorems — non-contradiction `¬(A&¬A)`, the contrapositive, constructive de Morgan,
   and the `¬∃x.P ↔ ∀x.¬P` quantifier duality — with their classical converses (excluded
   middle, `¬¬A→A`, `¬∀→∃¬`) pinned as **rejected**, marking the logic intuitionistic.
