@@ -31,6 +31,7 @@ step "seam — inductive universals vs operational eval" delta      induction-so
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
 if command -v python3 >/dev/null 2>&1; then
   step "tool — proof elaborator (named binders -> check.beta)" delta elab-test.sh
+  step "tool — elaborator/de-elaborator round-trip on the corpus" delta delab-roundtrip.sh
 fi
 
 echo ""

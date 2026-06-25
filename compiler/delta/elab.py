@@ -89,6 +89,7 @@ def et(n, iv):  # elaborate a term
 def ep(n, iv):  # elaborate a prop
     if isinstance(n, str):
         if n == 'bot': return '(bot)'
+        if re.fullmatch(r'[A-Z]', n): return n     # atomic proposition (ATOM char)
         raise SystemExit("elab error: bad prop atom %r" % n)
     h = n[0]
     if h == 'all':  return "(All %s)"    % ep(n[2], iv + [n[1]])
