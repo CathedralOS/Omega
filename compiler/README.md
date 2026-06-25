@@ -46,8 +46,8 @@ induction**:
 - `∀`/`∃` with **capture-avoiding** instantiation (de Bruijn shifting), unary and
   binary predicates; `∀`-introduction lifts the hypothesis context one binder (the
   eigenvariable condition holds structurally), so `∃`-**elimination works under open
-  hypotheses** — enough to define `a ≤ b := ∃c. a+c=b` and prove it a **partial order**
-  (reflexive, transitive, antisymmetric) inside the checker, with additive cancellation
+  hypotheses** — enough to define `a ≤ b := ∃c. a+c=b` and prove it a **total (linear) order**
+  (reflexive, transitive, antisymmetric, total) inside the checker, with additive cancellation
   (`a+x=a+y → x=y`) along the way;
 - induction over the two built-in inductive types (Peano naturals, Lists) **and over
   user-declared types** (`data` + `rec` — general structural induction, e.g. a binary
@@ -73,7 +73,7 @@ induction**:
 
 The trust anchor is defended five independent ways (all under `verify-lattice.sh`):
 
-- **187-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
+- **188-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
 - **32-case soundness battery** (`soundness.sh`) — invalid certificates that must
   *all* be rejected, including classical-but-non-constructive tautologies (excluded
   middle, Peirce, the drinker paradox).
