@@ -79,5 +79,20 @@ conflation; correct shifting just lets the checker *see* that.
 unchanged; the soundness suite still rejects every bad certificate, now including the
 minimal adversarial pair `P(x) → ∀y.P(y)` and `x=0 → ∀x.x=0` (both **rejected**), while the
 sound `P(x) → ∀y.P(x)` is accepted; both checkers agree on an open-hypothesis `unpack` and
-a `gen`-capture in the checker diamond; and `≤`-transitivity is now provable and pinned in
-the gate (`le trans`). Antisymmetry (needs additive cancellation) is the next order law.
+a `gen`-capture in the checker diamond.
+
+## Order theory unlocked by the fix
+
+With `∃`-elimination under open hypotheses, `≤` is proved a **partial order**, all pinned
+in the gate:
+
+- `le trans` — `∀a∀b∀c. a≤b → b≤c → a≤c` (witness `d+e`, via associativity);
+- `le antisym` — `∀a∀b. a≤b → b≤a → a=b` (unpack both witnesses `c,d`; then
+  `a+(c+d) = (a+c)+d = b+d = a = a+0`, so cancellation gives `c+d=0`, sum-zero gives
+  `c=0`, and `a+c=b` collapses to `a=b`).
+
+Two supporting backbones, also enabled by the fix (their induction step generalizes under
+a hypothesis that mentions the induction variable): **additive left-cancellation**
+`∀a∀x∀y. a+x=a+y → x=y` (`add cancel`, via S-injectivity) and **sum-zero**
+`∀x∀y. x+y=0 → x=0` (`sum zero`, via Peano no-confusion). Next order law: totality
+(`∀a∀b. a≤b ∨ b≤a`), which needs a case split on the difference.
