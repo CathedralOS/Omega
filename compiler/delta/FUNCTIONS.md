@@ -3,14 +3,18 @@
 Status: **IMPLEMENTED — arity 0/1/2 constructors AND 1/2 arguments, verified across all
 five defense layers** — check.beta (table) + checker.gamma + checker_typed.gamma (inline
 rules) + eq.beta; gate, soundness, checker diamond, type-safety, and the semantics
-diamond. Universal theorems over user functions prove by induction. A user-defined binary `add`
-is shown to be a **commutative monoid** inside the checker — `∀x. add(x,Z)=x` (right
-identity), associativity, and `∀x∀y. add(x,y)=add(y,x)` (commutativity, via the lemma
-layer) — and a `mult` *defined in terms of* `add` (functions calling functions) computes
-(`2·3=6`) and satisfies `∀x. mult(x,Z)=Z`. A binary application is `(f fid x y)` =
-`FAPP(fid, FBUNDLE(x,y))`; the 2nd argument is `(y k)` = `PAR` in rule bodies, threaded
-through recursion. Next: N-ary (3+) arguments, user-mult distributivity (a full user
-semiring). The design below is the record.
+diamond. Universal theorems over user functions prove by induction. A number type with
+USER-DEFINED arithmetic is shown to be a **commutative semiring** inside the checker:
+`add` is a commutative monoid (`∀x. add(x,Z)=x`, associativity, `∀x∀y. add(x,y)=add(y,x)`),
+and a `mult` *defined in terms of* `add` (functions calling functions) computes (`2·3=6`),
+satisfies `∀x. mult(x,Z)=Z`, **distributes** (`mult(a+b,c)=mult(a,c)+mult(b,c)`), and
+**commutes** (`∀a∀b. mult(a,b)=mult(b,a)`). The commutativity proof is the deepest: it
+needs a left-expansion lemma `mult(x,Sy)=add(mult(x,y),x)` and must induct on the inner
+variable with the other left free (a single outer `gen`), because the checker's `gen`
+imposes an eigenvariable condition — no hypothesis in scope may carry a free individual
+variable. A binary application is `(f fid x y)` = `FAPP(fid, FBUNDLE(x,y))`; the 2nd
+argument is `(y k)` = `PAR` in rule bodies, threaded through recursion. Next: N-ary (3+)
+arguments. The design below is the record.
 
 This is the trust anchor's stated #1 frontier
 (`README.md` / `delta/README.md`): today a `data`-declared type's constructors are inert
