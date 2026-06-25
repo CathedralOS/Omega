@@ -75,6 +75,14 @@ chk "forall-distrib"  "(-> (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (-> (All (Pr
 chk "forall over &"   "(-> (All (& (Pred 0 (v 0)) (Pred 1 (v 0)))) (All (Pred 0 (v 0)))) (lam (All (& (Pred 0 (v 0)) (Pred 1 (v 0)))) (gen (fst (inst (hyp 0) (v 0)))))" accept
 chk "forall reconstruct" "(-> (All (Pred 0 (v 0))) (All (Pred 0 (v 0)))) (lam (All (Pred 0 (v 0))) (gen (inst (hyp 0) (v 0))))" accept
 chk "false converse"  "(-> (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (-> (All (Pred 1 (v 0))) (All (Pred 0 (v 0))))) (lam (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (lam (All (Pred 1 (v 0))) (gen (app (inst (hyp 1) (v 0)) (inst (hyp 0) (v 0))))))" reject
+# intuitionistic negation theorems (¬A = A -> ⊥); the classical converses must reject
+chk "non-contradict"  "(-> (& A (-> A (bot))) (bot)) (lam (& A (-> A (bot))) (app (snd (hyp 0)) (fst (hyp 0))))" accept
+chk "double-neg-in"   "(-> A (-> (-> A (bot)) (bot))) (lam A (lam (-> A (bot)) (app (hyp 0) (hyp 1))))" accept
+chk "triple-neg"      "(-> (-> (-> (-> A (bot)) (bot)) (bot)) (-> A (bot))) (lam (-> (-> (-> A (bot)) (bot)) (bot)) (lam A (app (hyp 1) (lam (-> A (bot)) (app (hyp 0) (hyp 1))))))" accept
+chk "contrapositive"  "(-> (-> A B) (-> (-> B (bot)) (-> A (bot)))) (lam (-> A B) (lam (-> B (bot)) (lam A (app (hyp 1) (app (hyp 2) (hyp 0))))))" accept
+chk "de Morgan ->"    "(-> (& (-> A (bot)) (-> B (bot))) (-> (+ A B) (bot))) (lam (& (-> A (bot)) (-> B (bot))) (lam (+ A B) (case (hyp 0) (lam A (app (fst (hyp 2)) (hyp 0))) (lam B (app (snd (hyp 2)) (hyp 0))))))" accept
+chk "excl-middle no"  "(+ A (-> A (bot))) (inl (-> A (bot)) (hyp 0))"                                              reject
+chk "double-neg-elim" "(-> (-> (-> A (bot)) (bot)) A) (lam (-> (-> A (bot)) (bot)) (hyp 0))"                       reject
 # binary relations (Rel id t1 t2) — ordered args, conversion in each
 chk "rel tautology"   "(All (All (-> (Rel 0 (v 1) (v 0)) (Rel 0 (v 1) (v 0))))) (gen (gen (lam (Rel 0 (v 1) (v 0)) (hyp 0))))" accept
 chk "rel inst diag"   "(-> (All (Rel 0 (v 0) (v 0))) (Rel 0 z z)) (lam (All (Rel 0 (v 0) (v 0))) (inst (hyp 0) z))" accept
