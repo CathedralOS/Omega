@@ -171,7 +171,11 @@ What it is **not** (yet), tracked in `rungs/delta.md`:
   constructors are inert data with structural equality; you can do induction over a
   `Tree`, but there is no `mirror`/`size` with reduction rules feeding the conversion
   rule. That function-definition layer is the next frontier and what would make
-  *theorems* (not just induction principles) over user types provable.
+  *theorems* (not just induction principles) over user types provable. It is now
+  designed — [`FUNCTIONS.md`](FUNCTIONS.md) — as two small helpers + one `normalize`
+  arm per checker, fuel-bounded for totality, with the stateful-table (check.beta) vs.
+  inline-rule (pure-functional gamma) split worked out so neither checker grows a second
+  responsibility.
 - **No soundness bridge** to program execution. `semantics-diamond.sh` *exhibits* the
   gamma/delta seam (the checker's definitional `=` agreeing with the interpreter's
   operational evaluation), but the theorem `provable ⟹ true-about-the-reference-
