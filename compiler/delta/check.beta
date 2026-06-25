@@ -146,8 +146,12 @@ proc parse_nat() {
     state op_s { a = parse_nat()  skip_ws()  adv()  return alloc(31, a, 0) }
     state op_m { to do_m when (op == 'm')  to op_v }
     state do_m { a = parse_nat()  b = parse_nat()  skip_ws()  adv()  return alloc(33, a, b) }
-    state op_v { to do_v when (op == 'v')  to op_c }
+    state op_v { to do_v when (op == 'v')  to op_f }
     state do_v { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(34, a, 0) }
+    state op_f { to do_f when (op == 'f')  to op_r }      ; (f fid arg) user-function application
+    state do_f { skip_ws()  a = parse_number()  b = parse_nat()  skip_ws()  adv()  return alloc(52, a, b) }
+    state op_r { to do_r when (op == 'r')  to op_c }      ; (rec i) recursive call in a fun body
+    state do_r { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(54, a, 0) }
     state op_c { to do_c when (op == 'c')  to op_a }
     state do_c { a = parse_nat()  b = parse_nat()  skip_ws()  adv()  return alloc(36, a, b) }
     state op_a { to do_a when (op == 'a')  to op_k }
@@ -248,7 +252,7 @@ proc normalize(t, fuel) {
         b = alloc(33, word[a + 8], word[t + 16])
         return normalize(alloc(32, word[t + 16], b), fuel - 1)
     }
-    state t38 { to do_38 when (tag == 38)  return t }
+    state t38 { to do_38 when (tag == 38)  to t52 }
     state do_38 {
         a = normalize(word[t + 8], fuel - 1)
         to l_nil when (word[a] == 35)            ; len nil => z
@@ -263,6 +267,66 @@ proc normalize(t, fuel) {
         b = normalize(alloc(38, word[a + 16], 0), fuel - 1)
         return alloc(31, b, 0)
     }
+    state t52 { to do_fapp when (tag == 52)  return t }   ; (f fid arg) user-function application
+    state do_fapp {
+        a = reduce_fun(word[t + 8], word[t + 16], fuel - 1)   ; one rewrite step, or 0 (STUCK)
+        to fapp_stuck when (a == 0)
+        return normalize(a, fuel - 1)            ; keep reducing the rewritten term
+    }
+    state fapp_stuck { return alloc(52, word[t + 8], normalize(word[t + 16], fuel - 1)) }
+}
+
+; one rewrite step of (f fid arg): if arg normalizes to a constructor head with a rule,
+; instantiate that rule's body; else 0 (STUCK — open arg, or no rule). Fuel-bounded via
+; normalize, so a divergent definition simply never reduces (totality is preserved).
+; FRULE table at 5898240, indexed by (fid*64 + cid).  Supports arity 0 and 1 constructors.
+proc reduce_fun(fid, arg, fuel) {
+    let a = normalize(arg, fuel)
+    let cid = 0
+    let body = 0
+    state nullary { to do_null when (word[a] == 50)  to applied }   ; CON(cid) — nullary
+    state do_null {
+        cid = word[a + 8]
+        body = word[5898240 + (fid * 64 + cid) * 8]
+        to stuck when (body == 0)
+        return instantiate(body, fid, 0)
+    }
+    state applied { to do_app when (word[a] == 51)  to stuck }       ; APPLY(head, lastarg)
+    state do_app {
+        to unary when (word[word[a + 8]] == 50)  ; arity 1: APPLY(CON(cid), a0)
+        to stuck                                 ; arity 2+ : not supported yet — STUCK
+    }
+    state unary {
+        cid = word[word[a + 8] + 8]
+        body = word[5898240 + (fid * 64 + cid) * 8]
+        to stuck when (body == 0)
+        return instantiate(body, fid, word[a + 16])   ; a0 = word[a + 16]
+    }
+    state stuck { return 0 }
+}
+
+; instantiate a rule body: pattern var (v 0) -> arg0, (rec i) -> (f fid arg0), else
+; structural. Like subst_term but with two extra leaf actions; reuses no de Bruijn state.
+proc instantiate(t, fid, arg0) {
+    state iv { to do_iv when (word[t] == 34)  to rc }      ; IVAR — the pattern var
+    state do_iv {
+        to ret_arg when (word[t + 8] == 0)
+        return t
+    }
+    state ret_arg { return arg0 }
+    state rc { to do_rc when (word[t] == 54)  to fapp }    ; RECCALL (rec i) — recursive call
+    state do_rc { return alloc(52, fid, arg0) }            ; -> (f fid arg0)
+    state fapp { to do_fa when (word[t] == 52)  to leaf }  ; nested (f gid e): keep gid, recurse e
+    state do_fa { return alloc(52, word[t + 8], instantiate(word[t + 16], fid, arg0)) }
+    state leaf { to ret_t when (word[t] == 30)  to leaf2 }
+    state ret_t { return t }
+    state leaf2 { to ret_t when (word[t] == 35)  to leaf3 }
+    state leaf3 { to ret_t when (word[t] == 50)  to unary }   ; CON(cid) — leaf
+    state unary { to do_un when (word[t] == 31)  to lenc }
+    state do_un { return alloc(31, instantiate(word[t + 8], fid, arg0), 0) }
+    state lenc { to do_len when (word[t] == 38)  to dflt }
+    state do_len { return alloc(38, instantiate(word[t + 8], fid, arg0), 0) }
+    state dflt { return alloc(word[t], instantiate(word[t + 8], fid, arg0), instantiate(word[t + 16], fid, arg0)) }
 }
 
 proc nat_eq(a, b) {
@@ -270,8 +334,13 @@ proc nat_eq(a, b) {
     state teq { to z when (word[a] == 30)  to nilc }
     state z { return 1 }
     state nilc { to z when (word[a] == 35)  to con }      ; nil — equal (tags match)
-    state con { to concheck when (word[a] == 50)  to ivar }   ; CON: same cid?
+    state con { to concheck when (word[a] == 50)  to fapp }   ; CON: same cid?
     state concheck { to z when (word[a + 8] == word[b + 8])  return 0 }
+    state fapp { to fappchk when (word[a] == 52)  to ivar }   ; (f fid arg): same fid + arg?
+    state fappchk {
+        to bdiff when (word[a + 8] != word[b + 8])
+        return nat_eq(word[a + 16], word[b + 16])
+    }
     state ivar { to ivcheck when (word[a] == 34)  to suc }    ; Ivar: same index?
     state ivcheck { to z when (word[a + 8] == word[b + 8])  return 0 }
     state suc { to child when (word[a] == 31)  to lenc }
@@ -295,7 +364,9 @@ proc free_ivt(t, depth) {
     state z { to no when (word[t] == 30)  to nilc }
     state no { return 0 }
     state nilc { to no when (word[t] == 35)  to con }
-    state con { to no when (word[t] == 50)  to suc }
+    state con { to no when (word[t] == 50)  to fapp }
+    state fapp { to fa when (word[t] == 52)  to suc }    ; (f fid arg) — only arg has vars
+    state fa { return free_ivt(word[t + 16], depth) }
     state suc { to child when (word[t] == 31)  to lenc }
     state child { return free_ivt(word[t + 8], depth) }
     state lenc { to child when (word[t] == 38)  to both }
@@ -343,7 +414,9 @@ proc wit_in_term(t, depth) {
     state z { to no when (word[t] == 30)  to nilc }
     state no { return 0 }
     state nilc { to no when (word[t] == 35)  to con }
-    state con { to no when (word[t] == 50)  to suc }
+    state con { to no when (word[t] == 50)  to fapp }
+    state fapp { to fa when (word[t] == 52)  to suc }
+    state fa { return wit_in_term(word[t + 16], depth) }
     state suc { to child when (word[t] == 31)  to lenc }
     state child { return wit_in_term(word[t + 8], depth) }
     state lenc { to child when (word[t] == 38)  to both }
@@ -391,7 +464,9 @@ proc shift_term(t, d, cutoff) {
     state z { to ret_t when (word[t] == 30)  to nilc }
     state ret_t { return t }
     state nilc { to ret_t when (word[t] == 35)  to con }
-    state con { to ret_t when (word[t] == 50)  to suc }
+    state con { to ret_t when (word[t] == 50)  to fapp }
+    state fapp { to fa when (word[t] == 52)  to suc }
+    state fa { return alloc(52, word[t + 8], shift_term(word[t + 16], d, cutoff)) }
     state suc { to do_suc when (word[t] == 31)  to lenc }
     state do_suc { return alloc(31, shift_term(word[t + 8], d, cutoff), 0) }
     state lenc { to do_len when (word[t] == 38)  to dflt }
@@ -415,7 +490,9 @@ proc subst_term(t, s, depth) {
     state z { to ret_t when (word[t] == 30)  to nilc }
     state ret_t { return t }
     state nilc { to ret_t when (word[t] == 35)  to con }
-    state con { to ret_t when (word[t] == 50)  to suc }
+    state con { to ret_t when (word[t] == 50)  to fapp }
+    state fapp { to fa when (word[t] == 52)  to suc }
+    state fa { return alloc(52, word[t + 8], subst_term(word[t + 16], s, depth)) }
     state suc { to do_suc when (word[t] == 31)  to lenc }
     state do_suc { return alloc(31, subst_term(word[t + 8], s, depth), 0) }
     state lenc { to do_len when (word[t] == 38)  to dflt }
@@ -452,7 +529,9 @@ proc subst_term_keep(t, s, depth) {
     state z { to ret_t when (word[t] == 30)  to nilc }
     state ret_t { return t }
     state nilc { to ret_t when (word[t] == 35)  to con }
-    state con { to ret_t when (word[t] == 50)  to suc }
+    state con { to ret_t when (word[t] == 50)  to fapp }
+    state fapp { to fa when (word[t] == 52)  to suc }
+    state fa { return alloc(52, word[t + 8], subst_term_keep(word[t + 16], s, depth)) }
     state suc { to do_suc when (word[t] == 31)  to lenc }
     state do_suc { return alloc(31, subst_term_keep(word[t + 8], s, depth), 0) }
     state lenc { to do_len when (word[t] == 38)  to dflt }
@@ -1071,9 +1150,10 @@ proc at_def() {
     state p2 {
         adv()
         skip_ws()
-        to setr when (cbyte() == 'd')
-        to done
+        to setr when (cbyte() == 'd')    ; (def / (data
+        to chkf
     }
+    state chkf { to setr when (cbyte() == 'f')  to done }   ; (fun
     state setr { r = 1  to done }
     state done { word[2097144] = save  return r }
 }
@@ -1094,6 +1174,7 @@ proc main() {
         skip_ws()
         adv()                    ; '('
         skip_ws()
+        to kfun when (cbyte() == 'f')     ; (fun FID CID body)
         adv()                    ; 'd'
         kind = cbyte()           ; 'e' = def (lemma) ; 'a' = data (constructor decl)
         skip_ident()             ; rest of "def" / "data"
@@ -1101,6 +1182,17 @@ proc main() {
         n = parse_number()       ; lemma number OR constructor id
         to kdata when (kind == 'a')
         to kdef
+    }
+    state kfun {                 ; (fun FID CID body) — one rewrite rule of function FID
+        skip_ident()             ; "fun"
+        skip_ws()
+        n = parse_number()       ; FID
+        skip_ws()
+        let fcid = parse_number()  ; CID (which constructor this rule fires on)
+        let fbody = parse_nat()    ; rule body (over pattern var (v 0) and (rec 0))
+        expect(')')
+        word[5898240 + (n * 64 + fcid) * 8] = fbody   ; FRULE[fid][cid] = body
+        to defloop
     }
     state kdata {                ; (data CID ARITY R0 R1) — record a constructor's shape
         skip_ws()

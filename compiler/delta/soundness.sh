@@ -54,6 +54,8 @@ no "instantiation drifts pred"   "(-> (All (Pred 0 (v 0))) (Pred 1 z)) (lam (All
 no "variable capture"            "(All (-> (Pred 0 (v 0)) (All (Pred 0 (v 0))))) (gen (lam (Pred 0 (v 0)) (gen (hyp 0))))"
 no "exists witness leaks out"    "(-> (Exists (Pred 0 (v 0))) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (Pred 0 (v 0)))) (lam (Exists (Pred 0 (v 0))) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (unpack (hyp 1) (hyp 0))))"
 no "unpack C uses witness"       "(-> (Exists (Pred 0 (v 0))) (Pred 0 (v 0))) (lam (Exists (Pred 0 (v 0))) (unpack (hyp 0) (gen (lam (Pred 0 (v 0)) (hyp 0)))))"
+no "fun: no rule stays stuck"    "(data 2 0 0 0) (data 4 0 0 0) (fun 7 2 z) (= (f 7 (k 4)) z) (refl (f 7 (k 4)))"
+no "fun: open arg stays stuck"   "(data 2 0 0 0) (data 3 1 1 0) (fun 7 2 z) (fun 7 3 (s (rec 0))) (= (f 7 (v 0)) z) (refl (f 7 (v 0)))"
 no "forall converse (false)"     "(-> (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (-> (All (Pred 1 (v 0))) (All (Pred 0 (v 0))))) (lam (All (-> (Pred 0 (v 0)) (Pred 1 (v 0)))) (lam (All (Pred 1 (v 0))) (gen (app (inst (hyp 1) (v 0)) (inst (hyp 0) (v 0))))))"
 no "induction w/o step"          "(-> (Pred 0 z) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (All (Pred 0 (v 0))))) (lam (Pred 0 z) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (natind (Pred 0 (v 0)) (hyp 1) (hyp 0))))"
 no "disj on a true eq"           "(-> (= (s z) (s z)) (bot)) (lam (= (s z) (s z)) (disj (hyp 0)))"
