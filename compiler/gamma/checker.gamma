@@ -157,6 +157,21 @@
 ; gen's freshness guard: no hypothesis in scope has a FREE individual var
 (def ctxclean (ctx) (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
 
+; the expected CASE type for a constructor (cid, arity, recursion flags r0 r1) under
+; motive P — general structural induction, subsuming natind/listind. (Con cid) is the
+; head, applied via Apply. arity-2 shifts P past the extra binder, like listind.
+(def concase2 (cid r0 r1 mp)
+  (let inner0 (subpk mp (Apply (Apply (Con cid) (Iv 1)) (Iv 0)) 0)
+    (let inner1 (if r1 (Arrow mp inner0) inner0)
+      (if r0 (Arrow (subpk mp (Iv 1) 0) inner1) inner1))))
+(def concase (cid arity r0 r1 motive)
+  (if (eq arity 0)
+    (subp motive (Con cid) 0)
+    (if (eq arity 1)
+      (All (if r0 (Arrow motive (subpk motive (Apply (Con cid) (Iv 0)) 0))
+                  (subpk motive (Apply (Con cid) (Iv 0)) 0)))
+      (All (All (concase2 cid r0 r1 (shiftp motive 1 1)))))))
+
 (def teq (a b)                     ; structural type equality (defn'l for Eq) -> 1/0
   (match a
     ((Atom x)    (match b ((Atom y)  (eq x y))                  (z 0)))
@@ -263,6 +278,12 @@
       (match (infer pfeq ctx)
         ((Eq a b) (if (teq (infer pfpa ctx) (subp motive a 0)) (subp motive b 0) Bad))
         (z Bad)))
+    ((Rec sa sb motive cA cB)                               ; general structural induction
+      (match sa ((Mkspec ca aa r0a r1a)
+        (match sb ((Mkspec cb ab r0b r1b)
+          (if (teq (infer cA ctx) (concase ca aa r0a r1a motive))
+            (if (teq (infer cB ctx) (concase cb ab r0b r1b motive)) (All motive) Bad)
+            Bad))))))
     ((Disj pf)                                              ; no-confusion: 0 != s t
       (match (infer pf ctx)
         ((Eq a b)
