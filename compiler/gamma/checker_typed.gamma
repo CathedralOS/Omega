@@ -9,7 +9,7 @@
 ;   sh test-typeck.sh-style:  typeck < this  -> 1 (well-typed)
 
 (data Nat (Ze) (Su Nat) (Pl Nat Nat) (Mu Nat Nat) (Iv Int) (Lnil) (Lcons Nat Nat) (Lapp Nat Nat) (Llen Nat) (Con Int) (Apply Nat Nat)
-          (Fapp Nat Int Nat Int Nat) (Reccall Int))   ; user-function application (rules inline, flat to avoid a mutual type) + recursive call
+          (Fapp Nat Int Nat Int Nat) (Reccall Int) (Fbundle Nat Nat) (Par Int) (Fnone))   ; user-function application (rules inline, flat) + recursive call + binary-arg bundle + 2nd-arg ref + unary sentinel
 (data Type (Atom Int) (Arrow Type Type) (And Type Type) (Or Type Type) (Bot) (Eq Nat Nat) (Bad)
            (All Type) (Exists Type) (Pred Int Nat) (Rel Int Nat Nat))
 (data Spec (Mkspec Int Int Int Int))
@@ -32,37 +32,44 @@
 ; user-defined recursive functions: (Fapp arg cA bA cB bB) carries its two rules inline
 ; (cid, body). finst instantiates a body — (Iv 0)->the field, (Reccall 0)->the recursive
 ; call; ffire fires the rule matching the constructor id and re-normalizes, else STUCK.
-(def finst ((body Nat) (a0 Nat) (a1 Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
+(def finst ((body Nat) (a0 Nat) (a1 Nat) (extra Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
   (match body
     ((Iv k) (if (eq k 0) a0 (if (eq k 1) a1 body)))
-    ((Reccall i) (if (eq i 0) (Fapp a0 cA bA cB bB) (Fapp a1 cA bA cB bB)))
-    (Ze Ze) ((Su x) (Su (finst x a0 a1 cA bA cB bB)))
-    ((Pl a b) (Pl (finst a a0 a1 cA bA cB bB) (finst b a0 a1 cA bA cB bB)))
-    ((Mu a b) (Mu (finst a a0 a1 cA bA cB bB) (finst b a0 a1 cA bA cB bB)))
-    (Lnil Lnil) ((Lcons a b) (Lcons (finst a a0 a1 cA bA cB bB) (finst b a0 a1 cA bA cB bB)))
-    ((Lapp a b) (Lapp (finst a a0 a1 cA bA cB bB) (finst b a0 a1 cA bA cB bB)))
-    ((Llen a) (Llen (finst a a0 a1 cA bA cB bB))) ((Con q) (Con q))
-    ((Apply f g) (Apply (finst f a0 a1 cA bA cB bB) (finst g a0 a1 cA bA cB bB)))
-    ((Fapp a x1 y1 x2 y2) (Fapp (finst a a0 a1 cA bA cB bB) x1 y1 x2 y2))
+    ((Par k) extra)
+    ((Reccall i) (let fld (if (eq i 0) a0 a1) (match extra (Fnone (Fapp fld cA bA cB bB)) (z (Fapp (Fbundle fld extra) cA bA cB bB)))))
+    (Ze Ze) ((Su x) (Su (finst x a0 a1 extra cA bA cB bB)))
+    ((Pl a b) (Pl (finst a a0 a1 extra cA bA cB bB) (finst b a0 a1 extra cA bA cB bB)))
+    ((Mu a b) (Mu (finst a a0 a1 extra cA bA cB bB) (finst b a0 a1 extra cA bA cB bB)))
+    (Lnil Lnil) ((Lcons a b) (Lcons (finst a a0 a1 extra cA bA cB bB) (finst b a0 a1 extra cA bA cB bB)))
+    ((Lapp a b) (Lapp (finst a a0 a1 extra cA bA cB bB) (finst b a0 a1 extra cA bA cB bB)))
+    ((Llen a) (Llen (finst a a0 a1 extra cA bA cB bB))) ((Con q) (Con q))
+    ((Apply f g) (Apply (finst f a0 a1 extra cA bA cB bB) (finst g a0 a1 extra cA bA cB bB)))
+    ((Fbundle x y) (Fbundle (finst x a0 a1 extra cA bA cB bB) (finst y a0 a1 extra cA bA cB bB)))
+    ((Fapp a x1 y1 x2 y2) (Fapp (finst a a0 a1 extra cA bA cB bB) x1 y1 x2 y2))
     (z body)))
-(def ffire ((cid Int) (a0 Nat) (a1 Nat) (na Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
-  (if (eq cid cA) (pnorm (finst bA a0 a1 cA bA cB bB))
-    (if (eq cid cB) (pnorm (finst bB a0 a1 cA bA cB bB)) (Fapp na cA bA cB bB))))
+(def freb ((na Nat) (extra Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
+  (match extra (Fnone (Fapp na cA bA cB bB)) (z (Fapp (Fbundle na extra) cA bA cB bB))))
+(def ffire ((cid Int) (a0 Nat) (a1 Nat) (extra Nat) (na Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
+  (if (eq cid cA) (pnorm (finst bA a0 a1 extra cA bA cB bB))
+    (if (eq cid cB) (pnorm (finst bB a0 a1 extra cA bA cB bB)) (freb na extra cA bA cB bB))))
+(def fdisp ((na Nat) (extra Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat   ; fire on a constructor head
+  (match na
+    ((Con cid) (ffire cid Ze Ze extra na cA bA cB bB))                 ; arity 0
+    ((Apply h x)
+      (match h
+        ((Con cid) (ffire cid x Ze extra na cA bA cB bB))              ; arity 1: field x
+        ((Apply h2 a0) (match h2 ((Con cid) (ffire cid a0 x extra na cA bA cB bB))  ; arity 2: a0,x
+                                 (z (freb na extra cA bA cB bB))))
+        (z (freb na extra cA bA cB bB))))
+    (z (freb na extra cA bA cB bB))))
 (def pnorm ((t Nat)) Nat
   (match t (Ze Ze) ((Su x) (Su (pnorm x))) ((Iv k) (Iv k))
            ((Pl a b) (padd (pnorm a) (pnorm b))) ((Mu a b) (pmul (pnorm a) (pnorm b)))
            (Lnil Lnil) ((Lcons h t) (Lcons (pnorm h) (pnorm t))) ((Lapp a b) (lapp (pnorm a) (pnorm b))) ((Llen l) (llen (pnorm l))) ((Con q) (Con q)) ((Apply f g) (Apply (pnorm f) (pnorm g)))
            ((Fapp arg cA bA cB bB)
-             (let na (pnorm arg)
-               (match na
-                 ((Con cid) (ffire cid Ze Ze na cA bA cB bB))                 ; arity 0
-                 ((Apply h x)
-                   (match h
-                     ((Con cid) (ffire cid x Ze na cA bA cB bB))              ; arity 1: field x
-                     ((Apply h2 a0) (match h2 ((Con cid) (ffire cid a0 x na cA bA cB bB))  ; arity 2: a0,x
-                                              (z (Fapp na cA bA cB bB))))
-                     (z (Fapp na cA bA cB bB))))
-                 (z (Fapp na cA bA cB bB)))))))
+             (match arg
+               ((Fbundle x y) (fdisp (pnorm x) y cA bA cB bB))   ; binary: scrutinee x, extra y
+               (z (fdisp (pnorm arg) Fnone cA bA cB bB))))))      ; unary: extra=Fnone
 (def nateq ((a Nat) (b Nat)) Int
   (match a (Ze (match b (Ze 1) (z 0))) ((Iv k) (match b ((Iv j) (eq k j)) (z 0)))
            ((Su x) (match b ((Su y) (nateq x y)) (z 0)))
