@@ -77,7 +77,9 @@ induction**:
   order** respectively — reflexivity, transitivity, antisymmetry, totality, trichotomy
   (`a<b ∨ a=b ∨ b<a`), the mixed transitivities, and monotonicity under `+` and `·` — so
   the naturals are a **linearly ordered commutative semiring**; plus number theory built on
-  the same machinery: every number is **even or odd**, and the list analog of `0`-or-`s`,
+  the same machinery: every number is **even or odd**, the **discreteness** of `<`
+  (`a<b ↔ Sa≤b`), positivity (`0<a ∧ 0<b → 0<a·b`), **divisibility** (`a∣b := ∃m. m·a=b`)
+  shown reflexive, transitive, and satisfied by `0`, and the list analog of `0`-or-`s`,
   `∀l. l=nil ∨ ∃h∃t. l=cons h t`.
 
 ### Why you can believe it
