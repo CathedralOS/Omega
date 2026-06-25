@@ -24,7 +24,8 @@ Surface syntax (s-expressions). Binders name their bound variable; references us
           (eqelim x MOT EQ BASE)       ; MOT is the motive, binding the hole x
           (natind x MOT BASE STEP) (listind x MOT BASE STEP)
           (rec cidA cidB x MOT BASE STEP)
-  top   : (def N P PF) ... GOAL_PROP PROOF      ; defs, then the goal prop and its proof
+  top   : (data CID ARITY R0 R1) (fun FID CID BODY) ... (def N P PF) ... GOAL PROOF
+          ; user-type/function declarations and named lemmas, then the goal and its proof
 
 Usage:  elab.py < proof.elab            # prints the raw certificate
         elab.py --check < proof.elab    # elaborate, then run check.beta, print accept/reject
@@ -141,7 +142,13 @@ def elaborate(src):
     i = 0
     while i < len(forms):
         f = forms[i]
-        if isinstance(f, list) and f and f[0] == 'def':
+        if isinstance(f, list) and f and f[0] == 'data':
+            # (data cid arity r0 r1) — all literals, pass through
+            out.append("(data %s)" % ' '.join(f[1:])); i += 1
+        elif isinstance(f, list) and f and f[0] == 'fun':
+            # (fun FID CID body) — body is a term over (y k) args / (rec i) recursion
+            out.append("(fun %s %s %s)" % (f[1], f[2], et(f[3], []))); i += 1
+        elif isinstance(f, list) and f and f[0] == 'def':
             # (def N P PF)
             out.append("(def %s %s %s)" % (f[1], ep(f[2], []), epf(f[3], [], [])))
             i += 1
