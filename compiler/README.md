@@ -49,6 +49,10 @@ induction**:
   user-declared types** (`data` + `rec` — general structural induction, e.g. a binary
   `Tree`), plus Peano no-confusion (`disj`, `sinj`);
 - **named lemmas** (`def`/`use`) so proofs factor instead of forming one monolith;
+- **user-defined recursive functions** over declared types (`fun` rules; `(f …)` applies,
+  `(rec i)` recurses) whose equations reduce under the conversion rule — so theorems
+  *about user functions* are provable by induction, e.g. `∀ user-n. g(n) = h(n)` for two
+  extensionally-equal functions whose open applications are stuck and distinct;
 - real theorems, all pinned in the gate: `n+0=n`, `n≠s n`, every nat is `0` or a
   successor, `l++nil=l`, append associativity, `len(a++b)=len(a)+len(b)`, and — via
   lemmas — **addition commutativity** and **right distributivity** `(a+b)*c=a*c+b*c`,
