@@ -31,7 +31,9 @@ the `z`/`nil` literals.
 props : (all x P) (ex x P) (-> P Q) (& P Q) (or P Q) (= A B) bot (pred ID A) (rel ID A B)
 terms : z | 0 1 2 … | (s A) (+ A B) (* A B) | nil (cons H T) (++ A B) (len A)
         (k CID A…) (f FID A…) (rec I) (y K) | NAME            ; → individual var
-proofs: (gen x PF) (lam h P PF) NAME(→hyp) (use N)
+proofs: (gen x PF) (lam h P PF) NAME(→hyp) (use N) (have h P PF BODY)   ; local lemma
+        ; (have h P pf body) names an intermediate proof pf:P as hypothesis h in body
+        ; (desugars to (app (lam h:P body) pf)) — structures big trans-chains readably
         (app F A) (app* F A B …) (inst PF T) (inst* PF T1 T2 …)   ; *-forms fold the nesting
         (pair A B) (fst P) (snd P) (inl Q P) (inr Q P) (case S F G)
         (absurd Q P) (refl T) (inst PF T) (disj P) (sinj P) (unpack EPF H)

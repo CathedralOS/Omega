@@ -16,7 +16,8 @@ Surface syntax (s-expressions). Binders name their bound variable; references us
           (s A) (+ A B) (* A B) | nil (cons H T) (++ A B) (len A)
           (k CID A...) (f FID A...) (rec I) (y K)    ; user types/functions
           NAME                 ; resolves to the individual var (v K)
-  proofs: (gen x PF) (lam h P PF) NAME(=hyp) (use N)
+  proofs: (gen x PF) (lam h P PF) NAME(=hyp) (use N) (have h P PF BODY)   ; local lemma
+          ; (have h P pf body) binds the proof `pf:P` as hypothesis `h` in `body`
           (app F A) (app* F A B …) (inst PF T) (inst* PF T1 T2 …)   ; *-forms fold the nesting
           (pair A B) (fst P) (snd P) (inl Q P) (inr Q P) (case S F G)
           (absurd Q P) (refl T) (inst PF T) (disj P) (sinj P) (unpack EPF H)
@@ -108,6 +109,8 @@ def epf(n, iv, hy):  # elaborate a proof term
     if h == 'gen':    return "(gen %s)" % epf(n[2], iv + [n[1]], hy)
     if h == 'lam':    return "(lam %s %s)" % (ep(n[2], iv), epf(n[3], iv, hy + [n[1]]))
     if h == 'use':    return "(use %s)" % n[1]
+    if h == 'have':   # (have name P pf body) -> local lemma: (app (lam name:P body) pf)
+        return "(app (lam %s %s) %s)" % (ep(n[2], iv), epf(n[4], iv, hy + [n[1]]), epf(n[3], iv, hy))
     if h == 'app':    return "(app %s %s)" % (epf(n[1], iv, hy), epf(n[2], iv, hy))
     if h == 'app*':                               # (app* F a b …) -> (app (app F a) b) …
         out = epf(n[1], iv, hy)
