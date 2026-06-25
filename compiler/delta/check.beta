@@ -284,50 +284,6 @@ proc nat_eq(a, b) {
     state bdiff { return 0 }
 }
 
-; does an individual term mention any Ivar?  (gen's freshness guard)
-proc ivar_in_term(t) {
-    state iv { to yes when (word[t] == 34)  to z }
-    state yes { return 1 }
-    state z { to no when (word[t] == 30)  to nilc }
-    state no { return 0 }
-    state nilc { to no when (word[t] == 35)  to con }
-    state con { to no when (word[t] == 50)  to suc }
-    state suc { to child when (word[t] == 31)  to lenc }
-    state child { return ivar_in_term(word[t + 8]) }
-    state lenc { to child when (word[t] == 38)  to both }
-    state both {
-        to yes when (ivar_in_term(word[t + 8]) == 1)
-        return ivar_in_term(word[t + 16])
-    }
-}
-
-proc ivar_in_prop(p) {
-    let tag = word[p]
-    state t0 { to ret0 when (tag == 0)  to t3 }
-    state ret0 { return 0 }
-    state t3 { to ret0 when (tag == 3)  to t7 }
-    state t7 { to pred when (tag == 7)  to t9 }
-    state pred { return ivar_in_term(word[p + 16]) }
-    state t9 { to rel when (tag == 9)  to t5 }
-    state rel {
-        to yes when (ivar_in_term(word[word[p + 16] + 8]) == 1)
-        return ivar_in_term(word[word[p + 16] + 16])
-    }
-    state yes { return 1 }
-    state t5 { to eq when (tag == 5)  to t6 }
-    state eq {
-        to yes when (ivar_in_term(word[p + 8]) == 1)
-        return ivar_in_term(word[p + 16])
-    }
-    state t6 { to allex when (tag == 6)  to t8 }
-    state allex { return ivar_in_prop(word[p + 8]) }
-    state t8 { to allex when (tag == 8)  to conn }
-    state conn {
-        to yes when (ivar_in_prop(word[p + 8]) == 1)
-        return ivar_in_prop(word[p + 16])
-    }
-}
-
 ; does a term / prop mention a FREE individual variable (index >= depth)?
 proc free_ivt(t, depth) {
     state iv { to ivcheck when (word[t] == 34)  to z }

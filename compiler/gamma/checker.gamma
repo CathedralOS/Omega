@@ -57,30 +57,6 @@
     ((Llen x) (match b ((Llen y) (nateq x y)) (z 0))) ((Con q) (match b ((Con r) (eq q r)) (z 0))) ((Apply f g) (match b ((Apply h k) (if (nateq f h) (nateq g k) 0)) (z 0)))))
 (def conveq (a b) (nateq (pnorm a) (pnorm b)))   ; definitional equality
 
-; ---- first-order machinery: does a term/prop mention an individual var? ----
-(def ivt (t)                       ; ivar-in-term
-  (match t
-    ((Iv k) 1)
-    (Ze 0)
-    ((Su x) (ivt x))
-    ((Pl a b) (if (ivt a) 1 (ivt b)))
-    ((Mu a b) (if (ivt a) 1 (ivt b)))
-    (Lnil 0)
-    ((Lcons a b) (if (ivt a) 1 (ivt b)))
-    ((Lapp a b) (if (ivt a) 1 (ivt b)))
-    ((Llen a) (ivt a)) ((Con q) 0) ((Apply f g) (if (ivt f) 1 (ivt g)))))
-(def ivp (p)                       ; ivar-in-prop
-  (match p
-    ((Pred id t)  (ivt t))
-    ((Rel id s t) (if (ivt s) 1 (ivt t)))
-    ((Eq a b)     (if (ivt a) 1 (ivt b)))
-    ((All x)      (ivp x))
-    ((Exists x)   (ivp x))
-    ((Arrow a b)  (if (ivp a) 1 (ivp b)))
-    ((And a b)    (if (ivp a) 1 (ivp b)))
-    ((Or a b)     (if (ivp a) 1 (ivp b)))
-    (z 0)))                        ; Atom / Bot / Bad
-
 ; substitute closed individual term s for the var bound at depth d
 (def subt (t s d)
   (match t
