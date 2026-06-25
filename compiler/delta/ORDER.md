@@ -91,8 +91,18 @@ in the gate:
   `a+(c+d) = (a+c)+d = b+d = a = a+0`, so cancellation gives `c+d=0`, sum-zero gives
   `c=0`, and `a+c=b` collapses to `a=b`).
 
-Two supporting backbones, also enabled by the fix (their induction step generalizes under
-a hypothesis that mentions the induction variable): **additive left-cancellation**
-`∀a∀x∀y. a+x=a+y → x=y` (`add cancel`, via S-injectivity) and **sum-zero**
-`∀x∀y. x+y=0 → x=0` (`sum zero`, via Peano no-confusion). Next order law: totality
-(`∀a∀b. a≤b ∨ b≤a`), which needs a case split on the difference.
+- `le total` — `∀a∀b. a≤b ∨ b≤a`. With the partial-order laws this makes `≤` a **total
+  (linear) order**. The largest proof in the project: induction on `a`, the step cases on
+  `b` (0 or successor) and in the successor case `b=Sm` applies the IH at `m` and lifts it
+  with `le-succ-mono`, transporting `Sm=b` through the witness equation — `case → ∃-elim →
+  case → ∃-elim`, five binder levels deep.
+
+Supporting backbones, also enabled by the fix (their induction step generalizes under a
+hypothesis that mentions the induction variable): **additive left-cancellation**
+`∀a∀x∀y. a+x=a+y → x=y` (`add cancel`, via S-injectivity), **sum-zero** `∀x∀y. x+y=0 → x=0`
+(`sum zero`, via Peano no-confusion), monotonicity (`le succ mono/refl`, `le zero`), and
+the arithmetic lemmas `right succ` (`a+Sm=S(a+m)`) and `le succ self` (`a≤Sa`).
+
+So the naturals are a **linearly ordered commutative semiring** inside the checker. A
+natural next step is to connect `≤` to the order's *strict* part or to `mult` (monotonicity
+of multiplication), but the core order backbone is complete.
