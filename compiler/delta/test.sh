@@ -150,6 +150,9 @@ chk "append assoc(c)" "(= (app (app (cons z nil) (cons (s z) nil)) (cons (s (s z
 chk "[0] != [1]"      "(= (cons z nil) (cons (s z) nil)) (refl (cons z nil))"                                     reject
 # list induction (listind) + a real theorem: forall l. l ++ nil = l
 chk "list ind princ"  "(-> (Pred 0 nil) (-> (All (All (-> (Pred 0 (v 0)) (Pred 0 (cons (v 1) (v 0)))))) (All (Pred 0 (v 0))))) (lam (Pred 0 nil) (lam (All (All (-> (Pred 0 (v 0)) (Pred 0 (cons (v 1) (v 0)))))) (listind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" accept
+# list decomposition (the list analog of "0 or successor"): forall l. l=nil \/ (exists h t.
+# l=cons h t). Exercises NESTED existentials (exists h. exists t. ...) -- a first in the gate.
+chk "list cases" "(All (+ (= (v 0) nil) (Exists (Exists (= (v 2) (cons (v 1) (v 0))))))) (listind (+ (= (v 0) nil) (Exists (Exists (= (v 2) (cons (v 1) (v 0)))))) (inl (Exists (Exists (= nil (cons (v 1) (v 0))))) (refl nil)) (gen (gen (lam (+ (= (v 0) nil) (Exists (Exists (= (v 2) (cons (v 1) (v 0)))))) (inr (= (cons (v 1) (v 0)) nil) (wit (Exists (= (cons (v 3) (v 2)) (cons (v 1) (v 0)))) (v 1) (wit (= (cons (v 2) (v 1)) (cons (v 2) (v 0))) (v 0) (refl (cons (v 1) (v 0))))))))))" accept
 chk "l ++ nil = l"    "(All (= (app (v 0) nil) (v 0))) (listind (= (app (v 0) nil) (v 0)) (refl nil) (gen (gen (lam (= (app (v 0) nil) (v 0)) (eqelim (= (cons (v 2) (app (v 1) nil)) (cons (v 2) (v 0))) (hyp 0) (refl (cons (v 1) (app (v 0) nil))))))))" accept
 chk "l++nil not refl" "(All (= (app (v 0) nil) (v 0))) (gen (refl (v 0)))"                                        reject
 chk "list ident step" "(-> (Pred 0 nil) (-> (All (All (-> (Pred 0 (v 0)) (Pred 0 (v 0))))) (All (Pred 0 (v 0))))) (lam (Pred 0 nil) (lam (All (All (-> (Pred 0 (v 0)) (Pred 0 (v 0))))) (listind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
