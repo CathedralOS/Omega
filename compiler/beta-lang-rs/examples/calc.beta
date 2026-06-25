@@ -2,11 +2,12 @@
 ;
 ; Reads ONE arithmetic expression from stdin — decimal integers, the operators
 ; + - * / with the usual precedence, and parentheses — evaluates it, prints the
-; result in decimal, and also returns it as the process exit code. This is the
-; "is Beta actually pleasant to write a compiler in?" test: it exercises char
-; literals, the read_byte/write_byte host boundary, a memory-backed input buffer
-; + cursor, recursion (recursive descent calls back into parse_expr through
-; parentheses), and the whole expression/statement surface.
+; result in decimal, and also returns it as the process exit code. It exercises char
+; literals, the read_byte/write_byte host boundary, a memory-backed input buffer +
+; cursor, recursion (recursive descent through parentheses), and the whole surface.
+;
+; CONTROL FLOW is CFG/Omega-shaped: each proc is `state` basic blocks linked by
+; guarded `to … when …` transitions — no if/while.
 ;
 ;   echo "2+3*4"     ->  14        echo "(2+3)*4"   ->  20
 ;   echo "100-58"    ->  42        echo "2*(3+4)*5" ->  70
@@ -20,26 +21,23 @@ proc main() {
     let buf = 2097152
     let n = 0
     let c = read_byte()
-    while c >= 0 {                     ; read_byte() returns -1 at EOF
-        byte[buf + n] = c
-        n = n + 1
-        c = read_byte()
+    state loop { to body when (c >= 0)  to done }       ; read_byte() returns -1 at EOF
+    state body { byte[buf + n] = c  n = n + 1  c = read_byte()  to loop }
+    state done {
+        word[buf - 16] = n             ; length
+        word[buf - 8] = 0              ; cursor
+        let result = parse_expr(buf)
+        print_num(result)
+        write_byte('\n')
+        return result
     }
-    word[buf - 16] = n                 ; length
-    word[buf - 8] = 0                  ; cursor
-    let result = parse_expr(buf)
-    print_num(result)
-    write_byte('\n')
-    return result
 }
 
 ; the byte at the cursor, or 0 (a sentinel no expression char equals) past the end
 proc peek(buf) {
     let i = word[buf - 8]
-    if i < word[buf - 16] {
-        return byte[buf + i]
-    }
-    return 0
+    state chk { to hit when (i < word[buf - 16])  return 0 }
+    state hit { return byte[buf + i] }
 }
 
 proc advance(buf) {
@@ -47,100 +45,81 @@ proc advance(buf) {
 }
 
 proc skip_ws(buf) {
-    while peek(buf) == ' ' {
-        advance(buf)
-    }
+    state loop { to body when (peek(buf) == ' ')  return 0 }
+    state body { advance(buf)  to loop }
 }
 
 proc is_digit(c) {
-    if c < '0' {
-        return 0
-    }
-    if c > '9' {
-        return 0
-    }
-    return 1
+    state c1 { to no when (c < '0')  to c2 }
+    state c2 { to no when (c > '9')  return 1 }
+    state no { return 0 }
 }
 
 proc is_muldiv(c) {
-    if c == '*' {
-        return 1
-    }
-    if c == '/' {
-        return 1
-    }
-    return 0
+    state s1 { to yes when (c == '*')  to s2 }
+    state s2 { to yes when (c == '/')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_addsub(c) {
-    if c == '+' {
-        return 1
-    }
-    if c == '-' {
-        return 1
-    }
-    return 0
+    state s1 { to yes when (c == '+')  to s2 }
+    state s2 { to yes when (c == '-')  return 0 }
+    state yes { return 1 }
 }
 
 proc parse_number(buf) {
     let v = 0
-    while is_digit(peek(buf)) {
-        v = v * 10 + (peek(buf) - '0')
-        advance(buf)
-    }
-    return v
+    state loop { to body when (is_digit(peek(buf)) == 1)  return v }
+    state body { v = v * 10 + (peek(buf) - '0')  advance(buf)  to loop }
 }
 
 proc parse_factor(buf) {
     skip_ws(buf)
-    if peek(buf) == '(' {
+    state chk { to paren when (peek(buf) == '(')  return parse_number(buf) }
+    state paren {
         advance(buf)                   ; consume '('
         let v = parse_expr(buf)
         skip_ws(buf)
         advance(buf)                   ; consume ')'
         return v
     }
-    return parse_number(buf)
 }
 
 proc parse_term(buf) {
     let v = parse_factor(buf)
     skip_ws(buf)
-    while is_muldiv(peek(buf)) {
+    state loop { to body when (is_muldiv(peek(buf)) == 1)  return v }
+    state body {
         let op = peek(buf)
         advance(buf)
         let rhs = parse_factor(buf)
-        if op == '*' {
-            v = v * rhs
-        } else {
-            v = v / rhs
-        }
+        to mul when (op == '*')
+        v = v / rhs
         skip_ws(buf)
+        to loop
     }
-    return v
+    state mul { v = v * rhs  skip_ws(buf)  to loop }
 }
 
 proc parse_expr(buf) {
     let v = parse_term(buf)
     skip_ws(buf)
-    while is_addsub(peek(buf)) {
+    state loop { to body when (is_addsub(peek(buf)) == 1)  return v }
+    state body {
         let op = peek(buf)
         advance(buf)
         let rhs = parse_term(buf)
-        if op == '+' {
-            v = v + rhs
-        } else {
-            v = v - rhs
-        }
+        to add when (op == '+')
+        v = v - rhs
         skip_ws(buf)
+        to loop
     }
-    return v
+    state add { v = v + rhs  skip_ws(buf)  to loop }
 }
 
 ; print n in decimal (n >= 0), most-significant digit first
 proc print_num(n) {
-    if n >= 10 {
-        print_num(n / 10)
-    }
-    write_byte(n % 10 + '0')
+    state big { to rec when (n >= 10)  to digit }
+    state rec { print_num(n / 10)  to digit }
+    state digit { write_byte(n % 10 + '0')  return 0 }
 }

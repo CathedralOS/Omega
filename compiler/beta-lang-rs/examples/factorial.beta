@@ -1,10 +1,8 @@
-; recursive factorial in Beta (matches examples/factorial.alpha, hand-written). -> 120
+; recursive factorial in Beta — CFG/state control flow (no if). -> 120
 proc main() {
     return fact(5)
 }
 proc fact(n) {
-    if n < 2 {
-        return 1
-    }
-    return n * fact(n - 1)
+    state rec { to base when (n < 2)  return n * fact(n - 1) }
+    state base { return 1 }
 }
