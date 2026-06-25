@@ -18,8 +18,10 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" && "$ASM" < "$T/x.asm" > "$T/x.tape" && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b eq.beta "$T/eq.exe"           || { echo "build eq.beta failed"; exit 1; }
 b ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
-# gamma operational defs: plus/mult + neq (Nat eq); append/length + leq (List eq).
-DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def neq (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (neq x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (neq h i) (leq t u) 0)) (w 0)))))'
+# gamma operational defs: plus/mult + neq (Nat eq); append/length + leq (List eq);
+# g embeds a user-Nat (Z/S constructors) into Peano — the operational twin of eq.beta's
+# (fun 7 …) rules, so user-FUNCTION reduction is cross-checked against the interpreter.
+DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def neq (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (neq x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (neq h i) (leq t u) 0)) (w 0))))) (def g (n) (match n (Z Ze) ((S x) (Su (g x)))))'
 
 PASS=0; FAIL=0
 # dia DESC  EQ_BETA_INPUT(p/s/z)  GAMMA_EXPR(Su/Ze + plus)  EXPECT(equal|differ)
@@ -51,6 +53,10 @@ dia "2*3 != 5"   "(m (s (s z)) (s (s (s z))))  (s (s (s (s (s z)))))"  "(mult (S
 # Lists: append/length, definitional (eq.beta) vs operational (interpreter)
 dia "len[_,_]=2"   "(len (cons z (cons z nil)))  (s (s z))"                "(length (Lcons Ze (Lcons Ze Lnil))) (Su (Su Ze))"                  equal
 dia "len(a++b)=2"  "(len (app (cons z nil) (cons z nil)))  (s (s z))"      "(length (append (Lcons Ze Lnil) (Lcons Ze Lnil))) (Su (Su Ze))"    equal
+# user-FUNCTION reduction: eq.beta's (fun 7 …) rules vs interp's operational (def g …)
+dia "fun g(S Z)=1"  "(fun 7 2 z) (fun 7 3 (s (rec 0))) (f 7 (k 3 (k 2)))  (s z)"            "(g (S Z)) (Su Ze)"            equal
+dia "fun g(SSZ)=2"  "(fun 7 2 z) (fun 7 3 (s (rec 0))) (f 7 (k 3 (k 3 (k 2))))  (s (s z))"  "(g (S (S Z))) (Su (Su Ze))"   equal
+dia "fun g(S Z)!=2" "(fun 7 2 z) (fun 7 3 (s (rec 0))) (f 7 (k 3 (k 2)))  (s (s z))"          "(g (S Z)) (Su (Su Ze))"       differ
 dial "[0]++[1]"    "(app (cons z nil) (cons (s z) nil))  (cons z (cons (s z) nil))" "(append (Lcons Ze Lnil) (Lcons (Su Ze) Lnil)) (Lcons Ze (Lcons (Su Ze) Lnil))" equal
 dial "[]++[0]"     "(app nil (cons z nil))  (cons z nil)"                  "(append Lnil (Lcons Ze Lnil)) (Lcons Ze Lnil)"                     equal
 dial "[0] != []"   "(app (cons z nil) nil)  nil"                          "(append (Lcons Ze Lnil) Lnil) Lnil"                               differ
