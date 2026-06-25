@@ -61,6 +61,12 @@ dia "fun g(S Z)!=2" "(fun 7 2 z) (fun 7 3 (s (rec 0))) (f 7 (k 3 (k 2)))  (s (s 
 # as interp's built-in plus — a value-level cross-check of multi-argument reduction.
 dia "fun add(1,1)=2" "(fun 10 2 (y 0)) (fun 10 3 (k 3 (rec 0))) (f 10 (k 3 (k 2)) (k 3 (k 2)))  (k 3 (k 3 (k 2)))" "(plus (Su Ze) (Su Ze)) (Su (Su Ze))" equal
 dia "fun add(2,1)=3" "(fun 10 2 (y 0)) (fun 10 3 (k 3 (rec 0))) (f 10 (k 3 (k 3 (k 2))) (k 3 (k 2)))  (k 3 (k 3 (k 3 (k 2))))" "(plus (Su (Su Ze)) (Su Ze)) (Su (Su (Su Ze)))" equal
+# COMPOSED user-function: eq.beta's user-mult (fid 11, whose rule body CALLS user-add fid 10)
+# vs interp's operational mult — a value-level cross-check of function-calling-function.
+MFUN="(fun 10 2 (y 0)) (fun 10 3 (k 3 (rec 0))) (fun 11 2 (k 2)) (fun 11 3 (f 10 (y 0) (rec 0)))"
+dia "fun mult(2,3)=6" "$MFUN (f 11 (k 3 (k 3 (k 2))) (k 3 (k 3 (k 3 (k 2)))))  (k 3 (k 3 (k 3 (k 3 (k 3 (k 3 (k 2)))))))" "(mult (Su (Su Ze)) (Su (Su (Su Ze)))) (Su (Su (Su (Su (Su (Su Ze))))))" equal
+dia "fun mult(3,0)=0" "$MFUN (f 11 (k 3 (k 3 (k 3 (k 2)))) (k 2))  (k 2)" "(mult (Su (Su (Su Ze))) Ze) Ze" equal
+dia "fun mult(2,3)!=5" "$MFUN (f 11 (k 3 (k 3 (k 2))) (k 3 (k 3 (k 3 (k 2)))))  (k 3 (k 3 (k 3 (k 3 (k 3 (k 2))))))" "(mult (Su (Su Ze)) (Su (Su (Su Ze)))) (Su (Su (Su (Su (Su Ze)))))" differ
 dial "[0]++[1]"    "(app (cons z nil) (cons (s z) nil))  (cons z (cons (s z) nil))" "(append (Lcons Ze Lnil) (Lcons (Su Ze) Lnil)) (Lcons Ze (Lcons (Su Ze) Lnil))" equal
 dial "[]++[0]"     "(app nil (cons z nil))  (cons z nil)"                  "(append Lnil (Lcons Ze Lnil)) (Lcons Ze Lnil)"                     equal
 dial "[0] != []"   "(app (cons z nil) nil)  nil"                          "(append (Lcons Ze Lnil) Lnil) Lnil"                               differ
