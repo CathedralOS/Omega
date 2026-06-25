@@ -63,7 +63,7 @@ The trust anchor is defended five independent ways (all under `verify-lattice.sh
   *all* be rejected, including classical-but-non-constructive tautologies (excluded
   middle, Peirce, the drinker paradox).
 - **38-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
-  to the checker itself: `check.beta` (Beta, tagged-memory if-cascades) and
+  to the checker itself: `check.beta` (Beta, tagged-memory + CFG guard-state dispatch) and
   `gamma/checker.gamma` (Gamma, ADTs + pattern matching) must return identical
   verdicts on every proof. It has caught real divergences.
 - **type-safety** — `gamma/checker_typed.gamma` is the checker fully annotated, and

@@ -39,31 +39,31 @@ ret "proc main() { let x = 10 let y = x * x return y - x }" 90
 ret "proc main() { let a = 2 let b = 3 let c = 4 return a + b * c }" 14
 ret "proc main() { let n = 5 let s = 0 s = s + n s = s + n return s }" 10
 ret "proc main() { let a = 100 a = a - 58 return a }" 42
-# slice 2b — if/else, while, the six comparisons
-ret "proc main() { let a = 5 if a < 10 { return 1 } return 0 }" 1
-ret "proc main() { let a = 5 if a > 10 { return 1 } return 0 }" 0
-ret "proc main() { let a = 5 if a == 5 { return 42 } else { return 7 } }" 42
-ret "proc main() { let a = 9 if a == 5 { return 42 } else { return 7 } }" 7
-ret "proc main() { let i = 0 let s = 0 while i < 5 { s = s + i i = i + 1 } return s }" 10
-ret "proc main() { let n = 10 let s = 0 let i = 1 while i <= n { s = s + i i = i + 1 } return s }" 55
-ret "proc main() { let a = 3 if a != 3 { return 1 } if a >= 3 { return 99 } return 0 }" 99
-# slice 2c — CFG / Omega-style control flow: states + guarded transitions (no if/while)
+# slice 2b — the six comparisons via CFG guards (Beta has no if/while)
+ret "proc main() { let a = 5 state s { to y when (a < 10) return 0 } state y { return 1 } }" 1
+ret "proc main() { let a = 5 state s { to y when (a > 10) return 0 } state y { return 1 } }" 0
+ret "proc main() { let a = 5 state s { to y when (a == 5) return 7 } state y { return 42 } }" 42
+ret "proc main() { let a = 9 state s { to y when (a == 5) return 7 } state y { return 42 } }" 7
+ret "proc main() { let a = 3 state s1 { to bad when (a != 3) to s2 } state bad { return 1 } state s2 { to y when (a >= 3) return 0 } state y { return 99 } }" 99
+# slice 2c — CFG / Omega-style control flow: states + guarded transitions
 ret "proc main() { state s0 { let x = 7 to done when (x == 7) return 0 } state done { return 42 } }" 42
 ret "proc main() { state e { let s = 0 let i = 10 to loop } state loop { to fin when (i == 0) s = s + i i = i - 1 to loop } state fin { return s } }" 55
+ret "proc main() { let n = 10 let s = 0 let i = 1 state l { to b when (i <= n) return s } state b { s = s + i i = i + 1 to l } }" 55
+ret "proc main() { let i = 0 let s = 0 state l { to b when (i < 5) return s } state b { s = s + i i = i + 1 to l } }" 10
 ret "proc main() { return countdown(5) } proc countdown(n) { state go { to done when (n == 0) n = n - 1 to go } state done { return n } }" 0
 # slice 3 — procedures, parameters, calls, recursion
 ret "proc main() { return double(21) } proc double(x) { return x + x }" 42
 ret "proc main() { return add(mul(2, 3), 4) } proc add(a, b) { return a + b } proc mul(a, b) { return a * b }" 10
-ret "proc main() { return fact(5) } proc fact(n) { if n < 2 { return 1 } return n * fact(n - 1) }" 120
-ret "proc main() { return fib(10) } proc fib(n) { if n < 2 { return n } return fib(n - 1) + fib(n - 2) }" 55
-ret "proc main() { return sumto(10) } proc sumto(n) { let t = 0 let i = 1 while i <= n { t = t + i i = i + 1 } return t }" 55
+ret "proc main() { return fact(5) } proc fact(n) { state r { to b when (n < 2) return n * fact(n - 1) } state b { return 1 } }" 120
+ret "proc main() { return fib(10) } proc fib(n) { state r { to b when (n < 2) return fib(n - 1) + fib(n - 2) } state b { return n } }" 55
+ret "proc main() { return sumto(10) } proc sumto(n) { let t = 0 let i = 1 state l { to b when (i <= n) return t } state b { t = t + i i = i + 1 to l } }" 55
 # slice 4 — byte[]/word[] memory
 ret "proc main() { let b = 2097152 byte[b] = 65 byte[b + 1] = 66 return byte[b] + byte[b + 1] }" 131
-ret "proc main() { let base = 2097152 let i = 0 while i < 5 { word[base + i * 8] = i * i i = i + 1 } let t = 0 i = 0 while i < 5 { t = t + word[base + i * 8] i = i + 1 } return t }" 30
+ret "proc main() { let base = 2097152 let i = 0 state fill { to fb when (i < 5) to si } state fb { word[base + i * 8] = i * i i = i + 1 to fill } state si { let t = 0 i = 0 to sl } state sl { to sb when (i < 5) return t } state sb { t = t + word[base + i * 8] i = i + 1 to sl } }" 30
 # slice 5 — char literals (intrinsics/emit/IO are covered end-to-end by selfhost.sh)
 ret "proc main() { return 'A' }" 65
 ret "proc main() { return '0' + 9 }" 57
-ret "proc main() { let c = 'Z' if c == 90 { return 42 } return 0 }" 42
+ret "proc main() { let c = 'Z' state s { to y when (c == 90) return 0 } state y { return 42 } }" 42
 ret "proc main() { return f(10, 20, 30) } proc f(a, b, c) { return a + c }" 40
 ret "proc main() { return g(1, 2, 3, 4) } proc g(a, b, c, d) { return a + b + c + d }" 10
 echo "bc.beta (slices 1-6, per-feature): $PASS passed, $FAIL failed"

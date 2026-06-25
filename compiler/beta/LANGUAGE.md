@@ -12,9 +12,13 @@
 
 ## What it is
 
-A small, monomorphic, structured systems language — roughly Oberon-0 / tiny C: one
-scalar type (`i64`), raw memory access, procedures with parameters and locals
-(lowered to the [calling convention](CALLING_CONVENTION.md)), and `if`/`while`.
+A small, monomorphic systems language — one scalar type (`i64`), raw memory access,
+procedures with parameters and locals (lowered to the
+[calling convention](CALLING_CONVENTION.md)), and **CFG/Omega-style control flow**:
+`state` basic blocks linked by guarded `to … when …` transitions, no `if`/`while`.
+Control flow is a state graph (the shape the higher Omega rung uses), not structured
+statements — a proc falls into its first state and into the next unless it transitions
+or returns; a loop is a state that transitions back to itself.
 That is exactly enough to write a lexer, parser, symbol table, and code emitter —
 the assembler proves the floor (it does all of this in raw assembly; Beta just
 makes it pleasant). No types beyond `i64`, no generics, no proofs — those are
@@ -30,8 +34,8 @@ block      := '{' statement* '}'
 statement  := 'let' IDENT '=' expr            ; declare + init a local
             | IDENT '=' expr                  ; assign a local
             | store                           ; write memory
-            | 'if' expr block ('else' block)?
-            | 'while' expr block
+            | 'state' IDENT block             ; a CFG basic block (a label + its body)
+            | 'to' IDENT ('when' expr)?       ; a transition: jump, or guarded jump
             | 'return' expr
             | call                            ; call for effect (result discarded)
 expr       := sum (cmpop sum)?                ; a comparison yields 0 / 1
@@ -65,7 +69,8 @@ assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \
 | reading `x` | `load` from its frame slot |
 | `f(args...)` | evaluate args into `r0..r3` (spilling caller-saved live values to the frame first); `call f`; result in `r0` |
 | `expr` | the gamma-style stack-machine codegen for `+ - * / %` and comparisons (already written, in assembly, in `gamma.alpha`) |
-| `if` / `while` | `jz`/`jmp` over blocks (already in gamma) |
+| `state S { ... }` | a label `<proc>__S:`; falls through to the next state |
+| `to S` / `to S when e` | `jmp <proc>__S` / evaluate `e`, `jz` past a `jmp` to it |
 | `return e` | evaluate `e` into `r0`; epilogue; `ret` |
 | `byte[e]` / `word[e]` | `loadb` / `load`; the store forms → `storeb` / `store` |
 
