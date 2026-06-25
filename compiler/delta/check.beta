@@ -284,49 +284,66 @@ proc reduce_fun(fid, arg, fuel) {
     let a = normalize(arg, fuel)
     let cid = 0
     let body = 0
-    state nullary { to do_null when (word[a] == 50)  to applied }   ; CON(cid) — nullary
+    state nullary { to do_null when (word[a] == 50)  to applied }   ; CON(cid) — arity 0
     state do_null {
         cid = word[a + 8]
         body = word[5898240 + (fid * 64 + cid) * 8]
         to stuck when (body == 0)
-        return instantiate(body, fid, 0)
+        return instantiate(body, fid, 0, 0)
     }
     state applied { to do_app when (word[a] == 51)  to stuck }       ; APPLY(head, lastarg)
     state do_app {
-        to unary when (word[word[a + 8]] == 50)  ; arity 1: APPLY(CON(cid), a0)
-        to stuck                                 ; arity 2+ : not supported yet — STUCK
+        to unary when (word[word[a + 8]] == 50)    ; APPLY(CON, a0) — arity 1
+        to binary when (word[word[a + 8]] == 51)   ; APPLY(APPLY(CON, a0), a1) — arity 2
+        to stuck                                   ; arity 3+ : STUCK
     }
     state unary {
         cid = word[word[a + 8] + 8]
         body = word[5898240 + (fid * 64 + cid) * 8]
         to stuck when (body == 0)
-        return instantiate(body, fid, word[a + 16])   ; a0 = word[a + 16]
+        return instantiate(body, fid, word[a + 16], 0)   ; a0 = word[a + 16]
+    }
+    state binary {
+        to bin_ok when (word[word[word[a + 8] + 8]] == 50)   ; the spine head is CON
+        to stuck
+    }
+    state bin_ok {
+        cid = word[word[word[a + 8] + 8] + 8]                 ; CON's cid
+        body = word[5898240 + (fid * 64 + cid) * 8]
+        to stuck when (body == 0)
+        return instantiate(body, fid, word[word[a + 8] + 16], word[a + 16])   ; a0, a1
     }
     state stuck { return 0 }
 }
 
-; instantiate a rule body: pattern var (v 0) -> arg0, (rec i) -> (f fid arg0), else
-; structural. Like subst_term but with two extra leaf actions; reuses no de Bruijn state.
-proc instantiate(t, fid, arg0) {
-    state iv { to do_iv when (word[t] == 34)  to rc }      ; IVAR — the pattern var
+; instantiate a rule body: pattern vars (v 0)/(v 1) -> the fields a0/a1, (rec 0)/(rec 1)
+; -> (f fid a0)/(f fid a1), else structural. Like subst_term + two extra leaf actions.
+proc instantiate(t, fid, a0, a1) {
+    state iv { to do_iv when (word[t] == 34)  to rc }      ; IVAR — a pattern var
     state do_iv {
-        to ret_arg when (word[t + 8] == 0)
+        to ret_a0 when (word[t + 8] == 0)
+        to ret_a1 when (word[t + 8] == 1)
         return t
     }
-    state ret_arg { return arg0 }
-    state rc { to do_rc when (word[t] == 54)  to fapp }    ; RECCALL (rec i) — recursive call
-    state do_rc { return alloc(52, fid, arg0) }            ; -> (f fid arg0)
+    state ret_a0 { return a0 }
+    state ret_a1 { return a1 }
+    state rc { to do_rc when (word[t] == 54)  to fapp }    ; RECCALL (rec 0)/(rec 1)
+    state do_rc {
+        to rec_a0 when (word[t + 8] == 0)
+        return alloc(52, fid, a1)        ; (rec 1) -> (f fid a1)
+    }
+    state rec_a0 { return alloc(52, fid, a0) }             ; (rec 0) -> (f fid a0)
     state fapp { to do_fa when (word[t] == 52)  to leaf }  ; nested (f gid e): keep gid, recurse e
-    state do_fa { return alloc(52, word[t + 8], instantiate(word[t + 16], fid, arg0)) }
+    state do_fa { return alloc(52, word[t + 8], instantiate(word[t + 16], fid, a0, a1)) }
     state leaf { to ret_t when (word[t] == 30)  to leaf2 }
     state ret_t { return t }
     state leaf2 { to ret_t when (word[t] == 35)  to leaf3 }
     state leaf3 { to ret_t when (word[t] == 50)  to unary }   ; CON(cid) — leaf
     state unary { to do_un when (word[t] == 31)  to lenc }
-    state do_un { return alloc(31, instantiate(word[t + 8], fid, arg0), 0) }
+    state do_un { return alloc(31, instantiate(word[t + 8], fid, a0, a1), 0) }
     state lenc { to do_len when (word[t] == 38)  to dflt }
-    state do_len { return alloc(38, instantiate(word[t + 8], fid, arg0), 0) }
-    state dflt { return alloc(word[t], instantiate(word[t + 8], fid, arg0), instantiate(word[t + 16], fid, arg0)) }
+    state do_len { return alloc(38, instantiate(word[t + 8], fid, a0, a1), 0) }
+    state dflt { return alloc(word[t], instantiate(word[t + 8], fid, a0, a1), instantiate(word[t + 16], fid, a0, a1)) }
 }
 
 proc nat_eq(a, b) {

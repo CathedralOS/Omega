@@ -195,6 +195,11 @@ chk "fun g(S S Z)=2"  "$FG (= (f 7 (k 3 (k 3 (k 2)))) (s (s z))) (refl (f 7 (k 3
 chk "fun g(S n) law"  "$FG (All (= (f 7 (k 3 (v 0))) (s (f 7 (v 0))))) (gen (refl (f 7 (k 3 (v 0)))))" accept
 chk "fun wrong value" "$FG (= (f 7 (k 3 (k 2))) (s (s z))) (refl (f 7 (k 3 (k 2))))" reject
 chk "fun open stuck"  "$FG (= (f 7 (v 0)) z) (refl (f 7 (v 0)))" reject
+# arity-2: a binary Tree (Leaf=cid4, Node=cid5) and sz = leaf count (sz Leaf = 1,
+# sz(Node l r) = (sz l) + (sz r)) — recurses on BOTH fields via (rec 0)/(rec 1)
+TR="(data 4 0 0 0) (data 5 2 1 1) (fun 8 4 (s z)) (fun 8 5 (p (rec 0) (rec 1)))"
+chk "fun Tree sz=3"   "$TR (= (f 8 (k 5 (k 4) (k 5 (k 4) (k 4)))) (s (s (s z)))) (refl (f 8 (k 5 (k 4) (k 5 (k 4) (k 4)))))" accept
+chk "fun Tree sz!=2"  "$TR (= (f 8 (k 5 (k 4) (k 5 (k 4) (k 4)))) (s (s z))) (refl (f 8 (k 5 (k 4) (k 5 (k 4) (k 4)))))" reject
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
 eqk() { # description  "t1 t2"  expect

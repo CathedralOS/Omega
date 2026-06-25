@@ -32,22 +32,22 @@
 ; user-defined recursive functions: (Fapp arg cA bA cB bB) carries its two rules inline
 ; (cid, body). finst instantiates a body — (Iv 0)->the field, (Reccall 0)->the recursive
 ; call; ffire fires the rule matching the constructor id and re-normalizes, else STUCK.
-(def finst ((body Nat) (arg0 Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
+(def finst ((body Nat) (a0 Nat) (a1 Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
   (match body
-    ((Iv k) (if (eq k 0) arg0 body))
-    ((Reccall i) (Fapp arg0 cA bA cB bB))
-    (Ze Ze) ((Su x) (Su (finst x arg0 cA bA cB bB)))
-    ((Pl a b) (Pl (finst a arg0 cA bA cB bB) (finst b arg0 cA bA cB bB)))
-    ((Mu a b) (Mu (finst a arg0 cA bA cB bB) (finst b arg0 cA bA cB bB)))
-    (Lnil Lnil) ((Lcons a b) (Lcons (finst a arg0 cA bA cB bB) (finst b arg0 cA bA cB bB)))
-    ((Lapp a b) (Lapp (finst a arg0 cA bA cB bB) (finst b arg0 cA bA cB bB)))
-    ((Llen a) (Llen (finst a arg0 cA bA cB bB))) ((Con q) (Con q))
-    ((Apply f g) (Apply (finst f arg0 cA bA cB bB) (finst g arg0 cA bA cB bB)))
-    ((Fapp a x1 y1 x2 y2) (Fapp (finst a arg0 cA bA cB bB) x1 y1 x2 y2))
+    ((Iv k) (if (eq k 0) a0 (if (eq k 1) a1 body)))
+    ((Reccall i) (if (eq i 0) (Fapp a0 cA bA cB bB) (Fapp a1 cA bA cB bB)))
+    (Ze Ze) ((Su x) (Su (finst x a0 a1 cA bA cB bB)))
+    ((Pl a b) (Pl (finst a a0 a1 cA bA cB bB) (finst b a0 a1 cA bA cB bB)))
+    ((Mu a b) (Mu (finst a a0 a1 cA bA cB bB) (finst b a0 a1 cA bA cB bB)))
+    (Lnil Lnil) ((Lcons a b) (Lcons (finst a a0 a1 cA bA cB bB) (finst b a0 a1 cA bA cB bB)))
+    ((Lapp a b) (Lapp (finst a a0 a1 cA bA cB bB) (finst b a0 a1 cA bA cB bB)))
+    ((Llen a) (Llen (finst a a0 a1 cA bA cB bB))) ((Con q) (Con q))
+    ((Apply f g) (Apply (finst f a0 a1 cA bA cB bB) (finst g a0 a1 cA bA cB bB)))
+    ((Fapp a x1 y1 x2 y2) (Fapp (finst a a0 a1 cA bA cB bB) x1 y1 x2 y2))
     (z body)))
-(def ffire ((cid Int) (arg0 Nat) (na Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
-  (if (eq cid cA) (pnorm (finst bA arg0 cA bA cB bB))
-    (if (eq cid cB) (pnorm (finst bB arg0 cA bA cB bB)) (Fapp na cA bA cB bB))))
+(def ffire ((cid Int) (a0 Nat) (a1 Nat) (na Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
+  (if (eq cid cA) (pnorm (finst bA a0 a1 cA bA cB bB))
+    (if (eq cid cB) (pnorm (finst bB a0 a1 cA bA cB bB)) (Fapp na cA bA cB bB))))
 (def pnorm ((t Nat)) Nat
   (match t (Ze Ze) ((Su x) (Su (pnorm x))) ((Iv k) (Iv k))
            ((Pl a b) (padd (pnorm a) (pnorm b))) ((Mu a b) (pmul (pnorm a) (pnorm b)))
@@ -55,8 +55,13 @@
            ((Fapp arg cA bA cB bB)
              (let na (pnorm arg)
                (match na
-                 ((Con cid) (ffire cid Ze na cA bA cB bB))
-                 ((Apply h a0) (match h ((Con cid) (ffire cid a0 na cA bA cB bB)) (z (Fapp na cA bA cB bB))))
+                 ((Con cid) (ffire cid Ze Ze na cA bA cB bB))                 ; arity 0
+                 ((Apply h x)
+                   (match h
+                     ((Con cid) (ffire cid x Ze na cA bA cB bB))              ; arity 1: field x
+                     ((Apply h2 a0) (match h2 ((Con cid) (ffire cid a0 x na cA bA cB bB))  ; arity 2: a0,x
+                                              (z (Fapp na cA bA cB bB))))
+                     (z (Fapp na cA bA cB bB))))
                  (z (Fapp na cA bA cB bB)))))))
 (def nateq ((a Nat) (b Nat)) Int
   (match a (Ze (match b (Ze 1) (z 0))) ((Iv k) (match b ((Iv j) (eq k j)) (z 0)))
