@@ -11,11 +11,12 @@
 (data Nat (Ze) (Su Nat) (Pl Nat Nat) (Mu Nat Nat) (Iv Int) (Lnil) (Lcons Nat Nat) (Lapp Nat Nat) (Llen Nat) (Con Int) (Apply Nat Nat))
 (data Type (Atom Int) (Arrow Type Type) (And Type Type) (Or Type Type) (Bot) (Eq Nat Nat) (Bad)
            (All Type) (Exists Type) (Pred Int Nat) (Rel Int Nat Nat))
+(data Spec (Mkspec Int Int Int Int))
 (data Term (Hyp Int) (Lam Type Term) (App Term Term) (Pair Term Term) (Fst Term) (Snd Term)
            (Inl Type Term) (Inr Type Term) (Case Term Term Term) (Absurd Type Term) (Refl Nat)
            (Gen Term) (Inst Term Nat) (Wit Type Nat Term) (Unpack Term Term)
            (Natind Type Term Term) (Eqelim Type Term Term) (Disj Term) (Sinj Term)
-           (Listind Type Term Term))
+           (Listind Type Term Term) (Rec Spec Spec Type Term Term))
 (data Ctx (Nil) (Cons Type Ctx))
 
 (def nth ((ctx Ctx) (n Int)) Type
@@ -80,6 +81,14 @@
            ((Arrow a b) (Arrow (shiftp a d c) (shiftp b d c))) ((And a b) (And (shiftp a d c) (shiftp b d c)))
            ((Or a b) (Or (shiftp a d c) (shiftp b d c))) (z p)))
 (def ctxclean ((ctx Ctx)) Int (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
+(def concase2 ((cid Int) (r0 Int) (r1 Int) (mp Type)) Type
+  (let inner0 (subpk mp (Apply (Apply (Con cid) (Iv 1)) (Iv 0)) 0)
+    (let inner1 (if r1 (Arrow mp inner0) inner0)
+      (if r0 (Arrow (subpk mp (Iv 1) 0) inner1) inner1))))
+(def concase ((cid Int) (arity Int) (r0 Int) (r1 Int) (motive Type)) Type
+  (if (eq arity 0) (subp motive (Con cid) 0)
+    (if (eq arity 1) (All (if r0 (Arrow motive (subpk motive (Apply (Con cid) (Iv 0)) 0)) (subpk motive (Apply (Con cid) (Iv 0)) 0)))
+      (All (All (concase2 cid r0 r1 (shiftp motive 1 1)))))))
 
 (def teq ((a Type) (b Type)) Int
   (match a
@@ -159,6 +168,12 @@
       (match (infer pfeq ctx)
         ((Eq a b) (if (teq (infer pfpa ctx) (subp motive a 0)) (subp motive b 0) Bad))
         (z Bad)))
+    ((Rec sa sb motive cA cB)
+      (match sa ((Mkspec ca aa r0a r1a)
+        (match sb ((Mkspec cb ab r0b r1b)
+          (if (teq (infer cA ctx) (concase ca aa r0a r1a motive))
+            (if (teq (infer cB ctx) (concase cb ab r0b r1b motive)) (All motive) Bad)
+            Bad))))))
     ((Disj pf)
       (match (infer pf ctx)
         ((Eq a b)
