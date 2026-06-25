@@ -50,9 +50,11 @@ induction**:
   `Tree`), plus Peano no-confusion (`disj`, `sinj`);
 - **named lemmas** (`def`/`use`) so proofs factor instead of forming one monolith;
 - **user-defined recursive functions** over declared types (`fun` rules; `(f …)` applies,
-  `(rec i)` recurses) whose equations reduce under the conversion rule — so theorems
-  *about user functions* are provable by induction, e.g. `∀ user-n. g(n) = h(n)` for two
-  extensionally-equal functions whose open applications are stuck and distinct;
+  `(rec i)` recurses; up to 2 arguments, functions may call functions) whose equations
+  reduce under the conversion rule — so theorems *about user functions* prove by
+  induction: a user-defined binary `add` is a **commutative monoid** (`∀x. add(x,Z)=x`,
+  associativity, `∀x∀y. add(x,y)=add(y,x)`), a `mult` *defined via* `add` computes and
+  satisfies `∀x. mult(x,Z)=Z` — the user-function analogues of the built-in semiring laws;
 - real theorems, all pinned in the gate: `n+0=n`, `n≠s n`, every nat is `0` or a
   successor, `l++nil=l`, append associativity, `len(a++b)=len(a)+len(b)`, and — via
   lemmas — **addition commutativity** and **right distributivity** `(a+b)*c=a*c+b*c`,
