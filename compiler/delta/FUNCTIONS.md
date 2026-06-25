@@ -1,6 +1,11 @@
 # Design: user-defined recursive functions over user types (delta frontier)
 
-Status: **design, not yet implemented.** This is the trust anchor's stated #1 frontier
+Status: **IMPLEMENTED for arity 0/1** across all three checkers (check.beta table,
+checker.gamma + checker_typed.gamma inline rules; diamond-cross-checked, soundness-
+tested). Remaining: arity-2 constructors and the eq.beta/interp semantics-diamond
+computational mirror. The design below records the decisions the implementation follows.
+
+This is the trust anchor's stated #1 frontier
 (`README.md` / `delta/README.md`): today a `data`-declared type's constructors are inert
 data with structural equality + induction (`rec`), but there is no way to *define a
 function* over them (a `mirror`/`size`/`pred`) whose equations reduce. Adding it makes

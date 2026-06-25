@@ -167,15 +167,17 @@ primitive rules, so `¬(0 = 1)` and `s n = s 0 ⊢ n = 0` check.
 
 What it is **not** (yet), tracked in `rungs/delta.md`:
 
-- **No user-defined recursive functions** over user types. A declared type's
-  constructors are inert data with structural equality; you can do induction over a
-  `Tree`, but there is no `mirror`/`size` with reduction rules feeding the conversion
-  rule. That function-definition layer is the next frontier and what would make
-  *theorems* (not just induction principles) over user types provable. It is now
-  designed — [`FUNCTIONS.md`](FUNCTIONS.md) — as two small helpers + one `normalize`
-  arm per checker, fuel-bounded for totality, with the stateful-table (check.beta) vs.
-  inline-rule (pure-functional gamma) split worked out so neither checker grows a second
-  responsibility.
+- **User-defined recursive functions** over user types are now **implemented** (arity
+  0/1 constructors), per [`FUNCTIONS.md`](FUNCTIONS.md). A `(fun FID CID body)` rule
+  per constructor (`(f FID t)` applies, `(rec 0)` recurses) reduces under `normalize`,
+  so its equations feed the conversion rule: e.g. a function `g` embedding a user-`Nat`
+  into Peano computes `g(S Z) = s z` and proves the universal law `∀n. g(S n) = s(g n)`.
+  Totality is free — `normalize` is fuel-bounded, so a divergent definition just stays
+  STUCK. Present in all three checkers — check.beta (a `(fid,cid)` table), checker.gamma
+  (rules inline on the term, **diamond-cross-checked**), checker_typed.gamma (typed) —
+  each storing rules its own way without growing a second responsibility, and the
+  soundness battery pins that open/no-rule applications stay stuck. **Still open:**
+  arity-2 (e.g. a `Tree` fold) and the eq.beta/interp semantics-diamond mirror.
 - **No soundness bridge** to program execution. `semantics-diamond.sh` *exhibits* the
   gamma/delta seam (the checker's definitional `=` agreeing with the interpreter's
   operational evaluation), but the theorem `provable ⟹ true-about-the-reference-
