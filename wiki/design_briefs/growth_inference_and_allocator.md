@@ -52,16 +52,20 @@ loop:**
   unbounded case is *rejected at the low rung*, never silently truncated as the
   256-byte hack does today.
 
-**The future allocator is the settled rung lattice** (static → stack → fixed-arena
-→ proven-`Region` → bounded-heap → unrestricted) **with the allocator as a
-capability and remaining-capacity as an interval-tracked quantity.** The whole
-field (Zig, Ada/SPARK, Jai/Odin, Vale/Austral, Verona, PMR) validates every rung
-*ergonomically* but proves *nothing* — every existing bound is a runtime check or
-a prohibition. Omega's genuinely novel, defensible claim is **no-OOM as a
-discharged theorem on the same engine that discharges array-index bounds** — the
-unification the safety-critical industry assembles today from 3–4 tools that don't
-share a semantic model. Concentrate the novelty work on **rungs 3–4** (proven
-`Region` + global peak-accounting) — the exact piece Ada/SPARK *deferred*.
+**The future allocator has ONE primitive — a `Region` (a memory capability; static
+⇒ a BSS section, dynamic ⇒ a fallible request); everything else (bump, heap-with-
+free, `FixedVec`, text buffer) is a record built over a region, not a tier.** The
+one theorem is `Σ region sizes at peak ≤ budget`; effects stay **honest**
+(`allocates` means allocates, gated by holding a `Region`); a target's **ceiling**
+is enforced by *not minting the capability*, so forbidden allocation simply fails
+to compile. The whole field (Zig, Ada/SPARK, Jai/Odin, Vale/Austral, Verona, PMR)
+validates the pieces *ergonomically* but proves *nothing* — every existing bound is
+a runtime check or a prohibition. Omega's genuinely novel, defensible claim is
+**no-OOM as a discharged theorem on the same engine that discharges array-index
+bounds** — the unification the safety-critical industry assembles today from 3–4
+tools that don't share a semantic model. The concentrated novelty (and the real
+research risk) is **global peak-accounting over region requests** — the exact piece
+Ada/SPARK *deferred*. (Full decided shape: §4 and §4.1–§4.9.)
 
 ---
 
@@ -308,16 +312,31 @@ soundness proof (no one has one yet).
 
 ---
 
-## 4. What a future-language allocator looks like (the synthesis)
+## 4. What a future-language allocator looks like — the decided shape
 
-| Rung | Omega | Field analog | Proven? |
-|---|---|---|---|
-| 0 static / ZII | length is a literal | P10 init-only; Ada `[u8;N]` | trivially |
-| 1 stack | sized frames, no recursion | GNATstack subset | yes (integration; needs dyn-call resolution) |
-| 2 fixed-arena | FixedVec, push obligation | Zig FixedBuffer / Ada bounded / PMR monotonic | **ships — Omega's novelty: *static*, not runtime** |
-| 3 proven-Region | `alloc(r,n)` obligation `n ≤ remaining`, **infallible after proof** | Cyclone region + Odin watermark; SPARK pool (runtime exception) | **the frontier — SPARK's `Storage_Error` residual → a theorem** |
-| 4 bounded heap | budgeted, fallible/abort escape | jemalloc/mimalloc *under* the rung | partial |
-| 5 unrestricted | — | GC / `GlobalAlloc` abort | no |
+**There is ONE primitive: a `Region` — "give me N bytes," a capability.** Static
+size ⇒ a **BSS section** (zero-initialized, ZII-valid, no runtime request, *cannot
+fail*); dynamic size ⇒ a **fallible runtime request**. A region is **splittable**
+— it hands out sub-regions, which is both the seL4 untyped/Retype move and the IPC
+grant move. That is the entire memory surface.
+
+**Everything else is a *record over a region*, not a primitive and not a tier:** a
+bump allocator is a region + a cursor; a "heap" (individual free) is a region +
+*your own* free-list, so **fragmentation is your data structure's problem, never a
+language concept**; a `FixedVec<u8, N>` is a region + a used-length; a text buffer
+is exactly that. The earlier "fixed-arena / proven-region / bounded-heap / mmap"
+**tier table conflated usage patterns with the primitive — struck.** There is no
+"heap tier" (heap = a record that supports individual free) and no "mmap" (a host
+backing-store detail *below* the language; the sharing flavour is IPC, handled by
+`SharedRegion`, not a memory tier).
+
+**The one theorem:** `Σ region sizes at peak ≤ budget`. A region's *interior* is
+bounded by its own size by construction (you can't bump past it — the `FixedVec`
+push obligation already *is* that bound), so the only global obligation is over the
+*region requests* — a handful of coarse asks, with disjointness for regions that
+don't co-exist (peak-not-net). For the all-static case it is **the link map** —
+exactly what avionics does today, now a type-level property instead of an external
+audit.
 
 **Genuinely novel (the defensible claim):** (1) **no-OOM as a *discharged
 theorem*** rather than a prohibition (MISRA/DO-178), an unproven runtime check
@@ -335,11 +354,11 @@ exclusivity-enables-the-theorem (MVS/Hylo); pluggable locality backend *below* t
 language (mimalloc/snmalloc); weakening/rewrite annotation hints (Pastis); in-place
 reuse via uniqueness (Perceus/FIP) as a later rung-2 optimization.
 
-> The table above uses ordinal "rung" numbers for continuity with the primer. The
-> refined architecture in §4.1–§4.6 (decided in design discussion) **supersedes
-> the lattice framing**: rename the levels **storage tiers**, demote them to UX
-> sugar over a *capability set*, and collapse the unbounded tier into
-> bounded-fallible. Read §4.1–§4.6 as the authoritative shape.
+> §4.1–§4.9 are the authoritative shape: §4.1 names it (tiers as sugar), §4.2
+> capabilities-are-the-truth, §4.3 named regions, §4.4 no unbounded tier, §4.5
+> ceiling = capability provision, §4.6 the cases + ergonomics, and §4.7–§4.9 the
+> follow-up decisions (the `allocates` effect, place-storage-class, and the
+> SSO/effect-honesty call with its enforcement-strength scope).
 
 ### 4.1 Naming — "storage tiers", kept distinct from the bootstrap lattice
 
@@ -431,6 +450,83 @@ alloc, no effect), region-hoisting (one failure point per scope), `?`-sugar — 
 pure upside and worth pursuing. **Open:** the residual per-`+` fallibility when a
 site can be *neither* bound-proved *nor* region-scoped — whether an `a +? b` form,
 or letting the enclosing region's failure contract absorb it, is the right sugar.
+
+---
+
+### 4.7 The effect is `allocates`, and it is the same fact as the `Region` capability
+
+Name the effect after the *act*, not the failure: **`allocates`** (`oom` names the
+symptom). Failure is intrinsic to a runtime request, so `effects allocates` already
+means "can come up short." Crucially, **the effect and the `Region` capability are
+one fact viewed two ways:** a dynamic allocation *consumes a region*, so it is
+untypable without a `Region` in scope. Therefore "does this allocate?" is answered
+not by reading the body but by *whether a region-consuming op is reachable and the
+prover can't rule it out*. No `Region` in scope ⇒ the allocation is untypable ⇒ the
+site is **obligated to prove its bound** (or it's a hard error) ⇒ no effect. A
+`Region` in scope ⇒ the act is permitted ⇒ the effect is present and threads the
+region. The capability's *absence* is what forces the proof that makes the effect
+vanish — the same discipline doing double duty.
+
+### 4.8 A place's storage class is the LUB of its writes — declared at boundaries, inferred locally
+
+The static-vs-dynamic choice is a property of the **place** (field/local), computed
+as the **least-upper-bound over every write to it**: all writes provably bounded ⇒
+a **static buffer sized to the max bound** (large ⇒ **BSS**: reserve-zeroed,
+ZII-valid, *zero bytes on disk*); **one** unbounded write ⇒ the place is
+region-backed for *everyone* (one defector contaminates it). So keeping a place off
+the allocator means **all** its writers stay bounded. Rule: **declared at
+boundaries** (a public field's type states `text[<= N]` static vs `text in r`
+region-backed; a write that can't fit is a compile error — so a distant caller
+can't silently drag a public field onto the allocator), **inferred for locals**
+(all writers in view). A `text[<= N]` field is just a static (BSS) region + a
+length; `FixedVec<u8>` ≈ region + length — the "FixedVec is its own storage" idea
+is mostly fake, the storage is a region.
+
+### 4.9 Decision: effects stay HONEST; do not prune them to make allocation ergonomic
+
+The live debate was whether proving the spill-arm of an SSO type (`String<N,D>` =
+inline `[u8;N] in D` | spilled `Region`) dead should **mask** its `allocates`
+effect. Verdict: **no — keep effects honest, and don't ship the silent-SSO wrapper
+as a default.** Reasoning, with the decider being that *frictionless allocation is
+the disease, not the goal* (a 2026 Rust program is `Vec<Vec<Vec<…>>>` — heap allocs
+for tiny things everywhere, mis-using the machine; we should not build a faithful
+emulator of that):
+
+- **Growth-inference (prove bounded ⇒ static, no alloc, no effect) is honest and
+  KEPT** — it makes the well-utilized path the default and is the real ergonomic
+  lift. This is *not* effect-pruning; there is genuinely no allocation.
+- **Effect-pruning on a maybe-allocating type is NOT done by default.** In a vanilla
+  effect system, dead-code elimination does *not* stop effect propagation — the
+  effect is syntactic. Making it vanish requires a **refinement-coupled** effect
+  system (F\* `Pure`-under-a-precondition), which Omega *could* build on its existing
+  prover — but its *purpose* would be to make allocation ergonomic, the wrong goal.
+- **The honest resolution to "a consumer needs the string bigger" is the contract,
+  not a wrapper:** a field is declared `text[<= N]` (bounded — if N is too small,
+  that's a real interface change, because sizing *is* part of the API) or `text in r`
+  (growable — the consumer supplies a bigger region). No wrap, no fork; the
+  growability is in the type.
+- **The SSO sum, if it exists at all, is an explicit opt-in std convenience that
+  carries `allocates` honestly** — its true meaning is "growable with an inline fast
+  path," not "static that might grow." The only place to consider masking is *purely
+  local, post-inline*, invisible to any consumer; never behind a published boundary.
+
+**Enforcement-strength scope (what this actually buys, stated without spin):**
+
+| Goal | Strength | Routable-around? |
+|---|---|---|
+| no-OOM / bounded memory | **hard wall** (ceiling = capability never minted) | **no**, in a strict project |
+| allocation is visible / auditable | **type-level signal** (effect row) | ignorable, but legible + wall-buildable within a project |
+| good cache / data layout | **nudge only** (arena makes contiguous-with-indices the easy path) | **yes** — a taste problem; no type system enforces it |
+
+You **cannot** stop a determined dev in a *permissive* project: they declare
+`main: allocates`, smear it across boundaries, use the dumb growable everywhere, and
+honestly rebuild the status quo. That's the floor, and it's fine — it's *labeled*.
+What's novel and unroutable is the **ceiling**: where it forbids the capability, the
+slop doesn't compile. The design's job is not to make slop impossible (taste isn't a
+type) — it's to (a) forbid it absolutely where a target opts into strictness, (b)
+make the allocation surface legible and containable everywhere, and (c) make the
+*lazy default* the bounded/arena one, so the median dev's reflex isn't `Vec<Vec<Vec>>`.
+Beating the *determined* is not a goal; not *seducing the lazy* is.
 
 ---
 
