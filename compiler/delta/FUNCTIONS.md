@@ -1,11 +1,12 @@
 # Design: user-defined recursive functions over user types (delta frontier)
 
-Status: **IMPLEMENTED, arity 0/1/2, verified across all five defense layers** —
-check.beta (table) + checker.gamma + checker_typed.gamma (inline rules) + eq.beta;
-gate, soundness, checker diamond, type-safety, and the semantics diamond (computation
-cross-checked against the interpreter). Universal theorems over user functions are
-proved by induction (`∀ user-n. g(n)=h(n)`). The natural next step is **multi-argument**
-functions (binary user arithmetic). The design below records the decisions followed.
+Status: **IMPLEMENTED — arity 0/1/2 constructors AND 1/2 arguments, verified across all
+five defense layers** — check.beta (table) + checker.gamma + checker_typed.gamma (inline
+rules) + eq.beta; gate, soundness, checker diamond, type-safety, and the semantics
+diamond. Universal theorems over user functions prove by induction (`∀ user-n. g(n)=h(n)`,
+`∀x. add(x,Z)=x`). A binary application is `(f fid x y)` = `FAPP(fid, FBUNDLE(x,y))`; the
+2nd argument is `(y k)` = `PAR` in rule bodies, threaded through recursion. Next: richer
+user laws (add commutativity) and N-ary (3+) arguments. The design below is the record.
 
 This is the trust anchor's stated #1 frontier
 (`README.md` / `delta/README.md`): today a `data`-declared type's constructors are inert
