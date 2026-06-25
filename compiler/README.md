@@ -45,11 +45,14 @@ induction**:
   equivalence relation (symmetry/transitivity via Leibniz `eqelim`);
 - `∀`/`∃` with **capture-avoiding** instantiation (de Bruijn shifting), unary and
   binary predicates;
-- **two inductive types** — Peano naturals and Lists — each with an induction rule
-  (`natind`, `listind`), plus Peano no-confusion (`disj`, `sinj`);
+- induction over the two built-in inductive types (Peano naturals, Lists) **and over
+  user-declared types** (`data` + `rec` — general structural induction, e.g. a binary
+  `Tree`), plus Peano no-confusion (`disj`, `sinj`);
+- **named lemmas** (`def`/`use`) so proofs factor instead of forming one monolith;
 - real theorems, all pinned in the gate: `n+0=n`, `n≠s n`, every nat is `0` or a
-  successor, `l++nil=l`, append associativity, and the homomorphism
-  `len(a++b) = len(a)+len(b)`.
+  successor, `l++nil=l`, append associativity, `len(a++b)=len(a)+len(b)`, and — via
+  lemmas — **addition commutativity** and **right distributivity** `(a+b)*c=a*c+b*c`,
+  so the naturals satisfy the core semiring axioms inside the checker.
 
 ### Why you can believe it
 
@@ -74,8 +77,8 @@ The trust anchor is defended five independent ways (all under `verify-lattice.sh
 ## Honest frontiers
 
 - The soundness theorem itself is the deep open problem.
-- Induction is hardcoded per inductive type; a **general inductive-type schema**
-  (declare a datatype, derive its recursor) is the Omega-rung leap.
-- Large proofs want a **lemma/definition mechanism** — every certificate is currently
-  monolithic.
-- epsilon (systems language) and omega (dependent types) are design-stage.
+- User-declared types are inert data with structural equality; a **user-defined
+  recursive-function layer** (functions over those constructors, with reduction rules
+  feeding the conversion rule) is the next frontier — it would make *theorems* over
+  user types provable, not just their induction principles.
+- epsilon (systems language) and omega (full dependent types) are design-stage.

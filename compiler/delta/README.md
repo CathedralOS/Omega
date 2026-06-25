@@ -41,10 +41,13 @@ checker *is* a dependently-flavoured lambda-calculus type checker:
 | proposition `∃x. P` | dependent pair | `∃`-intro = `wit` (witness + proof), `∃`-elim = `unpack` |
 | a proof of `A` | a term of type `A` | hypothesis = variable (`hyp`, de Bruijn) |
 
-Individuals range over **two inductive types** — Peano naturals (`z`, `s`, `+`, `*`)
-and Lists (`nil`, `cons`, `++`) — plus de Bruijn individual variables `(v k)`; both
-have an induction rule (`natind`, `listind`), and list `append` computes under the
-conversion rule. `gen` introduces a fresh variable and is guarded so a variable free
+Individuals range over the two built-in inductive types — Peano naturals (`z`, `s`,
+`+`, `*`) and Lists (`nil`, `cons`, `++`, with `append`/`len` computing under the
+conversion rule) — **and over user-declared inductive types**: `(data cid arity r0 r1)`
+declares a constructor's shape, `(k cid args…)` builds inert structural-equality data,
+and `(rec ca cb motive caseA caseB)` is general structural induction over that type,
+subsuming the `natind`/`listind` shapes (e.g. a binary `Tree` of `Leaf`/`Node`).
+There are also de Bruijn individual variables `(v k)`. `gen` introduces a fresh variable and is guarded so a variable free
 in an open hypothesis cannot be captured, while `inst` substitutes capture-avoidingly
 (de Bruijn shifting), so the full instantiation laws — e.g. `∀x.∀y.R(x,y) -> ∀z.R(z,z)`
 — hold. Predicate arguments are compared up to the conversion rule, so `P(1+1)` and
@@ -59,14 +62,16 @@ so "logic meets computation" — the gamma/delta soundness seam — is concrete 
 So "does this certificate prove this proposition?" = "does this term have this
 type?", decided by structural type inference (`infer`) + structural equality.
 
-Input (stdin): a goal proposition, then a certificate term, prefix syntax.
+Input (stdin): zero or more declarations — `( def N prop term )` lemmas and
+`( data cid arity r0 r1 )` constructors — then a goal proposition and a certificate.
 
 ```
 proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop ) | ( + prop prop ) | ( bot )
              | ( = nat nat ) | ( All prop ) | ( Exists prop )
              | ( Pred id nat ) | ( Rel id nat nat )
 term        := z | ( s term ) | ( p term term ) | ( m term term ) | ( v k )  ; Peano + indiv var
-             | nil | ( cons term term ) | ( app term term )                  ; Lists (append computes)
+             | nil | ( cons term term ) | ( app term term ) | ( len term )   ; Lists (compute)
+             | ( k cid term… )                                               ; user constructor
 term        := ( hyp N ) | ( lam prop term ) | ( app term term )
              | ( pair term term ) | ( fst term ) | ( snd term )
              | ( inl prop term ) | ( inr prop term ) | ( case term term term )
@@ -74,8 +79,9 @@ term        := ( hyp N ) | ( lam prop term ) | ( app term term )
              | ( gen term ) | ( inst term nat ) | ( wit prop nat term ) | ( unpack term term )
              | ( natind prop term term )    ; Peano induction: base P(0), step ∀n.P(n)->P(s n)
              | ( listind prop term term )   ; list induction: base P(nil), step ∀h t.P(t)->P(cons h t)
+             | ( rec ca cb prop term term ) ; general structural induction over a declared type
              | ( eqelim prop term term )    ; Leibniz: motive P, pf of a=b, pf of P(a) -> P(b)
-             | ( disj term ) | ( sinj term )  ; no-confusion: 0≠s n / s injective
+             | ( disj term ) | ( sinj term ) | ( use N )  ; no-confusion ; cite lemma N
 ```
 
 Output: `accept` (exit 1) iff the term proves the goal, else `reject` (exit 0).
@@ -140,16 +146,19 @@ the difference is the point:
 
 The logic is now **first-order intuitionistic predicate logic with induction**: all
 propositional connectives, equality with the conversion rule, `∀`/`∃` with
-capture-avoiding instantiation over unary and binary predicates, induction over
-**two inductive types** (`natind`, `listind`), and **Leibniz equality elimination**
-(`eqelim`, the identity-type `J` / transport). Together those prove genuine theorems
-— e.g. `∀n. n+0 = n` and `∀l. l++nil = l`, neither reachable by the conversion rule
-alone (`n+0` and `l++nil` are stuck), are proved by induction with `eqelim` rewriting
-along the hypothesis. Every soundness-critical rule is
-*adversarially* tested: `gen`'s freshness guard and `inst`'s de Bruijn shifting
-against a capture discriminator, and `natind` against an identity-shaped step that a
-broken rule would use to derive `∀n.P(n)` from `P(0)` alone. `soundness.sh` confirms
-no false certificate — nor any non-constructive classical tautology — gets through.
+capture-avoiding instantiation over unary and binary predicates, induction over the
+two built-in inductive types (`natind`, `listind`) **and over user-declared types**
+(`rec`, general structural induction), **Leibniz equality elimination** (`eqelim`,
+the identity-type `J` / transport), and **named lemmas** (`def`/`use`) so big proofs
+factor instead of forming one monolith. Together those prove genuine theorems — from
+`∀n. n+0 = n` and `∀l. l++nil = l` (induction + `eqelim`) up to **addition
+commutativity and right distributivity** `(a+b)*c = a*c + b*c` (the Peano naturals
+satisfy the core semiring axioms), and the induction principle of an arbitrary
+user-declared datatype. Every soundness-critical rule is *adversarially* tested:
+`gen`'s freshness guard and `inst`'s de Bruijn shifting against a capture
+discriminator, and `natind`/`listind`/`rec` against an identity-shaped step a broken
+rule would use to derive `∀x.P(x)` from the base alone. `soundness.sh` confirms no
+false certificate — nor any non-constructive classical tautology — gets through.
 
 The Peano axioms are now complete enough to refute as well as prove: `disj`
 (no-confusion, `0 ≠ s n`) and `sinj` (injectivity of the successor) are sound
@@ -157,6 +166,11 @@ primitive rules, so `¬(0 = 1)` and `s n = s 0 ⊢ n = 0` check.
 
 What it is **not** (yet), tracked in `rungs/delta.md`:
 
+- **No user-defined recursive functions** over user types. A declared type's
+  constructors are inert data with structural equality; you can do induction over a
+  `Tree`, but there is no `mirror`/`size` with reduction rules feeding the conversion
+  rule. That function-definition layer is the next frontier and what would make
+  *theorems* (not just induction principles) over user types provable.
 - **No soundness bridge** to program execution. `semantics-diamond.sh` *exhibits* the
   gamma/delta seam (the checker's definitional `=` agreeing with the interpreter's
   operational evaluation), but the theorem `provable ⟹ true-about-the-reference-
