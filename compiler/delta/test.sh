@@ -208,6 +208,14 @@ chk "fun Tree sz!=2"  "$TR (= (f 8 (k 5 (k 4) (k 5 (k 4) (k 4)))) (s (s z))) (re
 GH="(data 2 0 0 0) (data 3 1 1 0) (fun 8 2 z) (fun 8 3 (s (rec 0))) (fun 9 2 z) (fun 9 3 (s (rec 0)))"
 chk "fun induct g=h"  "$GH (All (= (f 8 (v 0)) (f 9 (v 0)))) (rec 2 3 (= (f 8 (v 0)) (f 9 (v 0))) (refl z) (gen (lam (= (f 8 (v 0)) (f 9 (v 0))) (eqelim (= (s (f 8 (v 1))) (s (v 0))) (hyp 0) (refl (s (f 8 (v 0))))))))" accept
 chk "fun induct false" "$GH (All (= (f 8 (v 0)) (s (f 8 (v 0))))) (rec 2 3 (= (f 8 (v 0)) (s (f 8 (v 0)))) (refl z) (gen (lam (= (f 8 (v 0)) (s (f 8 (v 0)))) (hyp 0))))" reject
+# MULTI-ARGUMENT (binary) user functions: user-add over user-Nat (Z=2,S=3), fid 10 —
+# add(Z,y)=y ((y 0) is the 2nd argument), add(S x,y)=S(add(x,y)). The canonical payoff:
+# ∀x. add(x,Z)=x (right identity) by induction — exactly n+0=n, but for a USER function.
+ADD="(data 2 0 0 0) (data 3 1 1 0) (fun 10 2 (y 0)) (fun 10 3 (k 3 (rec 0)))"
+chk "fun add(1,1)=2"  "$ADD (= (f 10 (k 3 (k 2)) (k 3 (k 2))) (k 3 (k 3 (k 2)))) (refl (f 10 (k 3 (k 2)) (k 3 (k 2))))" accept
+chk "fun add(0,1)=1"  "$ADD (= (f 10 (k 2) (k 3 (k 2))) (k 3 (k 2))) (refl (f 10 (k 2) (k 3 (k 2))))" accept
+chk "fun add(x,Z)=x"  "$ADD (All (= (f 10 (v 0) (k 2)) (v 0))) (rec 2 3 (= (f 10 (v 0) (k 2)) (v 0)) (refl (k 2)) (gen (lam (= (f 10 (v 0) (k 2)) (v 0)) (eqelim (= (k 3 (f 10 (v 1) (k 2))) (k 3 (v 0))) (hyp 0) (refl (k 3 (f 10 (v 0) (k 2))))))))" accept
+chk "fun add(1,1)!=1" "$ADD (= (f 10 (k 3 (k 2)) (k 3 (k 2))) (k 3 (k 2))) (refl (f 10 (k 3 (k 2)) (k 3 (k 2))))" reject
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
 eqk() { # description  "t1 t2"  expect
