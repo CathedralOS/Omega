@@ -205,7 +205,11 @@ with a **proven byte bound that sizes the carrier**:
    compute a symbolic upper bound `B` on the final `len` — straight-line by the
    blessed concat law, loops by the blessed loop-append invariant of §2.2.
 2. If `B` is a static constant or `≤ N` for a declared input refinement, **size a
-   `FixedVec<u8, B>`** (heap-free, the sound bounded carrier).
+   bounded owned carrier** `[u8; B] in Utf8` (heap-free). *(Probed 2026-06-24:
+   `[u8; N] in Utf8` — with a carrier-matched `domain [u8; N]::Utf8` — already
+   compiles AND runs in the interpreter for a literal write + content guard
+   (exit 70). So the carrier exists at the prover level and the FixedVec
+   generic-`B` frontier is NOT on the critical path; see the caveat below.)*
 3. Each append is a `push`; `push`'s capacity obligation `self.length <
    self.items.len` is **already a compile-time obligation** (FixedVec ships;
    `collections/fixed_vec_push_without_room` is in `ACTIVE_FAIL_CANARIES`, rejected
@@ -221,11 +225,29 @@ construction site **and** every loop-body append — must be capacity-checked ag
 the declared carrier, mirroring the construction-1c + assignment-#63 enforcement
 already in place for range-refined fields.
 
-> **Caveat (verification):** FixedVec's *generic* body is blocked on generic-machine
-> instantiation; the shipped fail-canary uses a concrete `FixedVecI32x4`. The
-> generic surface type-checks, but a `FixedVec<u8, B>` with a *computed* `B` may hit
-> the same generic-instantiation frontier (primer open decision #8). Resolve or
-> sidestep (monomorphize per call site, as FixedVec does today) before step 1 ships.
+> **Carrier — resolved at the prover level, two open ends (probed 2026-06-24).**
+> `[u8; N] in Utf8` is the owned bounded-text carrier: with `domain [u8; N]::Utf8`
+> declared it compiles and the interpreter runs `self.buf = "hello"; self.buf ==
+> "hello"` to exit 70 — **no FixedVec generic-`B` needed.** Two ends remain:
+> 1. **The append itself** is the actual unbuilt feature. `self.buf = self.buf +
+>    "there"` is rejected today by the *domain* write-enforcement ("cannot prove
+>    the value assigned to `self.buf` is in domain `[u8; N]::Utf8`"). It needs TWO
+>    COUPLED pieces, neither alone sound: (a) a **blessed concat-preserves-domain
+>    law** (`Utf8 + Utf8 = Utf8` for concat-preserving classifiers — the value-
+>    proves-domain side, reusing the #60–#64 catalog), AND (b) a **length-fits
+>    proof** that the result `≤ N` (without it, the domain proves but the write
+>    overflows the fixed `N`-byte buffer — silent corruption, same class as the
+>    256-byte hack). The length-fits is the *relational, flow-sensitive* part
+>    (track the buffer's running length across writes), which — per §2.2 — the
+>    non-relational interval engine cannot do alone and needs the blessed
+>    `len ≤ iters·elem_len` invariant or octagons. *This is the core of the rung-2
+>    feature, now pinned exactly.*
+> 2. **Native codegen for a length-less `[u8; N]` text field is unverified** — a
+>    `[u8; N]` has no explicit length (unlike the String `{ptr,len}` descriptor),
+>    so the interpreter's content-length handling must be matched in the backend
+>    (a terminator/length convention), or the carrier must carry a length
+>    (`FixedVec<u8>`). The interpreter confirms the *semantics* are expressible;
+>    the differential/native side is the check before it ships.
 
 ---
 
