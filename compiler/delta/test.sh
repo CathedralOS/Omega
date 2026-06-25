@@ -200,6 +200,14 @@ chk "fun open stuck"  "$FG (= (f 7 (v 0)) z) (refl (f 7 (v 0)))" reject
 TR="(data 4 0 0 0) (data 5 2 1 1) (fun 8 4 (s z)) (fun 8 5 (p (rec 0) (rec 1)))"
 chk "fun Tree sz=3"   "$TR (= (f 8 (k 5 (k 4) (k 5 (k 4) (k 4)))) (s (s (s z)))) (refl (f 8 (k 5 (k 4) (k 5 (k 4) (k 4)))))" accept
 chk "fun Tree sz!=2"  "$TR (= (f 8 (k 5 (k 4) (k 5 (k 4) (k 4)))) (s (s z))) (refl (f 8 (k 5 (k 4) (k 5 (k 4) (k 4)))))" reject
+# THE PAYOFF: a UNIVERSAL theorem about user functions, proven by structural induction
+# (rec) — two extensionally-equal functions g (fid 8) and h (fid 9); their OPEN
+# applications are stuck and distinct, so g(n)=h(n) genuinely needs induction + the IH
+# (via eqelim), not just computation. The whole stack: user types + functions +
+# induction + the conversion rule + Leibniz, in one certificate.
+GH="(data 2 0 0 0) (data 3 1 1 0) (fun 8 2 z) (fun 8 3 (s (rec 0))) (fun 9 2 z) (fun 9 3 (s (rec 0)))"
+chk "fun induct g=h"  "$GH (All (= (f 8 (v 0)) (f 9 (v 0)))) (rec 2 3 (= (f 8 (v 0)) (f 9 (v 0))) (refl z) (gen (lam (= (f 8 (v 0)) (f 9 (v 0))) (eqelim (= (s (f 8 (v 1))) (s (v 0))) (hyp 0) (refl (s (f 8 (v 0))))))))" accept
+chk "fun induct false" "$GH (All (= (f 8 (v 0)) (s (f 8 (v 0))))) (rec 2 3 (= (f 8 (v 0)) (s (f 8 (v 0)))) (refl z) (gen (lam (= (f 8 (v 0)) (s (f 8 (v 0)))) (hyp 0))))" reject
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
 eqk() { # description  "t1 t2"  expect
