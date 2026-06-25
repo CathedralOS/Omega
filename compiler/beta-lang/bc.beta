@@ -6,27 +6,26 @@
 ; reproduces bc(bc.beta) byte-for-byte, so from that compiler on, Rust is out of
 ; the lineage — it only cold-started the very first bc.
 ;
-; Implements the whole Beta language (LANGUAGE.md):
-;   1   arithmetic (+ - * / %, parens, precedence)
-;   2a  let locals, assignment, variable references (tokenizer + symbol table)
-;   2b  if/else, while, the six comparisons
-;   3   procedures, parameters, calls, recursion
-;   4   byte[]/word[] memory load/store
-;   5   char literals 'x' (+ escapes), read_byte/write_byte intrinsics, call stmts
-;   6   string literals via emit("...") (inline db data + write_str)
+; Implements the whole Beta language (LANGUAGE.md): arithmetic; let/assign/vars;
+; if/else, while, the six comparisons; CFG state/transition control flow; procedures,
+; parameters, calls, recursion; byte[]/word[] memory; char literals; read_byte/
+; write_byte intrinsics; string literals via emit("...").
 ;
-; Single pass with one pre-scan: to emit a proc's frame allocation we must know
-; its local count first, so count_lets() scans the body once (skipping char/string
-; literals) before codegen. Locals are addressed at [fp - 8 - 8*slot], matching
-; the on-ramp's calling convention.
+; bc still COMPILES if/while (other programs use them), but its OWN control flow is
+; now CFG/Omega-shaped: every proc is a set of `state` basic blocks linked by guarded
+; `to … when …` transitions — no if/while in this file. So the self-hosting compiler
+; is written in the same state-graph style it emits, and it dogfoods its own
+; gen_state/gen_to by compiling itself.
 ;
-; emit() costs ~12 tape bytes/char, so bc emits COMPACT asm (no indent, commas
-; attached — the assembler treats those as whitespace) to stay within the hole.
+; Single pass with one pre-scan: count_lets() scans a proc body once (skipping
+; char/string literals, counting `let`s at any brace depth — including inside states)
+; before codegen. Locals are at [fp - 8 - 8*slot], matching the on-ramp.
 ;
 ; Fixed memory (above the 1 MiB data stack):
 ;   2097152 SRC    source bytes        2097144 CUR    cursor (index into SRC)
 ;   2097136 LEN    source length       2097128 NLOC   declared local count
 ;   2097120 IDOFF  last ident offset    2097112 IDLEN  last ident length
+;   2097104 LBL    label counter        2097096 CURPROC off  2097088 CURPROC len
 ;   3145728 NAMEOFF[i] (word)          3153920 NAMELEN[i] (word)   ; i = slot
 
 ; ---------------- reading the source ----------------
@@ -34,15 +33,14 @@
 proc slurp() {
     let n = 0
     let c = read_byte()
-    while c >= 0 {
-        byte[2097152 + n] = c
-        n = n + 1
-        c = read_byte()
+    state loop { to body when (c >= 0)  to done }
+    state body { byte[2097152 + n] = c  n = n + 1  c = read_byte()  to loop }
+    state done {
+        word[2097136] = n        ; LEN
+        word[2097144] = 0        ; CUR
+        word[2097128] = 0        ; NLOC
+        word[2097104] = 0        ; LBL (label counter)
     }
-    word[2097136] = n        ; LEN
-    word[2097144] = 0        ; CUR
-    word[2097128] = 0        ; NLOC
-    word[2097104] = 0        ; LBL (label counter)
 }
 
 proc new_label() {
@@ -62,10 +60,8 @@ proc cur() {
 
 proc cbyte() {               ; byte at cursor, or 0 past end
     let i = word[2097144]
-    if i < word[2097136] {
-        return byte[2097152 + i]
-    }
-    return 0
+    state chk { to hit when (i < word[2097136])  return 0 }
+    state hit { return byte[2097152 + i] }
 }
 
 proc adv() {
@@ -75,88 +71,61 @@ proc adv() {
 ; ---------------- character classes ----------------
 
 proc is_digit(c) {
-    if c < '0' {
-        return 0
-    }
-    if c > '9' {
-        return 0
-    }
-    return 1
+    state c1 { to no when (c < '0')  to c2 }
+    state c2 { to no when (c > '9')  return 1 }
+    state no { return 0 }
 }
 
 proc is_alpha(c) {
-    if c == '_' {
-        return 1
-    }
-    if c < 'A' {
-        return 0
-    }
-    if c <= 'Z' {
-        return 1
-    }
-    if c < 'a' {
-        return 0
-    }
-    if c <= 'z' {
-        return 1
-    }
-    return 0
+    state u { to yes when (c == '_')  to c1 }
+    state c1 { to no when (c < 'A')  to c2 }
+    state c2 { to yes when (c <= 'Z')  to c3 }
+    state c3 { to no when (c < 'a')  to c4 }
+    state c4 { to yes when (c <= 'z')  return 0 }
+    state no { return 0 }
+    state yes { return 1 }
 }
 
 proc is_alnum(c) {
-    if is_alpha(c) == 1 {
-        return 1
-    }
-    return is_digit(c)
+    state chk { to yes when (is_alpha(c) == 1)  return is_digit(c) }
+    state yes { return 1 }
 }
 
 proc is_space(c) {
-    if c == ' ' {
-        return 1
-    }
-    if c == 9 {
-        return 1
-    }
-    if c == 10 {
-        return 1
-    }
-    if c == 13 {
-        return 1
-    }
-    return 0
+    state c1 { to yes when (c == ' ')  to c2 }
+    state c2 { to yes when (c == 9)  to c3 }
+    state c3 { to yes when (c == 10)  to c4 }
+    state c4 { to yes when (c == 13)  return 0 }
+    state yes { return 1 }
 }
 
 ; ---------------- tokenizer ----------------
 
 proc skip_ws() {             ; spaces, newlines, and ;-to-end-of-line comments
-    while skip_ws_step() == 1 {
-    }
+    state loop { to loop when (skip_ws_step() == 1)  return 0 }
 }
 
 proc skip_ws_step() {        ; advance over one ws/comment run; 1 if it did, else 0
     let c = cbyte()
-    if is_space(c) == 1 {
+    state sp { to do_sp when (is_space(c) == 1)  to semi }
+    state do_sp { adv()  return 1 }
+    state semi { to do_semi when (c == ';')  return 0 }
+    state do_semi { to cloop }
+    state cloop {
+        to cret when (cbyte() == 10)
+        to ceof when (cbyte() == 0)
         adv()
-        return 1
+        to cloop
     }
-    if c == ';' {
-        while cbyte() != 10 {
-            if cbyte() == 0 {
-                return 0
-            }
-            adv()
-        }
-        return 1
-    }
-    return 0
+    state ceof { return 0 }
+    state cret { return 1 }
 }
 
 proc read_ident() {          ; cursor at an alpha; record IDOFF/IDLEN, consume it
     word[2097120] = word[2097144]                  ; IDOFF = CUR
-    while is_alnum(cbyte()) == 1 {
-        adv()
-    }
-    word[2097112] = word[2097144] - word[2097120]  ; IDLEN = CUR - IDOFF
+    state loop { to body when (is_alnum(cbyte()) == 1)  to done }
+    state body { adv()  to loop }
+    state done { word[2097112] = word[2097144] - word[2097120]  return 0 }   ; IDLEN
 }
 
 ; does the last-read ident (IDOFF/IDLEN) equal a keyword?
@@ -165,220 +134,145 @@ proc id_char(k) {            ; k-th byte of the current ident
 }
 
 proc is_let() {
-    if word[2097112] == 3 {
-        if id_char(0) == 'l' {
-            if id_char(1) == 'e' {
-                if id_char(2) == 't' {
-                    return 1
-                }
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 3)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'l')  return 0 }
+    state c2 { to c3 when (id_char(1) == 'e')  return 0 }
+    state c3 { to yes when (id_char(2) == 't')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_return() {
-    if word[2097112] == 6 {
-        if id_char(0) == 'r' {
-            if id_char(1) == 'e' {
-                if id_char(2) == 't' {
-                    if id_char(3) == 'u' {
-                        if id_char(4) == 'r' {
-                            if id_char(5) == 'n' {
-                                return 1
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 6)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'r')  return 0 }
+    state c2 { to c3 when (id_char(1) == 'e')  return 0 }
+    state c3 { to c4 when (id_char(2) == 't')  return 0 }
+    state c4 { to c5 when (id_char(3) == 'u')  return 0 }
+    state c5 { to c6 when (id_char(4) == 'r')  return 0 }
+    state c6 { to yes when (id_char(5) == 'n')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_if() {
-    if word[2097112] == 2 {
-        if id_char(0) == 'i' {
-            if id_char(1) == 'f' {
-                return 1
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 2)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'i')  return 0 }
+    state c2 { to yes when (id_char(1) == 'f')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_else() {
-    if word[2097112] == 4 {
-        if id_char(0) == 'e' {
-            if id_char(1) == 'l' {
-                if id_char(2) == 's' {
-                    if id_char(3) == 'e' {
-                        return 1
-                    }
-                }
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 4)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'e')  return 0 }
+    state c2 { to c3 when (id_char(1) == 'l')  return 0 }
+    state c3 { to c4 when (id_char(2) == 's')  return 0 }
+    state c4 { to yes when (id_char(3) == 'e')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_while() {
-    if word[2097112] == 5 {
-        if id_char(0) == 'w' {
-            if id_char(1) == 'h' {
-                if id_char(2) == 'i' {
-                    if id_char(3) == 'l' {
-                        if id_char(4) == 'e' {
-                            return 1
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 5)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'w')  return 0 }
+    state c2 { to c3 when (id_char(1) == 'h')  return 0 }
+    state c3 { to c4 when (id_char(2) == 'i')  return 0 }
+    state c4 { to c5 when (id_char(3) == 'l')  return 0 }
+    state c5 { to yes when (id_char(4) == 'e')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_state() {            ; CFG basic block (Omega-style)
-    if word[2097112] == 5 {
-        if id_char(0) == 's' {
-            if id_char(1) == 't' {
-                if id_char(2) == 'a' {
-                    if id_char(3) == 't' {
-                        if id_char(4) == 'e' {
-                            return 1
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 5)  return 0 }
+    state c1 { to c2 when (id_char(0) == 's')  return 0 }
+    state c2 { to c3 when (id_char(1) == 't')  return 0 }
+    state c3 { to c4 when (id_char(2) == 'a')  return 0 }
+    state c4 { to c5 when (id_char(3) == 't')  return 0 }
+    state c5 { to yes when (id_char(4) == 'e')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_to() {               ; transition keyword
-    if word[2097112] == 2 {
-        if id_char(0) == 't' {
-            if id_char(1) == 'o' {
-                return 1
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 2)  return 0 }
+    state c1 { to c2 when (id_char(0) == 't')  return 0 }
+    state c2 { to yes when (id_char(1) == 'o')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_when() {             ; transition guard keyword
-    if word[2097112] == 4 {
-        if id_char(0) == 'w' {
-            if id_char(1) == 'h' {
-                if id_char(2) == 'e' {
-                    if id_char(3) == 'n' {
-                        return 1
-                    }
-                }
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 4)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'w')  return 0 }
+    state c2 { to c3 when (id_char(1) == 'h')  return 0 }
+    state c3 { to c4 when (id_char(2) == 'e')  return 0 }
+    state c4 { to yes when (id_char(3) == 'n')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_byte() {
-    if word[2097112] == 4 {
-        if id_char(0) == 'b' {
-            if id_char(1) == 'y' {
-                if id_char(2) == 't' {
-                    if id_char(3) == 'e' {
-                        return 1
-                    }
-                }
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 4)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'b')  return 0 }
+    state c2 { to c3 when (id_char(1) == 'y')  return 0 }
+    state c3 { to c4 when (id_char(2) == 't')  return 0 }
+    state c4 { to yes when (id_char(3) == 'e')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_word() {
-    if word[2097112] == 4 {
-        if id_char(0) == 'w' {
-            if id_char(1) == 'o' {
-                if id_char(2) == 'r' {
-                    if id_char(3) == 'd' {
-                        return 1
-                    }
-                }
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 4)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'w')  return 0 }
+    state c2 { to c3 when (id_char(1) == 'o')  return 0 }
+    state c3 { to c4 when (id_char(2) == 'r')  return 0 }
+    state c4 { to yes when (id_char(3) == 'd')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_read_byte() {        ; current ident == "read_byte" (9 chars)
-    if word[2097112] == 9 {
-        if id_char(0) == 'r' {
-        if id_char(1) == 'e' {
-        if id_char(2) == 'a' {
-        if id_char(3) == 'd' {
-        if id_char(4) == '_' {
-        if id_char(5) == 'b' {
-        if id_char(6) == 'y' {
-        if id_char(7) == 't' {
-        if id_char(8) == 'e' {
-            return 1
-        } } } } } } } } }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 9)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'r')  return 0 }
+    state c2 { to c3 when (id_char(1) == 'e')  return 0 }
+    state c3 { to c4 when (id_char(2) == 'a')  return 0 }
+    state c4 { to c5 when (id_char(3) == 'd')  return 0 }
+    state c5 { to c6 when (id_char(4) == '_')  return 0 }
+    state c6 { to c7 when (id_char(5) == 'b')  return 0 }
+    state c7 { to c8 when (id_char(6) == 'y')  return 0 }
+    state c8 { to c9 when (id_char(7) == 't')  return 0 }
+    state c9 { to yes when (id_char(8) == 'e')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_write_byte() {       ; current ident == "write_byte" (10 chars)
-    if word[2097112] == 10 {
-        if id_char(0) == 'w' {
-        if id_char(1) == 'r' {
-        if id_char(2) == 'i' {
-        if id_char(3) == 't' {
-        if id_char(4) == 'e' {
-        if id_char(5) == '_' {
-        if id_char(6) == 'b' {
-        if id_char(7) == 'y' {
-        if id_char(8) == 't' {
-        if id_char(9) == 'e' {
-            return 1
-        } } } } } } } } } }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 10)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'w')  return 0 }
+    state c2 { to c3 when (id_char(1) == 'r')  return 0 }
+    state c3 { to c4 when (id_char(2) == 'i')  return 0 }
+    state c4 { to c5 when (id_char(3) == 't')  return 0 }
+    state c5 { to c6 when (id_char(4) == 'e')  return 0 }
+    state c6 { to c7 when (id_char(5) == '_')  return 0 }
+    state c7 { to c8 when (id_char(6) == 'b')  return 0 }
+    state c8 { to c9 when (id_char(7) == 'y')  return 0 }
+    state c9 { to c10 when (id_char(8) == 't')  return 0 }
+    state c10 { to yes when (id_char(9) == 'e')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_emit() {             ; current ident == "emit" (4 chars)
-    if word[2097112] == 4 {
-        if id_char(0) == 'e' {
-            if id_char(1) == 'm' {
-                if id_char(2) == 'i' {
-                    if id_char(3) == 't' {
-                        return 1
-                    }
-                }
-            }
-        }
-    }
-    return 0
+    state c0 { to c1 when (word[2097112] == 4)  return 0 }
+    state c1 { to c2 when (id_char(0) == 'e')  return 0 }
+    state c2 { to c3 when (id_char(1) == 'm')  return 0 }
+    state c3 { to c4 when (id_char(2) == 'i')  return 0 }
+    state c4 { to yes when (id_char(3) == 't')  return 0 }
+    state yes { return 1 }
 }
 
 proc expect(ch) {            ; skip ws then consume ch if present
     skip_ws()
-    if cbyte() == ch {
-        adv()
-    }
+    state chk { to do_adv when (cbyte() == ch)  return 0 }
+    state do_adv { adv()  return 0 }
 }
 
 proc gen_load(w) {           ; byte[addr] / word[addr] -> r0
     expect('[')
     gen_expr()
     expect(']')
-    if w == 1 {
-        emit("loadb r0,r0\n")
-    } else {
-        emit("load r0,r0\n")
-    }
-    return 0
+    state chk { to byteld when (w == 1)  to wordld }
+    state byteld { emit("loadb r0,r0\n")  return 0 }
+    state wordld { emit("load r0,r0\n")  return 0 }
 }
 
 proc gen_store(w) {          ; byte[addr] = val / word[addr] = val
@@ -389,40 +283,37 @@ proc gen_store(w) {          ; byte[addr] = val / word[addr] = val
     expect('=')
     gen_expr()               ; val -> r0
     emit_pop_into(1)         ; r1 = addr
-    if w == 1 {
-        emit("storeb r1,r0\n")
-    } else {
-        emit("store r1,r0\n")
-    }
-    return 0
+    state chk { to bytest when (w == 1)  to wordst }
+    state bytest { emit("storeb r1,r0\n")  return 0 }
+    state wordst { emit("store r1,r0\n")  return 0 }
 }
 
-; copy the string-literal body (cursor at opening ") verbatim — its \-escapes are
-; exactly what the assembler's db decodes — into the db output; return decoded len.
+; copy the string-literal body (cursor at opening ") verbatim into the db output.
 proc emit_str_body() {
     adv()                    ; opening "
     let len = 0
-    while cbyte() != 34 {
-        if cbyte() == 0 {
-            return len
-        }
-        if cbyte() == 92 {   ; backslash escape: copy '\' and the next char (1 byte)
-            write_byte(92)
-            adv()
-            write_byte(cbyte())
-            adv()
-        } else {
-            write_byte(cbyte())
-            adv()
-        }
+    state loop { to body when (cbyte() != 34)  to done }
+    state body {
+        to eof when (cbyte() == 0)
+        to esc when (cbyte() == 92)     ; backslash escape: copy '\' and the next char
+        write_byte(cbyte())
+        adv()
         len = len + 1
+        to loop
     }
-    adv()                    ; closing "
-    return len
+    state eof { return len }
+    state esc {
+        write_byte(92)
+        adv()
+        write_byte(cbyte())
+        adv()
+        len = len + 1
+        to loop
+    }
+    state done { adv()  return len }   ; closing "
 }
 
-; emit("...") -> inline db data (jumped over) + a call to __write_str. Inline so
-; the single-pass streaming compiler needs no end-of-program data buffering.
+; emit("...") -> inline db data (jumped over) + a call to __write_str.
 proc gen_emit() {
     expect('(')
     skip_ws()
@@ -480,52 +371,55 @@ proc gen_write_byte() {      ; write_byte(x) -> write low byte of x
 }
 
 proc gen_call() {            ; f(args): callee name is in IDOFF/IDLEN, cursor at '('
-    if is_read_byte() == 1 {
-        gen_read_byte()
-        return 0
+    state rb { to do_rb when (is_read_byte() == 1)  to wb }
+    state do_rb { gen_read_byte()  return 0 }
+    state wb { to do_wb when (is_write_byte() == 1)  to em }
+    state do_wb { gen_write_byte()  return 0 }
+    state em { to do_em when (is_emit() == 1)  to normal }
+    state do_em { gen_emit()  return 0 }
+    state normal {
+        let nameoff = word[2097120]    ; IDOFF — save before arg parsing clobbers it
+        let namelen = word[2097112]    ; IDLEN
+        expect('(')
+        let nargs = 0
+        skip_ws()
+        to argloop
     }
-    if is_write_byte() == 1 {
-        gen_write_byte()
-        return 0
+    state argloop {
+        to argbody when (cbyte() != ')')
+        to argsdone
     }
-    if is_emit() == 1 {
-        gen_emit()
-        return 0
-    }
-    let nameoff = word[2097120]    ; IDOFF — save before arg parsing clobbers it
-    let namelen = word[2097112]    ; IDLEN
-    expect('(')
-    let nargs = 0
-    skip_ws()
-    while cbyte() != ')' {
+    state argbody {
         gen_expr()                 ; stage each arg onto the data stack, left to right
         emit_push()
         nargs = nargs + 1
         skip_ws()
-        if cbyte() == ',' {
-            adv()
-            skip_ws()
-        }
+        to comma when (cbyte() == ',')
+        to argloop
     }
-    adv()                          ; consume ')'
-    let k = nargs                  ; unstage top..bottom into r(nargs-1)..r0
-    while k > 0 {
-        k = k - 1
-        emit_pop_into(k)
+    state comma { adv()  skip_ws()  to argloop }
+    state argsdone {
+        adv()                          ; consume ')'
+        let k = nargs                  ; unstage top..bottom into r(nargs-1)..r0
+        to poploop
     }
-    emit("call ")
-    emit_ident_at(nameoff, namelen)
-    emit("\n")
-    return 0
+    state poploop {
+        to popbody when (k > 0)
+        to emitcall
+    }
+    state popbody { k = k - 1  emit_pop_into(k)  to poploop }
+    state emitcall {
+        emit("call ")
+        emit_ident_at(nameoff, namelen)
+        emit("\n")
+        return 0
+    }
 }
 
 proc parse_number() {
     let v = 0
-    while is_digit(cbyte()) == 1 {
-        v = v * 10 + (cbyte() - '0')
-        adv()
-    }
-    return v
+    state loop { to body when (is_digit(cbyte()) == 1)  return v }
+    state body { v = v * 10 + (cbyte() - '0')  adv()  to loop }
 }
 
 ; ---------------- symbol table (per-proc locals) ----------------
@@ -539,109 +433,95 @@ proc declare() {             ; declare a local named by IDOFF/IDLEN; return its 
 }
 
 proc name_eq(i) {            ; does local i's name match the current IDOFF/IDLEN?
-    if word[3153920 + i * 8] == word[2097112] {
+    state chk { to match when (word[3153920 + i * 8] == word[2097112])  return 0 }
+    state match {
         let a = word[3145728 + i * 8]              ; local i name offset
         let b = word[2097120]                      ; IDOFF
         let len = word[2097112]
         let k = 0
-        while k < len {
-            if byte[2097152 + a + k] != byte[2097152 + b + k] {
-                return 0
-            }
-            k = k + 1
-        }
-        return 1
+        to loop
     }
-    return 0
+    state loop { to body when (k < len)  return 1 }
+    state body {
+        to diff when (byte[2097152 + a + k] != byte[2097152 + b + k])
+        k = k + 1
+        to loop
+    }
+    state diff { return 0 }
 }
 
 proc lookup() {              ; slot of the current IDOFF/IDLEN (0 if unknown)
     let n = word[2097128]
     let i = 0
-    while i < n {
-        if name_eq(i) == 1 {
-            return i
-        }
+    state loop { to body when (i < n)  return 0 }
+    state body {
+        to hit when (name_eq(i) == 1)
         i = i + 1
+        to loop
     }
-    return 0
+    state hit { return i }
 }
 
-; count `let` declarations in the body from the cursor to the matching `}`,
-; leaving the cursor unmoved. (Slice 2a programs have no char/string literals.)
 proc skip_char_lit() {       ; cursor at opening '; consume the whole 'x' / '\x'
     adv()                    ; opening '
-    if cbyte() == 92 {       ; backslash
-        adv()
-    }
-    adv()                    ; the char
-    adv()                    ; closing '
+    state bs { to do_bs when (cbyte() == 92)  to ch }
+    state do_bs { adv()  to ch }
+    state ch { adv()  adv()  return 0 }   ; the char + closing '
 }
 
 proc skip_str_lit() {        ; cursor at opening "; consume the whole "..."
     adv()                    ; opening "
-    while cbyte() != 34 {
-        if cbyte() == 0 {
-            return 0
-        }
-        if cbyte() == 92 {   ; backslash escape -> skip the next char too
-            adv()
-        }
+    state loop { to body when (cbyte() != 34)  to done }
+    state body {
+        to eof when (cbyte() == 0)
+        to esc when (cbyte() == 92)     ; backslash escape -> skip the next char too
         adv()
+        to loop
     }
-    adv()                    ; closing "
-    return 0
+    state eof { return 0 }
+    state esc { adv()  adv()  to loop }
+    state done { adv()  return 0 }   ; closing "
 }
 
+; count `let` declarations in the body from the cursor to the matching `}`,
+; leaving the cursor unmoved.
 proc count_lets() {
     let start = word[2097144]
     let depth = 1
     let count = 0
-    while depth > 0 {
+    state loop { to body when (depth > 0)  to done }
+    state body {
         skip_ws()
         let c = cbyte()
-        if c == 0 {
-            depth = 0
-        } else {
-            if c == 39 {                 ; ' char literal — skip as a unit
-                skip_char_lit()
-            } else {
-                if c == 34 {             ; " string literal — skip as a unit
-                    skip_str_lit()
-                } else {
-                    if c == '{' {
-                        depth = depth + 1
-                        adv()
-                    } else {
-                        if c == '}' {
-                            depth = depth - 1
-                            adv()
-                        } else {
-                            if is_alpha(c) == 1 {
-                                read_ident()
-                                if is_let() == 1 {
-                                    count = count + 1
-                                }
-                            } else {
-                                adv()
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        to ceof when (c == 0)
+        to cchar when (c == 39)         ; ' char literal — skip as a unit
+        to cstr when (c == 34)          ; " string literal — skip as a unit
+        to copen when (c == '{')
+        to cclose when (c == '}')
+        to calpha when (is_alpha(c) == 1)
+        adv()
+        to loop
     }
-    word[2097144] = start
-    return count
+    state ceof { depth = 0  to loop }
+    state cchar { skip_char_lit()  to loop }
+    state cstr { skip_str_lit()  to loop }
+    state copen { depth = depth + 1  adv()  to loop }
+    state cclose { depth = depth - 1  adv()  to loop }
+    state calpha {
+        read_ident()
+        to inc when (is_let() == 1)
+        to loop
+    }
+    state inc { count = count + 1  to loop }
+    state done { word[2097144] = start  return count }
 }
 
 ; ---------------- emit decimal ----------------
 
 proc emit_dec(n) {
-    if n >= 10 {
-        emit_dec(n / 10)
-    }
-    write_byte(n % 10 + '0')
+    state big { to rec when (n >= 10)  to digit }
+    state rec { emit_dec(n / 10)  to digit }
+    state digit { write_byte(n % 10 + '0')  return 0 }
 }
 
 ; ---------------- fixed asm fragments (compact) ----------------
@@ -661,11 +541,13 @@ proc emit_proc_prologue(nslots) {
     emit("sub r15,r5\n")
     emit("store r15,r14\n")
     emit("mov r14,r15\n")
-    if nslots > 0 {
+    state chk { to slots when (nslots > 0)  return 0 }
+    state slots {
         emit("imm r5,")
         emit_dec(nslots * 8)
         emit("\n")
         emit("sub r15,r5\n")
+        return 0
     }
 }
 
@@ -690,10 +572,8 @@ proc emit_pop_into(k) {          ; pop the data stack top into r<k>
 
 proc emit_ident_at(off, len) {   ; write `len` source bytes starting at SRC[off]
     let k = 0
-    while k < len {
-        write_byte(byte[2097152 + off + k])
-        k = k + 1
-    }
+    state loop { to body when (k < len)  return 0 }
+    state body { write_byte(byte[2097152 + off + k])  k = k + 1  to loop }
 }
 
 proc emit_epilogue() {
@@ -711,21 +591,16 @@ proc emit_push() {
 }
 
 proc emit_mnemonic(op) {
-    if op == '+' {
-        emit("add")
-    }
-    if op == '-' {
-        emit("sub")
-    }
-    if op == '*' {
-        emit("mul")
-    }
-    if op == '/' {
-        emit("div")
-    }
-    if op == '%' {
-        emit("mod")
-    }
+    state add { to do_add when (op == '+')  to sub }
+    state do_add { emit("add")  return 0 }
+    state sub { to do_sub when (op == '-')  to mul }
+    state do_sub { emit("sub")  return 0 }
+    state mul { to do_mul when (op == '*')  to div }
+    state do_mul { emit("mul")  return 0 }
+    state div { to do_div when (op == '/')  to mod }
+    state do_div { emit("div")  return 0 }
+    state mod { to do_mod when (op == '%')  return 0 }
+    state do_mod { emit("mod")  return 0 }
 }
 
 proc emit_combine(op) {
@@ -762,26 +637,16 @@ proc emit_store_slot(slot) {       ; local[slot] = r0
 ; ---------------- character classes for operators ----------------
 
 proc is_muldiv(c) {
-    if c == '*' {
-        return 1
-    }
-    if c == '/' {
-        return 1
-    }
-    if c == '%' {
-        return 1
-    }
-    return 0
+    state s1 { to yes when (c == '*')  to s2 }
+    state s2 { to yes when (c == '/')  to s3 }
+    state s3 { to yes when (c == '%')  return 0 }
+    state yes { return 1 }
 }
 
 proc is_addsub(c) {
-    if c == '+' {
-        return 1
-    }
-    if c == '-' {
-        return 1
-    }
-    return 0
+    state s1 { to yes when (c == '+')  to s2 }
+    state s2 { to yes when (c == '-')  return 0 }
+    state yes { return 1 }
 }
 
 ; ---------------- recursive-descent codegen ----------------
@@ -789,130 +654,117 @@ proc is_addsub(c) {
 proc gen_factor() {
     skip_ws()
     let c = cbyte()
-    if c == '(' {
-        adv()
-        gen_expr()
-        expect(')')
-        return 0
-    }
-    if is_alpha(c) == 1 {
+    state paren { to do_paren when (c == '(')  to alpha }
+    state do_paren { adv()  gen_expr()  expect(')')  return 0 }
+    state alpha { to do_alpha when (is_alpha(c) == 1)  to charlit }
+    state do_alpha {
         read_ident()
-        if is_byte() == 1 {
-            gen_load(1)             ; byte[addr]
-            return 0
-        }
-        if is_word() == 1 {
-            gen_load(8)             ; word[addr]
-            return 0
-        }
+        to byteld when (is_byte() == 1)             ; byte[addr]
+        to wordchk
+    }
+    state byteld { gen_load(1)  return 0 }
+    state wordchk { to wordld when (is_word() == 1)  to callchk }   ; word[addr]
+    state wordld { gen_load(8)  return 0 }
+    state callchk {
         skip_ws()
-        if cbyte() == '(' {
-            gen_call()              ; f(args) — uses the ident just read as the callee
-            return 0
-        }
-        emit_load_slot(lookup())    ; variable reference
+        to docall when (cbyte() == '(')             ; f(args)
+        emit_load_slot(lookup())                    ; variable reference
         return 0
     }
-    if c == 39 {                    ; char literal 'x' -> its byte value
+    state docall { gen_call()  return 0 }
+    state charlit { to do_char when (c == 39)  to number }
+    state do_char {                                 ; char literal 'x' -> its byte value
         emit("imm r0,")
         emit_dec(parse_char())
         emit("\n")
         return 0
     }
-    let v = parse_number()
-    emit("imm r0,")
-    emit_dec(v)
-    emit("\n")
-    return 0
+    state number {
+        let v = parse_number()
+        emit("imm r0,")
+        emit_dec(v)
+        emit("\n")
+        return 0
+    }
 }
 
 proc parse_char() {                 ; cursor at opening '; return the byte value
     adv()                           ; opening '
     let v = cbyte()
-    if v == 92 {                    ; backslash escape
+    state esc { to do_esc when (v == 92)  to fin }     ; backslash escape
+    state do_esc {
         adv()
         v = cbyte()
-        if v == 'n' {
-            v = 10
-        }
-        if v == 't' {
-            v = 9
-        }
-        if v == 'r' {
-            v = 13
-        }
-        if v == '0' {
-            v = 0
-        }
-        ; \\ and \' keep v as 92 / 39 already
+        to set_n when (v == 'n')
+        to chk_t
     }
-    adv()                           ; the (escaped) char
-    adv()                           ; closing '
-    return v
+    state set_n { v = 10  to fin }
+    state chk_t { to set_t when (v == 't')  to chk_r }
+    state set_t { v = 9  to fin }
+    state chk_r { to set_r when (v == 'r')  to chk_0 }
+    state set_r { v = 13  to fin }
+    state chk_0 { to set_0 when (v == '0')  to fin }   ; \\ and \' keep v = 92 / 39
+    state set_0 { v = 0  to fin }
+    state fin { adv()  adv()  return v }               ; the (escaped) char + closing '
 }
 
 proc gen_term() {
     gen_factor()
     skip_ws()
-    while is_muldiv(cbyte()) == 1 {
+    state loop { to body when (is_muldiv(cbyte()) == 1)  return 0 }
+    state body {
         let op = cbyte()
         adv()
         emit_push()
         gen_factor()
         emit_combine(op)
         skip_ws()
+        to loop
     }
-    return 0
 }
 
 proc gen_sum() {
     gen_term()
     skip_ws()
-    while is_addsub(cbyte()) == 1 {
+    state loop { to body when (is_addsub(cbyte()) == 1)  return 0 }
+    state body {
         let op = cbyte()
         adv()
         emit_push()
         gen_term()
         emit_combine(op)
         skip_ws()
+        to loop
     }
-    return 0
 }
 
 ; comparison operator at the cursor -> code 0..5 (consumed), or -1 if none.
 ;   0 '<'   1 '>'   2 '=='   3 '!='   4 '<='   5 '>='
 proc cmp_op() {
     let c = cbyte()
-    if c == '<' {
+    state lt { to do_lt when (c == '<')  to gt }
+    state do_lt {
         adv()
-        if cbyte() == '=' {
-            adv()
-            return 4
-        }
+        to lt_eq when (cbyte() == '=')
         return 0
     }
-    if c == '>' {
+    state lt_eq { adv()  return 4 }
+    state gt { to do_gt when (c == '>')  to bang }
+    state do_gt {
         adv()
-        if cbyte() == '=' {
-            adv()
-            return 5
-        }
+        to gt_eq when (cbyte() == '=')
         return 1
     }
-    if c == '!' {
-        adv()
-        adv()                ; '!='
-        return 3
-    }
-    if c == '=' {
+    state gt_eq { adv()  return 5 }
+    state bang { to do_bang when (c == '!')  to eq }
+    state do_bang { adv()  adv()  return 3 }           ; '!='
+    state eq { to do_eq when (c == '=')  return 0 - 1 }
+    state do_eq {
         let i = word[2097144]
-        if byte[2097152 + i + 1] == '=' {
-            adv()
-            adv()
-            return 2
-        }
+        to eq_eq when (byte[2097152 + i + 1] == '=')
+        return 0 - 1
     }
-    return 0 - 1
+    state eq_eq { adv()  adv()  return 2 }
 }
 
 ; r0 = right operand; pop left into r0 (right into r1), branch-materialize 0/1.
@@ -923,71 +775,73 @@ proc emit_cmp(code) {
     emit("add r15,r5\n")
     let set = new_label()
     let done = new_label()
-    if code == 0 {
-        emit("jlt r0,r1,")
-    }
-    if code == 1 {
-        emit("jlt r1,r0,")
-    }
-    if code == 2 {
-        emit("jeq r0,r1,")
-    }
-    if code == 3 {
-        emit("jeq r0,r1,")
-    }
-    if code == 4 {
-        emit("jlt r1,r0,")
-    }
-    if code == 5 {
-        emit("jlt r0,r1,")
-    }
-    emit_lref(set)
-    emit("\n")
-    if code < 3 {
-        emit("imm r0,0\n")   ; fall-through value
-    } else {
+    state c0 { to do_c0 when (code == 0)  to c1 }
+    state do_c0 { emit("jlt r0,r1,")  to after }
+    state c1 { to do_c1 when (code == 1)  to c2 }
+    state do_c1 { emit("jlt r1,r0,")  to after }
+    state c2 { to do_c2 when (code == 2)  to c3 }
+    state do_c2 { emit("jeq r0,r1,")  to after }
+    state c3 { to do_c3 when (code == 3)  to c4 }
+    state do_c3 { emit("jeq r0,r1,")  to after }
+    state c4 { to do_c4 when (code == 4)  to c5 }
+    state do_c4 { emit("jlt r1,r0,")  to after }
+    state c5 { to do_c5 when (code == 5)  to after }
+    state do_c5 { emit("jlt r0,r1,")  to after }
+    state after {
+        emit_lref(set)
+        emit("\n")
+        to fall_lt when (code < 3)
         emit("imm r0,1\n")
+        to jmp_done
     }
-    emit("jmp ")
-    emit_lref(done)
-    emit("\n")
-    emit_lref(set)
-    emit(":\n")
-    if code < 3 {
-        emit("imm r0,1\n")   ; branch-taken value
-    } else {
+    state fall_lt { emit("imm r0,0\n")  to jmp_done }   ; fall-through value
+    state jmp_done {
+        emit("jmp ")
+        emit_lref(done)
+        emit("\n")
+        emit_lref(set)
+        emit(":\n")
+        to set_lt when (code < 3)
         emit("imm r0,0\n")
+        to fin
     }
-    emit_lref(done)
-    emit(":\n")
-    return 0
+    state set_lt { emit("imm r0,1\n")  to fin }         ; branch-taken value
+    state fin {
+        emit_lref(done)
+        emit(":\n")
+        return 0
+    }
 }
 
 proc gen_expr() {
     gen_sum()
     skip_ws()
     let code = cmp_op()
-    if code >= 0 {
+    state chk { to do_cmp when (code >= 0)  return 0 }
+    state do_cmp {
         emit_push()
         gen_sum()
         emit_cmp(code)
+        return 0
     }
-    return 0
 }
 
 ; ---------------- statements ----------------
 
 proc gen_stmts() {               ; parse statements until '}', consume the '}'
     skip_ws()
-    while cbyte() != '}' {
-        if cbyte() == 0 {
-            return 0
-        }
+    state loop {
+        to body when (cbyte() != '}')
+        adv()
+        return 0
+    }
+    state body {
+        to eof when (cbyte() == 0)
         gen_stmt()
         skip_ws()
+        to loop
     }
-    adv()
-    return 0
+    state eof { return 0 }
 }
 
 proc gen_block() {               ; { statements }
@@ -1000,14 +854,14 @@ proc gen_block() {               ; { statements }
 proc has_else() {
     skip_ws()
     let save = word[2097144]
-    if is_alpha(cbyte()) == 1 {
+    state alpha { to do_alpha when (is_alpha(cbyte()) == 1)  to restore }
+    state do_alpha {
         read_ident()
-        if is_else() == 1 {
-            return 1
-        }
+        to yes when (is_else() == 1)
+        to restore
     }
-    word[2097144] = save
-    return 0
+    state yes { return 1 }
+    state restore { word[2097144] = save  return 0 }
 }
 
 proc gen_if() {
@@ -1023,12 +877,13 @@ proc gen_if() {
     emit("\n")
     emit_lref(elsel)
     emit(":\n")
-    if has_else() == 1 {
-        gen_block()              ; else-block
+    state elsechk { to do_else when (has_else() == 1)  to fin }
+    state do_else { gen_block()  to fin }   ; else-block
+    state fin {
+        emit_lref(endl)
+        emit(":\n")
+        return 0
     }
-    emit_lref(endl)
-    emit(":\n")
-    return 0
 }
 
 proc gen_while() {
@@ -1076,7 +931,8 @@ proc gen_to() {              ; (to) NAME [when EXPR] — a transition (jmp / gua
     skip_ws()
     let save = word[2097144] ; lookahead-with-restore: is the next token `when`?
     read_ident()
-    if is_when() == 1 {
+    state whenchk { to guarded when (is_when() == 1)  to plain }
+    state guarded {
         gen_expr()           ; guard -> r0
         let skipl = new_label()
         emit("jz r0,")
@@ -1089,18 +945,21 @@ proc gen_to() {              ; (to) NAME [when EXPR] — a transition (jmp / gua
         emit(":\n")
         return 0
     }
-    word[2097144] = save     ; not a guard — that ident belongs to the next statement
-    emit("jmp ")
-    emit_state_label(noff, nlen)
-    emit("\n")
-    return 0
+    state plain {
+        word[2097144] = save ; not a guard — that ident belongs to the next statement
+        emit("jmp ")
+        emit_state_label(noff, nlen)
+        emit("\n")
+        return 0
+    }
 }
 
 proc gen_stmt() {
     skip_ws()
-    read_ident()                 ; let / return / if / while / an lvalue
+    read_ident()                 ; let / return / if / while / state / to / an lvalue
     let slot = 0                 ; one declaration (Beta locals are function-scoped)
-    if is_let() == 1 {
+    state k_let { to do_let when (is_let() == 1)  to k_return }
+    state do_let {
         skip_ws()
         read_ident()             ; the new local's name
         slot = declare()
@@ -1109,46 +968,30 @@ proc gen_stmt() {
         emit_store_slot(slot)
         return 0
     }
-    if is_return() == 1 {
+    state k_return { to do_return when (is_return() == 1)  to k_if }
+    state do_return { gen_expr()  emit_epilogue()  return 0 }
+    state k_if { to do_if when (is_if() == 1)  to k_while }
+    state do_if { gen_if()  return 0 }
+    state k_while { to do_while when (is_while() == 1)  to k_state }
+    state do_while { gen_while()  return 0 }
+    state k_state { to do_state when (is_state() == 1)  to k_to }
+    state do_state { gen_state()  return 0 }
+    state k_to { to do_to when (is_to() == 1)  to k_byte }
+    state do_to { gen_to()  return 0 }
+    state k_byte { to do_byte when (is_byte() == 1)  to k_word }
+    state do_byte { gen_store(1)  return 0 }     ; byte[addr] = val
+    state k_word { to do_word when (is_word() == 1)  to assign }
+    state do_word { gen_store(8)  return 0 }     ; word[addr] = val
+    state assign {
+        skip_ws()
+        to docall when (cbyte() == '(')          ; call statement
+        slot = lookup()                          ; assignment target
+        expect('=')
         gen_expr()
-        emit_epilogue()
+        emit_store_slot(slot)
         return 0
     }
-    if is_if() == 1 {
-        gen_if()
-        return 0
-    }
-    if is_while() == 1 {
-        gen_while()
-        return 0
-    }
-    if is_state() == 1 {
-        gen_state()
-        return 0
-    }
-    if is_to() == 1 {
-        gen_to()
-        return 0
-    }
-    if is_byte() == 1 {
-        gen_store(1)             ; byte[addr] = val
-        return 0
-    }
-    if is_word() == 1 {
-        gen_store(8)             ; word[addr] = val
-        return 0
-    }
-    skip_ws()
-    if cbyte() == '(' {
-        gen_call()               ; call statement (e.g. write_byte(x), advance(buf))
-        return 0
-    }
-    ; otherwise the ident just read is an assignment target
-    slot = lookup()
-    expect('=')
-    gen_expr()
-    emit_store_slot(slot)
-    return 0
+    state docall { gen_call()  return 0 }
 }
 
 proc parse_proc() {
@@ -1163,30 +1006,39 @@ proc parse_proc() {
     word[2097088] = namelen
     expect('(')                  ; parameters -> slots 0..nparams-1
     skip_ws()
-    while cbyte() != ')' {
+    state ploop {
+        to pbody when (cbyte() != ')')
+        to pdone
+    }
+    state pbody {
         read_ident()
         declare()
         skip_ws()
-        if cbyte() == ',' {
-            adv()
-            skip_ws()
-        }
+        to pcomma when (cbyte() == ',')
+        to ploop
     }
-    adv()                        ; consume ')'
-    let nparams = word[2097128]  ; NLOC after the params
-    expect('{')
-    let nslots = nparams + count_lets()
-    emit_ident_at(nameoff, namelen)
-    emit(":\n")
-    emit_proc_prologue(nslots)
-    let k = 0
-    while k < nparams {
-        emit_param_store(k)
-        k = k + 1
+    state pcomma { adv()  skip_ws()  to ploop }
+    state pdone {
+        adv()                    ; consume ')'
+        let nparams = word[2097128]  ; NLOC after the params
+        expect('{')
+        let nslots = nparams + count_lets()
+        emit_ident_at(nameoff, namelen)
+        emit(":\n")
+        emit_proc_prologue(nslots)
+        let k = 0
+        to sloop
     }
-    gen_stmts()                  ; body (consumes the closing '}')
-    emit_epilogue()              ; fall-through tear-down (matches on-ramp)
-    return 0
+    state sloop {
+        to sbody when (k < nparams)
+        to genbody
+    }
+    state sbody { emit_param_store(k)  k = k + 1  to sloop }
+    state genbody {
+        gen_stmts()              ; body (consumes the closing '}')
+        emit_epilogue()          ; fall-through tear-down (matches on-ramp)
+        return 0
+    }
 }
 
 proc main() {
@@ -1194,9 +1046,9 @@ proc main() {
     emit_prelude()
     emit_write_str()             ; the emit() helper (after halt; harmless if unused)
     skip_ws()
-    while cbyte() != 0 {
-        parse_proc()
-        skip_ws()
+    state loop {
+        to body when (cbyte() != 0)
+        return 0
     }
-    return 0
+    state body { parse_proc()  skip_ws()  to loop }
 }
