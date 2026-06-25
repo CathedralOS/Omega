@@ -103,6 +103,22 @@ hypothesis that mentions the induction variable): **additive left-cancellation**
 (`sum zero`, via Peano no-confusion), monotonicity (`le succ mono/refl`, `le zero`), and
 the arithmetic lemmas `right succ` (`a+Sm=S(a+m)`) and `le succ self` (`a≤Sa`).
 
-So the naturals are a **linearly ordered commutative semiring** inside the checker. A
-natural next step is to connect `≤` to the order's *strict* part or to `mult` (monotonicity
-of multiplication), but the core order backbone is complete.
+**Multiplication monotonicity** `mult mono` — `∀a∀b∀c. a≤b → a·c≤b·c` (witness `k·c`, via
+right-distributivity) — makes the order compatible with `·` as well as `+`, so the naturals
+are an **ordered commutative semiring**.
+
+## Strict order
+
+`a < b := ∃c. a+Sc=b` (constructive: `b` exceeds `a` by at least one). Pinned in the gate:
+
+- `lt to le` — `a<b → a≤b` (re-witness with `Sc`);
+- `zero lt S`, `lt succ self` — `0<Sa`, `a<Sa` (witness `0`);
+- `lt irrefl` — `¬(a<a)`: `a+Sc=a` forces `Sc=0` by cancellation, refuted by no-confusion;
+- `lt trans` — `a<b → b<c → a<c` (witness `k+Sj`, via associativity);
+- `lt to succ le` — `a<b → Sa≤b`, the successor bridge between `<` and `≤`.
+
+So `<` is a **strict order** (irreflexive + transitive) sitting beneath the total order `≤`.
+The naturals are now a fully **linearly ordered commutative semiring** with both the
+non-strict and strict relations and their bridge — all inside the trust anchor. Remaining
+threads: strict monotonicity (`a<b → a+c<b+c`), asymmetry (`a<b → ¬(b<a)`, from
+irreflexivity + transitivity), and trichotomy (`a<b ∨ a=b ∨ b<a`).
