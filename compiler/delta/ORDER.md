@@ -1,0 +1,77 @@
+# Order theory, and a first-order completeness gap in the checker
+
+## The order relation
+
+Order on the naturals needs **no new checker machinery** — `≤` is definable in the
+existing first-order logic with `∃` and `+`:
+
+```
+a ≤ b  :=  ∃c. a + c = b
+```
+
+The **∃-introduction** fragment already proves the foundational facts (all pinned in the
+gate, `test.sh`):
+
+| theorem | witness | justification |
+| --- | --- | --- |
+| `∀a. a ≤ a` (reflexive) | `c = 0` | `a+0=a` (the `n+0=n` lemma) |
+| `∀a. 0 ≤ a` (least element) | `c = a` | `0+a=a` definitionally |
+| `∀a∀b. a ≤ a+b` | `c = b` | `a+b=a+b` by `refl` |
+
+These establish `≤` as a reflexive relation with `0` least and compatible with `+` on the
+right — the start of an ordered-semiring backbone on top of the commutative semiring.
+
+## The gap: ∃-elimination under an open hypothesis
+
+**Transitivity** `∀a∀b∀c. a≤b → b≤c → a≤c` needs **∃-elimination** (`unpack`): open
+`h1 : ∃d. a+d=b` and `h2 : ∃e. b+e=c`, then witness `f = d+e` with
+`a+(d+e) = (a+d)+e = b+e = c`. The proof is mathematically routine, but the checker
+**rejects** it — and the minimal reproduction shows why:
+
+```
+; ACCEPTS — unpack under a CLOSED hypothesis
+(-> (Exists (= (p z (v 0)) z)) (Exists (= (p z (v 0)) z)))
+  (lam … (unpack (hyp 0) (gen (lam … (wit … (v 0) (hyp 0))))))
+
+; REJECTS — same shape, but the hypothesis mentions an outer ∀-bound variable a
+(All (-> (Exists (= (p (v 1) (v 0)) (v 1))) (Exists (= (p (v 1) (v 0)) (v 1)))))
+  (gen (lam … (unpack (hyp 0) (gen (lam … (wit … (v 0) (hyp 0)))))))
+```
+
+`unpack`'s handler is a `(gen (lam …))`, and `gen` runs an **eigenvariable check**
+(`check.beta`, the `gen_body` state):
+
+```
+to reject when (free_ivp(word[4194304 + t1 * 8], 0) == 1)   ; no free indiv var in scope
+```
+
+It rejects the generalization if **any** hypothesis in the context mentions **any**
+individual variable. That is *sound but incomplete*: it conflates "the hypothesis depends
+on the variable being generalized" (the real eigenvariable condition) with "the hypothesis
+mentions any variable at all". Because `gen` does **not shift** the stored hypothesis
+props when it enters a new individual binder, it cannot tell the two apart, so it
+conservatively forbids the whole situation.
+
+## The fix (planned, soundness-critical)
+
+The principled cure is the standard de Bruijn move: when `gen` enters a binder, the
+context's hypotheses are one binder deeper, so their individual-variable indices must
+**shift up by 1** (cutoff 0). Track an individual-binder depth alongside `CTXN`; store it
+when a hypothesis is pushed (`ctx_push` / `lam`); and on `hyp` lookup shift the stored prop
+by `(current_idepth − stored_idepth)`. After this shift, no hypothesis can ever reference
+the freshly generalized variable (`Iv 0`) — it was pushed at a shallower depth — so the
+eigenvariable condition is satisfied **structurally**, and the conservative check is no
+longer needed.
+
+Why this stays sound: in this checker you never "generalize an existing variable", you
+only introduce a **fresh** one via `gen`. A hypothesis like `x = 0` (about an outer `x`)
+does not block `gen`, because `gen` binds a *new* variable `y ≠ x`; the proof obtained is
+`∀y. (x=0 → …)`, never `∀x. x=0`. The de Bruijn structure already prevents the unsound
+conflation; correct shifting just lets the checker *see* that.
+
+The change touches the trust anchor's core, so it must be made in lockstep across
+`check.beta`, `gamma/checker.gamma`, and `gamma/checker_typed.gamma` (diamond + type
+safety), and verified against the full battery — every existing accept/reject unchanged,
+the soundness suite still rejecting every bad certificate, plus new cases: `≤`-transitivity
+and antisymmetry accepted, and adversarial "generalize a constrained variable" certs still
+rejected.
