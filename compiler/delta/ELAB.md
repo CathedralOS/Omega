@@ -32,7 +32,8 @@ props : (all x P) (ex x P) (-> P Q) (& P Q) (or P Q) (= A B) bot (pred ID A) (re
 terms : z | 0 1 2 … | (s A) (+ A B) (* A B) | nil (cons H T) (++ A B) (len A)
         (k CID A…) (f FID A…) (rec I) (y K) | NAME            ; → individual var
 proofs: (gen x PF) (lam h P PF) NAME(→hyp) (use N)
-        (app F A) (pair A B) (fst P) (snd P) (inl Q P) (inr Q P) (case S F G)
+        (app F A) (app* F A B …) (inst PF T) (inst* PF T1 T2 …)   ; *-forms fold the nesting
+        (pair A B) (fst P) (snd P) (inl Q P) (inr Q P) (case S F G)
         (absurd Q P) (refl T) (inst PF T) (disj P) (sinj P) (unpack EPF H)
         (wit x BODY T PF)            ; BODY = the ∃-body, binding x
         (eqelim x MOT EQ BASE)       ; MOT = the Leibniz motive, binding the hole x
@@ -41,13 +42,27 @@ proofs: (gen x PF) (lam h P PF) NAME(→hyp) (use N)
 top   : (def N P PF) …  GOAL_PROP  PROOF
 ```
 
+### A conversion gotcha the elaborator exposes (not fixes)
+
+The checker's conversion rule is **weak-head**: it reduces enough to expose a head
+constructor, but does *not* normalize inside an argument before matching a rule. So
+`m(0+Sk, …)` does **not** fire the `m(Sa,b)` rule, because the first argument is
+syntactically `(p z (s k))`, not `(s _)` — even though `0+Sk` is conv-equal to `Sk`. A
+transport (`eqelim`) over `(0+Sk)` therefore never reduces. The fix when a hypothesis hands
+you `0+Sk = a`: coerce it to `Sk = a` first (via `trans(refl(Sk), pf)` — sound because
+`refl(Sk) : Sk = 0+Sk` holds by conversion), then transport over the *syntactic* `(s k)`.
+This is what unblocked `mult-positive`. With named binders the obstacle is legible; under
+hand-written de Bruijn it hid behind index noise.
+
 What the elaborator handles, that hand-writing got wrong: the `(v N)` for a variable used
 under different binder depths in the same proof; the `(hyp N)` for a hypothesis used deep
 inside nested `unpack`/`gen`; the implicit hole binder of an `eqelim` motive; the induction
-variable of a `natind`/`rec` motive; the `∃`-body binder of a `wit`. The remaining manual
-concern is the *order* of `(inst … )` against a lemma's quantifiers — the elaborator does not
-know lemma signatures (a future extension could) — but that is local and small next to the
-index bookkeeping it removes. Errors that remain are now legible: `unbound name 'foo'` and
+variable of a `natind`/`rec` motive; the `∃`-body binder of a `wit`. The `inst*`/`app*` forms
+fold the right-nesting of repeated instantiation and application
+(`(inst* (use 2) x y z)` = `(inst (inst (inst (use 2) x) y) z)`), so applying a three-place
+lemma reads as one call. The remaining manual concern is the *order* of those arguments
+against a lemma's quantifiers — the elaborator does not know lemma signatures (a future
+extension could) — but that is local and small next to the index bookkeeping it removes. Errors that remain are now legible: `unbound name 'foo'` and
 paren-balance, instead of a silent wrong index that the checker rejects with no location.
 
 ## Use
