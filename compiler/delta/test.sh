@@ -232,6 +232,10 @@ MUL="$ADD (fun 11 2 (k 2)) (fun 11 3 (f 10 (y 0) (rec 0)))"
 chk "fun mult(2,3)=6" "$MUL (= (f 11 (k 3 (k 3 (k 2))) (k 3 (k 3 (k 3 (k 2))))) (k 3 (k 3 (k 3 (k 3 (k 3 (k 3 (k 2)))))))) (refl (f 11 (k 3 (k 3 (k 2))) (k 3 (k 3 (k 3 (k 2))))))" accept
 chk "fun mult(2,3)!=7" "$MUL (= (f 11 (k 3 (k 3 (k 2))) (k 3 (k 3 (k 3 (k 2))))) (k 3 (k 3 (k 3 (k 3 (k 3 (k 3 (k 3 (k 2))))))))) (refl (f 11 (k 3 (k 3 (k 2))) (k 3 (k 3 (k 3 (k 2))))))" reject
 chk "fun mult(1,y)=y" "$MUL (def 0 (All (= (f 10 (v 0) (k 2)) (v 0))) (rec 2 3 (= (f 10 (v 0) (k 2)) (v 0)) (refl (k 2)) (gen (lam (= (f 10 (v 0) (k 2)) (v 0)) (eqelim (= (k 3 (f 10 (v 1) (k 2))) (k 3 (v 0))) (hyp 0) (refl (k 3 (f 10 (v 0) (k 2))))))))) (All (= (f 11 (k 3 (k 2)) (v 0)) (v 0))) (gen (inst (use 0) (v 0)))" accept
+# ∀x. mult(x,Z)=Z (right zero) by induction over the COMPOSED function: mult(S x,Z) reduces
+# to add(Z,mult(x,Z))=mult(x,Z) definitionally, so the step is just the induction hypothesis.
+chk "fun mult(x,Z)=Z" "$MUL (All (= (f 11 (v 0) (k 2)) (k 2))) (rec 2 3 (= (f 11 (v 0) (k 2)) (k 2)) (refl (k 2)) (gen (lam (= (f 11 (v 0) (k 2)) (k 2)) (hyp 0))))" accept
+chk "fun mult(x,Z)!=x" "$MUL (All (= (f 11 (v 0) (k 2)) (v 0))) (rec 2 3 (= (f 11 (v 0) (k 2)) (v 0)) (refl (k 2)) (gen (lam (= (f 11 (v 0) (k 2)) (v 0)) (hyp 0))))" reject
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
 eqk() { # description  "t1 t2"  expect
