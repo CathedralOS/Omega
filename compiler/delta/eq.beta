@@ -158,8 +158,19 @@ proc parse_term() {
         return b
     }
     state kbody { b = alloc(51, b, parse_term())  skip_ws()  to kloop }   ; APPLY(b, arg)
-    state op_f { to do_f when (op == 'f')  to op_r }      ; (f fid arg) function application
-    state do_f { skip_ws()  a = parse_number()  b = parse_term()  skip_ws()  adv()  return alloc(52, a, b) }
+    state op_f { to do_f when (op == 'f')  to op_y }      ; (f fid arg [arg2]) function application
+    state do_f {
+        skip_ws()
+        a = parse_number()
+        b = parse_term()
+        skip_ws()
+        to f_bin when (cbyte() != ')')   ; a 2nd argument -> binary
+        adv()
+        return alloc(52, a, b)
+    }
+    state f_bin { b = alloc(53, b, parse_term())  skip_ws()  adv()  return alloc(52, a, b) }   ; FBUNDLE
+    state op_y { to do_y when (op == 'y')  to op_r }      ; (y k) — k-th extra arg (binary fn body)
+    state do_y { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(56, a, 0) }
     state op_r { to do_r when (op == 'r')  to do_plus }   ; (rec i) recursive call
     state do_r { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(54, a, 0) }
     state do_plus {
@@ -173,15 +184,20 @@ proc parse_term() {
 
 ; one rewrite step of (f fid arg) — mirrors check.beta. FRULE table at 5898240.
 proc reduce_fun(fid, arg, fuel) {
-    let a = normalize(arg, fuel)
+    let scrut = arg
+    let extra = 0
+    let a = 0
     let cid = 0
     let body = 0
+    state bundle { to do_bundle when (word[arg] == 53)  to norm }    ; binary: FBUNDLE(scrut, extra)
+    state do_bundle { scrut = word[arg + 8]  extra = word[arg + 16]  to norm }
+    state norm { a = normalize(scrut, fuel)  to nullary }
     state nullary { to do_null when (word[a] == 50)  to applied }
     state do_null {
         cid = word[a + 8]
         body = word[5898240 + (fid * 64 + cid) * 8]
         to stuck when (body == 0)
-        return instantiate(body, fid, 0, 0)
+        return instantiate(body, fid, alloc(53, 0, 0), extra)
     }
     state applied { to do_app when (word[a] == 51)  to stuck }
     state do_app {
@@ -193,7 +209,7 @@ proc reduce_fun(fid, arg, fuel) {
         cid = word[word[a + 8] + 8]
         body = word[5898240 + (fid * 64 + cid) * 8]
         to stuck when (body == 0)
-        return instantiate(body, fid, word[a + 16], 0)
+        return instantiate(body, fid, alloc(53, word[a + 16], 0), extra)
     }
     state binary {
         to bin_ok when (word[word[word[a + 8] + 8]] == 50)
@@ -203,37 +219,48 @@ proc reduce_fun(fid, arg, fuel) {
         cid = word[word[word[a + 8] + 8] + 8]
         body = word[5898240 + (fid * 64 + cid) * 8]
         to stuck when (body == 0)
-        return instantiate(body, fid, word[word[a + 8] + 16], word[a + 16])
+        return instantiate(body, fid, alloc(53, word[word[a + 8] + 16], word[a + 16]), extra)
     }
     state stuck { return 0 }
 }
 
-proc instantiate(t, fid, a0, a1) {
-    state iv { to do_iv when (word[t] == 34)  to rc }
+proc instantiate(t, fid, flds, extra) {
+    state iv { to do_iv when (word[t] == 34)  to par }
     state do_iv {
         to ret_a0 when (word[t + 8] == 0)
         to ret_a1 when (word[t + 8] == 1)
         return t
     }
-    state ret_a0 { return a0 }
-    state ret_a1 { return a1 }
+    state ret_a0 { return word[flds + 8] }
+    state ret_a1 { return word[flds + 16] }
+    state par { to do_par when (word[t] == 56)  to rc }    ; PAR (y k) — the extra argument
+    state do_par { return extra }
     state rc { to do_rc when (word[t] == 54)  to fapp }
     state do_rc {
         to rec_a0 when (word[t + 8] == 0)
-        return alloc(52, fid, a1)
+        to rec_a1
     }
-    state rec_a0 { return alloc(52, fid, a0) }
+    state rec_a0 {
+        to ra0_bin when (extra != 0)
+        return alloc(52, fid, word[flds + 8])
+    }
+    state ra0_bin { return alloc(52, fid, alloc(53, word[flds + 8], extra)) }
+    state rec_a1 {
+        to ra1_bin when (extra != 0)
+        return alloc(52, fid, word[flds + 16])
+    }
+    state ra1_bin { return alloc(52, fid, alloc(53, word[flds + 16], extra)) }
     state fapp { to do_fa when (word[t] == 52)  to z }
-    state do_fa { return alloc(52, word[t + 8], instantiate(word[t + 16], fid, a0, a1)) }
+    state do_fa { return alloc(52, word[t + 8], instantiate(word[t + 16], fid, flds, extra)) }
     state z { to ret_t when (word[t] == 0)  to nilc }
     state ret_t { return t }
     state nilc { to ret_t when (word[t] == 4)  to con }
     state con { to ret_t when (word[t] == 50)  to suc }
     state suc { to do_suc when (word[t] == 1)  to lenc }
-    state do_suc { return alloc(1, instantiate(word[t + 8], fid, a0, a1), 0) }
+    state do_suc { return alloc(1, instantiate(word[t + 8], fid, flds, extra), 0) }
     state lenc { to do_len when (word[t] == 7)  to dflt }
-    state do_len { return alloc(7, instantiate(word[t + 8], fid, a0, a1), 0) }
-    state dflt { return alloc(word[t], instantiate(word[t + 8], fid, a0, a1), instantiate(word[t + 16], fid, a0, a1)) }
+    state do_len { return alloc(7, instantiate(word[t + 8], fid, flds, extra), 0) }
+    state dflt { return alloc(word[t], instantiate(word[t + 8], fid, flds, extra), instantiate(word[t + 16], fid, flds, extra)) }
 }
 
 ; reduce to normal form using the definitional rules; fuel-bounded (total).
@@ -330,13 +357,19 @@ proc normalize(t, fuel) {
         b = normalize(word[t + 16], fuel - 1)
         return alloc(51, a, b)
     }
-    state t_fapp { to do_fapp when (tag == 52)  return t }   ; (f fid arg) — reduce or STUCK
+    state t_fapp { to do_fapp when (tag == 52)  to t_53 }    ; (f fid arg) — reduce or STUCK
     state do_fapp {
         a = reduce_fun(word[t + 8], word[t + 16], fuel - 1)
         to fapp_stuck when (a == 0)
         return normalize(a, fuel - 1)
     }
     state fapp_stuck { return alloc(52, word[t + 8], normalize(word[t + 16], fuel - 1)) }
+    state t_53 { to do_53 when (tag == 53)  return t }       ; FBUNDLE(scrut,extra) — normalize both
+    state do_53 {
+        a = normalize(word[t + 8], fuel - 1)
+        b = normalize(word[t + 16], fuel - 1)
+        return alloc(53, a, b)
+    }
 }
 
 proc term_eq(a, b) {
