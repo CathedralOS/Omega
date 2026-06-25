@@ -376,6 +376,54 @@ proc free_ivp(p, depth) {
     }
 }
 
+; does a term / prop reference the variable bound EXACTLY `depth` levels out — i.e. the
+; witness variable of an enclosing ∃-elim?  (free_iv* tests index >= depth; this tests
+; index == depth, tracking binders, so an outer individual is allowed but the witness
+; is not.)  Used by unpack to admit a conclusion C that mentions outer individuals.
+proc wit_in_term(t, depth) {
+    state iv { to ivchk when (word[t] == 34)  to z }
+    state ivchk { to yes when (word[t + 8] == depth)  return 0 }
+    state yes { return 1 }
+    state z { to no when (word[t] == 30)  to nilc }
+    state no { return 0 }
+    state nilc { to no when (word[t] == 35)  to con }
+    state con { to no when (word[t] == 50)  to suc }
+    state suc { to child when (word[t] == 31)  to lenc }
+    state child { return wit_in_term(word[t + 8], depth) }
+    state lenc { to child when (word[t] == 38)  to both }
+    state both {
+        to yes when (wit_in_term(word[t + 8], depth) == 1)
+        return wit_in_term(word[t + 16], depth)
+    }
+}
+
+proc wit_in_prop(p, depth) {
+    let tag = word[p]
+    state t0 { to ret0 when (tag == 0)  to t3 }
+    state ret0 { return 0 }
+    state t3 { to ret0 when (tag == 3)  to t7 }
+    state t7 { to pred when (tag == 7)  to t9 }
+    state pred { return wit_in_term(word[p + 16], depth) }
+    state t9 { to rel when (tag == 9)  to t5 }
+    state rel {
+        to yes when (wit_in_term(word[word[p + 16] + 8], depth) == 1)
+        return wit_in_term(word[word[p + 16] + 16], depth)
+    }
+    state yes { return 1 }
+    state t5 { to eq when (tag == 5)  to t6 }
+    state eq {
+        to yes when (wit_in_term(word[p + 8], depth) == 1)
+        return wit_in_term(word[p + 16], depth)
+    }
+    state t6 { to deeper when (tag == 6)  to t8 }   ; All — the witness is one binder further out
+    state deeper { return wit_in_prop(word[p + 8], depth + 1) }
+    state t8 { to deeper when (tag == 8)  to conn }  ; Exists — likewise
+    state conn {
+        to yes when (wit_in_prop(word[p + 8], depth) == 1)
+        return wit_in_prop(word[p + 16], depth)
+    }
+}
+
 ; shift every FREE individual variable (index >= cutoff) in a term up by `d`.
 proc shift_term(t, d, cutoff) {
     state iv { to ivcheck when (word[t] == 34)  to z }
@@ -958,8 +1006,10 @@ proc infer(term) {
         to reject when (word[t2] != 6)                   ; handler must be a universal
         to reject when (word[word[t2 + 8]] != 1)         ; whose body is an implication
         to reject when (type_eq(word[word[t2 + 8] + 8], word[t1 + 8]) == 0)   ; antecedent == b
-        to reject when (ivar_in_prop(word[word[t2 + 8] + 16]) == 1)   ; C must not mention the var
-        return word[word[t2 + 8] + 16]                   ; the conclusion C
+        ; C must not depend on the WITNESS var (the handler's ∀-bound individual = Ivar 0);
+        ; it MAY mention outer individuals. Then drop that binder, lowering outer vars.
+        to reject when (wit_in_prop(word[word[t2 + 8] + 16], 0) == 1)
+        return subst_prop(word[word[t2 + 8] + 16], alloc(30, 0, 0), 0)   ; the conclusion C
     }
     state d25 { to natind when (tag == 25)  to d29 }
     state natind {               ; NATIND motive base step : Peano induction

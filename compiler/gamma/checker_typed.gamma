@@ -70,6 +70,17 @@
            ((All x) (freep x (+ d 1))) ((Exists x) (freep x (+ d 1)))
            ((Arrow a b) (if (freep a d) 1 (freep b d))) ((And a b) (if (freep a d) 1 (freep b d)))
            ((Or a b) (if (freep a d) 1 (freep b d))) (z 0)))
+; index == d (the ∃-elim witness), vs freep's index >= d: lets unpack admit a C that
+; mentions outer individuals while still forbidding the witness.
+(def witt ((t Nat) (d Int)) Int
+  (match t ((Iv k) (if (eq k d) 1 0)) (Ze 0) ((Su x) (witt x d))
+           ((Pl a b) (if (witt a d) 1 (witt b d))) ((Mu a b) (if (witt a d) 1 (witt b d)))
+           (Lnil 0) ((Lcons a b) (if (witt a d) 1 (witt b d))) ((Lapp a b) (if (witt a d) 1 (witt b d))) ((Llen a) (witt a d)) ((Con q) 0) ((Apply f g) (if (witt f d) 1 (witt g d)))))
+(def witp ((p Type) (d Int)) Int
+  (match p ((Pred id t) (witt t d)) ((Rel id s t) (if (witt s d) 1 (witt t d))) ((Eq a b) (if (witt a d) 1 (witt b d)))
+           ((All x) (witp x (+ d 1))) ((Exists x) (witp x (+ d 1)))
+           ((Arrow a b) (if (witp a d) 1 (witp b d))) ((And a b) (if (witp a d) 1 (witp b d)))
+           ((Or a b) (if (witp a d) 1 (witp b d))) (z 0)))
 (def shiftt ((t Nat) (d Int) (c Int)) Nat
   (match t ((Iv k) (if (lt k c) (Iv k) (Iv (+ k d)))) (Ze Ze) ((Su x) (Su (shiftt x d c)))
            ((Pl a b) (Pl (shiftt a d c) (shiftt b d c))) ((Mu a b) (Mu (shiftt a d c) (shiftt b d c)))
@@ -192,7 +203,7 @@
                         (match (infer h ctx)
                           ((All inner)
                             (match inner
-                              ((Arrow ante c) (if (teq ante b) (if (ivp c) Bad c) Bad))
+                              ((Arrow ante c) (if (teq ante b) (if (witp c 0) Bad (subp c Ze 0)) Bad))
                               (z Bad)))
                           (z Bad)))
                       (z Bad)))
