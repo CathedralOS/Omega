@@ -65,7 +65,7 @@ induction**:
 
 The trust anchor is defended five independent ways (all under `verify-lattice.sh`):
 
-- **163-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
+- **161-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
 - **30-case soundness battery** (`soundness.sh`) — invalid certificates that must
   *all* be rejected, including classical-but-non-constructive tautologies (excluded
   middle, Peirce, the drinker paradox).
@@ -91,5 +91,7 @@ The trust anchor is defended five independent ways (all under `verify-lattice.sh
   (right identity — the user-function analogue of `n+0=n`). Verified every way the rest
   of the anchor is: all three checkers (gate, soundness, **checker diamond**, type-safety)
   plus eq.beta and the **semantics diamond**. See [`delta/FUNCTIONS.md`](delta/FUNCTIONS.md).
-  Next: richer user-function laws (user-add commutativity) and N-ary arguments.
+  A user-defined function even satisfies a real algebraic law: **`∀x∀y. add(x,y)=add(y,x)`**
+  (commutativity) proves inside the checker by induction + the lemma layer, exactly as
+  built-in `+`-commutativity. Next: N-ary (3+) arguments.
 - epsilon (systems language) and omega (full dependent types) are design-stage.
