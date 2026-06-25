@@ -272,6 +272,9 @@ chk "le trans" "(def 0 (All (All (All (= (p (p (v 0) (v 2)) (v 1)) (p (v 0) (p (
 # S-injectivity in the step. The step generalizes x and y while the induction hypothesis
 # (which mentions a) is in scope -- only provable because of the eigenvariable fix.
 chk "add cancel" "(All (All (All (-> (= (p (v 2) (v 1)) (p (v 2) (v 0))) (= (v 1) (v 0)))))) (natind (All (All (-> (= (p (v 2) (v 1)) (p (v 2) (v 0))) (= (v 1) (v 0))))) (gen (gen (lam (= (p z (v 1)) (p z (v 0))) (hyp 0)))) (gen (lam (All (All (-> (= (p (v 2) (v 1)) (p (v 2) (v 0))) (= (v 1) (v 0))))) (gen (gen (lam (= (p (s (v 2)) (v 1)) (p (s (v 2)) (v 0))) (app (inst (inst (hyp 1) (v 1)) (v 0)) (sinj (hyp 0)))))))))" accept
+# sum-zero forall x y. x+y=0 -> x=0, by induction on x: the successor case derives a
+# contradiction from S(x+y)=0 via Peano no-confusion (disj). Pairs with cancellation.
+chk "sum zero" "(def 0 (All (All (-> (= (v 1) (v 0)) (= (v 0) (v 1))))) (gen (gen (lam (= (v 1) (v 0)) (eqelim (= (v 0) (v 2)) (hyp 0) (refl (v 1))))))) (def 1 (All (All (All (-> (= (v 2) (v 1)) (-> (= (v 1) (v 0)) (= (v 2) (v 0))))))) (gen (gen (gen (lam (= (v 2) (v 1)) (lam (= (v 1) (v 0)) (eqelim (= (v 3) (v 0)) (hyp 0) (hyp 1)))))))) (All (All (-> (= (p (v 1) (v 0)) z) (= (v 1) z)))) (natind (All (-> (= (p (v 1) (v 0)) z) (= (v 1) z))) (gen (lam (= (p z (v 0)) z) (refl z))) (gen (lam (All (-> (= (p (v 1) (v 0)) z) (= (v 1) z))) (gen (lam (= (p (s (v 1)) (v 0)) z) (absurd (= (s (v 1)) z) (disj (app (app (inst (inst (inst (use 1) z) (p (s (v 1)) (v 0))) (s (p (v 1) (v 0)))) (app (inst (inst (use 0) (p (s (v 1)) (v 0))) z) (hyp 0))) (refl (p (s (v 1)) (v 0))))))))))))" accept
 # eigenvariable soundness: from P(x) we may conclude forall y. P(x) (y fresh, x fixed) ...
 chk "gen keeps outer var" "(-> (Pred 0 (v 0)) (All (Pred 0 (v 1)))) (lam (Pred 0 (v 0)) (gen (hyp 0)))" accept
 # ... but NOT forall y. P(y): generalizing a constrained variable stays unsound -> reject.
