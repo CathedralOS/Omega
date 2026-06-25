@@ -53,8 +53,9 @@ induction**:
   `(rec i)` recurses; up to 2 arguments, functions may call functions) whose equations
   reduce under the conversion rule — so theorems *about user functions* prove by
   induction: a user-defined binary `add` is a **commutative monoid** (`∀x. add(x,Z)=x`,
-  associativity, `∀x∀y. add(x,y)=add(y,x)`), a `mult` *defined via* `add` computes and
-  satisfies `∀x. mult(x,Z)=Z` — the user-function analogues of the built-in semiring laws;
+  associativity, `∀x∀y. add(x,y)=add(y,x)`) and a `mult` *defined via* `add` **distributes**
+  over it (`mult(a+b,c)=mult(a,c)+mult(b,c)`) — so a number type with USER-DEFINED
+  arithmetic is a full **semiring** inside the checker, the same axioms built-in `+`/`*` meet;
 - real theorems, all pinned in the gate: `n+0=n`, `n≠s n`, every nat is `0` or a
   successor, `l++nil=l`, append associativity, `len(a++b)=len(a)+len(b)`, and — via
   lemmas — **addition commutativity** and **right distributivity** `(a+b)*c=a*c+b*c`,
@@ -93,7 +94,7 @@ The trust anchor is defended five independent ways (all under `verify-lattice.sh
   (right identity — the user-function analogue of `n+0=n`). Verified every way the rest
   of the anchor is: all three checkers (gate, soundness, **checker diamond**, type-safety)
   plus eq.beta and the **semantics diamond**. See [`delta/FUNCTIONS.md`](delta/FUNCTIONS.md).
-  A user-defined function even satisfies a real algebraic law: **`∀x∀y. add(x,y)=add(y,x)`**
-  (commutativity) proves inside the checker by induction + the lemma layer, exactly as
-  built-in `+`-commutativity. Next: N-ary (3+) arguments.
+  A number type with user-defined `add`/`mult` is even shown to be a full **semiring**
+  (commutative monoid + `mult` distributing over `add`), inside the checker, by induction
+  + the lemma layer — the same axioms built-in `+`/`*` meet. Next: N-ary (3+) arguments.
 - epsilon (systems language) and omega (full dependent types) are design-stage.
