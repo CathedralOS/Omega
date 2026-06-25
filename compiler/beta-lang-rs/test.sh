@@ -10,7 +10,7 @@ chk() { # name expect_exit  (expr via stdin in $3 if calc)
 build() { sh build.sh "examples/$1.beta" >/dev/null 2>&1 || { echo "  BUILD FAIL $1"; FAIL=$((FAIL+1)); return 1; }; }
 
 # value examples: exit code == expected
-for pair in answer:42 double:42 calls:10 factorial:120 fib:55 sumto:55 arrays:30 bytes:131 args3:40 args4:10; do
+for pair in answer:42 double:42 states:55 calls:10 factorial:120 fib:55 sumto:55 arrays:30 bytes:131 args3:40 args4:10; do
   name=${pair%:*}; want=${pair#*:}
   build "$name" || continue
   "./build/$name.exe" </dev/null; got=$?
