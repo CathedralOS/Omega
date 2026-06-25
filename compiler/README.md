@@ -65,7 +65,7 @@ induction**:
 
 The trust anchor is defended five independent ways (all under `verify-lattice.sh`):
 
-- **154-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
+- **158-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
 - **30-case soundness battery** (`soundness.sh`) — invalid certificates that must
   *all* be rejected, including classical-but-non-constructive tautologies (excluded
   middle, Peirce, the drinker paradox).
