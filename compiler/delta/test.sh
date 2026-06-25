@@ -87,6 +87,11 @@ chk "double-neg-elim" "(-> (-> (-> A (bot)) (bot)) A) (lam (-> (-> A (bot)) (bot
 chk "neg-ex->all-neg" "(-> (-> (Exists (Pred 0 (v 0))) (bot)) (All (-> (Pred 0 (v 0)) (bot)))) (lam (-> (Exists (Pred 0 (v 0))) (bot)) (gen (lam (Pred 0 (v 0)) (app (hyp 1) (wit (Pred 0 (v 0)) (v 0) (hyp 0))))))" accept
 chk "all-neg->neg-ex" "(-> (All (-> (Pred 0 (v 0)) (bot))) (-> (Exists (Pred 0 (v 0))) (bot))) (lam (All (-> (Pred 0 (v 0)) (bot))) (lam (Exists (Pred 0 (v 0))) (unpack (hyp 0) (gen (lam (Pred 0 (v 0)) (app (inst (hyp 2) (v 0)) (hyp 0)))))))" accept
 chk "neg-all->ex-neg" "(-> (-> (All (Pred 0 (v 0))) (bot)) (Exists (-> (Pred 0 (v 0)) (bot)))) (lam (-> (All (Pred 0 (v 0))) (bot)) (wit (-> (Pred 0 (v 0)) (bot)) (v 0) (lam (Pred 0 (v 0)) (app (hyp 1) (gen (hyp 0))))))" reject
+# quantifier interchange ∃y.∀x.R -> ∀x.∃y.R (unpack admits a C mentioning the outer x);
+# the converse and any witness-leaking C still reject (∃-elim stays sound)
+chk "exists-forall swap" "(-> (Exists (All (Rel 0 (v 0) (v 1)))) (All (Exists (Rel 0 (v 1) (v 0))))) (lam (Exists (All (Rel 0 (v 0) (v 1)))) (gen (unpack (hyp 0) (gen (lam (All (Rel 0 (v 0) (v 1))) (wit (Rel 0 (v 2) (v 0)) (v 0) (inst (hyp 0) (v 1))))))))" accept
+chk "swap converse no" "(-> (All (Exists (Rel 0 (v 1) (v 0)))) (Exists (All (Rel 0 (v 0) (v 1))))) (lam (All (Exists (Rel 0 (v 1) (v 0)))) (wit (All (Rel 0 (v 0) (v 1))) (v 0) (gen (unpack (inst (hyp 1) (v 0)) (hyp 0)))))" reject
+chk "unpack witness leak" "(-> (Exists (Pred 0 (v 0))) (Pred 0 (v 0))) (lam (Exists (Pred 0 (v 0))) (unpack (hyp 0) (gen (lam (Pred 0 (v 0)) (hyp 0)))))" reject
 # distribution & case-analysis: &-over-+, case-currying both ways, or-idempotency
 chk "&-over-+ dist"   "(-> (& A (+ B C)) (+ (& A B) (& A C))) (lam (& A (+ B C)) (case (snd (hyp 0)) (lam B (inl (& A C) (pair (fst (hyp 1)) (hyp 0)))) (lam C (inr (& A B) (pair (fst (hyp 1)) (hyp 0))))))" accept
 chk "case-curry ->"   "(-> (-> (+ A B) C) (& (-> A C) (-> B C))) (lam (-> (+ A B) C) (pair (lam A (app (hyp 1) (inl B (hyp 0)))) (lam B (app (hyp 1) (inr A (hyp 0))))))" accept

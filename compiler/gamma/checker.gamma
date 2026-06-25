@@ -129,6 +129,31 @@
     ((And a b)   (if (freep a d) 1 (freep b d)))
     ((Or a b)    (if (freep a d) 1 (freep b d)))
     (z 0)))
+; does t/p reference the var bound EXACTLY d levels out (the ∃-elim witness)?  freep
+; tests index >= d; this tests index == d, so an outer individual is allowed but the
+; witness is not — lets unpack admit a C that mentions outer individuals.
+(def witt (t d)
+  (match t
+    ((Iv k) (if (eq k d) 1 0))
+    (Ze 0)
+    ((Su x) (witt x d))
+    ((Pl a b) (if (witt a d) 1 (witt b d)))
+    ((Mu a b) (if (witt a d) 1 (witt b d)))
+    (Lnil 0)
+    ((Lcons a b) (if (witt a d) 1 (witt b d)))
+    ((Lapp a b) (if (witt a d) 1 (witt b d)))
+    ((Llen a) (witt a d)) ((Con q) 0) ((Apply f g) (if (witt f d) 1 (witt g d)))))
+(def witp (p d)
+  (match p
+    ((Pred id t) (witt t d))
+    ((Rel id s t) (if (witt s d) 1 (witt t d)))
+    ((Eq a b)    (if (witt a d) 1 (witt b d)))
+    ((All x)     (witp x (+ d 1)))
+    ((Exists x)  (witp x (+ d 1)))
+    ((Arrow a b) (if (witp a d) 1 (witp b d)))
+    ((And a b)   (if (witp a d) 1 (witp b d)))
+    ((Or a b)    (if (witp a d) 1 (witp b d)))
+    (z 0)))
 ; shift free individual vars (index >= c) up by d — lifts a witness across a binder
 (def shiftt (t d c)
   (match t
@@ -305,7 +330,7 @@
                           ((All inner)
                             (match inner
                               ((Arrow ante c)
-                                (if (teq ante b) (if (ivp c) Bad c) Bad))
+                                (if (teq ante b) (if (witp c 0) Bad (subp c Ze 0)) Bad))
                               (z Bad)))
                           (z Bad)))
                       (z Bad)))
