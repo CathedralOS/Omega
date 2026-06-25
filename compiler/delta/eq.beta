@@ -9,23 +9,16 @@
 ; Crucially the reducer is FUEL-BOUNDED: normalize(term, fuel) either returns a
 ; normal form or stops at OutOfFuel. That is exactly the totality discipline
 ; gamma.md / delta.md require — a total checker cannot contain an unbounded
-; evaluator, so the slow reference route is bounded and explicit. Here closed
-; terms over {z, s, p} always terminate well within the fuel; the bound is the
-; honest guard, not a workaround.
+; evaluator, so the slow reference route is bounded and explicit.
 ;
-; Signature (Peano arithmetic, enough to demonstrate proof-by-computation):
-;   z          zero
-;   (s t)      successor
-;   (p a b)    plus  ;  (m a b)  multiply
-;            rules:  p z b => b   p (s x) b => s (p x b)
-;                    m z y => z   m (s x) y => p y (m x y)
+; Signature: z, (s t), (p a b) plus, (m a b) mul; nil, (cons h t), (app l1 l2)
+; append, (len l) length.  Input (stdin): two terms; output "equal\n" (exit 1) if
+; they share a normal form, else "differ\n" (exit 0).
 ;
-; Input (stdin): two terms. Output: "equal\n" (exit 1) if they have the same
-; normal form, else "differ\n" (exit 0).
-;   echo '(p (s (s z)) (s (s z)))  (s (s (s (s z))))' | eq    ->  equal   (2+2 = 4)
-;
-; Also Lists (a second inductive type): nil, (cons h t), (app l1 l2) append, (len l)
-; length — append/length compute, so e.g. ([0]++[1] = [0,1]) and (len [0,1] = 2) decide.
+; CONTROL FLOW is CFG/Omega-shaped: each proc is a set of `state` basic blocks linked
+; by guarded `to … when …` transitions — no if/while. A proc falls into its first
+; state and falls through to the next unless it transitions or returns; a loop is a
+; state that transitions back to itself.
 ;
 ; Memory: 2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  3145728 ARENA.
 ; Nodes [tag,f0,f1] at 24-byte stride.  tag 0 ZERO 1 SUC 2 PLUS 3 MUL ; 4 NIL 5 CONS 6 APPEND 7 LEN.
@@ -33,22 +26,32 @@
 proc slurp() {
     let n = 0
     let c = read_byte()
-    while c >= 0 {
+    state loop {
+        to body when (c >= 0)
+        to done
+    }
+    state body {
         byte[2097152 + n] = c
         n = n + 1
         c = read_byte()
+        to loop
     }
-    word[2097136] = n
-    word[2097144] = 0
-    word[2097128] = 3145728
+    state done {
+        word[2097136] = n
+        word[2097144] = 0
+        word[2097128] = 3145728
+    }
 }
 
 proc cbyte() {
     let i = word[2097144]
-    if i < word[2097136] {
+    state chk {
+        to hit when (i < word[2097136])
+        return 0
+    }
+    state hit {
         return byte[2097152 + i]
     }
-    return 0
 }
 
 proc adv() {
@@ -56,24 +59,21 @@ proc adv() {
 }
 
 proc is_space(c) {
-    if c == ' ' {
-        return 1
-    }
-    if c == 9 {
-        return 1
-    }
-    if c == 10 {
-        return 1
-    }
-    if c == 13 {
-        return 1
-    }
-    return 0
+    state c1 { to yes when (c == ' ')  to c2 }
+    state c2 { to yes when (c == 9)    to c3 }
+    state c3 { to yes when (c == 10)   to c4 }
+    state c4 { to yes when (c == 13)   return 0 }
+    state yes { return 1 }
 }
 
 proc skip_ws() {
-    while is_space(cbyte()) == 1 {
+    state loop {
+        to body when (is_space(cbyte()) == 1)
+        return 0
+    }
+    state body {
         adv()
+        to loop
     }
 }
 
@@ -87,18 +87,19 @@ proc alloc(tag, f0, f1) {
 }
 
 proc is_lower(c) {
-    if c < 'a' {
-        return 0
-    }
-    if c > 'z' {
-        return 0
-    }
-    return 1
+    state c1 { to no when (c < 'a')  to c2 }
+    state c2 { to no when (c > 'z')  return 1 }
+    state no { return 0 }
 }
 
 proc skip_ident() {              ; consume a lowercase keyword (s / m / cons / app / len ...)
-    while is_lower(cbyte()) == 1 {
+    state loop {
+        to body when (is_lower(cbyte()) == 1)
+        return 0
+    }
+    state body {
         adv()
+        to loop
     }
 }
 
@@ -106,149 +107,137 @@ proc parse_term() {
     skip_ws()
     let a = 0
     let b = 0
-    if cbyte() == 'z' {          ; zero
-        adv()
-        return alloc(0, 0, 0)
-    }
-    if cbyte() == 'n' {          ; nil (empty list)
-        skip_ident()
-        return alloc(4, 0, 0)
-    }
-    adv()                        ; '('
-    skip_ws()
-    let op = cbyte()
-    skip_ident()                 ; consume the whole operator keyword
-    if op == 's' {               ; (s x)
-        a = parse_term()
+    state tz { to do_z when (cbyte() == 'z')  to tn }
+    state do_z { adv()  return alloc(0, 0, 0) }
+    state tn { to do_n when (cbyte() == 'n')  to paren }
+    state do_n { skip_ident()  return alloc(4, 0, 0) }
+    state paren {
+        adv()                    ; '('
         skip_ws()
-        adv()                    ; ')'
-        return alloc(1, a, 0)
+        let op = cbyte()
+        skip_ident()             ; consume the whole operator keyword
+        to op_s when (op == 's')
+        to op_m
     }
-    if op == 'm' {               ; (m a b) multiply
-        a = parse_term()
+    state op_s { a = parse_term()  skip_ws()  adv()  return alloc(1, a, 0) }
+    state op_m { to do_m when (op == 'm')  to op_c }
+    state do_m { a = parse_term()  b = parse_term()  skip_ws()  adv()  return alloc(3, a, b) }
+    state op_c { to do_c when (op == 'c')  to op_a }
+    state do_c { a = parse_term()  b = parse_term()  skip_ws()  adv()  return alloc(5, a, b) }
+    state op_a { to do_a when (op == 'a')  to op_l }
+    state do_a { a = parse_term()  b = parse_term()  skip_ws()  adv()  return alloc(6, a, b) }
+    state op_l { to do_l when (op == 'l')  to do_plus }
+    state do_l { a = parse_term()  skip_ws()  adv()  return alloc(7, a, 0) }
+    state do_plus {
+        a = parse_term()         ; (p a b) plus
         b = parse_term()
         skip_ws()
         adv()                    ; ')'
-        return alloc(3, a, b)
+        return alloc(2, a, b)
     }
-    if op == 'c' {               ; (cons h t)
-        a = parse_term()
-        b = parse_term()
-        skip_ws()
-        adv()                    ; ')'
-        return alloc(5, a, b)
-    }
-    if op == 'a' {               ; (app l1 l2) list append
-        a = parse_term()
-        b = parse_term()
-        skip_ws()
-        adv()                    ; ')'
-        return alloc(6, a, b)
-    }
-    if op == 'l' {               ; (len l) list length
-        a = parse_term()
-        skip_ws()
-        adv()                    ; ')'
-        return alloc(7, a, 0)
-    }
-    a = parse_term()             ; (p a b) plus
-    b = parse_term()
-    skip_ws()
-    adv()                        ; ')'
-    return alloc(2, a, b)
 }
 
 ; reduce to normal form using the definitional rules; fuel-bounded (total).
 proc normalize(t, fuel) {
-    if fuel < 1 {
-        return t                 ; OutOfFuel — return the partial term as-is
+    state fuelchk { to oof when (fuel < 1)  to live }
+    state oof { return t }                       ; OutOfFuel — return as-is
+    state live {
+        let tag = word[t]
+        let a = 0
+        let b = 0
+        to ret_t when (tag == 0)                 ; z is a normal form
+        to t4
     }
-    let tag = word[t]
-    if tag == 0 {                ; z is a normal form
-        return t
-    }
-    if tag == 4 {                ; nil is a normal form
-        return t
-    }
-    let a = 0
-    let b = 0
-    if tag == 1 {                ; (s x) -> s of normalized x
+    state ret_t { return t }
+    state t4 { to ret_t when (tag == 4)  to t1 } ; nil is a normal form
+    state t1 { to do_s when (tag == 1)  to t5 }
+    state do_s {
         a = normalize(word[t + 8], fuel - 1)
         return alloc(1, a, 0)
     }
-    if tag == 5 {                ; (cons h t) -> reduce both
+    state t5 { to do_cons when (tag == 5)  to t2 }
+    state do_cons {
         a = normalize(word[t + 8], fuel - 1)
         b = normalize(word[t + 16], fuel - 1)
         return alloc(5, a, b)
     }
-    if tag == 2 {                ; (p a b)
+    state t2 { to do_plus when (tag == 2)  to t6 }
+    state do_plus {
         a = normalize(word[t + 8], fuel - 1)
         b = normalize(word[t + 16], fuel - 1)
-        if word[a] == 0 {        ; p z b  =>  b
-            return b
-        }
-        if word[a] == 1 {        ; p (s x) b  =>  s (p x b)
-            a = normalize(alloc(2, word[a + 8], b), fuel - 1)
-            return alloc(1, a, 0)
-        }
-        return alloc(2, a, b)    ; stuck
+        to plus_z when (word[a] == 0)            ; p z b => b
+        to plus_s
     }
-    if tag == 6 {                ; (app l1 l2)  -- app nil l2 => l2 ; app (cons h t) l2 => cons h (app t l2)
+    state plus_z { return b }
+    state plus_s {
+        to do_plus_s when (word[a] == 1)         ; p (s x) b => s (p x b)
+        return alloc(2, a, b)                    ; stuck
+    }
+    state do_plus_s {
+        a = normalize(alloc(2, word[a + 8], b), fuel - 1)
+        return alloc(1, a, 0)
+    }
+    state t6 { to do_app when (tag == 6)  to t7 }
+    state do_app {
         a = normalize(word[t + 8], fuel - 1)
-        if word[a] == 4 {
-            return normalize(word[t + 16], fuel - 1)
-        }
-        if word[a] == 5 {
-            b = alloc(6, word[a + 16], word[t + 16])
-            return alloc(5, word[a + 8], normalize(b, fuel - 1))
-        }
+        to app_nil when (word[a] == 4)           ; app nil l2 => l2
+        to app_cons
+    }
+    state app_nil { return normalize(word[t + 16], fuel - 1) }
+    state app_cons {
+        to do_app_cons when (word[a] == 5)       ; app (cons h t) l2 => cons h (app t l2)
         return alloc(6, a, normalize(word[t + 16], fuel - 1))
     }
-    if tag == 7 {                ; (len l)  -- len nil => z ; len (cons h t) => s (len t)
+    state do_app_cons {
+        b = alloc(6, word[a + 16], word[t + 16])
+        return alloc(5, word[a + 8], normalize(b, fuel - 1))
+    }
+    state t7 { to do_len when (tag == 7)  to t3 }
+    state do_len {
         a = normalize(word[t + 8], fuel - 1)
-        if word[a] == 4 {
-            return alloc(0, 0, 0)
-        }
-        if word[a] == 5 {
-            b = normalize(alloc(7, word[a + 16], 0), fuel - 1)
-            return alloc(1, b, 0)
-        }
+        to len_nil when (word[a] == 4)           ; len nil => z
+        to len_cons
+    }
+    state len_nil { return alloc(0, 0, 0) }
+    state len_cons {
+        to do_len_cons when (word[a] == 5)       ; len (cons h t) => s (len t)
         return alloc(7, a, 0)
     }
-    if tag == 3 {                ; (m a b) -- m z y => z ; m (s x) y => p y (m x y)
+    state do_len_cons {
+        b = normalize(alloc(7, word[a + 16], 0), fuel - 1)
+        return alloc(1, b, 0)
+    }
+    state t3 { to do_mul when (tag == 3)  return t }   ; default: stuck/normal
+    state do_mul {
         a = normalize(word[t + 8], fuel - 1)
-        if word[a] == 0 {
-            return alloc(0, 0, 0)
-        }
-        if word[a] == 1 {
-            b = alloc(3, word[a + 8], word[t + 16])              ; m x y
-            return normalize(alloc(2, word[t + 16], b), fuel - 1) ; p y (m x y)
-        }
+        to mul_z when (word[a] == 0)             ; m z y => z
+        to mul_s
+    }
+    state mul_z { return alloc(0, 0, 0) }
+    state mul_s {
+        to do_mul_s when (word[a] == 1)          ; m (s x) y => p y (m x y)
         return alloc(3, a, word[t + 16])
     }
-    return t
+    state do_mul_s {
+        b = alloc(3, word[a + 8], word[t + 16])              ; m x y
+        return normalize(alloc(2, word[t + 16], b), fuel - 1) ; p y (m x y)
+    }
 }
 
 proc term_eq(a, b) {
-    if word[a] != word[b] {
-        return 0
+    state e0 { to neq when (word[a] != word[b])  to e1 }
+    state neq { return 0 }
+    state e1 { to ret1 when (word[a] == 0)  to e4 }       ; z
+    state ret1 { return 1 }
+    state e4 { to ret1 when (word[a] == 4)  to e_s }      ; nil
+    state e_s { to do_child when (word[a] == 1)  to e_len }   ; s — compare the child
+    state do_child { return term_eq(word[a + 8], word[b + 8]) }
+    state e_len { to do_child when (word[a] == 7)  to e_both }  ; len — unary
+    state e_both {
+        to both_neq when (term_eq(word[a + 8], word[b + 8]) == 0)   ; plus/mul/cons/app
+        return term_eq(word[a + 16], word[b + 16])
     }
-    if word[a] == 0 {            ; z
-        return 1
-    }
-    if word[a] == 4 {            ; nil
-        return 1
-    }
-    if word[a] == 1 {            ; s — compare the child
-        return term_eq(word[a + 8], word[b + 8])
-    }
-    if word[a] == 7 {            ; len — unary, compare the child
-        return term_eq(word[a + 8], word[b + 8])
-    }
-    if term_eq(word[a + 8], word[b + 8]) == 0 {   ; plus/mul/cons/app — both children
-        return 0
-    }
-    return term_eq(word[a + 16], word[b + 16])
+    state both_neq { return 0 }
 }
 
 proc main() {
@@ -257,10 +246,7 @@ proc main() {
     let t2 = parse_term()
     let n1 = normalize(t1, 1000000)
     let n2 = normalize(t2, 1000000)
-    if term_eq(n1, n2) == 1 {
-        emit("equal\n")
-        return 1
-    }
-    emit("differ\n")
-    return 0
+    state chk { to eq when (term_eq(n1, n2) == 1)  to differ }
+    state eq { emit("equal\n")  return 1 }
+    state differ { emit("differ\n")  return 0 }
 }
