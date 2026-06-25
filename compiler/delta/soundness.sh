@@ -68,6 +68,8 @@ no "double-negation elim"        "(-> (-> (-> P (bot)) (bot)) P) (lam (-> (-> P 
 no "Peirce's law"                "(-> (-> (-> P Q) P) P) (lam (-> (-> P Q) P) (app (hyp 0) (lam P (hyp 0))))"
 no "de Morgan (not-and)"         "(-> (-> (& P Q) (bot)) (+ (-> P (bot)) (-> Q (bot)))) (lam (-> (& P Q) (bot)) (inl (-> Q (bot)) (lam P (absurd (bot) (app (hyp 1) (pair (hyp 0) (hyp 0)))))))"
 no "drinker (classical)"         "(Exists (-> (Pred 0 (v 0)) (All (Pred 0 (v 0))))) (wit (-> (Pred 0 (v 0)) (All (Pred 0 (v 0)))) z (lam (Pred 0 z) (gen (hyp 0))))"
+no "gen captures var"            "(-> (Pred 0 (v 0)) (All (Pred 0 (v 0)))) (lam (Pred 0 (v 0)) (gen (hyp 0)))"
+no "gen captures (eq)"           "(-> (= (v 0) z) (All (= (v 0) z))) (lam (= (v 0) z) (gen (hyp 0)))"
 
 echo "soundness battery (invalid certificates must all be rejected): $PASS rejected, $FAIL breached"
 [ "$FAIL" = 0 ] || exit 1

@@ -121,6 +121,9 @@
            ((Arrow a b) (Arrow (shiftp a d c) (shiftp b d c))) ((And a b) (And (shiftp a d c) (shiftp b d c)))
            ((Or a b) (Or (shiftp a d c) (shiftp b d c))) (z p)))
 (def ctxclean ((ctx Ctx)) Int (match ctx (Nil 1) ((Cons h t) (if (freep h 0) 0 (ctxclean t)))))
+; ∀-intro lifts every hypothesis one individual binder deeper (free indiv vars +1, cutoff 0),
+; so the freshly bound variable is mentioned by no hypothesis — eigenvariable holds structurally.
+(def shiftctx ((ctx Ctx)) Ctx (match ctx (Nil Nil) ((Cons h t) (Cons (shiftp h 1 0) (shiftctx t)))))
 (def concase2 ((cid Int) (r0 Int) (r1 Int) (mp Type)) Type
   (let inner0 (subpk mp (Apply (Apply (Con cid) (Iv 1)) (Iv 0)) 0)
     (let inner1 (if r1 (Arrow mp inner0) inner0)
@@ -182,7 +185,7 @@
     ((Case p f g)   (infcase (infer p ctx) (infer f ctx) (infer g ctx)))
     ((Absurd cty p) (match (infer p ctx) (Bot cty) (z Bad)))
     ((Refl t)       (Eq t t))
-    ((Gen pf)       (if (ctxclean ctx) (let bt (infer pf ctx) (if (isbad bt) Bad (All bt))) Bad))
+    ((Gen pf)       (let bt (infer pf (shiftctx ctx)) (if (isbad bt) Bad (All bt))))
     ((Inst pf t)    (match (infer pf ctx) ((All body) (subp body t 0)) (z Bad)))
     ((Wit body t pf)
                        (let pt (infer pf ctx)

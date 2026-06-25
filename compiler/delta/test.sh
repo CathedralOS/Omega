@@ -264,6 +264,14 @@ chk "le refl"  "(def 0 (All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0))
 chk "z le"     "(All (Exists (= (p z (v 0)) (v 1)))) (gen (wit (= (p z (v 0)) (v 1)) (v 0) (refl (v 0))))" accept
 chk "le add"   "(All (All (Exists (= (p (v 2) (v 0)) (p (v 2) (v 1)))))) (gen (gen (wit (= (p (v 2) (v 0)) (p (v 2) (v 1))) (v 0) (refl (p (v 1) (v 0))))))" accept
 chk "le-Z bad wit" "(All (Exists (= (p (v 1) (v 0)) z))) (gen (wit (= (p (v 1) (v 0)) z) z (refl (v 0))))" reject
+# TRANSITIVITY — exists-ELIMINATION under OPEN hypotheses, enabled by the eigenvariable fix
+# (gen now lifts in-scope hypotheses one binder instead of forbidding open ones). With
+# reflexivity this makes <= a preorder. Witness for a<=c is d+e, via associativity.
+chk "le trans" "(def 0 (All (All (All (= (p (p (v 0) (v 2)) (v 1)) (p (v 0) (p (v 2) (v 1))))))) (gen (gen (natind (= (p (p (v 0) (v 2)) (v 1)) (p (v 0) (p (v 2) (v 1)))) (refl (p (v 1) (v 0))) (gen (lam (= (p (p (v 0) (v 2)) (v 1)) (p (v 0) (p (v 2) (v 1)))) (eqelim (= (s (p (p (v 1) (v 3)) (v 2))) (s (v 0))) (hyp 0) (refl (s (p (p (v 0) (v 2)) (v 1))))))))))) (def 1 (All (All (-> (= (v 1) (v 0)) (= (v 0) (v 1))))) (gen (gen (lam (= (v 1) (v 0)) (eqelim (= (v 0) (v 2)) (hyp 0) (refl (v 1))))))) (def 2 (All (All (All (-> (= (v 2) (v 1)) (-> (= (v 1) (v 0)) (= (v 2) (v 0))))))) (gen (gen (gen (lam (= (v 2) (v 1)) (lam (= (v 1) (v 0)) (eqelim (= (v 3) (v 0)) (hyp 0) (hyp 1)))))))) (All (All (All (-> (Exists (= (p (v 3) (v 0)) (v 2))) (-> (Exists (= (p (v 2) (v 0)) (v 1))) (Exists (= (p (v 3) (v 0)) (v 1)))))))) (gen (gen (gen (lam (Exists (= (p (v 3) (v 0)) (v 2))) (lam (Exists (= (p (v 2) (v 0)) (v 1))) (unpack (hyp 1) (gen (lam (= (p (v 3) (v 0)) (v 2)) (unpack (hyp 1) (gen (lam (= (p (v 3) (v 0)) (v 2)) (wit (= (p (v 5) (v 0)) (v 3)) (p (v 1) (v 0)) (app (app (inst (inst (inst (use 2) (p (v 4) (p (v 1) (v 0)))) (p (p (v 4) (v 1)) (v 0))) (v 2)) (app (inst (inst (use 1) (p (p (v 4) (v 1)) (v 0))) (p (v 4) (p (v 1) (v 0)))) (inst (inst (inst (use 0) (v 1)) (v 0)) (v 4)))) (app (app (inst (inst (inst (use 2) (p (p (v 4) (v 1)) (v 0))) (p (v 3) (v 0))) (v 2)) (eqelim (= (p (p (v 5) (v 2)) (v 1)) (p (v 0) (v 1))) (hyp 1) (refl (p (p (v 4) (v 1)) (v 0))))) (hyp 0)))))))))))))))" accept
+# eigenvariable soundness: from P(x) we may conclude forall y. P(x) (y fresh, x fixed) ...
+chk "gen keeps outer var" "(-> (Pred 0 (v 0)) (All (Pred 0 (v 1)))) (lam (Pred 0 (v 0)) (gen (hyp 0)))" accept
+# ... but NOT forall y. P(y): generalizing a constrained variable stays unsound -> reject.
+chk "gen no capture" "(-> (Pred 0 (v 0)) (All (Pred 0 (v 0)))) (lam (Pred 0 (v 0)) (gen (hyp 0)))" reject
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
 eqk() { # description  "t1 t2"  expect

@@ -44,7 +44,10 @@ induction**:
 - **equality** with the conversion rule (`refl` discharged by computation) — an
   equivalence relation (symmetry/transitivity via Leibniz `eqelim`);
 - `∀`/`∃` with **capture-avoiding** instantiation (de Bruijn shifting), unary and
-  binary predicates;
+  binary predicates; `∀`-introduction lifts the hypothesis context one binder (the
+  eigenvariable condition holds structurally), so `∃`-**elimination works under open
+  hypotheses** — enough to define `a ≤ b := ∃c. a+c=b` and prove it a **preorder**
+  (reflexive + transitive) inside the checker;
 - induction over the two built-in inductive types (Peano naturals, Lists) **and over
   user-declared types** (`data` + `rec` — general structural induction, e.g. a binary
   `Tree`), plus Peano no-confusion (`disj`, `sinj`);
@@ -69,11 +72,11 @@ induction**:
 
 The trust anchor is defended five independent ways (all under `verify-lattice.sh`):
 
-- **176-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
-- **30-case soundness battery** (`soundness.sh`) — invalid certificates that must
+- **179-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
+- **32-case soundness battery** (`soundness.sh`) — invalid certificates that must
   *all* be rejected, including classical-but-non-constructive tautologies (excluded
   middle, Peirce, the drinker paradox).
-- **67-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
+- **69-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
   to the checker itself: `check.beta` (Beta, tagged-memory + CFG guard-state dispatch) and
   `gamma/checker.gamma` (Gamma, ADTs + pattern matching) must return identical
   verdicts on every proof. It has caught real divergences.

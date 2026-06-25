@@ -74,6 +74,7 @@ proc slurp() {
         word[2097144] = 0            ; CUR
         word[2097128] = 3145728      ; APTR = ARENA base
         word[2097120] = 0            ; CTXN
+        word[2097112] = 0            ; IDEP — individual-binder depth (∀/∃ binders entered)
     }
 }
 
@@ -873,6 +874,7 @@ proc type_eq(a, b) {
 proc ctx_push(ty) {
     let n = word[2097120]
     word[4194304 + n * 8] = ty
+    word[4718592 + n * 8] = word[2097112]   ; remember the IDEP at which this hyp was pushed
     word[2097120] = n + 1
 }
 
@@ -924,7 +926,12 @@ proc infer(term) {
         to hyp_ok when (t1 < t2)
         return 0                 ; unbound hypothesis
     }
-    state hyp_ok { return word[4194304 + (t2 - 1 - t1) * 8] }
+    state hyp_ok {
+        t3 = t2 - 1 - t1                                      ; CTX slot for this hyp
+        ; lift the stored prop from its push-time IDEP to the current IDEP: every ∀/∃
+        ; binder entered since makes its free individual vars one deeper.
+        return shift_prop(word[4194304 + t3 * 8], word[2097112] - word[4718592 + t3 * 8], 0)
+    }
     state reject { return 0 }
     state d11 { to lam when (tag == 11)  to d12 }
     state lam {                  ; LAM ty body -> ty -> typeof(body in ctx+ty)
@@ -1050,21 +1057,14 @@ proc infer(term) {
     state use { return word[5242880 + word[term + 8] * 8] }   ; USE N : the lemma's type
     state d21 { to gen when (tag == 21)  to d22 }
     state gen {                  ; GEN pf : ∀-intro -> All (typeof pf)
-        t1 = 0
-        t2 = word[2097120]       ; CTXN
-        to gen_loop
-    }
-    state gen_loop {
-        to gen_body when (t1 < t2)
-        to gen_done
-    }
-    state gen_body {
-        to reject when (free_ivp(word[4194304 + t1 * 8], 0) == 1)   ; no free indiv var in scope
-        t1 = t1 + 1
-        to gen_loop
-    }
-    state gen_done {
+        ; Enter one individual binder. Hypotheses already in scope are now one binder
+        ; deeper; hyp lookup shifts them by the IDEP delta, so the freshly bound variable
+        ; (Iv 0) is mentioned by NO hypothesis — the eigenvariable condition holds
+        ; structurally. (This replaces the old conservative reject that forbade ∀-intro
+        ; whenever any hypothesis mentioned any individual variable.)
+        word[2097112] = word[2097112] + 1
         t1 = infer(word[term + 8])
+        word[2097112] = word[2097112] - 1
         to reject when (t1 == 0)
         return alloc(6, t1, 0)
     }
