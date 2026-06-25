@@ -47,6 +47,10 @@ ret "proc main() { let a = 9 if a == 5 { return 42 } else { return 7 } }" 7
 ret "proc main() { let i = 0 let s = 0 while i < 5 { s = s + i i = i + 1 } return s }" 10
 ret "proc main() { let n = 10 let s = 0 let i = 1 while i <= n { s = s + i i = i + 1 } return s }" 55
 ret "proc main() { let a = 3 if a != 3 { return 1 } if a >= 3 { return 99 } return 0 }" 99
+# slice 2c — CFG / Omega-style control flow: states + guarded transitions (no if/while)
+ret "proc main() { state s0 { let x = 7 to done when (x == 7) return 0 } state done { return 42 } }" 42
+ret "proc main() { state e { let s = 0 let i = 10 to loop } state loop { to fin when (i == 0) s = s + i i = i - 1 to loop } state fin { return s } }" 55
+ret "proc main() { return countdown(5) } proc countdown(n) { state go { to done when (n == 0) n = n - 1 to go } state done { return n } }" 0
 # slice 3 — procedures, parameters, calls, recursion
 ret "proc main() { return double(21) } proc double(x) { return x + x }" 42
 ret "proc main() { return add(mul(2, 3), 4) } proc add(a, b) { return a + b } proc mul(a, b) { return a * b }" 10
