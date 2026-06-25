@@ -8,7 +8,8 @@
 ;
 ;   sh test-typeck.sh-style:  typeck < this  -> 1 (well-typed)
 
-(data Nat (Ze) (Su Nat) (Pl Nat Nat) (Mu Nat Nat) (Iv Int) (Lnil) (Lcons Nat Nat) (Lapp Nat Nat) (Llen Nat) (Con Int) (Apply Nat Nat))
+(data Nat (Ze) (Su Nat) (Pl Nat Nat) (Mu Nat Nat) (Iv Int) (Lnil) (Lcons Nat Nat) (Lapp Nat Nat) (Llen Nat) (Con Int) (Apply Nat Nat)
+          (Fapp Nat Int Nat Int Nat) (Reccall Int))   ; user-function application (rules inline, flat to avoid a mutual type) + recursive call
 (data Type (Atom Int) (Arrow Type Type) (And Type Type) (Or Type Type) (Bot) (Eq Nat Nat) (Bad)
            (All Type) (Exists Type) (Pred Int Nat) (Rel Int Nat Nat))
 (data Spec (Mkspec Int Int Int Int))
@@ -28,10 +29,35 @@
 (def pmul ((a Nat) (b Nat)) Nat (match a (Ze Ze) ((Su x) (padd b (pmul x b))) (z (Mu a b))))
 (def lapp ((a Nat) (b Nat)) Nat (match a (Lnil b) ((Lcons h t) (Lcons h (lapp t b))) (z (Lapp a b))))
 (def llen ((l Nat)) Nat (match l (Lnil Ze) ((Lcons h t) (Su (llen t))) (z (Llen l))))
+; user-defined recursive functions: (Fapp arg cA bA cB bB) carries its two rules inline
+; (cid, body). finst instantiates a body — (Iv 0)->the field, (Reccall 0)->the recursive
+; call; ffire fires the rule matching the constructor id and re-normalizes, else STUCK.
+(def finst ((body Nat) (arg0 Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
+  (match body
+    ((Iv k) (if (eq k 0) arg0 body))
+    ((Reccall i) (Fapp arg0 cA bA cB bB))
+    (Ze Ze) ((Su x) (Su (finst x arg0 cA bA cB bB)))
+    ((Pl a b) (Pl (finst a arg0 cA bA cB bB) (finst b arg0 cA bA cB bB)))
+    ((Mu a b) (Mu (finst a arg0 cA bA cB bB) (finst b arg0 cA bA cB bB)))
+    (Lnil Lnil) ((Lcons a b) (Lcons (finst a arg0 cA bA cB bB) (finst b arg0 cA bA cB bB)))
+    ((Lapp a b) (Lapp (finst a arg0 cA bA cB bB) (finst b arg0 cA bA cB bB)))
+    ((Llen a) (Llen (finst a arg0 cA bA cB bB))) ((Con q) (Con q))
+    ((Apply f g) (Apply (finst f arg0 cA bA cB bB) (finst g arg0 cA bA cB bB)))
+    ((Fapp a x1 y1 x2 y2) (Fapp (finst a arg0 cA bA cB bB) x1 y1 x2 y2))
+    (z body)))
+(def ffire ((cid Int) (arg0 Nat) (na Nat) (cA Int) (bA Nat) (cB Int) (bB Nat)) Nat
+  (if (eq cid cA) (pnorm (finst bA arg0 cA bA cB bB))
+    (if (eq cid cB) (pnorm (finst bB arg0 cA bA cB bB)) (Fapp na cA bA cB bB))))
 (def pnorm ((t Nat)) Nat
   (match t (Ze Ze) ((Su x) (Su (pnorm x))) ((Iv k) (Iv k))
            ((Pl a b) (padd (pnorm a) (pnorm b))) ((Mu a b) (pmul (pnorm a) (pnorm b)))
-           (Lnil Lnil) ((Lcons h t) (Lcons (pnorm h) (pnorm t))) ((Lapp a b) (lapp (pnorm a) (pnorm b))) ((Llen l) (llen (pnorm l))) ((Con q) (Con q)) ((Apply f g) (Apply (pnorm f) (pnorm g)))))
+           (Lnil Lnil) ((Lcons h t) (Lcons (pnorm h) (pnorm t))) ((Lapp a b) (lapp (pnorm a) (pnorm b))) ((Llen l) (llen (pnorm l))) ((Con q) (Con q)) ((Apply f g) (Apply (pnorm f) (pnorm g)))
+           ((Fapp arg cA bA cB bB)
+             (let na (pnorm arg)
+               (match na
+                 ((Con cid) (ffire cid Ze na cA bA cB bB))
+                 ((Apply h a0) (match h ((Con cid) (ffire cid a0 na cA bA cB bB)) (z (Fapp na cA bA cB bB))))
+                 (z (Fapp na cA bA cB bB)))))))
 (def nateq ((a Nat) (b Nat)) Int
   (match a (Ze (match b (Ze 1) (z 0))) ((Iv k) (match b ((Iv j) (eq k j)) (z 0)))
            ((Su x) (match b ((Su y) (nateq x y)) (z 0)))
