@@ -84,10 +84,12 @@ The trust anchor is defended five independent ways (all under `verify-lattice.sh
 ## Honest frontiers
 
 - The soundness theorem itself is the deep open problem.
-- **User-defined recursive functions** over user types are now implemented (arity 0/1/2
-  — every shape `data` declares, incl. a binary `Tree` fold), in all three checkers,
-  with their reduction rules feeding the conversion rule — so *theorems* over user
-  functions are provable, not just induction principles (e.g. `∀n. g(S n) = s(g n)`).
-  See [`delta/FUNCTIONS.md`](delta/FUNCTIONS.md); the eq.beta/interp semantics-diamond
-  computational mirror remains.
+- **User-defined recursive functions** over user types are implemented (arity 0/1/2 —
+  every shape `data` declares, incl. a binary `Tree` fold), with their reduction rules
+  feeding the conversion rule — so *theorems* over user functions are provable, not just
+  induction principles (e.g. `∀ user-n. g(n)=h(n)` by induction). Verified every way the
+  rest of the anchor is: all three checkers (gate, soundness, **checker diamond**,
+  type-safety) plus eq.beta and the **semantics diamond** (computation cross-checked
+  against the interpreter). See [`delta/FUNCTIONS.md`](delta/FUNCTIONS.md). The natural
+  next step is **multi-argument** functions (binary user arithmetic → user-add laws).
 - epsilon (systems language) and omega (full dependent types) are design-stage.

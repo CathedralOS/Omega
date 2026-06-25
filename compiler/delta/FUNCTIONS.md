@@ -1,9 +1,11 @@
 # Design: user-defined recursive functions over user types (delta frontier)
 
-Status: **IMPLEMENTED for arity 0/1** across all three checkers (check.beta table,
-checker.gamma + checker_typed.gamma inline rules; diamond-cross-checked, soundness-
-tested). Remaining: arity-2 constructors and the eq.beta/interp semantics-diamond
-computational mirror. The design below records the decisions the implementation follows.
+Status: **IMPLEMENTED, arity 0/1/2, verified across all five defense layers** —
+check.beta (table) + checker.gamma + checker_typed.gamma (inline rules) + eq.beta;
+gate, soundness, checker diamond, type-safety, and the semantics diamond (computation
+cross-checked against the interpreter). Universal theorems over user functions are
+proved by induction (`∀ user-n. g(n)=h(n)`). The natural next step is **multi-argument**
+functions (binary user arithmetic). The design below records the decisions followed.
 
 This is the trust anchor's stated #1 frontier
 (`README.md` / `delta/README.md`): today a `data`-declared type's constructors are inert
