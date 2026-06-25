@@ -51,7 +51,9 @@ induction**:
   (`a+x=a+y → x=y`) along the way;
 - induction over the two built-in inductive types (Peano naturals, Lists) **and over
   user-declared types** (`data` + `rec` — general structural induction, e.g. a binary
-  `Tree`), plus Peano no-confusion (`disj`, `sinj`);
+  `Tree`), plus Peano no-confusion (`disj`, `sinj`); and, derived from these, **strong
+  (course-of-values) induction** `(∀n. (∀m<n. P m) → P n) → ∀n. P n` for an *abstract*
+  predicate — the well-founded-induction principle for `<`;
 - **named lemmas** (`def`/`use`) so proofs factor instead of forming one monolith;
 - **user-defined recursive functions** over declared types (`fun` rules; `(f …)` applies,
   `(rec i)` recurses; up to 2 arguments, functions may call functions) whose equations
@@ -68,6 +70,13 @@ induction**:
   theorems — non-contradiction `¬(A&¬A)`, the contrapositive, constructive de Morgan,
   and the `¬∃x.P ↔ ∀x.¬P` quantifier duality — with their classical converses (excluded
   middle, `¬¬A→A`, `¬∀→∃¬`) pinned as **rejected**, marking the logic intuitionistic.
+- **order theory** (`delta/ORDER.md`): `≤` and `<` defined purely in the logic
+  (`a≤b := ∃c. a+c=b`, `a<b := ∃c. a+Sc=b`) and proved a **total order** and a **strict
+  order** respectively — reflexivity, transitivity, antisymmetry, totality, trichotomy
+  (`a<b ∨ a=b ∨ b<a`), the mixed transitivities, and monotonicity under `+` and `·` — so
+  the naturals are a **linearly ordered commutative semiring**; plus number theory built on
+  the same machinery: every number is **even or odd**, and the list analog of `0`-or-`s`,
+  `∀l. l=nil ∨ ∃h∃t. l=cons h t`.
 
 ### Why you can believe it
 
