@@ -7,15 +7,14 @@
 ; the lineage — it only cold-started the very first bc.
 ;
 ; Implements the whole Beta language (LANGUAGE.md): arithmetic; let/assign/vars;
-; if/else, while, the six comparisons; CFG state/transition control flow; procedures,
+; the six comparisons; CFG state/transition control flow (`state` basic blocks linked
+; by guarded `to … when …` transitions — Beta has NO if/while); procedures,
 ; parameters, calls, recursion; byte[]/word[] memory; char literals; read_byte/
 ; write_byte intrinsics; string literals via emit("...").
 ;
-; bc still COMPILES if/while (other programs use them), but its OWN control flow is
-; now CFG/Omega-shaped: every proc is a set of `state` basic blocks linked by guarded
-; `to … when …` transitions — no if/while in this file. So the self-hosting compiler
-; is written in the same state-graph style it emits, and it dogfoods its own
-; gen_state/gen_to by compiling itself.
+; The control flow is itself CFG/Omega-shaped: every proc is a set of `state` basic
+; blocks. So the self-hosting compiler is written in the same state-graph style it
+; emits, and it dogfoods its own gen_state/gen_to by compiling itself.
 ;
 ; Single pass with one pre-scan: count_lets() scans a proc body once (skipping
 ; char/string literals, counting `let`s at any brace depth — including inside states)
@@ -149,32 +148,6 @@ proc is_return() {
     state c4 { to c5 when (id_char(3) == 'u')  return 0 }
     state c5 { to c6 when (id_char(4) == 'r')  return 0 }
     state c6 { to yes when (id_char(5) == 'n')  return 0 }
-    state yes { return 1 }
-}
-
-proc is_if() {
-    state c0 { to c1 when (word[2097112] == 2)  return 0 }
-    state c1 { to c2 when (id_char(0) == 'i')  return 0 }
-    state c2 { to yes when (id_char(1) == 'f')  return 0 }
-    state yes { return 1 }
-}
-
-proc is_else() {
-    state c0 { to c1 when (word[2097112] == 4)  return 0 }
-    state c1 { to c2 when (id_char(0) == 'e')  return 0 }
-    state c2 { to c3 when (id_char(1) == 'l')  return 0 }
-    state c3 { to c4 when (id_char(2) == 's')  return 0 }
-    state c4 { to yes when (id_char(3) == 'e')  return 0 }
-    state yes { return 1 }
-}
-
-proc is_while() {
-    state c0 { to c1 when (word[2097112] == 5)  return 0 }
-    state c1 { to c2 when (id_char(0) == 'w')  return 0 }
-    state c2 { to c3 when (id_char(1) == 'h')  return 0 }
-    state c3 { to c4 when (id_char(2) == 'i')  return 0 }
-    state c4 { to c5 when (id_char(3) == 'l')  return 0 }
-    state c5 { to yes when (id_char(4) == 'e')  return 0 }
     state yes { return 1 }
 }
 
@@ -850,60 +823,6 @@ proc gen_block() {               ; { statements }
     return 0
 }
 
-; was there an `else` next? consume it and return 1, else leave the cursor and 0.
-proc has_else() {
-    skip_ws()
-    let save = word[2097144]
-    state alpha { to do_alpha when (is_alpha(cbyte()) == 1)  to restore }
-    state do_alpha {
-        read_ident()
-        to yes when (is_else() == 1)
-        to restore
-    }
-    state yes { return 1 }
-    state restore { word[2097144] = save  return 0 }
-}
-
-proc gen_if() {
-    let elsel = new_label()
-    let endl = new_label()
-    gen_expr()                   ; condition -> r0
-    emit("jz r0,")
-    emit_lref(elsel)
-    emit("\n")
-    gen_block()                  ; then-block
-    emit("jmp ")
-    emit_lref(endl)
-    emit("\n")
-    emit_lref(elsel)
-    emit(":\n")
-    state elsechk { to do_else when (has_else() == 1)  to fin }
-    state do_else { gen_block()  to fin }   ; else-block
-    state fin {
-        emit_lref(endl)
-        emit(":\n")
-        return 0
-    }
-}
-
-proc gen_while() {
-    let top = new_label()
-    let endl = new_label()
-    emit_lref(top)
-    emit(":\n")
-    gen_expr()                   ; condition -> r0
-    emit("jz r0,")
-    emit_lref(endl)
-    emit("\n")
-    gen_block()                  ; body
-    emit("jmp ")
-    emit_lref(top)
-    emit("\n")
-    emit_lref(endl)
-    emit(":\n")
-    return 0
-}
-
 ; emit a CFG state label  <curproc>__<name>  (curproc saved at 2097096/2097088)
 proc emit_state_label(noff, nlen) {
     emit_ident_at(word[2097096], word[2097088])
@@ -968,12 +887,8 @@ proc gen_stmt() {
         emit_store_slot(slot)
         return 0
     }
-    state k_return { to do_return when (is_return() == 1)  to k_if }
+    state k_return { to do_return when (is_return() == 1)  to k_state }
     state do_return { gen_expr()  emit_epilogue()  return 0 }
-    state k_if { to do_if when (is_if() == 1)  to k_while }
-    state do_if { gen_if()  return 0 }
-    state k_while { to do_while when (is_while() == 1)  to k_state }
-    state do_while { gen_while()  return 0 }
     state k_state { to do_state when (is_state() == 1)  to k_to }
     state do_state { gen_state()  return 0 }
     state k_to { to do_to when (is_to() == 1)  to k_byte }

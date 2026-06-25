@@ -8,8 +8,9 @@
 //
 //   SLICE 1: `proc main() { return <arith> }`.
 //   SLICE 2: procedures with parameters and calls (the calling convention).
-//   SLICE 3: `if`/`else`, `while`, `let` locals, assignment, comparisons,
-//            multi-statement bodies  ->  unlocks recursion + loops.
+//   SLICE 3: `let` locals, assignment, comparisons, CFG control flow (`state`
+//            blocks + guarded `to … when …` transitions — no if/while; loops are
+//            self-transitioning states)  ->  unlocks recursion + loops.
 //
 // Convention (see ../beta/CALLING_CONVENTION.md): control returns ride the VM's
 // hidden call/ret stack; data rides an explicit stack via r15 (sp), r14 = frame
@@ -22,9 +23,6 @@ use std::io::Read;
 enum Tok {
     Proc,
     Return,
-    If,
-    Else,
-    While,
     State, // CFG / Omega-style control flow: a basic block
     To,    // a transition (jump) to another state
     When,  // a guard on a transition
@@ -88,9 +86,6 @@ fn lex(src: &str) -> Vec<Tok> {
             toks.push(match &src[s..i] {
                 "proc" => Tok::Proc,
                 "return" => Tok::Return,
-                "if" => Tok::If,
-                "else" => Tok::Else,
-                "while" => Tok::While,
                 "state" => Tok::State,
                 "to" => Tok::To,
                 "when" => Tok::When,
@@ -212,8 +207,6 @@ enum Stmt {
     Let(usize, usize),                // slot, expr
     Assign(usize, usize),             // slot, expr
     Return(usize),                    // expr
-    If(usize, Vec<Stmt>, Vec<Stmt>),  // cond, then, else
-    While(usize, Vec<Stmt>),          // cond, body
     State(String, Vec<Stmt>),         // a CFG basic block: a label + its straight-line body
     Goto(String),                     // `to NAME`         — unconditional transition
     GotoWhen(usize, String),          // `to NAME when E`  — guarded transition
@@ -331,24 +324,6 @@ impl Parser {
             Tok::Return => {
                 self.pos += 1;
                 Stmt::Return(self.expr())
-            }
-            Tok::If => {
-                self.pos += 1;
-                let cond = self.expr();
-                let then = self.block();
-                let els = if *self.peek() == Tok::Else {
-                    self.pos += 1;
-                    self.block()
-                } else {
-                    Vec::new()
-                };
-                Stmt::If(cond, then, els)
-            }
-            Tok::While => {
-                self.pos += 1;
-                let cond = self.expr();
-                let body = self.block();
-                Stmt::While(cond, body)
             }
             Tok::State => {
                 // `state NAME { stmts }` — a basic block in CFG/Omega style.
@@ -656,33 +631,6 @@ impl<'a> Gen<'a> {
             Stmt::Return(e) => {
                 self.expr(*e);
                 self.epilogue();
-            }
-            Stmt::If(cond, then, els) => {
-                let end = self.newlabel();
-                self.expr(*cond);
-                if els.is_empty() {
-                    self.line(&format!("jz    r0, {}", end));
-                    self.block(then);
-                    self.at(&end);
-                } else {
-                    let elsel = self.newlabel();
-                    self.line(&format!("jz    r0, {}", elsel));
-                    self.block(then);
-                    self.line(&format!("jmp   {}", end));
-                    self.at(&elsel);
-                    self.block(els);
-                    self.at(&end);
-                }
-            }
-            Stmt::While(cond, body) => {
-                let top = self.newlabel();
-                let end = self.newlabel();
-                self.at(&top);
-                self.expr(*cond);
-                self.line(&format!("jz    r0, {}", end));
-                self.block(body);
-                self.line(&format!("jmp   {}", top));
-                self.at(&end);
             }
             Stmt::State(name, body) => {
                 // a CFG basic block: a label, then its straight-line body. Falls through

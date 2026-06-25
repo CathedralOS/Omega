@@ -133,8 +133,9 @@ matching keep such a checker small and auditable. That now exists *both* ways, a
 the difference is the point:
 
 - `check.beta` (this file) hand-encodes the term/type trees as tagged 3-word nodes in
-  raw memory and decides everything with an if-cascade on integer tags — exactly the
-  boilerplate that motivated the Gamma rung.
+  raw memory and decides everything with a CFG guard-state dispatch on integer tags
+  (Beta is itself state-graph shaped, no if/while) — exactly the boilerplate that
+  motivated the Gamma rung.
 - [`gamma/checker.gamma`](../gamma/checker.gamma) is the *same logic* as a dozen tiny
   functions over algebraic data + pattern matching. `checker-diamond.sh` runs proofs
   through **both** and requires identical verdicts — two independent implementations,

@@ -41,7 +41,7 @@ fixed point. Built slice by slice, mirroring `beta-lang-rs`:
 | --- | --- | --- |
 | 1  | arithmetic (`+ - * / %`, parens, precedence) | stack-machine codegen, same shape as the on-ramp |
 | 2a | `let` locals, assignment, variable refs | tokenizer + per-proc symbol table; a pre-scan (`count_lets`) sizes the frame |
-| 2b | `if`/`else`, `while`, the six comparisons | generated labels; 0/1 materialization |
+| 2b | the six comparisons; CFG control flow — `state` blocks + guarded `to … when …` transitions (Beta has no if/while) | generated labels; 0/1 materialization; loops are self-transitioning states |
 | 3  | procedures, parameters, calls, recursion | the calling convention (args r0..r3, frames via fp) |
 | 4  | `byte[]`/`word[]` memory | `loadb`/`load`/`storeb`/`store` |
 | 5  | char literals `'x'`, `read_byte`/`write_byte`, call statements | + prescan skips char/string literals |
