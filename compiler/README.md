@@ -52,17 +52,20 @@ induction**:
 - real theorems, all pinned in the gate: `n+0=n`, `n≠s n`, every nat is `0` or a
   successor, `l++nil=l`, append associativity, `len(a++b)=len(a)+len(b)`, and — via
   lemmas — **addition commutativity** and **right distributivity** `(a+b)*c=a*c+b*c`,
-  so the naturals satisfy the core semiring axioms inside the checker.
+  so the naturals satisfy the core semiring axioms inside the checker; plus pure-logic
+  theorems — non-contradiction `¬(A&¬A)`, the contrapositive, constructive de Morgan,
+  and the `¬∃x.P ↔ ∀x.¬P` quantifier duality — with their classical converses (excluded
+  middle, `¬¬A→A`, `¬∀→∃¬`) pinned as **rejected**, marking the logic intuitionistic.
 
 ### Why you can believe it
 
 The trust anchor is defended five independent ways (all under `verify-lattice.sh`):
 
-- **131-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
+- **135-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
 - **27-case soundness battery** (`soundness.sh`) — invalid certificates that must
   *all* be rejected, including classical-but-non-constructive tautologies (excluded
   middle, Peirce, the drinker paradox).
-- **54-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
+- **56-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
   to the checker itself: `check.beta` (Beta, tagged-memory + CFG guard-state dispatch) and
   `gamma/checker.gamma` (Gamma, ADTs + pattern matching) must return identical
   verdicts on every proof. It has caught real divergences.
