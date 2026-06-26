@@ -355,6 +355,21 @@
                               (z Bad)))
                           (z Bad)))
                       (z Bad)))
+    ; ---- list membership: Mem(x,L) = (Rel 777 x L), an inductive predicate. Two intros
+    ; (head/tail) + matching inversions (cons/nil). The ONLY closed sources of (Rel 777 ..)
+    ; are these intros, so the inversions are sound. Mirrors check.beta exactly.
+    ((MemHead x t) (Rel 777 x (Lcons x t)))                    ; Mem(x, cons x t)
+    ((MemTail h pf) (match (infer pf ctx)
+                      ((Rel id x t) (if (eq id 777) (Rel 777 x (Lcons h t)) Bad))
+                      (z Bad)))                                 ; Mem(x,t) |- Mem(x, cons h t)
+    ((MemCons pf) (match (infer pf ctx)
+                    ((Rel id x l) (if (eq id 777)
+                                    (match l ((Lcons h t) (Or (Eq x h) (Rel 777 x t))) (z Bad))
+                                    Bad))
+                    (z Bad)))                                   ; Mem(x, cons h t) |- (x=h) ∨ Mem(x,t)
+    ((MemNil pf) (match (infer pf ctx)
+                   ((Rel id x l) (if (eq id 777) (match l (Lnil Bot) (z Bad)) Bad))
+                   (z Bad)))                                    ; Mem(x, nil) |- falsity
     (z Bad)))
 
 (def check (tm goal) (teq (infer tm Nil) goal))

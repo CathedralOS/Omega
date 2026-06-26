@@ -17,7 +17,8 @@
            (Inl Type Term) (Inr Type Term) (Case Term Term Term) (Absurd Type Term) (Refl Nat)
            (Gen Term) (Inst Term Nat) (Wit Type Nat Term) (Unpack Term Term)
            (Natind Type Term Term) (Eqelim Type Term Term) (Disj Term) (Sinj Term)
-           (Listind Type Term Term) (Rec Spec Spec Type Term Term))
+           (Listind Type Term Term) (Rec Spec Spec Type Term Term)
+           (MemHead Nat Nat) (MemTail Nat Term) (MemCons Term) (MemNil Term))
 (data Ctx (Nil) (Cons Type Ctx))
 
 (def nth ((ctx Ctx) (n Int)) Type
@@ -239,6 +240,15 @@
                               (z Bad)))
                           (z Bad)))
                       (z Bad)))
+    ; list membership Mem(x,L) = (Rel 777 x L): inductive predicate (intros + inversions)
+    ((MemHead x t) (Rel 777 x (Lcons x t)))
+    ((MemTail h pf) (match (infer pf ctx)
+                      ((Rel id x t) (if (eq id 777) (Rel 777 x (Lcons h t)) Bad)) (z Bad)))
+    ((MemCons pf) (match (infer pf ctx)
+                    ((Rel id x l) (if (eq id 777)
+                                    (match l ((Lcons h t) (Or (Eq x h) (Rel 777 x t))) (z Bad)) Bad)) (z Bad)))
+    ((MemNil pf) (match (infer pf ctx)
+                   ((Rel id x l) (if (eq id 777) (match l (Lnil Bot) (z Bad)) Bad)) (z Bad)))
     (z Bad)))
 
 (def check ((tm Term) (goal Type)) Int (teq (infer tm Nil) goal))

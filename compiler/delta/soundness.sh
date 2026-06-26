@@ -71,5 +71,13 @@ no "drinker (classical)"         "(Exists (-> (Pred 0 (v 0)) (All (Pred 0 (v 0))
 no "gen captures var"            "(-> (Pred 0 (v 0)) (All (Pred 0 (v 0)))) (lam (Pred 0 (v 0)) (gen (hyp 0)))"
 no "gen captures (eq)"           "(-> (= (v 0) z) (All (= (v 0) z))) (lam (= (v 0) z) (gen (hyp 0)))"
 
+# list membership Mem(x,L) = (Rel 777 x L): the inductive predicate must not let a FALSE
+# membership (or falsity) be proved closed — its only closed sources are the two intros.
+no "mem in empty list"           "(Rel 777 (s z) nil) (memtail (s z) (memhead (s z) nil))"
+no "mem head fakes nil"          "(Rel 777 (s (s z)) nil) (memhead (s (s z)) nil)"
+no "mem wrong element"           "(Rel 777 (s (s z)) (cons (s z) nil)) (memhead (s (s z)) nil)"
+no "falsity via memnil on cons"  "(bot) (memnil (memhead (s z) nil))"
+no "memtail changes element"     "(Rel 777 (s (s z)) (cons (s z) (cons (s (s (s z))) nil))) (memtail (s z) (memhead (s (s (s z))) nil))"
+
 echo "soundness battery (invalid certificates must all be rejected): $PASS rejected, $FAIL breached"
 [ "$FAIL" = 0 ] || exit 1
