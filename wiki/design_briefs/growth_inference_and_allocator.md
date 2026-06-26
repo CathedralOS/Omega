@@ -251,51 +251,32 @@ already in place for range-refined fields.
 >    invariant or octagons), a separate "increment B" not yet built. fail canary
 >    `bounded_carrier_growth_overflow_rejected` pins the rejection.
 >
-> **The remaining blocker is native codegen for the owned `[u8; N] in Utf8`
-> carrier** (the builder pattern compiles to "needs runtime storage write / string
-> builder lowering" stubs). Mapping (2026-06-25) shows this is a *multi-site
-> fat-text-carrier feature*, not a keying tweak — and it forces a storage-model
-> decision, since `[u8; N]` is **N raw inline bytes with no length** while text
-> content is variable-length (`≤ N`) and reads (`==`, `write_line`) need the
-> length. The interpreter sidesteps this (it stores logical content); native
-> cannot. **Settled storage model** (the option chosen 2026-06-25 — "reuse the
-> descriptor machinery, buffer at the field's N-byte storage"): an owned
-> `[u8; N] in Utf8` field is a **third fat-text carrier shape** (alongside the
-> `String` keyword and the `&[u8] in Utf8` view, which already share the 16-byte
-> `{ptr,len}` descriptor). It is stored as that same `{ptr,len}` text descriptor
-> backed by a region sized **`N` (the proven bound)** instead of the magic
-> 256-byte scratch — which is exactly how this retires the unsound 256 hack:
-> the length-fits guard already proves content `≤ N`, so an `N`-sized backing
-> region cannot overflow.
+> **The remaining blocker is native codegen — and the build mapping (2026-06-25)
+> surfaced that it is blocked on a CARRIER-MODEL design decision, not just wiring.**
+> The owned builder compiles to "needs runtime storage write / string builder
+> lowering" stubs. The root cause: a bare `[u8; N]` is **N raw inline bytes with
+> no length**, but variable-length text content (`≤ N`) plus its reads (`==`,
+> `write_line`) need a length. The interpreter sidesteps this (it stores logical
+> content); native cannot. So *where does the length live?* — and every answer
+> collides with something:
 >
-> **Mapped implementation (the build, fully specified):**
-> 1. **Layout** — recognize an owned `[u8; N] in Utf8` (a `Constrained{FixedArray}`
->    with a Utf8-classifier domain) as fat-descriptor storage rather than `N`
->    inline bytes: `omega-layout/src/sizing.rs` (FixedArray branch) +
->    `omega-runtime-storage/src/layout.rs` (the `PrimitiveType::String` arm's
->    analog). No existing canary uses this carrier, so the layout change is
->    regression-safe.
-> 2. **Central resolvers** — make the carrier's type descriptor report fat/text at
->    the two resolvers most selection sites funnel through:
->    `descriptor_primitive_type` and `descriptor_is_fat_slice` in
->    `selection/storage_places.rs`. If these report `String`/fat for the field,
->    the `place_is_string` guard check and the text-write selection route it
->    without per-site edits (this is the lever that keeps the site count small).
-> 3. **Backing buffer sized `N`** — `omega-runtime-text/src/planning.rs`
->    `collect_runtime_text_builders` hard-codes
->    `DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY = 256`; size the builder's
->    `RuntimeTextBuffer.byte_capacity` to the target carrier's `N` (the proven
->    bound) instead, with `omega-data-planning` allocating the `N`-byte object.
-> 4. **Verify** — migrate `runtime_text_builder` to `[u8; N]` carriers, confirm
->    native exit + interpreter agreement (differential), full suite green.
+> | Model | How length is tracked | Cost / conflict |
+> |---|---|---|
+> | **(A) Domain-driven fat descriptor** — make `Constrained{FixedArray,[Utf8]}` a `{ptr,len}` text descriptor backed by an `N`-region | in the descriptor's `len` | reuses ALL text machinery, but **a domain would drive layout** — directly contradicts the stated principle (`descriptor_is_fat_slice`: "the domain constraint does not change the fat-descriptor shape"; `&[u8] in Utf8` is fat only because `&[u8]` already is) |
+> | **(B) Inline `[u8; N]` + in-band length** — bytes stay inline; a length prefix or sentinel | first byte(s), or NUL-terminate | preserves the layout principle, but needs NEW encoders and the length convention is hacky (Utf8 admits interior NUL; a prefix eats capacity) |
+> | **(C) `FixedVec<u8>`-shaped carrier** — a distinct length-carrying type (region + `len`, fat by its OWN shape) | an explicit `len` field | **principled** (fat by shape, no domain-driven layout) and **matches the allocator design's `FixedVec = region + length`**; but it is a new type to introduce (layout, the `len` field, surface syntax), the largest build |
 >
-> Risk: the layout change collides with the inline-fixed-array machinery
-> (`runtime_frame_slot_is_inline_fixed_array_storage` et al.), and the text-codegen
-> area is landmine-heavy (see memory: x86-text-op-stubs, materialize family). The
-> central-resolver lever (step 2) is the bet that keeps this to ~4–6 sites rather
-> than a 10-site sweep; if it cascades, the increment is revert-and-document, not
-> a partial landing. The interpreter confirms *semantics*; the prover now confirms
-> *safety*; this backend lands the *execution*.
+> **This re-derives the brief's own §2.6-pt-2 hint and confirms it: the owned
+> growable text carrier wants an explicit length → it is `FixedVec<u8>`-shaped,
+> not bare `[u8; N] in Utf8`.** `[u8; N] in Utf8` is the right spelling for the
+> PROVER (the bound `N`) and for FIXED-length content, but native variable-length
+> growth needs the length the bare array can't carry. **(A)** is the least code
+> but the user owns whether a domain may drive layout; **(C)** is the principled,
+> allocator-aligned answer but the biggest build. This is the live decision the
+> codegen waits on — not a default to bake.
+>
+> The prover half (concat-domain law + length-fits, `7bf89867`) stands
+> independent of the choice: it proves `content ≤ N` for whichever carrier wins.
 
 ---
 
