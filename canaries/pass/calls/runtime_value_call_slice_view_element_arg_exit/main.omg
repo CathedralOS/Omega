@@ -1,0 +1,44 @@
+// A value-call forwarded a SLICE-VIEW element by value: `read(r[0])` where
+// `r = self.rooms.as_slice()` is a local view of an inline array. The value-call
+// binds its `room` param as a BranchParameter alias `room = r[0]`, and the body
+// reads `room.id` -> `r[0].id` -> `(self.rooms.as_slice())[0].id`.
+//
+// Regression: the place resolver saw the indexed collection as an unmaterialized
+// `as_slice` view (the elided local `r` has no frame slot), so `room.id` resolved
+// to a zero slot and the call returned 0. Fix: see through the as_slice view to
+// the underlying array AND trace the elided local to its initializer, so the
+// element resolves against `self.rooms[0]`. A direct inline-array element
+// (`read(self.rooms[0])`) always worked; only the slice-view form did not.
+//
+// Expected exit: 70.
+
+use omega::language::std::console;
+
+data Room { id: i32; }
+data Reader {
+}
+
+machine Reader::read(&mut self, room: Room) -> i32 {
+    transition {
+        _ -> (room.id)
+    }
+}
+
+data Main {
+    console: Console;
+    rooms: [Room; 2];
+    reader: Reader;
+}
+
+machine Main::main(&mut self) {
+    let w: &mut [Room] = self.rooms.as_mut_slice();
+    w[0].id = 7;
+    let r: &[Room] = self.rooms.as_slice();
+    let got: i32 = self.reader.read(r[0]);
+    transition got == 7 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

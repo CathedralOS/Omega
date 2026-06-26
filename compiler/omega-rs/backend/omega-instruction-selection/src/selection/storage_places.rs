@@ -1993,13 +1993,39 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         });
     }
 
-    let collection = resolve_machine_owned_collection_in_table(
+    let collection = match resolve_machine_owned_collection_in_table(
         &input.layouts,
         input.entry_key.machine,
         source_key.machine,
         expressions,
         fixed.collection,
-    )?;
+    ) {
+        Some(collection) => collection,
+        // Elided-local collection (`let r = X.as_slice(); ... r[i]`): the local has
+        // no frame slot, so trace its declared initializer and see through the
+        // as_slice view to the underlying array, then resolve THAT as the
+        // collection. This lets a slice-VIEW element forwarded by value to a
+        // value-call (bound as a BranchParameter alias `room = r[i]`, the lookup
+        // shape) reach the underlying machine array's element instead of resolving
+        // to nothing. Only a bare single-name path can be such a local.
+        None => {
+            let path = normalized_storage_name_path_in_table(expressions, fixed.collection)?;
+            if path.len() != 1 {
+                return None;
+            }
+            let initializer =
+                state_local_initializer(input, source_key, path.head_symbol(), path.member(0)?)?;
+            let underlying =
+                see_through_as_slice_view(&input.program.expression_table, initializer);
+            resolve_machine_owned_collection_in_table(
+                &input.layouts,
+                input.entry_key.machine,
+                source_key.machine,
+                &input.program.expression_table,
+                underlying,
+            )?
+        }
+    };
     let element_descriptor = inline_fixed_array_element_type(&collection.type_descriptor)?;
     let element_layout = descriptor_layout(input, element_descriptor);
     let element_offset = index.checked_mul(element_layout.size)?;
@@ -2183,7 +2209,17 @@ fn fixed_indexed_target_path_in_table(
             })
         }
         ExpressionNode::Indexed(indexed) => {
-            if let Some(path) = fixed_indexed_target_path_in_table(table, indexed.collection) {
+            // See through an `as_slice`/`as_mut_slice` VIEW of an array:
+            // `(X.as_slice())[i]` indexes the same element as `X[i]`. A `let r =
+            // X.as_slice()` local folds into `(X.as_slice())[i]`, whose collection
+            // is an unmaterialized view (no frame slot), so the element place
+            // failed to resolve -- a slice-view element forwarded by value to a
+            // value-call (`read(r[i])`, bound as a BranchParameter alias) left the
+            // callee's `room.field` reading a zero slot. Unwrapping to `X[i]`
+            // resolves it against the underlying array. (Path normalization already
+            // peels FULL as_slice views; this peels the INDEXED-element form.)
+            let collection = see_through_as_slice_view(table, indexed.collection);
+            if let Some(path) = fixed_indexed_target_path_in_table(table, collection) {
                 return Some(TableFixedIndexedTargetPath {
                     collection: path.collection,
                     index: path.index,
@@ -2194,13 +2230,32 @@ fn fixed_indexed_target_path_in_table(
                 return None;
             };
             Some(TableFixedIndexedTargetPath {
-                collection: indexed.collection,
+                collection,
                 index: *index,
                 suffix_root: expression,
             })
         }
         _ => None,
     }
+}
+
+/// See through an `as_slice`/`as_mut_slice` view of an array to its receiver:
+/// `X.as_slice()` -> `X`. `(X.as_slice())[i]` indexes the same element as `X[i]`,
+/// and as_slice's receiver is always an array, so peeling the view is sound and
+/// lets a slice-VIEW element resolve to the underlying array element. Returns the
+/// expression unchanged when it is not such a view.
+fn see_through_as_slice_view(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    if let ExpressionNode::Call(call) = table.expression(expression)
+        && call.receiver.is_valid()
+        && call.arguments.is_empty()
+        && matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
+    {
+        return call.receiver;
+    }
+    expression
 }
 
 fn indexed_target_path_in_table(
