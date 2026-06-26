@@ -2,11 +2,12 @@
 // compiler (not a toy-language demo; this splits genuine source text). Reads from
 // stdin and writes each token (lexeme) on its own line to stdout. A token is a
 // maximal run of "word" characters (letters, digits, '_') or a single punctuation
-// character; whitespace (any byte <= 32) separates and is dropped.
+// character; whitespace (any byte <= 32) separates and is dropped, and "//" line
+// comments are dropped through end-of-line.
 //   printf 'machine f(x){return x+1;}' | tokenize
 //     -> machine / f / ( / x / ) / { / return / x / + / 1 / ; / }   (one per line)
-// Keyword classification, comments, and multi-char operators (-> :: &mut) are clean
-// follow-ups; this is the tokenization core.
+// Keyword classification and multi-char operators (-> :: &mut) are clean follow-ups;
+// this is the tokenization core plus comment handling.
 boundary trait Console {
     machine exit_process(return_code: i32);
     machine write_byte(b: i32);
@@ -47,8 +48,15 @@ machine Main::main(&mut self) {
 
     state tok()      { self.pos = 0; transition 0 { _ -> skipws() } }
     state skipws()   { transition self.pos < self.n { true -> wsck()  false -> fin() } }
-    state wsck()     { transition self.buf[self.pos] <= 32 { true -> wsadv()  false -> begin() } }
+    state wsck()     { transition self.buf[self.pos] <= 32 { true -> wsadv()  false -> commck() } }
     state wsadv()    { self.pos = self.pos + 1; transition 0 { _ -> skipws() } }
+    // line comments: "//" to end of line is dropped (then re-enter skipws so runs
+    // of whitespace and comments are all skipped before the next token).
+    state commck()   { transition self.buf[self.pos] == 47 { true -> commck2()  false -> begin() } }
+    state commck2()  { transition self.buf[self.pos + 1] == 47 { true -> skipcomm()  false -> begin() } }
+    state skipcomm() { transition self.pos < self.n { true -> commnl()  false -> fin() } }
+    state commnl()   { transition self.buf[self.pos] == 10 { true -> skipws()  false -> commadv() } }
+    state commadv()  { self.pos = self.pos + 1; transition 0 { _ -> skipcomm() } }
     state begin() {
         self.start = self.pos;
         self.w = self.is_word(self.buf[self.pos]);

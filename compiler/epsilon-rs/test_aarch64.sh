@@ -138,6 +138,8 @@ compiler_test "minic chained (a=3;b=a+1;c=b*2;c+a)" samples/minic.alp "a=3;b=a+1
 compiler_test "minic var-expr (a=2;b=a*a;b+1)" samples/minic.alp "a=2;b=a*a;b+1"     5
 # tokenize: a real .alp lexer in epsilon — the first stage of a self-hosting compiler.
 tokens_test "tokenize .alp source" samples/tokenize.alp "machine f(x){return x+1;}" "machine f ( x ) { return x + 1 ; }"
+tokens_test "tokenize drops // comments" samples/tokenize.alp "a // c
+b/c" "a b / c"
 # The emitted code is overflow-SAFE: a compiled overflowing expr traps at runtime.
 compiler_trap "exprc emits overflow trap" samples/exprc.alp "46341*46341"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
