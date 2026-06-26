@@ -145,6 +145,8 @@ def epf(n, iv, hy):  # elaborate a proof term
     if h == 'memnil': return "(memnil %s)" % epf(n[1], iv, hy)                     # invert on nil
     if h == 'pnil':   return "(pnil)"                                              # ProdIs(nil, 1)
     if h == 'pcons':  return "(pcons %s %s)" % (et(n[1], iv), epf(n[2], iv, hy))   # ProdIs(t,m)->ProdIs(cons h t, h*m)
+    if h == 'prodnilinv':  return "(prodnilinv %s)" % epf(n[1], iv, hy)            # ProdIs(nil,n) -> n=1
+    if h == 'prodconsinv': return "(prodconsinv %s)" % epf(n[1], iv, hy)           # ProdIs(cons h t,n) -> ex m. n=h*m & ProdIs(t,m)
     raise SystemExit("elab error: bad proof %r" % (n[0],))
 
 def elaborate(src):

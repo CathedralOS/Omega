@@ -742,6 +742,7 @@ proc parse_term() {
     let kc2 = byte[2097152 + word[2097144] + 1]   ; second letter (app vs absurd)
     let kc3 = byte[2097152 + word[2097144] + 2]   ; third letter (inl vs inr)
     let kc4 = byte[2097152 + word[2097144] + 3]   ; fourth letter (memHead/Tail/Cons/Nil)
+    let kc5 = byte[2097152 + word[2097144] + 4]   ; fifth letter (prodNilinv/prodConsinv)
     skip_ident()
     let x = 0
     let y = 0
@@ -765,8 +766,12 @@ proc parse_term() {
     state k_p { to is_p when (kc == 'p')  to k_f }
     state is_p { to do_pnil when (kc2 == 'n')  to is_pc }       ; pnil  : product-of-nil intro
     state do_pnil { expect(')')  return alloc(46, 0, 0) }
-    state is_pc { to do_pcons when (kc2 == 'c')  to do_pair }   ; pcons : product-of-cons intro
+    state is_pc { to do_pcons when (kc2 == 'c')  to is_pr }     ; pcons : product-of-cons intro
     state do_pcons { x = parse_nat()  y = parse_term()  expect(')')  return alloc(47, x, y) }
+    state is_pr { to is_pinv when (kc2 == 'r')  to do_pair }    ; prod*inv : ProdIs inversion
+    state is_pinv { to do_pnilinv when (kc5 == 'n')  to do_pconsinv }
+    state do_pnilinv { x = parse_term()  expect(')')  return alloc(48, x, 0) }
+    state do_pconsinv { x = parse_term()  expect(')')  return alloc(49, x, 0) }
     state do_pair { x = parse_term()  y = parse_term()  expect(')')  return alloc(13, x, y) }
     state k_f { to do_fst when (kc == 'f')  to k_i }
     state do_fst { x = parse_term()  expect(')')  return alloc(14, x, 0) }
@@ -1265,7 +1270,7 @@ proc infer(term) {
     state pnil {                 ; PNIL : ProdIs(nil, 1)
         return alloc(9, 778, alloc(99, alloc(35, 0, 0), alloc(31, alloc(30, 0, 0), 0)))
     }
-    state d47 { to pcons when (tag == 47)  return 0 }
+    state d47 { to pcons when (tag == 47)  to d48 }
     state pcons {                ; PCONS h pf : from ProdIs(t,m) infer ProdIs(cons h t, h*m)
         t1 = infer(word[term + 16])                      ; pf : ProdIs(t,m) = Rel(778, t, m)
         to reject when (t1 == 0)
@@ -1275,6 +1280,33 @@ proc infer(term) {
         to reject when (word[t1] != 9)
         to reject when (word[t1 + 8] != 778)
         return alloc(9, 778, alloc(99, alloc(36, word[term + 8], word[word[t1 + 16] + 8]), alloc(33, word[term + 8], word[word[t1 + 16] + 16])))
+    }
+    ; ---- ProdIs inversions (sound: the only closed source of Rel(778,L,n) is pnil/pcons) ----
+    state d48 { to pnilinv when (tag == 48)  to d49 }
+    state pnilinv {              ; PNILINV pf : from ProdIs(nil, n) infer n = 1
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to pnilinv1
+    }
+    state pnilinv1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 778)
+        to reject when (word[word[word[t1 + 16] + 8]] != 35)    ; list arg must be NIL
+        return alloc(5, word[word[t1 + 16] + 16], alloc(31, alloc(30, 0, 0), 0))   ; (= n 1)
+    }
+    state d49 { to pconsinv when (tag == 49)  return 0 }
+    state pconsinv {             ; PCONSINV pf : from ProdIs(cons h t, n) infer exists m. n=h*m & ProdIs(t,m)
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to pconsinv1
+    }
+    state pconsinv1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 778)
+        t2 = word[word[t1 + 16] + 8]                            ; L = the list argument
+        to reject when (word[t2] != 36)                        ; must be CONS(h,t)
+        ; under the Exists binder (m = Iv 0), shift h/t/n up one: AND(EQ(n', MUL(h',m)), Rel(778, t', m))
+        return alloc(8, alloc(2, alloc(5, shift_term(word[word[t1 + 16] + 16], 1, 0), alloc(33, shift_term(word[t2 + 8], 1, 0), alloc(34, 0, 0))), alloc(9, 778, alloc(99, shift_term(word[t2 + 16], 1, 0), alloc(34, 0, 0)))), 0)
     }
 }
 

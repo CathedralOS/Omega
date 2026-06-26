@@ -375,6 +375,12 @@
     ((Pcons h pf) (match (infer pf ctx)
                     ((Rel id t m) (if (eq id 778) (Rel 778 (Lcons h t) (Mu h m)) Bad))
                     (z Bad)))                                   ; ProdIs(t,m) |- ProdIs(cons h t, h*m)
+    ; ProdIs inversions (sound: only pnil/pcons produce Rel(778,..))
+    ((Prodnilinv pf) (match (infer pf ctx)
+                       ((Rel id l n) (if (eq id 778) (match l (Lnil (Eq n (Su Ze))) (z Bad)) Bad)) (z Bad)))
+    ((Prodconsinv pf) (match (infer pf ctx)
+                        ((Rel id l n) (if (eq id 778)
+                          (match l ((Lcons h t) (Exists (And (Eq (shiftt n 1 0) (Mu (shiftt h 1 0) (Iv 0))) (Rel 778 (shiftt t 1 0) (Iv 0))))) (z Bad)) Bad)) (z Bad)))
     (z Bad)))
 
 (def check (tm goal) (teq (infer tm Nil) goal))
