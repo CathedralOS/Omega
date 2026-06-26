@@ -217,6 +217,8 @@ filter_test "storeindex emits the backend array-store (u8 array, offset 0 count 
 filter_test "scaffold emits the entry-machine frame (local_count 0 -> frame 32)" samples/scaffold.alp "0" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
 # selfcall: method call (SelfCall) -- pop args, self in x0, bl callee, push return
 filter_test "selfcall emits the backend method-call sequence (1 arg)" samples/selfcall.alp "1 Lmachine3" "$(printf '    ldr x1, [sp], #16\n    ldr x0, [x29, #16]\n    bl Lmachine3\n    str x0, [sp, #-16]!')"
+# freecall: free-machine call (Call) -- args x0.., no self, bl callee, push
+filter_test "freecall emits the backend free-call sequence (2 args)" samples/freecall.alp "2 Lmachine5" "$(printf '    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    bl Lmachine5\n    str x0, [sp, #-16]!')"
 # layout regression: a last field with no trailing semicolon (data ... i32 }) must still parse
 filter_test "layout handles last field without trailing semicolon" samples/layout.alp "boundary trait C{} data Main{ c: C; n: i32 }" "$(printf 'c 0\nn 0')"
 stdin_exit "certify-source rejects an overrunning loop (exit 1)" samples/certify-source.alp "arr 4 5  band 5 0" 1
