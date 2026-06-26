@@ -90,6 +90,8 @@ out_test "hello (write_line to stdout)" samples/hello.alp "hello, alpha"
 # Slice 3 complete: byte I/O — read_byte/write_byte filters over real stdin/stdout.
 filter_test "echo (read->write byte loop)" samples/echo.alp "hello, bytes!" "hello, bytes!"
 filter_test "buffer ([u8;N], reverse stdin)" samples/buffer.alp "abcde" "edcba"
+# Number I/O: parse decimal, compute, format decimal back (self-hosting primitive).
+filter_test "square (parse+compute+format)" samples/square.alp "144" "20736"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
 cat > "$T/ovf.alp" <<'EOF'
 boundary trait Console { machine exit_process(return_code: i32); }
