@@ -21,17 +21,45 @@ BIN=./target/debug/beta
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 PASS=0; FAIL=0
-# run NAME SOURCE.alp EXPECTED_EXIT
-run() {
+# compile NAME SOURCE.alp -> $T/out (binary), or record a failure
+build() {
   EPS_ARCH=aarch64 "$BIN" "$2" "$T/out" >/dev/null 2>"$T/err" || {
-    FAIL=$((FAIL+1)); echo "  FAIL $1 : compile/link/sign:"; sed 's/^/    /' "$T/err"; return; }
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : compile/link/sign:"; sed 's/^/    /' "$T/err"; return 1; }
+  return 0
+}
+# run NAME SOURCE.alp EXPECTED_EXIT  — value programs
+run() {
+  build "$1" "$2" || return
   set +e; "$T/out"; got=$?; set -e
   if [ "$got" = "$3" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : exit $got, expected $3"; fi
 }
+# trap NAME SOURCE  — must die by signal (exit code > 128), not return a value
+trap_test() {
+  build "$1" "$2" || return
+  set +e; "$T/out"; got=$?; set -e
+  if [ "$got" -gt 128 ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : exit $got, expected a trap (>128)"; fi
+}
 
 # Slice 1: exit_process(<const>) -> the constant is the process exit status.
 run "exit7 (exit_process(7))" samples/exit7.alp 7
+# Slice 2: expressions + locals + arithmetic precedence.
+run "arith (3 + 4*2)"          samples/arith.alp  11
+run "locals (a=10; b=a-3; b*2)" samples/locals.alp 14
+# Slice 2: the "trap everything" decision — overflow and /0 fault the process.
+cat > "$T/ovf.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let x: i32 = 2000000000 + 2000000000; self.console.exit_process(x) }
+EOF
+trap_test "i32 add overflow traps" "$T/ovf.alp"
+cat > "$T/dz.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let z: i32 = 0; let q: i32 = 5 / z; self.console.exit_process(q) }
+EOF
+trap_test "divide by zero traps" "$T/dz.alp"
 
-echo "aarch64 macOS backend gate (slice 1): $PASS passed, $FAIL failed"
+echo "aarch64 macOS backend gate (slices 1-2): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
