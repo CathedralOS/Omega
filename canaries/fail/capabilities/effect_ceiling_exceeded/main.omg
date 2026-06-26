@@ -4,7 +4,7 @@
 // boundary write, so it exceeds its declared ceiling and is rejected.
 
 boundary trait Disk {
-    machine write(text: String)
+    machine write(text: &[u8])
     effects
         filesystem_io;
 }
