@@ -85,5 +85,8 @@ no "prodis cons wrong product"   "(Rel 778 (cons (s (s z)) nil) (s (s (s (s (s z
 no "prodnilinv on a cons"        "(= (m (s (s z)) (s z)) (s z)) (prodnilinv (pcons (s (s z)) (pnil)))"
 no "prodconsinv on nil"        "(All (Exists (& (= (s z) (m (v 1) (v 0))) (Rel 778 nil (v 0))))) (gen (prodconsinv (pnil)))"
 
+no "prodconsinv wrong product order"  "(All (All (All (-> (Rel 778 (cons (v 2) (v 1)) (v 0)) (Exists (& (= (v 1) (m (v 0) (v 3))) (Rel 778 (v 2) (v 0)))))))) (gen (gen (gen (lam (Rel 778 (cons (v 2) (v 1)) (v 0)) (prodconsinv (hyp 0))))))"
+no "prodconsinv on a nil"             "(All (-> (Rel 778 nil (v 0)) (Exists (& (= (v 1) (m (v 1) (v 0))) (Rel 778 nil (v 0)))))) (gen (lam (Rel 778 nil (v 0)) (prodconsinv (hyp 0))))"
+
 echo "soundness battery (invalid certificates must all be rejected): $PASS rejected, $FAIL breached"
 [ "$FAIL" = 0 ] || exit 1
