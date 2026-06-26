@@ -668,6 +668,13 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 data: remap_data_handle(*data),
                 byte_length: *byte_length,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteRuntimeMachineBoundedBuffer {
+                byte_offset,
+                literal,
+            } => Self::WriteRuntimeMachineBoundedBuffer {
+                byte_offset: *byte_offset,
+                literal: literal.clone(),
+            },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameString {
                 byte_offset,
                 data,

@@ -3427,6 +3427,40 @@ pub fn encode_runtime_machine_string_write(
     Ok(bytes)
 }
 
+// Write a string literal into an owned `[u8; N]` bounded byte carrier at machine
+// storage (`{len, bytes}` inline). r15 = machine storage base (reloc @ +2); store
+// `len` (the literal length) as the leading 8-byte word at [r15 + byte_offset],
+// then copy each literal byte inline at [r15 + byte_offset + 8 + i] as an
+// immediate. The carrier OWNS its bytes (a value), unlike the String descriptor
+// which stores a {ptr -> rodata, len}. Content is immediate, so the ONLY
+// relocation is the base address (the leading `mov r15, imm64`).
+pub fn runtime_machine_bounded_buffer_write_width(literal: &str) -> usize {
+    // mov r15,imm64 (10) + mov rax,imm64 (10) + store rax->[r15+off] 8B (7) = 27,
+    // then per content byte: mov byte [r15 + disp32], imm8 (8).
+    27 + literal.len() * 8
+}
+
+pub fn encode_runtime_machine_bounded_buffer_write(
+    byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_write_width(literal));
+    append_mov_r15_imm64(&mut bytes, 0); // machine storage base (reloc @ +2)
+    append_mov_rax_imm64(&mut bytes, literal.len() as u64);
+    append_store_rax_to_r15(&mut bytes, byte_offset, 8)?; // [base + off] = len word
+    for (index, byte) in literal.as_bytes().iter().enumerate() {
+        let displacement = disp32(byte_offset + 8 + index)?;
+        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
+        bytes.extend(displacement.to_le_bytes());
+        bytes.push(*byte);
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_bounded_buffer_write_width(literal)
+    );
+    Ok(bytes)
+}
+
 pub fn encode_runtime_frame_string_write(
     byte_offset: usize,
     byte_length: usize,

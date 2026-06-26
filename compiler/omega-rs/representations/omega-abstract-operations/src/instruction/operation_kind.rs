@@ -479,6 +479,17 @@ pub enum AbstractOperationKind {
         data: AbstractDataObjectHandle,
         byte_length: usize,
     },
+    /// Write a string literal into an owned `[u8; N]` bounded byte carrier
+    /// (`BoundedByteBuffer`, `{len, bytes}` inline) at machine storage. Unlike
+    /// `WriteRuntimeMachineString` -- which stores a `{ptr -> rodata, len}`
+    /// descriptor that ALIASES the literal -- the carrier OWNS its bytes: store
+    /// `len` (the literal length) at the leading word, then copy the literal's
+    /// bytes inline after it. The content is emitted as immediates, so no data
+    /// relocation is needed (only the machine-storage base).
+    WriteRuntimeMachineBoundedBuffer {
+        byte_offset: usize,
+        literal: Arc<str>,
+    },
     WriteRuntimeFrameString {
         byte_offset: usize,
         data: AbstractDataObjectHandle,

@@ -2,7 +2,7 @@ use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::{
     resolve_runtime_frame_indexed_target, resolve_runtime_machine_indexed_target_in_table,
-    resolve_runtime_storage_place,
+    resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
 };
 use omega_abstract_operations::TargetDataObjectHandle;
 use omega_abstract_operations::{SelectedInstruction, SelectedInstructionKind};
@@ -85,6 +85,30 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     ) else {
         return;
     };
+
+    // An owned `[u8; N]` bounded byte carrier OWNS its bytes: emit the carrier
+    // write (store `len` + copy the literal inline) instead of a `{ptr,len}`
+    // descriptor that aliases rodata. Machine-resident carriers only for now.
+    if matches!(
+        target_place.region,
+        omega_abstract_operations::RuntimeStorageRegion::Machine
+    ) && resolve_runtime_storage_place_is_bounded_byte_buffer(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
+                byte_offset: target_place.byte_offset,
+                literal: std::sync::Arc::from(value),
+            },
+            source_key: literal_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
     if target_place.byte_count != input.runtime_abi.string_descriptor_size() {
         return;
     }

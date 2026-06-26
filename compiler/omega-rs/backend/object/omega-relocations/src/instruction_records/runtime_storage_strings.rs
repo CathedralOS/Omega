@@ -22,6 +22,13 @@ pub(super) fn collect_runtime_storage_string_relocations(
             );
             true
         }
+        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. } => {
+            // The carrier encoder's leading instruction is `mov r15, imm64` (the
+            // machine storage base); content is immediate, so the base is the ONLY
+            // relocation (patched at the instruction's first imm64).
+            context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            true
+        }
         SelectedInstructionKind::WriteRuntimeFrameString { data, .. } => {
             let data_symbol = context.data_object_symbol_handle(*data);
             context.insert_data_address_at_instruction_start(data_symbol);

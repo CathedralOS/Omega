@@ -546,6 +546,14 @@ pub(super) fn encode_machine_instruction_bytes(
         } => {
             runtime_storage::encode_runtime_machine_string_write(input, *byte_offset, *byte_length)
         }
+        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
+            byte_offset,
+            literal,
+        } => runtime_storage::encode_runtime_machine_bounded_buffer_write(
+            input,
+            *byte_offset,
+            literal,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameString {
             byte_offset,
             byte_length,
