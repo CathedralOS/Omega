@@ -741,6 +741,7 @@ proc parse_term() {
     let kc = cbyte()             ; first letter of the rule keyword
     let kc2 = byte[2097152 + word[2097144] + 1]   ; second letter (app vs absurd)
     let kc3 = byte[2097152 + word[2097144] + 2]   ; third letter (inl vs inr)
+    let kc4 = byte[2097152 + word[2097144] + 3]   ; fourth letter (memHead/Tail/Cons/Nil)
     skip_ident()
     let x = 0
     let y = 0
@@ -798,7 +799,7 @@ proc parse_term() {
         expect(')')
         return alloc(25, x, alloc(99, y, z))
     }
-    state k_e { to do_eqelim when (kc == 'e')  to k_c }
+    state k_e { to do_eqelim when (kc == 'e')  to k_m }
     state do_eqelim {
         x = parse_type()         ; motive P(x), substituted var = Ivar 0
         y = parse_term()         ; pf_eq : a = b
@@ -806,6 +807,14 @@ proc parse_term() {
         expect(')')
         return alloc(26, x, alloc(99, y, z))
     }
+    state k_m { to is_m when (kc == 'm')  to k_c }
+    state is_m { to do_memhead when (kc4 == 'h')  to m_t }       ; mem-introduction (head)
+    state do_memhead { x = parse_nat()  y = parse_nat()  expect(')')  return alloc(42, x, y) }
+    state m_t { to do_memtail when (kc4 == 't')  to m_c }        ; mem-introduction (tail)
+    state do_memtail { x = parse_nat()  y = parse_term()  expect(')')  return alloc(43, x, y) }
+    state m_c { to do_memcons when (kc4 == 'c')  to do_memnil }  ; mem-inversion on cons
+    state do_memcons { x = parse_term()  expect(')')  return alloc(44, x, 0) }
+    state do_memnil { x = parse_term()  expect(')')  return alloc(45, x, 0) }   ; mem-inversion on nil
     state k_c { to do_case when (kc == 'c')  to k_r }
     state do_case {
         x = parse_term()         ; p
@@ -1186,7 +1195,7 @@ proc infer(term) {
         return 0
     }
     state disj_yes { return alloc(3, 0, 0) }             ; falsity
-    state d28 { to sinj when (tag == 28)  return 0 }
+    state d28 { to sinj when (tag == 28)  to d42 }
     state sinj {                 ; SINJ pf : from (s a = s b), (a = b)
         t1 = infer(word[term + 8])
         to reject when (t1 == 0)
@@ -1199,6 +1208,51 @@ proc infer(term) {
         to reject when (word[t2] != 31)                  ; both sides must be successors
         to reject when (word[t3] != 31)
         return alloc(5, word[t2 + 8], word[t3 + 8])      ; (= a b)
+    }
+    ; ---- list membership: Mem(x,L) is Rel(777, x, L), an inductive predicate with two
+    ; introduction rules (head/tail) and matching inversions (cons/nil). Sound because the
+    ; ONLY closed sources of Rel(777,..) are these intros, so the inversions are valid.
+    state d42 { to memhead when (tag == 42)  to d43 }
+    state memhead {              ; MEMHEAD x t : Mem(x, cons(x,t))   [no premise]
+        t1 = word[term + 8]      ; x
+        t2 = word[term + 16]     ; t
+        return alloc(9, 777, alloc(99, t1, alloc(36, t1, t2)))
+    }
+    state d43 { to memtail when (tag == 43)  to d44 }
+    state memtail {              ; MEMTAIL h pf : from Mem(x,t) infer Mem(x, cons(h,t))
+        t1 = infer(word[term + 16])                      ; pf : Mem(x,t) = Rel(777, x, t)
+        to reject when (t1 == 0)
+        to memtail1
+    }
+    state memtail1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 777)
+        return alloc(9, 777, alloc(99, word[word[t1 + 16] + 8], alloc(36, word[term + 8], word[word[t1 + 16] + 16])))
+    }
+    state d44 { to memcons when (tag == 44)  to d45 }
+    state memcons {              ; MEMCONS pf : from Mem(x, cons(h,t)) infer (x=h) ∨ Mem(x,t)
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to memcons1
+    }
+    state memcons1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 777)
+        t2 = word[word[t1 + 16] + 16]                    ; L = the list argument
+        to reject when (word[t2] != 36)                  ; must be CONS(h,t)
+        return alloc(4, alloc(5, word[word[t1 + 16] + 8], word[t2 + 8]), alloc(9, 777, alloc(99, word[word[t1 + 16] + 8], word[t2 + 16])))
+    }
+    state d45 { to memnil when (tag == 45)  return 0 }
+    state memnil {               ; MEMNIL pf : from Mem(x, nil) infer falsity
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to memnil1
+    }
+    state memnil1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 777)
+        to reject when (word[word[word[t1 + 16] + 16]] != 35)   ; list argument must be NIL
+        return alloc(3, 0, 0)
     }
 }
 
