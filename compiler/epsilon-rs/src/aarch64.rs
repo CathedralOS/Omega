@@ -244,7 +244,6 @@ fn lower_statement(
             asm.push_str("    mov x2, #1\n"); // len = 1
             asm.push_str("    bl _write\n");
         }
-        _ => {}
     }
 }
 
