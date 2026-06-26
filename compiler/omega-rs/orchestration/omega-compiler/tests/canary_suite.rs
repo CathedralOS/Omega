@@ -1062,6 +1062,42 @@ fn runtime_bounded_carrier_concat_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 owned `[u8; N] in Utf8` carrier MULTI-SEGMENT concat into a `&mut` OUT-PARAM
+// (the dungeon render-line shape): `out_line = "== " + self.label + " =="` writes
+// across a machine boundary into a borrowed carrier -- init literal, append the
+// source carrier, append the trailing literal at the running length. Exits 70.
+#[test]
+fn runtime_bounded_carrier_alias_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_alias_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-alias-concat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier alias concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier alias concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `out_line = \"== \" + self.label + \" ==\"` to materialize `== Gate ==` into the \
+         borrowed carrier so `self.line == \"== Gate ==\"` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier through HOST OUTPUT, native: build a carrier
 // by concat and `write_line` it. The host-call path reads the carrier with carrier
 // addressing (len @ 0, content pointer = place + pointer_size). Prints "Room A1"

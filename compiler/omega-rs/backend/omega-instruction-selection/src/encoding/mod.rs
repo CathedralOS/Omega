@@ -34,6 +34,7 @@ pub use runtime_storage::{
     encode_runtime_frame_indexed_address_to_runtime_frame_write,
     encode_runtime_frame_indexed_binary_write, encode_runtime_frame_indexed_integer_write,
     encode_runtime_frame_indexed_string_write, encode_runtime_frame_string_write,
+    encode_runtime_machine_bounded_buffer_literal_append,
     encode_runtime_machine_bounded_buffer_source_append,
     encode_runtime_machine_bounded_buffer_write, encode_runtime_machine_indexed_integer_write,
     encode_runtime_machine_indexed_string_write, encode_runtime_machine_integer_write,

@@ -723,6 +723,12 @@ fn selected_instruction_name(
         } => format!(
             "append runtime machine bounded buffer source target@{target_byte_offset} source@{source_byte_offset}"
         ),
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
+            target_byte_offset,
+            literal,
+        } => format!(
+            "append runtime machine bounded buffer literal target@{target_byte_offset} {literal:?}"
+        ),
         SelectedInstructionKind::WriteRuntimeFrameString {
             byte_offset,
             data,

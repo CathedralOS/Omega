@@ -35,6 +35,12 @@ pub(super) fn collect_runtime_storage_string_relocations(
             context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
             true
         }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. } => {
+            // The literal bytes are immediates; the target carrier is machine-
+            // resident off the leading `mov r15, imm64` base -- the only reloc.
+            context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            true
+        }
         SelectedInstructionKind::WriteRuntimeFrameString { data, .. } => {
             let data_symbol = context.data_object_symbol_handle(*data);
             context.insert_data_address_at_instruction_start(data_symbol);

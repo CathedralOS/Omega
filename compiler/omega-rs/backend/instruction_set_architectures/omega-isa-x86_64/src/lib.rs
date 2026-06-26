@@ -3628,6 +3628,58 @@ pub fn encode_runtime_machine_bounded_buffer_source_append(
     Ok(bytes)
 }
 
+// Append a string LITERAL onto a target carrier at its running length (a later
+// concat segment, e.g. the trailing `" =="`). r15 = machine storage base (reloc
+// @ +2). rax = target running len; rdi = target bytes + running len; the literal
+// bytes are written as immediates at `[rdi + i]`; store new len = old + lit.len.
+// One relocation (the base); fixed width (no per-byte loop -- the bytes are
+// unrolled immediate stores).
+pub fn runtime_machine_bounded_buffer_literal_append_width(literal: &str) -> usize {
+    // mov r15,imm64 (10) + mov rax,[r15+t] (7) + lea rdi,[r15+t+8] (7)
+    // + add rdi,rax (3) + per byte: mov byte [rdi+disp8],imm8 (4)
+    // + add rax,imm32 (`48 05`+imm32 = 6) + mov [r15+t],rax (7) = 40 + 4*len
+    40 + 4 * literal.len()
+}
+
+pub fn encode_runtime_machine_bounded_buffer_literal_append(
+    target_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let target = disp32(target_byte_offset)?;
+    let target_bytes = disp32(target_byte_offset + 8)?;
+    let literal_bytes = literal.as_bytes();
+    let literal_len = u32::try_from(literal_bytes.len()).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 encoder cannot append a carrier literal of {} bytes",
+            literal_bytes.len()
+        ))
+    })?;
+    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_literal_append_width(literal));
+    append_mov_r15_imm64(&mut bytes, 0); // machine storage base (reloc @ +2)
+    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + target]   (target running len)
+    bytes.extend(target.to_le_bytes());
+    bytes.extend([0x49, 0x8d, 0xbf]); // lea rdi, [r15 + target+8] (target bytes base)
+    bytes.extend(target_bytes.to_le_bytes());
+    bytes.extend([0x48, 0x01, 0xc7]); // add rdi, rax  (dest = target bytes + running len)
+    for (index, byte) in literal_bytes.iter().enumerate() {
+        let disp = u8::try_from(index).map_err(|_| {
+            Diagnostic::error(
+                "X86_64 encoder cannot append a carrier literal longer than 127 bytes".to_string(),
+            )
+        })?;
+        bytes.extend([0xc6, 0x47, disp, *byte]); // mov byte [rdi + disp8], imm8
+    }
+    bytes.extend([0x48, 0x05]); // add rax, imm32  (new len = old + literal length)
+    bytes.extend(literal_len.to_le_bytes());
+    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + target], rax  (store new len)
+    bytes.extend(target.to_le_bytes());
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_bounded_buffer_literal_append_width(literal)
+    );
+    Ok(bytes)
+}
+
 pub fn encode_runtime_frame_string_write(
     byte_offset: usize,
     byte_length: usize,
