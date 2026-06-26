@@ -79,7 +79,8 @@ induction**:
   the naturals are a **linearly ordered commutative semiring**; plus number theory built on
   the same machinery: every number is **even or odd**, the **discreteness** of `<`
   (`a<b ↔ Sa≤b`), positivity (`0<a ∧ 0<b → 0<a·b`), **divisibility** (`a∣b := ∃m. m·a=b`)
-  shown reflexive, transitive, and satisfied by `0`, the list analog of `0`-or-`s`,
+  proved a **partial order** (reflexive, transitive, antisymmetric `a∣b ∧ b∣a → a=b` — via
+  `1` being the only unit, `d∣1 → d=1`), the list analog of `0`-or-`s`,
   `∀l. l=nil ∨ ∃h∃t. l=cons h t`, and — the capstone — the **Euclidean division algorithm**
   `∀b. 0<b → ∀a. ∃q∃r. a=b·q+r ∧ r<b`, proved **existence** (by a fuel induction with a
   strict-trichotomy case split, since the first-order checker can't instantiate strong
