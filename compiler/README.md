@@ -86,10 +86,14 @@ induction**:
   strict-trichotomy case split, since the first-order checker can't instantiate strong
   induction at a concrete predicate) **and uniqueness** (`q` and `r` are determined — a
   bounding argument resting on **multiplication being cancellative**, `0<b ∧ b·q₁=b·q₂ → q₁=q₂`);
-  and — the deepest result — **GCD existence**, `∀a∀b. ∃g. g∣a ∧ g∣b ∧ ∀d.(d∣a ∧ d∣b → d∣g)`
-  (a greatest common divisor every common divisor divides), constructed by the **Euclidean
-  algorithm** as a fuel induction on top of division and the `divides-add`/`divides-sub` closure
-  laws — 93 lemmas composed into one proof.
+  **GCD existence**, `∀a∀b. ∃g. g∣a ∧ g∣b ∧ ∀d.(d∣a ∧ d∣b → d∣g)` (a greatest common divisor
+  every common divisor divides), constructed by the **Euclidean algorithm** as a fuel induction
+  on top of division and the `divides-add`/`divides-sub` closure laws — 93 lemmas in one proof;
+  **decidable divisibility** `0<d → (d∣n ∨ ¬(d∣n))` (constructive, from division existence +
+  uniqueness — no excluded middle); and — the deepest result — **prime-divisor existence**,
+  `∀n>1. ∃p. prime(p) ∧ p∣n` (every number above 1 has a prime factor — the gateway to the
+  fundamental theorem of arithmetic), 175 lemmas, by a strong/fuel induction over a bounded
+  divisor search with a primality criterion, all resting on decidable divisibility.
 
 ### Why you can believe it
 
