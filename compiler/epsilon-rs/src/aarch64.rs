@@ -49,9 +49,17 @@ pub fn lower_program(program: &Program) -> String {
         lower_machine(machine_index, program, &mut asm);
     }
 
-    // The single trap target shared by every machine: overflow and divide-by-zero
-    // land here (brk faults the process — the analog of x64's ud2 / idiv #DE).
+    // The single trap target shared by every machine: overflow, divide-by-zero,
+    // and out-of-bounds indexing land here (brk faults the process — the analog of
+    // x64's ud2 / idiv #DE).
     asm.push_str("Ltrap:\n    brk #0x1\n");
+
+    // The entry machine's `self` is a process-static, zero-initialized instance.
+    let entry = &program.machines[program.entry_machine];
+    if entry.has_self && program.entry_data_size > 0 {
+        let size = align8(program.entry_data_size);
+        asm.push_str(&format!(".zerofill __DATA,__bss,_selfdata,{},3\n", size));
+    }
     asm
 }
 
@@ -66,8 +74,10 @@ fn machine_label(machine_index: usize, program: &Program) -> String {
 fn lower_machine(machine_index: usize, program: &Program, asm: &mut String) {
     let machine: &Machine = &program.machines[machine_index];
     let local_count = machine.local_count.max(0) as i32;
-    // frame = saved {x29,x30} (16) + one 8-byte slot per local, 16-aligned.
-    let frame = align16(16 + 8 * local_count);
+    // frame = saved {x29,x30} (16) + a slot per local + (one self-pointer slot),
+    // 16-aligned. The self slot sits just past the locals.
+    let self_disp = 16 + 8 * local_count;
+    let frame = align16(16 + 8 * local_count + if machine.has_self { 8 } else { 0 });
 
     asm.push_str(&format!("{}:\n", machine_label(machine_index, program)));
     // prologue
@@ -82,14 +92,23 @@ fn lower_machine(machine_index: usize, program: &Program, asm: &mut String) {
             local_displacement(param_position)
         ));
     }
+    // establish the self pointer to the static zero-init instance — but only when
+    // the entry actually has data fields (`_selfdata` is emitted iff size > 0; a
+    // `&mut self` with no fields, e.g. exit7, never dereferences self). Non-entry
+    // methods receive self in x0 — handled when method/self calls are ported.
+    if machine.has_self && machine_index == program.entry_machine && program.entry_data_size > 0 {
+        asm.push_str("    adrp x9, _selfdata@PAGE\n");
+        asm.push_str("    add x9, x9, _selfdata@PAGEOFF\n");
+        asm.push_str(&format!("    str x9, [x29, #{}]\n", self_disp));
+    }
 
     for statement in &machine.entry {
-        lower_statement(statement, machine_index, program, frame, asm);
+        lower_statement(statement, machine_index, program, frame, self_disp, asm);
     }
     for (state_index, state_statements) in machine.states.iter().enumerate() {
         asm.push_str(&format!("Lm{}s{}:\n", machine_index, state_index));
         for statement in state_statements {
-            lower_statement(statement, machine_index, program, frame, asm);
+            lower_statement(statement, machine_index, program, frame, self_disp, asm);
         }
     }
 
@@ -100,6 +119,10 @@ fn lower_machine(machine_index: usize, program: &Program, asm: &mut String) {
 
 fn align16(n: i32) -> i32 {
     (n + 15) & !15
+}
+
+fn align8(n: i32) -> i32 {
+    (n + 7) & !7
 }
 
 // Local i occupies the slot just past the saved {x29,x30} pair.
@@ -120,27 +143,34 @@ fn lower_statement(
     machine_index: usize,
     program: &Program,
     frame: i32,
+    self_disp: i32,
     asm: &mut String,
 ) {
     match statement {
         Statement::Let(local_index, expression) | Statement::Assign(local_index, expression) => {
-            lower_expression(*expression, program, asm);
+            lower_expression(*expression, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop value
             asm.push_str(&format!("    str w0, [x29, #{}]\n", local_displacement(*local_index)));
         }
+        Statement::StoreSelfField(offset, expression) => {
+            lower_expression(*expression, program, self_disp, asm);
+            asm.push_str("    ldr x0, [sp], #16\n"); // pop value
+            asm.push_str(&format!("    ldr x9, [x29, #{}]\n", self_disp)); // self pointer
+            asm.push_str(&format!("    str w0, [x9, #{}]\n", offset)); // self.<field> = value
+        }
         Statement::Eval(expression) => {
-            lower_expression(*expression, program, asm);
+            lower_expression(*expression, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop and discard
         }
         Statement::Return(expression) | Statement::Exit(expression) => {
-            lower_expression(*expression, program, asm);
+            lower_expression(*expression, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop into w0 (exit code / return value)
             emit_epilogue(frame, asm);
         }
         Statement::Transition(subject, arms) => {
             // Evaluate the subject, then dispatch: an Int pattern is a compare +
             // conditional branch to its state label; `_` is an unconditional branch.
-            lower_expression(*subject, program, asm);
+            lower_expression(*subject, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop subject into w0
             for arm in arms {
                 match arm.pattern {
@@ -162,7 +192,7 @@ fn lower_statement(
     }
 }
 
-fn lower_expression(node: usize, program: &Program, asm: &mut String) {
+fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut String) {
     match program.expressions[node] {
         Expr::Int(value) => {
             emit_load_w0(value, asm);
@@ -172,11 +202,16 @@ fn lower_expression(node: usize, program: &Program, asm: &mut String) {
             asm.push_str(&format!("    ldr w0, [x29, #{}]\n", local_displacement(local_index)));
             asm.push_str("    str x0, [sp, #-16]!\n"); // push
         }
+        Expr::SelfField(offset) => {
+            asm.push_str(&format!("    ldr x9, [x29, #{}]\n", self_disp)); // self pointer
+            asm.push_str(&format!("    ldr w0, [x9, #{}]\n", offset)); // self.<field>
+            asm.push_str("    str x0, [sp, #-16]!\n"); // push
+        }
         Expr::Call(machine_index, args_start, arg_count) => {
             // Evaluate args left-to-right (each pushed), then pop them into x0..x3
             // top-down (arg N-1 is on top), `bl` the callee, push the w0 result.
             for index in 0..arg_count {
-                lower_expression(program.call_args[args_start + index], program, asm);
+                lower_expression(program.call_args[args_start + index], program, self_disp, asm);
             }
             for index in (0..arg_count).rev() {
                 asm.push_str(&format!("    ldr x{}, [sp], #16\n", index));
@@ -185,8 +220,8 @@ fn lower_expression(node: usize, program: &Program, asm: &mut String) {
             asm.push_str("    str x0, [sp, #-16]!\n"); // push return value
         }
         Expr::Binary(op, lhs, rhs) => {
-            lower_expression(lhs, program, asm);
-            lower_expression(rhs, program, asm);
+            lower_expression(lhs, program, self_disp, asm);
+            lower_expression(rhs, program, self_disp, asm);
             asm.push_str("    ldr x1, [sp], #16\n"); // pop rhs
             asm.push_str("    ldr x0, [sp], #16\n"); // pop lhs
             match op {

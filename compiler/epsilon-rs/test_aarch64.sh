@@ -52,6 +52,8 @@ run "locals (a=10; b=a-3; b*2)" samples/locals.alp 14
 run "loop (count i 0->3, exit i)" samples/loop.alp 3
 # Slice 6: machine calls (the DAG) — max(7,19)=19, max(19,12)=19, callee has states.
 run "calls (max(max(7,19),12))" samples/calls.alp 19
+# Slice 7a: data structs + mutable self fields — sum 1..=5 into self.total -> 15.
+run "data (self fields, sum 1..5)" samples/data.alp 15
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
 cat > "$T/ovf.alp" <<'EOF'
 boundary trait Console { machine exit_process(return_code: i32); }
@@ -66,5 +68,5 @@ machine Main::main(&mut self) { let z: i32 = 0; let q: i32 = 5 / z; self.console
 EOF
 trap_test "divide by zero traps" "$T/dz.alp"
 
-echo "aarch64 macOS backend gate (slices 1-2, 4-6): $PASS passed, $FAIL failed"
+echo "aarch64 macOS backend gate (slices 1-2, 4-6, 7a): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
