@@ -1,3 +1,6 @@
+// Interactive dungeon crawler. With closed stdin (the runtime harness, EOF on the
+// first prompt) the game loop reads an empty command and exits cleanly via
+// `finished()`. Expected exit: 0.
 use game::game;
 
 data Main {
