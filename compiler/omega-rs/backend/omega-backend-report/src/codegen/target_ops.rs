@@ -710,6 +710,13 @@ fn selected_instruction_name(
                 "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
             )
         }
+        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
+            byte_offset,
+            literal,
+        } => format!(
+            "write runtime machine bounded buffer offset {byte_offset} literal {literal:?} len {}",
+            literal.len()
+        ),
         SelectedInstructionKind::WriteRuntimeFrameString {
             byte_offset,
             data,

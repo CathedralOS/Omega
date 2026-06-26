@@ -729,6 +729,39 @@ pub(super) fn resolve_runtime_storage_place_is_fat_slice_in_table(
     .is_some_and(|descriptor| descriptor_is_fat_slice(&descriptor))
 }
 
+/// Whether a storage PLACE is an owned `[u8; N]` bounded byte carrier
+/// (`BoundedByteBuffer`, `{len, bytes}` inline). Unlike a fat-slice descriptor,
+/// the carrier owns its bytes; a literal write into it must store `len` + copy
+/// the content inline, not stamp a `{ptr,len}` descriptor. Resolves the target
+/// expression's leaf descriptor (peeling a domain `Constrained` wrapper).
+pub(super) fn resolve_runtime_storage_place_is_bounded_byte_buffer(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    resolved_target: &omega_checked_trees::expression::Expression,
+) -> bool {
+    let mut expressions = ExpressionTable::default();
+    let handle = expressions.insert_tree(resolved_target);
+    resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &expressions,
+        handle,
+    )
+    .is_some_and(|descriptor| descriptor_is_bounded_byte_buffer(&descriptor))
+}
+
+fn descriptor_is_bounded_byte_buffer(descriptor: &TypeLayoutDescriptor) -> bool {
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            descriptor_is_bounded_byte_buffer(base_type)
+        }
+        TypeLayoutDescriptor::BoundedByteBuffer { .. } => true,
+        _ => false,
+    }
+}
+
 /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17) of a
 /// storage PLACE — read from the `Constrained` wrapper the layout builder records
 /// on the slot/field descriptor. Used at the binary-write site to decide whether

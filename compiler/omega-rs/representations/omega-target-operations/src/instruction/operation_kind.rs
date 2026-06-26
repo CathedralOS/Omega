@@ -387,6 +387,14 @@ pub enum TargetOperationKind {
         data: TargetDataObjectHandle,
         byte_length: usize,
     },
+    /// Owned `[u8; N]` bounded byte carrier write (`{len, bytes}` inline): store
+    /// `len` then copy the literal's bytes inline. See the abstract-operations
+    /// twin for the rationale (the carrier OWNS its bytes vs the String descriptor
+    /// that aliases rodata).
+    WriteRuntimeMachineBoundedBuffer {
+        byte_offset: usize,
+        literal: std::sync::Arc<str>,
+    },
     WriteRuntimeFrameString {
         byte_offset: usize,
         data: TargetDataObjectHandle,
