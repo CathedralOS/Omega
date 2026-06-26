@@ -1161,40 +1161,63 @@ fn expression_type_reference(
     }
 }
 
-/// Resolve a `self.field` place (`Name ["self", field]` or `Member(Name(self),
-/// field)`) to the field's DECLARED type reference (constraints intact) via the
-/// machine's attached data. `None` for any other expression shape.
+/// Resolve a `self.a.b.c` field place (ONE level `self.f` or NESTED) to the
+/// final field's DECLARED type reference (constraints intact) via the machine's
+/// attached data, descending into each intermediate field's data type. `None` for
+/// any other expression shape. Mirrors `omega-typed-trees-to-checked-trees`
+/// `field_domain::attached_data_field_type` -- both sides must agree so a nested
+/// domained field is trusted at reads exactly where it is enforced at writes.
 fn attached_data_field_type(
     program: &TypedTrees,
     machine: &Machine,
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    let field_name = match program.expression_table.expression(expression) {
-        ExpressionNode::Member(member) => {
-            let ExpressionNode::Name(receiver) =
-                program.expression_table.expression(member.receiver)
-            else {
-                return None;
-            };
-            match program.expression_table.name_path_members(receiver.members) {
-                [segment] if segment.as_str() == "self" => member.member.as_str().to_owned(),
-                _ => return None,
-            }
-        }
-        ExpressionNode::Name(path) => {
-            match program.expression_table.name_path_members(path.members) {
-                [receiver, field] if receiver.as_str() == "self" => field.as_str().to_owned(),
-                _ => return None,
-            }
-        }
-        _ => return None,
-    };
+    let path = self_field_path(program, expression)?;
+    let (last, parents) = path.split_last()?;
 
     let attached = machine.attached_data.as_ref()?;
-    let data = program
+    let mut data = program
         .data_definitions()
         .iter()
         .find(|data| data.name.as_str() == attached.as_str())?;
+    for segment in parents {
+        let field_type = data_field_type_by_name(program, data, segment)?;
+        let next = type_reference_data_name(program, field_type)?;
+        data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == next.as_str())?;
+    }
+    data_field_type_by_name(program, data, last)
+}
+
+/// The segments of a `self.a.b.c` field-access path AFTER `self`, or `None` if
+/// not a `self`-rooted field access. Handles the nested `Member` chain and a flat
+/// `Name` path alike.
+fn self_field_path(program: &TypedTrees, expression: ExpressionHandle) -> Option<Vec<String>> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            let mut path = self_field_path(program, member.receiver)?;
+            path.push(member.member.as_str().to_owned());
+            Some(path)
+        }
+        ExpressionNode::Name(name) => {
+            match program.expression_table.name_path_members(name.members) {
+                [first, rest @ ..] if first.as_str() == "self" => {
+                    Some(rest.iter().map(|segment| segment.as_str().to_owned()).collect())
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn data_field_type_by_name(
+    program: &TypedTrees,
+    data: &omega_typed_trees::data::DataDefinition,
+    field_name: &str,
+) -> Option<TypeReferenceHandle> {
     program
         .data_members(data)
         .iter()
@@ -1209,6 +1232,24 @@ fn attached_data_field_type(
             }
             _ => None,
         })
+}
+
+/// The data-type name a field's type reference names (peeling `&`/`&mut` and a
+/// domain `Constrained` wrapper), for descending a nested field path.
+fn type_reference_data_name(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<String> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { name, .. } => Some(name.as_str().to_owned()),
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_data_name(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_data_name(program, *base_type)
+        }
+        _ => None,
+    }
 }
 
 fn collect_constraints(

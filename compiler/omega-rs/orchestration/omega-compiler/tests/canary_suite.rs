@@ -1102,6 +1102,47 @@ fn runtime_bounded_carrier_write_line_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 builder over NESTED-field carriers, CROSS-STATE: `self.line.text = "Room " +
+// self.room.label` is built in `main` and `write_line`d in a later `shutdown`
+// state. The nested fields carry their declared `in Utf8` domain across the state
+// transition (entry-invariant seeded for nested fields, enforced at the nested
+// write), so the carrier persists and prints. Prints "Room A1", exits 0.
+#[test]
+fn runtime_text_builder_canary_runs() {
+    let canary = pass_canary("text/runtime_text_builder");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-text-builder-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-field carrier builder canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-field carrier builder canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected the nested-field carrier builder canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim_end_matches(['\r', '\n']),
+        "Room A1",
+        "expected the cross-state nested-field carrier builder to print `Room A1`",
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 (return a `&[u8] in Utf8` view from a machine): a value-position call
 // returning a `&[u8] in Utf8` literal view flows as a real 16-byte `{ptr,len}`
 // descriptor into a `==` content compare. `pick() == "Gate"` matches and exits 70;

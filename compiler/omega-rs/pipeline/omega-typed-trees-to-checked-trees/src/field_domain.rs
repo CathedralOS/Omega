@@ -54,32 +54,60 @@ pub(crate) fn attached_data_field_type(
     machine: &Machine,
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    let field_name = match program.expression_table.expression(expression) {
-        ExpressionNode::Member(member) => {
-            let ExpressionNode::Name(receiver) =
-                program.expression_table.expression(member.receiver)
-            else {
-                return None;
-            };
-            match program.expression_table.name_path_members(receiver.members) {
-                [segment] if segment.as_str() == "self" => member.member.as_str().to_owned(),
-                _ => return None,
-            }
-        }
-        ExpressionNode::Name(path) => {
-            match program.expression_table.name_path_members(path.members) {
-                [receiver, field] if receiver.as_str() == "self" => field.as_str().to_owned(),
-                _ => return None,
-            }
-        }
-        _ => return None,
-    };
+    // A `self.a.b.c` field path -- ONE level (`self.f`) or NESTED. Descend into
+    // each intermediate field's data type so a nested domained field's declared
+    // type is resolved (its domain is then enforced at writes and trusted at
+    // reads, the same two sides one-level fields already have).
+    let path = self_field_path(program, expression)?;
+    let (last, parents) = path.split_last()?;
 
     let attached = machine.attached_data.as_ref()?;
-    let data = program
+    let mut data = program
         .data_definitions()
         .iter()
         .find(|data| data.name.as_str() == attached.as_str())?;
+    for segment in parents {
+        let field_type = data_field_type_by_name(program, data, segment)?;
+        let next = type_reference_data_name(program, field_type)?;
+        data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == next.as_str())?;
+    }
+    data_field_type_by_name(program, data, last)
+}
+
+/// The segments of a `self.a.b.c` field-access path AFTER `self` (so `self.f` is
+/// `["f"]`, `self.a.b` is `["a", "b"]`), or `None` if `expression` is not a
+/// `self`-rooted field access. Handles both the nested `Member` chain and a flat
+/// `Name` path the parser may produce.
+fn self_field_path(
+    program: &omega_typed_trees::TypedTrees,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<Vec<String>> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            let mut path = self_field_path(program, member.receiver)?;
+            path.push(member.member.as_str().to_owned());
+            Some(path)
+        }
+        ExpressionNode::Name(name) => {
+            match program.expression_table.name_path_members(name.members) {
+                [first, rest @ ..] if first.as_str() == "self" => {
+                    Some(rest.iter().map(|segment| segment.as_str().to_owned()).collect())
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn data_field_type_by_name(
+    program: &omega_typed_trees::TypedTrees,
+    data: &omega_typed_trees::data::DataDefinition,
+    field_name: &str,
+) -> Option<TypeReferenceHandle> {
     program
         .data_members(data)
         .iter()
@@ -94,6 +122,39 @@ pub(crate) fn attached_data_field_type(
             }
             _ => None,
         })
+}
+
+/// The data-type name a field's type reference names (peeling `&`/`&mut` and a
+/// domain `Constrained` wrapper), for descending a nested field path into the
+/// next data definition.
+fn type_reference_data_name(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<String> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { name, .. } => Some(name.as_str().to_owned()),
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_data_name(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_data_name(program, *base_type)
+        }
+        _ => None,
+    }
+}
+
+/// The data definition a field's type names (a struct-typed field, peeling
+/// `&`/`&mut` and a domain wrapper), or `None` if the field is not data-typed.
+/// Used to descend a nested field path for the entry-invariant seed.
+pub(crate) fn data_definition_for_field_type<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&'program omega_typed_trees::data::DataDefinition> {
+    let name = type_reference_data_name(program, type_reference)?;
+    program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == name.as_str())
 }
 
 /// The short domain name (`Utf8`) declared on a type reference, looking through a

@@ -49,30 +49,69 @@ pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mu
         };
 
         let mut refs = omega_core::arena::HandleSpan::empty();
-        for member in program.data_members(data) {
-            let omega_typed_trees::data::DataMember::Field(field) = member else {
-                continue;
-            };
-            let Some(domain_symbol) =
-                field_domain_symbol(program, field.type_reference).filter(|symbol| symbol.is_valid())
-            else {
-                continue;
-            };
+        append_data_field_domain_facts(
+            program,
+            facts,
+            machine,
+            self_symbol,
+            data,
+            &[],
+            &[data.name.as_str()],
+            &mut refs,
+        );
 
-            // SOUNDNESS GATE: surface the entry-invariant only when the field's
-            // ZERO/ZII value provably satisfies the domain. The invariant is
-            // ALWAYS-holding at machine entry, so a read-with-no-prior-write would
-            // discharge against it -- sound only if the empty/default value is
-            // in-domain. A domain whose classifier the empty value violates (e.g.
-            // `non_empty`) is withheld; its reads must follow an enforced write.
-            if !crate::field_domain::domain_admits_empty_byte_sequence(program, domain_symbol) {
-                continue;
-            }
+        if refs.is_empty() {
+            continue;
+        }
+        facts.append_context(
+            ProgramPoint::Machine {
+                machine_symbol: machine.symbol,
+            },
+            refs,
+        );
+    }
+}
 
-            // Place `self.<field>`: root the machine receiver symbol (named
-            // `self`) + a Field segment for the declared field, so the canonical
-            // label matches a `self.<field>` read.
+/// Seed the entry-invariant `self.a.b…c in Domain` fact for every domained field
+/// reachable through the attached data -- ONE level or NESTED. `prefix` is the
+/// `Field` segment chain from `self` to `data`; `visited` is the data-type names
+/// on the current path (a cycle guard for self-referential data). Mirrors the
+/// nested resolution in `field_domain::attached_data_field_type`: the read trust
+/// seeded here is sound because every write to such a field (one-level or nested)
+/// is domain-enforced through the SAME multi-level resolver, and each field is
+/// gated on its ZII/empty value satisfying the domain.
+#[allow(clippy::too_many_arguments)]
+fn append_data_field_domain_facts(
+    program: &TypedTrees,
+    facts: &mut FactPlan,
+    machine: &omega_typed_trees::machine::Machine,
+    self_symbol: omega_core::symbols::SymbolHandle,
+    data: &omega_typed_trees::data::DataDefinition,
+    prefix: &[omega_core::symbols::SymbolHandle],
+    visited: &[&str],
+    refs: &mut omega_core::arena::HandleSpan<omega_facts::FactRef>,
+) {
+    for member in program.data_members(data) {
+        let DataMember::Field(field) = member else {
+            continue;
+        };
+
+        // SOUNDNESS GATE (per field, one-level or nested): surface the
+        // entry-invariant only when the field's ZERO/ZII value provably satisfies
+        // the domain -- a read-with-no-prior-write discharges against it, sound
+        // only if the empty/default is in-domain. A domain the empty value
+        // violates (e.g. `non_empty`) is withheld; its reads must follow a write.
+        if let Some(domain_symbol) =
+            field_domain_symbol(program, field.type_reference).filter(|symbol| symbol.is_valid())
+            && crate::field_domain::domain_admits_empty_byte_sequence(program, domain_symbol)
+        {
+            // Place `self.<prefix…>.<field>`: root the machine receiver symbol
+            // (`self`) + the Field-segment chain, so the canonical label matches
+            // a `self.a.b` read exactly where the nested write established it.
             let place = facts.append_symbol_place(self_symbol);
+            for segment in prefix {
+                facts.push_place_segment(place, PlaceSegment::Field { symbol: *segment });
+            }
             facts.push_place_segment(
                 place,
                 PlaceSegment::Field {
@@ -90,25 +129,34 @@ pub(super) fn append_machine_field_domain_facts(program: &TypedTrees, facts: &mu
                 },
                 payload: FactPayload::DomainMembership {
                     value: omega_typed_trees::expression::ExpressionHandle::invalid(),
-                    // The `domain` path span is display-only; all proving/matching
-                    // keys off `domain_symbol`. An empty span is sufficient (we
-                    // cannot append into the program's path arena from here).
                     domain: omega_core::arena::HandleSpan::empty(),
                     domain_symbol,
                 },
             });
-            facts.append_ref(&mut refs, fact);
+            facts.append_ref(refs, fact);
         }
 
-        if refs.is_empty() {
-            continue;
+        // Descend into a struct-typed field so its own domained fields are seeded
+        // too. The cycle guard keeps a self-referential data type from looping.
+        if let Some(nested) =
+            crate::field_domain::data_definition_for_field_type(program, field.type_reference)
+            && !visited.contains(&nested.name.as_str())
+        {
+            let mut next_prefix = prefix.to_vec();
+            next_prefix.push(field.symbol);
+            let mut next_visited = visited.to_vec();
+            next_visited.push(nested.name.as_str());
+            append_data_field_domain_facts(
+                program,
+                facts,
+                machine,
+                self_symbol,
+                nested,
+                &next_prefix,
+                &next_visited,
+                refs,
+            );
         }
-        facts.append_context(
-            ProgramPoint::Machine {
-                machine_symbol: machine.symbol,
-            },
-            refs,
-        );
     }
 }
 
