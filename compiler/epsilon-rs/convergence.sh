@@ -54,6 +54,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sort2.alp "$T/cs2" >/dev/nu
   || { echo "convergence FAIL — compiling certify-sort2"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-gcd.alp "$T/cg" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-gcd"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-triangle.alp "$T/ct" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-triangle"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -118,6 +120,14 @@ cg() {
     FAIL=$((FAIL+1)); echo "  FAIL gcd($1,$2) : delta returned [$v], expected accept"; fi
 }
 cg 12 8; cg 15 10; cg 7 3; cg 100 60; cg 0 9; cg 6 6
+
+# a LOOP result certified against a CLOSED FORM: 2*(1+..+n) = n*(n+1) (Gauss)
+ct() {
+  v=$(printf '%s' "$1" | "$T/ct" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL triangle($1) : delta returned [$v], expected accept"; fi
+}
+ct 4; ct 1; ct 0; ct 10; ct 20
 
 # the certifying COMPILER: a whole program's worth of accesses, one conjunction proof
 cacc() {
