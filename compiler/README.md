@@ -129,5 +129,13 @@ The trust anchor is defended five independent ways (all under `verify-lattice.sh
   semiring** (`add` a commutative monoid; `mult` distributes over `add` *and* commutes),
   inside the checker, by induction + the lemma layer — the same axioms built-in `+`/`*`
   meet. The `mult`-commutativity proof is the deepest: it rests on a left-expansion lemma
-  and must respect the checker's eigenvariable condition on `gen`. Next: N-ary (3+) arguments.
+  and must respect the checker's eigenvariable condition on `gen`. **Folds compose with the
+  built-in arithmetic**: a user list-of-naturals carries a `product` and an `append`, and
+  `product` is proved a **monoid homomorphism** `product(l₁++l₂) = product(l₁)·product(l₂)`
+  (gate "product homomorphism") by structural `rec` induction — the expressible core of
+  factorization. The *full* fundamental theorem of arithmetic stays out of reach for a clear
+  reason: the checker has no recursive **propositions** (so "every element of the list is
+  prime" can't be stated) and `fun` rules pattern-match only *user* constructors (so no Bool
+  primality test over built-in naturals). Next: N-ary (3+) arguments; recursive props would
+  unlock the FTA.
 - epsilon (systems language) and omega (full dependent types) are design-stage.
