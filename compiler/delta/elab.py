@@ -84,6 +84,7 @@ def et(n, iv):  # elaborate a term
     if h == 'f':   return "(f %s)" % ' '.join([n[1]] + [et(a, iv) for a in n[2:]])
     if h == 'rec': return "(rec %s)" % n[1]
     if h == 'y':   return "(y %s)" % n[1]
+    if h == 'v':   return "(v %s)" % n[1]     # raw de Bruijn (fun-rule pattern field)
     raise SystemExit("elab error: bad term %r" % (n,))
 
 def ep(n, iv):  # elaborate a prop
