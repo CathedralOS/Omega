@@ -41,6 +41,13 @@ trap_test() {
   if [ "$got" -gt 128 ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : exit $got, expected a trap (>128)"; fi
 }
+# out NAME SOURCE EXPECTED_STDOUT  — host output programs
+out_test() {
+  build "$1" "$2" || return
+  set +e; got=$("$T/out" 2>/dev/null); set -e
+  if [ "$got" = "$3" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : stdout [$got], expected [$3]"; fi
+}
 
 # Slice 1: exit_process(<const>) -> the constant is the process exit status.
 run "exit7 (exit_process(7))" samples/exit7.alp 7
@@ -68,6 +75,8 @@ data Main { console: Console; arr: [i32; 4]; }
 machine Main::main(&mut self) { self.arr[10] = 5; self.console.exit_process(0) }
 EOF
 trap_test "out-of-bounds index traps" "$T/oob.alp"
+# Slice 3 (partial): host output via libSystem write — write_line to stdout.
+out_test "hello (write_line to stdout)" samples/hello.alp "hello, alpha"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
 cat > "$T/ovf.alp" <<'EOF'
 boundary trait Console { machine exit_process(return_code: i32); }
@@ -82,5 +91,5 @@ machine Main::main(&mut self) { let z: i32 = 0; let q: i32 = 5 / z; self.console
 EOF
 trap_test "divide by zero traps" "$T/dz.alp"
 
-echo "aarch64 macOS backend gate (slices 1-2, 4-7): $PASS passed, $FAIL failed"
+echo "aarch64 macOS backend gate (slices 1-2, 3 write_line, 4-7): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
