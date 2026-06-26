@@ -1,6 +1,16 @@
+// #66: a contained command-loop with a health gate, over an owned
+// `[u8; N] in Utf8` carrier (no `String`). Each iteration checks health, then
+// reads a line into the carrier, borrows it as a `&[u8] in Utf8` view, resolves a
+// Command enum directly, and loops until `quit`.
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 16]::Utf8 when valid_utf8(self) {
+}
+
 boundary trait Console {
-    machine write_line(text: String);
-    machine read_line(out_line: &mut String);
+    machine write_line(text: &[u8] in Utf8);
+    machine read_line(out_line: &mut [u8; 16] in Utf8);
     machine exit_process(return_code: i32);
 }
 
@@ -10,20 +20,10 @@ data Command {
     case Invalid;
 }
 
-data Navigation {
-    choice: Command;
-    destination: i32;
-}
-
 data Parser {
 }
 
-machine Parser::resolve_navigation(&mut self, line: &String) -> Navigation {
-    let choice: Command = self.resolve_command(line);
-    self.navigation(choice, 0)
-}
-
-machine Parser::resolve_command(&mut self, line: &String) -> Command {
+machine Parser::resolve(&mut self, line: &[u8] in Utf8) -> Command {
     transition {
         line == "look" -> Command::Look
         line == "quit" -> Command::Quit
@@ -31,23 +31,18 @@ machine Parser::resolve_command(&mut self, line: &String) -> Command {
     }
 }
 
-machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navigation {
-    Navigation { choice: choice, destination: destination }
-    
-}
-
 data Game {
     console: Console;
-    line: String;
+    line: [u8; 16] in Utf8;
     parser: Parser;
-    navigation: Navigation;
+    command: Command;
     health: i32;
 }
 
 machine Game::run(&mut self) {
     self.health = 10;
     transition { _ -> prompt() }
-    
+
 
     state prompt(&mut self) {
         transition self.health == 0 {
@@ -58,9 +53,9 @@ machine Game::run(&mut self) {
 
     state read_command(&mut self) {
         self.console.read_line(&mut self.line);
-        self.navigation = self.parser.resolve_navigation(&self.line);
+        self.command = self.parser.resolve(&self.line);
 
-        transition self.navigation.choice {
+        transition self.command {
             Command::Look -> look()
             Command::Quit -> finished()
             Command::Invalid -> invalid()
@@ -92,7 +87,7 @@ data Main {
 
 machine Main::main(&mut self) -> i32 {
     transition { _ -> running() }
-    
+
 
     state running(&mut self) {
         self.game.run();
