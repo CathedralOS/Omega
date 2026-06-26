@@ -192,6 +192,8 @@ filter_test "cfg emits control-flow graph edges (from target, machine-scoped)" s
 filter_test "labels assigns backend state labels (Lm<mi>s<si>, depth-aware)" samples/labels.alp "machine A::a(){ state p(){} state q(){} } machine B::b(){ state r(){} }" "$(printf 'p Lm0s0\nq Lm0s1\nr Lm1s0')"
 # branches: CODEGEN -- lower transition arms to b/b.eq Lm<mi>s<si> with target resolution
 filter_test "branches lowers transition arms to resolved b/b.eq labels" samples/branches.alp "machine M::m(){ transition 0 { _ -> a() } state a(){ transition self.x { true -> b() false -> a() } } state b(){} }" "$(printf 'b Lm0s0\nb.eq Lm0s1\nb.eq Lm0s0')"
+# armdispatch: CODEGEN -- the arm-DISPATCH half of a transition (subject-pop + per-arm cmp/branch)
+filter_test "armdispatch lowers a transition's arm dispatch (pop + value-arm cmp/b.eq)" samples/armdispatch.alp "data Main { x: i32; } machine Main::main(&mut self) { transition self.x { true -> a() false -> b() } state a(){} state b(){} }" "$(printf '    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1')"
 # sizeof: align8 total struct size (frame size) -- matches the backend _selfdata directive
 filter_test "sizeof emits align8 total struct size" samples/sizeof.alp "boundary trait C{} data Main{ c: C; n: i32; buf: [u8; 13]; }" "24"
 # rpn: infix -> RPN (shunting-yard) -- the expression-lowering arc, step 1 (linearize to stack-machine order)
