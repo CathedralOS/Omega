@@ -6,8 +6,8 @@ mod static_values;
 
 pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::{
-    resolve_machine_owned_collection_in_table, resolve_machine_owned_place,
-    resolve_machine_owned_place_in_table,
+    MachineOwnedCollectionTarget, resolve_machine_owned_collection_in_table,
+    resolve_machine_owned_place, resolve_machine_owned_place_in_table,
 };
 pub(super) use model::{
     RuntimeFrameBaseIndexedTarget, RuntimeFrameFixedIndexedTarget, RuntimeFrameIndexedTarget,
@@ -1081,20 +1081,11 @@ fn resolve_runtime_storage_leaf_descriptor_in_table(
         // a sibling of the i32 element-place fix in
         // resolve_runtime_fixed_indexed_place_in_table).
         if path.member_index(0).is_some() {
-            let initializer = state_local_initializer(
+            let array = resolve_elided_local_slice_view_array(
                 input,
                 source_key,
                 path.head_symbol(),
                 path.member(0)?,
-            )?;
-            let underlying =
-                see_through_as_slice_view(&input.program.expression_table, initializer);
-            let array = resolve_machine_owned_collection_in_table(
-                &input.layouts,
-                input.entry_key.machine,
-                source_key.machine,
-                &input.program.expression_table,
-                underlying,
             )?;
             let element_descriptor = inline_fixed_array_element_type(&array.type_descriptor)?;
             let element_layout = descriptor_layout(input, element_descriptor);
@@ -2052,27 +2043,22 @@ fn resolve_runtime_fixed_indexed_place_in_table(
     ) {
         Some(collection) => collection,
         // Elided-local collection (`let r = X.as_slice(); ... r[i]`): the local has
-        // no frame slot, so trace its declared initializer and see through the
-        // as_slice view to the underlying array, then resolve THAT as the
-        // collection. This lets a slice-VIEW element forwarded by value to a
-        // value-call (bound as a BranchParameter alias `room = r[i]`, the lookup
-        // shape) reach the underlying machine array's element instead of resolving
-        // to nothing. Only a bare single-name path can be such a local.
+        // no frame slot, so trace it to the underlying machine array (see
+        // resolve_elided_local_slice_view_array). This lets a slice-VIEW element
+        // forwarded by value to a value-call (bound as a BranchParameter alias
+        // `room = r[i]`, the lookup shape) reach the underlying machine array's
+        // element instead of resolving to nothing. Only a bare single-name path
+        // can be such a local.
         None => {
             let path = normalized_storage_name_path_in_table(expressions, fixed.collection)?;
             if path.len() != 1 {
                 return None;
             }
-            let initializer =
-                state_local_initializer(input, source_key, path.head_symbol(), path.member(0)?)?;
-            let underlying =
-                see_through_as_slice_view(&input.program.expression_table, initializer);
-            resolve_machine_owned_collection_in_table(
-                &input.layouts,
-                input.entry_key.machine,
-                source_key.machine,
-                &input.program.expression_table,
-                underlying,
+            resolve_elided_local_slice_view_array(
+                input,
+                source_key,
+                path.head_symbol(),
+                path.member(0)?,
             )?
         }
     };
@@ -2306,6 +2292,31 @@ fn see_through_as_slice_view(
         return call.receiver;
     }
     expression
+}
+
+/// Trace an ELIDED LOCAL that VIEWS an array (`let r = X.as_slice()`) to the
+/// underlying machine-owned array it views. The local has no frame slot, so its
+/// declared initializer is resolved and the as_slice view peeled to the array.
+/// Shared by the slice-VIEW element resolvers -- the indexed PLACE
+/// (resolve_runtime_fixed_indexed_place_in_table) and the leaf DESCRIPTOR
+/// (resolve_runtime_storage_leaf_descriptor_in_table) -- so a slice-view element
+/// forwarded by value (`r[i]`, e.g. bound as a value-call BranchParameter alias)
+/// resolves against the underlying array instead of the unmaterialized view.
+fn resolve_elided_local_slice_view_array(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    head_symbol: SymbolHandle,
+    head_name: &Identifier,
+) -> Option<MachineOwnedCollectionTarget> {
+    let initializer = state_local_initializer(input, source_key, head_symbol, head_name)?;
+    let underlying = see_through_as_slice_view(&input.program.expression_table, initializer);
+    resolve_machine_owned_collection_in_table(
+        &input.layouts,
+        input.entry_key.machine,
+        source_key.machine,
+        &input.program.expression_table,
+        underlying,
+    )
 }
 
 fn indexed_target_path_in_table(
