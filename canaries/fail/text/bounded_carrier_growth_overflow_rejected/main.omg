@@ -1,0 +1,26 @@
+// The concat-domain law admits `self.line + "omega"` into the Utf8 domain (both
+// operands are valid UTF-8, and UTF-8 is concat-preserving), so the DOMAIN half
+// of the write is established. The LENGTH-FITS guard then rejects it: a `[u8; 16]`
+// carrier can already hold up to 16 bytes, and appending 5 more can reach 21 --
+// there is no static proof the result fits the 16-byte inline storage (that would
+// need the buffer's flow-sensitive running length, not a static bound). This is
+// the no-overflow theorem for bounded text carriers: an unbounded in-place append
+// does not compile. The same guard admits a write that provably fits (a literal,
+// or a concatenation of bounded operands whose lengths sum to <= the capacity).
+domain [u8; 16]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    line: [u8; 16] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.line = "prefix ";
+    self.line = self.line + "omega";
+    self.console.exit_process(70);
+}
