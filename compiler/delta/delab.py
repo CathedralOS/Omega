@@ -35,7 +35,9 @@ def dt(n, iv):  # decompile a term
     if isinstance(n, str):
         return n            # z, nil
     h = n[0]
-    if h == 'v':   return ref(iv, n[1])
+    if h == 'v':                                  # ivar reference, or fun-rule pattern field (out of ctx)
+        k = int(n[1])
+        return ref(iv, n[1]) if k < len(iv) else "(v %s)" % n[1]
     if h == 's':   return "(s %s)" % dt(n[1], iv)
     if h == 'p':   return "(+ %s %s)" % (dt(n[1], iv), dt(n[2], iv))
     if h == 'm':   return "(* %s %s)" % (dt(n[1], iv), dt(n[2], iv))
