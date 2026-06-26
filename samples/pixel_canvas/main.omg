@@ -1,7 +1,7 @@
 // Pixel canvas: fixed array of structs with per-element field mutations.
 //
 // Exercises: a fixed-size array of structs ([Pixel; 4]) where each element
-// has two fields (r: i32, g: i32), per-element field writes dispatched
+// has two fields (r: i32 in Saturating, g: i32 in Saturating), per-element field writes dispatched
 // through a sub-machine using const-index dispatch, and a final sum/guard
 // that reads across multiple struct elements.
 //
@@ -31,8 +31,8 @@
 use omega::language::std::console;
 
 data Pixel [copy, zero_init] {
-    r: i32;
-    g: i32;
+    r: i32 in Saturating;
+    g: i32 in Saturating;
 }
 
 data Canvas [copy, zero_init] {
@@ -45,61 +45,61 @@ data Main {
 }
 
 // Write the red channel at the given pixel index (0..3).
-machine Main::set_r(&mut self, idx: i32, val: i32) {
+machine Main::set_r(&mut self, idx: i32 in Saturating, val: i32 in Saturating) {
     transition idx == 0 {
         true -> r0(val)
         _ -> try_r1(idx, val)
     }
 
-    state r0(&mut self, val: i32) { self.canvas.pixels[0].r = val; }
+    state r0(&mut self, val: i32 in Saturating) { self.canvas.pixels[0].r = val; }
 
-    state try_r1(&mut self, idx: i32, val: i32) {
+    state try_r1(&mut self, idx: i32 in Saturating, val: i32 in Saturating) {
         transition idx == 1 {
             true -> r1(val)
             _ -> try_r2(idx, val)
         }
     }
 
-    state r1(&mut self, val: i32) { self.canvas.pixels[1].r = val; }
+    state r1(&mut self, val: i32 in Saturating) { self.canvas.pixels[1].r = val; }
 
-    state try_r2(&mut self, idx: i32, val: i32) {
+    state try_r2(&mut self, idx: i32 in Saturating, val: i32 in Saturating) {
         transition idx == 2 {
             true -> r2(val)
             _ -> r3(val)
         }
     }
 
-    state r2(&mut self, val: i32) { self.canvas.pixels[2].r = val; }
-    state r3(&mut self, val: i32) { self.canvas.pixels[3].r = val; }
+    state r2(&mut self, val: i32 in Saturating) { self.canvas.pixels[2].r = val; }
+    state r3(&mut self, val: i32 in Saturating) { self.canvas.pixels[3].r = val; }
 }
 
 // Write the green channel at the given pixel index (0..3).
-machine Main::set_g(&mut self, idx: i32, val: i32) {
+machine Main::set_g(&mut self, idx: i32 in Saturating, val: i32 in Saturating) {
     transition idx == 0 {
         true -> g0(val)
         _ -> try_g1(idx, val)
     }
 
-    state g0(&mut self, val: i32) { self.canvas.pixels[0].g = val; }
+    state g0(&mut self, val: i32 in Saturating) { self.canvas.pixels[0].g = val; }
 
-    state try_g1(&mut self, idx: i32, val: i32) {
+    state try_g1(&mut self, idx: i32 in Saturating, val: i32 in Saturating) {
         transition idx == 1 {
             true -> g1(val)
             _ -> try_g2(idx, val)
         }
     }
 
-    state g1(&mut self, val: i32) { self.canvas.pixels[1].g = val; }
+    state g1(&mut self, val: i32 in Saturating) { self.canvas.pixels[1].g = val; }
 
-    state try_g2(&mut self, idx: i32, val: i32) {
+    state try_g2(&mut self, idx: i32 in Saturating, val: i32 in Saturating) {
         transition idx == 2 {
             true -> g2(val)
             _ -> g3(val)
         }
     }
 
-    state g2(&mut self, val: i32) { self.canvas.pixels[2].g = val; }
-    state g3(&mut self, val: i32) { self.canvas.pixels[3].g = val; }
+    state g2(&mut self, val: i32 in Saturating) { self.canvas.pixels[2].g = val; }
+    state g3(&mut self, val: i32 in Saturating) { self.canvas.pixels[3].g = val; }
 }
 
 machine Main::main(&mut self) {
@@ -113,11 +113,11 @@ machine Main::main(&mut self) {
     self.set_g(3, 0);
 
     // Sum: (10+5) + (20+10) + (15+5) + (5+0) = 15+30+20+5 = 70.
-    let p0: i32 = self.canvas.pixels[0].r + self.canvas.pixels[0].g;
-    let p1: i32 = self.canvas.pixels[1].r + self.canvas.pixels[1].g;
-    let p2: i32 = self.canvas.pixels[2].r + self.canvas.pixels[2].g;
-    let p3: i32 = self.canvas.pixels[3].r + self.canvas.pixels[3].g;
-    let total: i32 = p0 + p1 + p2 + p3;
+    let p0: i32 in Saturating = self.canvas.pixels[0].r + self.canvas.pixels[0].g;
+    let p1: i32 in Saturating = self.canvas.pixels[1].r + self.canvas.pixels[1].g;
+    let p2: i32 in Saturating = self.canvas.pixels[2].r + self.canvas.pixels[2].g;
+    let p3: i32 in Saturating = self.canvas.pixels[3].r + self.canvas.pixels[3].g;
+    let total: i32 in Saturating = p0 + p1 + p2 + p3;
 
     transition total == 70 {
         true -> good()
@@ -128,7 +128,7 @@ machine Main::main(&mut self) {
         self.console.exit_process(70);
     }
 
-    state bad(&mut self, total: i32) {
+    state bad(&mut self, total: i32 in Saturating) {
         // Exit with a code that encodes the wrong total for debugging.
         self.console.exit_process(71);
     }

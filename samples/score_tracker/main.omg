@@ -20,18 +20,18 @@ use omega::language::std::console;
 
 // Events that change player scores.
 data Event {
-    case Score(player: i32, points: i32);
-    case Bonus(player: i32);
-    case Reset(player: i32);
+    case Score(player: i32 in Saturating, points: i32 in Saturating);
+    case Bonus(player: i32 in Saturating);
+    case Reset(player: i32 in Saturating);
 }
 
 data Tracker [copy, zero_init] {
-    total: i32;
+    total: i32 in Saturating;
 }
 
 data Main {
     console: Console;
-    scores: [i32; 2];
+    scores: [i32 in Saturating; 2];
     tracker: Tracker;
 }
 
@@ -69,22 +69,22 @@ machine Main::apply(&mut self, event: Event) {
         _ -> done()
     }
 
-    state add_score(&mut self, player: i32, points: i32) {
+    state add_score(&mut self, player: i32 in Saturating, points: i32 in Saturating) {
         transition player == 0 {
             true -> add_p0(points)
             _ -> add_p1(points)
         }
     }
 
-    state add_p0(&mut self, points: i32) {
+    state add_p0(&mut self, points: i32 in Saturating) {
         self.scores[0] = self.scores[0] + points;
     }
 
-    state add_p1(&mut self, points: i32) {
+    state add_p1(&mut self, points: i32 in Saturating) {
         self.scores[1] = self.scores[1] + points;
     }
 
-    state double_score(&mut self, player: i32) {
+    state double_score(&mut self, player: i32 in Saturating) {
         transition player == 0 {
             true -> double_p0()
             _ -> double_p1()
@@ -99,7 +99,7 @@ machine Main::apply(&mut self, event: Event) {
         self.scores[1] = self.scores[1] * 2;
     }
 
-    state reset_score(&mut self, player: i32) {
+    state reset_score(&mut self, player: i32 in Saturating) {
         transition player == 0 {
             true -> reset_p0()
             _ -> reset_p1()

@@ -25,16 +25,16 @@
 use omega::language::std::console;
 
 data Command {
-    case Tick(n: i32);
+    case Tick(n: i32 in Saturating);
     case Lap;
     case Split;
 }
 
 data Watch [copy, zero_init] {
-    elapsed: i32;
-    total: i32;
-    last_lap: i32;
-    last_split: i32;
+    elapsed: i32 in Saturating;
+    total: i32 in Saturating;
+    last_lap: i32 in Saturating;
+    last_split: i32 in Saturating;
 }
 
 data Main {
@@ -94,7 +94,7 @@ machine Main::send(&mut self, cmd: Command) {
         _ -> done()
     }
 
-    state do_tick(&mut self, n: i32) {
+    state do_tick(&mut self, n: i32 in Saturating) {
         self.watch.elapsed = self.watch.elapsed + n;
         self.watch.total = self.watch.total + n;
     }

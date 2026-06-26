@@ -9,7 +9,7 @@
 //   the call result embedded in a binary expression gets the wrong value.
 //
 //   Minimal trigger:
-//     let dv6: i32 = self.calc.double_val(6);   // = 12, correct alone
+//     let dv6: i32 in Saturating = self.calc.double_val(6);   // = 12, correct alone
 //     let r1:  i32 = self.base + self.calc.double_val(6) * 3;  // wrong
 //   where `self.base = 10`.
 //
@@ -37,17 +37,17 @@ data Calc {}
 
 data Main {
     console: Console;
-    base: i32;
+    base: i32 in Saturating;
     calc: Calc;
 }
 
-machine Calc::double_val(&mut self, n: i32) -> i32 {
+machine Calc::double_val(&mut self, n: i32 in Saturating) -> i32 in Saturating {
     transition {
         _ -> (n * 2)
     }
 }
 
-machine Calc::add5(&mut self, n: i32) -> i32 {
+machine Calc::add5(&mut self, n: i32 in Saturating) -> i32 in Saturating {
     transition {
         _ -> (n + 5)
     }
@@ -57,7 +57,7 @@ machine Main::main(&mut self) {
     self.base = 10;
 
     // Verify double_val standalone = 12 (passes).
-    let dv6: i32 = self.calc.double_val(6);
+    let dv6: i32 in Saturating = self.calc.double_val(6);
     transition dv6 == 12 {
         true -> check_r1()
         _ -> bad_dv6()
@@ -69,7 +69,7 @@ machine Main::main(&mut self) {
         // MISCOMPILE: inline value-call in arithmetic.
         // Expected: 10 + double(6)*3 = 10 + 36 = 46.
         // Actual: wrong (exit 72 fired in original version).
-        let r1: i32 = self.base + self.calc.double_val(6) * 3;
+        let r1: i32 in Saturating = self.base + self.calc.double_val(6) * 3;
         transition r1 == 46 {
             true -> check_r2(r1)
             _ -> bad_r1()
@@ -78,9 +78,9 @@ machine Main::main(&mut self) {
 
     state bad_r1(&mut self) { self.console.exit_process(72); }
 
-    state check_r2(&mut self, r1: i32) {
+    state check_r2(&mut self, r1: i32 in Saturating) {
         // r1 - add5(2) + 1 = 46 - 7 + 1 = 40.
-        let r2: i32 = r1 - self.calc.add5(2) + 1;
+        let r2: i32 in Saturating = r1 - self.calc.add5(2) + 1;
         transition r2 == 40 {
             true -> check_inner(r1, r2)
             _ -> bad_r2()
@@ -89,8 +89,8 @@ machine Main::main(&mut self) {
 
     state bad_r2(&mut self) { self.console.exit_process(73); }
 
-    state check_inner(&mut self, r1: i32, r2: i32) {
-        let inner: i32 = self.calc.add5(7);
+    state check_inner(&mut self, r1: i32 in Saturating, r2: i32 in Saturating) {
+        let inner: i32 in Saturating = self.calc.add5(7);
         transition inner == 12 {
             true -> check_r3(r1, r2, inner)
             _ -> bad_inner()
@@ -99,8 +99,8 @@ machine Main::main(&mut self) {
 
     state bad_inner(&mut self) { self.console.exit_process(74); }
 
-    state check_r3(&mut self, r1: i32, r2: i32, inner: i32) {
-        let r3: i32 = r2 + self.calc.double_val(inner);
+    state check_r3(&mut self, r1: i32 in Saturating, r2: i32 in Saturating, inner: i32 in Saturating) {
+        let r3: i32 in Saturating = r2 + self.calc.double_val(inner);
         transition r3 == 64 {
             true -> compute_final(r1, r2, r3)
             _ -> bad_r3()
@@ -109,8 +109,8 @@ machine Main::main(&mut self) {
 
     state bad_r3(&mut self) { self.console.exit_process(75); }
 
-    state compute_final(&mut self, r1: i32, r2: i32, r3: i32) {
-        let result: i32 = r3 + self.calc.add5(1);
+    state compute_final(&mut self, r1: i32 in Saturating, r2: i32 in Saturating, r3: i32 in Saturating) {
+        let result: i32 in Saturating = r3 + self.calc.add5(1);
         transition result == 70 {
             true -> good()
             _ -> bad_result()
