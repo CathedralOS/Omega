@@ -14,6 +14,7 @@ use omega_instruction_selection::{
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_frame_string_write_width,
+    runtime_machine_bounded_buffer_literal_append_width,
     runtime_machine_bounded_buffer_source_append_width, runtime_machine_bounded_buffer_write_width,
     runtime_machine_integer_write_width, runtime_machine_string_write_width,
     runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
@@ -642,6 +643,9 @@ fn machine_instruction_width(
         }
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. } => {
             runtime_machine_bounded_buffer_source_append_width(input.target.architecture)
+        }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { literal, .. } => {
+            runtime_machine_bounded_buffer_literal_append_width(input.target.architecture, literal)
         }
         SelectedInstructionKind::WriteRuntimeFrameString { byte_length, .. } => {
             runtime_frame_string_write_width(input.target.architecture, *byte_length)

@@ -53,6 +53,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::WriteRuntimeMachineString { .. }
             | Self::WriteRuntimeMachineBoundedBuffer { .. }
             | Self::AppendRuntimeMachineBoundedBufferSource { .. }
+            | Self::AppendRuntimeMachineBoundedBufferLiteral { .. }
             | Self::WriteRuntimeFrameString { .. }
             | Self::WriteRuntimePointeeString { .. }
             | Self::WriteRuntimeFrameIndexedString { .. }

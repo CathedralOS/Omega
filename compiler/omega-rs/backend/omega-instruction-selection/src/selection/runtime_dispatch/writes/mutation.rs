@@ -756,6 +756,21 @@ pub(super) fn select_runtime_state_call_result_write(
     );
 }
 
+/// Flatten a left-associative `+` string-concat tree into its segments in source
+/// order: `("== " + room.label) + " =="` -> `["== ", room.label, " =="]`. A
+/// non-`Add` expression is a single segment.
+fn flatten_string_concat_segments(value: &Expression) -> Vec<&Expression> {
+    if let Expression::Binary(binary) = value
+        && binary.operator == omega_checked_trees::expression::BinaryOperator::Add
+    {
+        let mut segments = flatten_string_concat_segments(&binary.left);
+        segments.push(&binary.right);
+        segments
+    } else {
+        vec![value]
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     input: &InstructionSelectionInput<'_>,
@@ -863,27 +878,21 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
-    // Owned `[u8; N]` carrier concat (`self.text = "prefix " + self.source`,
-    // the `runtime_text_builder` shape): the first literal initializes the target
-    // carrier (`WriteRuntimeMachineBoundedBuffer` sets len + bytes), then the
-    // source carrier's content is appended onto the target's inline bytes at the
-    // running offset (`AppendRuntimeMachineBoundedBufferSource`). Handles the
-    // 2-segment `literal + carrier-source` shape; both carriers machine-resident.
-    // The length-fits guard already proved the result fits the target's N.
+    // Owned `[u8; N]` carrier concat (`self.text = "== " + self.label + " =="`):
+    // walk the left-associative `+` tree into segments; the FIRST (a literal)
+    // initializes the target carrier (`WriteRuntimeMachineBoundedBuffer` sets len +
+    // bytes), and each later segment is appended onto the target's inline bytes at
+    // the running length -- a literal via `AppendRuntimeMachineBoundedBufferLiteral`,
+    // another machine-resident carrier via `AppendRuntimeMachineBoundedBufferSource`.
+    // The length-fits guard already proved the result fits the target's N. (Handles
+    // the 2-segment `runtime_text_builder` shape as the n=2 special case.)
     if let Expression::Binary(binary) = value
         && binary.operator == omega_checked_trees::expression::BinaryOperator::Add
-        && let Expression::String(prefix) = &binary.left
         && resolve_runtime_storage_place_is_bounded_byte_buffer(
             input,
             dispatch_index,
             target_source_key,
             resolved_target,
-        )
-        && resolve_runtime_storage_place_is_bounded_byte_buffer(
-            input,
-            dispatch_index,
-            target_source_key,
-            &binary.right,
         )
         && let Some(target_place) = resolve_runtime_storage_place(
             input,
@@ -894,33 +903,58 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             resolved_target,
         )
         && target_place.region == omega_abstract_operations::RuntimeStorageRegion::Machine
-        && let Some(source_place) = resolve_runtime_storage_place(
-            input,
-            dispatch_index,
-            target_source_key,
-            source_machine,
-            source_state,
-            &binary.right,
-        )
-        && source_place.region == omega_abstract_operations::RuntimeStorageRegion::Machine
     {
-        selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
+        let segments = flatten_string_concat_segments(value);
+        if let [Expression::String(prefix), rest @ ..] = segments.as_slice() {
+            let mut kinds: Vec<SelectedInstructionKind> = Vec::with_capacity(segments.len());
+            kinds.push(SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
                 byte_offset: target_place.byte_offset,
                 literal: std::sync::Arc::from(prefix.to_string()),
-            },
-            source_key: operation_source_key,
-            source_statement: statement_index,
-        });
-        selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
-                target_byte_offset: target_place.byte_offset,
-                source_byte_offset: source_place.byte_offset,
-            },
-            source_key: operation_source_key,
-            source_statement: statement_index,
-        });
-        return;
+            });
+            let mut all_segments_resolved = true;
+            for segment in rest {
+                if let Expression::String(literal) = segment {
+                    kinds.push(
+                        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
+                            target_byte_offset: target_place.byte_offset,
+                            literal: std::sync::Arc::from(literal.to_string()),
+                        },
+                    );
+                } else if resolve_runtime_storage_place_is_bounded_byte_buffer(
+                    input,
+                    dispatch_index,
+                    target_source_key,
+                    segment,
+                ) && let Some(source_place) = resolve_runtime_storage_place(
+                    input,
+                    dispatch_index,
+                    target_source_key,
+                    source_machine,
+                    source_state,
+                    segment,
+                ) && source_place.region
+                    == omega_abstract_operations::RuntimeStorageRegion::Machine
+                {
+                    kinds.push(SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+                        target_byte_offset: target_place.byte_offset,
+                        source_byte_offset: source_place.byte_offset,
+                    });
+                } else {
+                    all_segments_resolved = false;
+                    break;
+                }
+            }
+            if all_segments_resolved {
+                for kind in kinds {
+                    selected_instructions.push(SelectedInstruction {
+                        kind,
+                        source_key: operation_source_key,
+                        source_statement: statement_index,
+                    });
+                }
+                return;
+            }
+        }
     }
 
     if runtime_text_builder_write_with_scratch_emit(

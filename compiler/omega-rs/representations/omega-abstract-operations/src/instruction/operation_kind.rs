@@ -503,6 +503,15 @@ pub enum AbstractOperationKind {
         target_byte_offset: usize,
         source_byte_offset: usize,
     },
+    /// Append a string LITERAL onto an owned `[u8; N]` carrier at its running
+    /// length (a later concat segment, e.g. the trailing `" =="` of
+    /// `"== " + room.label + " =="`). The literal's bytes are written as immediates
+    /// at `target + pointer_size + len`, then `len += literal.len`. The length-fits
+    /// guard proves the result still fits the target's `N`.
+    AppendRuntimeMachineBoundedBufferLiteral {
+        target_byte_offset: usize,
+        literal: Arc<str>,
+    },
     WriteRuntimeFrameString {
         byte_offset: usize,
         data: AbstractDataObjectHandle,

@@ -401,6 +401,13 @@ pub enum TargetOperationKind {
         target_byte_offset: usize,
         source_byte_offset: usize,
     },
+    /// Append a string LITERAL onto an owned `[u8; N]` carrier at its running
+    /// length (a later concat segment such as the trailing `" =="`). See the
+    /// abstract-operations twin.
+    AppendRuntimeMachineBoundedBufferLiteral {
+        target_byte_offset: usize,
+        literal: std::sync::Arc<str>,
+    },
     WriteRuntimeFrameString {
         byte_offset: usize,
         data: TargetDataObjectHandle,

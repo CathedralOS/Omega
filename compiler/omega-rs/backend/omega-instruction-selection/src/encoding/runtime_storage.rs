@@ -486,6 +486,22 @@ pub fn encode_runtime_machine_bounded_buffer_source_append(
     }
 }
 
+pub fn encode_runtime_machine_bounded_buffer_literal_append(
+    architecture: Architecture,
+    target_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 encoder does not yet support the owned `[u8; N]` bounded byte carrier append"
+                .to_string(),
+        )),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_machine_bounded_buffer_literal_append(target_byte_offset, literal)
+        }
+    }
+}
+
 pub fn encode_runtime_frame_string_write(
     architecture: Architecture,
     byte_offset: usize,

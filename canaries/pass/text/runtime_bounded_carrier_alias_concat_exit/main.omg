@@ -1,0 +1,53 @@
+// #66 owned `[u8; N] in Utf8` carrier multi-segment concat into a `&mut` OUT-PARAM
+// (the dungeon render-line shape): `out_line = "== " + self.label + " =="` writes
+// across a machine boundary into a borrowed carrier. The first literal initializes
+// the target carrier (len + bytes), the source carrier `self.label` is appended at
+// the running length, then the trailing literal is appended -- three segments, no
+// `String`, no `{ptr, len}` descriptor. `self.line = ""` establishes the
+// out-param's `in Utf8` domain before the call. `self.line == "== Gate =="` matches
+// (length 10, every byte) -> exit 70.
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 16]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Formatter {
+    label: [u8; 8] in Utf8;
+}
+
+machine Formatter::render(&mut self, out_line: &mut [u8; 16] in Utf8) {
+    out_line = "== " + self.label + " ==";
+}
+
+data Main {
+    console: Console;
+    formatter: Formatter;
+    line: [u8; 16] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.formatter.label = "Gate";
+    self.line = "";
+    self.formatter.render(&mut self.line);
+
+    transition self.line == "== Gate ==" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

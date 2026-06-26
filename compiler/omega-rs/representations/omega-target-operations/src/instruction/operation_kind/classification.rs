@@ -54,6 +54,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::WriteRuntimeMachineString { .. }
             | Self::WriteRuntimeMachineBoundedBuffer { .. }
             | Self::AppendRuntimeMachineBoundedBufferSource { .. }
+            | Self::AppendRuntimeMachineBoundedBufferLiteral { .. }
             | Self::WriteRuntimeFrameString { .. }
             | Self::WriteRuntimePointeeString { .. }
             | Self::WriteRuntimeFrameIndexedString { .. }

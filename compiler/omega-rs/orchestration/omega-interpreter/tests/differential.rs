@@ -388,6 +388,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("storage/runtime_machine_owned_indexed_struct_copy_exit", 85),
     ("storage/runtime_slice_alias_indexed_field_write_exit", 201),
     ("termination/runtime_shrinking_slice_recursion_exit", 70),
+    ("text/runtime_bounded_carrier_alias_concat_exit", 70),
     ("text/runtime_bounded_carrier_concat_exit", 70),
     ("text/runtime_bounded_carrier_write_line_exit", 70),
     ("text/runtime_bounded_carrier_write_read_exit", 70),
@@ -514,6 +515,10 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
         "text/runtime_stdin_line_buffering_exit",
         "suite feeds stdin (b\"hello\\nworld\\n\", plus a CRLF variant test reusing this canary); differential harness runs with empty stdin, so the recorded exit code 0 does not apply",
+    ),
+    (
+        "text/runtime_text_storage",
+        "suite feeds stdin (b\"echo me\\n\") and checks the echoed prompt; differential harness runs with empty stdin, so the recorded exit code 0 does not apply",
     ),
     (
         "dungeon/runtime_threaded_mut_arg_interrupt_soak_exit",
