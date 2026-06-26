@@ -111,6 +111,15 @@ csrc "arr 4 5  get 2 3  arr 2 6  get 1 4  div 3"
 # the frontend's context binding must match hand-resolved obligations, byte for byte
 if [ "$(printf 'arr 4 5  get 2 3  div 7  get 1 0' | "$T/csrc")" = "$(printf 'b 2 5 3 4  d 7  b 1 5 0 4' | "$T/csaf")" ]; then
   PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL source-vs-safety cross-check"; fi
+# the frontend's OWN safety analysis: UNSAFE source is rejected (exit 1), not garbled
+csrc_reject() {
+  printf '%s' "$1" | "$T/csrc" >/dev/null 2>&1
+  if [ $? -eq 1 ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL unsafe-not-rejected [$1]"; fi
+}
+csrc_reject "arr 4 5  get 3 7"        # 3*5+7=22 >= 20  (out of bounds)
+csrc_reject "arr 4 5  get 2 3  div 0" # division by zero
+csrc_reject "arr 5 5  get 5 0"        # 25 >= 25  (boundary, out of bounds)
 
 # CORRUPTED certificates must be rejected (delta checks the computation, not us):
 # (a) claim 2+3 = 4; (b) reuse 2<5's witness to claim 2<4. Both must reject.
