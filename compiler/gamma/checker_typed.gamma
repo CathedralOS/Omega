@@ -18,7 +18,8 @@
            (Gen Term) (Inst Term Nat) (Wit Type Nat Term) (Unpack Term Term)
            (Natind Type Term Term) (Eqelim Type Term Term) (Disj Term) (Sinj Term)
            (Listind Type Term Term) (Rec Spec Spec Type Term Term)
-           (MemHead Nat Nat) (MemTail Nat Term) (MemCons Term) (MemNil Term))
+           (MemHead Nat Nat) (MemTail Nat Term) (MemCons Term) (MemNil Term)
+           (Pnil) (Pcons Nat Term))
 (data Ctx (Nil) (Cons Type Ctx))
 
 (def nth ((ctx Ctx) (n Int)) Type
@@ -249,6 +250,10 @@
                                     (match l ((Lcons h t) (Or (Eq x h) (Rel 777 x t))) (z Bad)) Bad)) (z Bad)))
     ((MemNil pf) (match (infer pf ctx)
                    ((Rel id x l) (if (eq id 777) (match l (Lnil Bot) (z Bad)) Bad)) (z Bad)))
+    ; product-of-a-list as a relation: ProdIs(L,n) = (Rel 778 L n); two intros, no inversion
+    ((Pnil) (Rel 778 Lnil (Su Ze)))
+    ((Pcons h pf) (match (infer pf ctx)
+                    ((Rel id t m) (if (eq id 778) (Rel 778 (Lcons h t) (Mu h m)) Bad)) (z Bad)))
     (z Bad)))
 
 (def check ((tm Term) (goal Type)) Int (teq (infer tm Nil) goal))

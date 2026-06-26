@@ -134,5 +134,8 @@ dia "mem tail"       "(Rel 777 (s (s z)) (cons (s z) (cons (s (s z)) nil))) (mem
 dia "mem nil absurd" "(-> (Rel 777 (s z) nil) (bot)) (lam (Rel 777 (s z) nil) (memnil (hyp 0)))" "(check (Lam (Rel 777 (Su Ze) Lnil) (MemNil (Hyp 0))) (Arrow (Rel 777 (Su Ze) Lnil) Bot))" accept
 dia "mem cons inv"   "(-> (Rel 777 (s z) (cons (s z) nil)) (+ (= (s z) (s z)) (Rel 777 (s z) nil))) (lam (Rel 777 (s z) (cons (s z) nil)) (memcons (hyp 0)))" "(check (Lam (Rel 777 (Su Ze) (Lcons (Su Ze) Lnil)) (MemCons (Hyp 0))) (Arrow (Rel 777 (Su Ze) (Lcons (Su Ze) Lnil)) (Or (Eq (Su Ze) (Su Ze)) (Rel 777 (Su Ze) Lnil))))" accept
 dia "mem false"      "(Rel 777 (s (s z)) nil) (memhead (s (s z)) nil)" "(check (MemHead (Su (Su Ze)) Lnil) (Rel 777 (Su (Su Ze)) Lnil))" reject
+dia "prodis nil"     "(Rel 778 nil (s z)) (pnil)" "(check (Pnil) (Rel 778 Lnil (Su Ze)))" accept
+dia "prodis cons"    "(Rel 778 (cons (s (s z)) nil) (m (s (s z)) (s z))) (pcons (s (s z)) (pnil))" "(check (Pcons (Su (Su Ze)) (Pnil)) (Rel 778 (Lcons (Su (Su Ze)) Lnil) (Mu (Su (Su Ze)) (Su Ze))))" accept
+dia "prodis false"   "(Rel 778 nil (s (s z))) (pnil)" "(check (Pnil) (Rel 778 Lnil (Su (Su Ze))))" reject
 echo "checker diamond (check.beta vs checker.gamma): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1

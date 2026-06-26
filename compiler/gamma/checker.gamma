@@ -370,6 +370,11 @@
     ((MemNil pf) (match (infer pf ctx)
                    ((Rel id x l) (if (eq id 777) (match l (Lnil Bot) (z Bad)) Bad))
                    (z Bad)))                                    ; Mem(x, nil) |- falsity
+    ; ---- product-of-a-list as a relation: ProdIs(L,n) = (Rel 778 L n); two intros, no inversion
+    ((Pnil) (Rel 778 Lnil (Su Ze)))                            ; ProdIs(nil, 1)
+    ((Pcons h pf) (match (infer pf ctx)
+                    ((Rel id t m) (if (eq id 778) (Rel 778 (Lcons h t) (Mu h m)) Bad))
+                    (z Bad)))                                   ; ProdIs(t,m) |- ProdIs(cons h t, h*m)
     (z Bad)))
 
 (def check (tm goal) (teq (infer tm Nil) goal))

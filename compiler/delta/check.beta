@@ -762,7 +762,11 @@ proc parse_term() {
     state is_a { to do_absurd when (kc2 == 'b')  to do_app }
     state do_absurd { x = parse_type()  y = parse_term()  expect(')')  return alloc(16, x, y) }
     state do_app { x = parse_term()  y = parse_term()  expect(')')  return alloc(12, x, y) }
-    state k_p { to do_pair when (kc == 'p')  to k_f }
+    state k_p { to is_p when (kc == 'p')  to k_f }
+    state is_p { to do_pnil when (kc2 == 'n')  to is_pc }       ; pnil  : product-of-nil intro
+    state do_pnil { expect(')')  return alloc(46, 0, 0) }
+    state is_pc { to do_pcons when (kc2 == 'c')  to do_pair }   ; pcons : product-of-cons intro
+    state do_pcons { x = parse_nat()  y = parse_term()  expect(')')  return alloc(47, x, y) }
     state do_pair { x = parse_term()  y = parse_term()  expect(')')  return alloc(13, x, y) }
     state k_f { to do_fst when (kc == 'f')  to k_i }
     state do_fst { x = parse_term()  expect(')')  return alloc(14, x, 0) }
@@ -1242,7 +1246,7 @@ proc infer(term) {
         to reject when (word[t2] != 36)                  ; must be CONS(h,t)
         return alloc(4, alloc(5, word[word[t1 + 16] + 8], word[t2 + 8]), alloc(9, 777, alloc(99, word[word[t1 + 16] + 8], word[t2 + 16])))
     }
-    state d45 { to memnil when (tag == 45)  return 0 }
+    state d45 { to memnil when (tag == 45)  to d46 }
     state memnil {               ; MEMNIL pf : from Mem(x, nil) infer falsity
         t1 = infer(word[term + 8])
         to reject when (t1 == 0)
@@ -1253,6 +1257,24 @@ proc infer(term) {
         to reject when (word[t1 + 8] != 777)
         to reject when (word[word[word[t1 + 16] + 16]] != 35)   ; list argument must be NIL
         return alloc(3, 0, 0)
+    }
+    ; ---- product-of-a-list as a relation: ProdIs(L,n) is Rel(778, L, n). The relational
+    ; fold of multiplication over built-in lists (built-in lists admit no `fun`, so the
+    ; product is expressed inductively). Two introduction rules, no inversion needed.
+    state d46 { to pnil when (tag == 46)  to d47 }
+    state pnil {                 ; PNIL : ProdIs(nil, 1)
+        return alloc(9, 778, alloc(99, alloc(35, 0, 0), alloc(31, alloc(30, 0, 0), 0)))
+    }
+    state d47 { to pcons when (tag == 47)  return 0 }
+    state pcons {                ; PCONS h pf : from ProdIs(t,m) infer ProdIs(cons h t, h*m)
+        t1 = infer(word[term + 16])                      ; pf : ProdIs(t,m) = Rel(778, t, m)
+        to reject when (t1 == 0)
+        to pcons1
+    }
+    state pcons1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 778)
+        return alloc(9, 778, alloc(99, alloc(36, word[term + 8], word[word[t1 + 16] + 8]), alloc(33, word[term + 8], word[word[t1 + 16] + 16])))
     }
 }
 

@@ -428,6 +428,10 @@ chk "mem nil inversion (Mem(x,nil) -> bot)" "(-> (Rel 777 (s z) nil) (bot)) (lam
 chk "mem vacuous-over-nil (forall x. Mem(x,nil) -> P x)" "(All (-> (Rel 777 (v 0) nil) (Pred 80 (v 0)))) (gen (lam (Rel 777 (v 0) nil) (absurd (Pred 80 (v 0)) (memnil (hyp 0)))))" accept
 chk "mem false fact rejected (memhead cannot make nil)" "(Rel 777 (s (s z)) nil) (memhead (s (s z)) nil)" reject
 chk "mem tail cannot fabricate nil membership" "(Rel 777 (s z) nil) (memtail (s z) (memhead (s z) nil))" reject
+chk "prodis nil intro (ProdIs([],1))" "(Rel 778 nil (s z)) (pnil)" accept
+chk "prodis cons intro (ProdIs([2],2*1))" "(Rel 778 (cons (s (s z)) nil) (m (s (s z)) (s z))) (pcons (s (s z)) (pnil))" accept
+chk "prodis [3,2] product 6" "(Rel 778 (cons (s (s (s z))) (cons (s (s z)) nil)) (m (s (s (s z))) (m (s (s z)) (s z)))) (pcons (s (s (s z))) (pcons (s (s z)) (pnil)))" accept
+chk "prodis wrong product rejected" "(Rel 778 nil (s (s z))) (pnil)" reject
 # eq.beta — definitional equality by fuel-bounded normalization (proof by computation)
 buildbc eq.beta "$T/eq.exe"
 eqk() { # description  "t1 t2"  expect

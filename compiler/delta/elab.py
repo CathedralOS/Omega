@@ -139,6 +139,12 @@ def epf(n, iv, hy):  # elaborate a proof term
     if h == 'natind': return "(natind %s %s %s)" % (ep(n[2], iv + [n[1]]), epf(n[3], iv, hy), epf(n[4], iv, hy))
     if h == 'listind':return "(listind %s %s %s)" % (ep(n[2], iv + [n[1]]), epf(n[3], iv, hy), epf(n[4], iv, hy))
     if h == 'rec':    return "(rec %s %s %s %s %s)" % (n[1], n[2], ep(n[4], iv + [n[3]]), epf(n[5], iv, hy), epf(n[6], iv, hy))
+    if h == 'memhead':return "(memhead %s %s)" % (et(n[1], iv), et(n[2], iv))      # Mem(x, cons x t)
+    if h == 'memtail':return "(memtail %s %s)" % (et(n[1], iv), epf(n[2], iv, hy)) # Mem(x,t) -> Mem(x, cons h t)
+    if h == 'memcons':return "(memcons %s)" % epf(n[1], iv, hy)                    # invert on cons
+    if h == 'memnil': return "(memnil %s)" % epf(n[1], iv, hy)                     # invert on nil
+    if h == 'pnil':   return "(pnil)"                                              # ProdIs(nil, 1)
+    if h == 'pcons':  return "(pcons %s %s)" % (et(n[1], iv), epf(n[2], iv, hy))   # ProdIs(t,m)->ProdIs(cons h t, h*m)
     raise SystemExit("elab error: bad proof %r" % (n[0],))
 
 def elaborate(src):
