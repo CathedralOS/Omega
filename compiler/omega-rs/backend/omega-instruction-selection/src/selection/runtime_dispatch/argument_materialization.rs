@@ -1197,36 +1197,51 @@ fn resolve_prior_local_initializers_in_table(
             // `self.s.count = self.s.count + 1`), the fold reads the
             // post-mutation value instead of the captured pre-mutation value.
             //
-            // Block the fold when BOTH conditions hold:
-            // 1. The local has a `LocalStorage` frame slot (slot was materialized).
-            // 2. The initializer is a pure place expression (Name/Member/Indexed
-            //    chain, no arithmetic). For pure place reads, the slot is written
-            //    with the live value from the field at declaration time, so the slot
-            //    always holds the correct captured value. For binary/complex
-            //    initializers (e.g. `self.base * 10`) the frame-slot write may use
-            //    a stale static value for field operands, so in that case we let the
-            //    fold proceed: it re-evaluates the expression at transition time with
-            //    the current machine-field values.
-            if local_initializer_is_pure_place(initial_value, &input.program.expression_table) {
-                if let Some((local_symbol, local_name)) =
+            // Block the fold (keep the local as a place so its captured slot is
+            // COPIED) when the local has a `LocalStorage` slot AND either:
+            // 1. The initializer is a PURE PLACE read (`let slot = self.s.count`):
+            //    the slot holds the live field value captured at declaration, and
+            //    re-folding would re-read the field -- wrong if it was mutated since.
+            // 2. The initializer READS A FIELD that is REASSIGNED after this local's
+            //    declaration (`let new_sp = self.vm.sp + 1; self.vm.sp = new_sp; ...
+            //    try_push1(new_sp)`): re-folding re-evaluates `self.vm.sp + 1` AFTER
+            //    `self.vm.sp` was overwritten, so a deeper substate's guard reads a
+            //    doubly-incremented value and branches wrong (the stack_vm push
+            //    miscompile, task #17). The slot captured the pre-mutation value.
+            // A binary initializer whose fields are NOT reassigned after the
+            // declaration still FOLDS: its frame-slot write may use a stale static
+            // value for field operands, so re-evaluating at transition time with the
+            // current (unchanged) field values is the reliable path.
+            let block_fold = local_initializer_is_pure_place(
+                initial_value,
+                &input.program.expression_table,
+            ) || initializer_reads_field_reassigned_after_decl(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                expression,
+                initial_value,
+            );
+            if block_fold
+                && let Some((local_symbol, local_name)) =
                     local_root_identity(expressions, expression)
-                {
-                    let has_local_storage_slot = input.runtime_storage.frame_slots.iter().any(
-                        |(_, slot)| {
-                            state_key_matches_statement_source(slot.source_key, source_key)
-                                && matches!(
-                                    slot.kind,
-                                    omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
-                                )
-                                && ((slot.symbol.is_valid()
-                                    && local_symbol.is_valid()
-                                    && slot.symbol == local_symbol)
-                                    || slot.name == local_name)
-                        },
-                    );
-                    if has_local_storage_slot {
-                        return expression;
-                    }
+            {
+                let has_local_storage_slot = input.runtime_storage.frame_slots.iter().any(
+                    |(_, slot)| {
+                        state_key_matches_statement_source(slot.source_key, source_key)
+                            && matches!(
+                                slot.kind,
+                                omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                            )
+                            && ((slot.symbol.is_valid()
+                                && local_symbol.is_valid()
+                                && slot.symbol == local_symbol)
+                                || slot.name == local_name)
+                    },
+                );
+                if has_local_storage_slot {
+                    return expression;
                 }
             }
             let copied = expressions.copy_from(&input.program.expression_table, initial_value);
@@ -1391,6 +1406,115 @@ fn local_root_identity(
         ExpressionNode::Mutable(inner) => local_root_identity(expressions, *inner),
         _ => None,
     }
+}
+
+/// The symbol chain of a place expression (`self.vm.sp` -> [self, vm, sp]), used
+/// to compare a field READ in a local's initializer against an assignment TARGET.
+fn place_symbol_signature(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<Vec<omega_core::symbols::SymbolHandle>> {
+    match expressions.expression(expression) {
+        ExpressionNode::Name(path) => Some(vec![path.head_symbol]),
+        ExpressionNode::Member(member) => {
+            let mut signature = place_symbol_signature(expressions, member.receiver)?;
+            signature.push(member.member_symbol);
+            Some(signature)
+        }
+        ExpressionNode::Indexed(indexed) => place_symbol_signature(expressions, indexed.collection),
+        ExpressionNode::Mutable(inner) => place_symbol_signature(expressions, *inner),
+        _ => None,
+    }
+}
+
+/// Collect the place-read signatures within an initializer expression (e.g. the
+/// `self.vm.sp` operand of `self.vm.sp + 1`).
+fn collect_read_place_signatures(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    out: &mut Vec<Vec<omega_core::symbols::SymbolHandle>>,
+) {
+    if let Some(signature) = place_symbol_signature(expressions, expression) {
+        out.push(signature);
+        return;
+    }
+    match expressions.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            collect_read_place_signatures(expressions, binary.left, out);
+            collect_read_place_signatures(expressions, binary.right, out);
+        }
+        ExpressionNode::Cast(cast) => collect_read_place_signatures(expressions, cast.value, out),
+        ExpressionNode::Unary(unary) => {
+            collect_read_place_signatures(expressions, unary.operand, out)
+        }
+        ExpressionNode::Mutable(inner) => collect_read_place_signatures(expressions, *inner, out),
+        _ => {}
+    }
+}
+
+/// True when the local's initializer reads a field that is REASSIGNED in a
+/// statement AFTER the local's declaration and before the current (transition)
+/// statement. Then re-folding the initializer at the transition reads the
+/// post-mutation field, while the local's captured slot holds the correct
+/// pre-mutation value -- so the caller must keep the place and copy the slot.
+fn initializer_reads_field_reassigned_after_decl(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    initial_value: ExpressionHandle,
+) -> bool {
+    let Some((local_symbol, local_name)) = local_root_identity(expressions, expression) else {
+        return false;
+    };
+    let Some(machine) = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == source_key.machine)
+    else {
+        return false;
+    };
+    let Some(state) = input
+        .program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == source_key.state)
+    else {
+        return false;
+    };
+    let statements = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes);
+    let upper = statement_index.min(statements.len());
+    let Some(decl_index) = statements[..upper].iter().position(|statement| {
+        matches!(statement,
+            StatementNode::LocalData(local_data)
+                if (local_symbol.is_valid() && local_data.symbol == local_symbol)
+                    || local_data.name == local_name)
+    }) else {
+        return false;
+    };
+
+    let mut read_signatures: Vec<Vec<omega_core::symbols::SymbolHandle>> = Vec::new();
+    collect_read_place_signatures(
+        &input.program.expression_table,
+        initial_value,
+        &mut read_signatures,
+    );
+    if read_signatures.is_empty() {
+        return false;
+    }
+
+    statements[decl_index + 1..upper].iter().any(|statement| {
+        let StatementNode::Assignment(assignment) = statement else {
+            return false;
+        };
+        place_symbol_signature(&input.program.expression_table, assignment.target)
+            .is_some_and(|target| read_signatures.iter().any(|read| *read == target))
+    })
 }
 
 /// True when `initial_value` is a "pure place" expression -- a Name, Member

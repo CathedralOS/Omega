@@ -74,6 +74,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/value_call_embedded_in_binary_exit", 70),
     ("control_flow/no_payload_case_variant_after_payload_dispatch_exit", 70),
     ("control_flow/case_payload_shared_field_name_exit", 70),
+    ("control_flow/runtime_captured_local_remutated_field_exit", 70),
     ("calls/runtime_called_machine_loop_search_exit", 70),
     ("calls/runtime_dispatch_binary_call_argument_exit", 70),
     ("calls/runtime_exit_code_exit", 70),
