@@ -162,6 +162,7 @@ tokens_test "decls keyword vs prefix (database != data)" samples/decls.alp "data
 filter_test "certify-add emits a delta cert" samples/certify-add.alp "2 3" "(= (p (s (s z)) (s (s (s z)))) (s (s (s (s (s z)))))) (refl (s (s (s (s (s z))))))"
 filter_test "certify-lt emits an existential-witness cert" samples/certify-lt.alp "2 5" "(Exists (= (p (s (s z)) (s (v 0))) (s (s (s (s (s z))))))) (wit (= (p (s (s z)) (s (v 0))) (s (s (s (s (s z)))))) (s (s z)) (refl (s (s (s (s (s z)))))))"
 filter_test "certify-bounds emits a 2D array-bounds VC" samples/certify-bounds.alp "2 5 3 4" "(Exists (= (p (p (m (s (s z)) (s (s (s (s (s z)))))) (s (s (s z)))) (s (v 0))) (m (s (s (s (s z)))) (s (s (s (s (s z)))))))) (wit (= (p (p (m (s (s z)) (s (s (s (s (s z)))))) (s (s (s z)))) (s (v 0))) (m (s (s (s (s z)))) (s (s (s (s (s z))))))) (s (s (s (s (s (s z)))))) (refl (m (s (s (s (s z)))) (s (s (s (s (s z))))))))"
+filter_test "certify-divides emits a divisibility cert" samples/certify-divides.alp "3 12" "(Exists (= (m (v 0) (s (s (s z)))) (s (s (s (s (s (s (s (s (s (s (s (s z)))))))))))))) (wit (= (m (v 0) (s (s (s z)))) (s (s (s (s (s (s (s (s (s (s (s (s z))))))))))))) (s (s (s (s z)))) (refl (s (s (s (s (s (s (s (s (s (s (s (s z))))))))))))))"
 # The emitted code is overflow-SAFE: a compiled overflowing expr traps at runtime.
 compiler_trap "exprc emits overflow trap" samples/exprc.alp "46341*46341"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
