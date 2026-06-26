@@ -37,6 +37,9 @@ pub(super) fn selected_string_write_kind(
             *field_byte_offset,
             *byte_length,
         )),
+        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. } => {
+            Some(MachineInstructionKind::RuntimePointeeBoundedBufferWrite)
+        }
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             descriptor_offset,
             index_offset,

@@ -539,6 +539,20 @@ pub(super) fn encode_runtime_pointee_string_write(
     )
 }
 
+pub(super) fn encode_runtime_pointee_bounded_buffer_write(
+    input: MachineEmissionContext<'_>,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_pointee_bounded_buffer_write(
+        input.target.architecture,
+        pointer_byte_offset,
+        field_byte_offset,
+        literal,
+    )
+}
+
 pub(super) fn encode_runtime_frame_indexed_string_write(
     input: MachineEmissionContext<'_>,
     descriptor_offset: usize,

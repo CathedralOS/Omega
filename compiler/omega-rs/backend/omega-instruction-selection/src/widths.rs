@@ -940,6 +940,17 @@ pub fn runtime_pointee_string_write_width(
     }
 }
 
+pub fn runtime_pointee_bounded_buffer_write_width(
+    architecture: Architecture,
+    literal: &str,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 | Architecture::X86_64 => {
+            x86_64::runtime_pointee_bounded_buffer_write_width(literal)
+        }
+    }
+}
+
 pub fn runtime_frame_indexed_string_write_width(
     architecture: Architecture,
     element_byte_size: usize,

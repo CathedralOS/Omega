@@ -419,6 +419,13 @@ pub enum TargetOperationKind {
         data: TargetDataObjectHandle,
         byte_length: usize,
     },
+    /// Write a string LITERAL into an owned `[u8; N]` carrier reached THROUGH a
+    /// stored pointer (a slice element's carrier field). See the abstract twin.
+    WriteRuntimePointeeBoundedBuffer {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        literal: std::sync::Arc<str>,
+    },
     WriteRuntimeFrameIndexedString {
         descriptor_offset: usize,
         index_offset: usize,

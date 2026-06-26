@@ -127,6 +127,7 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameString { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeString { .. }
+                        | SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineIndexedString { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
@@ -326,6 +327,7 @@ fn runtime_text_write_has_selected_instruction(
                         | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameString { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeString { .. }
+                        | SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }
                         | SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }

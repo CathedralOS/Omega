@@ -709,6 +709,15 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 data: remap_data_handle(*data),
                 byte_length: *byte_length,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteRuntimePointeeBoundedBuffer {
+                pointer_byte_offset,
+                field_byte_offset,
+                literal,
+            } => Self::WriteRuntimePointeeBoundedBuffer {
+                pointer_byte_offset: *pointer_byte_offset,
+                field_byte_offset: *field_byte_offset,
+                literal: literal.clone(),
+            },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameIndexedString {
                 descriptor_offset,
                 index_offset,

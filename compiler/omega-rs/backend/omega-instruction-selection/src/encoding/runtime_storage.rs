@@ -535,6 +535,25 @@ pub fn encode_runtime_pointee_string_write(
     }
 }
 
+pub fn encode_runtime_pointee_bounded_buffer_write(
+    architecture: Architecture,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 encoder does not yet support the owned `[u8; N]` bounded byte carrier pointee write"
+                .to_string(),
+        )),
+        Architecture::X86_64 => x86_64::encode_runtime_pointee_bounded_buffer_write(
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        ),
+    }
+}
+
 pub fn encode_runtime_frame_indexed_string_write(
     architecture: Architecture,
     descriptor_offset: usize,

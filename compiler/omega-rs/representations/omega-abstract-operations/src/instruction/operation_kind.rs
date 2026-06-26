@@ -523,6 +523,16 @@ pub enum AbstractOperationKind {
         data: AbstractDataObjectHandle,
         byte_length: usize,
     },
+    /// Write a string LITERAL into an owned `[u8; N]` carrier reached THROUGH a
+    /// stored pointer (`rooms[0].label = "Gate"`, a slice element's carrier field):
+    /// load the pointer from `frame[pointer_byte_offset]`, then store `len` + the
+    /// literal bytes inline at `*ptr + field_byte_offset`. No `{ptr, len}`
+    /// descriptor; the bytes are immediates.
+    WriteRuntimePointeeBoundedBuffer {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        literal: Arc<str>,
+    },
     WriteRuntimeFrameIndexedString {
         descriptor_offset: usize,
         index_offset: usize,
