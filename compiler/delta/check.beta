@@ -40,7 +40,7 @@
 ; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
 ;
 ; Memory:  2097152 SRC   2097144 CUR   2097136 LEN   2097128 APTR (arena bump)
-;          2097120 CTXN (context depth)   3145728 ARENA   4194304 CTX (type stack)
+;          2097120 CTXN (context depth)   4194304 CTX (type stack)   8388608 ARENA (bump)
 ; Nodes are 3 words [tag, f0, f1] at 24-byte stride. 0 is the reject/none sentinel.
 ;
 ; Tags:  type  0 ATOM(char) 1 ARROW(l,r) 2 AND(l,r) 3 FALSE 4 OR(l,r) 5 EQ(t1,t2)
@@ -72,7 +72,7 @@ proc slurp() {
     state done {
         word[2097136] = n            ; LEN
         word[2097144] = 0            ; CUR
-        word[2097128] = 3145728      ; APTR = ARENA base
+        word[2097128] = 8388608      ; APTR = ARENA base (8 MiB; grows up through the 64 MiB image)
         word[2097120] = 0            ; CTXN
         word[2097112] = 0            ; IDEP — individual-binder depth (∀/∃ binders entered)
     }
