@@ -8,7 +8,10 @@
 // The epilogue pops the result into w0 and ret's, so the exit code is the result.
 // Pipe its output through clang to get a runnable native program:
 //   printf '2+3*4' | exprc | clang -arch arm64 -x assembler - -o p && ./p; echo $?  -> 14
-// This is epsilon GENERATING NATIVE CODE — the core of a self-hosting compiler.
+// The emitted code is OVERFLOW-SAFE: +/- use adds/subs+b.vs, * checks smull vs its
+// sign-extended low word, / guards the divisor with cbz — all branch to Ltrap: brk,
+// the same trap-everything codegen the real aarch64 backend emits. So epsilon emits
+// SAFE native code. This is the core of a self-hosting compiler.
 boundary trait Console {
     machine exit_process(return_code: i32);
     machine write_line(text: &[u8] in Utf8);
@@ -49,7 +52,10 @@ machine Main::term(&mut self) {
         self.pos = self.pos + 1; self.factor();
         self.console.write_line("ldr x1, [sp], #16");
         self.console.write_line("ldr x0, [sp], #16");
-        self.console.write_line("mul w0, w0, w1");
+        self.console.write_line("smull x0, w0, w1");
+        self.console.write_line("sxtw x2, w0");
+        self.console.write_line("cmp x0, x2");
+        self.console.write_line("b.ne Ltrap");
         self.console.write_line("str x0, [sp, #-16]!");
         transition 0 { _ -> tloop() }
     }
@@ -57,6 +63,7 @@ machine Main::term(&mut self) {
         self.pos = self.pos + 1; self.factor();
         self.console.write_line("ldr x1, [sp], #16");
         self.console.write_line("ldr x0, [sp], #16");
+        self.console.write_line("cbz w1, Ltrap");
         self.console.write_line("sdiv w0, w0, w1");
         self.console.write_line("str x0, [sp, #-16]!");
         transition 0 { _ -> tloop() }
@@ -73,7 +80,8 @@ machine Main::expr(&mut self) {
         self.pos = self.pos + 1; self.term();
         self.console.write_line("ldr x1, [sp], #16");
         self.console.write_line("ldr x0, [sp], #16");
-        self.console.write_line("add w0, w0, w1");
+        self.console.write_line("adds w0, w0, w1");
+        self.console.write_line("b.vs Ltrap");
         self.console.write_line("str x0, [sp, #-16]!");
         transition 0 { _ -> eloop() }
     }
@@ -81,7 +89,8 @@ machine Main::expr(&mut self) {
         self.pos = self.pos + 1; self.term();
         self.console.write_line("ldr x1, [sp], #16");
         self.console.write_line("ldr x0, [sp], #16");
-        self.console.write_line("sub w0, w0, w1");
+        self.console.write_line("subs w0, w0, w1");
+        self.console.write_line("b.vs Ltrap");
         self.console.write_line("str x0, [sp, #-16]!");
         transition 0 { _ -> eloop() }
     }
@@ -103,6 +112,8 @@ machine Main::main(&mut self) {
     state epi() {
         self.console.write_line("ldr x0, [sp], #16");
         self.console.write_line("ret");
+        self.console.write_line("Ltrap:");
+        self.console.write_line("brk #0x1");
         self.console.exit_process(0)
     }
 }
