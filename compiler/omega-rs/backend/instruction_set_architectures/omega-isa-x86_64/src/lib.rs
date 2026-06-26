@@ -609,11 +609,21 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
             append_mov_syscall_arg_from_rax(&mut bytes, index)?;
         } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
             append_mov_r15_imm64(&mut bytes, 0);
-            append_load_rax_from_r15(&mut bytes, byte_offset)?; // rax = descriptor.pointer
+            if operand.runtime_string_is_bounded_buffer() {
+                // Owned carrier: content pointer = base + byte_offset + pointer_size.
+                bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15 + disp32]
+                bytes.extend(disp32(byte_offset + 8)?.to_le_bytes());
+            } else {
+                append_load_rax_from_r15(&mut bytes, byte_offset)?; // rax = descriptor.pointer
+            }
             append_mov_syscall_arg_from_rax(&mut bytes, index)?;
         } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
             append_mov_r15_imm64(&mut bytes, 0);
-            append_load_rax_from_r15(&mut bytes, byte_offset + 8)?; // rax = descriptor.length
+            if operand.runtime_string_is_bounded_buffer() {
+                append_load_rax_from_r15(&mut bytes, byte_offset)?; // carrier len @ offset 0
+            } else {
+                append_load_rax_from_r15(&mut bytes, byte_offset + 8)?; // rax = descriptor.length
+            }
             append_mov_syscall_arg_from_rax(&mut bytes, index)?;
         } else if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
             append_mov_r15_imm64(&mut bytes, 0); // relocated region base
@@ -768,7 +778,15 @@ fn append_file_pointer_operand<T: InstructionOperandLike>(
         Ok(())
     } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
         append_mov_r10_imm64(bytes, 0);
-        append_load_rdx_from_r10(bytes, byte_offset)?;
+        if operand.runtime_string_is_bounded_buffer() {
+            // Owned carrier: the content pointer is the COMPUTED inline-bytes
+            // address `base + byte_offset + pointer_size` (lea), not a stored
+            // descriptor pointer. Same width as the descriptor-pointer load.
+            bytes.extend([0x49, 0x8d, 0x92]); // lea rdx, [r10 + disp32]
+            bytes.extend(disp32(byte_offset + 8)?.to_le_bytes());
+        } else {
+            append_load_rdx_from_r10(bytes, byte_offset)?;
+        }
         Ok(())
     } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_pointer() {
         append_mov_r10_imm64(bytes, 0);
@@ -797,7 +815,13 @@ fn append_file_length_operand<T: InstructionOperandLike>(
         Ok(())
     } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
         append_mov_r10_imm64(bytes, 0);
-        append_load_r8_from_r10(bytes, byte_offset + 8)?;
+        if operand.runtime_string_is_bounded_buffer() {
+            // Owned carrier: length is at offset 0 (not the descriptor's len word
+            // at offset pointer_size).
+            append_load_r8_from_r10(bytes, byte_offset)?;
+        } else {
+            append_load_r8_from_r10(bytes, byte_offset + 8)?;
+        }
         Ok(())
     } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_length() {
         append_mov_r10_imm64(bytes, 0);

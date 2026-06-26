@@ -1062,6 +1062,46 @@ fn runtime_bounded_carrier_concat_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 owned `[u8; N] in Utf8` carrier through HOST OUTPUT, native: build a carrier
+// by concat and `write_line` it. The host-call path reads the carrier with carrier
+// addressing (len @ 0, content pointer = place + pointer_size). Prints "Room A1"
+// and exits 70.
+#[test]
+fn runtime_bounded_carrier_write_line_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_write_line_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-write-line-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier write_line canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier write_line canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the carrier write_line canary to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim_end_matches(['\r', '\n']),
+        "Room A1",
+        "expected the carrier `write_line` to print the materialized content `Room A1`",
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 (return a `&[u8] in Utf8` view from a machine): a value-position call
 // returning a `&[u8] in Utf8` literal view flows as a real 16-byte `{ptr,len}`
 // descriptor into a `==` content compare. `pick() == "Gate"` matches and exits 70;

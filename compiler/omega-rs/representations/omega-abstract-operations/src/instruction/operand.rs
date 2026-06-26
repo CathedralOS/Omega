@@ -22,10 +22,16 @@ pub enum InstructionOperandKind {
     RuntimeStringPointer {
         region: RuntimeStorageRegion,
         byte_offset: usize,
+        /// The place is an owned `[u8; N]` carrier (`{len, bytes}` inline): the
+        /// content pointer is the computed address `place + pointer_size`, not a
+        /// stored descriptor pointer at offset 0.
+        is_bounded_buffer: bool,
     },
     RuntimeStringLength {
         region: RuntimeStorageRegion,
         byte_offset: usize,
+        /// Owned carrier: length read at offset 0, not offset `pointer_size`.
+        is_bounded_buffer: bool,
     },
     RuntimePointeeStringPointer {
         region: RuntimeStorageRegion,
