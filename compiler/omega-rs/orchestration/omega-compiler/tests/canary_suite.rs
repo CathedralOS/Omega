@@ -10108,6 +10108,58 @@ fn runtime_stdin_command_branch_exit_canary_runs() {
 
 // #66 carrier stdin round-trip: `read_line` into a `[u8; 64] in Utf8` carrier
 // (stdin straight into the inline bytes + len), then `write_line` the carrier back.
+// #66 carrier command-LOOP: each prompt reads a line into a `[u8; 16]` carrier,
+// resolves it to a Command enum via a value-call, and loops until `quit`. Exercises
+// every branch (Look loops, Invalid loops, Quit exits) so the loop genuinely
+// re-reads + re-resolves -- the String original (reverted) was a broken orphan that
+// always returned Look.
+#[test]
+fn contained_loop_command_branch_carrier_canary_runs() {
+    let canary = run_canary("contained_loop_command_branch");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-contained-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier command-loop canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("carrier command-loop canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"look\nzzz\nlook\nquit\n")
+        .expect("carrier command-loop input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("carrier command-loop canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected carrier command-loop canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "look\ninvalid\nlook\n",
+        "expected each loop iteration to re-resolve its own command (Look, Invalid, Look) then quit"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 carrier sequential reads: two `read_line`s into the same `[u8; 64]` carrier,
 // each echoed -- the second read must overwrite the first line's bytes + length.
 #[test]
@@ -11968,6 +12020,10 @@ fn fail_canary(path: &str) -> PathBuf {
 
 fn pending_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/pending").join(path)
+}
+
+fn run_canary(path: &str) -> PathBuf {
+    repo_root().join("canaries/run").join(path)
 }
 
 fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
