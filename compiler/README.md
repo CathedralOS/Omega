@@ -103,16 +103,26 @@ induction**:
   relational product **`ProdIs(L,n)`**, each defined by introduction rules with matching
   sound inversions and mirrored identically across all three checkers. "Every element is
   prime" — unstatable in the bare first-order logic — is now `∀x. Mem(x,L) → prime(x)`.
+  And — the other deep classical pillar — **Euclid's lemma**,
+  `prime(p) ∧ p∣(a·b) → p∣a ∨ p∣b` (194 lemmas), proved the **Bézout-free / ℤ-free** way by the
+  smallest-multiple argument (the least `m>0` with `p∣mb` divides every such `k`, so `m∣p`,`m∣a`,
+  and primality forces `m=1`→`p∣b` or `m=p`→`p∣a`). From it follows a strong **uniqueness**
+  half of the FTA: every prime dividing `n` appears in *any* prime factorization
+  (`prime p ∧ ProdIs(L,n) ∧ p∣n ∧ ∀x∈L.prime x → Mem(p,L)`), so the *set* of primes is
+  determined; the empty product is uniquely the empty list; and a prime factors uniquely as the
+  singleton `[p]`. (Independently, a complete **ℤ** is constructed as difference pairs and proved
+  a **linearly ordered commutative ring** up to `~`, with the ℕ-embedding an order-isomorphism —
+  see [`delta/INTEGERS.md`](delta/INTEGERS.md).)
 
 ### Why you can believe it
 
 The trust anchor is defended five independent ways (all under `verify-lattice.sh`):
 
-- **281-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
-- **39-case soundness battery** (`soundness.sh`) — invalid certificates that must
+- **314-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
+- **41-case soundness battery** (`soundness.sh`) — invalid certificates that must
   *all* be rejected, including classical-but-non-constructive tautologies (excluded
   middle, Peirce, the drinker paradox) and fabricated memberships/products.
-- **77-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
+- **80-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
   to the checker itself: `check.beta` (Beta, tagged-memory + CFG guard-state dispatch) and
   `gamma/checker.gamma` (Gamma, ADTs + pattern matching) must return identical
   verdicts on every proof. It has caught real divergences.
