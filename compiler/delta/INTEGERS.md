@@ -38,14 +38,17 @@ job is to prove `~` *is* an equivalence and that the operations respect it.
   `x~x' → x+y ~ x'+y`, `−x ~ −x'`, and `x·y ~ x'·y`. So ℤ = pairs/`~` is a *well-defined*
   commutative ring (the multiplicative case multiplies the hypothesis through each column via
   right-distributivity). This is the prerequisite for any quotient/substitution reasoning.
-- **the order `x ≤ y := ∃k∈ℕ. (a+d)+k = (c+b)`** (i.e. `a−b ≤ c−d ⟺ a+d ≤ c+b` in ℕ) — proved
-  **reflexive** and **antisymmetric** (`x≤y ∧ y≤x → x~y`, by left-cancellation + sum-zero), and
-  the embedding `ι(n) = (n,0)` shown to be an **order-isomorphism onto its image** (`m≤n ⟺
-  ι(m)≤ι(n)`, both directions) and **injective** up to `~` — the bridge back to the ℕ order.
+- **a linear order `x ≤ y := ∃k∈ℕ. (a+d)+k = (c+b)`** (i.e. `a−b ≤ c−d ⟺ a+d ≤ c+b` in ℕ) —
+  **reflexive**, **antisymmetric** (`x≤y ∧ y≤x → x~y`), **transitive**, and **total**. The key
+  move is that `intLe(x,y)` *is* the ℕ relation `NLe(a+d, c+b)`, so transitivity reduces to
+  ℕ add-monotonicity + ℕ le-transitivity + cancellation, and totality is immediate from ℕ
+  totality. The embedding `ι(n) = (n,0)` is an **order-isomorphism onto its image** (`m≤n ⟺
+  ι(m)≤ι(n)`) and **injective** up to `~`. So **ℤ is a linearly ordered commutative ring** up to `~`.
 
 ## Next
 
-ℤ-order **transitivity** (a 6-term reordering — pending) and **totality**, completing the linear
-order; then multiplication associativity (the last ring axiom, deferred — an 8-way triple-product
-expansion I don't directly invoke); then the extended Euclidean algorithm / Bézout, Euclid's
-lemma, and FTA uniqueness.
+The road to **FTA uniqueness**: `ℤ`-division-with-remainder (or Bézout via the least positive
+value of `{ax+by}` using ℕ well-ordering), then **Bézout** (`gcd = ax+by`, finally expressible),
+then **Euclid's lemma** (`prime p ∧ p∣ab → p∣a ∨ p∣b`), then **FTA uniqueness** — closing the
+theorem whose existence half is already in the gate. (Multiplication associativity remains a
+deferred ring-completeness item — an 8-way triple-product expansion not on this critical path.)
