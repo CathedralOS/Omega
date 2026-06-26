@@ -56,6 +56,14 @@ filter_test() {
   if [ "$got" = "$4" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : in [$3] -> out [$got], expected [$4]"; fi
 }
+# tokens NAME SOURCE INPUT EXPECTED  — a lexer emitting one token per line;
+# compare the token stream space-joined.
+tokens_test() {
+  build "$1" "$2" || return
+  set +e; got=$(printf '%s' "$3" | "$T/out" 2>/dev/null | tr '\n' ' ' | sed 's/ *$//'); set -e
+  if [ "$got" = "$4" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : [$3] -> [$got], expected [$4]"; fi
+}
 # compiler NAME SOURCE.alp EXPR EXPECTED_EXIT  — an epsilon-written COMPILER:
 # build it, run it on EXPR to emit assembly, assemble+sign+run, check the exit code.
 compiler_test() {
@@ -128,6 +136,8 @@ compiler_test "exprc large literal (100000/1000)" samples/exprc.alp "100000/1000
 compiler_test "minic vars (a=2+3;a*4)"       samples/minic.alp "a=2+3;a*4"          20
 compiler_test "minic chained (a=3;b=a+1;c=b*2;c+a)" samples/minic.alp "a=3;b=a+1;c=b*2;c+a" 11
 compiler_test "minic var-expr (a=2;b=a*a;b+1)" samples/minic.alp "a=2;b=a*a;b+1"     5
+# tokenize: a real .alp lexer in epsilon — the first stage of a self-hosting compiler.
+tokens_test "tokenize .alp source" samples/tokenize.alp "machine f(x){return x+1;}" "machine f ( x ) { return x + 1 ; }"
 # The emitted code is overflow-SAFE: a compiled overflowing expr traps at runtime.
 compiler_trap "exprc emits overflow trap" samples/exprc.alp "46341*46341"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
