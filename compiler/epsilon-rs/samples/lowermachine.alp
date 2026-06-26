@@ -23,7 +23,7 @@ data Main {
     n: i32; pos: i32; c: i32; start: i32; w: i32; pend: i32; phase: i32; depth: i32; mi: i32; si: i32;
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
-    lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lcs: [i32; 64];
+    lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     mn: i32; mdecl: i32; cmi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
     fns: [i32; 64]; fne: [i32; 64];
@@ -502,7 +502,7 @@ machine Main::main(&mut self) {
     state wa1()   { self.pos = self.pos + 1; transition 0 { _ -> wr1() } }
     state wc1()   { transition self.pend == 1 { true -> addS()  false -> wc1b() } }
     state wc1b()  { transition self.lpend == 1 { true -> addL()  false -> ck1m() } }
-    state addL()  { self.lns[self.nl] = self.start; self.lne[self.nl] = self.pos; self.nl = self.nl + 1; self.lcs[self.mi] = self.lcs[self.mi] + 1; self.lpend = 0; transition 0 { _ -> sk() } }
+    state addL()  { self.lns[self.nl] = self.start; self.lne[self.nl] = self.pos; self.lmi[self.nl] = self.mi; self.plidx[self.nl] = self.lcs[self.mi]; self.nl = self.nl + 1; self.lcs[self.mi] = self.lcs[self.mi] + 1; self.lpend = 0; transition 0 { _ -> sk() } }
     state addS()  { self.sns[self.ns] = self.start; transition 0 { _ -> addS2() } }
     state addS2() { self.sne[self.ns] = self.pos; self.smi[self.ns] = self.mi; self.ssi[self.ns] = self.si; self.ns = self.ns + 1; self.si = self.si + 1; self.pend = 0; transition 0 { _ -> sk() } }
     state ck1m()  { self.w = self.is_machine(self.start, self.pos); transition self.w == 1 { true -> newM1()  false -> ck1l() } }
@@ -542,8 +542,9 @@ machine Main::main(&mut self) {
     state leta()  { self.pos = self.pos + 1; transition 0 { _ -> letr() } }
     state lete()  { self.fe = self.pos; self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.ldisp = 0; transition 0 { _ -> llk() } }
     state llk()   { transition self.cj < self.nl { true -> llkc()  false -> leteq() } }
-    state llkc()  { self.qc = self.lns[self.cj]; self.qd = self.lne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> llkh()  false -> llkn() } }
-    state llkh()  { self.lstgt = 16 + 8 * self.cj; transition 0 { _ -> leteq() } }
+    state llkc()  { transition self.lmi[self.cj] == self.mi { true -> llkc2()  false -> llkn() } }
+    state llkc2() { self.qc = self.lns[self.cj]; self.qd = self.lne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> llkh()  false -> llkn() } }
+    state llkh()  { self.lstgt = 16 + 8 * (self.pcs[self.mi] + self.plidx[self.cj]); transition 0 { _ -> leteq() } }
     state llkn()  { self.cj = self.cj + 1; transition 0 { _ -> llk() } }
     state leteq() { transition self.buf[self.pos] == 61 { true -> leteq2()  false -> letadv() } }
     state letadv(){ self.pos = self.pos + 1; transition 0 { _ -> leteq() } }
@@ -611,8 +612,9 @@ machine Main::main(&mut self) {
     state plkn()  { self.cj = self.cj + 1; transition 0 { _ -> plk() } }
     state rlk0()  { self.cj = 0; transition 0 { _ -> rlk() } }
     state rlk()   { transition self.cj < self.nl { true -> rlkc()  false -> remit() } }
-    state rlkc()  { self.qc = self.lns[self.cj]; self.qd = self.lne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> rlkh()  false -> rlkn() } }
-    state rlkh()  { self.ldisp = 16 + 8 * self.cj; transition 0 { _ -> remit() } }
+    state rlkc()  { transition self.lmi[self.cj] == self.mi { true -> rlkc2()  false -> rlkn() } }
+    state rlkc2() { self.qc = self.lns[self.cj]; self.qd = self.lne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> rlkh()  false -> rlkn() } }
+    state rlkh()  { self.ldisp = 16 + 8 * (self.pcs[self.mi] + self.plidx[self.cj]); transition 0 { _ -> remit() } }
     state rlkn()  { self.cj = self.cj + 1; transition 0 { _ -> rlk() } }
     state remit() { self.p_ldrw0x29(); self.v = self.ldisp; self.emit_int(); write_byte(93); write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
     state litsub(){ self.sval = 0; transition 0 { _ -> litr() } }
