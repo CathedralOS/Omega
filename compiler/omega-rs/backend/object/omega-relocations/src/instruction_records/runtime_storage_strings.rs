@@ -22,11 +22,20 @@ pub(super) fn collect_runtime_storage_string_relocations(
             );
             true
         }
-        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. } => {
+        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
+            target_in_frame,
+            ..
+        } => {
             // The carrier encoder's leading instruction is `mov r15, imm64` (the
-            // machine storage base); content is immediate, so the base is the ONLY
-            // relocation (patched at the instruction's first imm64).
-            context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            // storage base); content is immediate, so the base is the ONLY
+            // relocation. A frame-resident target (a `let`-local struct's carrier
+            // field) patches it to the runtime frame base instead of machine storage.
+            let base = if *target_in_frame {
+                context.runtime_frame_symbol_handle()
+            } else {
+                context.machine_storage_symbol_handle()
+            };
+            context.insert_data_address_at_instruction_start(base);
             true
         }
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {

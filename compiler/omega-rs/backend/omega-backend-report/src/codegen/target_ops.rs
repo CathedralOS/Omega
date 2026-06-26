@@ -713,10 +713,14 @@ fn selected_instruction_name(
         SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
             byte_offset,
             literal,
-        } => format!(
-            "write runtime machine bounded buffer offset {byte_offset} literal {literal:?} len {}",
-            literal.len()
-        ),
+            target_in_frame,
+        } => {
+            let region = if *target_in_frame { "frame" } else { "machine" };
+            format!(
+                "write runtime {region} bounded buffer offset {byte_offset} literal {literal:?} len {}",
+                literal.len()
+            )
+        }
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
             target_byte_offset,
             source_byte_offset,
