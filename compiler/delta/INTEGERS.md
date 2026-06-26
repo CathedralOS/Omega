@@ -34,8 +34,13 @@ job is to prove `~` *is* an equivalence and that the operations respect it.
   `(1,0)` as **identity**, and **distributes** over addition, `x·(y+z) ~ x·y + x·z` (the deep
   axiom: both sides expand to the same eight atomic products, reconciled by an `add4`
   reordering helper `(w+x)+(y+z) = (w+y)+(x+z)`).
+- **`~` is a congruence** — `+`, `−`, and `·` are **well-defined on `~`-classes**:
+  `x~x' → x+y ~ x'+y`, `−x ~ −x'`, and `x·y ~ x'·y`. So ℤ = pairs/`~` is a *well-defined*
+  commutative ring (the multiplicative case multiplies the hypothesis through each column via
+  right-distributivity). This is the prerequisite for any quotient/substitution reasoning.
 
 ## Next
 
-Multiplication is associative and respects `~` (congruence); then the order on ℤ, then the
+Multiplication associativity (the last ring axiom — an 8-way triple-product expansion needing
+`mul`-assoc per term); then the **order** on ℤ (`x ≤ y := ∃k∈ℕ. (a+d)+k = (c+b)`); then the
 extended Euclidean algorithm / Bézout, then Euclid's lemma, then FTA uniqueness.
