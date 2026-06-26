@@ -23,6 +23,7 @@
 //   2. expressions + locals: `let x: i32 = 3 + 4 * 2; exit_process(x)` with
 //      trap-on-overflow (see x64.rs).
 
+mod aarch64;
 mod ast;
 mod lex;
 mod parse;
@@ -30,7 +31,7 @@ mod pe;
 mod util;
 mod x64;
 
-use std::process::exit;
+use std::process::{exit, Command};
 
 fn compile(source: &[u8]) -> Result<Vec<u8>, String> {
     let tokens = lex::lex(source)?;
@@ -38,6 +39,44 @@ fn compile(source: &[u8]) -> Result<Vec<u8>, String> {
     let program = parser.parse_program()?;
     let lowered = x64::lower_program(&program);
     Ok(pe::build_pe(&lowered))
+}
+
+// aarch64/macOS path: front-end -> ARM64 assembly text -> clang assemble+link ->
+// codesign ad-hoc. Returns the runnable binary's path (== `output`). Selected by
+// `EPS_ARCH=aarch64`; this is what makes the rung executable (verifiable) on this
+// machine, where the x64 PE backend's output cannot run.
+fn compile_aarch64(source: &[u8], output: &str) -> Result<(), String> {
+    let tokens = lex::lex(source)?;
+    let mut parser = parse::Parser::new(&tokens, source);
+    let program = parser.parse_program()?;
+    let asm = aarch64::lower_program(&program);
+
+    let asm_path = format!("{}.s", output);
+    std::fs::write(&asm_path, asm.as_bytes())
+        .map_err(|e| format!("cannot write {}: {}", asm_path, e))?;
+
+    let clang = Command::new("clang")
+        .args(["-arch", "arm64", "-Wl,-no_uuid", "-o", output, &asm_path])
+        .output()
+        .map_err(|e| format!("cannot run clang: {}", e))?;
+    if !clang.status.success() {
+        return Err(format!(
+            "clang failed:\n{}",
+            String::from_utf8_lossy(&clang.stderr)
+        ));
+    }
+    // Apple Silicon refuses to exec an unsigned/invalid Mach-O; ad-hoc sign it.
+    let sign = Command::new("codesign")
+        .args(["-f", "-s", "-", output])
+        .output()
+        .map_err(|e| format!("cannot run codesign: {}", e))?;
+    if !sign.status.success() {
+        return Err(format!(
+            "codesign failed:\n{}",
+            String::from_utf8_lossy(&sign.stderr)
+        ));
+    }
+    Ok(())
 }
 
 fn main() {
@@ -68,6 +107,17 @@ fn main() {
                 exit(1);
             }
         }
+    }
+
+    if std::env::var("EPS_ARCH").as_deref() == Ok("aarch64") {
+        match compile_aarch64(&source, &output) {
+            Ok(()) => eprintln!("alpha-onramp: wrote {} (aarch64/macOS, signed)", output),
+            Err(error) => {
+                eprintln!("{}", error);
+                exit(1);
+            }
+        }
+        return;
     }
 
     match compile(&source) {
