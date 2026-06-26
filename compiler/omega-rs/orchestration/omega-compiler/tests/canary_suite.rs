@@ -1132,6 +1132,44 @@ fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Carrier sibling of the slice-view-element test: a value-call guards on the
+// element's CARRIER field (`room.label == "Gate"`, room = r[0], r =
+// self.rooms.as_slice()). Carrier RECOGNITION now traces the elided local and
+// sees through the as_slice view to resolve the field descriptor against the
+// underlying array; before, the carrier `==` failed to lower (the arm was
+// poisoned). Exits 70.
+#[test]
+fn runtime_value_call_slice_view_carrier_guard_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_value_call_slice_view_carrier_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-slice-view-carrier-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call slice-view carrier guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call slice-view carrier guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the carrier guard `room.label == \"Gate\"` (room = r[0], r a \
+         slice view) to resolve and take the true arm -> exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A value-call forwarded a SLICE-VIEW element by value (`read(r[0])`, r a local
 // `self.rooms.as_slice()`): the body reads `room.id` through the BranchParameter
 // alias `room = r[0]` -> `(self.rooms.as_slice())[0].id`. The place resolver now
