@@ -197,6 +197,8 @@ filter_test "sizeof emits align8 total struct size" samples/sizeof.alp "boundary
 # rpn: infix -> RPN (shunting-yard) -- the expression-lowering arc, step 1 (linearize to stack-machine order)
 filter_test "rpn linearizes an expression to postfix (precedence + assoc)" samples/rpn.alp "e - s == 5" "$(printf 'e\ns\n-\n5\n==')"
 filter_test "rpn handles array index (self.buf[i] -> index RPN then base[])" samples/rpn.alp "self.buf[s] == 115" "$(printf 's\nself.buf[]\n115\n==')"
+# loadk: ARM64 constant materialization (movz/movk) -- first asm-emitting expression primitive
+filter_test "loadk emits ARM64 constant load (movz + movk high half)" samples/loadk.alp "100000" "$(printf 'movz w0, #34464\nmovk w0, #1, lsl #16')"
 # layout regression: a last field with no trailing semicolon (data ... i32 }) must still parse
 filter_test "layout handles last field without trailing semicolon" samples/layout.alp "boundary trait C{} data Main{ c: C; n: i32 }" "$(printf 'c 0\nn 0')"
 stdin_exit "certify-source rejects an overrunning loop (exit 1)" samples/certify-source.alp "arr 4 5  band 5 0" 1
