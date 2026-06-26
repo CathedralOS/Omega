@@ -40,6 +40,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-accesses.alp "$T/cacc" >/de
   || { echo "convergence FAIL — compiling certify-accesses"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-safety.alp "$T/csaf" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-safety"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-source.alp "$T/csrc" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-source"; exit 1; }
 
 # the checker prints accept/reject to stdout but exits non-zero (the alpha VM's halt
 # code), so judge by the stdout string, not the exit status -- and drop `set -e`.
@@ -96,6 +98,19 @@ csaf() {
 csaf "d 5"
 csaf "b 2 5 3 4  d 7  b 1 3 0 2"
 csaf "b 0 1 0 1  d 2  b 5 6 2 9  d 100"
+
+# the FRONTEND: compile tiny SOURCE (arr/get/div) to a safety proof checked by delta
+csrc() {
+  v=$(printf '%s' "$1" | "$T/csrc" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL source [$1] : delta returned [$v], expected accept"; fi
+}
+csrc "arr 4 5  get 2 3"
+csrc "arr 10 10  get 3 7  get 8 2  div 5"
+csrc "arr 4 5  get 2 3  arr 2 6  get 1 4  div 3"
+# the frontend's context binding must match hand-resolved obligations, byte for byte
+if [ "$(printf 'arr 4 5  get 2 3  div 7  get 1 0' | "$T/csrc")" = "$(printf 'b 2 5 3 4  d 7  b 1 5 0 4' | "$T/csaf")" ]; then
+  PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL source-vs-safety cross-check"; fi
 
 # CORRUPTED certificates must be rejected (delta checks the computation, not us):
 # (a) claim 2+3 = 4; (b) reuse 2<5's witness to claim 2<4. Both must reject.
