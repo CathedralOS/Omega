@@ -15,7 +15,22 @@ boundary trait Console {
 }
 data Main {
     console: Console;
-    buf: [u8; 512]; n: i32; pos: i32; c: i32; start: i32; w: i32; ei: i32;
+    buf: [u8; 512]; n: i32; pos: i32; c: i32; start: i32; w: i32; ei: i32; tw: i32;
+}
+
+// is (a, b) a two-character operator? -> :: == != <= >= ; returns 2 or 0.
+machine Main::two_op(&mut self, a: i32, b: i32) -> i32 {
+    transition a == 45 { true -> o_arrow()  false -> o1() }      // '-'
+    state o_arrow() { transition b == 62 { true -> two()  false -> none() } }  // "->"
+    state o1() { transition a == 58 { true -> o_colon()  false -> o2() } }     // ':'
+    state o_colon() { transition b == 58 { true -> two()  false -> none() } }  // "::"
+    state o2() { transition b == 61 { true -> o_eq()  false -> none() } }      // second char '='?
+    state o_eq()  { transition a == 61 { true -> two()  false -> o_eq2() } }   // "=="
+    state o_eq2() { transition a == 33 { true -> two()  false -> o_eq3() } }   // "!="
+    state o_eq3() { transition a == 60 { true -> two()  false -> o_eq4() } }   // "<="
+    state o_eq4() { transition a == 62 { true -> two()  false -> none() } }    // ">="
+    state two()  { return 2; }
+    state none() { return 0; }
 }
 
 // is this byte a word character? letters, digits, or '_'.
@@ -68,7 +83,13 @@ machine Main::main(&mut self) {
         transition self.w == 1 { true -> wradv()  false -> emit() }
     }
     state wradv()    { self.pos = self.pos + 1; transition 0 { _ -> wordrun() } }
-    state punct()    { self.pos = self.pos + 1; transition 0 { _ -> emit() } }
+    // punctuation: a two-char operator (-> :: == != <= >=) or a single char.
+    state punct() {
+        self.tw = self.two_op(self.buf[self.pos], self.buf[self.pos + 1]);
+        transition self.tw == 2 { true -> punct2()  false -> punct1() }
+    }
+    state punct1()   { self.pos = self.pos + 1; transition 0 { _ -> emit() } }
+    state punct2()   { self.pos = self.pos + 2; transition 0 { _ -> emit() } }
     state emit()     { self.emit_range(self.start, self.pos); transition 0 { _ -> skipws() } }
     state fin()      { self.console.exit_process(0) }
 }

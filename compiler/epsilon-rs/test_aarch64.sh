@@ -140,6 +140,7 @@ compiler_test "minic var-expr (a=2;b=a*a;b+1)" samples/minic.alp "a=2;b=a*a;b+1"
 tokens_test "tokenize .alp source" samples/tokenize.alp "machine f(x){return x+1;}" "machine f ( x ) { return x + 1 ; }"
 tokens_test "tokenize drops // comments" samples/tokenize.alp "a // c
 b/c" "a b / c"
+tokens_test "tokenize multi-char ops" samples/tokenize.alp "Main::main n<=3 a->b x==y i-1" "Main :: main n <= 3 a -> b x == y i - 1"
 # The emitted code is overflow-SAFE: a compiled overflowing expr traps at runtime.
 compiler_trap "exprc emits overflow trap" samples/exprc.alp "46341*46341"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
