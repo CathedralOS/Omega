@@ -1,12 +1,12 @@
-// SELF-HOSTING step: from CHECKING to BUILDING. layout.alp parses a `data` struct and
-// emits each field's computed byte OFFSET -- the data-representation pass a compiler runs,
-// reproducing the backend's own layout (src/parse.rs): fields in declaration order with a
-// cumulative offset from 0, where scalar = 8 bytes, a boundary type (e.g. Console) = 0,
-// `[u8; N]` = N, and `[scalar; N]` = 8N. First .alp tool to OUTPUT numbers (not a verdict),
-// exercising atoi (array counts) and itoa (offsets) -- reusable compiler primitives.
-// Boundary type names are collected from `trait NAME`. Output: one `field offset` per line.
-//   printf 'boundary trait C{} data Main{ c: C; n: i32; buf: [u8; 16]; m: i32; }' | layout
-//     ->  c 0 / n 0 / buf 8 / m 24    (c is 0 bytes, so n shares offset 0; buf 8..24; m 24)
+// SELF-HOSTING / BUILDING: the frame size. layout.alp emits each field's offset; sizeof.alp
+// emits the data struct's TOTAL size, 8-aligned -- exactly what the backend reserves for the
+// self storage (`.zerofill __DATA,__bss,_selfdata,<size>` in the generated asm, which is
+// align8(entry_data_size), src/aarch64.rs:60). This is the number the frame prologue needs
+// and what a `sizeof(T)` operator returns. Same data-struct parse as layout (scalar=8,
+// boundary/Console=0, [u8;N]=N, [scalar;N]=8N), summing instead of emitting per field; the
+// total is rounded up with align8(n) = ((n+7)/8)*8 (no bitwise & in .alp, so /,*,+). One line.
+//   printf 'boundary trait C{} data Main{ c: C; n: i32; buf: [u8; 13]; }' | sizeof
+//     ->  24    (c 0 + n 8 + buf 13 = 21, rounded up to 24)
 boundary trait Console {
     machine exit_process(return_code: i32);
     machine write_byte(b: i32);
@@ -14,11 +14,11 @@ boundary trait Console {
 }
 data Main {
     console: Console;
-    n: i32; pos: i32; c: i32; start: i32; w: i32; pend: i32; inData: i32;
+    n: i32; pos: i32; c: i32; start: i32; w: i32; inData: i32; pend: i32;
     fstart: i32; fend: i32; tstart: i32; tend: i32; eb: i32; cnt: i32; sz: i32; off: i32;
     nb: i32; v: i32; di: i32; ek: i32; qa: i32; qb: i32; qc: i32; qd: i32; qk: i32;
-    bs: [i32; 32]; be: [i32; 32];     // boundary-trait type names
-    dig: [i32; 16];                   // itoa scratch
+    bs: [i32; 32]; be: [i32; 32];
+    dig: [i32; 16];
     buf: [u8; 16384];
 }
 machine Main::is_word(&mut self, c: i32) -> i32 {
@@ -32,7 +32,7 @@ machine Main::is_word(&mut self, c: i32) -> i32 {
     state yes() { return 1; }
     state no()  { return 0; }
 }
-machine Main::is_trait(&mut self, s: i32, e: i32) -> i32 {   // "trait" = 116 114 97 105 116
+machine Main::is_trait(&mut self, s: i32, e: i32) -> i32 {   // "trait"
     transition e - s == 5 { true -> t0()  false -> tno() }
     state t0() { transition self.buf[s]     == 116 { true -> t1()  false -> tno() } }
     state t1() { transition self.buf[s + 1] == 114 { true -> t2()  false -> tno() } }
@@ -42,7 +42,7 @@ machine Main::is_trait(&mut self, s: i32, e: i32) -> i32 {   // "trait" = 116 11
     state tyes() { return 1; }
     state tno()  { return 0; }
 }
-machine Main::is_data(&mut self, s: i32, e: i32) -> i32 {     // "data" = 100 97 116 97
+machine Main::is_data(&mut self, s: i32, e: i32) -> i32 {     // "data"
     transition e - s == 4 { true -> d0()  false -> dno() }
     state d0() { transition self.buf[s]     == 100 { true -> d1()  false -> dno() } }
     state d1() { transition self.buf[s + 1] == 97  { true -> d2()  false -> dno() } }
@@ -51,7 +51,7 @@ machine Main::is_data(&mut self, s: i32, e: i32) -> i32 {     // "data" = 100 97
     state dyes() { return 1; }
     state dno()  { return 0; }
 }
-machine Main::is_u8(&mut self, s: i32, e: i32) -> i32 {       // "u8" = 117 56
+machine Main::is_u8(&mut self, s: i32, e: i32) -> i32 {       // "u8"
     transition e - s == 2 { true -> u0()  false -> uno() }
     state u0() { transition self.buf[s]     == 117 { true -> u1()  false -> uno() } }
     state u1() { transition self.buf[s + 1] == 56  { true -> uyes() false -> uno() } }
@@ -66,13 +66,6 @@ machine Main::streq(&mut self) -> i32 {     // buf[qa..qb) == buf[qc..qd)
     state qa2() { self.qk = self.qk + 1; transition 0 { _ -> ql() } }
     state qyes(){ return 1; }
     state qno() { return 0; }
-}
-machine Main::emit_name(&mut self, a: i32, b: i32) {     // buf[a..b), no newline
-    self.ek = a;
-    transition 0 { _ -> el() }
-    state el() { transition self.ek < b { true -> ew()  false -> done() } }
-    state ew() { write_byte(self.buf[self.ek]); self.ek = self.ek + 1; transition 0 { _ -> el() } }
-    state done(){ }
 }
 machine Main::emit_int(&mut self) {     // self.v as decimal
     transition self.v == 0 { true -> z()  false -> ex0() }
@@ -92,62 +85,57 @@ machine Main::main(&mut self) {
     state store() { transition self.n < 16384 { true -> store2()  false -> rd() } }
     state store2(){ self.buf[self.n] = self.c; self.n = self.n + 1; transition 0 { _ -> rd() } }
     state scan()  { self.pos = 0; transition 0 { _ -> sk() } }
-    // ---- main scan: skip ws/comments; dispatch on inData ----
-    state sk()    { transition self.pos < self.n { true -> ws()  false -> ok() } }
+    state sk()    { transition self.pos < self.n { true -> ws()  false -> done() } }
     state ws()    { transition self.buf[self.pos] <= 32 { true -> wadv()  false -> cm() } }
     state wadv()  { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state cm()    { transition self.buf[self.pos] == 47 { true -> cm2()  false -> disp() } }
     state cm2()   { transition self.buf[self.pos + 1] == 47 { true -> cms()  false -> disp() } }
-    state cms()   { transition self.pos < self.n { true -> cnl()  false -> ok() } }
+    state cms()   { transition self.pos < self.n { true -> cnl()  false -> done() } }
     state cnl()   { transition self.buf[self.pos] == 10 { true -> wadv()  false -> cadv() } }
     state cadv()  { self.pos = self.pos + 1; transition 0 { _ -> cms() } }
     state disp()  { transition self.inData == 1 { true -> fld()  false -> top() } }
-    // ---- top level: hunt for `trait NAME` and `data NAME {` ----
     state top()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> tw()  false -> tpunc() } }
-    state tpunc() { transition self.buf[self.pos] == 123 { true -> obrace()  false -> tpadv() } }   // '{'
+    state tpunc() { transition self.buf[self.pos] == 123 { true -> obrace()  false -> tpadv() } }
     state obrace(){ transition self.pend == 3 { true -> entD()  false -> tpadv() } }
     state entD()  { self.inData = 1; self.pend = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state tpadv() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state tw()    { self.start = self.pos; transition 0 { _ -> twr() } }
-    state twr()   { transition self.pos < self.n { true -> twc()  false -> ok() } }
+    state twr()   { transition self.pos < self.n { true -> twc()  false -> done() } }
     state twc()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> twa()  false -> tcl() } }
     state twa()   { self.pos = self.pos + 1; transition 0 { _ -> twr() } }
-    // classify the word using pend (which keyword preceded it)
-    state tcl()   { transition self.pend == 1 { true -> setB()  false -> tcl2() } }     // after `trait`: boundary name
+    state tcl()   { transition self.pend == 1 { true -> setB()  false -> tcl2() } }
     state setB()  { self.bs[self.nb] = self.start; self.be[self.nb] = self.pos; self.nb = self.nb + 1; self.pend = 0; transition 0 { _ -> sk() } }
-    state tcl2()  { transition self.pend == 2 { true -> setDN()  false -> tcl3() } }    // after `data`: the data name
+    state tcl2()  { transition self.pend == 2 { true -> setDN()  false -> tcl3() } }
     state setDN() { self.pend = 3; transition 0 { _ -> sk() } }
     state tcl3()  { self.w = self.is_trait(self.start, self.pos); transition self.w == 1 { true -> sawTr()  false -> tcl4() } }
     state sawTr() { self.pend = 1; transition 0 { _ -> sk() } }
     state tcl4()  { self.w = self.is_data(self.start, self.pos); transition self.w == 1 { true -> sawDa()  false -> sk() } }
     state sawDa() { self.pend = 2; transition 0 { _ -> sk() } }
-    // ---- data body: parse `field : type ;` ----
-    state fld()   { transition self.buf[self.pos] == 125 { true -> endD()  false -> fn0() } }   // '}'
-    state endD()  { self.inData = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
+    // data body: parse `field : type ;`, summing sizes into off
+    state fld()   { transition self.buf[self.pos] == 125 { true -> endD()  false -> fn0() } }
+    state endD()  { self.inData = 0; self.v = (self.off + 7) / 8 * 8; self.emit_int(); write_byte(10); transition 0 { _ -> done() } }  // align8 + emit total
     state fn0()   { self.fstart = self.pos; transition 0 { _ -> fnr() } }
-    state fnr()   { transition self.pos < self.n { true -> fnc()  false -> ok() } }
+    state fnr()   { transition self.pos < self.n { true -> fnc()  false -> done() } }
     state fnc()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> fna()  false -> fne() } }
     state fna()   { self.pos = self.pos + 1; transition 0 { _ -> fnr() } }
     state fne()   { self.fend = self.pos; transition 0 { _ -> col() } }
-    state col()   { transition self.buf[self.pos] <= 32 { true -> cola()  false -> col2() } }    // ws then ':'
+    state col()   { transition self.buf[self.pos] <= 32 { true -> cola()  false -> col2() } }
     state cola()  { self.pos = self.pos + 1; transition 0 { _ -> col() } }
-    state col2()  { self.pos = self.pos + 1; transition 0 { _ -> tyw() } }                       // consume ':'
+    state col2()  { self.pos = self.pos + 1; transition 0 { _ -> tyw() } }
     state tyw()   { transition self.buf[self.pos] <= 32 { true -> tywa()  false -> tych() } }
     state tywa()  { self.pos = self.pos + 1; transition 0 { _ -> tyw() } }
-    state tych()  { transition self.buf[self.pos] == 91 { true -> arr()  false -> sca() } }       // '[' array else scalar/boundary
-    // scalar or boundary type word
+    state tych()  { transition self.buf[self.pos] == 91 { true -> arr()  false -> sca() } }
     state sca()   { self.tstart = self.pos; transition 0 { _ -> scr() } }
-    state scr()   { transition self.pos < self.n { true -> scc()  false -> ok() } }
+    state scr()   { transition self.pos < self.n { true -> scc()  false -> done() } }
     state scc()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> sccA()  false -> scd() } }
     state sccA()  { self.pos = self.pos + 1; transition 0 { _ -> scr() } }
     state scd()   { self.tend = self.pos; self.qk = 0; transition 0 { _ -> bchk() } }
     state bchk()  { transition self.qk < self.nb { true -> bset()  false -> scSz() } }
     state bset()  { self.qa = self.tstart; self.qb = self.tend; self.qc = self.bs[self.qk]; self.qd = self.be[self.qk]; self.w = self.streq(); transition self.w == 1 { true -> isB()  false -> bnext() } }
     state bnext() { self.qk = self.qk + 1; transition 0 { _ -> bchk() } }
-    state isB()   { self.sz = 0; transition 0 { _ -> emit() } }
-    state scSz()  { self.sz = 8; transition 0 { _ -> emit() } }
-    // array type `[ elem ; N ]`
-    state arr()   { self.pos = self.pos + 1; transition 0 { _ -> arw() } }                        // consume '['
+    state isB()   { self.sz = 0; transition 0 { _ -> acc() } }
+    state scSz()  { self.sz = 8; transition 0 { _ -> acc() } }
+    state arr()   { self.pos = self.pos + 1; transition 0 { _ -> arw() } }
     state arw()   { transition self.buf[self.pos] <= 32 { true -> arwa()  false -> are0() } }
     state arwa()  { self.pos = self.pos + 1; transition 0 { _ -> arw() } }
     state are0()  { self.tstart = self.pos; transition 0 { _ -> arer() } }
@@ -156,20 +144,18 @@ machine Main::main(&mut self) {
     state aree()  { self.tend = self.pos; self.w = self.is_u8(self.tstart, self.tend); transition self.w == 1 { true -> ebU8()  false -> ebSc() } }
     state ebU8()  { self.eb = 1; transition 0 { _ -> acnt() } }
     state ebSc()  { self.eb = 8; transition 0 { _ -> acnt() } }
-    state acnt()  { transition self.buf[self.pos] < 48 { true -> aca()  false -> acd0() } }        // skip ';' and ws to a digit
+    state acnt()  { transition self.buf[self.pos] < 48 { true -> aca()  false -> acd0() } }
     state acd0()  { transition self.buf[self.pos] > 57 { true -> aca()  false -> acn0() } }
     state aca()   { self.pos = self.pos + 1; transition 0 { _ -> acnt() } }
-    state acn0()  { self.cnt = 0; transition 0 { _ -> acl() } }                                    // atoi
+    state acn0()  { self.cnt = 0; transition 0 { _ -> acl() } }
     state acl()   { transition self.buf[self.pos] < 48 { true -> aend()  false -> acl2() } }
     state acl2()  { transition self.buf[self.pos] > 57 { true -> aend()  false -> acacc() } }
     state acacc() { self.cnt = self.cnt * 10 + self.buf[self.pos] - 48; self.pos = self.pos + 1; transition 0 { _ -> acl() } }
-    state aend()  { self.sz = self.cnt * self.eb; transition 0 { _ -> emit() } }
-    // emit `field offset`, advance running offset, skip to ';'
-    state emit()  { self.emit_name(self.fstart, self.fend); write_byte(32); self.v = self.off; self.emit_int(); write_byte(10); self.off = self.off + self.sz; transition 0 { _ -> semi() } }
-    state semi()  { transition self.buf[self.pos] == 59 { true -> semia()  false -> semiB() } }    // ';'
-    state semiB() { transition self.buf[self.pos] == 125 { true -> emitL()  false -> semsk() } }   // '}' -> last field had no trailing ';' (already emitted); close the data block
+    state aend()  { self.sz = self.cnt * self.eb; transition 0 { _ -> acc() } }
+    state acc()   { self.off = self.off + self.sz; transition 0 { _ -> semi() } }   // accumulate, don't emit per field
+    state semi()  { transition self.buf[self.pos] == 59 { true -> semia()  false -> semiB() } }   // ';'
+    state semiB() { transition self.buf[self.pos] == 125 { true -> endD()  false -> semsk() } }    // '}' -> last field had no trailing ';'
     state semsk() { self.pos = self.pos + 1; transition 0 { _ -> semi() } }
     state semia() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state emitL()  { self.inData = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state ok()    { self.console.exit_process(0) }
+    state done()  { self.console.exit_process(0) }
 }
