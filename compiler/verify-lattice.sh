@@ -9,6 +9,8 @@
 #   Beta    the language compiler (Rust on-ramp) compiles + runs the corpus
 #   bc      the Beta compiler WRITTEN IN BETA self-hosts (Rust leaves the lineage)
 #   delta   the certificate checker accepts valid proofs, rejects invalid ones
+#   epsilon the systems-language on-ramp compiles + RUNS its corpus (macOS arm64;
+#           skips cleanly off that platform or without the cargo/clang toolchain)
 cd "$(dirname "$0")"
 fail=0
 step() {  # label  dir  script
@@ -28,6 +30,7 @@ step "gamma — the Delta checker, written IN gamma"    gamma       test-checker
 step "diamond — two checkers (Beta vs Gamma) agree"   delta       checker-diamond.sh
 step "diamond — definitional eq vs operational eval"  delta       semantics-diamond.sh
 step "seam — inductive universals vs operational eval" delta      induction-soundness.sh
+step "epsilon — on-ramp compiles + RUNS its corpus"   epsilon-rs  test_aarch64.sh
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
 if command -v python3 >/dev/null 2>&1; then
   step "tool — proof elaborator (named binders -> check.beta)" delta elab-test.sh
