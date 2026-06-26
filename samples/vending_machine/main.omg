@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // A vending machine driven by a stream of case-payload events.
 //
 // Showcases features landed in the 2026-06 waves working together in one

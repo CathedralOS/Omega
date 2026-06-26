@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // Probe 2: Trigger FIRST (position 0, ZII = no-payload), then payload variants.
 // If the bug is positional (arm 3+), this should work.
 // If the bug is mixing payload + no-payload in any order, this will also fail.
