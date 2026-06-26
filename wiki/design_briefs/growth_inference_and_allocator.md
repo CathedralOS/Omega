@@ -225,29 +225,45 @@ construction site **and** every loop-body append — must be capacity-checked ag
 the declared carrier, mirroring the construction-1c + assignment-#63 enforcement
 already in place for range-refined fields.
 
-> **Carrier — resolved at the prover level, two open ends (probed 2026-06-24).**
-> `[u8; N] in Utf8` is the owned bounded-text carrier: with `domain [u8; N]::Utf8`
-> declared it compiles and the interpreter runs `self.buf = "hello"; self.buf ==
-> "hello"` to exit 70 — **no FixedVec generic-`B` needed.** Two ends remain:
-> 1. **The append itself** is the actual unbuilt feature. `self.buf = self.buf +
->    "there"` is rejected today by the *domain* write-enforcement ("cannot prove
->    the value assigned to `self.buf` is in domain `[u8; N]::Utf8`"). It needs TWO
->    COUPLED pieces, neither alone sound: (a) a **blessed concat-preserves-domain
->    law** (`Utf8 + Utf8 = Utf8` for concat-preserving classifiers — the value-
->    proves-domain side, reusing the #60–#64 catalog), AND (b) a **length-fits
->    proof** that the result `≤ N` (without it, the domain proves but the write
->    overflows the fixed `N`-byte buffer — silent corruption, same class as the
->    256-byte hack). The length-fits is the *relational, flow-sensitive* part
->    (track the buffer's running length across writes), which — per §2.2 — the
->    non-relational interval engine cannot do alone and needs the blessed
->    `len ≤ iters·elem_len` invariant or octagons. *This is the core of the rung-2
->    feature, now pinned exactly.*
-> 2. **Native codegen for a length-less `[u8; N]` text field is unverified** — a
->    `[u8; N]` has no explicit length (unlike the String `{ptr,len}` descriptor),
->    so the interpreter's content-length handling must be matched in the backend
->    (a terminator/length convention), or the carrier must carry a length
->    (`FixedVec<u8>`). The interpreter confirms the *semantics* are expressible;
->    the differential/native side is the check before it ships.
+> **Carrier — prover half DONE, codegen half is the remaining blocker
+> (`7bf89867`, 2026-06-25).** `[u8; N] in Utf8` is the owned bounded-text carrier:
+> with `domain [u8; N]::Utf8` declared it compiles and the interpreter runs
+> `self.buf = "hello"; self.buf == "hello"` to exit 70 — **no FixedVec generic-`B`
+> needed.** The append's *prover* obligation is now discharged by two coupled
+> rules (`checks::contracts::writes` + `field_domain`):
+> 1. **Concat-domain law** — `left + right` whose two operands are each provably
+>    in `D` is itself in `D`, for the recognized concat-preserving byte-predicates
+>    (`valid_utf8`/`no_nul`/`ascii_only`/`non_empty` — each preserved under
+>    concatenation; a future non-preserving predicate opts out via
+>    `ByteSequencePredicate::is_concat_preserving`). This is the
+>    value-proves-domain / "(a)" side, reusing the #60–#64 catalog.
+> 2. **Length-fits guard** — the "(b)" side and what makes (1) sound. A write into
+>    `[u8; N] in D` must have a **statically bounded** maximum byte length `≤ N`
+>    (`static_max_byte_length`: a literal's exact length, a concat's operand sum,
+>    a `self.field` read's `[u8; M]` capacity), else it is rejected. Crucially
+>    this static bound is **NON-relational** and *suffices for the builder
+>    pattern* — `self.text = "Room " + self.label` (a literal `+` a bounded source,
+>    sum `≤ N`) compiles. The earlier worry that length-fits is inherently the
+>    relational/flow-sensitive part was wrong: only the **in-place append**
+>    `self.line = self.line + "omega"` needs it, and the static bound *correctly
+>    rejects* it (`N + 5 > N`) — proving an in-place append fits needs the buffer's
+>    flow-sensitive running length (per §2.2: the blessed `len ≤ iters·elem_len`
+>    invariant or octagons), a separate "increment B" not yet built. fail canary
+>    `bounded_carrier_growth_overflow_rejected` pins the rejection.
+>
+> **The remaining blocker is native codegen for the `[u8; N]` inline carrier**
+> (the builder pattern compiles to "needs runtime storage write / string builder
+> lowering" stubs). This is a *substantial, separately-scoped backend chunk*, not
+> a keying tweak: the entire runtime-text-write path (`selection/runtime_dispatch/
+> text_writes/{builder,descriptor}.rs` → `WriteRuntimeMachine/Frame/PointeeString`
+> instruction kinds → encoders) is built on the String **`{ptr,len}` descriptor +
+> separate 256-byte scratch buffer** model (`runtime_text_input_buffer_*`). A
+> `[u8; N]` carrier has **inline** fixed-capacity storage and no explicit length,
+> so landing it means threading an inline-storage model (capacity `N`, a
+> length/terminator convention) through selection → instruction kinds → encoders
+> for the write, the concat-materialize, and the read/compare. The interpreter
+> confirms the *semantics*; the prover now confirms the *safety*; the native
+> backend is the deliberate go/no-go before a builder canary can RUN.
 
 ---
 
