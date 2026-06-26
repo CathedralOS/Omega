@@ -1,0 +1,51 @@
+// #66 owned carrier concat with a FRAME-LOCAL source: `out_line = "== " + src +
+// " =="` where `src` is a `let`-local `[u8; 8] in Utf8` carrier. The append reads
+// the source from the runtime FRAME base (a second relocation) rather than the
+// machine base -- without this the concat bailed to the String builder, which
+// writes a `{ptr, len}` descriptor into the carrier target (garbage len ->
+// `rep movsb` overrun -> SIGSEGV). Renders "== Gate ==" into the borrowed carrier,
+// exits 70 (the interpreter agrees).
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 16]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Formatter {
+}
+
+machine Formatter::render(&mut self, out_line: &mut [u8; 16] in Utf8) {
+    let src: [u8; 8] in Utf8 = "Gate";
+    out_line = "== " + src + " ==";
+}
+
+data Main {
+    console: Console;
+    formatter: Formatter;
+    line: [u8; 16] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.line = "";
+    self.formatter.render(&mut self.line);
+
+    transition self.line == "== Gate ==" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

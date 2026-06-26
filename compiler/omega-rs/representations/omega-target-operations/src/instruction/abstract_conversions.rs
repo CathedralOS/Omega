@@ -678,9 +678,11 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             omega_abstract_operations::AbstractOperationKind::AppendRuntimeMachineBoundedBufferSource {
                 target_byte_offset,
                 source_byte_offset,
+                source_in_frame,
             } => Self::AppendRuntimeMachineBoundedBufferSource {
                 target_byte_offset: *target_byte_offset,
                 source_byte_offset: *source_byte_offset,
+                source_in_frame: *source_in_frame,
             },
             omega_abstract_operations::AbstractOperationKind::AppendRuntimeMachineBoundedBufferLiteral {
                 target_byte_offset,

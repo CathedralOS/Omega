@@ -400,6 +400,7 @@ pub enum TargetOperationKind {
     AppendRuntimeMachineBoundedBufferSource {
         target_byte_offset: usize,
         source_byte_offset: usize,
+        source_in_frame: bool,
     },
     /// Append a string LITERAL onto an owned `[u8; N]` carrier at its running
     /// length (a later concat segment such as the trailing `" =="`). See the

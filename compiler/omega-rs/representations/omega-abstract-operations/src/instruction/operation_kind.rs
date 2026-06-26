@@ -496,12 +496,15 @@ pub enum AbstractOperationKind {
     /// Reads the target's running `len` and the source's `len`, copies the
     /// source's `len` content bytes (at `source + pointer_size`) onto the target's
     /// bytes at the running offset (`target + pointer_size + target_len`), then
-    /// stores the new running `len = target_len + source_len`. Both carriers are
-    /// machine-resident, so the only relocation is the shared storage base. The
+    /// stores the new running `len = target_len + source_len`. The target carrier
+    /// is machine-resident; the source carrier is machine-resident UNLESS
+    /// `source_in_frame` (a `let`-local carrier such as `room.label`), in which
+    /// case it is read from the runtime frame base (a second relocation). The
     /// length-fits guard proves the result still fits the target's `N`.
     AppendRuntimeMachineBoundedBufferSource {
         target_byte_offset: usize,
         source_byte_offset: usize,
+        source_in_frame: bool,
     },
     /// Append a string LITERAL onto an owned `[u8; N]` carrier at its running
     /// length (a later concat segment, e.g. the trailing `" =="` of

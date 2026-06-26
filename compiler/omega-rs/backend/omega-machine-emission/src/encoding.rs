@@ -557,10 +557,12 @@ pub(super) fn encode_machine_instruction_bytes(
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
             target_byte_offset,
             source_byte_offset,
+            source_in_frame,
         } => runtime_storage::encode_runtime_machine_bounded_buffer_source_append(
             input,
             *target_byte_offset,
             *source_byte_offset,
+            *source_in_frame,
         ),
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
             target_byte_offset,
