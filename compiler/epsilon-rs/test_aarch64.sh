@@ -199,6 +199,8 @@ filter_test "rpn linearizes an expression to postfix (precedence + assoc)" sampl
 filter_test "rpn handles array index (self.buf[i] -> index RPN then base[])" samples/rpn.alp "self.buf[s] == 115" "$(printf 's\nself.buf[]\n115\n==')"
 # loadk: ARM64 constant materialization (movz/movk) -- first asm-emitting expression primitive
 filter_test "loadk emits ARM64 constant load (movz + movk high half)" samples/loadk.alp "100000" "$(printf 'movz w0, #34464\nmovk w0, #1, lsl #16')"
+# lowerop: binary-operator ARM64 snippets (static half of expression lowering)
+filter_test "lowerop emits the backend binary-op snippet (<= -> cmp/cset le)" samples/lowerop.alp "<=" "$(printf '    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    cmp w0, w1\n    cset w0, le\n    str x0, [sp, #-16]!')"
 # layout regression: a last field with no trailing semicolon (data ... i32 }) must still parse
 filter_test "layout handles last field without trailing semicolon" samples/layout.alp "boundary trait C{} data Main{ c: C; n: i32 }" "$(printf 'c 0\nn 0')"
 stdin_exit "certify-source rejects an overrunning loop (exit 1)" samples/certify-source.alp "arr 4 5  band 5 0" 1
