@@ -1059,7 +1059,9 @@ pub fn runtime_value_operand_width(
         ) + runtime_load_data_width(byte_size)
     } else if runtime_value_operands.text_equals(operand).is_some() {
         runtime_text_equals_operand_width()
-    } else if let Some((place, literal)) = runtime_value_operands.text_equals_literal(operand) {
+    } else if let Some((place, literal, _place_is_bounded_buffer)) =
+        runtime_value_operands.text_equals_literal(operand)
+    {
         runtime_text_equals_literal_operand_width(runtime_value_operands, place, &literal)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let operation_width = if runtime_value_operands.binary_is_float(operand) {

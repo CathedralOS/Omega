@@ -987,6 +987,45 @@ fn domain_field_write_then_read_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 owned `[u8; N] in Utf8` bounded byte carrier, end to end on native: the
+// literal write materializes into the carrier's `{len, bytes}` inline storage
+// (the carrier OWNS its bytes -- not a {ptr,len} descriptor aliasing rodata),
+// and the `==` guard reads it back with carrier addressing (len @ 0, bytes @
+// pointer_size) and content-compares. `self.label == "Gate"` matches -> exit 70.
+// `[u8; 8]` is the 16-byte case (8 + 8 == the string descriptor size) that the
+// String text-write pass would otherwise claim as a descriptor.
+#[test]
+fn runtime_bounded_carrier_write_read_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_write_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-write-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier write-read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier write-read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the owned `[u8; 8] in Utf8` carrier to write `\"Gate\"` into its inline \
+         {{len, bytes}} storage and read it back so `self.label == \"Gate\"` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 (return a `&[u8] in Utf8` view from a machine): a value-position call
 // returning a `&[u8] in Utf8` literal view flows as a real 16-byte `{ptr,len}`
 // descriptor into a `==` content compare. `pick() == "Gate"` matches and exits 70;

@@ -731,6 +731,29 @@ pub(super) fn resolve_runtime_storage_place_is_fat_slice_in_table(
 
 /// Whether a storage PLACE is an owned `[u8; N]` bounded byte carrier
 /// (`BoundedByteBuffer`, `{len, bytes}` inline). Unlike a fat-slice descriptor,
+/// the carrier owns its bytes -- its content lives at `place + pointer_size` and
+/// its length at `place + 0` -- so a content read must use carrier addressing,
+/// not a `{ptr, len}` descriptor load. Resolves the leaf descriptor (peeling a
+/// domain `Constrained` wrapper).
+pub(super) fn resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )
+    .is_some_and(|descriptor| descriptor_is_bounded_byte_buffer(&descriptor))
+}
+
+/// Whether a storage PLACE is an owned `[u8; N]` bounded byte carrier
+/// (`BoundedByteBuffer`, `{len, bytes}` inline). Unlike a fat-slice descriptor,
 /// the carrier owns its bytes; a literal write into it must store `len` + copy
 /// the content inline, not stamp a `{ptr,len}` descriptor. Resolves the target
 /// expression's leaf descriptor (peeling a domain `Constrained` wrapper).

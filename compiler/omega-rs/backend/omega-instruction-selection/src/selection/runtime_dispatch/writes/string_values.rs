@@ -127,6 +127,21 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
     let value = expressions.string_literal_value(value)?;
     let data = string_literal_data_handle(input, operation_source_key, statement_index, &value);
 
+    // An owned `[u8; N]` carrier whose `{len, bytes}` size happens to equal the
+    // string descriptor size (`[u8; 8]` -> 8 + 8 = 16 bytes) must NOT be claimed
+    // as a `{ptr, len}` String descriptor here. Defer to the mutation pass, which
+    // emits the carrier write (store `len` + copy the bytes inline). Without this
+    // a 16-byte carrier silently aliases a String descriptor.
+    if crate::selection::storage_places::resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        return None;
+    }
+
     if data.is_valid()
         && let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
             input,

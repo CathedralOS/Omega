@@ -18,7 +18,9 @@ use super::super::storage_places::{
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_frame_indexed_primitive_type_in_table, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_in_table, resolve_runtime_storage_place_is_fat_slice_in_table,
+    resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_place_is_bounded_byte_buffer_in_table,
+    resolve_runtime_storage_place_is_fat_slice_in_table,
     resolve_runtime_storage_primitive_type_in_table,
     resolve_runtime_transition_guard_call_result_place, static_elided_local_value_in_table,
     static_fixed_array_len_in_table,
@@ -775,17 +777,46 @@ fn runtime_text_equals_literal_guard_in_table(
     } else {
         return None;
     };
-    let place = resolve_runtime_text_descriptor_place_operand_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        expressions,
-        place_expression,
-        runtime_value_operands,
-    )?;
+    // An owned `[u8; N]` carrier is excluded from the String/slice `place_is_string`
+    // gate by design (its `{len, bytes}` layout is not a `{ptr, len}` descriptor),
+    // so resolve its storage place to a `Storage` ADDRESS operand directly and flag
+    // carrier addressing for the encoder; otherwise take the descriptor place path.
+    let (place, place_is_bounded_buffer) =
+        if resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            place_expression,
+        ) {
+            let storage = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                place_expression,
+            )?;
+            let operand = runtime_value_operands.insert(RuntimeValueOperand::Storage {
+                region: storage.region,
+                byte_offset: storage.byte_offset,
+                byte_size: storage.byte_count,
+            });
+            (operand, true)
+        } else {
+            let operand = resolve_runtime_text_descriptor_place_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                place_expression,
+                runtime_value_operands,
+            )?;
+            (operand, false)
+        };
     let text_equals = runtime_value_operands.insert(RuntimeValueOperand::TextEqualsLiteral {
         place,
         literal: literal.to_string(),
+        place_is_bounded_buffer,
     });
     let expected_true = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
     // `==` holds when the content-equality bool is 1; `!=` when it is not.

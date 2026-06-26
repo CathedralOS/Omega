@@ -162,11 +162,13 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
     fn text_equals_literal(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,
-    ) -> Option<(omega_target_operations::RuntimeValueOperandHandle, String)> {
+    ) -> Option<(omega_target_operations::RuntimeValueOperandHandle, String, bool)> {
         match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
-            AssignedValueOperandKind::TextEqualsLiteral { place, literal } => {
-                Some((*place, literal.clone()))
-            }
+            AssignedValueOperandKind::TextEqualsLiteral {
+                place,
+                literal,
+                place_is_bounded_buffer,
+            } => Some((*place, literal.clone(), *place_is_bounded_buffer)),
             _ => None,
         }
     }
