@@ -44,6 +44,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-source.alp "$T/csrc" >/dev/
   || { echo "convergence FAIL — compiling certify-source"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-linked.alp "$T/cl" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-linked"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-loop.alp "$T/clp" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-loop"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -144,6 +146,19 @@ if [ "$HAVE_LIB" = 1 ]; then
   bl=$( { cat "$T/lib2d.delta"; printf ' '; printf '2 5 3 4' | "$T/cl" | sed 's/(s z) (refl/(s (s z)) (refl/'; } | "$T/check.exe" )
   if [ "$bl" = reject ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL tamper-linked : delta returned [$bl], expected reject"; fi
+
+  # a WHOLE LOOP proved by ONE citation: forall i<K. i*n+j < m*n (composes lt-le-trans
+  # + bounds-2d), instead of unrolling K per-iteration proofs.
+  loop_link() {
+    v=$( { cat "$T/lib2d.delta"; printf ' '; printf '%s' "$1" | "$T/clp"; } | "$T/check.exe" )
+    if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+      FAIL=$((FAIL+1)); echo "  FAIL loop [$1] : delta returned [$v], expected accept"; fi
+  }
+  loop_link "4 5 0 4"; loop_link "3 10 2 8"; loop_link "8 8 0 8"
+  # citing the wrong library def (use 30 -> use 0) must be caught by the trust anchor
+  bp=$( { cat "$T/lib2d.delta"; printf ' '; printf '4 5 0 4' | "$T/clp" | sed 's/(use 30)/(use 0)/'; } | "$T/check.exe" )
+  if [ "$bp" = reject ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL tamper-loop : delta returned [$bp], expected reject"; fi
 else echo "  (skipped linked-library checks — no python3 / library gen failed)"; fi
 
 # CORRUPTED certificates must be rejected (delta checks the computation, not us):
