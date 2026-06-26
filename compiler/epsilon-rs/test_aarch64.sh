@@ -160,6 +160,7 @@ tokens_test "decls keyword vs prefix (database != data)" samples/decls.alp "data
 # certify-add emits a delta proof certificate for a+b (verified end-to-end by
 # convergence.sh; here just check the epsilon side produces the exact certificate).
 filter_test "certify-add emits a delta cert" samples/certify-add.alp "2 3" "(= (p (s (s z)) (s (s (s z)))) (s (s (s (s (s z)))))) (refl (s (s (s (s (s z))))))"
+filter_test "certify-lt emits an existential-witness cert" samples/certify-lt.alp "2 5" "(Exists (= (p (s (s z)) (s (v 0))) (s (s (s (s (s z))))))) (wit (= (p (s (s z)) (s (v 0))) (s (s (s (s (s z)))))) (s (s z)) (refl (s (s (s (s (s z)))))))"
 # The emitted code is overflow-SAFE: a compiled overflowing expr traps at runtime.
 compiler_trap "exprc emits overflow trap" samples/exprc.alp "46341*46341"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
