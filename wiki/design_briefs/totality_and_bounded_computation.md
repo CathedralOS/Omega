@@ -39,6 +39,16 @@ What remains is genuine unrecoverable failure (OOM, explicit `abort`). That beco
 
 Termination ≠ short. A stronger property — *prove a bounded worst-case runtime* (WCET) — would let RT-critical code run **un-preempted to a deadline** (consumed by Cathedral's scheduler gradient, `Cathedral/wiki/design/part_2_components/01_scheduler_and_resources.md`). But WCET bottoms out at the *hardware* timing model (caches, pipelines — the same below-the-model wall as constant-time), and is practical only for small, carefully-written RT code. Flagged as explore, not committed.
 
+## 4. The general-language implication: every library author's trilemma
+
+Omega is a **general systems language**, not only Cathedral's OS substrate — so the prove-or-bound choice is a *daily* concern for ordinary library authors, not a kernel curiosity. Ship a Collatz walker and you hit it immediately, because Collatz has no known termination proof:
+
+- **Prove it** — ship a small inductive certificate *if the property is provable*. For Collatz none exists; for most ordinary code the bound below *is* the proof.
+- **Bound it (recommended default)** — `collatz(n, budget) -> Converged | OutOfBudget`. The bound *is* the decreasing measure, so this is **genuinely total, not a lie** — it provably terminates *within budget*. The only cost is an honest API: a budget parameter and an `OutOfBudget` branch the caller handles.
+- **Declare it partial/divergent** — carry a *may-not-terminate* effect (§2) that propagates to callers. Honest, but it **infects every caller's signature**, and it *overstates* the problem: an unbounded Collatz walker is not "non-terminating," it is **termination-unproven** — which the bound expresses more precisely and without the contagion.
+
+The tax, felt equally by OS code and a random utility library: **you cannot ship "unbounded-but-trust-me-it-terminates."** Totality has no free lunch for unproven termination. So the guidance is **bound over mark-partial**: the budget form says "it terminates, I just can't prove the unbounded version" — true *and* ergonomic — whereas the partiality effect says "may diverge" (technically true in the unprovable tail, practically misleading) and taxes every caller. The transmissibility trilemma in `proof_caching.md` (small inductive cert vs. verified-but-large vs. cryptographic argument vs. attestation) is the *distribution* face of this same author-facing choice.
+
 ## The cost, and the bet
 
 Total-functional languages have always been *harder to write* — discharging all the obligations is the proof burden that kept them academic. The Cathedral-era bet: **LLMs author the bounds and proofs.** The thing that sank total languages (too hard for humans) is plausibly exactly what LLMs make tractable — and `proof_caching.md` keeps the resulting heavy checking affordable in the edit-compile loop. This stance is only shippable *because* of that bet; name it rather than hide it.
