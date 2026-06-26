@@ -8,8 +8,8 @@
 use omega::language::std::console;
 
 data AlarmEvent {
-    case Set(hour: i32, minute: i32);
-    case Snooze(minutes: i32);
+    case Set(hour: i32 in Saturating, minute: i32 in Saturating);
+    case Snooze(minutes: i32 in Saturating);
     case Cancel;
     case Trigger;
     case Dismiss;
@@ -17,7 +17,7 @@ data AlarmEvent {
 
 data Main {
     console: Console;
-    fire_count: i32;
+    fire_count: i32 in Saturating;
 }
 
 machine Main::dispatch(&mut self, event: AlarmEvent) {
@@ -30,8 +30,8 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
         _ -> done()
     }
 
-    state do_set(&mut self, hour: i32, minute: i32) {}
-    state do_snooze(&mut self, minutes: i32) {}
+    state do_set(&mut self, hour: i32 in Saturating, minute: i32 in Saturating) {}
+    state do_snooze(&mut self, minutes: i32 in Saturating) {}
     state do_cancel(&mut self) {}
     state do_trigger(&mut self) { self.fire_count = self.fire_count + 1; }
     state do_dismiss(&mut self) {}

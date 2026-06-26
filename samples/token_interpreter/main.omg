@@ -6,9 +6,9 @@
 // accumulator that depends on which guard arm fires.
 //
 // Token type:
-//   Literal(value: i32)  -- contributes `value` to accumulator
+//   Literal(value: i32 in Saturating)  -- contributes `value` to accumulator
 //   Add                  -- doubles the current accumulator
-//   Clamp(max: i32)      -- caps accumulator at max if over
+//   Clamp(max: i32 in Saturating)      -- caps accumulator at max if over
 //
 // A small "interpreter" processes a fixed sequence of tokens:
 //   Literal(10)  -> acc = 10
@@ -29,13 +29,13 @@
 use omega::language::std::console;
 
 data Token {
-    case Literal(value: i32);
+    case Literal(value: i32 in Saturating);
     case Add;
-    case Clamp(max: i32);
+    case Clamp(max: i32 in Saturating);
 }
 
 data Interp [copy, zero_init] {
-    acc: i32;
+    acc: i32 in Saturating;
 }
 
 data Main {
@@ -54,7 +54,7 @@ machine Main::exec(&mut self, tok: Token) {
     }
 
     // Literal: add value to accumulator.
-    state do_literal(&mut self, value: i32) {
+    state do_literal(&mut self, value: i32 in Saturating) {
         self.interp.acc = self.interp.acc + value;
     }
 
@@ -73,26 +73,26 @@ machine Main::exec(&mut self, tok: Token) {
 
     // Clamp: cap accumulator at max.
     // Uses an equality guard (exact match path) AND a range guard (over path).
-    state do_clamp(&mut self, max: i32) {
+    state do_clamp(&mut self, max: i32 in Saturating) {
         transition self.interp.acc == max {
             true -> clamp_exact(max)
             _ -> check_over(max)
         }
     }
 
-    state clamp_exact(&mut self, max: i32) {
+    state clamp_exact(&mut self, max: i32 in Saturating) {
         // Already at the max; no change needed.
         self.interp.acc = max;
     }
 
-    state check_over(&mut self, max: i32) {
+    state check_over(&mut self, max: i32 in Saturating) {
         transition self.interp.acc > max {
             true -> apply_clamp(max)
             _ -> done()
         }
     }
 
-    state apply_clamp(&mut self, max: i32) {
+    state apply_clamp(&mut self, max: i32 in Saturating) {
         self.interp.acc = max;
     }
 

@@ -21,11 +21,11 @@
 use omega::language::std::console;
 
 data Search [copy, zero_init] {
-    lo: i32;
-    hi: i32;
-    mid: i32;
-    guesses: i32;
-    found: i32;   // 1 when the target has been located
+    lo: i32 in Saturating;
+    hi: i32 in Saturating;
+    mid: i32 in Saturating;
+    guesses: i32 in Saturating;
+    found: i32 in Saturating;   // 1 when the target has been located
 }
 
 data Main {
@@ -35,8 +35,8 @@ data Main {
 
 // Perform one binary-search step: compute mid = (lo+hi)/2, compare to target.
 // Updates lo or hi, increments guesses, sets found=1 if matched.
-machine Main::step(&mut self, target: i32) {
-    let mid: i32 = (self.search.lo + self.search.hi) / 2;
+machine Main::step(&mut self, target: i32 in Saturating) {
+    let mid: i32 in Saturating = (self.search.lo + self.search.hi) / 2;
     self.search.mid = mid;
     self.search.guesses = self.search.guesses + 1;
     transition mid == target {
@@ -48,18 +48,18 @@ machine Main::step(&mut self, target: i32) {
         self.search.found = 1;
     }
 
-    state not_found(&mut self, mid: i32, target: i32) {
+    state not_found(&mut self, mid: i32 in Saturating, target: i32 in Saturating) {
         transition mid < target {
             true -> move_lo(mid)
             _ -> move_hi(mid)
         }
     }
 
-    state move_lo(&mut self, mid: i32) {
+    state move_lo(&mut self, mid: i32 in Saturating) {
         self.search.lo = mid + 1;
     }
 
-    state move_hi(&mut self, mid: i32) {
+    state move_hi(&mut self, mid: i32 in Saturating) {
         self.search.hi = mid - 1;
     }
 }
@@ -70,7 +70,7 @@ machine Main::main(&mut self) {
     self.search.hi = 100;
 
     // Secret number to find.
-    let target: i32 = 42;
+    let target: i32 in Saturating = 42;
 
     // Seven unrolled binary-search steps.
     self.step(target);   // guess 1: mid=50 > 42, hi=49

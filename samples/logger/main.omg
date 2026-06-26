@@ -1,6 +1,6 @@
 // Structured logger with severity levels as case members.
 //
-// Log levels: Debug, Info, Warn, Error(code: i32).
+// Log levels: Debug, Info, Warn, Error(code: i32 in Saturating).
 // The logger counts entries by level and computes a weighted score:
 //   score = info_count*2 + warn_count*5 + error_code*10
 //
@@ -22,16 +22,16 @@ data LogLevel {
     case Debug;
     case Info;
     case Warn;
-    case Error(code: i32);
+    case Error(code: i32 in Saturating);
 }
 
 // Accumulator tracking per-level counts and total error code sum.
 data Logger [copy, zero_init] {
-    debug_count: i32;
-    info_count: i32;
-    warn_count: i32;
-    error_count: i32;
-    error_code_sum: i32;
+    debug_count: i32 in Saturating;
+    info_count: i32 in Saturating;
+    warn_count: i32 in Saturating;
+    error_count: i32 in Saturating;
+    error_code_sum: i32 in Saturating;
 }
 
 data Main {
@@ -61,7 +61,7 @@ machine Main::log(&mut self, level: LogLevel) {
         self.logger.warn_count = self.logger.warn_count + 1;
     }
 
-    state on_error(&mut self, code: i32) {
+    state on_error(&mut self, code: i32 in Saturating) {
         self.logger.error_count = self.logger.error_count + 1;
         self.logger.error_code_sum = self.logger.error_code_sum + code;
     }
@@ -89,10 +89,10 @@ machine Main::main(&mut self) {
     // Compute weighted score: info*2 + warn*5 + error_code_sum*10.
     // = 5*2 + 4*5 + 4*10 = 10+20+40 = 70.
     // Broken into steps to avoid complex multi-multiplication let expressions.
-    let info_part: i32 = self.logger.info_count * 2;
-    let warn_part: i32 = self.logger.warn_count * 5;
-    let error_part: i32 = self.logger.error_code_sum * 10;
-    let score: i32 = info_part + warn_part + error_part;
+    let info_part: i32 in Saturating = self.logger.info_count * 2;
+    let warn_part: i32 in Saturating = self.logger.warn_count * 5;
+    let error_part: i32 in Saturating = self.logger.error_code_sum * 10;
+    let score: i32 in Saturating = info_part + warn_part + error_part;
 
     transition score == 70 {
         true -> check_counts()

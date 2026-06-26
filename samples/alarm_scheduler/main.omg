@@ -45,18 +45,18 @@
 use omega::language::std::console;
 
 data AlarmEvent {
-    case Set(hour: i32, minute: i32);
-    case Snooze(minutes: i32);
+    case Set(hour: i32 in Saturating, minute: i32 in Saturating);
+    case Snooze(minutes: i32 in Saturating);
     case Cancel;
     case Trigger;
     case Dismiss;
 }
 
 data Alarm [copy, zero_init] {
-    hour: i32;
-    minute: i32;
-    active: i32;
-    fire_count: i32;
+    hour: i32 in Saturating;
+    minute: i32 in Saturating;
+    active: i32 in Saturating;
+    fire_count: i32 in Saturating;
 }
 
 data Main {
@@ -74,13 +74,13 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
         _ -> done()
     }
 
-    state do_set(&mut self, hour: i32, minute: i32) {
+    state do_set(&mut self, hour: i32 in Saturating, minute: i32 in Saturating) {
         self.alarm.hour = hour;
         self.alarm.minute = minute;
         self.alarm.active = 1;
     }
 
-    state do_snooze(&mut self, minutes: i32) {
+    state do_snooze(&mut self, minutes: i32 in Saturating) {
         self.alarm.minute = self.alarm.minute + minutes;
     }
 
@@ -111,7 +111,7 @@ machine Main::main(&mut self) {
 
     // fire_count == 2, active == 0, hour == 7, minute == 0
     // Verification: fire_count * 35 == 70
-    let score: i32 = self.alarm.fire_count * 35;
+    let score: i32 in Saturating = self.alarm.fire_count * 35;
 
     transition score == 70 {
         true -> check_active()

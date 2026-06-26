@@ -8,10 +8,10 @@
 // down multiple levels.
 //
 // Task variants:
-//   Compute(value: i32)  -- add value to score
+//   Compute(value: i32 in Saturating)  -- add value to score
 //   Double               -- double the current score
 //   Reset                -- set score to 0
-//   Clamp(max: i32)      -- clamp score to max if it exceeds max
+//   Clamp(max: i32 in Saturating)      -- clamp score to max if it exceeds max
 //
 // Scripted sequence:
 //   Compute(10)    -> score=10
@@ -28,14 +28,14 @@
 use omega::language::std::console;
 
 data Task {
-    case Compute(value: i32);
+    case Compute(value: i32 in Saturating);
     case Double;
     case Reset;
-    case Clamp(max: i32);
+    case Clamp(max: i32 in Saturating);
 }
 
 data Runner [copy, zero_init] {
-    score: i32;
+    score: i32 in Saturating;
 }
 
 data Main {
@@ -53,7 +53,7 @@ machine Main::run_task(&mut self, task: Task) {
         _ -> done()
     }
 
-    state do_compute(&mut self, value: i32) {
+    state do_compute(&mut self, value: i32 in Saturating) {
         self.runner.score = self.runner.score + value;
     }
 
@@ -65,14 +65,14 @@ machine Main::run_task(&mut self, task: Task) {
         self.runner.score = 0;
     }
 
-    state do_clamp(&mut self, max: i32) {
+    state do_clamp(&mut self, max: i32 in Saturating) {
         transition self.runner.score > max {
             true -> apply_clamp(max)
             _ -> done()
         }
     }
 
-    state apply_clamp(&mut self, max: i32) {
+    state apply_clamp(&mut self, max: i32 in Saturating) {
         self.runner.score = max;
     }
 
