@@ -251,19 +251,51 @@ already in place for range-refined fields.
 >    invariant or octagons), a separate "increment B" not yet built. fail canary
 >    `bounded_carrier_growth_overflow_rejected` pins the rejection.
 >
-> **The remaining blocker is native codegen for the `[u8; N]` inline carrier**
-> (the builder pattern compiles to "needs runtime storage write / string builder
-> lowering" stubs). This is a *substantial, separately-scoped backend chunk*, not
-> a keying tweak: the entire runtime-text-write path (`selection/runtime_dispatch/
-> text_writes/{builder,descriptor}.rs` → `WriteRuntimeMachine/Frame/PointeeString`
-> instruction kinds → encoders) is built on the String **`{ptr,len}` descriptor +
-> separate 256-byte scratch buffer** model (`runtime_text_input_buffer_*`). A
-> `[u8; N]` carrier has **inline** fixed-capacity storage and no explicit length,
-> so landing it means threading an inline-storage model (capacity `N`, a
-> length/terminator convention) through selection → instruction kinds → encoders
-> for the write, the concat-materialize, and the read/compare. The interpreter
-> confirms the *semantics*; the prover now confirms the *safety*; the native
-> backend is the deliberate go/no-go before a builder canary can RUN.
+> **The remaining blocker is native codegen for the owned `[u8; N] in Utf8`
+> carrier** (the builder pattern compiles to "needs runtime storage write / string
+> builder lowering" stubs). Mapping (2026-06-25) shows this is a *multi-site
+> fat-text-carrier feature*, not a keying tweak — and it forces a storage-model
+> decision, since `[u8; N]` is **N raw inline bytes with no length** while text
+> content is variable-length (`≤ N`) and reads (`==`, `write_line`) need the
+> length. The interpreter sidesteps this (it stores logical content); native
+> cannot. **Settled storage model** (the option chosen 2026-06-25 — "reuse the
+> descriptor machinery, buffer at the field's N-byte storage"): an owned
+> `[u8; N] in Utf8` field is a **third fat-text carrier shape** (alongside the
+> `String` keyword and the `&[u8] in Utf8` view, which already share the 16-byte
+> `{ptr,len}` descriptor). It is stored as that same `{ptr,len}` text descriptor
+> backed by a region sized **`N` (the proven bound)** instead of the magic
+> 256-byte scratch — which is exactly how this retires the unsound 256 hack:
+> the length-fits guard already proves content `≤ N`, so an `N`-sized backing
+> region cannot overflow.
+>
+> **Mapped implementation (the build, fully specified):**
+> 1. **Layout** — recognize an owned `[u8; N] in Utf8` (a `Constrained{FixedArray}`
+>    with a Utf8-classifier domain) as fat-descriptor storage rather than `N`
+>    inline bytes: `omega-layout/src/sizing.rs` (FixedArray branch) +
+>    `omega-runtime-storage/src/layout.rs` (the `PrimitiveType::String` arm's
+>    analog). No existing canary uses this carrier, so the layout change is
+>    regression-safe.
+> 2. **Central resolvers** — make the carrier's type descriptor report fat/text at
+>    the two resolvers most selection sites funnel through:
+>    `descriptor_primitive_type` and `descriptor_is_fat_slice` in
+>    `selection/storage_places.rs`. If these report `String`/fat for the field,
+>    the `place_is_string` guard check and the text-write selection route it
+>    without per-site edits (this is the lever that keeps the site count small).
+> 3. **Backing buffer sized `N`** — `omega-runtime-text/src/planning.rs`
+>    `collect_runtime_text_builders` hard-codes
+>    `DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY = 256`; size the builder's
+>    `RuntimeTextBuffer.byte_capacity` to the target carrier's `N` (the proven
+>    bound) instead, with `omega-data-planning` allocating the `N`-byte object.
+> 4. **Verify** — migrate `runtime_text_builder` to `[u8; N]` carriers, confirm
+>    native exit + interpreter agreement (differential), full suite green.
+>
+> Risk: the layout change collides with the inline-fixed-array machinery
+> (`runtime_frame_slot_is_inline_fixed_array_storage` et al.), and the text-codegen
+> area is landmine-heavy (see memory: x86-text-op-stubs, materialize family). The
+> central-resolver lever (step 2) is the bet that keeps this to ~4–6 sites rather
+> than a 10-site sweep; if it cascades, the increment is revert-and-document, not
+> a partial landing. The interpreter confirms *semantics*; the prover now confirms
+> *safety*; this backend lands the *execution*.
 
 ---
 
