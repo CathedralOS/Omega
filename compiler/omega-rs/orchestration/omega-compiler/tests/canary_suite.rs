@@ -1132,6 +1132,44 @@ fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A value-call forwarded a SLICE-VIEW element by value (`read(r[0])`, r a local
+// `self.rooms.as_slice()`): the body reads `room.id` through the BranchParameter
+// alias `room = r[0]` -> `(self.rooms.as_slice())[0].id`. The place resolver now
+// sees through the as_slice view AND traces the elided local to its initializer
+// so the element resolves against the underlying array; before, it read a zero
+// slot and the call returned 0. Exits 70.
+#[test]
+fn runtime_value_call_slice_view_element_arg_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_slice_view_element_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-slice-view-elem-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call slice-view element canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call slice-view element canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `read(r[0])` (r = self.rooms.as_slice()) to resolve room.id to the \
+         underlying array element and return 7 -> exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A `let`-local capturing `self.vm.sp + 1`, where `self.vm.sp` is reassigned
 // before the local is forwarded through a nested dispatch (try_push1 -> push1).
 // Argument materialization used to inline-fold the local back into its
