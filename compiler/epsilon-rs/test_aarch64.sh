@@ -209,6 +209,8 @@ filter_test "lowerexpr lowers a full expression (2 + 3) to the backend instructi
 filter_test "lowersubj lowers a self.field transition subject end-to-end" samples/lowersubj.alp "data Main { a: i32; b: i32; c: i32; } machine Main::main(&mut self) { transition self.b < 5 { _ -> h() } state h(){} }" "$(printf '    ldr x9, [x29, #16]\n    ldr w0, [x9, #8]\n    str x0, [sp, #-16]!\n    movz w0, #5\n    str x0, [sp, #-16]!\n    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    cmp w0, w1\n    cset w0, lt\n    str x0, [sp, #-16]!')"
 # arrindex: array-index operand (SelfIndex) -- bounds-checked element load, the last operand kind
 filter_test "arrindex emits the backend SelfIndex sequence (u8 array, offset 0 count 16)" samples/arrindex.alp "0 16 1" "$(printf '    ldr x0, [sp], #16\n    movz w1, #16\n    cmp w0, w1\n    b.hs Ltrap\n    uxtw x0, w0\n    ldr x9, [x29, #16]\n    add x9, x9, x0\n    ldrb w0, [x9]\n    str x0, [sp, #-16]!')"
+# storefield: StoreSelfField (the store half of an assignment) -- statement lowering begins
+filter_test "storefield emits the backend field-store (offset 8)" samples/storefield.alp "8" "$(printf '    ldr x0, [sp], #16\n    ldr x9, [x29, #16]\n    str w0, [x9, #8]')"
 # layout regression: a last field with no trailing semicolon (data ... i32 }) must still parse
 filter_test "layout handles last field without trailing semicolon" samples/layout.alp "boundary trait C{} data Main{ c: C; n: i32 }" "$(printf 'c 0\nn 0')"
 stdin_exit "certify-source rejects an overrunning loop (exit 1)" samples/certify-source.alp "arr 4 5  band 5 0" 1
