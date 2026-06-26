@@ -18,8 +18,12 @@ This is exactly `n | (a − b)` read in ℤ: `a − b = n·(qa − qb)` becomes 
   `qe=qa+qc`, `qf=qb+qd`; the body chains through distributivity `n·(x+y)=n·x+n·y` and
   associativity, with the shared `b` cancelling between the two hypotheses).
 
+- **`≡` is a congruence** for `+` and `·` (single-sided: `a≡b → a+c ≡ b+c` and `a·c ≡ b·c`; the
+  multiplicative case multiplies the hypothesis through by `c` via right-distributivity and
+  reassociates `(n·q)·c = n·(q·c)`). So **ℤ/nℤ is a well-defined commutative ring**.
+
 ## Next
 
-`≡` is a **congruence** for `+` and `·` (`a≡a' ∧ b≡b' → a+b ≡ a'+b'` and `a·b ≡ a'·b'`), making
-**ℤ/nℤ a well-defined commutative ring** — then Fermat's little theorem / Euler's theorem as the
-deep targets (these would also exercise the prime theory already in the gate).
+Two-sided compatibility (`a≡a' ∧ b≡b' → a+b ≡ a'+b'`, immediate from the single-sided ones + the
+equivalence), then Fermat's little theorem / Euler's theorem as the deep targets (these would
+also exercise the prime theory already in the gate).
