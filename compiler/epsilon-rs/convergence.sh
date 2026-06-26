@@ -34,6 +34,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-lt.alp "$T/clt" >/dev/null 
   || { echo "convergence FAIL — compiling certify-lt"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-bounds.alp "$T/cb" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-bounds"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-divides.alp "$T/cd" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-divides"; exit 1; }
 
 # the checker prints accept/reject to stdout but exits non-zero (the alpha VM's halt
 # code), so judge by the stdout string, not the exit status -- and drop `set -e`.
@@ -63,6 +65,14 @@ cb() {
 }
 cb 2 5 3 4; cb 0 8 0 1; cb 3 10 7 4; cb 1 1 0 2; cb 5 6 2 9
 
+# the fourth program proves a MULTIPLICATIVE obligation: divisibility  n | a  (n a)
+cd_() {
+  v=$(printf '%s %s' "$1" "$2" | "$T/cd" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL [$1 | $2] : delta returned [$v], expected accept"; fi
+}
+cd_ 3 12; cd_ 5 20; cd_ 1 7; cd_ 7 7; cd_ 4 0; cd_ 6 42
+
 # CORRUPTED certificates must be rejected (delta checks the computation, not us):
 # (a) claim 2+3 = 4; (b) reuse 2<5's witness to claim 2<4. Both must reject.
 bad=$(printf '2 3' | "$T/ca" | sed 's/(s (s (s (s (s z)))))/(s (s (s (s z))))/g' | "$T/check.exe")
@@ -75,6 +85,10 @@ if [ "$badlt" = reject ]; then PASS=$((PASS+1)); else
 badcb=$(printf '2 5 3 4' | "$T/cb" | sed 's/(s (s (s (s (s (s z))))))/(s (s (s (s (s z)))))/' | "$T/check.exe")
 if [ "$badcb" = reject ]; then PASS=$((PASS+1)); else
   FAIL=$((FAIL+1)); echo "  FAIL tamper-bounds : delta returned [$badcb], expected reject"; fi
+# (d) shrink the cofactor so q*n no longer equals a (claim cofactor 3 for 3|12).
+badcd=$(printf '3 12' | "$T/cd" | sed 's/(s (s (s (s z))))/(s (s (s z)))/' | "$T/check.exe")
+if [ "$badcd" = reject ]; then PASS=$((PASS+1)); else
+  FAIL=$((FAIL+1)); echo "  FAIL tamper-divides : delta returned [$badcd], expected reject"; fi
 
 echo "convergence (epsilon emits a delta proof; the trust anchor checks it): $PASS confirmed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
