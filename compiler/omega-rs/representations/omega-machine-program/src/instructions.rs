@@ -59,6 +59,7 @@ pub enum MachineInstructionKind {
     RuntimeFrameBaseIndexedBinaryWrite,
     RuntimeMachineStringWrite,
     RuntimeMachineBoundedBufferWrite,
+    RuntimeMachineBoundedBufferSourceAppend,
     RuntimeFrameStringWrite,
     RuntimePointeeStringWrite,
     RuntimeFrameIndexedStringWrite,

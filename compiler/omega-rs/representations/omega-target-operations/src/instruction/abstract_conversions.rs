@@ -675,6 +675,13 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_offset: *byte_offset,
                 literal: literal.clone(),
             },
+            omega_abstract_operations::AbstractOperationKind::AppendRuntimeMachineBoundedBufferSource {
+                target_byte_offset,
+                source_byte_offset,
+            } => Self::AppendRuntimeMachineBoundedBufferSource {
+                target_byte_offset: *target_byte_offset,
+                source_byte_offset: *source_byte_offset,
+            },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameString {
                 byte_offset,
                 data,

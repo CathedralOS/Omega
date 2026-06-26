@@ -1026,6 +1026,42 @@ fn runtime_bounded_carrier_write_read_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 owned `[u8; N] in Utf8` carrier builder/concat, native: `self.text =
+// "Room " + self.label` materializes into the target carrier's inline storage --
+// the first literal initializes it, then the source carrier's content is appended
+// (running offset + running len). `self.text == "Room A1"` matches -> exit 70.
+#[test]
+fn runtime_bounded_carrier_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-concat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the owned `[u8; 16] in Utf8` carrier to materialize `\"Room \" + self.label` \
+         into its inline storage so `self.text == \"Room A1\"` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 (return a `&[u8] in Utf8` view from a machine): a value-position call
 // returning a `&[u8] in Utf8` literal view flows as a real 16-byte `{ptr,len}`
 // descriptor into a `==` content compare. `pick() == "Gate"` matches and exits 70;

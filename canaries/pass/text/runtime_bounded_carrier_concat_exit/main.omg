@@ -1,0 +1,42 @@
+// The owned `[u8; N] in Utf8` carrier builder pattern (runtime concat), native:
+// `self.text = "Room " + self.label` materializes into the target carrier's
+// inline `{len, bytes}` storage -- the first literal initializes it (len + bytes),
+// then the source carrier's content is appended (the source's `len` bytes copied
+// onto the target's bytes at the running offset, the running `len` updated). Both
+// carriers OWN their bytes (no `{ptr,len}` descriptor, no scratch buffer). The
+// length-fits guard already proved `"Room " (5) + self.label (<= 4)` fits the
+// 16-byte target. `self.text == "Room A1"` matches (length 7, every byte) -> exit
+// 70. The interpreter agrees (differential).
+domain [u8; 4]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 16]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    label: [u8; 4] in Utf8;
+    text: [u8; 16] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.label = "A1";
+    self.text = "Room " + self.label;
+
+    transition self.text == "Room A1" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

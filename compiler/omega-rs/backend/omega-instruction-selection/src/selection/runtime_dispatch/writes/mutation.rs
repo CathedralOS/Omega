@@ -22,8 +22,8 @@ use super::super::super::bindings::{
 };
 use super::super::super::storage_places::{
     resolve_runtime_storage_arithmetic_domain, resolve_runtime_storage_is_signed,
-    resolve_runtime_storage_place, resolve_runtime_storage_primitive_type,
-    runtime_storage_target_is_atomic,
+    resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
+    resolve_runtime_storage_primitive_type, runtime_storage_target_is_atomic,
 };
 use omega_checked_trees::types::PrimitiveType;
 use super::super::super::storage_places::{
@@ -860,6 +860,66 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             &folded,
             selected_instructions,
         );
+        return;
+    }
+
+    // Owned `[u8; N]` carrier concat (`self.text = "prefix " + self.source`,
+    // the `runtime_text_builder` shape): the first literal initializes the target
+    // carrier (`WriteRuntimeMachineBoundedBuffer` sets len + bytes), then the
+    // source carrier's content is appended onto the target's inline bytes at the
+    // running offset (`AppendRuntimeMachineBoundedBufferSource`). Handles the
+    // 2-segment `literal + carrier-source` shape; both carriers machine-resident.
+    // The length-fits guard already proved the result fits the target's N.
+    if let Expression::Binary(binary) = value
+        && binary.operator == omega_checked_trees::expression::BinaryOperator::Add
+        && let Expression::String(prefix) = &binary.left
+        && resolve_runtime_storage_place_is_bounded_byte_buffer(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_target,
+        )
+        && resolve_runtime_storage_place_is_bounded_byte_buffer(
+            input,
+            dispatch_index,
+            target_source_key,
+            &binary.right,
+        )
+        && let Some(target_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            target_source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+        )
+        && target_place.region == omega_abstract_operations::RuntimeStorageRegion::Machine
+        && let Some(source_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            target_source_key,
+            source_machine,
+            source_state,
+            &binary.right,
+        )
+        && source_place.region == omega_abstract_operations::RuntimeStorageRegion::Machine
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
+                byte_offset: target_place.byte_offset,
+                literal: std::sync::Arc::from(prefix.to_string()),
+            },
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+                target_byte_offset: target_place.byte_offset,
+                source_byte_offset: source_place.byte_offset,
+            },
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
         return;
     }
 

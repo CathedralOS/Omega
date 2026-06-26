@@ -3461,6 +3461,51 @@ pub fn encode_runtime_machine_bounded_buffer_write(
     Ok(bytes)
 }
 
+// Append a source carrier's content onto a target carrier (concat builder source
+// segment, after the first literal initialized the target). r15 = machine
+// storage base (reloc @ +2). rax = target running len; rcx = source len (rep
+// count); rsi = source bytes (source + 8); rdi = target bytes + running len; copy
+// rcx bytes; store new len = target_len + source_len. Fixed width (no per-byte
+// loop), one relocation (the base).
+pub fn runtime_machine_bounded_buffer_source_append_width() -> usize {
+    // mov r15,imm64 (10) + mov rax,[r15+t] (7) + mov rcx,[r15+s] (7)
+    // + lea rsi,[r15+s+8] (7) + lea rdi,[r15+t+8] (7) + add rdi,rax (3)
+    // + rep movsb (2) + add rax,rcx (3) + mov [r15+t],rax (7) = 53
+    53
+}
+
+pub fn encode_runtime_machine_bounded_buffer_source_append(
+    target_byte_offset: usize,
+    source_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let target = disp32(target_byte_offset)?;
+    let target_bytes = disp32(target_byte_offset + 8)?;
+    let source = disp32(source_byte_offset)?;
+    let source_bytes = disp32(source_byte_offset + 8)?;
+    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_source_append_width());
+    append_mov_r15_imm64(&mut bytes, 0); // machine storage base (reloc @ +2)
+    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + target]   (target running len)
+    bytes.extend(target.to_le_bytes());
+    bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15 + source]   (source len = rep count)
+    bytes.extend(source.to_le_bytes());
+    bytes.extend([0x49, 0x8d, 0xbf]); // lea rdi, [r15 + target+8] (target bytes base)
+    bytes.extend(target_bytes.to_le_bytes());
+    bytes.extend([0x48, 0x01, 0xc7]); // add rdi, rax  (target bytes + running len)
+    // new len = target_len + source_len -- MUST precede `rep movsb`, which
+    // decrements rcx to 0 as it copies; computing it after would always add 0.
+    bytes.extend([0x48, 0x01, 0xc8]); // add rax, rcx  (rax = target_len + source_len)
+    bytes.extend([0x49, 0x8d, 0xb7]); // lea rsi, [r15 + source+8] (source bytes)
+    bytes.extend(source_bytes.to_le_bytes());
+    bytes.extend([0xf3, 0xa4]); // rep movsb  (copy rcx bytes; consumes rcx)
+    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + target], rax  (store new len)
+    bytes.extend(target.to_le_bytes());
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_bounded_buffer_source_append_width()
+    );
+    Ok(bytes)
+}
+
 pub fn encode_runtime_frame_string_write(
     byte_offset: usize,
     byte_length: usize,

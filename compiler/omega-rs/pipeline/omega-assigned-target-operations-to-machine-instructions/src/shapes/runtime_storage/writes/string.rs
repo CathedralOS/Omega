@@ -16,6 +16,9 @@ pub(super) fn selected_string_write_kind(
         SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. } => {
             Some(MachineInstructionKind::RuntimeMachineBoundedBufferWrite)
         }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. } => {
+            Some(MachineInstructionKind::RuntimeMachineBoundedBufferSourceAppend)
+        }
         SelectedInstructionKind::WriteRuntimeFrameString {
             byte_offset,
             byte_length,
