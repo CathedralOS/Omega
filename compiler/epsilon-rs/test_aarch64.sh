@@ -152,6 +152,9 @@ tokens_test "tokenize multi-char ops" samples/tokenize.alp "Main::main n<=3 a->b
 stdin_exit "balance ok (nested/mixed + comment/string)" samples/balance.alp 'f(){ a[0]=1; } // ) ]
 x="}"' 0
 stdin_exit "balance bad (type mismatch)" samples/balance.alp 'f( ]' 1
+# decls: keyword recognition + structure extraction — list .alp machine names.
+tokens_test "decls lists machine names" samples/decls.alp "machine max(a,b){} machine Main::main(){}" "max Main"
+tokens_test "decls keyword vs prefix (machinery != machine)" samples/decls.alp "machinery x; machine f(){}" "f"
 # The emitted code is overflow-SAFE: a compiled overflowing expr traps at runtime.
 compiler_trap "exprc emits overflow trap" samples/exprc.alp "46341*46341"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
