@@ -45,10 +45,11 @@ idx=0; blk=""; ids={}
 def emb(name):
     global blk, idx
     b,last=shift(strip_decls(cof(name)),idx); blk+=b; idx=last+1; return last
-ids['bounds-2d']  = emb('2D array bounds (i<m & j<n -> i*n+j < m*n)')   # certify-linked / certify-loop
-ids['lt-le-trans']= emb('lt le trans')                                  # certify-loop
-assert ids['bounds-2d']==30 and ids['lt-le-trans']==34, \
-    "library def ids drifted: %r (certify-linked uses 30, certify-loop uses 30 & 34)"%ids
+ids['bounds-2d']    = emb('2D array bounds (i<m & j<n -> i*n+j < m*n)')   # certify-linked / certify-loop
+ids['lt-le-trans']  = emb('lt le trans')                                 # certify-loop
+ids['mult-overflow']= emb('mult overflow bound (a<B & b<C -> a*b < B*C)') # certify-mul
+assert ids['bounds-2d']==30 and ids['lt-le-trans']==34 and ids['mult-overflow']==66, \
+    "library def ids drifted: %r (certify-linked uses 30; certify-loop 30 & 34; certify-mul 66)"%ids
 # emit RAW defs (what check.exe reads): elaborate with a throwaway goal/proof, then strip it
 full=elaborate(blk+" (= z z) (refl z)")
 sys.stdout.write(full.rsplit("(= z z) (refl z)",1)[0].rstrip())

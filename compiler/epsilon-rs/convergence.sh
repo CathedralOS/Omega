@@ -46,6 +46,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-linked.alp "$T/cl" >/dev/nu
   || { echo "convergence FAIL — compiling certify-linked"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-loop.alp "$T/clp" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-loop"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-mul.alp "$T/cm" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-mul"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -159,6 +161,13 @@ if [ "$HAVE_LIB" = 1 ]; then
   bp=$( { cat "$T/lib2d.delta"; printf ' '; printf '4 5 0 4' | "$T/clp" | sed 's/(use 30)/(use 0)/'; } | "$T/check.exe" )
   if [ "$bp" = reject ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL tamper-loop : delta returned [$bp], expected reject"; fi
+  # overflow safety by citing mult-overflow (use 66): a*b < B*C from a<B and b<C
+  mul_link() {
+    v=$( { cat "$T/lib2d.delta"; printf ' '; printf '%s' "$1" | "$T/cm"; } | "$T/check.exe" )
+    if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+      FAIL=$((FAIL+1)); echo "  FAIL mul [$1] : delta returned [$v], expected accept"; fi
+  }
+  mul_link "3 4 5 6"; mul_link "7 2 8 9"; mul_link "0 0 1 1"
 else echo "  (skipped linked-library checks — no python3 / library gen failed)"; fi
 
 # CORRUPTED certificates must be rejected (delta checks the computation, not us):
