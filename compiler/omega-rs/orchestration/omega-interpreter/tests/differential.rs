@@ -392,6 +392,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         "text/runtime_call_argument_struct_string_field_slice_alias_exit",
         77,
     ),
+    ("text/runtime_case_payload_domain_forward_exit", 70),
     ("text/runtime_chained_string_append_exit", 70),
     ("text/runtime_large_lookup_struct_field_concat_exit", 192),
     (
@@ -422,6 +423,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         "text/runtime_mutable_struct_string_field_copy_concat_write_line",
         77,
     ),
+    ("text/runtime_param_domain_forward_exit", 70),
     (
         "text/runtime_slice_alias_indexed_string_field_concat_exit",
         77,
