@@ -81,9 +81,10 @@ induction**:
   (`a<b ↔ Sa≤b`), positivity (`0<a ∧ 0<b → 0<a·b`), **divisibility** (`a∣b := ∃m. m·a=b`)
   shown reflexive, transitive, and satisfied by `0`, the list analog of `0`-or-`s`,
   `∀l. l=nil ∨ ∃h∃t. l=cons h t`, and — the capstone — the **Euclidean division algorithm**
-  `∀b. 0<b → ∀a. ∃q∃r. a=b·q+r ∧ r<b` (quotient-remainder existence, by a fuel induction with
-  a strict-trichotomy case split, since the first-order checker can't instantiate strong
-  induction at a concrete predicate).
+  `∀b. 0<b → ∀a. ∃q∃r. a=b·q+r ∧ r<b`, proved **existence** (by a fuel induction with a
+  strict-trichotomy case split, since the first-order checker can't instantiate strong
+  induction at a concrete predicate) **and uniqueness** (`q` and `r` are determined — a
+  bounding argument resting on **multiplication being cancellative**, `0<b ∧ b·q₁=b·q₂ → q₁=q₂`).
 
 ### Why you can believe it
 
