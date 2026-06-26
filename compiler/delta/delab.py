@@ -95,6 +95,8 @@ def dpf(n, iv, hy, c):  # decompile a proof
     if h == 'memnil': return "(memnil %s)" % dpf(n[1], iv, hy, c)
     if h == 'pnil':   return "(pnil)"
     if h == 'pcons':  return "(pcons %s %s)" % (dt(n[1], iv), dpf(n[2], iv, hy, c))
+    if h == 'prodnilinv':  return "(prodnilinv %s)" % dpf(n[1], iv, hy, c)
+    if h == 'prodconsinv': return "(prodconsinv %s)" % dpf(n[1], iv, hy, c)
     raise SystemExit("delab: bad proof %r" % (h,))
 
 def decompile(src):

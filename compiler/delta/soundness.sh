@@ -82,5 +82,8 @@ no "memtail changes element"     "(Rel 777 (s (s z)) (cons (s z) (cons (s (s (s 
 no "prodis fakes product"        "(Rel 778 nil (s (s z))) (pnil)"
 no "prodis cons wrong product"   "(Rel 778 (cons (s (s z)) nil) (s (s (s (s (s z)))))) (pcons (s (s z)) (pnil))"
 
+no "prodnilinv on a cons"        "(= (m (s (s z)) (s z)) (s z)) (prodnilinv (pcons (s (s z)) (pnil)))"
+no "prodconsinv on nil"        "(All (Exists (& (= (s z) (m (v 1) (v 0))) (Rel 778 nil (v 0))))) (gen (prodconsinv (pnil)))"
+
 echo "soundness battery (invalid certificates must all be rejected): $PASS rejected, $FAIL breached"
 [ "$FAIL" = 0 ] || exit 1

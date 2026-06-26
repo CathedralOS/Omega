@@ -137,5 +137,8 @@ dia "mem false"      "(Rel 777 (s (s z)) nil) (memhead (s (s z)) nil)" "(check (
 dia "prodis nil"     "(Rel 778 nil (s z)) (pnil)" "(check (Pnil) (Rel 778 Lnil (Su Ze)))" accept
 dia "prodis cons"    "(Rel 778 (cons (s (s z)) nil) (m (s (s z)) (s z))) (pcons (s (s z)) (pnil))" "(check (Pcons (Su (Su Ze)) (Pnil)) (Rel 778 (Lcons (Su (Su Ze)) Lnil) (Mu (Su (Su Ze)) (Su Ze))))" accept
 dia "prodis false"   "(Rel 778 nil (s (s z))) (pnil)" "(check (Pnil) (Rel 778 Lnil (Su (Su Ze))))" reject
+dia "prodis nil inv"  "(-> (Rel 778 nil (s (s z))) (= (s (s z)) (s z))) (lam (Rel 778 nil (s (s z))) (prodnilinv (hyp 0)))" "(check (Lam (Rel 778 Lnil (Su (Su Ze))) (Prodnilinv (Hyp 0))) (Arrow (Rel 778 Lnil (Su (Su Ze))) (Eq (Su (Su Ze)) (Su Ze))))" accept
+dia "prodis cons inv" "(Exists (& (= (m (s (s z)) (s z)) (m (s (s z)) (v 0))) (Rel 778 nil (v 0)))) (prodconsinv (pcons (s (s z)) (pnil)))" "(check (Prodconsinv (Pcons (Su (Su Ze)) (Pnil))) (Exists (And (Eq (Mu (Su (Su Ze)) (Su Ze)) (Mu (Su (Su Ze)) (Iv 0))) (Rel 778 Lnil (Iv 0)))))" accept
+dia "prodis inv false" "(= (m (s (s z)) (s z)) (s z)) (prodnilinv (pcons (s (s z)) (pnil)))" "(check (Prodnilinv (Pcons (Su (Su Ze)) (Pnil))) (Eq (Mu (Su (Su Ze)) (Su Ze)) (Su Ze)))" reject
 echo "checker diamond (check.beta vs checker.gamma): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
