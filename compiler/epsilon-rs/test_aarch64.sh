@@ -213,6 +213,8 @@ filter_test "arrindex emits the backend SelfIndex sequence (u8 array, offset 0 c
 filter_test "storefield emits the backend field-store (offset 8)" samples/storefield.alp "8" "$(printf '    ldr x0, [sp], #16\n    ldr x9, [x29, #16]\n    str w0, [x9, #8]')"
 # storeindex: StoreSelfIndex (array element store) -- self.arr[i] = value
 filter_test "storeindex emits the backend array-store (u8 array, offset 0 count 16)" samples/storeindex.alp "0 16 1" "$(printf '    ldr x0, [sp], #16\n    movz w1, #16\n    cmp w0, w1\n    b.hs Ltrap\n    uxtw x0, w0\n    ldr x9, [x29, #16]\n    add x9, x9, x0\n    ldr x1, [sp], #16\n    strb w1, [x9]')"
+# scaffold: the machine FRAME (prologue + trailing default + epilogue) for the entry _main
+filter_test "scaffold emits the entry-machine frame (local_count 0 -> frame 32)" samples/scaffold.alp "0" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
 # layout regression: a last field with no trailing semicolon (data ... i32 }) must still parse
 filter_test "layout handles last field without trailing semicolon" samples/layout.alp "boundary trait C{} data Main{ c: C; n: i32 }" "$(printf 'c 0\nn 0')"
 stdin_exit "certify-source rejects an overrunning loop (exit 1)" samples/certify-source.alp "arr 4 5  band 5 0" 1
