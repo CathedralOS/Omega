@@ -122,6 +122,8 @@ filter_test "calc nested parens (((1+2))*3)"  samples/calc.alp "((1+2))*3" "9"
 compiler_test "exprc compiles 2+3*4"   samples/exprc.alp "2+3*4"     14
 compiler_test "exprc compiles (2+3)*4" samples/exprc.alp "(2+3)*4"   20
 compiler_test "exprc compiles ((1+2))*3" samples/exprc.alp "((1+2))*3" 9
+# Full i32 literals: > 65535 needs movz+movk (lo/hi split via division).
+compiler_test "exprc large literal (100000/1000)" samples/exprc.alp "100000/1000" 100
 # The emitted code is overflow-SAFE: a compiled overflowing expr traps at runtime.
 compiler_trap "exprc emits overflow trap" samples/exprc.alp "46341*46341"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
