@@ -910,6 +910,8 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             kinds.push(SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
                 byte_offset: target_place.byte_offset,
                 literal: std::sync::Arc::from(prefix.to_string()),
+                // The concat target is gated to the Machine region above.
+                target_in_frame: false,
             });
             let mut all_segments_resolved = true;
             for segment in rest {

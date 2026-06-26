@@ -88,20 +88,30 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
 
     // An owned `[u8; N]` bounded byte carrier OWNS its bytes: emit the carrier
     // write (store `len` + copy the literal inline) instead of a `{ptr,len}`
-    // descriptor that aliases rodata. Machine-resident carriers only for now.
+    // descriptor that aliases rodata. The carrier is machine-resident unless it is
+    // a `let`-local struct's field (`room.label`), which is frame-resident -- write
+    // it off the runtime frame base. Without the frame case a 16-byte carrier
+    // (`[u8; 8]`) matched the descriptor-size check below and was written as a
+    // `{ptr, len}` String descriptor into the frame (a garbage carrier).
     if matches!(
         target_place.region,
         omega_abstract_operations::RuntimeStorageRegion::Machine
+            | omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
     ) && resolve_runtime_storage_place_is_bounded_byte_buffer(
         input,
         dispatch_index,
         target_source_key,
         resolved_target,
     ) {
+        let target_in_frame = matches!(
+            target_place.region,
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+        );
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
                 byte_offset: target_place.byte_offset,
                 literal: std::sync::Arc::from(value),
+                target_in_frame,
             },
             source_key: literal_source_key,
             source_statement: statement_index,

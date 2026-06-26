@@ -1,10 +1,12 @@
-// #66 owned carrier concat with a FRAME-LOCAL source: `out_line = "== " + src +
-// " =="` where `src` is a `let`-local `[u8; 8] in Utf8` carrier. The append reads
-// the source from the runtime FRAME base (a second relocation) rather than the
-// machine base -- without this the concat bailed to the String builder, which
-// writes a `{ptr, len}` descriptor into the carrier target (garbage len ->
-// `rep movsb` overrun -> SIGSEGV). Renders "== Gate ==" into the borrowed carrier,
-// exits 70 (the interpreter agrees).
+// #66 owned carrier concat over a FRAME-LOCAL struct-field source, with a FRAME
+// carrier field write: `let room: Room; room.label = "Gate"; out_line = "== " +
+// room.label + " =="`. Two frame-resident carrier pieces exercised together:
+//   * `room.label = "Gate"` writes the carrier `{len, bytes}` off the runtime
+//     FRAME base (a `[u8; 8]` carrier is 16 bytes = the String descriptor size, so
+//     without the frame case it was mis-written as a `{ptr, len}` descriptor); and
+//   * the concat reads `room.label` (a runtime value, not folded) off the frame
+//     base via the source-append's `source_in_frame` path.
+// Renders "== Gate ==" into the borrowed carrier, exits 70 (the interpreter agrees).
 domain [u8]::Utf8 when valid_utf8(self) {
 }
 
@@ -18,12 +20,17 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
+data Room {
+    label: [u8; 8] in Utf8;
+}
+
 data Formatter {
 }
 
 machine Formatter::render(&mut self, out_line: &mut [u8; 16] in Utf8) {
-    let src: [u8; 8] in Utf8 = "Gate";
-    out_line = "== " + src + " ==";
+    let room: Room;
+    room.label = "Gate";
+    out_line = "== " + room.label + " ==";
 }
 
 data Main {
