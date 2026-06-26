@@ -54,6 +54,20 @@ run "loop (count i 0->3, exit i)" samples/loop.alp 3
 run "calls (max(max(7,19),12))" samples/calls.alp 19
 # Slice 7a: data structs + mutable self fields — sum 1..=5 into self.total -> 15.
 run "data (self fields, sum 1..5)" samples/data.alp 15
+# Slice 7b: array fields + self/method calls + bounds-checked indexing.
+run "methods (stack in self, 7*10+5)" samples/methods.alp 75
+cat > "$T/ib.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; arr: [i32; 4]; }
+machine Main::main(&mut self) { self.arr[2] = 42; self.console.exit_process(self.arr[2]) }
+EOF
+run "array write/read in bounds" "$T/ib.alp" 42
+cat > "$T/oob.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; arr: [i32; 4]; }
+machine Main::main(&mut self) { self.arr[10] = 5; self.console.exit_process(0) }
+EOF
+trap_test "out-of-bounds index traps" "$T/oob.alp"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
 cat > "$T/ovf.alp" <<'EOF'
 boundary trait Console { machine exit_process(return_code: i32); }
@@ -68,5 +82,5 @@ machine Main::main(&mut self) { let z: i32 = 0; let q: i32 = 5 / z; self.console
 EOF
 trap_test "divide by zero traps" "$T/dz.alp"
 
-echo "aarch64 macOS backend gate (slices 1-2, 4-6, 7a): $PASS passed, $FAIL failed"
+echo "aarch64 macOS backend gate (slices 1-2, 4-7): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

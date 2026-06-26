@@ -84,22 +84,31 @@ fn lower_machine(machine_index: usize, program: &Program, asm: &mut String) {
     asm.push_str(&format!("    sub sp, sp, #{}\n", frame));
     asm.push_str("    stp x29, x30, [sp]\n");
     asm.push_str("    mov x29, sp\n");
-    // spill incoming value params (x0..x3) into their local slots
+    let is_entry = machine_index == program.entry_machine;
+    // A non-entry method takes self in x0, so its value params start at x1.
+    let self_register_offset = if machine.has_self && !is_entry { 1 } else { 0 };
+    // spill incoming value params into their local slots
     for param_position in 0..machine.param_count {
         asm.push_str(&format!(
             "    str w{}, [x29, #{}]\n",
-            param_position,
+            param_position + self_register_offset,
             local_displacement(param_position)
         ));
     }
-    // establish the self pointer to the static zero-init instance — but only when
-    // the entry actually has data fields (`_selfdata` is emitted iff size > 0; a
-    // `&mut self` with no fields, e.g. exit7, never dereferences self). Non-entry
-    // methods receive self in x0 — handled when method/self calls are ported.
-    if machine.has_self && machine_index == program.entry_machine && program.entry_data_size > 0 {
-        asm.push_str("    adrp x9, _selfdata@PAGE\n");
-        asm.push_str("    add x9, x9, _selfdata@PAGEOFF\n");
-        asm.push_str(&format!("    str x9, [x29, #{}]\n", self_disp));
+    // establish the self pointer. Entry: the static zero-init instance, but only
+    // when there are data fields (`_selfdata` is emitted iff size > 0; a `&mut self`
+    // with no fields, e.g. exit7, never dereferences self). Non-entry method: self
+    // arrives in x0 (the caller's self-pointer, so every method sees one instance).
+    if machine.has_self {
+        if is_entry {
+            if program.entry_data_size > 0 {
+                asm.push_str("    adrp x9, _selfdata@PAGE\n");
+                asm.push_str("    add x9, x9, _selfdata@PAGEOFF\n");
+                asm.push_str(&format!("    str x9, [x29, #{}]\n", self_disp));
+            }
+        } else {
+            asm.push_str(&format!("    str x0, [x29, #{}]\n", self_disp));
+        }
     }
 
     for statement in &machine.entry {
@@ -158,6 +167,17 @@ fn lower_statement(
             asm.push_str(&format!("    ldr x9, [x29, #{}]\n", self_disp)); // self pointer
             asm.push_str(&format!("    str w0, [x9, #{}]\n", offset)); // self.<field> = value
         }
+        Statement::StoreSelfIndex(field_offset, count, element_bytes, index, value) => {
+            lower_expression(*value, program, self_disp, asm); // push value
+            lower_expression(*index, program, self_disp, asm); // push index (popped first)
+            emit_self_element_address(self_disp, *field_offset, *count, *element_bytes, asm); // x9 = &elem
+            asm.push_str("    ldr x1, [sp], #16\n"); // pop value
+            if *element_bytes == 1 {
+                asm.push_str("    strb w1, [x9]\n");
+            } else {
+                asm.push_str("    str w1, [x9]\n");
+            }
+        }
         Statement::Eval(expression) => {
             lower_expression(*expression, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop and discard
@@ -207,6 +227,28 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
             asm.push_str(&format!("    ldr w0, [x9, #{}]\n", offset)); // self.<field>
             asm.push_str("    str x0, [sp, #-16]!\n"); // push
         }
+        Expr::SelfIndex(field_offset, count, element_bytes, index) => {
+            lower_expression(index, program, self_disp, asm); // push index
+            emit_self_element_address(self_disp, field_offset, count, element_bytes, asm); // x9 = &elem
+            if element_bytes == 1 {
+                asm.push_str("    ldrb w0, [x9]\n");
+            } else {
+                asm.push_str("    ldr w0, [x9]\n");
+            }
+            asm.push_str("    str x0, [sp, #-16]!\n"); // push
+        }
+        Expr::SelfCall(machine_index, args_start, arg_count) => {
+            // Like Call, but self goes in x0 and the value args shift to x1..x4.
+            for index in 0..arg_count {
+                lower_expression(program.call_args[args_start + index], program, self_disp, asm);
+            }
+            for index in (0..arg_count).rev() {
+                asm.push_str(&format!("    ldr x{}, [sp], #16\n", index + 1));
+            }
+            asm.push_str(&format!("    ldr x0, [x29, #{}]\n", self_disp)); // self pointer
+            asm.push_str(&format!("    bl {}\n", machine_label(machine_index, program)));
+            asm.push_str("    str x0, [sp, #-16]!\n"); // push return value
+        }
         Expr::Call(machine_index, args_start, arg_count) => {
             // Evaluate args left-to-right (each pushed), then pop them into x0..x3
             // top-down (arg N-1 is on top), `bl` the callee, push the w0 result.
@@ -254,6 +296,37 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
         _ => {
             asm.push_str("    mov w0, #0\n    str x0, [sp, #-16]!\n");
         }
+    }
+}
+
+// Bounds-checked element address into x9. Pops the index off the stack, traps if
+// it is out of range (unsigned index >= count — the runtime counterpart of the
+// delta array-bounds VC), then x9 = self + field_offset + index*element_bytes.
+fn emit_self_element_address(
+    self_disp: i32,
+    field_offset: i32,
+    count: i32,
+    element_bytes: i32,
+    asm: &mut String,
+) {
+    asm.push_str("    ldr x0, [sp], #16\n"); // pop index
+    emit_load_w1(count, asm); // w1 = count
+    asm.push_str("    cmp w0, w1\n    b.hs Ltrap\n"); // trap if index >= count (unsigned)
+    asm.push_str("    uxtw x0, w0\n"); // zero-extend the validated index
+    asm.push_str(&format!("    ldr x9, [x29, #{}]\n", self_disp)); // self pointer
+    if field_offset != 0 {
+        asm.push_str(&format!("    add x9, x9, #{}\n", field_offset));
+    }
+    let shift = match element_bytes {
+        2 => 1,
+        4 => 2,
+        8 => 3,
+        _ => 0,
+    };
+    if shift > 0 {
+        asm.push_str(&format!("    add x9, x9, x0, lsl #{}\n", shift)); // + index*element_bytes
+    } else {
+        asm.push_str("    add x9, x9, x0\n");
     }
 }
 
