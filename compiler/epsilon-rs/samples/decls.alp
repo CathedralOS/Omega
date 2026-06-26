@@ -1,11 +1,11 @@
-// Lists the machine names declared in .alp source — the first parser-flavored tool
+// Lists the names declared in .alp source — the first parser-flavored tool
 // (keyword recognition + structure extraction), written in epsilon. Scans tokens
-// (skipping whitespace and // comments), recognizes the `machine` keyword by direct
-// byte comparison, and emits the next identifier (the declared name), one per line.
-// .alp has no general string constants, so the keyword is matched byte-by-byte
-// rather than against a string-table entry -- the same recognition a parser does at
-// each grammar decision point.
-//   printf 'machine max(a,b){} machine Main::main(){}' | decls   -> max / Main
+// (skipping whitespace and // comments), recognizes the `machine` and `data`
+// keywords by direct byte comparison, and emits the next identifier (the declared
+// name), one per line. .alp has no general string constants, so each keyword is
+// matched byte-by-byte rather than against a string-table entry -- the same
+// recognition a parser does at each grammar decision point.
+//   printf 'data Pt{x:i32;} machine max(a,b){}' | decls   -> Pt / max
 boundary trait Console {
     machine exit_process(return_code: i32);
     machine write_byte(b: i32);
@@ -38,6 +38,16 @@ machine Main::is_machine(&mut self, s: i32, e: i32) -> i32 {
     state k6() { transition self.buf[s + 6] == 101 { true -> kyes() false -> kno() } }
     state kyes() { return 1; }
     state kno()  { return 0; }
+}
+// is buf[s..e] the keyword "data"? (d a t a = 100 97 116 97)
+machine Main::is_data(&mut self, s: i32, e: i32) -> i32 {
+    transition e - s == 4 { true -> j0()  false -> jno() }
+    state j0() { transition self.buf[s]     == 100 { true -> j1()  false -> jno() } }
+    state j1() { transition self.buf[s + 1] == 97  { true -> j2()  false -> jno() } }
+    state j2() { transition self.buf[s + 2] == 116 { true -> j3()  false -> jno() } }
+    state j3() { transition self.buf[s + 3] == 97  { true -> jyes() false -> jno() } }
+    state jyes() { return 1; }
+    state jno()  { return 0; }
 }
 machine Main::emit_range(&mut self, a: i32, b: i32) {
     self.ei = a;
@@ -76,6 +86,10 @@ machine Main::main(&mut self) {
     // a word token at buf[start..pos]: is it `machine`, or (if expected) a name?
     state classify() {
         self.w = self.is_machine(self.start, self.pos);
+        transition self.w == 1 { true -> setexp()  false -> chkdata() }
+    }
+    state chkdata() {
+        self.w = self.is_data(self.start, self.pos);
         transition self.w == 1 { true -> setexp()  false -> maybename() }
     }
     state setexp()    { self.expect = 1; transition 0 { _ -> skipws() } }
