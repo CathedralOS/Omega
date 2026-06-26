@@ -395,6 +395,12 @@ pub enum TargetOperationKind {
         byte_offset: usize,
         literal: std::sync::Arc<str>,
     },
+    /// Append a source carrier's content onto a target carrier (concat builder
+    /// source segment). See the abstract-operations twin.
+    AppendRuntimeMachineBoundedBufferSource {
+        target_byte_offset: usize,
+        source_byte_offset: usize,
+    },
     WriteRuntimeFrameString {
         byte_offset: usize,
         data: TargetDataObjectHandle,

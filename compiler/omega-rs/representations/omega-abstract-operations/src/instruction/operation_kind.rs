@@ -490,6 +490,19 @@ pub enum AbstractOperationKind {
         byte_offset: usize,
         literal: Arc<str>,
     },
+    /// Append another owned `[u8; N]` carrier's content onto a target carrier at
+    /// machine storage (the concat-builder's source segment after the first
+    /// literal initialized the target via `WriteRuntimeMachineBoundedBuffer`).
+    /// Reads the target's running `len` and the source's `len`, copies the
+    /// source's `len` content bytes (at `source + pointer_size`) onto the target's
+    /// bytes at the running offset (`target + pointer_size + target_len`), then
+    /// stores the new running `len = target_len + source_len`. Both carriers are
+    /// machine-resident, so the only relocation is the shared storage base. The
+    /// length-fits guard proves the result still fits the target's `N`.
+    AppendRuntimeMachineBoundedBufferSource {
+        target_byte_offset: usize,
+        source_byte_offset: usize,
+    },
     WriteRuntimeFrameString {
         byte_offset: usize,
         data: AbstractDataObjectHandle,

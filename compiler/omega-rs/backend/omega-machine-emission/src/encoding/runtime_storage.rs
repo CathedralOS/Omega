@@ -489,6 +489,18 @@ pub(super) fn encode_runtime_machine_bounded_buffer_write(
     )
 }
 
+pub(super) fn encode_runtime_machine_bounded_buffer_source_append(
+    input: MachineEmissionContext<'_>,
+    target_byte_offset: usize,
+    source_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_machine_bounded_buffer_source_append(
+        input.target.architecture,
+        target_byte_offset,
+        source_byte_offset,
+    )
+}
+
 pub(super) fn encode_runtime_frame_string_write(
     input: MachineEmissionContext<'_>,
     byte_offset: usize,

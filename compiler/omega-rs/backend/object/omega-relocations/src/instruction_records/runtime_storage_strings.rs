@@ -29,6 +29,12 @@ pub(super) fn collect_runtime_storage_string_relocations(
             context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
             true
         }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. } => {
+            // Both carriers are machine-resident, addressed off the same base
+            // (`mov r15, imm64` leading instruction); the base is the only reloc.
+            context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            true
+        }
         SelectedInstructionKind::WriteRuntimeFrameString { data, .. } => {
             let data_symbol = context.data_object_symbol_handle(*data);
             context.insert_data_address_at_instruction_start(data_symbol);

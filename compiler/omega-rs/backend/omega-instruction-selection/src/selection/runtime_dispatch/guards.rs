@@ -707,6 +707,22 @@ fn runtime_text_literal_guard_in_table(
         return None;
     };
 
+    // An owned `[u8; N]` carrier compared to a literal must use the carrier
+    // content compare (the equals-literal path), NOT this builder-buffer compare:
+    // the runtime-text planner associates a scratch buffer with a concat-target
+    // carrier, but the carrier write/append materialize into the carrier's INLINE
+    // storage, never that scratch. Defer so `runtime_text_equals_literal_guard`
+    // reads the carrier directly.
+    if resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        text_place,
+    ) {
+        return None;
+    }
+
     let buffer = runtime_text_input_buffer_data_for_text_place_in_table(
         input,
         dispatch_index,
