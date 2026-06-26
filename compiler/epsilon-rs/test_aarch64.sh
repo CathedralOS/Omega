@@ -92,6 +92,10 @@ filter_test "echo (read->write byte loop)" samples/echo.alp "hello, bytes!" "hel
 filter_test "buffer ([u8;N], reverse stdin)" samples/buffer.alp "abcde" "edcba"
 # Number I/O: parse decimal, compute, format decimal back (self-hosting primitive).
 filter_test "square (parse+compute+format)" samples/square.alp "144" "20736"
+# Recursive-descent calculator — precedence + parens (recursion). Compiler-shaped.
+filter_test "calc precedence (2+3*4)"     samples/calc.alp "2+3*4"     "14"
+filter_test "calc parens/recursion ((2+3)*4)" samples/calc.alp "(2+3)*4" "20"
+filter_test "calc nested parens (((1+2))*3)"  samples/calc.alp "((1+2))*3" "9"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
 cat > "$T/ovf.alp" <<'EOF'
 boundary trait Console { machine exit_process(return_code: i32); }
