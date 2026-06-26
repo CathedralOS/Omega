@@ -203,6 +203,8 @@ filter_test "loadk emits ARM64 constant load (movz + movk high half)" samples/lo
 filter_test "lowerop emits the backend binary-op snippet (<= -> cmp/cset le)" samples/lowerop.alp "<=" "$(printf '    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    cmp w0, w1\n    cset w0, le\n    str x0, [sp, #-16]!')"
 # fieldload: self.field operand lowering -- the symbol-table half (field name -> layout offset -> SelfField load)
 filter_test "fieldload lowers a self.field read to its backend SelfField load" samples/fieldload.alp "data Main { a: i32; b: i32; c: i32; } machine Main::main(&mut self) { transition self.b { _ -> h() } state h(){} }" "$(printf '    ldr x9, [x29, #16]\n    ldr w0, [x9, #8]\n    str x0, [sp, #-16]!')"
+# lowerexpr: the ORCHESTRATOR -- lower a complete expression end-to-end (rpn + loadk + lowerop composed)
+filter_test "lowerexpr lowers a full expression (2 + 3) to the backend instruction sequence" samples/lowerexpr.alp "2 + 3" "$(printf '    movz w0, #2\n    str x0, [sp, #-16]!\n    movz w0, #3\n    str x0, [sp, #-16]!\n    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    adds w0, w0, w1\n    b.vs Ltrap\n    str x0, [sp, #-16]!')"
 # layout regression: a last field with no trailing semicolon (data ... i32 }) must still parse
 filter_test "layout handles last field without trailing semicolon" samples/layout.alp "boundary trait C{} data Main{ c: C; n: i32 }" "$(printf 'c 0\nn 0')"
 stdin_exit "certify-source rejects an overrunning loop (exit 1)" samples/certify-source.alp "arr 4 5  band 5 0" 1
