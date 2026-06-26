@@ -473,6 +473,7 @@ pub fn encode_runtime_machine_bounded_buffer_source_append(
     architecture: Architecture,
     target_byte_offset: usize,
     source_byte_offset: usize,
+    source_in_frame: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => Err(Diagnostic::error(
@@ -482,6 +483,7 @@ pub fn encode_runtime_machine_bounded_buffer_source_append(
         Architecture::X86_64 => x86_64::encode_runtime_machine_bounded_buffer_source_append(
             target_byte_offset,
             source_byte_offset,
+            source_in_frame,
         ),
     }
 }

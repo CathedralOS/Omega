@@ -642,9 +642,13 @@ fn machine_instruction_width(
         SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { literal, .. } => {
             runtime_machine_bounded_buffer_write_width(input.target.architecture, literal)
         }
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. } => {
-            runtime_machine_bounded_buffer_source_append_width(input.target.architecture)
-        }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+            source_in_frame,
+            ..
+        } => runtime_machine_bounded_buffer_source_append_width(
+            input.target.architecture,
+            *source_in_frame,
+        ),
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { literal, .. } => {
             runtime_machine_bounded_buffer_literal_append_width(input.target.architecture, literal)
         }

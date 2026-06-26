@@ -29,10 +29,20 @@ pub(super) fn collect_runtime_storage_string_relocations(
             context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
             true
         }
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. } => {
-            // Both carriers are machine-resident, addressed off the same base
-            // (`mov r15, imm64` leading instruction); the base is the only reloc.
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+            source_in_frame,
+            ..
+        } => {
+            // The target carrier is machine-resident, addressed off the leading
+            // `mov r15, imm64` base. A frame-local source adds a `mov r14, imm64`
+            // (the runtime frame base) right after, whose imm64 is at +12.
             context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            if *source_in_frame {
+                context.insert_data_address_at_relative_offset(
+                    10,
+                    context.runtime_frame_symbol_handle(),
+                );
+            }
             true
         }
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. } => {

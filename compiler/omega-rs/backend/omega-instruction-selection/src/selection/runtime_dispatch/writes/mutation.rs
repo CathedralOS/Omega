@@ -932,12 +932,25 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                     source_machine,
                     source_state,
                     segment,
-                ) && source_place.region
-                    == omega_abstract_operations::RuntimeStorageRegion::Machine
-                {
+                ) && matches!(
+                    source_place.region,
+                    omega_abstract_operations::RuntimeStorageRegion::Machine
+                        | omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+                ) {
+                    // The source carrier is usually machine-resident, but a
+                    // `let`-local (`room.label` in a render machine) lives in the
+                    // runtime frame -- read it from the frame base instead. Without
+                    // this the append bailed and the concat fell to the String
+                    // builder, which writes a `{ptr, len}` descriptor into the
+                    // carrier target (a garbage len -> `rep movsb` overrun -> SIGSEGV).
+                    let source_in_frame = matches!(
+                        source_place.region,
+                        omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+                    );
                     kinds.push(SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
                         target_byte_offset: target_place.byte_offset,
                         source_byte_offset: source_place.byte_offset,
+                        source_in_frame,
                     });
                 } else {
                     all_segments_resolved = false;

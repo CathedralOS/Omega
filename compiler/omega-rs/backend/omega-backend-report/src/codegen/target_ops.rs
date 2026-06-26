@@ -720,9 +720,13 @@ fn selected_instruction_name(
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
             target_byte_offset,
             source_byte_offset,
-        } => format!(
-            "append runtime machine bounded buffer source target@{target_byte_offset} source@{source_byte_offset}"
-        ),
+            source_in_frame,
+        } => {
+            let region = if *source_in_frame { "frame" } else { "machine" };
+            format!(
+                "append runtime machine bounded buffer source target@{target_byte_offset} {region}-source@{source_byte_offset}"
+            )
+        }
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
             target_byte_offset,
             literal,

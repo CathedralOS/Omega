@@ -895,10 +895,13 @@ pub fn runtime_machine_bounded_buffer_write_width(
     }
 }
 
-pub fn runtime_machine_bounded_buffer_source_append_width(architecture: Architecture) -> usize {
+pub fn runtime_machine_bounded_buffer_source_append_width(
+    architecture: Architecture,
+    source_in_frame: bool,
+) -> usize {
     match architecture {
         Architecture::Aarch64 | Architecture::X86_64 => {
-            x86_64::runtime_machine_bounded_buffer_source_append_width()
+            x86_64::runtime_machine_bounded_buffer_source_append_width(source_in_frame)
         }
     }
 }

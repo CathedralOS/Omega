@@ -3623,26 +3623,38 @@ pub fn encode_runtime_machine_bounded_buffer_write(
 // count); rsi = source bytes (source + 8); rdi = target bytes + running len; copy
 // rcx bytes; store new len = target_len + source_len. Fixed width (no per-byte
 // loop), one relocation (the base).
-pub fn runtime_machine_bounded_buffer_source_append_width() -> usize {
-    // mov r15,imm64 (10) + mov rax,[r15+t] (7) + mov rcx,[r15+s] (7)
-    // + lea rsi,[r15+s+8] (7) + lea rdi,[r15+t+8] (7) + add rdi,rax (3)
-    // + rep movsb (2) + add rax,rcx (3) + mov [r15+t],rax (7) = 53
-    53
+pub fn runtime_machine_bounded_buffer_source_append_width(source_in_frame: bool) -> usize {
+    // mov r15,imm64 (10) + mov rax,[r15+t] (7) + mov rcx,[base+s] (7)
+    // + lea rsi,[base+s+8] (7) + lea rdi,[r15+t+8] (7) + add rdi,rax (3)
+    // + rep movsb (2) + add rax,rcx (3) + mov [r15+t],rax (7) = 53.
+    // A frame-local source adds `mov r14, imm64(frame)` (10) for the source base.
+    if source_in_frame { 63 } else { 53 }
 }
 
 pub fn encode_runtime_machine_bounded_buffer_source_append(
     target_byte_offset: usize,
     source_byte_offset: usize,
+    source_in_frame: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let target = disp32(target_byte_offset)?;
     let target_bytes = disp32(target_byte_offset + 8)?;
     let source = disp32(source_byte_offset)?;
     let source_bytes = disp32(source_byte_offset + 8)?;
-    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_source_append_width());
-    append_mov_r15_imm64(&mut bytes, 0); // machine storage base (reloc @ +2)
+    let mut bytes =
+        Vec::with_capacity(runtime_machine_bounded_buffer_source_append_width(source_in_frame));
+    append_mov_r15_imm64(&mut bytes, 0); // machine storage base (target; reloc @ +2)
+    // The source carrier is read off r15 (machine) by default; a `let`-local source
+    // loads the runtime frame base into r14 (a second relocation @ +12) and reads
+    // from there. The two source instructions differ only in their base register.
+    let (source_len_modrm, source_bytes_modrm) = if source_in_frame {
+        append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +12)
+        (0x8eu8, 0xb6u8) // mov rcx,[r14+s] ; lea rsi,[r14+s+8]
+    } else {
+        (0x8fu8, 0xb7u8) // mov rcx,[r15+s] ; lea rsi,[r15+s+8]
+    };
     bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + target]   (target running len)
     bytes.extend(target.to_le_bytes());
-    bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15 + source]   (source len = rep count)
+    bytes.extend([0x49, 0x8b, source_len_modrm]); // mov rcx, [base + source] (source len)
     bytes.extend(source.to_le_bytes());
     bytes.extend([0x49, 0x8d, 0xbf]); // lea rdi, [r15 + target+8] (target bytes base)
     bytes.extend(target_bytes.to_le_bytes());
@@ -3650,14 +3662,14 @@ pub fn encode_runtime_machine_bounded_buffer_source_append(
     // new len = target_len + source_len -- MUST precede `rep movsb`, which
     // decrements rcx to 0 as it copies; computing it after would always add 0.
     bytes.extend([0x48, 0x01, 0xc8]); // add rax, rcx  (rax = target_len + source_len)
-    bytes.extend([0x49, 0x8d, 0xb7]); // lea rsi, [r15 + source+8] (source bytes)
+    bytes.extend([0x49, 0x8d, source_bytes_modrm]); // lea rsi, [base + source+8] (source bytes)
     bytes.extend(source_bytes.to_le_bytes());
     bytes.extend([0xf3, 0xa4]); // rep movsb  (copy rcx bytes; consumes rcx)
     bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + target], rax  (store new len)
     bytes.extend(target.to_le_bytes());
     debug_assert_eq!(
         bytes.len(),
-        runtime_machine_bounded_buffer_source_append_width()
+        runtime_machine_bounded_buffer_source_append_width(source_in_frame)
     );
     Ok(bytes)
 }
