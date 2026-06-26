@@ -157,6 +157,9 @@ tokens_test "decls lists machine names" samples/decls.alp "machine max(a,b){} ma
 tokens_test "decls keyword vs prefix (machinery != machine)" samples/decls.alp "machinery x; machine f(){}" "f"
 tokens_test "decls lists data + machine names" samples/decls.alp "data Pt{x:i32;} machine f(){}" "Pt f"
 tokens_test "decls keyword vs prefix (database != data)" samples/decls.alp "database x; data D{} machine M(){}" "D M"
+# certify-add emits a delta proof certificate for a+b (verified end-to-end by
+# convergence.sh; here just check the epsilon side produces the exact certificate).
+filter_test "certify-add emits a delta cert" samples/certify-add.alp "2 3" "(= (p (s (s z)) (s (s (s z)))) (s (s (s (s (s z)))))) (refl (s (s (s (s (s z))))))"
 # The emitted code is overflow-SAFE: a compiled overflowing expr traps at runtime.
 compiler_trap "exprc emits overflow trap" samples/exprc.alp "46341*46341"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
