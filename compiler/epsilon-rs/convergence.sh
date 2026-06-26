@@ -38,6 +38,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-divides.alp "$T/cd" >/dev/n
   || { echo "convergence FAIL — compiling certify-divides"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-accesses.alp "$T/cacc" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-accesses"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-safety.alp "$T/csaf" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-safety"; exit 1; }
 
 # the checker prints accept/reject to stdout but exits non-zero (the alpha VM's halt
 # code), so judge by the stdout string, not the exit status -- and drop `set -e`.
@@ -85,6 +87,16 @@ cacc "2 5 3 4"
 cacc "2 5 3 4  1 3 0 2"
 cacc "0 1 0 1  2 5 3 4  1 3 0 2  5 6 2 9"
 
+# the certifying compiler over MIXED obligations: array-bounds (b) AND nonzero-divisor (d)
+csaf() {
+  v=$(printf '%s' "$1" | "$T/csaf" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL safety [$1] : delta returned [$v], expected accept"; fi
+}
+csaf "d 5"
+csaf "b 2 5 3 4  d 7  b 1 3 0 2"
+csaf "b 0 1 0 1  d 2  b 5 6 2 9  d 100"
+
 # CORRUPTED certificates must be rejected (delta checks the computation, not us):
 # (a) claim 2+3 = 4; (b) reuse 2<5's witness to claim 2<4. Both must reject.
 bad=$(printf '2 3' | "$T/ca" | sed 's/(s (s (s (s (s z)))))/(s (s (s (s z))))/g' | "$T/check.exe")
@@ -105,6 +117,10 @@ if [ "$badcd" = reject ]; then PASS=$((PASS+1)); else
 badca=$(printf '2 5 3 4  1 3 0 2' | "$T/cacc" | sed 's/(refl (m (s (s z)) (s (s (s z)))))/(refl (m (s (s z)) (s (s z))))/' | "$T/check.exe")
 if [ "$badca" = reject ]; then PASS=$((PASS+1)); else
   FAIL=$((FAIL+1)); echo "  FAIL tamper-accesses : delta returned [$badca], expected reject"; fi
+# (f) corrupt the nonzero-divisor witness in a mixed proof -- must reject.
+badcs=$(printf 'd 7' | "$T/csaf" | sed 's/(s (s (s (s (s (s z))))))/(s (s (s (s (s z)))))/' | "$T/check.exe")
+if [ "$badcs" = reject ]; then PASS=$((PASS+1)); else
+  FAIL=$((FAIL+1)); echo "  FAIL tamper-safety : delta returned [$badcs], expected reject"; fi
 
 echo "convergence (epsilon emits a delta proof; the trust anchor checks it): $PASS confirmed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
