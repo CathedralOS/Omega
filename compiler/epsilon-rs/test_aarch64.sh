@@ -56,6 +56,17 @@ filter_test() {
   if [ "$got" = "$4" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : in [$3] -> out [$got], expected [$4]"; fi
 }
+# compiler NAME SOURCE.alp EXPR EXPECTED_EXIT  — an epsilon-written COMPILER:
+# build it, run it on EXPR to emit assembly, assemble+sign+run, check the exit code.
+compiler_test() {
+  build "$1" "$2" || return                                   # $T/out = the epsilon compiler
+  printf '%s' "$3" | "$T/out" > "$T/gen.s" 2>/dev/null
+  if clang -arch arm64 -o "$T/gen" "$T/gen.s" 2>"$T/cerr" && codesign -f -s - "$T/gen" 2>/dev/null; then
+    set +e; "$T/gen"; got=$?; set -e
+    if [ "$got" = "$4" ]; then PASS=$((PASS+1)); else
+      FAIL=$((FAIL+1)); echo "  FAIL $1 : compiled [$3] -> exit $got, expected $4"; fi
+  else FAIL=$((FAIL+1)); echo "  FAIL $1 : emitted asm did not assemble:"; sed 's/^/    /' "$T/cerr"; fi
+}
 
 # Slice 1: exit_process(<const>) -> the constant is the process exit status.
 run "exit7 (exit_process(7))" samples/exit7.alp 7
@@ -96,6 +107,10 @@ filter_test "square (parse+compute+format)" samples/square.alp "144" "20736"
 filter_test "calc precedence (2+3*4)"     samples/calc.alp "2+3*4"     "14"
 filter_test "calc parens/recursion ((2+3)*4)" samples/calc.alp "(2+3)*4" "20"
 filter_test "calc nested parens (((1+2))*3)"  samples/calc.alp "((1+2))*3" "9"
+# An expression COMPILER written in epsilon: emits ARM64 asm, assembled+run here.
+compiler_test "exprc compiles 2+3*4"   samples/exprc.alp "2+3*4"     14
+compiler_test "exprc compiles (2+3)*4" samples/exprc.alp "(2+3)*4"   20
+compiler_test "exprc compiles ((1+2))*3" samples/exprc.alp "((1+2))*3" 9
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
 cat > "$T/ovf.alp" <<'EOF'
 boundary trait Console { machine exit_process(return_code: i32); }

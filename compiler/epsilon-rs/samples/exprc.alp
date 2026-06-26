@@ -1,0 +1,108 @@
+// An expression COMPILER written in epsilon — the interpreter->compiler step.
+// Reads an arithmetic expression from stdin and emits ARM64 assembly (to stdout)
+// that computes it on a stack and exits with the result. Same recursive-descent
+// grammar as calc.alp, but each rule EMITS code instead of evaluating it:
+//   factor -> "movz w0, #<n>" ; push     (or '(' expr ')', which recurses)
+//   term   -> factor ; (per * or /) factor ; pop;pop ; mul/sdiv ; push
+//   expr   -> term   ; (per + or -) term   ; pop;pop ; add/sub  ; push
+// The epilogue pops the result into w0 and ret's, so the exit code is the result.
+// Pipe its output through clang to get a runnable native program:
+//   printf '2+3*4' | exprc | clang -arch arm64 -x assembler - -o p && ./p; echo $?  -> 14
+// This is epsilon GENERATING NATIVE CODE — the core of a self-hosting compiler.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine write_line(text: &[u8] in Utf8);
+    machine write_byte(b: i32);
+    machine read_byte() -> i32;
+}
+data Main { console: Console; buf: [u8; 256]; pos: i32; c: i32; }
+
+// factor = number | '(' expr ')'  -> emits code pushing its value on the stack
+machine Main::factor(&mut self) {
+    transition self.buf[self.pos] == 40 { true -> fparen()  false -> fpfx() }
+    state fparen() {
+        self.pos = self.pos + 1; self.expr(); self.pos = self.pos + 1;
+        transition 0 { _ -> fend() }
+    }
+    state fpfx() {  // emit "movz w0, #"
+        write_byte(109); write_byte(111); write_byte(118); write_byte(122);
+        write_byte(32);  write_byte(119); write_byte(48);  write_byte(44);
+        write_byte(32);  write_byte(35);
+        transition 0 { _ -> fdig() }
+    }
+    state fdig()  { transition self.buf[self.pos] < 48 { true -> fpush()  false -> fde() } }
+    state fde()   { write_byte(self.buf[self.pos]); self.pos = self.pos + 1; transition 0 { _ -> fdig() } }
+    state fpush() {
+        write_byte(10);
+        self.console.write_line("str x0, [sp, #-16]!");
+        transition 0 { _ -> fend() }
+    }
+    state fend()  {}
+}
+// term = factor (('*'|'/') factor)*
+machine Main::term(&mut self) {
+    self.factor();
+    transition 0 { _ -> tloop() }
+    state tloop() { transition self.buf[self.pos] == 42 { true -> tmul()  false -> tdivc() } }
+    state tdivc() { transition self.buf[self.pos] == 47 { true -> tdiv()  false -> tend() } }
+    state tmul()  {
+        self.pos = self.pos + 1; self.factor();
+        self.console.write_line("ldr x1, [sp], #16");
+        self.console.write_line("ldr x0, [sp], #16");
+        self.console.write_line("mul w0, w0, w1");
+        self.console.write_line("str x0, [sp, #-16]!");
+        transition 0 { _ -> tloop() }
+    }
+    state tdiv()  {
+        self.pos = self.pos + 1; self.factor();
+        self.console.write_line("ldr x1, [sp], #16");
+        self.console.write_line("ldr x0, [sp], #16");
+        self.console.write_line("sdiv w0, w0, w1");
+        self.console.write_line("str x0, [sp, #-16]!");
+        transition 0 { _ -> tloop() }
+    }
+    state tend()  {}
+}
+// expr = term (('+'|'-') term)*
+machine Main::expr(&mut self) {
+    self.term();
+    transition 0 { _ -> eloop() }
+    state eloop() { transition self.buf[self.pos] == 43 { true -> eadd()  false -> esubc() } }
+    state esubc() { transition self.buf[self.pos] == 45 { true -> esub()  false -> eend() } }
+    state eadd()  {
+        self.pos = self.pos + 1; self.term();
+        self.console.write_line("ldr x1, [sp], #16");
+        self.console.write_line("ldr x0, [sp], #16");
+        self.console.write_line("add w0, w0, w1");
+        self.console.write_line("str x0, [sp, #-16]!");
+        transition 0 { _ -> eloop() }
+    }
+    state esub()  {
+        self.pos = self.pos + 1; self.term();
+        self.console.write_line("ldr x1, [sp], #16");
+        self.console.write_line("ldr x0, [sp], #16");
+        self.console.write_line("sub w0, w0, w1");
+        self.console.write_line("str x0, [sp, #-16]!");
+        transition 0 { _ -> eloop() }
+    }
+    state eend()  {}
+}
+machine Main::main(&mut self) {
+    self.pos = 0;
+    transition 0 { _ -> rd() }
+    state rd()    { self.c = read_byte(); transition self.c < 0 { true -> pro()  false -> store() } }
+    state store() { self.buf[self.pos] = self.c; self.pos = self.pos + 1; transition 0 { _ -> rd() } }
+    state pro() {
+        self.console.write_line(".global _main");
+        self.console.write_line(".align 2");
+        self.console.write_line("_main:");
+        self.pos = 0;
+        self.expr();
+        transition 0 { _ -> epi() }
+    }
+    state epi() {
+        self.console.write_line("ldr x0, [sp], #16");
+        self.console.write_line("ret");
+        self.console.exit_process(0)
+    }
+}
