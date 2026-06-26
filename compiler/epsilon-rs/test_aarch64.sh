@@ -194,6 +194,8 @@ filter_test "labels assigns backend state labels (Lm<mi>s<si>, depth-aware)" sam
 filter_test "branches lowers transition arms to resolved b/b.eq labels" samples/branches.alp "machine M::m(){ transition 0 { _ -> a() } state a(){ transition self.x { true -> b() false -> a() } } state b(){} }" "$(printf 'b Lm0s0\nb.eq Lm0s1\nb.eq Lm0s0')"
 # armdispatch: CODEGEN -- the arm-DISPATCH half of a transition (subject-pop + per-arm cmp/branch)
 filter_test "armdispatch lowers a transition's arm dispatch (pop + value-arm cmp/b.eq)" samples/armdispatch.alp "data Main { x: i32; } machine Main::main(&mut self) { transition self.x { true -> a() false -> b() } state a(){} state b(){} }" "$(printf '    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1')"
+# lowertrans: CODEGEN -- a COMPLETE transition (subject lowering fused with arm dispatch)
+filter_test "lowertrans lowers a complete transition (self.field subject + pop + arms)" samples/lowertrans.alp "data Main { x: i32; } machine Main::main(&mut self) { transition self.x { true -> a() false -> b() } state a(){} state b(){} }" "$(printf '    ldr x9, [x29, #16]\n    ldr w0, [x9, #0]\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #1\n    cmp w0, w1\n    b.eq Lm0s0\n    movz w1, #0\n    cmp w0, w1\n    b.eq Lm0s1')"
 # sizeof: align8 total struct size (frame size) -- matches the backend _selfdata directive
 filter_test "sizeof emits align8 total struct size" samples/sizeof.alp "boundary trait C{} data Main{ c: C; n: i32; buf: [u8; 13]; }" "24"
 # rpn: infix -> RPN (shunting-yard) -- the expression-lowering arc, step 1 (linearize to stack-machine order)
