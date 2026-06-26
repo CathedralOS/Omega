@@ -196,6 +196,7 @@ filter_test "branches lowers transition arms to resolved b/b.eq labels" samples/
 filter_test "sizeof emits align8 total struct size" samples/sizeof.alp "boundary trait C{} data Main{ c: C; n: i32; buf: [u8; 13]; }" "24"
 # rpn: infix -> RPN (shunting-yard) -- the expression-lowering arc, step 1 (linearize to stack-machine order)
 filter_test "rpn linearizes an expression to postfix (precedence + assoc)" samples/rpn.alp "e - s == 5" "$(printf 'e\ns\n-\n5\n==')"
+filter_test "rpn handles array index (self.buf[i] -> index RPN then base[])" samples/rpn.alp "self.buf[s] == 115" "$(printf 's\nself.buf[]\n115\n==')"
 # layout regression: a last field with no trailing semicolon (data ... i32 }) must still parse
 filter_test "layout handles last field without trailing semicolon" samples/layout.alp "boundary trait C{} data Main{ c: C; n: i32 }" "$(printf 'c 0\nn 0')"
 stdin_exit "certify-source rejects an overrunning loop (exit 1)" samples/certify-source.alp "arr 4 5  band 5 0" 1
