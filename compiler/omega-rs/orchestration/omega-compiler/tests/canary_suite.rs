@@ -1132,6 +1132,45 @@ fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 carrier compare through a POINTEE in a VALUE-CALL guard: the value-call
+// `Finder::check(level) -> i32` branches on `r[0].label == "Gate"` where `r:
+// &[Room]` indexes the by-value `level` param, so `r[0].label` is a carrier
+// reached through the slice pointer. The guard resolves the pointee place and
+// lowers the bounded-buffer compare; before the fix the resolver bailed, the
+// leaf branch dropped the arm write (the literal-guard poison-skip), and the
+// value-call returned a stale 0. Exits 70 (the `== "Gate"` true arm).
+#[test]
+fn runtime_bounded_carrier_pointee_guard_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_pointee_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-pointee-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier pointee guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier pointee guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the value-call guard `r[0].label == \"Gate\"` (carrier through a \
+         slice-element pointee) to take the true arm and return 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier field reached THROUGH a slice pointer:
 // `cells[0].label = "Gate"` writes the carrier inline through the `&mut [Room]`
 // pointer (a pointee write), then reads it back through the same pointer. Exits 70.
