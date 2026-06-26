@@ -42,6 +42,11 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-safety.alp "$T/csaf" >/dev/
   || { echo "convergence FAIL — compiling certify-safety"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-source.alp "$T/csrc" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-source"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-linked.alp "$T/cl" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-linked"; exit 1; }
+# proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
+HAVE_LIB=0
+if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
 
 # the checker prints accept/reject to stdout but exits non-zero (the alpha VM's halt
 # code), so judge by the stdout string, not the exit status -- and drop `set -e`.
@@ -125,6 +130,21 @@ csrc_reject "arr 4 5  get 3 7"        # 3*5+7=22 >= 20  (out of bounds)
 csrc_reject "arr 4 5  get 2 3  div 0" # division by zero
 csrc_reject "arr 5 5  get 5 0"        # 25 >= 25  (boundary, out of bounds)
 csrc_reject "arr 4 5  band 5 0"       # loop overruns: iteration i=4 reaches row 4 of 0..3
+
+# the compiler LINKS against a proof library: emit a proof that CITES bounds-2d (rather
+# than re-derive the bound), prepend the library, and let the trust anchor check both.
+if [ "$HAVE_LIB" = 1 ]; then
+  linked() {
+    v=$( { cat "$T/lib2d.delta"; printf ' '; printf '%s' "$1" | "$T/cl"; } | "$T/check.exe" )
+    if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+      FAIL=$((FAIL+1)); echo "  FAIL linked [$1] : delta returned [$v], expected accept"; fi
+  }
+  linked "2 5 3 4"; linked "0 8 0 1"; linked "5 6 2 9"
+  # a tampered premise witness (wrong i<m) must reject even with a valid library
+  bl=$( { cat "$T/lib2d.delta"; printf ' '; printf '2 5 3 4' | "$T/cl" | sed 's/(s z) (refl/(s (s z)) (refl/'; } | "$T/check.exe" )
+  if [ "$bl" = reject ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL tamper-linked : delta returned [$bl], expected reject"; fi
+else echo "  (skipped linked-library checks — no python3 / library gen failed)"; fi
 
 # CORRUPTED certificates must be rejected (delta checks the computation, not us):
 # (a) claim 2+3 = 4; (b) reuse 2<5's witness to claim 2<4. Both must reject.
