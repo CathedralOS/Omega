@@ -89,6 +89,12 @@ def dpf(n, iv, hy, c):  # decompile a proof
     if h == 'natind': x = c.fresh('x'); return "(natind %s %s %s %s)" % (x, dp(n[1], iv + [x], c), dpf(n[2], iv, hy, c), dpf(n[3], iv, hy, c))
     if h == 'listind':x = c.fresh('x'); return "(listind %s %s %s %s)" % (x, dp(n[1], iv + [x], c), dpf(n[2], iv, hy, c), dpf(n[3], iv, hy, c))
     if h == 'rec':    x = c.fresh('x'); return "(rec %s %s %s %s %s %s)" % (n[1], n[2], x, dp(n[3], iv + [x], c), dpf(n[4], iv, hy, c), dpf(n[5], iv, hy, c))
+    if h == 'memhead':return "(memhead %s %s)" % (dt(n[1], iv), dt(n[2], iv))
+    if h == 'memtail':return "(memtail %s %s)" % (dt(n[1], iv), dpf(n[2], iv, hy, c))
+    if h == 'memcons':return "(memcons %s)" % dpf(n[1], iv, hy, c)
+    if h == 'memnil': return "(memnil %s)" % dpf(n[1], iv, hy, c)
+    if h == 'pnil':   return "(pnil)"
+    if h == 'pcons':  return "(pcons %s %s)" % (dt(n[1], iv), dpf(n[2], iv, hy, c))
     raise SystemExit("delab: bad proof %r" % (h,))
 
 def decompile(src):
