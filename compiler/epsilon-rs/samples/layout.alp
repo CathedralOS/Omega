@@ -166,8 +166,10 @@ machine Main::main(&mut self) {
     state aend()  { self.sz = self.cnt * self.eb; transition 0 { _ -> emit() } }
     // emit `field offset`, advance running offset, skip to ';'
     state emit()  { self.emit_name(self.fstart, self.fend); write_byte(32); self.v = self.off; self.emit_int(); write_byte(10); self.off = self.off + self.sz; transition 0 { _ -> semi() } }
-    state semi()  { transition self.buf[self.pos] == 59 { true -> semia()  false -> semsk() } }    // ';'
+    state semi()  { transition self.buf[self.pos] == 59 { true -> semia()  false -> semiB() } }    // ';'
+    state semiB() { transition self.buf[self.pos] == 125 { true -> emitL()  false -> semsk() } }   // '}' -> last field had no trailing ';' (already emitted); close the data block
     state semsk() { self.pos = self.pos + 1; transition 0 { _ -> semi() } }
     state semia() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
+    state emitL()  { self.inData = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state ok()    { self.console.exit_process(0) }
 }
