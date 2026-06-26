@@ -40,8 +40,15 @@ def shift(raw, base):
             out.append("(def %d %s %s)"%(idx,su(items[i]),su(items[i+1]))); idx+=1; i+=2
     return ''.join(out), idx-1
 from elab import elaborate
-blk,last=shift(strip_decls(cof('2D array bounds (i<m & j<n -> i*n+j < m*n)')),0)
-assert last==30, "bounds-2d def id drifted to %d (certify-linked hardcodes 30)"%last
+# the proof library: theorems the epsilon compilers cite, each a referenceable def.
+idx=0; blk=""; ids={}
+def emb(name):
+    global blk, idx
+    b,last=shift(strip_decls(cof(name)),idx); blk+=b; idx=last+1; return last
+ids['bounds-2d']  = emb('2D array bounds (i<m & j<n -> i*n+j < m*n)')   # certify-linked / certify-loop
+ids['lt-le-trans']= emb('lt le trans')                                  # certify-loop
+assert ids['bounds-2d']==30 and ids['lt-le-trans']==34, \
+    "library def ids drifted: %r (certify-linked uses 30, certify-loop uses 30 & 34)"%ids
 # emit RAW defs (what check.exe reads): elaborate with a throwaway goal/proof, then strip it
 full=elaborate(blk+" (= z z) (refl z)")
 sys.stdout.write(full.rsplit("(= z z) (refl z)",1)[0].rstrip())
