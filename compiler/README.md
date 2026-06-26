@@ -23,7 +23,8 @@ the smaller and more auditable; the higher you go, the more expressive.
 | **beta-lang** (`bc`) | the Beta compiler **written in Beta** | self-hosts byte-for-byte — Rust is out of the trust path |
 | **gamma** | a safe functional language (ADTs + pattern matching): a reference interpreter (`interp.beta`) and a static type checker (`typeck.beta`) | interpreter + 22-case type-checker gate; the type checker is what makes the checker *safe to write* |
 | **delta** | the **certificate checker** — the trust anchor | see below |
-| epsilon, omega | higher rungs (systems language; full dependent types) | design-stage |
+| **epsilon-rs** | a throwaway Rust on-ramp for **epsilon**, the systems language (machines, transitions, `data`, arrays, host I/O, trap-on-overflow) | **compiles + RUNS its corpus**: an x86-64 Windows-PE backend and an ARM64 macOS backend (assembly → `clang` → ad-hoc `codesign`) execute the samples under a 14-case gate — value programs, bounds/overflow **traps**, and stdin/stdout **filters** |
+| omega | the top rung — full dependent types | design-stage |
 
 Trust flows bottom-up: the hand-audited seed runs the assembler, which lowers `bc`,
 which compiles the checker, which validates a proof. No rung trusts its builder

@@ -13,6 +13,7 @@ case "$(uname -sm)" in
   "Darwin arm64") ;;
   *) echo "aarch64 gate SKIP — not macOS arm64"; exit 0 ;;
 esac
+command -v cargo     >/dev/null 2>&1 || { echo "aarch64 gate SKIP — no cargo"; exit 0; }
 command -v clang     >/dev/null 2>&1 || { echo "aarch64 gate SKIP — no clang"; exit 0; }
 command -v codesign  >/dev/null 2>&1 || { echo "aarch64 gate SKIP — no codesign"; exit 0; }
 
