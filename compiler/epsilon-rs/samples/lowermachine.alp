@@ -22,7 +22,7 @@ data Main {
     console: Console;
     n: i32; pos: i32; c: i32; start: i32; w: i32; pend: i32; phase: i32; depth: i32; mi: i32; si: i32;
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
-    nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32;
+    nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32;
     fns: [i32; 64]; fne: [i32; 64];
     sns: [i32; 256]; sne: [i32; 256]; smi: [i32; 256]; ssi: [i32; 256];
     qa: i32; qb: i32; qc: i32; qd: i32; qk: i32;
@@ -204,6 +204,35 @@ machine Main::p_ldrw0(&mut self) {       // "    ldr w0, [x9, #"
     state bf(){ write_byte(32);  transition 0 { _ -> bg() } }
     state bg(){ write_byte(35); }
 }
+machine Main::is_self(&mut self, s: i32, e: i32) -> i32 {     // "self"
+    transition e - s == 4 { true -> z0()  false -> zno() }
+    state z0() { transition self.buf[s]     == 115 { true -> z1()  false -> zno() } }
+    state z1() { transition self.buf[s + 1] == 101 { true -> z2()  false -> zno() } }
+    state z2() { transition self.buf[s + 2] == 108 { true -> z3()  false -> zno() } }
+    state z3() { transition self.buf[s + 3] == 102 { true -> zyes() false -> zno() } }
+    state zyes() { return 1; }
+    state zno()  { return 0; }
+}
+machine Main::p_strw0(&mut self) {       // "    str w0, [x9, #"
+    write_byte(32);  transition 0 { _ -> b0() }
+    state b0(){ write_byte(32);  transition 0 { _ -> b1() } }
+    state b1(){ write_byte(32);  transition 0 { _ -> b2() } }
+    state b2(){ write_byte(32);  transition 0 { _ -> b3() } }
+    state b3(){ write_byte(115); transition 0 { _ -> b4() } }
+    state b4(){ write_byte(116); transition 0 { _ -> b5() } }
+    state b5(){ write_byte(114); transition 0 { _ -> b6() } }
+    state b6(){ write_byte(32);  transition 0 { _ -> b7() } }
+    state b7(){ write_byte(119); transition 0 { _ -> b8() } }
+    state b8(){ write_byte(48);  transition 0 { _ -> b9() } }
+    state b9(){ write_byte(44);  transition 0 { _ -> ba() } }
+    state ba(){ write_byte(32);  transition 0 { _ -> bb() } }
+    state bb(){ write_byte(91);  transition 0 { _ -> bc() } }
+    state bc(){ write_byte(120); transition 0 { _ -> bd() } }
+    state bd(){ write_byte(57);  transition 0 { _ -> be() } }
+    state be(){ write_byte(44);  transition 0 { _ -> bf() } }
+    state bf(){ write_byte(32);  transition 0 { _ -> bg() } }
+    state bg(){ write_byte(35); }
+}
 machine Main::p_cset(&mut self) {        // "    cset w0, "
     write_byte(32);  transition 0 { _ -> b0() }
     state b0(){ write_byte(32);  transition 0 { _ -> b1() } }
@@ -292,8 +321,27 @@ machine Main::main(&mut self) {
     state wc2()   { self.w = self.is_machine(self.start, self.pos); transition self.w == 1 { true -> nm2()  false -> ck2t() } }
     state nm2()   { self.mi = self.mi + 1; self.lsi = 0; transition 0 { _ -> sk() } }             // new machine: bump mi, reset label counter
     state ck2t()  { self.w = self.is_trans(self.start, self.pos); transition self.w == 1 { true -> subjinit()  false -> ck2s() } }
-    state subjinit(){ self.opnd = 0; transition 0 { _ -> subj0() } }
-    state ck2s()  { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> emitL()  false -> sk() } }
+    state subjinit(){ self.mode = 0; self.opnd = 0; transition 0 { _ -> subj0() } }
+    state ck2s()  { self.w = self.is_state(self.start, self.pos); transition self.w == 1 { true -> emitL()  false -> ck2self() } }
+    state ck2self(){ self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> asgn0()  false -> sk() } }
+    state asgn0() { transition self.buf[self.pos] == 46 { true -> asgn1()  false -> sk() } }                  // '.' ? else not an assignment
+    state asgn1() { self.pos = self.pos + 1; self.fs = self.pos; transition 0 { _ -> asgnr() } }              // past '.', capture LHS field
+    state asgnr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> asgna()  false -> asgne() } }
+    state asgna() { self.pos = self.pos + 1; transition 0 { _ -> asgnr() } }
+    state asgne() { self.fe = self.pos; transition 0 { _ -> asgnws() } }
+    state asgnws(){ transition self.buf[self.pos] <= 32 { true -> asgnw2()  false -> asgneq() } }             // skip ws to '='
+    state asgnw2(){ self.pos = self.pos + 1; transition 0 { _ -> asgnws() } }
+    state asgneq(){ transition self.buf[self.pos] == 61 { true -> asgnlk()  false -> sk() } }                 // '=' ? else skip (a method call etc.)
+    state asgnlk(){ self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.laoff = 0; transition 0 { _ -> alk() } } // resolve LHS offset
+    state alk()   { transition self.cj < self.nf { true -> alkc()  false -> argo() } }
+    state alkc()  { self.qc = self.fns[self.cj]; self.qd = self.fne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> alkh()  false -> alkn() } }
+    state alkh()  { self.laoff = self.cj * 8; transition 0 { _ -> argo() } }
+    state alkn()  { self.cj = self.cj + 1; transition 0 { _ -> alk() } }
+    state argo()  { self.pos = self.pos + 1; self.mode = 1; self.opnd = 0; transition 0 { _ -> subj0() } }    // past '=', lower the RHS
+    state stStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    ldr x9, [x29, #16]"); self.p_strw0(); self.v = self.laoff; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
+    state stsk()  { transition self.buf[self.pos] == 59 { true -> stsk2()  false -> stadv() } }               // skip past ';'
+    state stadv() { self.pos = self.pos + 1; transition 0 { _ -> stsk() } }
+    state stsk2() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state emitL() { self.p_lm(); self.v = self.mi; self.emit_int(); write_byte(115); self.v = self.lsi; self.emit_int(); write_byte(58); write_byte(10); self.lsi = self.lsi + 1; transition 0 { _ -> sk() } }
     // lower the SUBJECT: skip ws, then a literal (digits) or a self.field
     state subj0() { transition self.buf[self.pos] <= 32 { true -> subadv()  false -> subc() } }
@@ -320,7 +368,9 @@ machine Main::main(&mut self) {
     state opdisp(){ transition self.opnd == 0 { true -> opchk()  false -> emitop() } }
     state opchk() { transition self.buf[self.pos] <= 32 { true -> opadv()  false -> opchk2() } }
     state opadv() { self.pos = self.pos + 1; transition 0 { _ -> opchk() } }
-    state opchk2(){ transition self.buf[self.pos] == 123 { true -> toarms()  false -> opp() } }   // '{' -> bare subject
+    state opchk2(){ transition self.buf[self.pos] == 123 { true -> subjend()  false -> opchk3() } }  // '{' subject end
+    state opchk3(){ transition self.buf[self.pos] == 59 { true -> subjend()  false -> opp() } }     // ';' RHS end
+    state subjend(){ transition self.mode == 0 { true -> toarms()  false -> stStore() } }
     state opp()   { transition self.buf[self.pos] == 60 { true -> oplt()  false -> opp2() } }     // '<'
     state oplt()  { transition self.buf[self.pos + 1] == 61 { true -> ople()  false -> opltx() } }
     state ople()  { self.cc = 1; self.pos = self.pos + 2; transition 0 { _ -> op2() } }
@@ -345,7 +395,7 @@ machine Main::main(&mut self) {
     state ecne()  { write_byte(110); write_byte(101); transition 0 { _ -> ecend() } }
     state ecgt()  { write_byte(103); write_byte(116); transition 0 { _ -> ecend() } }
     state ecge()  { write_byte(103); write_byte(101); transition 0 { _ -> ecend() } }
-    state ecend() { write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> toarms() } }
+    state ecend() { write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> subjend() } }
     state toarms(){ transition self.buf[self.pos] == 123 { true -> arms0()  false -> toaadv() } }
     state toaadv(){ self.pos = self.pos + 1; transition 0 { _ -> toarms() } }
     state arms0() { self.console.write_line("    ldr x0, [sp], #16"); self.pos = self.pos + 1; self.tmi = self.mi; transition 0 { _ -> arm() } }   // '{', emit subject pop
