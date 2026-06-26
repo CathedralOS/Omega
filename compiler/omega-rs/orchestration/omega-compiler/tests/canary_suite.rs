@@ -1098,6 +1098,41 @@ fn runtime_bounded_carrier_alias_concat_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 owned `[u8; N] in Utf8` carrier field reached THROUGH a slice pointer:
+// `cells[0].label = "Gate"` writes the carrier inline through the `&mut [Room]`
+// pointer (a pointee write), then reads it back through the same pointer. Exits 70.
+#[test]
+fn runtime_bounded_carrier_slice_field_write_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_slice_field_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-slice-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier slice field write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier slice field write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `cells[0].label = \"Gate\"` to write the carrier through the slice pointer so \
+         `cells[0].label == \"Gate\"` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier through HOST OUTPUT, native: build a carrier
 // by concat and `write_line` it. The host-call path reads the carrier with carrier
 // addressing (len @ 0, content pointer = place + pointer_size). Prints "Room A1"

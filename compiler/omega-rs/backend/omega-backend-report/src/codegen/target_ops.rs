@@ -750,6 +750,13 @@ fn selected_instruction_name(
                 "write runtime pointee string runtime_frame@{pointer_byte_offset} +{field_byte_offset} data `{data_symbol}` len {byte_length}"
             )
         }
+        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        } => format!(
+            "write runtime pointee bounded buffer runtime_frame@{pointer_byte_offset} +{field_byte_offset} {literal:?}"
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             descriptor_offset,
             index_offset,

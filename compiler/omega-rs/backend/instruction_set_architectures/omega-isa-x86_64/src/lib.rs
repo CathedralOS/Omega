@@ -3562,6 +3562,40 @@ pub fn runtime_machine_bounded_buffer_write_width(literal: &str) -> usize {
     27 + literal.len() * 8
 }
 
+// Write a string literal into an owned `[u8; N]` carrier reached THROUGH a stored
+// pointer (`rooms[0].label = "Gate"`): load the pointer from `frame[ptr]` into r15,
+// then store `len` + the literal bytes inline at `*ptr + field`. Content is
+// immediate, so the ONLY relocation is the base (the leading `mov r15, imm64`).
+pub fn runtime_pointee_bounded_buffer_write_width(literal: &str) -> usize {
+    // mov r15,imm64 (10) + mov r15,[r15+ptr] (7) + mov rax,imm64 (10)
+    // + store rax->[r15+field] 8B (7), then per content byte:
+    // mov byte [r15 + disp32], imm8 (8) = 34 + 8*len
+    34 + literal.len() * 8
+}
+
+pub fn encode_runtime_pointee_bounded_buffer_write(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_pointee_bounded_buffer_write_width(literal));
+    append_mov_r15_imm64(&mut bytes, 0); // frame/machine base (reloc @ +2)
+    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = stored pointer
+    append_mov_rax_imm64(&mut bytes, literal.len() as u64);
+    append_store_rax_to_r15(&mut bytes, field_byte_offset, 8)?; // [*ptr + field] = len word
+    for (index, byte) in literal.as_bytes().iter().enumerate() {
+        let displacement = disp32(field_byte_offset + 8 + index)?;
+        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
+        bytes.extend(displacement.to_le_bytes());
+        bytes.push(*byte);
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_pointee_bounded_buffer_write_width(literal)
+    );
+    Ok(bytes)
+}
+
 pub fn encode_runtime_machine_bounded_buffer_write(
     byte_offset: usize,
     literal: &str,

@@ -586,6 +586,16 @@ pub(super) fn encode_machine_instruction_bytes(
             *field_byte_offset,
             *byte_length,
         ),
+        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        } => runtime_storage::encode_runtime_pointee_bounded_buffer_write(
+            input,
+            *pointer_byte_offset,
+            *field_byte_offset,
+            literal,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             descriptor_offset,
             index_offset,

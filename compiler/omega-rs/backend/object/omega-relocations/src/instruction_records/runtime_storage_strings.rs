@@ -59,6 +59,13 @@ pub(super) fn collect_runtime_storage_string_relocations(
             );
             true
         }
+        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. } => {
+            // The slice pointer lives in the runtime frame (`mov r15, imm64`
+            // leading instruction, then `mov r15, [r15 + ptr]`); the carrier bytes
+            // are immediates, so the frame base is the only relocation.
+            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
+            true
+        }
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             data,
             element_byte_size,
