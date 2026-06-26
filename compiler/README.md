@@ -93,17 +93,26 @@ induction**:
   uniqueness — no excluded middle); and — the deepest result — **prime-divisor existence**,
   `∀n>1. ∃p. prime(p) ∧ p∣n` (every number above 1 has a prime factor — the gateway to the
   fundamental theorem of arithmetic), 175 lemmas, by a strong/fuel induction over a bounded
-  divisor search with a primality criterion, all resting on decidable divisibility.
+  divisor search with a primality criterion, all resting on decidable divisibility; and — the
+  capstone — **the fundamental theorem of arithmetic** (existence half),
+  `∀n. 0<n → ∃L. ProdIs(L,n) ∧ (∀x. x∈L → prime(x))` — **every positive integer is a product
+  of a list of primes** — 231 lemmas in one certificate, by a fuel induction that factors `n`
+  as `p·m` (prime `p` from prime-divisor existence, `m<n`) and prepends `p` to a factor list of
+  `m`. Stating it required two new **inductive predicates** in the checker's core (the first
+  logical primitives added since induction itself): list **membership** `Mem(x,L)` and the
+  relational product **`ProdIs(L,n)`**, each defined by introduction rules with matching
+  sound inversions and mirrored identically across all three checkers. "Every element is
+  prime" — unstatable in the bare first-order logic — is now `∀x. Mem(x,L) → prime(x)`.
 
 ### Why you can believe it
 
 The trust anchor is defended five independent ways (all under `verify-lattice.sh`):
 
-- **221-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
-- **32-case soundness battery** (`soundness.sh`) — invalid certificates that must
+- **281-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
+- **39-case soundness battery** (`soundness.sh`) — invalid certificates that must
   *all* be rejected, including classical-but-non-constructive tautologies (excluded
-  middle, Peirce, the drinker paradox).
-- **69-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
+  middle, Peirce, the drinker paradox) and fabricated memberships/products.
+- **77-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
   to the checker itself: `check.beta` (Beta, tagged-memory + CFG guard-state dispatch) and
   `gamma/checker.gamma` (Gamma, ADTs + pattern matching) must return identical
   verdicts on every proof. It has caught real divergences.
