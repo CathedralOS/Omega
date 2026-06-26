@@ -56,7 +56,17 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         &input.runtime_text.expressions,
         buffer.text_place,
     )?;
-    if target_place.byte_count != input.runtime_abi.string_descriptor_size() {
+    // An owned `[u8; N]` carrier target reads stdin straight into its inline
+    // bytes (no `{ptr, len}` descriptor); a borrowed String descriptor stays the
+    // 16-byte {ptr, len} path. Anything else is not a text-read target.
+    let is_bounded_buffer = resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.runtime_text.expressions,
+        buffer.text_place,
+    );
+    if !is_bounded_buffer && target_place.byte_count != input.runtime_abi.string_descriptor_size() {
         return None;
     }
 
@@ -65,6 +75,7 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
         byte_capacity,
+        is_bounded_buffer,
     })
 }
 

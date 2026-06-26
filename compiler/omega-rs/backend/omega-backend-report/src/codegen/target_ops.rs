@@ -821,14 +821,22 @@ fn selected_instruction_name(
             target_offset,
             byte_capacity,
             source,
+            is_bounded_buffer,
         } => {
             let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
-            format!(
-                "read runtime text line {} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}",
-                runtime_text_read_source_name(backend_plan, source)
-            )
+            if *is_bounded_buffer {
+                format!(
+                    "read runtime text line {} -> carrier {target_symbol}@{target_offset} cap {byte_capacity}",
+                    runtime_text_read_source_name(backend_plan, source)
+                )
+            } else {
+                format!(
+                    "read runtime text line {} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}",
+                    runtime_text_read_source_name(backend_plan, source)
+                )
+            }
         }
         SelectedInstructionKind::CopyRuntimeStorage {
             source_region,

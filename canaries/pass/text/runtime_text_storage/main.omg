@@ -1,13 +1,24 @@
+// #66: stdin `read_line` into an owned `[u8; N] in Utf8` carrier. The line is read
+// straight into the carrier's inline bytes (length at offset 0, content at offset
+// pointer_size) -- no `{ptr, len}` descriptor and no separate buffer -- then
+// echoed back with `write_line`. Replaces the `String` round-trip with the owned
+// carrier end to end.
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 64]::Utf8 when valid_utf8(self) {
+}
+
 boundary trait Console {
-    machine write(text: String);
-    machine write_line(text: String);
-    machine read_line(out_line: &mut String);
+    machine write(text: &[u8] in Utf8);
+    machine write_line(text: &[u8] in Utf8);
+    machine read_line(out_line: &mut [u8; 64] in Utf8);
     machine exit_process(return_code: i32);
 }
 
 data Main {
     console: Console;
-    line: String;
+    line: [u8; 64] in Utf8;
 }
 
 machine Main::main(&mut self) {

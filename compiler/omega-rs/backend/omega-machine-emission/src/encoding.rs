@@ -682,6 +682,7 @@ pub(super) fn encode_machine_instruction_bytes(
                 read.target_offset,
                 read.byte_capacity,
                 read.source,
+                read.is_bounded_buffer,
             )
         }
         SelectedInstructionKind::CopyRuntimeStorage {

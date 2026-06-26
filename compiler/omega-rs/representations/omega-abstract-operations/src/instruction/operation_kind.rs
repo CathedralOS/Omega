@@ -566,6 +566,12 @@ pub enum AbstractOperationKind {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_capacity: usize,
+        /// The target is an owned `[u8; N]` carrier (`{len, bytes}` inline): read
+        /// stdin straight into the carrier's inline bytes (`region + target_offset
+        /// + pointer_size`) and write only `len` at `target_offset`, rather than
+        /// filling `buffer` and writing a `{ptr, len}` descriptor. `buffer` is
+        /// unused in this case.
+        is_bounded_buffer: bool,
     },
     CopyRuntimeStorage {
         source_region: RuntimeStorageRegion,

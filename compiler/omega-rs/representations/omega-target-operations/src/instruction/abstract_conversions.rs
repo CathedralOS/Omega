@@ -794,6 +794,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 target_region,
                 target_offset,
                 byte_capacity,
+                is_bounded_buffer,
             } => Self::ReadRuntimeTextLine {
                 buffer: remap_data_handle(*buffer),
                 target_region: *target_region,
@@ -805,6 +806,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                         omega_calling_conventions::HostOperation::Read,
                     ),
                 },
+                is_bounded_buffer: *is_bounded_buffer,
             },
             omega_abstract_operations::AbstractOperationKind::CopyRuntimeStorage {
                 source_region,

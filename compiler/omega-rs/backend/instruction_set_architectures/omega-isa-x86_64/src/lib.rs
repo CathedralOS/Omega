@@ -1905,14 +1905,25 @@ pub struct RuntimeTextLineReadLayout {
 fn build_runtime_text_line_read(
     target_offset: usize,
     capacity: u32,
+    is_bounded_buffer: bool,
 ) -> Result<(Vec<u8>, RuntimeTextLineReadLayout), Diagnostic> {
     let target_ptr_disp = disp32(target_offset)?;
     let target_len_disp = disp32(target_offset + 8)?;
+    // Owned carrier: r14 must point at the inline bytes (`region + target_offset +
+    // pointer_size`), so the imm64 relocates to the carrier's own region and an
+    // `add` advances past the leading 8-byte length word.
+    let carrier_bytes_disp = disp32(target_offset + 8)?;
     let mut bytes = Vec::with_capacity(128);
 
-    // r14 = buffer (imm64 at +2 relocated to the buffer data symbol).
+    // r14 = read buffer (imm64 at +2 relocated to the buffer data symbol, OR to
+    // the carrier's own region for an owned `[u8; N]` target).
     bytes.extend([0x49, 0xbe]);
     bytes.extend(0u64.to_le_bytes());
+    if is_bounded_buffer {
+        // add r14, target_offset + pointer_size -> r14 = carrier inline bytes.
+        bytes.extend([0x49, 0x81, 0xc6]);
+        bytes.extend(carrier_bytes_disp.to_le_bytes());
+    }
     // sub rsp, 56.
     bytes.extend([0x48, 0x83, 0xec, 0x38]);
     // mov ecx, -10 (STD_INPUT_HANDLE).
@@ -1992,19 +2003,29 @@ fn build_runtime_text_line_read(
     }
     // add rsp, 56.
     bytes.extend([0x48, 0x83, 0xc4, 0x38]);
-    // r12 = target descriptor base (imm64 relocated). Use r12? no -- r12 is the
-    // dispatch-state register; use r13 (handle no longer needed).
-    // mov r13, imm64(target). The relocation planner anchors at the instruction
-    // start and adds the +2 immediate offset itself, so record the start.
-    let target_mov_offset = bytes.len();
-    bytes.extend([0x49, 0xbd]);
-    bytes.extend(0u64.to_le_bytes());
-    // mov [r13+target_offset], r14  (descriptor.ptr = buffer).
-    bytes.extend([0x4d, 0x89, 0xb5]);
-    bytes.extend(target_ptr_disp.to_le_bytes());
-    // mov [r13+target_offset+8], r15 (descriptor.len = line length).
-    bytes.extend([0x4d, 0x89, 0xbd]);
-    bytes.extend(target_len_disp.to_le_bytes());
+
+    let target_mov_offset = if is_bounded_buffer {
+        // Owned carrier: the bytes are already in place (r14 read straight into the
+        // inline storage). Write only the length at `[r14 - 8]` (= region +
+        // target_offset, the leading len word). No `{ptr, len}` descriptor, hence
+        // no second relocation.
+        bytes.extend([0x4d, 0x89, 0x7e, 0xf8]); // mov [r14-8], r15
+        0
+    } else {
+        // r13 = target descriptor base (imm64 relocated). The relocation planner
+        // anchors at the instruction start and adds the +2 immediate offset itself,
+        // so record the start.
+        let target_mov_offset = bytes.len();
+        bytes.extend([0x49, 0xbd]);
+        bytes.extend(0u64.to_le_bytes());
+        // mov [r13+target_offset], r14  (descriptor.ptr = buffer).
+        bytes.extend([0x4d, 0x89, 0xb5]);
+        bytes.extend(target_ptr_disp.to_le_bytes());
+        // mov [r13+target_offset+8], r15 (descriptor.len = line length).
+        bytes.extend([0x4d, 0x89, 0xbd]);
+        bytes.extend(target_len_disp.to_le_bytes());
+        target_mov_offset
+    };
 
     let width = bytes.len();
     Ok((
@@ -2018,12 +2039,16 @@ fn build_runtime_text_line_read(
     ))
 }
 
-fn runtime_text_line_read_layout() -> RuntimeTextLineReadLayout {
+fn runtime_text_line_read_layout_for(is_bounded_buffer: bool) -> RuntimeTextLineReadLayout {
     // Capacity/target do not affect the layout (all immediates are fixed width),
     // so encode once with placeholders to recover the authoritative offsets.
-    build_runtime_text_line_read(0, 1)
+    build_runtime_text_line_read(0, 1, is_bounded_buffer)
         .expect("runtime text line read layout encodes")
         .1
+}
+
+fn runtime_text_line_read_layout() -> RuntimeTextLineReadLayout {
+    runtime_text_line_read_layout_for(false)
 }
 
 pub fn runtime_text_line_read_width(_byte_capacity: usize) -> usize {
@@ -2042,6 +2067,21 @@ pub fn runtime_text_line_read_target_imm_offset() -> usize {
     runtime_text_line_read_layout().target_imm_offset
 }
 
+/// Owned `[u8; N]` carrier read encodes a wider prologue (the `add r14` past the
+/// length word) and a shorter epilogue (a single `len` store, no `{ptr, len}`
+/// descriptor), so its import-call offsets and width differ from the String path.
+pub fn runtime_text_line_read_carrier_width(_byte_capacity: usize) -> usize {
+    runtime_text_line_read_layout_for(true).width
+}
+
+pub fn runtime_text_line_read_carrier_get_std_handle_call_offset() -> usize {
+    runtime_text_line_read_layout_for(true).get_std_handle_call_offset
+}
+
+pub fn runtime_text_line_read_carrier_read_file_call_offset() -> usize {
+    runtime_text_line_read_layout_for(true).read_file_call_offset
+}
+
 /// x86_64 Linux line read via the `read(2)` syscall (no GetStdHandle/ReadFile imports).
 /// Byte-at-a-time read from stdin (fd 0) into the relocated buffer (r14), tracking the
 /// line length in r15, with the same CRLF/NUL terminator handling as the win32 import
@@ -2056,21 +2096,45 @@ pub fn encode_runtime_text_line_read_syscall(
             "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
         ))
     })?;
-    Ok(build_runtime_text_line_read_syscall(target_offset, capacity, number)?.0)
+    Ok(build_runtime_text_line_read_syscall(target_offset, capacity, number, false)?.0)
+}
+
+/// Linux `read(2)` line read into an owned `[u8; N]` carrier: stdin bytes land in
+/// the carrier's inline storage and the line length is written to its leading
+/// length word; no `{ptr, len}` descriptor.
+pub fn encode_runtime_text_line_read_syscall_carrier(
+    target_offset: usize,
+    byte_capacity: usize,
+    number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let capacity = u32::try_from(byte_capacity).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
+        ))
+    })?;
+    Ok(build_runtime_text_line_read_syscall(target_offset, capacity, number, true)?.0)
 }
 
 fn build_runtime_text_line_read_syscall(
     target_offset: usize,
     capacity: u32,
     number: u32,
+    is_bounded_buffer: bool,
 ) -> Result<(Vec<u8>, usize), Diagnostic> {
     let target_ptr_disp = disp32(target_offset)?;
     let target_len_disp = disp32(target_offset + 8)?;
+    let carrier_bytes_disp = disp32(target_offset + 8)?;
     let mut bytes = Vec::with_capacity(128);
 
-    // r14 = buffer (imm64 at +2 relocated to the buffer data symbol); r15 = length.
+    // r14 = read buffer (imm64 at +2 relocated to the buffer data symbol, OR to the
+    // carrier's own region for an owned `[u8; N]` target); r15 = length.
     bytes.extend([0x49, 0xbe]);
     bytes.extend(0u64.to_le_bytes());
+    if is_bounded_buffer {
+        // add r14, target_offset + pointer_size -> r14 = carrier inline bytes.
+        bytes.extend([0x49, 0x81, 0xc6]);
+        bytes.extend(carrier_bytes_disp.to_le_bytes());
+    }
     bytes.extend([0x4d, 0x31, 0xff]); // xor r15, r15
 
     let loop_start = bytes.len();
@@ -2129,24 +2193,37 @@ fn build_runtime_text_line_read_syscall(
         let rel = done as isize - (fixup as isize + 4);
         bytes[fixup..fixup + 4].copy_from_slice(&(rel as i32).to_le_bytes());
     }
-    // mov r13, imm64(target) (relocated at +2); store the descriptor.
-    let target_mov_offset = bytes.len();
-    bytes.extend([0x49, 0xbd]);
-    bytes.extend(0u64.to_le_bytes());
-    bytes.extend([0x4d, 0x89, 0xb5]); // mov [r13+target_offset], r14 (descriptor.ptr)
-    bytes.extend(target_ptr_disp.to_le_bytes());
-    bytes.extend([0x4d, 0x89, 0xbd]); // mov [r13+target_offset+8], r15 (descriptor.len)
-    bytes.extend(target_len_disp.to_le_bytes());
+    let target_mov_offset = if is_bounded_buffer {
+        // Owned carrier: the bytes are already in place; write only the length at
+        // `[r14 - 8]` (the leading len word). No `{ptr, len}` descriptor.
+        bytes.extend([0x4d, 0x89, 0x7e, 0xf8]); // mov [r14-8], r15
+        0
+    } else {
+        // mov r13, imm64(target) (relocated at +2); store the descriptor.
+        let target_mov_offset = bytes.len();
+        bytes.extend([0x49, 0xbd]);
+        bytes.extend(0u64.to_le_bytes());
+        bytes.extend([0x4d, 0x89, 0xb5]); // mov [r13+target_offset], r14 (descriptor.ptr)
+        bytes.extend(target_ptr_disp.to_le_bytes());
+        bytes.extend([0x4d, 0x89, 0xbd]); // mov [r13+target_offset+8], r15 (descriptor.len)
+        bytes.extend(target_len_disp.to_le_bytes());
+        target_mov_offset
+    };
 
     Ok((bytes, target_mov_offset))
 }
 
-fn runtime_text_line_read_syscall_layout() -> (usize, usize) {
+fn runtime_text_line_read_syscall_layout_for(is_bounded_buffer: bool) -> (usize, usize) {
     // Capacity/number/target are all fixed-width immediates, so they do not affect the
     // layout; encode once with placeholders to recover the width + target imm offset.
-    let (bytes, target_mov_offset) = build_runtime_text_line_read_syscall(0, 1, 0)
-        .expect("runtime text line read syscall layout encodes");
+    let (bytes, target_mov_offset) =
+        build_runtime_text_line_read_syscall(0, 1, 0, is_bounded_buffer)
+            .expect("runtime text line read syscall layout encodes");
     (bytes.len(), target_mov_offset)
+}
+
+fn runtime_text_line_read_syscall_layout() -> (usize, usize) {
+    runtime_text_line_read_syscall_layout_for(false)
 }
 
 pub fn runtime_text_line_read_syscall_width() -> usize {
@@ -2155,6 +2232,12 @@ pub fn runtime_text_line_read_syscall_width() -> usize {
 
 pub fn runtime_text_line_read_syscall_target_imm_offset() -> usize {
     runtime_text_line_read_syscall_layout().1
+}
+
+/// Owned carrier syscall read: wider prologue (`add r14`), shorter epilogue (a
+/// single `len` store), so its width differs from the String descriptor path.
+pub fn runtime_text_line_read_syscall_carrier_width() -> usize {
+    runtime_text_line_read_syscall_layout_for(true).0
 }
 
 pub fn encode_runtime_text_line_read(
@@ -2166,7 +2249,22 @@ pub fn encode_runtime_text_line_read(
             "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
         ))
     })?;
-    Ok(build_runtime_text_line_read(target_offset, capacity)?.0)
+    Ok(build_runtime_text_line_read(target_offset, capacity, false)?.0)
+}
+
+/// Read a stdin line into an owned `[u8; N]` carrier: stdin bytes land directly in
+/// the carrier's inline storage (`region + target_offset + pointer_size`) and the
+/// line length is written to the carrier's leading length word (`target_offset`).
+pub fn encode_runtime_text_line_read_carrier(
+    target_offset: usize,
+    byte_capacity: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let capacity = u32::try_from(byte_capacity).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
+        ))
+    })?;
+    Ok(build_runtime_text_line_read(target_offset, capacity, true)?.0)
 }
 
 // ---- compact_binary v0 wire-encode appends (chapter 20, decision 10) ----
