@@ -67,6 +67,17 @@ compiler_test() {
       FAIL=$((FAIL+1)); echo "  FAIL $1 : compiled [$3] -> exit $got, expected $4"; fi
   else FAIL=$((FAIL+1)); echo "  FAIL $1 : emitted asm did not assemble:"; sed 's/^/    /' "$T/cerr"; fi
 }
+# compiler_trap NAME SOURCE.alp EXPR  — the COMPILED program must trap (>128), i.e.
+# the emitted safety check (overflow / div-by-zero) faults at runtime.
+compiler_trap() {
+  build "$1" "$2" || return
+  printf '%s' "$3" | "$T/out" > "$T/gen.s" 2>/dev/null
+  if clang -arch arm64 -o "$T/gen" "$T/gen.s" 2>"$T/cerr" && codesign -f -s - "$T/gen" 2>/dev/null; then
+    set +e; "$T/gen"; got=$?; set -e
+    if [ "$got" -gt 128 ]; then PASS=$((PASS+1)); else
+      FAIL=$((FAIL+1)); echo "  FAIL $1 : compiled [$3] -> exit $got, expected a trap (>128)"; fi
+  else FAIL=$((FAIL+1)); echo "  FAIL $1 : emitted asm did not assemble"; fi
+}
 
 # Slice 1: exit_process(<const>) -> the constant is the process exit status.
 run "exit7 (exit_process(7))" samples/exit7.alp 7
@@ -111,6 +122,8 @@ filter_test "calc nested parens (((1+2))*3)"  samples/calc.alp "((1+2))*3" "9"
 compiler_test "exprc compiles 2+3*4"   samples/exprc.alp "2+3*4"     14
 compiler_test "exprc compiles (2+3)*4" samples/exprc.alp "(2+3)*4"   20
 compiler_test "exprc compiles ((1+2))*3" samples/exprc.alp "((1+2))*3" 9
+# The emitted code is overflow-SAFE: a compiled overflowing expr traps at runtime.
+compiler_trap "exprc emits overflow trap" samples/exprc.alp "46341*46341"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
 cat > "$T/ovf.alp" <<'EOF'
 boundary trait Console { machine exit_process(return_code: i32); }
