@@ -10108,6 +10108,57 @@ fn runtime_stdin_command_branch_exit_canary_runs() {
 
 // #66 carrier stdin round-trip: `read_line` into a `[u8; 64] in Utf8` carrier
 // (stdin straight into the inline bytes + len), then `write_line` the carrier back.
+// #66 carrier sequential reads: two `read_line`s into the same `[u8; 64]` carrier,
+// each echoed -- the second read must overwrite the first line's bytes + length.
+#[test]
+fn runtime_stdin_line_buffering_carrier_canary_runs() {
+    let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-line-buffering-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier line buffering canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("carrier line buffering canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"first\nsecond\n")
+        .expect("carrier line buffering input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("carrier line buffering canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected carrier line buffering canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "first\nsecond\n",
+        "expected each carrier read_line to echo its own line, the second overwriting the first"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 carrier stdin round-trip: `read_line` into a `[u8; 64] in Utf8` carrier
+// (stdin straight into the inline bytes + len), then `write_line` the carrier back.
 #[test]
 fn runtime_text_storage_carrier_canary_runs() {
     let canary = pass_canary("text/runtime_text_storage");
