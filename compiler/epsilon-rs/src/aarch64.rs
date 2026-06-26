@@ -359,7 +359,19 @@ fn emit_self_element_address(
     asm.push_str("    uxtw x0, w0\n"); // zero-extend the validated index
     asm.push_str(&format!("    ldr x9, [x29, #{}]\n", self_disp)); // self pointer
     if field_offset != 0 {
-        asm.push_str(&format!("    add x9, x9, #{}\n", field_offset));
+        // ARM64 `add` immediates are 12-bit (0..4095). For a field at a larger offset
+        // (a big struct -- several KB of buffers + arrays), split into a high part
+        // shifted left 12 and a low part, each within range (covers offsets up to 16M).
+        if field_offset < 4096 {
+            asm.push_str(&format!("    add x9, x9, #{}\n", field_offset));
+        } else {
+            let hi = field_offset >> 12;
+            let lo = field_offset & 0xfff;
+            asm.push_str(&format!("    add x9, x9, #{}, lsl #12\n", hi));
+            if lo != 0 {
+                asm.push_str(&format!("    add x9, x9, #{}\n", lo));
+            }
+        }
     }
     let shift = match element_bytes {
         2 => 1,
