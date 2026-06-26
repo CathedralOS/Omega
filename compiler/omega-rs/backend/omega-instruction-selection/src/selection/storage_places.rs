@@ -2286,6 +2286,22 @@ fn descriptor_layout(
                 alignment: element.alignment,
             };
         }
+        TypeLayoutDescriptor::BoundedByteBuffer {
+            element_type,
+            capacity,
+        } => {
+            // Owned `{ len, bytes }` inline: a pointer-sized length word followed
+            // by `capacity` inline element bytes. Must agree with the omega-layout
+            // field sizing for the carrier (a leading len word, then the bytes).
+            let element = descriptor_layout(input, element_type);
+            return TypeLayout {
+                size: input
+                    .runtime_abi
+                    .pointer_size
+                    .saturating_add(element.size.saturating_mul(*capacity)),
+                alignment: input.runtime_abi.pointer_alignment,
+            };
+        }
         TypeLayoutDescriptor::Slice { .. } => {
             let descriptor = input.runtime_abi.slice_descriptor();
             return TypeLayout {
