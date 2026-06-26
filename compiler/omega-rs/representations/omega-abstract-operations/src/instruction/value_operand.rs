@@ -92,6 +92,12 @@ pub enum ValueOperand {
     TextEqualsLiteral {
         place: ValueOperandHandle,
         literal: String,
+        /// The `place` is an owned `[u8; N]` bounded byte carrier (`{len, bytes}`
+        /// inline) rather than a `{ptr, len}` text descriptor: the content bytes
+        /// are at `place_address + pointer_size` (computed, not a stored pointer)
+        /// and the length is read at `place_address + 0`. The compare is otherwise
+        /// identical (length check + bounded byte loop).
+        place_is_bounded_buffer: bool,
     },
     /// A numeric `as` cast applied to another operand (`(self.b as f64)` used as a
     /// binary/comparison operand): load `source`, then convert it in place
@@ -141,9 +147,14 @@ impl ValueOperand {
                 is_float: *is_float,
                 byte_width: *byte_width,
             },
-            Self::TextEqualsLiteral { place, literal } => Self::TextEqualsLiteral {
+            Self::TextEqualsLiteral {
+                place,
+                literal,
+                place_is_bounded_buffer,
+            } => Self::TextEqualsLiteral {
                 place: remap(*place),
                 literal: literal.clone(),
+                place_is_bounded_buffer: *place_is_bounded_buffer,
             },
             Self::Convert {
                 source,

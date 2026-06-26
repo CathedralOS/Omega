@@ -2033,7 +2033,11 @@ fn append_runtime_value_operand(
             right_offset,
         )?;
         Ok(())
-    } else if let Some((place, literal)) = runtime_value_operands.text_equals_literal(operand) {
+    } else if let Some((place, literal, _place_is_bounded_buffer)) =
+        runtime_value_operands.text_equals_literal(operand)
+    {
+        // The owned `[u8; N]` carrier read is x86_64-only for now (its write is
+        // too); aarch64 only ever sees String/slice descriptor places here.
         append_runtime_text_equals_literal_operand(
             runtime_value_operands,
             bytes,

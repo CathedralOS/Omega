@@ -4712,7 +4712,11 @@ pub fn runtime_value_operand_width(
         24
     } else if runtime_value_operands.text_equals(operand).is_some() {
         runtime_text_equals_operand_width()
-    } else if let Some((place, literal)) = runtime_value_operands.text_equals_literal(operand) {
+    } else if let Some((place, literal, _is_bounded_buffer)) =
+        runtime_value_operands.text_equals_literal(operand)
+    {
+        // Carrier vs descriptor place are byte-width identical, so the width is
+        // independent of `is_bounded_buffer`.
         runtime_text_equals_literal_operand_width(runtime_value_operands, place, &literal)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
@@ -4824,13 +4828,16 @@ fn append_runtime_value_operand(
     {
         append_runtime_text_equals_operand(bytes, destination, left_offset, right_offset)?;
         Ok(())
-    } else if let Some((place, literal)) = runtime_value_operands.text_equals_literal(operand) {
+    } else if let Some((place, literal, place_is_bounded_buffer)) =
+        runtime_value_operands.text_equals_literal(operand)
+    {
         append_runtime_text_equals_literal_operand(
             runtime_value_operands,
             bytes,
             destination,
             place,
             &literal,
+            place_is_bounded_buffer,
         )?;
         Ok(())
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
@@ -4993,6 +5000,7 @@ fn append_runtime_text_equals_literal_operand(
     destination: Reg64,
     place: RuntimeValueOperandHandle,
     literal: &str,
+    place_is_bounded_buffer: bool,
 ) -> Result<(), Diagnostic> {
     let operand_start = bytes.len();
 
@@ -5063,10 +5071,22 @@ fn append_runtime_text_equals_literal_operand(
         ));
     }
 
-    bytes.extend([0x48, 0x8b, 0x88]); // mov rcx, [rax+disp32] (ptr)
-    bytes.extend(disp32(descriptor_disp)?.to_le_bytes());
-    bytes.extend([0x48, 0x8b, 0x90]); // mov rdx, [rax+disp32] (len)
-    bytes.extend(disp32(descriptor_disp + 8)?.to_le_bytes());
+    if place_is_bounded_buffer {
+        // Owned carrier `{len@0, bytes@8}`: rcx = bytes ADDRESS (rax+disp+8,
+        // computed, not a stored pointer); rdx = len read at offset 0. Same widths
+        // as the descriptor path (lea/mov are both `48 .. 88/90 disp32` = 7 bytes),
+        // so the byte-compare loop, branch offsets, and operand width are all
+        // unchanged.
+        bytes.extend([0x48, 0x8d, 0x88]); // lea rcx, [rax+disp32] (carrier bytes addr)
+        bytes.extend(disp32(descriptor_disp + 8)?.to_le_bytes());
+        bytes.extend([0x48, 0x8b, 0x90]); // mov rdx, [rax+disp32] (carrier.len @ 0)
+        bytes.extend(disp32(descriptor_disp)?.to_le_bytes());
+    } else {
+        bytes.extend([0x48, 0x8b, 0x88]); // mov rcx, [rax+disp32] (ptr)
+        bytes.extend(disp32(descriptor_disp)?.to_le_bytes());
+        bytes.extend([0x48, 0x8b, 0x90]); // mov rdx, [rax+disp32] (len)
+        bytes.extend(disp32(descriptor_disp + 8)?.to_le_bytes());
+    }
 
     // result = 0; a length mismatch is unequal text. The jne also means an
     // all-zero (default) descriptor never has its null pointer dereferenced

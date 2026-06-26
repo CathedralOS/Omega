@@ -117,9 +117,18 @@ pub(super) fn runtime_value_operand_name(
                 storage_region_symbol_name(*right_region, backend_plan.entry_machine_name());
             format!("text_equals({left_symbol}@{left_offset}, {right_symbol}@{right_offset})")
         }
-        RuntimeValueOperand::TextEqualsLiteral { place, literal } => format!(
-            "text_equals_literal({}, {literal:?})",
+        RuntimeValueOperand::TextEqualsLiteral {
+            place,
+            literal,
+            place_is_bounded_buffer,
+        } => format!(
+            "text_equals_literal({}, {literal:?}{})",
             runtime_value_operand_name(backend_plan, *place),
+            if *place_is_bounded_buffer {
+                ", carrier"
+            } else {
+                ""
+            },
         ),
         RuntimeValueOperand::Convert {
             source,
