@@ -296,31 +296,55 @@ pub fn encode_runtime_text_line_read(
     target_offset: usize,
     byte_capacity: usize,
     binding: &HostBindingMechanism,
+    is_bounded_buffer: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => match binding {
-            HostBindingMechanism::Import { .. } => {
-                aarch64::encode_runtime_text_line_read_import(target_offset, byte_capacity)
+        Architecture::Aarch64 => {
+            if is_bounded_buffer {
+                return Err(Diagnostic::error(
+                    "AArch64 owned `[u8; N]` carrier read_line is not implemented (x86_64 only)",
+                ));
             }
-            HostBindingMechanism::Syscall {
-                number,
-                number_register,
-                supervisor_call,
-                ..
-            } => aarch64::encode_runtime_text_line_read_syscall(
-                target_offset,
-                byte_capacity,
-                *number,
-                *number_register,
-                *supervisor_call,
-            ),
-        },
+            match binding {
+                HostBindingMechanism::Import { .. } => {
+                    aarch64::encode_runtime_text_line_read_import(target_offset, byte_capacity)
+                }
+                HostBindingMechanism::Syscall {
+                    number,
+                    number_register,
+                    supervisor_call,
+                    ..
+                } => aarch64::encode_runtime_text_line_read_syscall(
+                    target_offset,
+                    byte_capacity,
+                    *number,
+                    *number_register,
+                    *supervisor_call,
+                ),
+            }
+        }
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                x86_64::encode_runtime_text_line_read(target_offset, byte_capacity)
+                if is_bounded_buffer {
+                    x86_64::encode_runtime_text_line_read_carrier(target_offset, byte_capacity)
+                } else {
+                    x86_64::encode_runtime_text_line_read(target_offset, byte_capacity)
+                }
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                x86_64::encode_runtime_text_line_read_syscall(target_offset, byte_capacity, *number)
+                if is_bounded_buffer {
+                    x86_64::encode_runtime_text_line_read_syscall_carrier(
+                        target_offset,
+                        byte_capacity,
+                        *number,
+                    )
+                } else {
+                    x86_64::encode_runtime_text_line_read_syscall(
+                        target_offset,
+                        byte_capacity,
+                        *number,
+                    )
+                }
             }
         },
     }

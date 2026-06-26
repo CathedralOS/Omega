@@ -21,16 +21,25 @@ pub(super) fn collect_runtime_text_read_relocations(
         return;
     };
 
-    let buffer_symbol = context.data_object_symbol_handle(read.buffer);
-    let target_symbol = context.storage_region_symbol_handle(read.target_region);
-    context.insert_data_address_at_instruction_start(buffer_symbol);
-    context.insert_data_address_at_relative_offset(
-        runtime_text_line_read_target_address_offset(
-            context.input.target.architecture,
-            &binding.mechanism,
-        ),
-        target_symbol,
-    );
+    if read.is_bounded_buffer {
+        // Owned `[u8; N]` carrier: r14 reads straight into the carrier's inline
+        // bytes, so it relocates to the carrier's OWN region (the encoder adds the
+        // `+ pointer_size` past the length word). There is no separate buffer and
+        // no `{ptr, len}` descriptor, hence no second target relocation.
+        let region_symbol = context.storage_region_symbol_handle(read.target_region);
+        context.insert_data_address_at_instruction_start(region_symbol);
+    } else {
+        let buffer_symbol = context.data_object_symbol_handle(read.buffer);
+        let target_symbol = context.storage_region_symbol_handle(read.target_region);
+        context.insert_data_address_at_instruction_start(buffer_symbol);
+        context.insert_data_address_at_relative_offset(
+            runtime_text_line_read_target_address_offset(
+                context.input.target.architecture,
+                &binding.mechanism,
+            ),
+            target_symbol,
+        );
+    }
 
     let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
         return;
@@ -59,6 +68,7 @@ pub(super) fn collect_runtime_text_read_relocations(
                     text_offset: runtime_text_line_read_get_std_handle_call_offset(
                         context.input.target.architecture,
                         context.selected_text_offset,
+                        read.is_bounded_buffer,
                     ),
                     byte_width: 4,
                     symbol_handle: object_symbol_handle_by_name(
@@ -80,6 +90,7 @@ pub(super) fn collect_runtime_text_read_relocations(
             text_offset: runtime_text_line_read_import_call_offset(
                 context.input.target.architecture,
                 context.selected_text_offset,
+                read.is_bounded_buffer,
             ),
             byte_width: 4,
             symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol.as_ref()),

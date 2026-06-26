@@ -10106,6 +10106,55 @@ fn runtime_stdin_command_branch_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 carrier stdin round-trip: `read_line` into a `[u8; 64] in Utf8` carrier
+// (stdin straight into the inline bytes + len), then `write_line` the carrier back.
+#[test]
+fn runtime_text_storage_carrier_canary_runs() {
+    let canary = pass_canary("text/runtime_text_storage");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-text-storage-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier text storage canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("carrier text storage canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"echo me\n")
+        .expect("carrier text storage input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("carrier text storage canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected carrier text storage canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "> echo me\n",
+        "expected the carrier read_line to round-trip the input line back through write_line"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_stderr_write_exit_canary_runs() {
     // The `write_error` host capability mirrors `write` but targets the stderr

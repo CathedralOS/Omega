@@ -766,6 +766,7 @@ fn machine_instruction_width(
                 input.target.architecture,
                 read.byte_capacity,
                 &binding.mechanism,
+                read.is_bounded_buffer,
             )
         }
         SelectedInstructionKind::CopyRuntimeStorage {

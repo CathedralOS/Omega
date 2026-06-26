@@ -465,6 +465,10 @@ pub enum TargetOperationKind {
         target_offset: usize,
         byte_capacity: usize,
         source: RuntimeTextReadSource,
+        /// The target is an owned `[u8; N]` carrier (`{len, bytes}` inline): read
+        /// stdin into its inline bytes (`region + target_offset + pointer_size`)
+        /// and write only `len` at `target_offset`; `buffer` is unused.
+        is_bounded_buffer: bool,
     },
     CopyRuntimeStorage {
         source_region: RuntimeStorageRegion,

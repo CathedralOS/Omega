@@ -15,6 +15,8 @@ pub(crate) struct SelectedHostTextRead<'instruction> {
     pub byte_capacity: usize,
     pub source: &'instruction RuntimeTextReadSource,
     pub operation_key: HostOperationKey,
+    /// Owned `[u8; N]` carrier target: read into its inline bytes + write only len.
+    pub is_bounded_buffer: bool,
 }
 
 pub(crate) fn selected_host_operation(
@@ -49,6 +51,7 @@ pub(crate) fn selected_host_text_read(
         target_offset,
         byte_capacity,
         source,
+        is_bounded_buffer,
         ..
     } = kind
     else {
@@ -61,6 +64,7 @@ pub(crate) fn selected_host_text_read(
         byte_capacity: *byte_capacity,
         source,
         operation_key: *operation_key,
+        is_bounded_buffer: *is_bounded_buffer,
     })
 }
 
