@@ -61,6 +61,11 @@ pub fn lower_program(program: &Program) -> String {
         asm.push_str(&format!(".zerofill __DATA,__bss,_selfdata,{},3\n", size));
     }
 
+    // A 1-byte static scratch buffer for write_byte / read_byte.
+    if program.uses_imports {
+        asm.push_str(".zerofill __DATA,__bss,_iobyte,1,0\n");
+    }
+
     // write_line string literals as read-only data (raw bytes — write() uses an
     // explicit length, so no NUL terminator is needed).
     if !program.strings.is_empty() {
@@ -228,8 +233,17 @@ fn lower_statement(
             emit_load_reg(2, len, asm); // x2 = len
             asm.push_str("    bl _write\n");
         }
-        // Not yet ported: write_byte / read_byte. They are silent no-ops, which
-        // preserves the control-flow / exit-code behavior the gated samples assert.
+        Statement::WriteByte(expression) => {
+            // store the low byte to the static scratch, then write(1, &_iobyte, 1).
+            lower_expression(*expression, program, self_disp, asm);
+            asm.push_str("    ldr x0, [sp], #16\n"); // pop value
+            asm.push_str("    adrp x9, _iobyte@PAGE\n    add x9, x9, _iobyte@PAGEOFF\n");
+            asm.push_str("    strb w0, [x9]\n"); // _iobyte = low byte
+            asm.push_str("    mov x0, #1\n"); // fd = stdout
+            asm.push_str("    adrp x1, _iobyte@PAGE\n    add x1, x1, _iobyte@PAGEOFF\n");
+            asm.push_str("    mov x2, #1\n"); // len = 1
+            asm.push_str("    bl _write\n");
+        }
         _ => {}
     }
 }
@@ -314,9 +328,18 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
             }
             asm.push_str("    str x0, [sp, #-16]!\n"); // push result
         }
-        // Unsupported in slices 1-2 (self/fields, calls, read_byte): push 0.
-        _ => {
-            asm.push_str("    mov w0, #0\n    str x0, [sp, #-16]!\n");
+        Expr::ReadByte => {
+            // read(0, &_iobyte, 1); result = (count >= 1) ? _iobyte : -1 (branchless).
+            asm.push_str("    mov x0, #0\n"); // fd = stdin
+            asm.push_str("    adrp x1, _iobyte@PAGE\n    add x1, x1, _iobyte@PAGEOFF\n");
+            asm.push_str("    mov x2, #1\n"); // len = 1
+            asm.push_str("    bl _read\n"); // x0 = bytes read
+            asm.push_str("    adrp x9, _iobyte@PAGE\n    add x9, x9, _iobyte@PAGEOFF\n");
+            asm.push_str("    ldrb w1, [x9]\n"); // w1 = the byte
+            emit_load_reg(2, -1, asm); // w2 = -1 (EOF sentinel)
+            asm.push_str("    cmp x0, #1\n");
+            asm.push_str("    csel w0, w1, w2, ge\n"); // count>=1 ? byte : -1
+            asm.push_str("    str x0, [sp, #-16]!\n"); // push
         }
     }
 }
