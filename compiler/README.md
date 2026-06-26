@@ -110,19 +110,27 @@ induction**:
   half of the FTA: every prime dividing `n` appears in *any* prime factorization
   (`prime p ∧ ProdIs(L,n) ∧ p∣n ∧ ∀x∈L.prime x → Mem(p,L)`), so the *set* of primes is
   determined; the empty product is uniquely the empty list; and a prime factors uniquely as the
-  singleton `[p]`. (Independently, a complete **ℤ** is constructed as difference pairs and proved
-  a **linearly ordered commutative ring** up to `~`, with the ℕ-embedding an order-isomorphism —
-  see [`delta/INTEGERS.md`](delta/INTEGERS.md).)
+  singleton `[p]`. And — the second of the two classical crown jewels — **the infinitude of
+  primes** (Euclid, 244 lemmas): `∀L. allPrime(L) → ∃q. prime(q) ∧ ¬Mem(q,L)` — *any* finite list
+  of primes omits one, proved constructively by `N = product(L)+1` (which is `>1` since a product
+  of primes is positive), whose prime factor cannot lie in `L` (it would divide both `product(L)`
+  and `N`, hence `1`). (Independently, a complete **ℤ** is constructed as difference pairs and
+  proved a **linearly ordered commutative ring** up to `~`, with the ℕ-embedding an
+  order-isomorphism — see [`delta/INTEGERS.md`](delta/INTEGERS.md).)
+- **exponentiation** is a recursive function over a *user*-nat exponent (no kernel change), proved
+  to satisfy the three classical power laws — `(a·b)^k = a^k·b^k`, `a^(m+n) = a^m·a^n`, and
+  `(a^m)^n = a^(m·n)` — and to **respect congruence** (`a ≡ b (mod n) → a^k ≡ b^k (mod n)`, the
+  basis of modular exponentiation), tying the exponentiation chapter back to the ℤ/nℤ ring.
 
 ### Why you can believe it
 
 The trust anchor is defended five independent ways (all under `verify-lattice.sh`):
 
-- **314-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
-- **41-case soundness battery** (`soundness.sh`) — invalid certificates that must
+- **331-case gate** (`test.sh`) — valid certificates accepted, invalid rejected.
+- **43-case soundness battery** (`soundness.sh`) — invalid certificates that must
   *all* be rejected, including classical-but-non-constructive tautologies (excluded
   middle, Peirce, the drinker paradox) and fabricated memberships/products.
-- **80-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
+- **83-case checker diamond** (`checker-diamond.sh`) — *diversity = security* applied
   to the checker itself: `check.beta` (Beta, tagged-memory + CFG guard-state dispatch) and
   `gamma/checker.gamma` (Gamma, ADTs + pattern matching) must return identical
   verdicts on every proof. It has caught real divergences.
@@ -152,9 +160,10 @@ The trust anchor is defended five independent ways (all under `verify-lattice.sh
   built-in arithmetic**: a user list-of-naturals carries a `product` and an `append`, and
   `product` is proved a **monoid homomorphism** `product(l₁++l₂) = product(l₁)·product(l₂)`
   (gate "product homomorphism") by structural `rec` induction — the expressible core of
-  factorization. The *full* fundamental theorem of arithmetic stays out of reach for a clear
-  reason: the checker has no recursive **propositions** (so "every element of the list is
-  prime" can't be stated) and `fun` rules pattern-match only *user* constructors (so no Bool
-  primality test over built-in naturals). Next: N-ary (3+) arguments; recursive props would
-  unlock the FTA.
+  factorization. (A *former* frontier — "the FTA needs recursive **propositions** the checker
+  lacks, so 'every element of the list is prime' can't even be stated" — has since been **crossed**:
+  two inductive predicates (`Mem`, `ProdIs`) were added to the kernel core, and the FTA existence
+  half, Euclid's lemma, the uniqueness pieces, and the infinitude of primes are now all proved; see
+  the trust-anchor section above.) Remaining genuine frontiers here: N-ary (3+) `fun` arguments,
+  and `fun` rules still pattern-match only *user* constructors (no Bool test over built-in naturals).
 - epsilon (systems language) and omega (full dependent types) are design-stage.
