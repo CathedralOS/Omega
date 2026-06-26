@@ -36,6 +36,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-bounds.alp "$T/cb" >/dev/nu
   || { echo "convergence FAIL — compiling certify-bounds"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-divides.alp "$T/cd" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-divides"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-accesses.alp "$T/cacc" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-accesses"; exit 1; }
 
 # the checker prints accept/reject to stdout but exits non-zero (the alpha VM's halt
 # code), so judge by the stdout string, not the exit status -- and drop `set -e`.
@@ -73,6 +75,16 @@ cd_() {
 }
 cd_ 3 12; cd_ 5 20; cd_ 1 7; cd_ 7 7; cd_ 4 0; cd_ 6 42
 
+# the certifying COMPILER: a whole program's worth of accesses, one conjunction proof
+cacc() {
+  v=$(printf '%s' "$1" | "$T/cacc" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL accesses [$1] : delta returned [$v], expected accept"; fi
+}
+cacc "2 5 3 4"
+cacc "2 5 3 4  1 3 0 2"
+cacc "0 1 0 1  2 5 3 4  1 3 0 2  5 6 2 9"
+
 # CORRUPTED certificates must be rejected (delta checks the computation, not us):
 # (a) claim 2+3 = 4; (b) reuse 2<5's witness to claim 2<4. Both must reject.
 bad=$(printf '2 3' | "$T/ca" | sed 's/(s (s (s (s (s z)))))/(s (s (s (s z))))/g' | "$T/check.exe")
@@ -89,6 +101,10 @@ if [ "$badcb" = reject ]; then PASS=$((PASS+1)); else
 badcd=$(printf '3 12' | "$T/cd" | sed 's/(s (s (s (s z))))/(s (s (s z)))/' | "$T/check.exe")
 if [ "$badcd" = reject ]; then PASS=$((PASS+1)); else
   FAIL=$((FAIL+1)); echo "  FAIL tamper-divides : delta returned [$badcd], expected reject"; fi
+# (e) corrupt ONE conjunct of a multi-access proof -- the whole conjunction must reject.
+badca=$(printf '2 5 3 4  1 3 0 2' | "$T/cacc" | sed 's/(refl (m (s (s z)) (s (s (s z)))))/(refl (m (s (s z)) (s (s z))))/' | "$T/check.exe")
+if [ "$badca" = reject ]; then PASS=$((PASS+1)); else
+  FAIL=$((FAIL+1)); echo "  FAIL tamper-accesses : delta returned [$badca], expected reject"; fi
 
 echo "convergence (epsilon emits a delta proof; the trust anchor checks it): $PASS confirmed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
