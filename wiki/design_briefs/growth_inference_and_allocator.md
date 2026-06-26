@@ -251,32 +251,50 @@ already in place for range-refined fields.
 >    invariant or octagons), a separate "increment B" not yet built. fail canary
 >    `bounded_carrier_growth_overflow_rejected` pins the rejection.
 >
-> **The remaining blocker is native codegen — and the build mapping (2026-06-25)
-> surfaced that it is blocked on a CARRIER-MODEL design decision, not just wiring.**
-> The owned builder compiles to "needs runtime storage write / string builder
-> lowering" stubs. The root cause: a bare `[u8; N]` is **N raw inline bytes with
-> no length**, but variable-length text content (`≤ N`) plus its reads (`==`,
-> `write_line`) need a length. The interpreter sidesteps this (it stores logical
-> content); native cannot. So *where does the length live?* — and every answer
-> collides with something:
+> **Carrier model — SETTLED 2026-06-25.** `[u8; N]` is sugar for **a bounded
+> slice: `[u8]` (which carries a `len`) refined by `len ≤ N`.** The length is the
+> real runtime info; `N` is only the static upper bound (the bound the length-fits
+> guard already proves). The key was pulling apart *owned* vs *borrowed*, which the
+> word "slice" was conflating:
 >
-> | Model | How length is tracked | Cost / conflict |
-> |---|---|---|
-> | **(A) Domain-driven fat descriptor** — make `Constrained{FixedArray,[Utf8]}` a `{ptr,len}` text descriptor backed by an `N`-region | in the descriptor's `len` | reuses ALL text machinery, but **a domain would drive layout** — directly contradicts the stated principle (`descriptor_is_fat_slice`: "the domain constraint does not change the fat-descriptor shape"; `&[u8] in Utf8` is fat only because `&[u8]` already is) |
-> | **(B) Inline `[u8; N]` + in-band length** — bytes stay inline; a length prefix or sentinel | first byte(s), or NUL-terminate | preserves the layout principle, but needs NEW encoders and the length convention is hacky (Utf8 admits interior NUL; a prefix eats capacity) |
-> | **(C) `FixedVec<u8>`-shaped carrier** — a distinct length-carrying type (region + `len`, fat by its OWN shape) | an explicit `len` field | **principled** (fat by shape, no domain-driven layout) and **matches the allocator design's `FixedVec = region + length`**; but it is a new type to introduce (layout, the `len` field, surface syntax), the largest build |
+> | | Layout | Proof it needs | Status |
+> |---|---|---|---|
+> | **owned `[u8; N]`** (variable-fill) | `{ len, [u8; N] bytes }` **inline** — a value, NO stored pointer | `len ≤ N` | **built** — length-fits guard (`7bf89867`) |
+> | **borrowed `&[u8]`** | `{ ptr, len }` descriptor | the pointer outlives & stays in-bounds | **built** — lifetimes (#15) |
 >
-> **This re-derives the brief's own §2.6-pt-2 hint and confirms it: the owned
-> growable text carrier wants an explicit length → it is `FixedVec<u8>`-shaped,
-> not bare `[u8; N] in Utf8`.** `[u8; N] in Utf8` is the right spelling for the
-> PROVER (the bound `N`) and for FIXED-length content, but native variable-length
-> growth needs the length the bare array can't carry. **(A)** is the least code
-> but the user owns whether a domain may drive layout; **(C)** is the principled,
-> allocator-aligned answer but the biggest build. This is the live decision the
-> codegen waits on — not a default to bake.
+> Because the owned buffer stores **no pointer** (its bytes are inline), there is
+> nothing to misdirect: `self.buf = other` *copies* content into the inline bytes
+> and sets `len` (proving `len ≤ N`) — you cannot smuggle in a foreign slice's
+> pointer, so no "lands within allocation" obligation arises for the owned case.
+> That obligation is real ONLY for the borrowed `{ptr,len}` view, and lifetimes
+> already discharge it. **Two proofs, two places, both already built.**
 >
-> The prover half (concat-domain law + length-fits, `7bf89867`) stands
-> independent of the choice: it proves `content ≤ N` for whichever carrier wins.
+> This dissolves the earlier (A)/(B)/(C) fork cleanly:
+> * The fat-ness of an owned buffer comes from `[u8; N]` *being* a length-carrying
+>   bounded slice — **not** from the `in Utf8` domain. So `[u8; N]` and
+>   `[u8; N] in Utf8` share one layout; the domain still changes nothing. The
+>   "domains don't change layout" principle survives (this was what killed A).
+> * The length is an **explicit `len` word**, not an in-band prefix/sentinel (B's
+>   hack is avoided).
+> * Owned `[u8; N]` = a region of `N` bytes + a `len ≤ N` **is** the allocator's
+>   `FixedVec = region + length` — realized *as* `[u8; N]`, with no new type name
+>   (C, but without inventing `FixedVec<u8>`).
+>
+> **Layout optimization (keeps it cheap + backward-compatible):** when `len` is
+> provably constant `== N` (a fully-filled array — which is *every* existing
+> `[u8; N]` today, since there is no partial-fill mechanism yet), lay it out as
+> plain inline `N` bytes with NO `len` word. Only a genuinely variable-fill buffer
+> (growable text) carries the `len`. So existing arrays are untouched; the blast
+> radius stays on the new growable feature.
+>
+> **The build (now unblocked):** lay out owned variable-fill `[u8; N]` as
+> `{ len, bytes }` inline; the write/materialize copies content into the inline
+> bytes and sets `len`, reusing the existing materialize machinery pointed at the
+> inline storage instead of the 256-byte scratch (which this retires). Reads use
+> `len`; a `&[u8]` view borrows `{ &bytes, len }`. Steps: layout recognition →
+> the `descriptor_primitive_type` / `descriptor_is_fat_slice` resolvers →
+> buffer/materialize target = inline storage, `len` set from the proven length →
+> migrate `runtime_text_builder`, verify native + differential.
 
 ---
 
