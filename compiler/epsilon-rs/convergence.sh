@@ -48,6 +48,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-loop.alp "$T/clp" >/dev/nul
   || { echo "convergence FAIL — compiling certify-loop"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-mul.alp "$T/cm" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-mul"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-max.alp "$T/cmax" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-max"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -87,6 +89,15 @@ cd_() {
     FAIL=$((FAIL+1)); echo "  FAIL [$1 | $2] : delta returned [$v], expected accept"; fi
 }
 cd_ 3 12; cd_ 5 20; cd_ 1 7; cd_ 7 7; cd_ 4 0; cd_ 6 42
+
+# CORRECTNESS (not safety): the result meets its spec -- m is genuinely max(a,b):
+# a<=m & b<=m & (m=a or m=b). inl branch when a>=b, inr when a<b.
+cmax() {
+  v=$(printf '%s %s' "$1" "$2" | "$T/cmax" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL max($1,$2) : delta returned [$v], expected accept"; fi
+}
+cmax 5 3; cmax 3 7; cmax 9 9; cmax 0 0; cmax 12 4
 
 # the certifying COMPILER: a whole program's worth of accesses, one conjunction proof
 cacc() {
