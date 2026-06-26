@@ -23,35 +23,24 @@
 //
 // Final: sp=0, stack[0]=13. Exit = 13 + 57 = 70.
 //
-// *** MISCOMPILE DOCUMENTED ***
+// *** MISCOMPILE DOCUMENTED *** (root cause CORRECTED 2026-06-26)
 //
 // Native exit: 71  (wrong)
 // Interpreter exit: 70  (correct, matches hand-verified computation)
 //
-// Minimal trigger (confirmed by probe):
-//   A value-returning machine that (1) captures self.field into a local let v,
-//   (2) mutates self (self.sp = self.sp - 1), (3) returns v -- when called
-//   TWICE sequentially in the SAME machine body, the first call's result (b)
-//   is corrupted in native. The second call's result (a) is correct. When b
-//   is checked in a SUBSTATE transition before the second call, it is correct;
-//   only when both results are used together in straight-line code is b wrong.
+// The original "pop_val called twice" diagnosis is OUTDATED -- that simpler
+// value-call trigger is now fixed (probes popseq/popnest/popcase all pass).
+// The REAL current cause is in `push`: when a substate receives a param via a
+// transition and re-forwards THAT param to a DEEPER substate, the value is
+// dropped. `push(4)` goes push -> try_push1(new_sp, value) -> push1(value), and
+// push1's `value` arrives as 0 instead of 4 (so stack[1] is never written).
+// `push(3)` is a 1-hop push -> push0(value) and works; FLATTENING push to a
+// single level (push -> push1 directly) also works -- only the 2-level forward
+// of a transition-received param fails. Not value-call-specific.
 //
-//   Minimal reproducer (pop_sp called twice):
-//     machine Main::pop_sp(&mut self) -> i32 {
-//         let v: i32 = self.vm.sp;
-//         self.vm.sp = self.vm.sp - 1;
-//         transition { _ -> (v) }
-//     }
-//     // In main: let b = self.pop_sp(); let a = self.pop_sp(); b + a
-//     // Interpreter: b=5, a=4 -> correct
-//     // Native:      b=4, a=4 -> b is wrong (reads stale/wrong slot)
-//
-// Root cause hypothesis: native leaf-expansion for the first call fires after
-// the second call's dispatch context has already reused the frame slot for the
-// callee-internal local `v`, so `b` reads the second call's `v` instead of
-// the first call's `v`. Distinct from the `value_call_sequential_result_slots`
-// canary fix (which addressed LocalStorage ops ordering) -- this involves a
-// callee-internal self-MUTATION interleaved with the return-value propagation.
+// Minimal reproducer + full bisection: task #17 (see /tmp probes push2.omg,
+// push1lvl.omg). Report fingerprint: `BoundedTransitionArgument parameter
+// <unknown>` for the intermediate substate's forwarded args.
 //
 // Expected exit: 70.
 
