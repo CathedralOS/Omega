@@ -9,7 +9,9 @@
 // preceding `arr` (context resolution), then computes the VC. So a compiler turns code
 // into a machine-checked proof that the code is memory- and arithmetic-safe.
 //   printf 'arr 4 5  get 2 3  div 7  get 1 ... ' | certify-source | check.exe -> accept
-// Contract: each get is in range and each div is nonzero. Obligations held 5-wide
+// The frontend ANALYSES safety itself: a get out of range or a div by zero is REJECTED
+// with an "unsafe" diagnostic and a nonzero exit -- only code it accepts gets a proof
+// (which the trust anchor then independently re-checks). Obligations held 5-wide
 // [type,a,b,c,d]: type 0 bounds (i n j m), type 1 nonzero (x).
 boundary trait Console {
     machine exit_process(return_code: i32);
@@ -20,7 +22,7 @@ data Main {
     console: Console;
     buf: [u8; 200]; n: i32; pos: i32; c: i32; start: i32; kw: i32;
     obs: [i32; 80]; K: i32; need: i32; rc: i32; cur: i32; si: i32; rd: [i32; 2];
-    curM: i32; curN: i32;
+    curM: i32; curN: i32; bad: i32; lhs: i32; rhs: i32;
     gi: i32; cp: i32; w: i32; uv: i32; base: i32;
 }
 // ---- keyword recognisers (byte-by-byte, like a real lexer's decision points) ----
@@ -116,7 +118,7 @@ machine Main::emit_nonzero_pf(&mut self, base: i32) {
     write_byte(41); write_byte(41);
 }
 machine Main::main(&mut self) {
-    self.n = 0; self.K = 0; self.curM = 0; self.curN = 0;
+    self.n = 0; self.K = 0; self.curM = 0; self.curN = 0; self.bad = 0;
     transition 0 { _ -> rd() }
     state rd()    { self.c = read_byte(); transition self.c < 0 { true -> setpos()  false -> store() } }
     state store() { self.buf[self.n] = self.c; self.n = self.n + 1; transition 0 { _ -> rd() } }
@@ -158,11 +160,27 @@ machine Main::main(&mut self) {
         self.obs[self.si + 2] = self.curN;      // n = declared N   (context binding)
         self.obs[self.si + 3] = self.rd[1];     // j = J
         self.obs[self.si + 4] = self.curM;      // m = declared M
-        self.K = self.K + 1; transition 0 { _ -> tscan() }
+        self.K = self.K + 1;
+        // SAFETY ANALYSIS: the access is in range iff i*n + j < m*n
+        self.lhs = self.rd[0] * self.curN + self.rd[1];
+        self.rhs = self.curM * self.curN;
+        transition self.lhs < self.rhs { true -> tscan()  false -> mark() }
     }
-    state asDiv() { self.obs[self.si] = 1; self.obs[self.si + 1] = self.rd[0]; self.K = self.K + 1; transition 0 { _ -> tscan() } }
+    state asDiv() {
+        self.obs[self.si] = 1; self.obs[self.si + 1] = self.rd[0]; self.K = self.K + 1;
+        // SAFETY ANALYSIS: the division is defined iff the divisor is nonzero
+        transition self.rd[0] < 1 { true -> mark()  false -> tscan() }
+    }
+    state mark() { self.bad = 1; transition 0 { _ -> tscan() } }
     // ---- emit: nested (& ...) goal, (pair ...) proof, conjuncts switch on tag ----
-    state compute(){ self.gi = 0; transition 0 { _ -> gloop() } }
+    // unsafe code is REJECTED with a diagnostic; only safe code gets a proof
+    state compute(){ transition self.bad == 1 { true -> reject()  false -> emit0() } }
+    state reject() {
+        write_byte(117); write_byte(110); write_byte(115); write_byte(97);
+        write_byte(102); write_byte(101); write_byte(10);                 // "unsafe\n"
+        self.console.exit_process(1)
+    }
+    state emit0()  { self.gi = 0; transition 0 { _ -> gloop() } }
     state gloop()  { transition self.gi < self.K - 1 { true -> gw()  false -> glast() } }
     state gw()     { write_byte(40); write_byte(38); write_byte(32); self.base = 5 * self.gi; transition self.obs[self.base] == 0 { true -> gwB()  false -> gwN() } }
     state gwB()    { self.emit_bound(self.base); transition 0 { _ -> gwa() } }
