@@ -231,10 +231,13 @@ fn select_runtime_leaf_branch_expansion(
         // - DISPATCHED value calls (a dispatch edge with a call_result at
         //   this statement): the dispatch return-write delivers the value
         //   (the recursive `weaken` termination canary).
-        // - STRING-comparison guards (the guard compares against a string
-        //   literal): text-guard lowering through refs/params is a known
-        //   separate gap, and green compile canaries rely on the historical
-        //   skip (calls/runtime_transition_argument_call_value).
+        //
+        // STRING/TEXT-comparison guards are NO LONGER exempted: a text guard
+        // through a place, ref param, or slice-element pointee now lowers (the
+        // value-position text descriptor + carrier pointee compares), so a
+        // residual unresolved text guard is a real silent-drop bug and must
+        // poison loudly like any other -- not slip through as a stale 0 (the
+        // value-call slice-element carrier arm-drop, byval_elem).
         if expansion.target_value.is_valid()
             && expansion.role == StateCallRole::AssignmentValue
             && !statement_dispatches_call_result(
@@ -242,10 +245,6 @@ fn select_runtime_leaf_branch_expansion(
                 expansion.dispatch_index,
                 expansion.source_key,
                 expansion.statement_index,
-            )
-            && !guard_contains_string_literal(
-                &input.runtime_branching_calls.expressions,
-                expansion.resolved_guard,
             )
         {
             selected_instructions.push(SelectedInstruction {
@@ -357,30 +356,6 @@ fn select_runtime_leaf_branch_expansion(
             source_key: expansion.source_key,
             source_statement: expansion.statement_index,
         });
-    }
-}
-
-/// True when the guard expression compares against a STRING literal anywhere
-/// in its conjunction -- a text guard. Text-guard lowering through refs and
-/// params is a separately-tracked gap; such arms keep the historical silent
-/// skip instead of the unresolved-guard poison.
-fn guard_contains_string_literal(
-    expressions: &ExpressionTable,
-    guard: omega_checked_trees::expression::ExpressionHandle,
-) -> bool {
-    if !guard.is_valid() {
-        return false;
-    }
-    match expressions.expression(guard) {
-        omega_checked_trees::expression::ExpressionNode::String(_) => true,
-        omega_checked_trees::expression::ExpressionNode::Binary(binary) => {
-            guard_contains_string_literal(expressions, binary.left)
-                || guard_contains_string_literal(expressions, binary.right)
-        }
-        omega_checked_trees::expression::ExpressionNode::Mutable(inner) => {
-            guard_contains_string_literal(expressions, *inner)
-        }
-        _ => false,
     }
 }
 
