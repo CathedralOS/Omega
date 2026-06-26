@@ -56,6 +56,13 @@ filter_test() {
   if [ "$got" = "$4" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : in [$3] -> out [$got], expected [$4]"; fi
 }
+# stdin_exit NAME SOURCE INPUT EXPECTED_EXIT  — feed stdin, check the exit code
+stdin_exit() {
+  build "$1" "$2" || return
+  set +e; printf '%s' "$3" | "$T/out"; got=$?; set -e
+  if [ "$got" = "$4" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : [$3] -> exit $got, expected $4"; fi
+}
 # tokens NAME SOURCE INPUT EXPECTED  — a lexer emitting one token per line;
 # compare the token stream space-joined.
 tokens_test() {
@@ -141,6 +148,10 @@ tokens_test "tokenize .alp source" samples/tokenize.alp "machine f(x){return x+1
 tokens_test "tokenize drops // comments" samples/tokenize.alp "a // c
 b/c" "a b / c"
 tokens_test "tokenize multi-char ops" samples/tokenize.alp "Main::main n<=3 a->b x==y i-1" "Main :: main n <= 3 a -> b x == y i - 1"
+# balance: a bracket-balance validator for .alp (typed stack; skips comments/strings).
+stdin_exit "balance ok (nested/mixed + comment/string)" samples/balance.alp 'f(){ a[0]=1; } // ) ]
+x="}"' 0
+stdin_exit "balance bad (type mismatch)" samples/balance.alp 'f( ]' 1
 # The emitted code is overflow-SAFE: a compiled overflowing expr traps at runtime.
 compiler_trap "exprc emits overflow trap" samples/exprc.alp "46341*46341"
 # Slice 2: the "trap everything" decision — overflow and /0 fault the process.
