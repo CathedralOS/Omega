@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // Minimal miscompile probe: 5-arm case dispatch with payload variants first,
 // then no-payload variants. Tests that the no-payload Trigger arm (position 3)
 // is reachable and increments a counter.

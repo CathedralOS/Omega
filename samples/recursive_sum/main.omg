@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // Recursive sum over a fixed-size integer array via a value-returning machine.
 //
 // Exercises: recursion + accumulator through a value-returning machine

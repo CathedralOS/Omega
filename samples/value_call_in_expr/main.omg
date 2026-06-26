@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // Value-call result used inline in arithmetic expressions.
 //
 // MISCOMPILE FOUND 2026-06-14:

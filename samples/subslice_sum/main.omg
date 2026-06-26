@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // Subslice sum: subslices + indexing combined with a loop-like dispatch chain.
 //
 // Exercises: passing subslices to helper machines, shrinking-window iteration

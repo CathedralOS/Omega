@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // Alarm scheduler: 5-arm case dispatch stress test.
 //
 // Exercises: case members with 5 named variants (2 payload-bearing, 3 no-payload),
