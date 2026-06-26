@@ -391,6 +391,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("text/runtime_bounded_carrier_concat_exit", 70),
     ("text/runtime_bounded_carrier_write_line_exit", 70),
     ("text/runtime_bounded_carrier_write_read_exit", 70),
+    ("text/runtime_text_builder", 0),
     (
         "text/runtime_call_argument_struct_string_field_slice_alias_exit",
         77,

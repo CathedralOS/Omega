@@ -1,0 +1,26 @@
+// #66 soundness: a domained NESTED field (`self.inner.tag in Ascii`) must enforce
+// its domain at the write, exactly like a one-level field. Before the multi-level
+// field-path resolver, `attached_data_field_type` walked only `self.field`, so a
+// nested-field write SILENTLY BYPASSED the domain check -- a non-ascii literal
+// would have been accepted into an `Ascii` field. It is now rejected: the prover
+// cannot establish `"café"` (a multibyte `é`) is `ascii_only`.
+domain [u8]::Ascii when ascii_only(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Inner {
+    tag: &[u8] in Ascii;
+}
+
+data Main {
+    console: Console;
+    inner: Inner;
+}
+
+machine Main::main(&mut self) {
+    self.inner.tag = "café";
+    self.console.exit_process(70);
+}
