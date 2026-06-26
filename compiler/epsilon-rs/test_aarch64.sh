@@ -194,6 +194,8 @@ filter_test "labels assigns backend state labels (Lm<mi>s<si>, depth-aware)" sam
 filter_test "branches lowers transition arms to resolved b/b.eq labels" samples/branches.alp "machine M::m(){ transition 0 { _ -> a() } state a(){ transition self.x { true -> b() false -> a() } } state b(){} }" "$(printf 'b Lm0s0\nb.eq Lm0s1\nb.eq Lm0s0')"
 # sizeof: align8 total struct size (frame size) -- matches the backend _selfdata directive
 filter_test "sizeof emits align8 total struct size" samples/sizeof.alp "boundary trait C{} data Main{ c: C; n: i32; buf: [u8; 13]; }" "24"
+# rpn: infix -> RPN (shunting-yard) -- the expression-lowering arc, step 1 (linearize to stack-machine order)
+filter_test "rpn linearizes an expression to postfix (precedence + assoc)" samples/rpn.alp "e - s == 5" "$(printf 'e\ns\n-\n5\n==')"
 # layout regression: a last field with no trailing semicolon (data ... i32 }) must still parse
 filter_test "layout handles last field without trailing semicolon" samples/layout.alp "boundary trait C{} data Main{ c: C; n: i32 }" "$(printf 'c 0\nn 0')"
 stdin_exit "certify-source rejects an overrunning loop (exit 1)" samples/certify-source.alp "arr 4 5  band 5 0" 1
