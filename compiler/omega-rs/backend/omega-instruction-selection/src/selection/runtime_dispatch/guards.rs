@@ -16,6 +16,7 @@ use super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_is_fat_slice_in_table,
     resolve_runtime_frame_indexed_target_in_table,
+    resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_frame_indexed_primitive_type_in_table, resolve_runtime_storage_place,
     resolve_runtime_storage_place_in_table,
@@ -805,19 +806,54 @@ fn runtime_text_equals_literal_guard_in_table(
             expressions,
             place_expression,
         ) {
-            let storage = resolve_runtime_storage_place_in_table(
+            // A DIRECT (machine/frame) carrier resolves to a `Storage` ADDRESS
+            // operand. A carrier reached THROUGH a pointer -- a slice element
+            // `r[0].label` where `r: &[Room]` is a value-call param, or a `&mut
+            // Room` field -- resolves to a `Pointee` ADDRESS operand instead: the
+            // encoder loads the stored pointer first, then the carrier `{len,
+            // bytes}` sits at `*ptr + field` (len @ 0, bytes @ +pointer_size), the
+            // SAME bounded-buffer compare body, only the address setup differs.
+            // Without this pointee fallback the storage resolver returned `None`
+            // and the whole guard silently dropped -- the value-call
+            // slice-element text-compare arm-drop bug (task #14).
+            if let Some(storage) = resolve_runtime_storage_place_in_table(
                 input,
                 dispatch_index,
                 source_key,
                 expressions,
                 place_expression,
-            )?;
-            let operand = runtime_value_operands.insert(RuntimeValueOperand::Storage {
-                region: storage.region,
-                byte_offset: storage.byte_offset,
-                byte_size: storage.byte_count,
-            });
-            (operand, true)
+            ) {
+                let operand = runtime_value_operands.insert(RuntimeValueOperand::Storage {
+                    region: storage.region,
+                    byte_offset: storage.byte_offset,
+                    byte_size: storage.byte_count,
+                });
+                (operand, true)
+            } else if let Some(pointee) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                place_expression,
+            )
+            .or_else(|| {
+                resolve_runtime_pointee_slot_offset_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    place_expression,
+                )
+            }) {
+                let operand = runtime_value_operands.insert(RuntimeValueOperand::Pointee {
+                    pointer_byte_offset: pointee.pointer_byte_offset,
+                    field_byte_offset: pointee.field_byte_offset,
+                    byte_size: pointee.pointee_byte_size,
+                });
+                (operand, true)
+            } else {
+                return None;
+            }
         } else {
             let operand = resolve_runtime_text_descriptor_place_operand_in_table(
                 input,

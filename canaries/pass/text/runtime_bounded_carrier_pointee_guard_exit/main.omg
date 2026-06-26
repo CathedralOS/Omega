@@ -1,0 +1,57 @@
+// #66 carrier compare through a POINTEE in a VALUE-CALL guard. The value-call
+// `Finder::check(level) -> i32` branches on `r[0].label == "Gate"` where `r:
+// &[Room]` is a slice into the by-value `level` param -- so `r[0].label` is an
+// owned `[u8; N]` carrier reached THROUGH the slice pointer (a Pointee place),
+// not a direct storage place.
+//
+// The carrier compare resolves the pointee place (load the stored pointer, the
+// carrier `{len, bytes}` sits at *ptr + field: len @ 0, bytes @ +pointer_size)
+// and lowers the SAME bounded-buffer content compare as a direct carrier. Before
+// the pointee fallback the guard resolver returned None for a slice-element
+// carrier, the leaf branch saw an empty guard, and -- because the guard compares
+// against a string literal -- the arm's terminal-value write was SILENTLY dropped,
+// so the value-call returned a stale 0 (exit 0) instead of 70. A plain i32 field
+// through the same slice index (`r[0].id`) always worked; only the carrier did not.
+//
+// Returns 70 (the `== "Gate"` true arm) into `code`; the interpreter agrees.
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    label: [u8; 8] in Utf8;
+}
+
+data Level {
+    rooms: [Room; 2];
+}
+
+data Finder {
+}
+
+machine Finder::check(&mut self, level: Level) -> i32 {
+    let r: &[Room] = level.rooms.as_slice();
+    transition r[0].label == "Gate" {
+        true -> 70
+        false -> 71
+    }
+}
+
+data Main {
+    console: Console;
+    level: Level;
+    finder: Finder;
+}
+
+machine Main::main(&mut self) {
+    let rooms: &mut [Room] = self.level.rooms.as_mut_slice();
+    rooms[0].label = "Gate";
+    let code: i32 = self.finder.check(self.level);
+    self.console.exit_process(code);
+}
