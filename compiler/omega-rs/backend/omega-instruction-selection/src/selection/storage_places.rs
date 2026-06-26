@@ -1063,14 +1063,64 @@ fn resolve_runtime_storage_leaf_descriptor_in_table(
     let Some(slot) = slot else {
         // Not a frame slot: most `data` fields are machine-owned. Resolve the
         // leaf type descriptor through that path instead.
-        let collection = resolve_machine_owned_collection_in_table(
+        if let Some(collection) = resolve_machine_owned_collection_in_table(
             &input.layouts,
             input.entry_key.machine,
             source_key.machine,
             expressions,
             expression,
-        )?;
-        return Some(collection.type_descriptor.clone());
+        ) {
+            return Some(collection.type_descriptor.clone());
+        }
+        // Carrier RECOGNITION for a slice-VIEW element through an elided local
+        // (`r[i].label`, r = X.as_slice()): the local has no slot and is not
+        // machine-owned, so trace its initializer + see through the as_slice view
+        // to the underlying array, take the element type, and walk the field
+        // suffix. Without this a carrier field on such an element was not
+        // recognized and its `==`/copy lowering bailed (the lookup's `room.label`,
+        // a sibling of the i32 element-place fix in
+        // resolve_runtime_fixed_indexed_place_in_table).
+        if path.member_index(0).is_some() {
+            let initializer = state_local_initializer(
+                input,
+                source_key,
+                path.head_symbol(),
+                path.member(0)?,
+            )?;
+            let underlying =
+                see_through_as_slice_view(&input.program.expression_table, initializer);
+            let array = resolve_machine_owned_collection_in_table(
+                &input.layouts,
+                input.entry_key.machine,
+                source_key.machine,
+                &input.program.expression_table,
+                underlying,
+            )?;
+            let element_descriptor = inline_fixed_array_element_type(&array.type_descriptor)?;
+            let element_layout = descriptor_layout(input, element_descriptor);
+            let root_field = FieldLayout {
+                symbol: SymbolHandle::invalid(),
+                name: "".into(),
+                offset: 0,
+                type_symbol: element_descriptor.storage_symbol(),
+                type_name: "".into(),
+                type_descriptor: element_descriptor.clone(),
+                layout: element_layout,
+            };
+            let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
+            for (field_name, field_symbol, field_index, case_variant) in suffix.iter() {
+                cursor = resolve_nested_field_layout_step(
+                    &input.layouts,
+                    cursor,
+                    field_name,
+                    field_symbol,
+                    field_index,
+                    case_variant,
+                )?;
+            }
+            return Some(cursor.type_descriptor().clone());
+        }
+        return None;
     };
 
     let root_field = FieldLayout {
