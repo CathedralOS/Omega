@@ -23,24 +23,13 @@
 //
 // Final: sp=0, stack[0]=13. Exit = 13 + 57 = 70.
 //
-// *** MISCOMPILE DOCUMENTED *** (root cause CORRECTED 2026-06-26)
-//
-// Native exit: 71  (wrong)
-// Interpreter exit: 70  (correct, matches hand-verified computation)
-//
-// The original "pop_val called twice" diagnosis is OUTDATED -- that simpler
-// value-call trigger is now fixed (probes popseq/popnest/popcase all pass).
-// The REAL current cause is in `push`: when a substate receives a param via a
-// transition and re-forwards THAT param to a DEEPER substate, the value is
-// dropped. `push(4)` goes push -> try_push1(new_sp, value) -> push1(value), and
-// push1's `value` arrives as 0 instead of 4 (so stack[1] is never written).
-// `push(3)` is a 1-hop push -> push0(value) and works; FLATTENING push to a
-// single level (push -> push1 directly) also works -- only the 2-level forward
-// of a transition-received param fails. Not value-call-specific.
-//
-// Minimal reproducer + full bisection: task #17 (see /tmp probes push2.omg,
-// push1lvl.omg). Report fingerprint: `BoundedTransitionArgument parameter
-// <unknown>` for the intermediate substate's forwarded args.
+// (Formerly a documented miscompile -- native exited 71 instead of 70. FIXED:
+// the cause was argument materialization inline-folding `let new_sp =
+// self.vm.sp + 1` back into its initializer and re-evaluating it at the
+// transition AFTER `self.vm.sp = new_sp` overwrote the field, so try_push1's
+// guard `new_sp == 1` saw the doubly-incremented value and took the wrong arm.
+// The fix keeps the captured `new_sp` slot instead of re-folding. Regression
+// test: canaries/pass/control_flow/runtime_captured_local_remutated_field_exit.)
 //
 // Expected exit: 70.
 

@@ -1,0 +1,69 @@
+// A `let`-local that CAPTURES a field-reading expression, where the field is
+// reassigned BEFORE the local is forwarded through a nested dispatch.
+//
+//   let new_sp = self.vm.sp + 1;   // capture (sp was 0 -> new_sp = 1)
+//   self.vm.sp = new_sp;           // self.vm.sp is now 1
+//   transition new_sp == 0 { _ -> try_push1(new_sp, value) }
+//   // try_push1: transition new_sp == 1 { true -> push1(value) ... }
+//
+// Regression: argument materialization inline-FOLDED `new_sp` back into its
+// initializer `self.vm.sp + 1` and re-evaluated it at the transition -- but by
+// then `self.vm.sp` had been overwritten with new_sp, so the fold yielded
+// new_sp + 1 = 2. try_push1's guard `new_sp == 1` then saw 2, took the wrong arm
+// (push2 instead of push1), and stack[1] was never written. The fix keeps the
+// captured slot (which holds the correct pre-mutation 1) instead of re-folding.
+// Pushes 3 then 4; if both land (stack[0]=3, stack[1]=4) exits 70.
+
+use omega::language::std::console;
+
+data Vm [copy, zero_init] {
+    stack: [i32 in Wrapping; 8];
+    sp: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    vm: Vm;
+}
+
+machine Main::init(&mut self) {
+    self.vm.sp = 0 - 1;
+}
+
+machine Main::push(&mut self, value: i32 in Wrapping) {
+    let new_sp: i32 in Wrapping = self.vm.sp + 1;
+    self.vm.sp = new_sp;
+    transition new_sp == 0 {
+        true -> push0(value)
+        _ -> try_push1(new_sp, value)
+    }
+    state push0(&mut self, value: i32 in Wrapping) { self.vm.stack[0] = value; }
+    state try_push1(&mut self, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
+        transition new_sp == 1 {
+            true -> push1(value)
+            _ -> push2(value)
+        }
+    }
+    state push1(&mut self, value: i32 in Wrapping) { self.vm.stack[1] = value; }
+    state push2(&mut self, value: i32 in Wrapping) { self.vm.stack[2] = value; }
+}
+
+machine Main::main(&mut self) {
+    self.init();
+    self.push(3);
+    self.push(4);
+
+    transition self.vm.stack[1] == 4 {
+        true -> check0()
+        _ -> bad()
+    }
+    state check0(&mut self) {
+        transition self.vm.stack[0] == 3 {
+            true -> good()
+            _ -> bad0()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+    state bad0(&mut self) { self.console.exit_process(72); }
+}
