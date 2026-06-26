@@ -10160,6 +10160,55 @@ fn contained_loop_command_branch_carrier_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 carrier command-loop with a health gate: each iteration checks health, reads
+// a line into a `[u8; 16]` carrier, resolves a Command, and loops until `quit`.
+#[test]
+fn contained_health_loop_command_branch_carrier_canary_runs() {
+    let canary = run_canary("contained_health_loop_command_branch");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-contained-health-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier health-loop canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("carrier health-loop canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"look\nzzz\nquit\n")
+        .expect("carrier health-loop input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("carrier health-loop canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected carrier health-loop canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "look\ninvalid\n",
+        "expected the health-gated loop to resolve each command (Look, Invalid) then quit"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 carrier sequential reads: two `read_line`s into the same `[u8; 64]` carrier,
 // each echoed -- the second read must overwrite the first line's bytes + length.
 #[test]
