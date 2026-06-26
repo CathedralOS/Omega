@@ -38,9 +38,14 @@ job is to prove `~` *is* an equivalence and that the operations respect it.
   `x~x' → x+y ~ x'+y`, `−x ~ −x'`, and `x·y ~ x'·y`. So ℤ = pairs/`~` is a *well-defined*
   commutative ring (the multiplicative case multiplies the hypothesis through each column via
   right-distributivity). This is the prerequisite for any quotient/substitution reasoning.
+- **the order `x ≤ y := ∃k∈ℕ. (a+d)+k = (c+b)`** (i.e. `a−b ≤ c−d ⟺ a+d ≤ c+b` in ℕ) — proved
+  **reflexive** and **antisymmetric** (`x≤y ∧ y≤x → x~y`, by left-cancellation + sum-zero), and
+  the embedding `ι(n) = (n,0)` shown to be an **order-isomorphism onto its image** (`m≤n ⟺
+  ι(m)≤ι(n)`, both directions) and **injective** up to `~` — the bridge back to the ℕ order.
 
 ## Next
 
-Multiplication associativity (the last ring axiom — an 8-way triple-product expansion needing
-`mul`-assoc per term); then the **order** on ℤ (`x ≤ y := ∃k∈ℕ. (a+d)+k = (c+b)`); then the
-extended Euclidean algorithm / Bézout, then Euclid's lemma, then FTA uniqueness.
+ℤ-order **transitivity** (a 6-term reordering — pending) and **totality**, completing the linear
+order; then multiplication associativity (the last ring axiom, deferred — an 8-way triple-product
+expansion I don't directly invoke); then the extended Euclidean algorithm / Bézout, Euclid's
+lemma, and FTA uniqueness.
