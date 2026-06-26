@@ -30,9 +30,12 @@ job is to prove `~` *is* an equivalence and that the operations respect it.
 - **`(ℤ, +, 0, −)` is an abelian group up to `~`** — addition **commutes**, is **associative**,
   has `(0,0)` as **identity**, and — the property ℕ structurally lacks — **every integer has an
   additive inverse**, `x + (−x) ~ 0` (which reduces to `ℕ` commutativity `a + b = b + a`).
+- **`(ℤ, +, ·, 0, 1)` is a commutative ring up to `~`** — multiplication **commutes**, has
+  `(1,0)` as **identity**, and **distributes** over addition, `x·(y+z) ~ x·y + x·z` (the deep
+  axiom: both sides expand to the same eight atomic products, reconciled by an `add4`
+  reordering helper `(w+x)+(y+z) = (w+y)+(x+z)`).
 
 ## Next
 
-Multiplication respects `~` and the ring axioms (distributivity, `ℤ` a commutative ring);
-then the order, then the extended Euclidean algorithm / Bézout, then Euclid's lemma, then FTA
-uniqueness.
+Multiplication is associative and respects `~` (congruence); then the order on ℤ, then the
+extended Euclidean algorithm / Bézout, then Euclid's lemma, then FTA uniqueness.
