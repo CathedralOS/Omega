@@ -24,7 +24,7 @@ data Main {
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lcs: [i32; 64];
-    mn: i32; mdecl: i32; cmi: i32; lastws: i32; lastwe: i32; mns: [i32; 64]; mne: [i32; 64];
+    mn: i32; mdecl: i32; cmi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     fns: [i32; 64]; fne: [i32; 64];
     sns: [i32; 256]; sne: [i32; 256]; smi: [i32; 256]; ssi: [i32; 256];
     qa: i32; qb: i32; qc: i32; qd: i32; qk: i32;
@@ -328,6 +328,35 @@ machine Main::p_cset(&mut self) {        // "    cset w0, "
     state ba(){ write_byte(44);  transition 0 { _ -> bb() } }
     state bb(){ write_byte(32); }
 }
+machine Main::p_strw(&mut self) {        // "    str w"
+    write_byte(32); transition 0 { _ -> b0() }
+    state b0(){ write_byte(32); transition 0 { _ -> b1() } }  state b1(){ write_byte(32); transition 0 { _ -> b2() } }
+    state b2(){ write_byte(32); transition 0 { _ -> b3() } }  state b3(){ write_byte(115); transition 0 { _ -> b4() } }
+    state b4(){ write_byte(116); transition 0 { _ -> b5() } } state b5(){ write_byte(114); transition 0 { _ -> b6() } }
+    state b6(){ write_byte(32);  transition 0 { _ -> b7() } } state b7(){ write_byte(119); }
+}
+machine Main::p_x29suf(&mut self) {      // ", [x29, #"
+    write_byte(44); transition 0 { _ -> b1() }
+    state b1(){ write_byte(32);  transition 0 { _ -> b2() } } state b2(){ write_byte(91);  transition 0 { _ -> b3() } }
+    state b3(){ write_byte(120); transition 0 { _ -> b4() } } state b4(){ write_byte(50);  transition 0 { _ -> b5() } }
+    state b5(){ write_byte(57);  transition 0 { _ -> b6() } } state b6(){ write_byte(44);  transition 0 { _ -> b7() } }
+    state b7(){ write_byte(32);  transition 0 { _ -> b8() } } state b8(){ write_byte(35); }
+}
+machine Main::p_ldrx(&mut self) {        // "    ldr x"
+    write_byte(32); transition 0 { _ -> b0() }
+    state b0(){ write_byte(32); transition 0 { _ -> b1() } }  state b1(){ write_byte(32); transition 0 { _ -> b2() } }
+    state b2(){ write_byte(32); transition 0 { _ -> b3() } }  state b3(){ write_byte(108); transition 0 { _ -> b4() } }
+    state b4(){ write_byte(100); transition 0 { _ -> b5() } } state b5(){ write_byte(114); transition 0 { _ -> b6() } }
+    state b6(){ write_byte(32);  transition 0 { _ -> b7() } } state b7(){ write_byte(120); }
+}
+machine Main::p_spsuf(&mut self) {       // ", [sp], #16"
+    write_byte(44); transition 0 { _ -> b1() }
+    state b1(){ write_byte(32); transition 0 { _ -> b2() } }  state b2(){ write_byte(91);  transition 0 { _ -> b3() } }
+    state b3(){ write_byte(115); transition 0 { _ -> b4() } } state b4(){ write_byte(112); transition 0 { _ -> b5() } }
+    state b5(){ write_byte(93);  transition 0 { _ -> b6() } } state b6(){ write_byte(44);  transition 0 { _ -> b7() } }
+    state b7(){ write_byte(32);  transition 0 { _ -> b8() } } state b8(){ write_byte(35);  transition 0 { _ -> b9() } }
+    state b9(){ write_byte(49);  transition 0 { _ -> ba() } } state ba(){ write_byte(54); }
+}
 machine Main::p_ldrx0x29(&mut self) {    // "    ldr x0, [x29, #"
     write_byte(32); transition 0 { _ -> b0() }
     state b0(){ write_byte(32); transition 0 { _ -> b1() } }  state b1(){ write_byte(32); transition 0 { _ -> b2() } }
@@ -381,7 +410,10 @@ machine Main::emit_prologue(&mut self) {
         self.p_strx9(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10);
         transition 0 { _ -> pdone() }
     }
-    state selfnon() { self.p_strx0x29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> pdone() } }
+    state selfnon() { self.cj = 1; transition 0 { _ -> spar() } }
+    state spar()  { transition self.cj <= self.cp { true -> spar1()  false -> snself() } }
+    state spar1() { self.p_strw(); self.v = self.cj; self.emit_int(); self.p_x29suf(); self.v = 8 + 8 * self.cj; self.emit_int(); write_byte(93); write_byte(10); self.cj = self.cj + 1; transition 0 { _ -> spar() } }
+    state snself(){ self.p_strx0x29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> pdone() } }
     state pdone() { }
 }
 machine Main::emit_epilogue(&mut self) {
@@ -396,7 +428,7 @@ machine Main::p_lm(&mut self) {          // "Lm"  (label def, column 0)
     state b0(){ write_byte(109); }
 }
 machine Main::main(&mut self) {
-    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0;
+    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0;
     transition 0 { _ -> rd() }
     state rd()    { self.c = read_byte(); transition self.c < 0 { true -> scan()  false -> store() } }
     state store() { transition self.n < 16384 { true -> store2()  false -> rd() } }
@@ -441,9 +473,15 @@ machine Main::main(&mut self) {
     state punc1() { transition self.buf[self.pos] == 123 { true -> opn1()  false -> p1b() } }
     state opn1()  { self.depth = self.depth + 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state p1b()   { transition self.buf[self.pos] == 125 { true -> cls1()  false -> p1c() } }
-    state p1c()   { transition self.buf[self.pos] == 40 { true -> mname()  false -> padv1() } }
-    state mname() { transition self.mdecl == 1 { true -> mrec()  false -> padv1() } }
-    state mrec()  { self.mns[self.mi] = self.lastws; self.mne[self.mi] = self.lastwe; self.mn = self.mi + 1; self.mdecl = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
+    state p1c()   { transition self.buf[self.pos] == 40 { true -> mname()  false -> p1d() } }
+    state p1d()   { transition self.buf[self.pos] == 58 { true -> colon()  false -> p1e() } }    // ':'
+    state colon() { transition self.insig == 1 { true -> coln2()  false -> padv1() } }
+    state coln2() { self.pcs[self.mi] = self.pcs[self.mi] + 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
+    state p1e()   { transition self.buf[self.pos] == 41 { true -> rparen()  false -> padv1() } } // ')'
+    state rparen(){ transition self.insig == 1 { true -> rpar2()  false -> padv1() } }
+    state rpar2() { self.insig = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
+    state mname() { transition self.mdecl == 1 { true -> mrec()  false -> p1d() } }
+    state mrec()  { self.mns[self.mi] = self.lastws; self.mne[self.mi] = self.lastwe; self.mn = self.mi + 1; self.mdecl = 0; self.insig = 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state cls1()  { self.depth = self.depth - 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state padv1() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state word1() { self.start = self.pos; transition 0 { _ -> wr1() } }
@@ -472,7 +510,7 @@ machine Main::main(&mut self) {
     state wc2()   { self.w = self.is_machine(self.start, self.pos); transition self.w == 1 { true -> nm2()  false -> ck2t() } }
     state nm2()   { transition self.mi < 0 { true -> nm2b()  false -> nm2a() } }   // emit previous machine's epilogue first (unless this is the first)
     state nm2a()  { self.emit_epilogue(); transition 0 { _ -> nm2b() } }
-    state nm2b()  { self.mi = self.mi + 1; self.lsi = 0; self.sd = 16 + 8 * self.lcs[self.mi]; self.frame = (39 + 8 * self.lcs[self.mi]) / 16 * 16; transition 0 { _ -> nm2c() } }
+    state nm2b()  { self.mi = self.mi + 1; self.lsi = 0; self.cp = self.pcs[self.mi]; self.sd = 16 + 8 * (self.pcs[self.mi] + self.lcs[self.mi]); self.frame = (39 + 8 * (self.pcs[self.mi] + self.lcs[self.mi])) / 16 * 16; transition 0 { _ -> nm2c() } }
     state nm2c()  { self.emit_prologue(); transition 0 { _ -> sk() } }
     state ck2t()  { self.w = self.is_trans(self.start, self.pos); transition self.w == 1 { true -> subjinit()  false -> ck2s() } }
     state subjinit(){ self.mode = 0; self.opnd = 0; transition 0 { _ -> subj0() } }
@@ -502,11 +540,25 @@ machine Main::main(&mut self) {
     state asgneq(){ transition self.buf[self.pos] == 61 { true -> asgnlk()  false -> ckparen() } }            // '=' assign? else maybe a method call
     state ckparen(){ transition self.buf[self.pos] == 40 { true -> calllk()  false -> sk() } }                // '(' -> no-arg method call
     state calllk(){ self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.cmi = 0 - 1; transition 0 { _ -> mlk() } }  // resolve callee -> mi
-    state mlk()   { transition self.cj < self.mn { true -> mlkc()  false -> callemit() } }
+    state mlk()   { transition self.cj < self.mn { true -> mlkc()  false -> carg0() } }
     state mlkc()  { self.qc = self.mns[self.cj]; self.qd = self.mne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> mlkh()  false -> mlkn() } }
-    state mlkh()  { self.cmi = self.cj; transition 0 { _ -> callemit() } }
+    state mlkh()  { self.cmi = self.cj; transition 0 { _ -> carg0() } }
     state mlkn()  { self.cj = self.cj + 1; transition 0 { _ -> mlk() } }
-    state callemit(){ self.p_ldrx0x29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_bl(); transition self.cmi == 0 { true -> blmain()  false -> blmach() } }
+    state carg0() { self.pos = self.pos + 1; self.argc = 0; transition 0 { _ -> carg() } }      // past '(', argc 0
+    state carg()  { transition self.buf[self.pos] <= 32 { true -> cargws()  false -> cargck() } }
+    state cargws(){ self.pos = self.pos + 1; transition 0 { _ -> carg() } }
+    state cargck(){ transition self.buf[self.pos] == 41 { true -> cargdone()  false -> cargl() } } // ')' no more args
+    state cargl() { self.mode = 3; self.opnd = 0; transition 0 { _ -> subj0() } }                  // lower one arg (pushes it)
+    state cargnext(){ self.argc = self.argc + 1; transition 0 { _ -> cnws() } }
+    state cnws()  { transition self.buf[self.pos] <= 32 { true -> cnws2()  false -> cncheck() } }
+    state cnws2() { self.pos = self.pos + 1; transition 0 { _ -> cnws() } }
+    state cncheck(){ transition self.buf[self.pos] == 44 { true -> cncomma()  false -> cargdone() } } // ',' more args
+    state cncomma(){ self.pos = self.pos + 1; transition 0 { _ -> carg() } }
+    state cargdone(){ transition 0 { _ -> callemit2() } }
+    state callemit2(){ self.cj = self.argc; transition 0 { _ -> cpop() } }                          // pop args x{argc}..x1
+    state cpop()  { transition self.cj > 0 { true -> cpop1()  false -> cself() } }
+    state cpop1() { self.p_ldrx(); self.v = self.cj; self.emit_int(); self.p_spsuf(); write_byte(10); self.cj = self.cj - 1; transition 0 { _ -> cpop() } }
+    state cself() { self.p_ldrx0x29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_bl(); transition self.cmi == 0 { true -> blmain()  false -> blmach() } }
     state blmain(){ write_byte(95); write_byte(109); write_byte(97); write_byte(105); write_byte(110); write_byte(10); transition 0 { _ -> callpush() } }
     state blmach(){ self.p_lmachine(); self.v = self.cmi; self.emit_int(); write_byte(10); transition 0 { _ -> callpush() } }
     state callpush(){ self.console.write_line("    str x0, [sp, #-16]!"); self.console.write_line("    ldr x0, [sp], #16"); transition 0 { _ -> callsk() } }
@@ -558,9 +610,12 @@ machine Main::main(&mut self) {
     state opchk() { transition self.buf[self.pos] <= 32 { true -> opadv()  false -> opchk2() } }
     state opadv() { self.pos = self.pos + 1; transition 0 { _ -> opchk() } }
     state opchk2(){ transition self.buf[self.pos] == 123 { true -> subjend()  false -> opchk3() } }  // '{' subject end
-    state opchk3(){ transition self.buf[self.pos] == 59 { true -> subjend()  false -> opp() } }     // ';' RHS end
+    state opchk3(){ transition self.buf[self.pos] == 59 { true -> subjend()  false -> opchk4() } }   // ';' RHS end
+    state opchk4(){ transition self.buf[self.pos] == 44 { true -> subjend()  false -> opchk5() } }   // ',' arg end
+    state opchk5(){ transition self.buf[self.pos] == 41 { true -> subjend()  false -> opp() } }      // ')' arg end
     state subjend(){ transition self.mode == 0 { true -> toarms()  false -> sjm12() } }
-    state sjm12()  { transition self.mode == 1 { true -> stStore()  false -> ltStore() } }
+    state sjm12()  { transition self.mode == 1 { true -> stStore()  false -> sjm23() } }
+    state sjm23()  { transition self.mode == 2 { true -> ltStore()  false -> cargnext() } }
     state ltStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
     state opp()   { transition self.buf[self.pos] == 60 { true -> oplt()  false -> opp2() } }     // '<'
     state oplt()  { transition self.buf[self.pos + 1] == 61 { true -> ople()  false -> opltx() } }
@@ -634,7 +689,7 @@ machine Main::main(&mut self) {
     state aend2() { self.pos = self.pos + 1; transition 0 { _ -> arm() } }
     state endph() { transition self.phase == 0 { true -> p1()  false -> endph1() } }
     state endph1(){ transition self.phase == 1 { true -> p2()  false -> done() } }
-    state p1()    { self.phase = 1; self.pos = 0; self.mi = 0 - 1; self.depth = 0; self.pend = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.si = 0; self.mn = 0; self.mdecl = 0; transition 0 { _ -> sk() } }
+    state p1()    { self.phase = 1; self.pos = 0; self.mi = 0 - 1; self.depth = 0; self.pend = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.si = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; transition 0 { _ -> sk() } }
     state p2()    { self.phase = 2; self.pos = 0; self.mi = 0 - 1; self.lsi = 0; self.depth = 0; self.pend = 0; transition 0 { _ -> sk() } }
     state done()  { self.emit_epilogue(); self.console.exit_process(0) }
 }
