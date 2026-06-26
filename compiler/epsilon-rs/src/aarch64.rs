@@ -60,6 +60,19 @@ pub fn lower_program(program: &Program) -> String {
         let size = align8(program.entry_data_size);
         asm.push_str(&format!(".zerofill __DATA,__bss,_selfdata,{},3\n", size));
     }
+
+    // write_line string literals as read-only data (raw bytes — write() uses an
+    // explicit length, so no NUL terminator is needed).
+    if !program.strings.is_empty() {
+        asm.push_str(".section __TEXT,__const\n.align 2\n");
+        for (string_index, bytes) in program.strings.iter().enumerate() {
+            asm.push_str(&format!("Lstr{}:\n", string_index));
+            if !bytes.is_empty() {
+                let list: Vec<String> = bytes.iter().map(|b| b.to_string()).collect();
+                asm.push_str(&format!("    .byte {}\n", list.join(",")));
+            }
+        }
+    }
     asm
 }
 
@@ -205,9 +218,18 @@ fn lower_statement(
                 }
             }
         }
-        // Slices > 6 (self stores/reads, host I/O, method calls) are not handled by
-        // this backend yet; write_line etc. are silent no-ops, which preserves the
-        // control-flow/value behavior the gated samples assert on exit codes.
+        Statement::WriteLine(string_index) => {
+            // write(1, &Lstr<i>, len) via libSystem. The string bytes are emitted
+            // in a read-only data section by lower_program.
+            let len = program.strings[*string_index].len() as i32;
+            asm.push_str("    mov x0, #1\n"); // fd = stdout
+            asm.push_str(&format!("    adrp x1, Lstr{}@PAGE\n", string_index));
+            asm.push_str(&format!("    add x1, x1, Lstr{}@PAGEOFF\n", string_index));
+            emit_load_reg(2, len, asm); // x2 = len
+            asm.push_str("    bl _write\n");
+        }
+        // Not yet ported: write_byte / read_byte. They are silent no-ops, which
+        // preserves the control-flow / exit-code behavior the gated samples assert.
         _ => {}
     }
 }
