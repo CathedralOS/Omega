@@ -53,6 +53,9 @@ pub struct Parser<'a> {
     data_field_maps: Vec<Vec<DataFieldInfo>>, // fields of each data type
     enum_names: Vec<Vec<u8>>,         // declared tag-only enum (`data X { case ... }`) names
     enum_variant_lists: Vec<Vec<Vec<u8>>>, // per enum: variant names; the tag is the index
+    state_param_names: Vec<Vec<Vec<u8>>>, // per state (parallel to state_names): its param names
+    current_state_params: Vec<Vec<u8>>, // params of the state body being parsed (resolve to arg slots)
+    state_arg_base: usize,            // local index of the shared state-arg slot 0 in this machine
     local_names: Vec<Vec<u8>>,        // locals of the machine being parsed (params first)
     state_names: Vec<Vec<u8>>,        // pre-scanned state names of the machine being parsed
     self_data_type: Option<usize>,    // data type of `self` in the machine being parsed
@@ -78,6 +81,9 @@ impl<'a> Parser<'a> {
             data_field_maps: Vec::new(),
             enum_names: Vec::new(),
             enum_variant_lists: Vec::new(),
+            state_param_names: Vec::new(),
+            current_state_params: Vec::new(),
+            state_arg_base: 0,
             local_names: Vec::new(),
             state_names: Vec::new(),
             self_data_type: None,
@@ -174,6 +180,10 @@ impl<'a> Parser<'a> {
         self.expressions.len() - 1
     }
     fn find_local_index(&self, name: &[u8]) -> Option<usize> {
+        // a state's parameters resolve to the machine's shared state-arg slots (by position)
+        if let Some(position) = self.current_state_params.iter().position(|p| p.as_slice() == name) {
+            return Some(self.state_arg_base + position);
+        }
         self.local_names.iter().position(|local_name| local_name.as_slice() == name)
     }
 
@@ -410,6 +420,9 @@ impl<'a> Parser<'a> {
     fn parse_machine(&mut self) -> Result<Machine, String> {
         self.local_names.clear();
         self.state_names.clear();
+        self.state_param_names.clear();
+        self.current_state_params.clear();
+        self.state_arg_base = 0;
         self.self_data_type = None;
         self.current_machine_makes_call = false;
         self.bump(); // "machine"
@@ -526,6 +539,15 @@ impl<'a> Parser<'a> {
         self.bump(); // '{'
         self.prescan_state_names()?; // so transitions can name states declared later
 
+        // Reserve the machine's shared state-arg slots right after its params (before any
+        // body locals), so a forward-referencing transition and the state body agree on
+        // them. Machines with no state parameters reserve none — their frame is unchanged.
+        let max_state_params = self.state_param_names.iter().map(|p| p.len()).max().unwrap_or(0);
+        self.state_arg_base = self.local_names.len();
+        for slot in 0..max_state_params {
+            self.local_names.push(format!("$arg{}", slot).into_bytes());
+        }
+
         // entry statements come first, then state declarations
         let mut entry = Vec::new();
         while self.current_kind() != TokenKind::RBrace
@@ -564,6 +586,23 @@ impl<'a> Parser<'a> {
                     if self.tokens[scan_position + 1].kind == TokenKind::Ident {
                         self.state_names
                             .push(token_text(&self.tokens[scan_position + 1], self.source).to_vec());
+                        // collect this state's parameter names: each `name : type` in the
+                        // `(...)` (an Ident immediately followed by `:`); skips any `&mut self`.
+                        let mut params: Vec<Vec<u8>> = Vec::new();
+                        if self.tokens[scan_position + 2].kind == TokenKind::LParen {
+                            let mut p = scan_position + 3;
+                            while self.tokens[p].kind != TokenKind::RParen
+                                && self.tokens[p].kind != TokenKind::Eof
+                            {
+                                if self.tokens[p].kind == TokenKind::Ident
+                                    && self.tokens[p + 1].kind == TokenKind::Colon
+                                {
+                                    params.push(token_text(&self.tokens[p], self.source).to_vec());
+                                }
+                                p += 1;
+                            }
+                        }
+                        self.state_param_names.push(params);
                     }
                 }
                 _ => {}
@@ -577,13 +616,30 @@ impl<'a> Parser<'a> {
         self.bump(); // "state"
         self.expect(TokenKind::Ident)?; // name (already pre-scanned)
         self.expect(TokenKind::LParen)?;
+        let mut params: Vec<Vec<u8>> = Vec::new();
         while self.current_kind() != TokenKind::RParen {
             if self.current_kind() == TokenKind::Eof {
                 return Err("alpha-onramp: parse error: unterminated state parameter list".into());
             }
-            self.bump(); // skip params (e.g. &mut self)
+            // a parameter is `name : type` (collect the name); skip `&mut self` etc.
+            if self.current_kind() == TokenKind::Ident {
+                let name = token_text(&self.tokens[self.position], self.source).to_vec();
+                self.bump();
+                if self.current_kind() == TokenKind::Colon {
+                    self.bump(); // :
+                    self.expect(TokenKind::Ident)?; // type (ignored — everything is i32)
+                    params.push(name);
+                    if self.current_kind() == TokenKind::Comma {
+                        self.bump();
+                    }
+                }
+            } else {
+                self.bump(); // `&`, `mut`, etc.
+            }
         }
         self.expect(TokenKind::RParen)?;
+        // params resolve to this machine's shared state-arg slots while the body is parsed
+        self.current_state_params = params;
         self.expect(TokenKind::LBrace)?;
         let mut statements = Vec::new();
         while self.current_kind() != TokenKind::RBrace {
@@ -593,6 +649,7 @@ impl<'a> Parser<'a> {
             statements.push(self.parse_statement()?);
         }
         self.bump(); // '}'
+        self.current_state_params = Vec::new();
         Ok(statements)
     }
 
@@ -686,21 +743,36 @@ impl<'a> Parser<'a> {
                 };
                 self.expect(TokenKind::Arrow)?;
                 let target_name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
-                self.expect(TokenKind::LParen)?;
-                while self.current_kind() != TokenKind::RParen {
-                    if self.current_kind() == TokenKind::Eof {
-                        return Err("alpha-onramp: parse error: unterminated transition target".into());
-                    }
-                    self.bump(); // skip target args (slice 4b: parameterless states)
-                }
-                self.expect(TokenKind::RParen)?;
                 let target = self.find_state_index(&target_name).ok_or_else(|| {
                     format!(
                         "alpha-onramp: transition to unknown state '{}'",
                         String::from_utf8_lossy(&target_name)
                     )
                 })?;
-                arms.push(TransitionArm { pattern, target });
+                self.expect(TokenKind::LParen)?;
+                let mut args = Vec::new();
+                while self.current_kind() != TokenKind::RParen {
+                    if self.current_kind() == TokenKind::Eof {
+                        return Err("alpha-onramp: parse error: unterminated transition target".into());
+                    }
+                    args.push(self.parse_expression()?);
+                    if self.current_kind() == TokenKind::Comma {
+                        self.bump();
+                    } else {
+                        break;
+                    }
+                }
+                self.expect(TokenKind::RParen)?;
+                let expected = self.state_param_names[target].len();
+                if args.len() != expected {
+                    return Err(format!(
+                        "alpha-onramp: state '{}' expects {} argument(s), got {}",
+                        String::from_utf8_lossy(&target_name),
+                        expected,
+                        args.len()
+                    ));
+                }
+                arms.push(TransitionArm { pattern, target, args });
             }
             self.bump(); // '}'
             if self.current_kind() == TokenKind::Semi {

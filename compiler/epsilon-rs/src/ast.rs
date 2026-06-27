@@ -41,7 +41,8 @@ pub enum Pattern {
 
 pub struct TransitionArm {
     pub pattern: Pattern,
-    pub target: usize, // index into the machine's states
+    pub target: usize,     // index into the machine's states
+    pub args: Vec<usize>,  // arg expr nodes passed to the target state's parameters (empty = none)
 }
 
 pub enum Statement {
