@@ -15,8 +15,9 @@
 //   * STRICT ORDER `ensures result < B` / `result > B`  ->  the standard `a < b == ∃w. a+(s w)=b`,
 //     proved with a constant witness when the larger side is syntactically `smaller + k` (k≥1).
 //   * NON-STRICT ORDER `ensures result <= B` / `result >= B`  ->  `a <= b == ∃w. a+w=b`, whose
-//     witness is the additive gap itself and so may be a PARAMETER, not just a literal -- e.g.
-//     `result <= a + b` discharges with witness `b`.
+//     witness is the additive gap. The gap must be a non-negative LITERAL: epsilon `i32` is
+//     SIGNED but the proof is over naturals, so a parameter gap (`result <= a + b`, b possibly
+//     negative) is refused -- it would "prove" a contract the runtime traps on.
 //     So `ensures result > a` vs `return a + 1` discharges (witness 0). The order path is
 //     CONSERVATIVE: when it can't find a constant gap (`result > a` vs `return a`) it emits no
 //     certificate at all (the runtime contract still stands) -- it never emits a false one.
@@ -219,8 +220,14 @@ pub fn discharge_machine(machine: &Machine, program: &Program) -> Option<String>
                 _ => (rhs, returned),
             };
             let gap = additive_gap_expr(smaller_expr, larger_expr, program)?;
-            // a <= b  ==  ∃w. a + w = b ; the witness is the gap itself (valid for any gap >= 0,
-            // so it may be a parameter -- e.g. result <= a + b proved with witness b)
+            // a <= b  ==  ∃w. a + w = b, witness the gap. SOUNDNESS: epsilon `i32` is SIGNED, but
+            // the proof is over delta NATURALS -- so the witness must be PROVABLY non-negative,
+            // else a negative argument makes the runtime assert trap while this "proves" it.
+            // A literal gap is >= 0 (unary minus desugars to Sub, so `Int` nodes are non-negative);
+            // a parameter or expression gap could be negative, so refuse it (conservative).
+            if !matches!(program.expressions[gap], Expr::Int(k) if k >= 0) {
+                return None;
+            }
             let smaller1 = term(smaller_expr, program, p, 1)?;
             let larger1 = term(larger_expr, program, p, 1)?;
             let larger0 = term(larger_expr, program, p, 0)?;

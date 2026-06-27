@@ -26,6 +26,30 @@ for n in 0 1 2 7 42 63 100 127 128 200 254 255; do
     FAIL=$((FAIL + 1)); echo "  FAIL n=$n : exit $got (a discharged contract trapped at runtime!)"; fi
 done
 
+# 1b. SIGN regression: epsilon `i32` is SIGNED, but discharge proofs are over delta NATURALS.
+# Run the discharged machines on a NEGATIVE input too -- a discharge unsound for negatives
+# (e.g. a parameter-witness `result <= a + b` with b < 0) would trap here while having been
+# "proved". The compiler now refuses unprovably-non-negative witnesses; this guards it.
+cat > "$T/negin.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine succ_gt(a: i32) -> i32 ensures result > a { return a + 1; }
+machine within10(a: i32) -> i32 ensures result <= a + 10 { return a; }
+machine azr(a: i32) -> i32 ensures result == a { return a + 0; }
+machine Main::main(&mut self) {
+    let n: i32 = 0 - 50;
+    let g: i32 = succ_gt(n);
+    let w: i32 = within10(n);
+    let z: i32 = azr(n);
+    self.console.exit_process(42)
+}
+EOF
+EPS_ARCH=aarch64 ./target/debug/beta "$T/negin.alp" "$T/negin" >/dev/null 2>&1 \
+  || { echo "discharge-soundness FAIL — compiling negative-input driver"; exit 1; }
+set +e; "$T/negin"; got=$?; set -e
+if [ "$got" = 42 ]; then PASS=$((PASS + 1)); echo "  ok   discharged contracts hold on NEGATIVE input (signed i32)";
+else FAIL=$((FAIL + 1)); echo "  FAIL discharged contract trapped on negative input (exit $got) -- sign-unsoundness"; fi
+
 # 2. negative control: a contract the compiler does NOT discharge, false for every input, must
 # TRAP at runtime -- so the no-trap result above is meaningful, not a vacuous/disabled check.
 cat > "$T/neg.alp" <<'EOF'
