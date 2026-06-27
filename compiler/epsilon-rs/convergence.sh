@@ -56,6 +56,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-gcd.alp "$T/cg" >/dev/null 
   || { echo "convergence FAIL — compiling certify-gcd"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-triangle.alp "$T/ct" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-triangle"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-mod.alp "$T/cmod" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-mod"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -95,6 +97,14 @@ cd_() {
     FAIL=$((FAIL+1)); echo "  FAIL [$1 | $2] : delta returned [$v], expected accept"; fi
 }
 cd_ 3 12; cd_ 5 20; cd_ 1 7; cd_ 7 7; cd_ 4 0; cd_ 6 42
+
+# the division algorithm: a CONJUNCTION proof  a = q*m + r  AND  r < m  (inputs: a m)
+cmod() {
+  v=$(printf '%s %s' "$1" "$2" | "$T/cmod" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL [$1 mod $2] : delta returned [$v], expected accept"; fi
+}
+cmod 17 5; cmod 20 6; cmod 100 7; cmod 9 3; cmod 1 2; cmod 41 7
 
 # CORRECTNESS (not safety): the result meets its spec -- m is genuinely max(a,b):
 # a<=m & b<=m & (m=a or m=b). inl branch when a>=b, inr when a<b.
