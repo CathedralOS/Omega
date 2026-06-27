@@ -117,6 +117,9 @@ impl BinaryOperator {
         match self {
             Self::Add => "+",
             Self::And => "&&",
+            Self::BitwiseAnd => "&",
+            Self::BitwiseOr => "|",
+            Self::BitwiseXor => "^",
             Self::Divide => "/",
             Self::Equal => "==",
             Self::Greater => ">",

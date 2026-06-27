@@ -1654,6 +1654,37 @@ fn runtime_shift_operators_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_bitwise_operators_exit_canary_runs() {
+    let canary = pass_canary("operators/runtime_bitwise_operators_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-bitwise-operators-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bitwise operators canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bitwise operators canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `&`, `|`, `^` to evaluate correctly (12&10==8, 12|10==14, 12^10==6; exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn integer_literal_suffix_exit_canary_runs() {
     let canary = pass_canary("operators/integer_literal_suffix_exit");
     let main_path = canary.join("main.omg");
@@ -13038,6 +13069,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/value_call_sequential_self_capture_exit",
     "operators/integer_literal_suffix_exit",
     "operators/runtime_shift_operators_exit",
+    "operators/runtime_bitwise_operators_exit",
     "calls/free_standing_machine_helper_compile",
     "calls/typed_return_from_local_call_compile",
     "capabilities/boundary_trait_multiple_effects",

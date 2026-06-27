@@ -85,6 +85,9 @@ pub(super) fn fold_binary_expression(
         },
         Op::ShiftLeft => fold_integer_math(left, right, |a, b| a << b, operator),
         Op::ShiftRight => fold_integer_math(left, right, |a, b| a >> b, operator),
+        Op::BitwiseAnd => fold_integer_math(left, right, |a, b| a & b, operator),
+        Op::BitwiseOr => fold_integer_math(left, right, |a, b| a | b, operator),
+        Op::BitwiseXor => fold_integer_math(left, right, |a, b| a ^ b, operator),
     }
 }
 
@@ -580,6 +583,9 @@ pub(super) fn boolean_not(expression: Expression) -> Expression {
                     return boolean_and(boolean_not(binary.left), boolean_not(binary.right));
                 }
                 Op::Add
+                | Op::BitwiseAnd
+                | Op::BitwiseOr
+                | Op::BitwiseXor
                 | Op::Divide
                 | Op::Modulo
                 | Op::Multiply

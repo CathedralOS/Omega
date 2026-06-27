@@ -32,6 +32,9 @@ impl ContractExpressionEvaluator<'_, '_> {
                     Some(self.integer_value(binary.left)? != self.integer_value(binary.right)?)
                 }
                 BinaryOperator::Add
+                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::BitwiseOr
+                | BinaryOperator::BitwiseXor
                 | BinaryOperator::Divide
                 | BinaryOperator::Modulo
                 | BinaryOperator::Multiply

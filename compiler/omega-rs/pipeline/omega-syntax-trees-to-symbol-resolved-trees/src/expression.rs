@@ -336,6 +336,9 @@ fn lower_binary_operator(operator: syntax::expression::BinaryOperator) -> Binary
     match operator {
         syntax::expression::BinaryOperator::Add => BinaryOperator::Add,
         syntax::expression::BinaryOperator::And => BinaryOperator::And,
+        syntax::expression::BinaryOperator::BitwiseAnd => BinaryOperator::BitwiseAnd,
+        syntax::expression::BinaryOperator::BitwiseOr => BinaryOperator::BitwiseOr,
+        syntax::expression::BinaryOperator::BitwiseXor => BinaryOperator::BitwiseXor,
         syntax::expression::BinaryOperator::Divide => BinaryOperator::Divide,
         syntax::expression::BinaryOperator::Equal => BinaryOperator::Equal,
         syntax::expression::BinaryOperator::Greater => BinaryOperator::Greater,

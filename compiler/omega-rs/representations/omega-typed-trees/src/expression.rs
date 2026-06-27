@@ -1858,6 +1858,9 @@ pub struct BinaryExpression {
 pub enum BinaryOperator {
     Add,
     And,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
     Divide,
     Equal,
     Greater,

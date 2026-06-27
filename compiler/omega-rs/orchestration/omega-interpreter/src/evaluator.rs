@@ -2747,6 +2747,9 @@ impl<'program> Evaluator<'program> {
             }
             ShiftLeft => Value::Int(l.wrapping_shl(r as u32)),
             ShiftRight => Value::Int(l.wrapping_shr(r as u32)),
+            BitwiseAnd => Value::Int(l & r),
+            BitwiseOr => Value::Int(l | r),
+            BitwiseXor => Value::Int(l ^ r),
             Less => Value::Bool(l < r),
             LessOrEqual => Value::Bool(l <= r),
             Greater => Value::Bool(l > r),
@@ -2766,8 +2769,8 @@ impl<'program> Evaluator<'program> {
             LessOrEqual => Value::Bool(l <= r),
             Greater => Value::Bool(l > r),
             GreaterOrEqual => Value::Bool(l >= r),
-            Modulo | ShiftLeft | ShiftRight => {
-                return unsupported("float modulo/shift not supported");
+            Modulo | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => {
+                return unsupported("float modulo/shift/bitwise not supported");
             }
             Equal | NotEqual | And | Or => unreachable!("handled earlier"),
         })

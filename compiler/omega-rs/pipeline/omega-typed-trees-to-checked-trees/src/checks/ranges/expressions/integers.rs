@@ -99,6 +99,9 @@ fn folded_integer_binary(left: i64, operator: BinaryOperator, right: i64) -> Opt
         BinaryOperator::Multiply => left.checked_mul(right),
         BinaryOperator::Subtract => left.checked_sub(right),
         BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
         | BinaryOperator::Equal
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual

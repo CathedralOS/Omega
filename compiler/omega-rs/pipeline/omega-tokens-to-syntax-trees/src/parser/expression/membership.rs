@@ -1,5 +1,5 @@
 use crate::parser::context::ExpressionContext;
-use crate::parser::expression::parse_shift_expression_handle;
+use crate::parser::expression::parse_bitwise_or_expression_handle;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
@@ -13,7 +13,8 @@ pub(super) fn parse_membership_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    let (mut expression, mut input) = parse_shift_expression_handle(syntax_trees, input, context)?;
+    let (mut expression, mut input) =
+        parse_bitwise_or_expression_handle(syntax_trees, input, context)?;
 
     while context.allows_membership() && input.at_contextual("in") {
         input = input.take_contextual("in")?;

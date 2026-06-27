@@ -15,6 +15,9 @@ pub enum StateGuardOperator {
     Modulo,
     ShiftLeft,
     ShiftRight,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
     /// Unsigned counterparts, selected when the operands are an unsigned integer
     /// type. They differ from the signed forms only in the machine encoding
     /// (`div`/`shr` vs `idiv`/`sar`).

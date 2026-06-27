@@ -73,6 +73,9 @@ pub(super) fn seed_guard_facts(
             seed_length_not_zero_fact(program, facts, binary.right, binary.left);
         }
         BinaryOperator::Add
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
         | BinaryOperator::Divide
         | BinaryOperator::Modulo
         | BinaryOperator::Multiply

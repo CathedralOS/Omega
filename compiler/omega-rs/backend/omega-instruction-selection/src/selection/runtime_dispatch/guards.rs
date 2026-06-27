@@ -1855,6 +1855,9 @@ fn runtime_compare_operator(operator: BinaryOperator) -> Option<StateGuardOperat
         BinaryOperator::LessOrEqual => Some(StateGuardOperator::LessOrEqual),
         BinaryOperator::Add
         | BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
         | BinaryOperator::Divide
         | BinaryOperator::Modulo
         | BinaryOperator::Multiply
@@ -1948,7 +1951,13 @@ fn runtime_arithmetic_operator(operator: BinaryOperator) -> Option<StateGuardOpe
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        BinaryOperator::Equal
+        // Bitwise (and shifts) are not yet wired as guard-SUBJECT arithmetic
+        // (the dispatch-loop width oracle for the subject path); they work as
+        // field-write values. A guard bit-check `x & 1 == 0` is a follow-up.
+        BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
+        | BinaryOperator::Equal
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual
         | BinaryOperator::Less

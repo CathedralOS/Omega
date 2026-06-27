@@ -95,6 +95,9 @@ pub fn classify_transition_guard_expression(
             | BinaryOperator::LessOrEqual => StateGuardKind::RuntimeOrdering,
             BinaryOperator::Add
             | BinaryOperator::And
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
             | BinaryOperator::Divide
             | BinaryOperator::Modulo
             | BinaryOperator::Multiply
@@ -167,7 +170,10 @@ pub(crate) fn guard_operator(
         BinaryOperator::Add => StateGuardOperator::Add,
         BinaryOperator::And => StateGuardOperator::And,
         BinaryOperator::Or => StateGuardOperator::Or,
-        BinaryOperator::Divide
+        BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
+        | BinaryOperator::Divide
         | BinaryOperator::Modulo
         | BinaryOperator::Multiply
         | BinaryOperator::ShiftLeft

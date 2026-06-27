@@ -1372,6 +1372,9 @@ fn snapshot_binary_operator(operator: BinaryOperator) -> &'static str {
     match operator {
         BinaryOperator::Add => "add",
         BinaryOperator::And => "and",
+        BinaryOperator::BitwiseAnd => "bitwise_and",
+        BinaryOperator::BitwiseOr => "bitwise_or",
+        BinaryOperator::BitwiseXor => "bitwise_xor",
         BinaryOperator::Divide => "divide",
         BinaryOperator::Equal => "equal",
         BinaryOperator::Greater => "greater",
