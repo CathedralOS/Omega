@@ -291,6 +291,9 @@ fn lower_expression(
                 BinaryOp::BitAnd => code.extend_from_slice(&[0x21, 0xC8]), // and eax, ecx
                 BinaryOp::BitOr => code.extend_from_slice(&[0x09, 0xC8]),  // or  eax, ecx
                 BinaryOp::BitXor => code.extend_from_slice(&[0x31, 0xC8]), // xor eax, ecx
+                // shifts: count in cl (rhs is in rcx); hardware masks it to 0-31.
+                BinaryOp::Shl => code.extend_from_slice(&[0xD3, 0xE0]), // shl eax, cl
+                BinaryOp::Shr => code.extend_from_slice(&[0xD3, 0xF8]), // sar eax, cl (arithmetic)
                 BinaryOp::Lt => emit_cmp_set(code, 0x9C),   // setl
                 BinaryOp::Gt => emit_cmp_set(code, 0x9F),   // setg
                 BinaryOp::Le => emit_cmp_set(code, 0x9E),   // setle

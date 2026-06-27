@@ -30,6 +30,8 @@ pub enum TokenKind {
     Ge,
     EqEq,
     Ne,
+    Shl, // <<
+    Shr, // >>
     Arrow, // ->
     Str,   // string literal; span (start..start+len) covers the bytes BETWEEN the quotes
     Eof,
@@ -112,23 +114,25 @@ pub fn lex(source: &[u8]) -> Result<Vec<Token>, String> {
             continue;
         }
         if byte == b'<' {
-            let two = position + 1 < source_len && source[position + 1] == b'=';
-            tokens.push(Token {
-                kind: if two { TokenKind::Le } else { TokenKind::Lt },
-                start: position,
-                len: if two { 2 } else { 1 },
-            });
-            position += if two { 2 } else { 1 };
+            let next = if position + 1 < source_len { source[position + 1] } else { 0 };
+            let (kind, len) = match next {
+                b'<' => (TokenKind::Shl, 2),
+                b'=' => (TokenKind::Le, 2),
+                _ => (TokenKind::Lt, 1),
+            };
+            tokens.push(Token { kind, start: position, len });
+            position += len;
             continue;
         }
         if byte == b'>' {
-            let two = position + 1 < source_len && source[position + 1] == b'=';
-            tokens.push(Token {
-                kind: if two { TokenKind::Ge } else { TokenKind::Gt },
-                start: position,
-                len: if two { 2 } else { 1 },
-            });
-            position += if two { 2 } else { 1 };
+            let next = if position + 1 < source_len { source[position + 1] } else { 0 };
+            let (kind, len) = match next {
+                b'>' => (TokenKind::Shr, 2),
+                b'=' => (TokenKind::Ge, 2),
+                _ => (TokenKind::Gt, 1),
+            };
+            tokens.push(Token { kind, start: position, len });
+            position += len;
             continue;
         }
         if byte == b':' && position + 1 < source_len && source[position + 1] == b':' {
