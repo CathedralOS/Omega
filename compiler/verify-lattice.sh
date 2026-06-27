@@ -33,6 +33,7 @@ step "seam — inductive universals vs operational eval" delta      induction-so
 step "seam — corpus theorems: proved AND operationally true" delta soundness-sweep.sh
 step "epsilon — on-ramp compiles + RUNS its corpus"   epsilon-rs  test_aarch64.sh
 step "convergence — epsilon emits a proof; delta checks it" epsilon-rs convergence.sh
+step "contracts — compiler discharges ensures; delta checks at build" epsilon-rs contracts.sh
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
 if command -v python3 >/dev/null 2>&1; then
   step "tool — proof elaborator (named binders -> check.beta)" delta elab-test.sh

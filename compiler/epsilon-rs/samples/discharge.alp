@@ -1,0 +1,21 @@
+// STATIC CONTRACT DISCHARGE — the compiler PROVES an `ensures` contract at BUILD time.
+//
+// The runtime contract path desugars `ensures` into an assert that traps if violated for the
+// concrete inputs of one call. Static discharge is the other half: `EPS_EMIT=contracts` makes
+// the compiler emit, for each machine below, a delta certificate that the postcondition's
+// obligation holds SYMBOLICALLY (for all inputs `a`, `b`), which the trust anchor checks. The
+// compiler proves the contract; it is not trusted to — a false postcondition would emit a
+// certificate the checker REJECTS, failing the build before the program runs. (See contracts.sh.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+// identity: result == a + b, returned verbatim -> obligation (p (v0)(v1)) == (p (v0)(v1)), refl
+machine adds(a: i32, b: i32) -> i32 ensures result == a + b { return a + b; }
+
+// reduction: result == a, returned as 0 + a -> (p z (v0)) reduces to (v0), so refl discharges
+machine zadd(a: i32) -> i32 ensures result == a { return 0 + a; }
+
+// multiplication: result == a * 3, returned verbatim -> (m (v0) 3) == (m (v0) 3), refl
+machine triple(a: i32) -> i32 ensures result == a * 3 { return a * 3; }
+
+machine Main::main(&mut self) { let r: i32 = adds(20, 22); self.console.exit_process(r) }
