@@ -35,6 +35,27 @@ pub(crate) fn emit_function_bytes(
     for (machine_instruction_index, machine_instruction) in machine_instructions.iter().enumerate()
     {
         let laid_out_instruction = &laid_out_instructions[machine_instruction_index];
+        // A runtime-VALUE guard comparison reaching emission means its right
+        // operand never resolved to storage (e.g. an unrecognized member
+        // accessor, like a carrier `.len` before the resolver was taught it). It
+        // has no encoder here, so it would encode to ZERO bytes and the guard
+        // would be SILENTLY DROPPED -- the `true` arm taken unconditionally. A
+        // resolved runtime comparison lowers to a `CompareRuntimeStorage`
+        // instruction, so this kind must never reach emission; refuse rather
+        // than miscompile.
+        if matches!(
+            &machine_instruction.source_kind,
+            SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::CompareRuntimeValue,
+                ..
+            }
+        ) {
+            return Err(Diagnostic::error(
+                "dispatch guard runtime comparison operand did not resolve to storage; \
+                 the guard cannot be emitted (it would be silently dropped, taking the \
+                 true arm unconditionally)",
+            ));
+        }
         if laid_out_instruction.byte_width == 0 {
             encoded_code.instructions.insert(EncodedMachineInstruction {
                 selected_instruction_index: machine_instruction.selected_instruction_index,
