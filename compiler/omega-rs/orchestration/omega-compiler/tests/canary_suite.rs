@@ -8202,6 +8202,47 @@ fn runtime_array_indexed_loop_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_decreasing_index_exit_canary_runs() {
+    // A DECREASING runtime counter indexing an inline array: the bound
+    // `self.i < 4` that the body's `self.nums[self.i]` needs is a loop
+    // INVARIANT (entry `i = 3`, each `i = i - 1` decrement preserves `i < 4`),
+    // not the loop guard (`self.i >= 0`). The loop head is multi-predecessor, so
+    // single-predecessor incoming-guard seeding can't reach it; the inductive
+    // loop-invariant fact discharges the index obligation. Sums [1,2,3,4]
+    // backwards to 10 and self-checks (exit 70).
+    let canary = pass_canary("slices/runtime_decreasing_index_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-decreasing-index-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime decreasing index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime decreasing index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a decreasing-counter loop (loop-invariant bound) to sum [1,2,3,4] \
+         backwards to 10 and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_slice_indexed_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_slice_indexed_read_exit");
     let main_path = canary.join("main.omg");
@@ -13470,6 +13511,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_dispatch_mutable_slice_element_write_exit",
     "slices/runtime_array_indexed_read_exit",
     "slices/runtime_array_indexed_loop_exit",
+    "slices/runtime_decreasing_index_exit",
     "slices/runtime_slice_indexed_read_exit",
     "slices/runtime_array_adjacent_index_exit",
     "slices/runtime_branched_index_bound_exit",
@@ -13920,6 +13962,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "slices/invalid_fixed_array_literal_index_unchecked",
     "slices/known_length_dynamic_index_unproven",
     "slices/machine_field_index_reassigned_unproven",
+    "ranges/loop_increment_index_unbounded",
+    "ranges/loop_body_resets_index",
+    "ranges/loop_init_exceeds_capacity",
     "slices/invalid_slice_folded_index_unchecked",
     "slices/invalid_slice_local_index_unchecked",
     "slices/invalid_subslice_folded_bounds_unchecked",

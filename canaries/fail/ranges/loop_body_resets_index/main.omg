@@ -1,0 +1,62 @@
+// SOUNDNESS (G1): a non-decrement modification of the counter inside the loop
+// blocks the seed. This is the decreasing repro, but the body ALSO does
+// `self.i = 100;` (a set-to-value) before the decrement. With `i = 100` live at
+// the `self.nums[self.i]` read, the index is wildly out of bounds for
+// `[i32; 4]`. Because the loop modifies `i` by something OTHER than a decrement,
+// the loop-invariant fact must NOT seed, so the index obligation stays UNPROVEN
+// and the program is rejected.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 4] in Trapping;
+    i: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 1;
+    self.nums[1] = 2;
+    self.nums[2] = 3;
+    self.nums[3] = 4;
+    self.i = 3;
+    self.acc = 0;
+
+    transition {
+        _ -> loop_()
+    }
+
+    state loop_(&mut self) {
+        transition self.i >= 0 {
+            true -> body()
+            _ -> done()
+        }
+    }
+
+    state body(&mut self) {
+        self.i = 100;
+        self.acc = self.acc + self.nums[self.i];
+        self.i = self.i - 1;
+        transition {
+            _ -> loop_()
+        }
+    }
+
+    state done(&mut self) {
+        transition self.acc == 10 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

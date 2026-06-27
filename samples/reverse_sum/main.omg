@@ -1,0 +1,57 @@
+// Sum an array by walking it BACKWARD -- a real data-processing loop whose
+// index bound is a loop INVARIANT rather than the loop guard.
+//
+//   acc = 0
+//   for i = N-1 down to 0: acc = acc + nums[i]
+//
+// The loop head's guard is `i >= 0` (the low side); the upper bound
+// `i < N` that `nums[i]` needs is the inductive invariant established by the
+// `i = N - 1` entry and preserved by each `i = i - 1` decrement. Over
+// [5, 10, 15, 20, 25] the reverse sum is 75.
+// Expected exit: 75.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 5] in Trapping;
+    i: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 5;
+    self.nums[1] = 10;
+    self.nums[2] = 15;
+    self.nums[3] = 20;
+    self.nums[4] = 25;
+    self.i = 4;
+    self.acc = 0;
+
+    transition {
+        _ -> scan()
+    }
+
+    // Loop head: walk down until every element has been added.
+    state scan(&mut self) {
+        transition self.i >= 0 {
+            true -> add()
+            _ -> done()
+        }
+    }
+
+    // Add the current element, then step the index down by one.
+    state add(&mut self) {
+        self.acc = self.acc + self.nums[self.i];
+        self.i = self.i - 1;
+        transition {
+            _ -> scan()
+        }
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(self.acc);
+    }
+}
