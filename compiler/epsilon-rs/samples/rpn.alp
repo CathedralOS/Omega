@@ -67,7 +67,7 @@ machine Main::main(&mut self) {
     state arun2() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> aadv2()  false -> abrk() } }
     state aadv2() { self.pos = self.pos + 1; transition 0 { _ -> arun2() } }
     state abrk()  { transition self.buf[self.pos] == 91 { true -> pushIdx()  false -> aemit() } } // '[' -> array index
-    state pushIdx(){ self.ostart[self.sp] = self.start; self.oend[self.sp] = self.pos; self.oprec[self.sp] = 0; self.obrk[self.sp] = 1; self.sp = self.sp + 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } } // hold base; oprec 0 so real ops don't pop past it
+    state pushIdx(){ self.ostart[self.sp] = self.start; self.oend[self.sp] = self.pos; self.oprec[self.sp] = 0 - 1; self.obrk[self.sp] = 1; self.sp = self.sp + 1; self.pos = self.pos + 1; transition 0 { _ -> sk() } } // hold base; oprec -1 so NO operator (incl. prec-0 bit ops) pops past it
     state aemit() { self.emit_tok(self.start, self.pos); transition 0 { _ -> sk() } }            // plain operand -> output now
     // operator (or ']'): classify precedence + length, then shunting-yard
     state op()    { transition self.buf[self.pos] == 93 { true -> rbrk()  false -> opc() } }     // ']' -> close an index
@@ -78,11 +78,18 @@ machine Main::main(&mut self) {
     state op5()   { transition self.buf[self.pos] == 60 { true -> p1m()  false -> op6() } }      // '<'
     state op6()   { transition self.buf[self.pos] == 62 { true -> p1m()  false -> op7() } }      // '>'
     state op7()   { transition self.buf[self.pos] == 61 { true -> p1two()  false -> op8() } }    // '=' (==)
-    state op8()   { transition self.buf[self.pos] == 33 { true -> p1two()  false -> padv() } }   // '!' (!=)
+    state op8()   { transition self.buf[self.pos] == 33 { true -> p1two()  false -> opm() } }    // '!' (!=)
+    state opm()   { transition self.buf[self.pos] == 37  { true -> p3()  false -> opand() } }    // '%' (prec 3, with * /)
+    state opand() { transition self.buf[self.pos] == 38  { true -> p0()  false -> opor() } }     // '&' (prec 0)
+    state opor()  { transition self.buf[self.pos] == 124 { true -> p0()  false -> opxor() } }    // '|' (prec 0)
+    state opxor() { transition self.buf[self.pos] == 94  { true -> p0()  false -> padv() } }     // '^' (prec 0)
     state p3()    { self.curp = 3; self.curl = 1; transition 0 { _ -> sypop() } }
     state p2()    { self.curp = 2; self.curl = 1; transition 0 { _ -> sypop() } }
-    state p1m()   { self.curp = 1; transition self.buf[self.pos + 1] == 61 { true -> p1mlen2()  false -> p1mlen1() } } // <=, >=
+    state p0()    { self.curp = 0; self.curl = 1; transition 0 { _ -> sypop() } }                // & | ^
+    state p1m()   { self.curp = 1; transition self.buf[self.pos + 1] == 61 { true -> p1mlen2()  false -> p1mshc() } } // <=, >=
     state p1mlen2(){ self.curl = 2; transition 0 { _ -> sypop() } }
+    state p1mshc(){ transition self.buf[self.pos + 1] == self.buf[self.pos] { true -> p1mshift()  false -> p1mlen1() } } // '<<' / '>>' (second char == first)
+    state p1mshift(){ self.curp = 0; self.curl = 2; transition 0 { _ -> sypop() } }              // shifts: prec 0, length 2
     state p1mlen1(){ self.curl = 1; transition 0 { _ -> sypop() } }
     state p1two() { self.curp = 1; self.curl = 2; transition 0 { _ -> sypop() } }                // ==, !=
     state padv()  { self.pos = self.pos + 1; transition 0 { _ -> sk() } }                        // unknown punct: skip

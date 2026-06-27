@@ -270,6 +270,11 @@ filter_test "sizeof emits align8 total struct size" samples/sizeof.alp "boundary
 # rpn: infix -> RPN (shunting-yard) -- the expression-lowering arc, step 1 (linearize to stack-machine order)
 filter_test "rpn linearizes an expression to postfix (precedence + assoc)" samples/rpn.alp "e - s == 5" "$(printf 'e\ns\n-\n5\n==')"
 filter_test "rpn handles array index (self.buf[i] -> index RPN then base[])" samples/rpn.alp "self.buf[s] == 115" "$(printf 's\nself.buf[]\n115\n==')"
+# rpn: precedence table caught up to the backend (% at level 3; & | ^ << >> at level 0, lowest)
+filter_test "rpn modulo (% same prec as *)" samples/rpn.alp "2 * 3 % 4" "$(printf '2\n3\n*\n4\n%%')"
+filter_test "rpn shift-left two-char (<< prec 0, lowest)" samples/rpn.alp "a << 1 + 2" "$(printf 'a\n1\n2\n+\n<<')"
+filter_test "rpn bitwise-and lowest precedence (1+2&3)" samples/rpn.alp "1 + 2 & 3" "$(printf '1\n2\n+\n3\n&')"
+filter_test "rpn shift-right + bitwise-or" samples/rpn.alp "16 >> 2 | 1" "$(printf '16\n2\n>>\n1\n|')"
 # loadk: ARM64 constant materialization (movz/movk) -- first asm-emitting expression primitive
 filter_test "loadk emits ARM64 constant load (movz + movk high half)" samples/loadk.alp "100000" "$(printf 'movz w0, #34464\nmovk w0, #1, lsl #16')"
 # lowerop: binary-operator ARM64 snippets (static half of expression lowering)
