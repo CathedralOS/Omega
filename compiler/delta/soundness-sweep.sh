@@ -31,13 +31,16 @@ b ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exi
 
 # gamma operational twins of the corpus functions (the same defs the other seam scripts
 # use): + * (Nat) with structural eq; append/reverse/sum/map (List) with structural eq.
-DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def eqn (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (eqn x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (eqn h i) (leq t u) 0)) (w 0))))) (def reverse (l) (match l (Lnil Lnil) ((Lcons h t) (append (reverse t) (Lcons h Lnil))))) (def suml (l) (match l (Lnil Ze) ((Lcons h t) (plus h (suml t))))) (def maps (l) (match l (Lnil Lnil) ((Lcons h t) (Lcons (Su h) (maps t))))) (def nle (a b) (match a (Ze 1) ((Su x) (match b (Ze 0) ((Su y) (nle x y)))))) (def even (n) (match n (Ze 1) ((Su x) (match x (Ze 0) ((Su y) (even y)))))) (def odd (n) (match n (Ze 0) ((Su x) (match x (Ze 1) ((Su y) (odd y)))))) (def band (a b) (if a b 0)) (def bnot (a) (if a 0 1)) (def eqb (a b) (if a b (bnot b)))'
+DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def eqn (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (eqn x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (eqn h i) (leq t u) 0)) (w 0))))) (def reverse (l) (match l (Lnil Lnil) ((Lcons h t) (append (reverse t) (Lcons h Lnil))))) (def suml (l) (match l (Lnil Ze) ((Lcons h t) (plus h (suml t))))) (def maps (l) (match l (Lnil Lnil) ((Lcons h t) (Lcons (Su h) (maps t))))) (def nle (a b) (match a (Ze 1) ((Su x) (match b (Ze 0) ((Su y) (nle x y)))))) (def even (n) (match n (Ze 1) ((Su x) (match x (Ze 0) ((Su y) (even y)))))) (def odd (n) (match n (Ze 0) ((Su x) (match x (Ze 1) ((Su y) (odd y)))))) (def band (a b) (if a b 0)) (def bnot (a) (if a 0 1)) (def eqb (a b) (if a b (bnot b))) (def dvds (a b m) (if (nle (mult m a) b) (if (eqn (mult m a) b) 1 (dvds a b (Su m))) 0)) (def dvd (a b) (match a (Ze (eqn b Ze)) (w (dvds a b Ze))))'
 # nle/even/odd are INDEPENDENT structural twins of the corpus predicates (le encoded as
 # (ex d. a+d=b); even as (ex k. n=k+k); odd as (ex k. n=s(k+k))) — so "even n xor odd n"
-# is a fact the interpreter computes, not a tautology of the defs.
+# is a fact the interpreter computes, not a tautology of the defs. dvd decides the divides
+# relation (a|b = ex m. m*a=b) by bounded search on the quotient m while m*a<=b — total
+# because m*a strictly grows for a>=1; (0|b) iff b=0.
 
 # concrete Nats and Lists for the operational instances
 N1='(Su Ze)'; N2='(Su (Su Ze))'; N3='(Su (Su (Su Ze)))'; N4='(Su (Su (Su (Su Ze))))'
+N6='(Su (Su (Su (Su (Su (Su Ze))))))'; N8='(Su (Su (Su (Su (Su (Su (Su (Su Ze))))))))'
 LA='(Lcons Ze (Lcons (Su Ze) Lnil))'                 # [0,1]
 LB='(Lcons (Su (Su Ze)) Lnil)'                       # [2]
 LC='(Lcons (Su (Su (Su Ze))) (Lcons Ze Lnil))'       # [3,0]
@@ -87,6 +90,20 @@ sweep "even a -> even (a*b)"    even-mult \
   "(if (even (mult $N2 $N3)) (even (mult $N4 $N3)) 0)"
 sweep "n + n = 2 * n"           double-is-twice \
   "(if (eqn (plus $N2 $N2) (mult $N2 $N2)) (eqn (plus $N3 $N3) (mult $N2 $N3)) 0)"
+
+# --- the divides relation (a|b = ex m. m*a=b) — backbone of the prime/FTA corpus.
+# dvd is an independent decidable twin; implications check the conclusion at instances
+# that satisfy the hypotheses. ---
+sweep "a | a"                   divides-refl \
+  "(if (dvd $N3 $N3) (dvd $N4 $N4) 0)"
+sweep "a|b & b|c -> a|c"        divides-trans \
+  "(if (band (dvd $N2 $N4) (dvd $N4 $N8)) (dvd $N2 $N8) 0)"
+sweep "a|b & a|c -> a|(b+c)"    divides-add \
+  "(if (band (dvd $N2 $N4) (dvd $N2 $N6)) (dvd $N2 (plus $N4 $N6)) 0)"
+sweep "a|b -> a|(c*b)"          divides-mult \
+  "(if (dvd $N2 $N4) (dvd $N2 (mult $N3 $N4)) 0)"
+sweep "a|b -> a|(b*b)"          divides-square \
+  "(if (dvd $N2 $N4) (dvd $N2 (mult $N4 $N4)) 0)"
 
 echo "soundness sweep (proved by check.beta AND true in the interpreter): $PASS confirmed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
