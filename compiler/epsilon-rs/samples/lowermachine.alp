@@ -398,6 +398,17 @@ machine Main::is_return(&mut self, s: i32, e: i32) -> i32 {   // "return"
     state ryes() { return 1; }
     state rno()  { return 0; }
 }
+machine Main::is_assert(&mut self, s: i32, e: i32) -> i32 {   // "assert"
+    transition e - s == 6 { true -> as0()  false -> asno() }
+    state as0() { transition self.buf[s]     == 97  { true -> as1()  false -> asno() } }  // 'a'
+    state as1() { transition self.buf[s + 1] == 115 { true -> as2()  false -> asno() } }  // 's'
+    state as2() { transition self.buf[s + 2] == 115 { true -> as3()  false -> asno() } }  // 's'
+    state as3() { transition self.buf[s + 3] == 101 { true -> as4()  false -> asno() } }  // 'e'
+    state as4() { transition self.buf[s + 4] == 114 { true -> as5()  false -> asno() } }  // 'r'
+    state as5() { transition self.buf[s + 5] == 116 { true -> asyes() false -> asno() } } // 't'
+    state asyes(){ return 1; }
+    state asno() { return 0; }
+}
 machine Main::is_self(&mut self, s: i32, e: i32) -> i32 {     // "self"
     transition e - s == 4 { true -> z0()  false -> zno() }
     state z0() { transition self.buf[s]     == 115 { true -> z1()  false -> zno() } }
@@ -717,7 +728,9 @@ machine Main::main(&mut self) {
     state ck2self(){ self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> asgn0()  false -> ck2let() } }
     state ck2let() { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> let0()  false -> ck2ret() } }
     state ck2ret() { self.w = self.is_return(self.start, self.pos); transition self.w == 1 { true -> ret0()  false -> ck2wb() } }
-    state ck2wb()  { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> wb0()  false -> lasgn0() } }
+    state ck2wb()  { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> wb0()  false -> ckas() } }
+    state ckas()   { self.w = self.is_assert(self.start, self.pos); transition self.w == 1 { true -> asrt0()  false -> lasgn0() } }
+    state asrt0()  { self.mode = 9; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower the assert condition; mode 9 -> asrtemit (cbz w0, Ltrap)
     // local reassignment: `localname = expr` (bare ident; not self./let/return/write_byte). STRICT --
     // only fires when the ident resolves to a declared local AND is followed by '='; else -> sk (the
     // prior drop behavior). Reuses lstgt + mode 2 + ltStore, exactly like a `let` initializer store.
@@ -946,7 +959,13 @@ machine Main::main(&mut self) {
     state sjm45()  { transition self.mode == 4 { true -> retemit()  false -> sjm56() } }
     state sjm56()  { transition self.mode == 5 { true -> arremit()  false -> sjm67() } }
     state sjm67()  { transition self.mode == 6 { true -> astidx()  false -> sjm78() } }
-    state sjm78()  { transition self.mode == 7 { true -> arremit()  false -> wbemit() } }
+    state sjm78()  { transition self.mode == 7 { true -> arremit()  false -> sjm89() } }
+    state sjm89()  { transition self.mode == 8 { true -> wbemit()  false -> asrtemit() } }   // mode 9 -> assert: trap if cond false
+    state asrtemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    cbz w0, Ltrap"); transition 0 { _ -> asrtsk() } }
+    state asrtsk()  { transition self.buf[self.pos] == 59 { true -> asrtsk2()  false -> asrtsk3() } }   // ';' -> consume
+    state asrtsk3() { transition self.buf[self.pos] == 125 { true -> sk()  false -> asrtadv() } }       // '}' -> stop (block end)
+    state asrtadv() { self.pos = self.pos + 1; transition 0 { _ -> asrtsk() } }
+    state asrtsk2() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state astidx() { self.rpos = self.pos; self.pos = self.aidx; self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 3; self.osp = self.osp + 1; self.mode = 7; self.opnd = 0; transition 0 { _ -> subj0() } }
     state ltStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
     state opp()   { self.naop = 0; transition self.buf[self.pos] == 60 { true -> oplt()  false -> opp2() } }     // '<'
