@@ -167,6 +167,14 @@ compiler_test "exprc compiles (2+3)*4" samples/exprc.alp "(2+3)*4"   20
 compiler_test "exprc compiles ((1+2))*3" samples/exprc.alp "((1+2))*3" 9
 # Full i32 literals: > 65535 needs movz+movk (lo/hi split via division).
 compiler_test "exprc large literal (100000/1000)" samples/exprc.alp "100000/1000" 100
+# exprc: the operator set caught up to the backend -- % (multiplicative) + bit/shift level.
+compiler_test "exprc modulo (7%3)"          samples/exprc.alp "7%3"       1
+compiler_test "exprc bitwise-and (12&10)"   samples/exprc.alp "12&10"     8
+compiler_test "exprc bitwise-or (2|1)"      samples/exprc.alp "2|1"       3
+compiler_test "exprc bitwise-xor (6^3)"     samples/exprc.alp "6^3"       5
+compiler_test "exprc shift-left (1<<4)"     samples/exprc.alp "1<<4"      16
+compiler_test "exprc shift-right (16>>2)"   samples/exprc.alp "16>>2"     4
+compiler_test "exprc bit-op precedence (1+2&3 = 3)" samples/exprc.alp "1+2&3" 3
 # minic: an imperative-language compiler in epsilon — variables + assignment.
 compiler_test "minic vars (a=2+3;a*4)"       samples/minic.alp "a=2+3;a*4"          20
 compiler_test "minic chained (a=3;b=a+1;c=b*2;c+a)" samples/minic.alp "a=3;b=a+1;c=b*2;c+a" 11
