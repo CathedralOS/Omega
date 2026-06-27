@@ -24,7 +24,7 @@ data Main {
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
     aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32; aop: i32; nstr: i32; wlstart: i32; wllen: i32;
-    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; sacnt: i32; saeb: i32; saoff: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
+    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; sacnt: i32; saeb: i32; saoff: i32; callmode: i32; ocmode: i32; ocopnd: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
     coff: i32; dsize: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
@@ -781,7 +781,8 @@ machine Main::main(&mut self) {
     state asgnws(){ transition self.buf[self.pos] <= 32 { true -> asgnw2()  false -> asgneq() } }             // skip ws to '='
     state asgnw2(){ self.pos = self.pos + 1; transition 0 { _ -> asgnws() } }
     state asgneq(){ transition self.buf[self.pos] == 61 { true -> asgnlk()  false -> ckparen() } }            // '=' assign? else maybe a method call
-    state ckparen(){ transition self.buf[self.pos] == 40 { true -> calllk()  false -> sk() } }                // '(' -> no-arg method call
+    state ckparen(){ transition self.buf[self.pos] == 40 { true -> stmtcall()  false -> sk() } }                // '(' -> method call (statement position)
+    state stmtcall(){ self.callmode = 0; transition 0 { _ -> calllk() } }
     state calllk(){ self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.cmi = 0 - 1; transition 0 { _ -> mlk() } }  // resolve callee -> mi
     state mlk()   { transition self.cj < self.mn { true -> mlkc()  false -> carg0() } }
     state mlkc()  { self.qc = self.mns[self.cj]; self.qd = self.mne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> mlkh()  false -> mlkn() } }
@@ -804,7 +805,9 @@ machine Main::main(&mut self) {
     state cself() { self.p_ldrx0x29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_bl(); transition self.cmi == self.emi { true -> blmain()  false -> blmach() } }
     state blmain(){ write_byte(95); write_byte(109); write_byte(97); write_byte(105); write_byte(110); write_byte(10); transition 0 { _ -> callpush() } }
     state blmach(){ self.p_lmachine(); self.v = self.cmi; self.emit_int(); write_byte(10); transition 0 { _ -> callpush() } }
-    state callpush(){ self.console.write_line("    str x0, [sp, #-16]!"); self.console.write_line("    ldr x0, [sp], #16"); transition 0 { _ -> callsk() } }
+    state callpush(){ transition self.callmode == 1 { true -> ocallret()  false -> callpush0() } }
+    state callpush0(){ self.console.write_line("    str x0, [sp, #-16]!"); self.console.write_line("    ldr x0, [sp], #16"); transition 0 { _ -> callsk() } }
+    state ocallret(){ self.console.write_line("    str x0, [sp, #-16]!"); self.pos = self.pos + 1; self.mode = self.ocmode; self.opnd = self.ocopnd; transition 0 { _ -> opdisp() } }
     state callsk(){ transition self.buf[self.pos] == 59 { true -> callsk2()  false -> calladv() } }
     state calladv(){ self.pos = self.pos + 1; transition 0 { _ -> callsk() } }
     state callsk2(){ self.pos = self.pos + 1; transition 0 { _ -> sk() } }
@@ -858,7 +861,9 @@ machine Main::main(&mut self) {
     state fldname(){ self.pos = self.pos + 1; self.fs = self.pos; transition 0 { _ -> fldr() } }   // past '.', capture field name
     state fldr()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> flda()  false -> flde() } }
     state flda()  { self.pos = self.pos + 1; transition 0 { _ -> fldr() } }
-    state flde()  { self.fe = self.pos; self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.foff = 0; transition 0 { _ -> flk() } }
+    state flde()  { self.fe = self.pos; self.qa = self.fs; self.qb = self.fe; transition self.buf[self.pos] == 40 { true -> ocall()  false -> flk0() } }   // '(' -> self-machine call in operand position
+    state flk0()  { self.cj = 0; self.foff = 0; transition 0 { _ -> flk() } }
+    state ocall() { self.ocmode = self.mode; self.ocopnd = self.opnd; self.callmode = 1; transition 0 { _ -> calllk() } }
     state flk()   { transition self.cj < self.nf { true -> flkc()  false -> femit() } }
     state flkc()  { self.qc = self.fns[self.cj]; self.qd = self.fne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> flkh()  false -> flkn() } }
     state flkh()  { self.foff = self.foffs[self.cj]; self.acnt = self.fcnt[self.cj]; self.aeb = self.feb[self.cj]; transition 0 { _ -> fchk() } }
