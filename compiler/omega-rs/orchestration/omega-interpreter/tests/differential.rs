@@ -333,6 +333,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("operators/runtime_shift_operators_exit", 70),
     ("operators/runtime_bitwise_operators_exit", 70),
     ("operators/runtime_bitwise_guard_exit", 70),
+    ("operators/runtime_xorshift_prng_exit", 70),
     ("operators/unary_negation_exit", 70),
     (
         "slices/runtime_dispatch_mutable_slice_element_write_exit",
