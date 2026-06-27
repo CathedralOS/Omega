@@ -277,13 +277,14 @@ fn collect_calls(statements: &[Statement], program: &Program, out: &mut Vec<(usi
     }
 }
 
-// As a precondition over a single parameter, return `(op, const)` if it is `Local(0) OP Int(c)`.
-fn single_param_order(cond: usize, program: &Program) -> Option<(BinaryOp, i32)> {
+// As an order-precondition on a parameter, return `(param_index, op, const)` if the condition
+// is `Local(i) OP Int(c)` with OP an order relation.
+fn param_order(cond: usize, program: &Program) -> Option<(usize, BinaryOp, i32)> {
     if let Expr::Binary(op, l, r) = program.expressions[cond] {
-        if matches!(program.expressions[l], Expr::Local(0)) {
+        if let Expr::Local(i) = program.expressions[l] {
             if let Expr::Int(c) = program.expressions[r] {
                 if matches!(op, BinaryOp::Ge | BinaryOp::Gt | BinaryOp::Le | BinaryOp::Lt) {
-                    return Some((op, c));
+                    return Some((i, op, c));
                 }
             }
         }
@@ -291,42 +292,50 @@ fn single_param_order(cond: usize, program: &Program) -> Option<(BinaryOp, i32)>
     None
 }
 
-// Forwarding certificates for one caller machine.
+// Forwarding certificates for one caller machine: for each order-precondition on a parameter
+// the caller forwards verbatim to a callee demanding the SAME precondition, emit the proof that
+// the callee's precondition follows from the caller's. Handles any arity -- the caller's
+// parameters are universally bound, the forwarded one is named inside the existential body.
 fn discharge_forwarding(caller_idx: usize, program: &Program) -> Vec<String> {
     let caller = &program.machines[caller_idx];
     let mut certs = Vec::new();
-    // scope: a single-parameter wrapper with a single order-precondition on its parameter
-    if caller.param_count != 1 || caller.preconditions.len() != 1 {
-        return certs;
-    }
-    let (op, c) = match single_param_order(caller.preconditions[0], program) {
-        Some(t) => t,
-        None => return certs,
-    };
     let mut calls = Vec::new();
     collect_calls(&caller.entry, program, &mut calls);
     for block in &caller.states {
         collect_calls(block, program, &mut calls);
     }
-    for (callee_idx, args) in calls {
-        // the call must forward the caller's parameter: B(<param 0>)
-        if args.len() != 1 || !matches!(program.expressions[args[0]], Expr::Local(0)) {
-            continue;
-        }
-        let callee = &program.machines[callee_idx];
-        // the callee must demand the SAME precondition on its parameter
-        let forwards = callee
-            .preconditions
-            .iter()
-            .filter_map(|&bpc| single_param_order(bpc, program))
-            .any(|(bop, bc)| same_order(op, bop) && bc == c);
-        if !forwards {
-            continue;
-        }
-        // ∀a. (P(a) -> P(a)), proved by assuming P and returning it. Under the All, `a` is the
-        // existential body's free var at (v 1) (the witness var is (v 0)).
-        if let Some(p) = order_prop(op, c, "(v 1)") {
-            certs.push(format!("(All (-> {0} {0})) (gen (lam {0} (hyp 0)))", p));
+    for &cpc in &caller.preconditions {
+        let (ap, op, c) = match param_order(cpc, program) {
+            Some(t) => t,
+            None => continue,
+        };
+        for (callee_idx, args) in &calls {
+            let callee = &program.machines[*callee_idx];
+            // find an argument position pp at which the call forwards caller-parameter `ap`...
+            for (pp, &arg) in args.iter().enumerate() {
+                if !matches!(program.expressions[arg], Expr::Local(i) if i == ap) {
+                    continue;
+                }
+                // ...and at which the callee demands the SAME order-precondition.
+                let forwards = callee
+                    .preconditions
+                    .iter()
+                    .filter_map(|&bpc| param_order(bpc, program))
+                    .any(|(bpi, bop, bc)| bpi == pp && same_order(op, bop) && bc == c);
+                if !forwards {
+                    continue;
+                }
+                // ∀(caller params). (P -> P), proved by `(lam (hyp 0))`. Under the P binders the
+                // forwarded parameter `ap` is (v ap); inside the existential body it is (v ap+1)
+                // (the witness var is (v 0)).
+                if let Some(p) = order_prop(op, c, &format!("(v {})", ap + 1)) {
+                    certs.push(wrap_universal(
+                        caller.param_count,
+                        &format!("(-> {0} {0})", p),
+                        &format!("(lam {0} (hyp 0))", p),
+                    ));
+                }
+            }
         }
     }
     certs
