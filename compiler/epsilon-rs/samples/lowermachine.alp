@@ -764,10 +764,10 @@ machine Main::main(&mut self) {
     state wlsadv(){ self.pos = self.pos + 1; transition 0 { _ -> wlscan() } }
     state wllen0(){ self.wllen = self.pos - self.wlstart + 1; transition 0 { _ -> wlemit() } }   // len = content + trailing '\n'
     state wlemit(){ self.usesio = 1; self.console.write_line("    mov x0, #1"); self.p_adrpx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGE"); self.p_addx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGEOFF"); self.p_movw2(); self.v = self.wllen; self.emit_int(); write_byte(10); self.console.write_line("    bl _write"); self.nstr = self.nstr + 1; transition 0 { _ -> wlsk() } }
-    state wlsk()  { transition self.buf[self.pos] == 59 { true -> wlsk2()  false -> wlsk3() } }   // ';' consume
-    state wlsk3() { transition self.buf[self.pos] == 125 { true -> sk()  false -> wlsadv2() } }   // '}' stop
-    state wlsadv2(){ self.pos = self.pos + 1; transition 0 { _ -> wlsk() } }
-    state wlsk2() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
+    state wlsk()  { self.pos = self.pos + 1; transition 0 { _ -> wlsk2() } }   // past the closing '"'
+    state wlsk2() { transition self.buf[self.pos] == 41 { true -> wlsk3()  false -> wlsadv2() } }   // skip to write_line's ')'
+    state wlsadv2(){ self.pos = self.pos + 1; transition 0 { _ -> wlsk2() } }
+    state wlsk3() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }   // past ')', resume the walker (it handles ; / next stmt / })
     state exitp0(){ transition self.buf[self.pos] == 40 { true -> exitp1()  false -> exitpadv() } }   // skip to '('
     state exitpadv(){ self.pos = self.pos + 1; transition 0 { _ -> exitp0() } }
     state exitp1(){ self.pos = self.pos + 1; self.mode = 4; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '(', lower the exit code as a return value (mode 4 -> retemit)
