@@ -120,5 +120,19 @@ sweep "a==b -> a+c == b+c"      mod-add-compat \
 sweep "a==b -> a*c == b*c"      mod-mul-compat \
   "(if (modeq $N7 $N1 $N3) (modeq (mult $N7 $N2) (mult $N1 $N2) $N3) 0)"
 
+# --- the lemmas the CAPSTONE proofs rest on (sqrt2-irrational, FTA): parity of squares,
+# odd products, divisibility of products, and order monotonicity. Cross-checking these
+# against execution is the soundness evidence that matters most for the headline proofs. ---
+sweep "even(a*a) -> even a"     even-square-even \
+  "(if (band (even (mult $N2 $N2)) (even (mult $N6 $N6))) (band (even $N2) (even $N6)) 0)"
+sweep "odd a & odd b -> odd a*b" odd-mult \
+  "(if (band (odd $N3) (odd $N5)) (odd (mult $N3 $N5)) 0)"
+sweep "a|b & c|d -> (a*c)|(b*d)" divides-products \
+  "(if (band (dvd $N2 $N4) (dvd $N3 $N6)) (dvd (mult $N2 $N3) (mult $N4 $N6)) 0)"
+sweep "a<=b & c<=d -> a+c<=b+d" le-add-both \
+  "(if (band (nle $N2 $N4) (nle $N3 $N5)) (nle (plus $N2 $N3) (plus $N4 $N5)) 0)"
+sweep "a<b -> c+a < c+b"        lt-add-left \
+  "(if (nle (Su $N2) $N5) (nle (Su (plus $N3 $N2)) (plus $N3 $N5)) 0)"
+
 echo "soundness sweep (proved by check.beta AND true in the interpreter): $PASS confirmed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
