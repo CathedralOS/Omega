@@ -585,7 +585,8 @@ impl<'a> Parser<'a> {
         if self.current_kind() == TokenKind::Arrow {
             self.bump();
             while self.current_kind() != TokenKind::LBrace
-                && !(self.current_kind() == TokenKind::Ident && self.current_text() == b"requires")
+                && !(self.current_kind() == TokenKind::Ident
+                    && (self.current_text() == b"requires" || self.current_text() == b"ensures"))
             {
                 if self.current_kind() == TokenKind::Eof {
                     return Err("alpha-onramp: parse error: unterminated return type".into());
@@ -594,15 +595,31 @@ impl<'a> Parser<'a> {
             }
         }
 
-        // Optional `requires <cond>` preconditions — Omega's contract syntax. Each is checked
-        // at machine entry; a false precondition TRAPS, exactly like an inline `assert`. This
-        // desugars to entry asserts: the dynamic half of contracts, declared on the signature.
-        // (The static, proof-carrying half is the convergence's certify-*.) Conditions range
-        // over the parameters, which are already in scope as locals 0..param_count.
+        // Optional `requires`/`ensures` contracts — Omega's contract syntax, in any order. A
+        // `requires <cond>` is checked at machine entry; an `ensures <cond>` (which may name the
+        // special local `result`, the returned value) is checked at every return site. Both
+        // desugar to asserts: a false condition TRAPS, exactly like an inline `assert`. This is
+        // the declarative, dynamic half of contracts — the obligation lives on the signature.
+        // (The static, proof-carrying half is the convergence's certify-*.) Preconditions range
+        // over the parameters (locals 0..param_count); postconditions also over `result`.
         let mut preconditions = Vec::new();
-        while self.current_kind() == TokenKind::Ident && self.current_text() == b"requires" {
-            self.bump(); // requires
-            preconditions.push(self.parse_expression()?);
+        let mut postconditions = Vec::new();
+        let mut result_index = 0usize;
+        loop {
+            if self.current_kind() == TokenKind::Ident && self.current_text() == b"requires" {
+                self.bump();
+                preconditions.push(self.parse_expression()?);
+            } else if self.current_kind() == TokenKind::Ident && self.current_text() == b"ensures" {
+                if postconditions.is_empty() {
+                    // reserve `result` (the returned value) as a local the postcondition can name
+                    result_index = self.local_names.len();
+                    self.local_names.push(b"result".to_vec());
+                }
+                self.bump();
+                postconditions.push(self.parse_expression()?);
+            } else {
+                break;
+            }
             if self.current_kind() == TokenKind::Semi {
                 self.bump();
             }
@@ -613,10 +630,19 @@ impl<'a> Parser<'a> {
         self.self_data_type = self_data_type;
         self.machine_self_types.push(self_data_type);
 
-        let (mut entry, states) = self.parse_machine_body()?;
+        let (mut entry, mut states) = self.parse_machine_body()?;
         // Prepend the precondition checks (in source order) so they run before the body.
         for cond in preconditions.into_iter().rev() {
             entry.insert(0, Statement::Assert(cond));
+        }
+        // Postconditions: check `ensures` at every return site, with `result` bound to the
+        // value being returned. Rewrite `return e` -> { result = e; assert <cond>...; return result }.
+        if !postconditions.is_empty() {
+            entry = self.rewrite_returns_with_postconditions(entry, result_index, &postconditions);
+            states = states
+                .into_iter()
+                .map(|block| self.rewrite_returns_with_postconditions(block, result_index, &postconditions))
+                .collect();
         }
         Ok(Machine {
             param_count,
@@ -626,6 +652,40 @@ impl<'a> Parser<'a> {
             entry,
             states,
         })
+    }
+
+    // Rewrite each `return e` into `{ result = e; assert <postcondition>...; return result }`,
+    // so a machine's `ensures` clauses are checked on every value it yields. Recurses into
+    // Blocks; transitions carry no nested returns. Shares the postcondition expr nodes across
+    // sites (read-only at lowering) and mints a fresh `result` read per return.
+    fn rewrite_returns_with_postconditions(
+        &mut self,
+        statements: Vec<Statement>,
+        result_index: usize,
+        postconditions: &[usize],
+    ) -> Vec<Statement> {
+        let mut out = Vec::with_capacity(statements.len());
+        for statement in statements {
+            match statement {
+                Statement::Return(value) => {
+                    let mut block = Vec::new();
+                    block.push(Statement::Assign(result_index, value));
+                    for &cond in postconditions {
+                        block.push(Statement::Assert(cond));
+                    }
+                    let result_node = self.add_expression(Expr::Local(result_index));
+                    block.push(Statement::Return(result_node));
+                    out.push(Statement::Block(block));
+                }
+                Statement::Block(inner) => {
+                    let rewritten =
+                        self.rewrite_returns_with_postconditions(inner, result_index, postconditions);
+                    out.push(Statement::Block(rewritten));
+                }
+                other => out.push(other),
+            }
+        }
+        out
     }
 
     fn skip_braced_item(&mut self) -> Result<(), String> {
