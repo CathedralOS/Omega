@@ -1100,6 +1100,43 @@ fn runtime_bounded_carrier_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A runtime slice `.len` (descriptor read of a slice PARAM, not a folded
+// fixed-array constant) narrows into an i32 field: `self.count = s.len` where
+// `s: &[i32]` -> exit 5 for a 5-element view. The length value is 32-bit, so its
+// low 4-byte word lowers into the i32 target (an 8-byte read does not) -- the same
+// width convention as carrier `.len`.
+#[test]
+fn runtime_slice_length_field_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_slice_length_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-slice-length-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("slice length field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("slice length field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "expected `self.count = s.len` to store the slice param's length (5) into \
+         the i32 field, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier builder/concat, native: `self.text =
 // "Room " + self.label` materializes into the target carrier's inline storage --
 // the first literal initializes it, then the source carrier's content is appended
