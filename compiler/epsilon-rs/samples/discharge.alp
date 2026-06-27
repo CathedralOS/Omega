@@ -45,5 +45,9 @@ machine fwd(a: i32) -> i32 requires a >= 1 { return needs_pos(a); }
 // multi-parameter wrapper: forwards its SECOND parameter (b) to the callee; the cert binds
 // both parameters and names b inside the existential at (v 2).
 machine fwd2(a: i32, b: i32) -> i32 requires b >= 1 { return needs_pos(b); }
+// PRECONDITION WEAKENING: the wrapper demands a STRONGER bound (a >= 3) than the callee needs
+// (x >= 1). The compiler discharges the callee's precondition from the caller's via le-trans
+// (3 >= 1, so a >= 3 implies a >= 1) -- the common modular case, not just identical contracts.
+machine weaken(a: i32) -> i32 requires a >= 3 { return needs_pos(a); }
 
 machine Main::main(&mut self) { let r: i32 = adds(20, 22); self.console.exit_process(r) }
