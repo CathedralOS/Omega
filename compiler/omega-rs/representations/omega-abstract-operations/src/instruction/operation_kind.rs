@@ -682,6 +682,21 @@ pub enum AbstractOperationKind {
         target_offset: usize,
         byte_count: usize,
     },
+    /// Write-side mirror of `CopyRuntimeMachineIndexedToRuntimeStorage`:
+    /// `self.nums[self.j] = self.b` -- a runtime-indexed write into a
+    /// machine-owned inline array, sourced from a runtime storage place.
+    /// The target is machine-owned by definition, so there is no
+    /// `target_region`.
+    CopyRuntimeStorageToRuntimeMachineIndexed {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        base_byte_offset: usize,
+        index_offset: usize,
+        index_region: RuntimeStorageRegion,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_count: usize,
+    },
     CopyRuntimeStorageToRuntimePointee {
         source_region: RuntimeStorageRegion,
         source_offset: usize,

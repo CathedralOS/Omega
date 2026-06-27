@@ -1,0 +1,58 @@
+// Runtime-indexed WRITE into a machine-owned inline array with a RUNTIME VALUE
+// source: `self.nums[self.i] = self.v`. Before the indexed-store encoder this
+// errored "needs runtime storage write lowering" (only constant values, or
+// constant indices, could be stored). Here a loop fills nums[i] = i + 100 for
+// i in 0..5 -- the index AND the value are both runtime fields -- then reads
+// nums[3] back to confirm it holds 103. Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 5];
+    i: i32 in Trapping;
+    v: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.i = 0;
+
+    transition {
+        _ -> fill()
+    }
+
+    state fill(&mut self) {
+        transition self.i < 5 {
+            true -> store()
+            _ -> check()
+        }
+    }
+
+    state store(&mut self) {
+        self.v = self.i + 100;
+        self.nums[self.i] = self.v;
+        self.i = self.i + 1;
+        transition {
+            _ -> fill()
+        }
+    }
+
+    // nums is now [100, 101, 102, 103, 104]; confirm the runtime-indexed writes
+    // landed by reading element 3 back.
+    state check(&mut self) {
+        transition self.nums[3] == 103 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

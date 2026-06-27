@@ -1477,6 +1477,37 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         target_source_key,
         resolved_target,
     ) {
+        // Runtime-value source: `self.nums[self.j] = self.b`. The source field
+        // resolves to a machine-resident storage place; the x86_64 encoder reads
+        // the value, the index, and the target element all off the single shared
+        // machine base, so it only handles a machine-region source.
+        if let Some(source_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            resolved_value.source_key,
+            source_machine,
+            source_state,
+            &resolved_value.expression,
+        ) && source_place.region == omega_abstract_operations::RuntimeStorageRegion::Machine
+            && source_place.byte_count == indexed_target.byte_count
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
+                    source_region: source_place.region,
+                    source_offset: source_place.byte_offset,
+                    base_byte_offset: indexed_target.base_byte_offset,
+                    index_offset: indexed_target.index_offset,
+                    index_region: indexed_target.index_region,
+                    element_byte_size: indexed_target.element_byte_size,
+                    field_byte_offset: indexed_target.field_byte_offset,
+                    byte_count: indexed_target.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
         if supports_scalar_integer_write(indexed_target.byte_count)
             && let Some(value) = resolve_runtime_static_integer_value(
                 input,

@@ -1512,6 +1512,19 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
     }
 }
 
+pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width()
+        }
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width()
+        }
+    }
+}
+
 pub fn runtime_storage_copy_to_runtime_pointee_width(
     architecture: Architecture,
     source_offset: usize,

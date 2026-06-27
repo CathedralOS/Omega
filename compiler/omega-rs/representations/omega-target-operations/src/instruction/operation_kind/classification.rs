@@ -87,6 +87,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::CopyRuntimeFrameFixedIndexedToRuntimePointee { .. }
             | Self::CopyRuntimeFrameIndexedToRuntimePointee { .. }
             | Self::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
+            | Self::CopyRuntimeStorageToRuntimeMachineIndexed { .. }
             | Self::CopyRuntimeStorageToRuntimePointee { .. }
             | Self::CopyRuntimePointeeToRuntimeFrame { .. } => TargetOperationDomain::RuntimeCopy,
 

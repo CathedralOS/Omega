@@ -985,6 +985,22 @@ fn selected_instruction_name(
                 "copy runtime-machine indexed base@{base_byte_offset} index@{index_offset}({index_region:?}) elem {element_byte_size} field +{field_byte_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
             )
         }
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
+            source_region,
+            source_offset,
+            base_byte_offset,
+            index_offset,
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+            format!(
+                "copy runtime storage {source_symbol}@{source_offset} -> runtime-machine indexed base@{base_byte_offset} index@{index_offset}({index_region:?}) elem {element_byte_size} field +{field_byte_offset} bytes {byte_count}"
+            )
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
             source_region,
             source_offset,
