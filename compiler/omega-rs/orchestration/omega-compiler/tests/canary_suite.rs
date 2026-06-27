@@ -1231,6 +1231,37 @@ fn runtime_carrier_fnv_loop_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_carrier_itoa_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_itoa_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-itoa-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier itoa canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier itoa canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `itoa` (computed digit chars written into a carrier) to render 150 as \"150\" and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier byte WRITE `self.buffer[i] = <byte>`: the byte
 // stores inline at `base + pointer_size + i`. Both a byte literal (`buffer[0] = 67`
 // = 'C') and a u8 field (`buffer[1] = self.ch` = 'D') work; from "AB" the writes
