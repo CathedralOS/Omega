@@ -20,16 +20,20 @@ pub(super) fn selected_instruction_operands_name(
             InstructionOperandKind::RuntimeStringPointer {
                 region,
                 byte_offset,
+                is_bounded_buffer,
             } => {
                 let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
-                format!("string ptr {symbol}@{byte_offset}")
+                let carrier = if *is_bounded_buffer { " carrier" } else { "" };
+                format!("string ptr {symbol}@{byte_offset}{carrier}")
             }
             InstructionOperandKind::RuntimeStringLength {
                 region,
                 byte_offset,
+                is_bounded_buffer,
             } => {
                 let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
-                format!("string len {symbol}@{byte_offset}")
+                let carrier = if *is_bounded_buffer { " carrier" } else { "" };
+                format!("string len {symbol}@{byte_offset}{carrier}")
             }
             InstructionOperandKind::RuntimePointeeStringPointer {
                 region,

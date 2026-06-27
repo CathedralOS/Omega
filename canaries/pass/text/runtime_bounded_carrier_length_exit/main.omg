@@ -1,0 +1,30 @@
+// #66 owned `[u8; N] in Utf8` carrier `.len` as a host-call / value-position
+// operand. A carrier is `{len, bytes}` inline -- its length word lives at the
+// carrier's own offset (content at +pointer_size), unlike a fat-slice descriptor
+// whose len sits at +pointer_size. `self.message = "ALERT " + self.label` builds a
+// runtime carrier of length 6 + 4 = 10; `exit_process(self.message.len)` reads that
+// length word and exits 10. (`.len` already worked in guards; this exercises it as
+// a marshaled call argument.)
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 8]::Utf8 when valid_utf8(self) {}
+domain [u8; 32]::Utf8 when valid_utf8(self) {}
+
+boundary trait Console {
+    machine write_line(text: &[u8] in Utf8);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    label: [u8; 8] in Utf8;
+    message: [u8; 32] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.label = "temp";
+    self.message = "ALERT " + self.label;
+    transition { _ -> done() }
+    state done(&mut self) {
+        self.console.exit_process(self.message.len);
+    }
+}

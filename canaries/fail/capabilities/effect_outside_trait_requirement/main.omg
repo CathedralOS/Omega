@@ -4,7 +4,7 @@
 // which is outside the trait ceiling and is rejected.
 
 boundary trait Console {
-    machine write_line(text: String)
+    machine write_line(text: &[u8])
     effects
         stdout_io;
 }
@@ -13,7 +13,7 @@ data MyConsole {
     id: i32;
 }
 
-machine MyConsole::write_line(text: String) satisfies Console
+machine MyConsole::write_line(text: &[u8]) satisfies Console
 effects
     stdout_io
     filesystem_io

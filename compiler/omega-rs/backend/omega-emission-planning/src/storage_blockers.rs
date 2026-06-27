@@ -232,8 +232,12 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                    | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
+                    | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. }
+                    | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameString { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeString { .. }
+                    | SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedString { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineIndexedString { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame { .. }

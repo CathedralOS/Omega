@@ -1,0 +1,34 @@
+// A runtime slice `.len` (read from the descriptor of a slice PARAM, not folded
+// from a fixed-array layout constant) narrows into an `i32` field: `measure`
+// receives `&[i32]` and does `self.count = s.len`, then the count is exited. The
+// length value is a 32-bit count, so reading its low 4-byte word lowers into the
+// i32 target (an 8-byte read does not) -- matching the carrier `.len` convention.
+// arr has 5 elements -> exit 5.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    count: i32;
+}
+
+machine Main::main(&mut self) {
+    self.arr[0] = 1;
+    self.arr[1] = 2;
+    self.arr[2] = 3;
+    self.arr[3] = 4;
+    self.arr[4] = 5;
+    let s: &[i32] = self.arr.as_slice();
+    transition { _ -> measure(s) }
+
+    state measure(&mut self, s: &[i32]) {
+        self.count = s.len;
+        transition { _ -> done() }
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(self.count);
+    }
+}

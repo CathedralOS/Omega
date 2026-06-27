@@ -71,6 +71,7 @@ pub(super) fn select_host_operation_operands(
                     InstructionOperandKind::RuntimeStringPointer {
                         region: place.place.region,
                         byte_offset: place.place.byte_offset,
+                        is_bounded_buffer: place.is_bounded_buffer,
                     }
                 };
                 let length = if place.through_pointee {
@@ -82,6 +83,7 @@ pub(super) fn select_host_operation_operands(
                     InstructionOperandKind::RuntimeStringLength {
                         region: place.place.region,
                         byte_offset: place.place.byte_offset,
+                        is_bounded_buffer: place.is_bounded_buffer,
                     }
                 };
                 return console_write_operands(

@@ -6,8 +6,8 @@ mod static_values;
 
 pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::{
-    resolve_machine_owned_collection_in_table, resolve_machine_owned_place,
-    resolve_machine_owned_place_in_table,
+    MachineOwnedCollectionTarget, resolve_machine_owned_collection_in_table,
+    resolve_machine_owned_place, resolve_machine_owned_place_in_table,
 };
 pub(super) use model::{
     RuntimeFrameBaseIndexedTarget, RuntimeFrameFixedIndexedTarget, RuntimeFrameIndexedTarget,
@@ -53,10 +53,15 @@ fn runtime_slice_descriptor_member_place(
     }
 
     match member_name {
+        // The length VALUE is a 32-bit count (the language types `.len` as
+        // `i32`-assignable without a cast); the descriptor's 8-byte len slot is
+        // storage, so read the low 4-byte word. This matches the carrier `.len`
+        // convention and lets `.len` narrow into an `i32` target (an 8-byte read
+        // does not lower into a 4-byte field write).
         Some("len") => Some(RuntimeStoragePlace {
             region: RuntimeStorageRegion::RuntimeFrame,
             byte_offset: root_offset.checked_add(descriptor.len_offset())?,
-            byte_count: descriptor.len_size(),
+            byte_count: 4,
         }),
         _ => None,
     }
@@ -132,7 +137,9 @@ fn runtime_nested_slice_descriptor_len_place(
     Some(RuntimeStoragePlace {
         region: RuntimeStorageRegion::RuntimeFrame,
         byte_offset: cursor.byte_offset().checked_add(descriptor.len_offset())?,
-        byte_count: descriptor.len_size(),
+        // The length value is a 32-bit count -- read the low 4-byte word (see the
+        // root-slot `.len` resolver above).
+        byte_count: 4,
     })
 }
 
@@ -311,6 +318,42 @@ pub(super) fn resolve_runtime_storage_place_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<RuntimeStoragePlace> {
+    // A `[u8; N]` carrier's `.len` is the length word at the carrier's OWN offset
+    // (its content lives at `+pointer_size`), unlike a fat-slice descriptor whose
+    // `len` sits at `+pointer_size`. Resolve `<carrier>.len` by recursively
+    // resolving the carrier receiver, then reading the length word -- so every
+    // value-position consumer (host-call argument, mutation-write value) reads it
+    // uniformly. The length is a 32-bit count (`N < 2^32`), so the 4-byte read is
+    // exact and matches `i32` targets/exit codes (an 8-byte read does not lower
+    // into a 4-byte field write). The slice-descriptor `.len` paths below only
+    // cover fat descriptors.
+    let carrier_length_receiver = match expressions.expression(expression) {
+        ExpressionNode::Member(member) if member.member.as_str() == "len" => Some(member.receiver),
+        _ => None,
+    };
+    if let Some(receiver) = carrier_length_receiver
+        && resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            receiver,
+        )
+        && let Some(place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            receiver,
+        )
+    {
+        return Some(RuntimeStoragePlace {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_count: 4,
+        });
+    }
+
     if let Some(place) = resolve_runtime_fixed_indexed_place_in_table(
         input,
         dispatch_index,
@@ -729,6 +772,120 @@ pub(super) fn resolve_runtime_storage_place_is_fat_slice_in_table(
     .is_some_and(|descriptor| descriptor_is_fat_slice(&descriptor))
 }
 
+/// Whether a storage PLACE is an owned `[u8; N]` bounded byte carrier
+/// (`BoundedByteBuffer`, `{len, bytes}` inline). Unlike a fat-slice descriptor,
+/// the carrier owns its bytes -- its content lives at `place + pointer_size` and
+/// its length at `place + 0` -- so a content read must use carrier addressing,
+/// not a `{ptr, len}` descriptor load. Resolves the leaf descriptor (peeling a
+/// domain `Constrained` wrapper).
+pub(super) fn resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )
+    .is_some_and(|descriptor| descriptor_is_bounded_byte_buffer(&descriptor))
+}
+
+/// Whether a storage PLACE is an owned `[u8; N]` bounded byte carrier
+/// (`BoundedByteBuffer`, `{len, bytes}` inline). Unlike a fat-slice descriptor,
+/// the carrier owns its bytes; a literal write into it must store `len` + copy
+/// the content inline, not stamp a `{ptr,len}` descriptor. Resolves the target
+/// expression's leaf descriptor (peeling a domain `Constrained` wrapper).
+pub(super) fn resolve_runtime_storage_place_is_bounded_byte_buffer(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    resolved_target: &omega_checked_trees::expression::Expression,
+) -> bool {
+    let mut expressions = ExpressionTable::default();
+    let handle = expressions.insert_tree(resolved_target);
+    resolve_runtime_storage_leaf_descriptor_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &expressions,
+        handle,
+    )
+    .is_some_and(|descriptor| descriptor_is_bounded_byte_buffer(&descriptor))
+}
+
+fn descriptor_is_bounded_byte_buffer(descriptor: &TypeLayoutDescriptor) -> bool {
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            descriptor_is_bounded_byte_buffer(base_type)
+        }
+        TypeLayoutDescriptor::BoundedByteBuffer { .. } => true,
+        _ => false,
+    }
+}
+
+/// The element type of a `[u8; N]` carrier (`BoundedByteBuffer`), peeling a domain
+/// `Constrained` wrapper. `None` for any non-carrier descriptor.
+fn bounded_byte_buffer_element_type(
+    descriptor: &TypeLayoutDescriptor,
+) -> Option<&TypeLayoutDescriptor> {
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            bounded_byte_buffer_element_type(base_type)
+        }
+        TypeLayoutDescriptor::BoundedByteBuffer { element_type, .. } => Some(element_type),
+        _ => None,
+    }
+}
+
+/// Resolve `<carrier>[index]` (a byte read into a `[u8; N]` carrier) to its
+/// storage place. The carrier holds its content inline at `+pointer_size` (after
+/// the length word) with `element_type`-sized elements, so the indexed byte sits
+/// at `base + pointer_size + index * element_size`. Mirrors the fixed-array
+/// element path (including any indexed-suffix layout) but offsets into the
+/// carrier's content region. `None` for a non-carrier collection (the caller then
+/// falls through to the fixed-array resolution).
+fn bounded_byte_buffer_indexed_place(
+    input: &InstructionSelectionInput<'_>,
+    collection_descriptor: &TypeLayoutDescriptor,
+    region: RuntimeStorageRegion,
+    base_offset: usize,
+    index: usize,
+    expressions: &ExpressionTable,
+    suffix_root: ExpressionHandle,
+) -> Option<RuntimeStoragePlace> {
+    let element_descriptor = bounded_byte_buffer_element_type(collection_descriptor)?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let element_offset = index.checked_mul(element_layout.size)?;
+    let root_field = FieldLayout {
+        symbol: SymbolHandle::invalid(),
+        name: "".into(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+        input,
+        &root_field,
+        expressions,
+        suffix_root,
+    )?;
+    Some(RuntimeStoragePlace {
+        region,
+        byte_offset: base_offset
+            .checked_add(input.runtime_abi.pointer_size)?
+            .checked_add(element_offset)?
+            .checked_add(field_byte_offset)?,
+        byte_count: field_layout.size,
+    })
+}
+
 /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17) of a
 /// storage PLACE — read from the `Constrained` wrapper the layout builder records
 /// on the slot/field descriptor. Used at the binary-write site to decide whether
@@ -1007,14 +1164,55 @@ fn resolve_runtime_storage_leaf_descriptor_in_table(
     let Some(slot) = slot else {
         // Not a frame slot: most `data` fields are machine-owned. Resolve the
         // leaf type descriptor through that path instead.
-        let collection = resolve_machine_owned_collection_in_table(
+        if let Some(collection) = resolve_machine_owned_collection_in_table(
             &input.layouts,
             input.entry_key.machine,
             source_key.machine,
             expressions,
             expression,
-        )?;
-        return Some(collection.type_descriptor.clone());
+        ) {
+            return Some(collection.type_descriptor.clone());
+        }
+        // Carrier RECOGNITION for a slice-VIEW element through an elided local
+        // (`r[i].label`, r = X.as_slice()): the local has no slot and is not
+        // machine-owned, so trace its initializer + see through the as_slice view
+        // to the underlying array, take the element type, and walk the field
+        // suffix. Without this a carrier field on such an element was not
+        // recognized and its `==`/copy lowering bailed (the lookup's `room.label`,
+        // a sibling of the i32 element-place fix in
+        // resolve_runtime_fixed_indexed_place_in_table).
+        if path.member_index(0).is_some() {
+            let array = resolve_elided_local_slice_view_array(
+                input,
+                source_key,
+                path.head_symbol(),
+                path.member(0)?,
+            )?;
+            let element_descriptor = inline_fixed_array_element_type(&array.type_descriptor)?;
+            let element_layout = descriptor_layout(input, element_descriptor);
+            let root_field = FieldLayout {
+                symbol: SymbolHandle::invalid(),
+                name: "".into(),
+                offset: 0,
+                type_symbol: element_descriptor.storage_symbol(),
+                type_name: "".into(),
+                type_descriptor: element_descriptor.clone(),
+                layout: element_layout,
+            };
+            let mut cursor = NestedFieldLayoutCursor::from_root(&root_field);
+            for (field_name, field_symbol, field_index, case_variant) in suffix.iter() {
+                cursor = resolve_nested_field_layout_step(
+                    &input.layouts,
+                    cursor,
+                    field_name,
+                    field_symbol,
+                    field_index,
+                    case_variant,
+                )?;
+            }
+            return Some(cursor.type_descriptor().clone());
+        }
+        return None;
     };
 
     let root_field = FieldLayout {
@@ -1908,6 +2106,17 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         expressions,
         fixed.collection,
     ) {
+        if let Some(place) = bounded_byte_buffer_indexed_place(
+            input,
+            &slot.type_descriptor,
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            index,
+            expressions,
+            fixed.suffix_root,
+        ) {
+            return Some(place);
+        }
         let element_descriptor = inline_fixed_array_element_type(&slot.type_descriptor)?;
         let element_layout = descriptor_layout(input, element_descriptor);
         let element_offset = index.checked_mul(element_layout.size)?;
@@ -1937,13 +2146,45 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         });
     }
 
-    let collection = resolve_machine_owned_collection_in_table(
+    let collection = match resolve_machine_owned_collection_in_table(
         &input.layouts,
         input.entry_key.machine,
         source_key.machine,
         expressions,
         fixed.collection,
-    )?;
+    ) {
+        Some(collection) => collection,
+        // Elided-local collection (`let r = X.as_slice(); ... r[i]`): the local has
+        // no frame slot, so trace it to the underlying machine array (see
+        // resolve_elided_local_slice_view_array). This lets a slice-VIEW element
+        // forwarded by value to a value-call (bound as a BranchParameter alias
+        // `room = r[i]`, the lookup shape) reach the underlying machine array's
+        // element instead of resolving to nothing. Only a bare single-name path
+        // can be such a local.
+        None => {
+            let path = normalized_storage_name_path_in_table(expressions, fixed.collection)?;
+            if path.len() != 1 {
+                return None;
+            }
+            resolve_elided_local_slice_view_array(
+                input,
+                source_key,
+                path.head_symbol(),
+                path.member(0)?,
+            )?
+        }
+    };
+    if let Some(place) = bounded_byte_buffer_indexed_place(
+        input,
+        &collection.type_descriptor,
+        RuntimeStorageRegion::Machine,
+        collection.byte_offset,
+        index,
+        expressions,
+        fixed.suffix_root,
+    ) {
+        return Some(place);
+    }
     let element_descriptor = inline_fixed_array_element_type(&collection.type_descriptor)?;
     let element_layout = descriptor_layout(input, element_descriptor);
     let element_offset = index.checked_mul(element_layout.size)?;
@@ -2127,7 +2368,17 @@ fn fixed_indexed_target_path_in_table(
             })
         }
         ExpressionNode::Indexed(indexed) => {
-            if let Some(path) = fixed_indexed_target_path_in_table(table, indexed.collection) {
+            // See through an `as_slice`/`as_mut_slice` VIEW of an array:
+            // `(X.as_slice())[i]` indexes the same element as `X[i]`. A `let r =
+            // X.as_slice()` local folds into `(X.as_slice())[i]`, whose collection
+            // is an unmaterialized view (no frame slot), so the element place
+            // failed to resolve -- a slice-view element forwarded by value to a
+            // value-call (`read(r[i])`, bound as a BranchParameter alias) left the
+            // callee's `room.field` reading a zero slot. Unwrapping to `X[i]`
+            // resolves it against the underlying array. (Path normalization already
+            // peels FULL as_slice views; this peels the INDEXED-element form.)
+            let collection = see_through_as_slice_view(table, indexed.collection);
+            if let Some(path) = fixed_indexed_target_path_in_table(table, collection) {
                 return Some(TableFixedIndexedTargetPath {
                     collection: path.collection,
                     index: path.index,
@@ -2138,13 +2389,57 @@ fn fixed_indexed_target_path_in_table(
                 return None;
             };
             Some(TableFixedIndexedTargetPath {
-                collection: indexed.collection,
+                collection,
                 index: *index,
                 suffix_root: expression,
             })
         }
         _ => None,
     }
+}
+
+/// See through an `as_slice`/`as_mut_slice` view of an array to its receiver:
+/// `X.as_slice()` -> `X`. `(X.as_slice())[i]` indexes the same element as `X[i]`,
+/// and as_slice's receiver is always an array, so peeling the view is sound and
+/// lets a slice-VIEW element resolve to the underlying array element. Returns the
+/// expression unchanged when it is not such a view.
+fn see_through_as_slice_view(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    if let ExpressionNode::Call(call) = table.expression(expression)
+        && call.receiver.is_valid()
+        && call.arguments.is_empty()
+        && matches!(call.target.as_str(), "as_slice" | "as_mut_slice")
+    {
+        return call.receiver;
+    }
+    expression
+}
+
+/// Trace an ELIDED LOCAL that VIEWS an array (`let r = X.as_slice()`) to the
+/// underlying machine-owned array it views. The local has no frame slot, so its
+/// declared initializer is resolved and the as_slice view peeled to the array.
+/// Shared by the slice-VIEW element resolvers -- the indexed PLACE
+/// (resolve_runtime_fixed_indexed_place_in_table) and the leaf DESCRIPTOR
+/// (resolve_runtime_storage_leaf_descriptor_in_table) -- so a slice-view element
+/// forwarded by value (`r[i]`, e.g. bound as a value-call BranchParameter alias)
+/// resolves against the underlying array instead of the unmaterialized view.
+fn resolve_elided_local_slice_view_array(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    head_symbol: SymbolHandle,
+    head_name: &Identifier,
+) -> Option<MachineOwnedCollectionTarget> {
+    let initializer = state_local_initializer(input, source_key, head_symbol, head_name)?;
+    let underlying = see_through_as_slice_view(&input.program.expression_table, initializer);
+    resolve_machine_owned_collection_in_table(
+        &input.layouts,
+        input.entry_key.machine,
+        source_key.machine,
+        &input.program.expression_table,
+        underlying,
+    )
 }
 
 fn indexed_target_path_in_table(
@@ -2284,6 +2579,22 @@ fn descriptor_layout(
             return TypeLayout {
                 size: element.size.saturating_mul(*length),
                 alignment: element.alignment,
+            };
+        }
+        TypeLayoutDescriptor::BoundedByteBuffer {
+            element_type,
+            capacity,
+        } => {
+            // Owned `{ len, bytes }` inline: a pointer-sized length word followed
+            // by `capacity` inline element bytes. Must agree with the omega-layout
+            // field sizing for the carrier (a leading len word, then the bytes).
+            let element = descriptor_layout(input, element_type);
+            return TypeLayout {
+                size: input
+                    .runtime_abi
+                    .pointer_size
+                    .saturating_add(element.size.saturating_mul(*capacity)),
+                alignment: input.runtime_abi.pointer_alignment,
             };
         }
         TypeLayoutDescriptor::Slice { .. } => {

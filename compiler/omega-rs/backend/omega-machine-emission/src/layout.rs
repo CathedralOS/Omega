@@ -14,9 +14,12 @@ use omega_instruction_selection::{
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_frame_string_write_width,
+    runtime_machine_bounded_buffer_literal_append_width,
+    runtime_machine_bounded_buffer_source_append_width, runtime_machine_bounded_buffer_write_width,
     runtime_machine_integer_write_width, runtime_machine_string_write_width,
     runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
-    runtime_pointee_string_write_width, runtime_storage_binary_write_width,
+    runtime_pointee_bounded_buffer_write_width, runtime_pointee_string_write_width,
+    runtime_storage_binary_write_width,
     runtime_storage_compare_width, runtime_storage_convert_width,
     runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_pointee_width,
     runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width,
@@ -636,6 +639,19 @@ fn machine_instruction_width(
         SelectedInstructionKind::WriteRuntimeMachineString { byte_length, .. } => {
             runtime_machine_string_write_width(input.target.architecture, *byte_length)
         }
+        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { literal, .. } => {
+            runtime_machine_bounded_buffer_write_width(input.target.architecture, literal)
+        }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+            source_in_frame,
+            ..
+        } => runtime_machine_bounded_buffer_source_append_width(
+            input.target.architecture,
+            *source_in_frame,
+        ),
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { literal, .. } => {
+            runtime_machine_bounded_buffer_literal_append_width(input.target.architecture, literal)
+        }
         SelectedInstructionKind::WriteRuntimeFrameString { byte_length, .. } => {
             runtime_frame_string_write_width(input.target.architecture, *byte_length)
         }
@@ -650,6 +666,9 @@ fn machine_instruction_width(
             *field_byte_offset,
             *byte_length,
         ),
+        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { literal, .. } => {
+            runtime_pointee_bounded_buffer_write_width(input.target.architecture, literal)
+        }
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             element_byte_size,
             field_byte_offset,
@@ -759,6 +778,7 @@ fn machine_instruction_width(
                 input.target.architecture,
                 read.byte_capacity,
                 &binding.mechanism,
+                read.is_bounded_buffer,
             )
         }
         SelectedInstructionKind::CopyRuntimeStorage {

@@ -609,11 +609,21 @@ pub fn encode_syscall_sequence<T: InstructionOperandLike>(
             append_mov_syscall_arg_from_rax(&mut bytes, index)?;
         } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
             append_mov_r15_imm64(&mut bytes, 0);
-            append_load_rax_from_r15(&mut bytes, byte_offset)?; // rax = descriptor.pointer
+            if operand.runtime_string_is_bounded_buffer() {
+                // Owned carrier: content pointer = base + byte_offset + pointer_size.
+                bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15 + disp32]
+                bytes.extend(disp32(byte_offset + 8)?.to_le_bytes());
+            } else {
+                append_load_rax_from_r15(&mut bytes, byte_offset)?; // rax = descriptor.pointer
+            }
             append_mov_syscall_arg_from_rax(&mut bytes, index)?;
         } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
             append_mov_r15_imm64(&mut bytes, 0);
-            append_load_rax_from_r15(&mut bytes, byte_offset + 8)?; // rax = descriptor.length
+            if operand.runtime_string_is_bounded_buffer() {
+                append_load_rax_from_r15(&mut bytes, byte_offset)?; // carrier len @ offset 0
+            } else {
+                append_load_rax_from_r15(&mut bytes, byte_offset + 8)?; // rax = descriptor.length
+            }
             append_mov_syscall_arg_from_rax(&mut bytes, index)?;
         } else if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
             append_mov_r15_imm64(&mut bytes, 0); // relocated region base
@@ -768,7 +778,15 @@ fn append_file_pointer_operand<T: InstructionOperandLike>(
         Ok(())
     } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
         append_mov_r10_imm64(bytes, 0);
-        append_load_rdx_from_r10(bytes, byte_offset)?;
+        if operand.runtime_string_is_bounded_buffer() {
+            // Owned carrier: the content pointer is the COMPUTED inline-bytes
+            // address `base + byte_offset + pointer_size` (lea), not a stored
+            // descriptor pointer. Same width as the descriptor-pointer load.
+            bytes.extend([0x49, 0x8d, 0x92]); // lea rdx, [r10 + disp32]
+            bytes.extend(disp32(byte_offset + 8)?.to_le_bytes());
+        } else {
+            append_load_rdx_from_r10(bytes, byte_offset)?;
+        }
         Ok(())
     } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_pointer() {
         append_mov_r10_imm64(bytes, 0);
@@ -797,7 +815,13 @@ fn append_file_length_operand<T: InstructionOperandLike>(
         Ok(())
     } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
         append_mov_r10_imm64(bytes, 0);
-        append_load_r8_from_r10(bytes, byte_offset + 8)?;
+        if operand.runtime_string_is_bounded_buffer() {
+            // Owned carrier: length is at offset 0 (not the descriptor's len word
+            // at offset pointer_size).
+            append_load_r8_from_r10(bytes, byte_offset)?;
+        } else {
+            append_load_r8_from_r10(bytes, byte_offset + 8)?;
+        }
         Ok(())
     } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_length() {
         append_mov_r10_imm64(bytes, 0);
@@ -1881,14 +1905,25 @@ pub struct RuntimeTextLineReadLayout {
 fn build_runtime_text_line_read(
     target_offset: usize,
     capacity: u32,
+    is_bounded_buffer: bool,
 ) -> Result<(Vec<u8>, RuntimeTextLineReadLayout), Diagnostic> {
     let target_ptr_disp = disp32(target_offset)?;
     let target_len_disp = disp32(target_offset + 8)?;
+    // Owned carrier: r14 must point at the inline bytes (`region + target_offset +
+    // pointer_size`), so the imm64 relocates to the carrier's own region and an
+    // `add` advances past the leading 8-byte length word.
+    let carrier_bytes_disp = disp32(target_offset + 8)?;
     let mut bytes = Vec::with_capacity(128);
 
-    // r14 = buffer (imm64 at +2 relocated to the buffer data symbol).
+    // r14 = read buffer (imm64 at +2 relocated to the buffer data symbol, OR to
+    // the carrier's own region for an owned `[u8; N]` target).
     bytes.extend([0x49, 0xbe]);
     bytes.extend(0u64.to_le_bytes());
+    if is_bounded_buffer {
+        // add r14, target_offset + pointer_size -> r14 = carrier inline bytes.
+        bytes.extend([0x49, 0x81, 0xc6]);
+        bytes.extend(carrier_bytes_disp.to_le_bytes());
+    }
     // sub rsp, 56.
     bytes.extend([0x48, 0x83, 0xec, 0x38]);
     // mov ecx, -10 (STD_INPUT_HANDLE).
@@ -1968,19 +2003,29 @@ fn build_runtime_text_line_read(
     }
     // add rsp, 56.
     bytes.extend([0x48, 0x83, 0xc4, 0x38]);
-    // r12 = target descriptor base (imm64 relocated). Use r12? no -- r12 is the
-    // dispatch-state register; use r13 (handle no longer needed).
-    // mov r13, imm64(target). The relocation planner anchors at the instruction
-    // start and adds the +2 immediate offset itself, so record the start.
-    let target_mov_offset = bytes.len();
-    bytes.extend([0x49, 0xbd]);
-    bytes.extend(0u64.to_le_bytes());
-    // mov [r13+target_offset], r14  (descriptor.ptr = buffer).
-    bytes.extend([0x4d, 0x89, 0xb5]);
-    bytes.extend(target_ptr_disp.to_le_bytes());
-    // mov [r13+target_offset+8], r15 (descriptor.len = line length).
-    bytes.extend([0x4d, 0x89, 0xbd]);
-    bytes.extend(target_len_disp.to_le_bytes());
+
+    let target_mov_offset = if is_bounded_buffer {
+        // Owned carrier: the bytes are already in place (r14 read straight into the
+        // inline storage). Write only the length at `[r14 - 8]` (= region +
+        // target_offset, the leading len word). No `{ptr, len}` descriptor, hence
+        // no second relocation.
+        bytes.extend([0x4d, 0x89, 0x7e, 0xf8]); // mov [r14-8], r15
+        0
+    } else {
+        // r13 = target descriptor base (imm64 relocated). The relocation planner
+        // anchors at the instruction start and adds the +2 immediate offset itself,
+        // so record the start.
+        let target_mov_offset = bytes.len();
+        bytes.extend([0x49, 0xbd]);
+        bytes.extend(0u64.to_le_bytes());
+        // mov [r13+target_offset], r14  (descriptor.ptr = buffer).
+        bytes.extend([0x4d, 0x89, 0xb5]);
+        bytes.extend(target_ptr_disp.to_le_bytes());
+        // mov [r13+target_offset+8], r15 (descriptor.len = line length).
+        bytes.extend([0x4d, 0x89, 0xbd]);
+        bytes.extend(target_len_disp.to_le_bytes());
+        target_mov_offset
+    };
 
     let width = bytes.len();
     Ok((
@@ -1994,12 +2039,16 @@ fn build_runtime_text_line_read(
     ))
 }
 
-fn runtime_text_line_read_layout() -> RuntimeTextLineReadLayout {
+fn runtime_text_line_read_layout_for(is_bounded_buffer: bool) -> RuntimeTextLineReadLayout {
     // Capacity/target do not affect the layout (all immediates are fixed width),
     // so encode once with placeholders to recover the authoritative offsets.
-    build_runtime_text_line_read(0, 1)
+    build_runtime_text_line_read(0, 1, is_bounded_buffer)
         .expect("runtime text line read layout encodes")
         .1
+}
+
+fn runtime_text_line_read_layout() -> RuntimeTextLineReadLayout {
+    runtime_text_line_read_layout_for(false)
 }
 
 pub fn runtime_text_line_read_width(_byte_capacity: usize) -> usize {
@@ -2018,6 +2067,21 @@ pub fn runtime_text_line_read_target_imm_offset() -> usize {
     runtime_text_line_read_layout().target_imm_offset
 }
 
+/// Owned `[u8; N]` carrier read encodes a wider prologue (the `add r14` past the
+/// length word) and a shorter epilogue (a single `len` store, no `{ptr, len}`
+/// descriptor), so its import-call offsets and width differ from the String path.
+pub fn runtime_text_line_read_carrier_width(_byte_capacity: usize) -> usize {
+    runtime_text_line_read_layout_for(true).width
+}
+
+pub fn runtime_text_line_read_carrier_get_std_handle_call_offset() -> usize {
+    runtime_text_line_read_layout_for(true).get_std_handle_call_offset
+}
+
+pub fn runtime_text_line_read_carrier_read_file_call_offset() -> usize {
+    runtime_text_line_read_layout_for(true).read_file_call_offset
+}
+
 /// x86_64 Linux line read via the `read(2)` syscall (no GetStdHandle/ReadFile imports).
 /// Byte-at-a-time read from stdin (fd 0) into the relocated buffer (r14), tracking the
 /// line length in r15, with the same CRLF/NUL terminator handling as the win32 import
@@ -2032,21 +2096,45 @@ pub fn encode_runtime_text_line_read_syscall(
             "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
         ))
     })?;
-    Ok(build_runtime_text_line_read_syscall(target_offset, capacity, number)?.0)
+    Ok(build_runtime_text_line_read_syscall(target_offset, capacity, number, false)?.0)
+}
+
+/// Linux `read(2)` line read into an owned `[u8; N]` carrier: stdin bytes land in
+/// the carrier's inline storage and the line length is written to its leading
+/// length word; no `{ptr, len}` descriptor.
+pub fn encode_runtime_text_line_read_syscall_carrier(
+    target_offset: usize,
+    byte_capacity: usize,
+    number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let capacity = u32::try_from(byte_capacity).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
+        ))
+    })?;
+    Ok(build_runtime_text_line_read_syscall(target_offset, capacity, number, true)?.0)
 }
 
 fn build_runtime_text_line_read_syscall(
     target_offset: usize,
     capacity: u32,
     number: u32,
+    is_bounded_buffer: bool,
 ) -> Result<(Vec<u8>, usize), Diagnostic> {
     let target_ptr_disp = disp32(target_offset)?;
     let target_len_disp = disp32(target_offset + 8)?;
+    let carrier_bytes_disp = disp32(target_offset + 8)?;
     let mut bytes = Vec::with_capacity(128);
 
-    // r14 = buffer (imm64 at +2 relocated to the buffer data symbol); r15 = length.
+    // r14 = read buffer (imm64 at +2 relocated to the buffer data symbol, OR to the
+    // carrier's own region for an owned `[u8; N]` target); r15 = length.
     bytes.extend([0x49, 0xbe]);
     bytes.extend(0u64.to_le_bytes());
+    if is_bounded_buffer {
+        // add r14, target_offset + pointer_size -> r14 = carrier inline bytes.
+        bytes.extend([0x49, 0x81, 0xc6]);
+        bytes.extend(carrier_bytes_disp.to_le_bytes());
+    }
     bytes.extend([0x4d, 0x31, 0xff]); // xor r15, r15
 
     let loop_start = bytes.len();
@@ -2105,24 +2193,37 @@ fn build_runtime_text_line_read_syscall(
         let rel = done as isize - (fixup as isize + 4);
         bytes[fixup..fixup + 4].copy_from_slice(&(rel as i32).to_le_bytes());
     }
-    // mov r13, imm64(target) (relocated at +2); store the descriptor.
-    let target_mov_offset = bytes.len();
-    bytes.extend([0x49, 0xbd]);
-    bytes.extend(0u64.to_le_bytes());
-    bytes.extend([0x4d, 0x89, 0xb5]); // mov [r13+target_offset], r14 (descriptor.ptr)
-    bytes.extend(target_ptr_disp.to_le_bytes());
-    bytes.extend([0x4d, 0x89, 0xbd]); // mov [r13+target_offset+8], r15 (descriptor.len)
-    bytes.extend(target_len_disp.to_le_bytes());
+    let target_mov_offset = if is_bounded_buffer {
+        // Owned carrier: the bytes are already in place; write only the length at
+        // `[r14 - 8]` (the leading len word). No `{ptr, len}` descriptor.
+        bytes.extend([0x4d, 0x89, 0x7e, 0xf8]); // mov [r14-8], r15
+        0
+    } else {
+        // mov r13, imm64(target) (relocated at +2); store the descriptor.
+        let target_mov_offset = bytes.len();
+        bytes.extend([0x49, 0xbd]);
+        bytes.extend(0u64.to_le_bytes());
+        bytes.extend([0x4d, 0x89, 0xb5]); // mov [r13+target_offset], r14 (descriptor.ptr)
+        bytes.extend(target_ptr_disp.to_le_bytes());
+        bytes.extend([0x4d, 0x89, 0xbd]); // mov [r13+target_offset+8], r15 (descriptor.len)
+        bytes.extend(target_len_disp.to_le_bytes());
+        target_mov_offset
+    };
 
     Ok((bytes, target_mov_offset))
 }
 
-fn runtime_text_line_read_syscall_layout() -> (usize, usize) {
+fn runtime_text_line_read_syscall_layout_for(is_bounded_buffer: bool) -> (usize, usize) {
     // Capacity/number/target are all fixed-width immediates, so they do not affect the
     // layout; encode once with placeholders to recover the width + target imm offset.
-    let (bytes, target_mov_offset) = build_runtime_text_line_read_syscall(0, 1, 0)
-        .expect("runtime text line read syscall layout encodes");
+    let (bytes, target_mov_offset) =
+        build_runtime_text_line_read_syscall(0, 1, 0, is_bounded_buffer)
+            .expect("runtime text line read syscall layout encodes");
     (bytes.len(), target_mov_offset)
+}
+
+fn runtime_text_line_read_syscall_layout() -> (usize, usize) {
+    runtime_text_line_read_syscall_layout_for(false)
 }
 
 pub fn runtime_text_line_read_syscall_width() -> usize {
@@ -2131,6 +2232,12 @@ pub fn runtime_text_line_read_syscall_width() -> usize {
 
 pub fn runtime_text_line_read_syscall_target_imm_offset() -> usize {
     runtime_text_line_read_syscall_layout().1
+}
+
+/// Owned carrier syscall read: wider prologue (`add r14`), shorter epilogue (a
+/// single `len` store), so its width differs from the String descriptor path.
+pub fn runtime_text_line_read_syscall_carrier_width() -> usize {
+    runtime_text_line_read_syscall_layout_for(true).0
 }
 
 pub fn encode_runtime_text_line_read(
@@ -2142,7 +2249,22 @@ pub fn encode_runtime_text_line_read(
             "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
         ))
     })?;
-    Ok(build_runtime_text_line_read(target_offset, capacity)?.0)
+    Ok(build_runtime_text_line_read(target_offset, capacity, false)?.0)
+}
+
+/// Read a stdin line into an owned `[u8; N]` carrier: stdin bytes land directly in
+/// the carrier's inline storage (`region + target_offset + pointer_size`) and the
+/// line length is written to the carrier's leading length word (`target_offset`).
+pub fn encode_runtime_text_line_read_carrier(
+    target_offset: usize,
+    byte_capacity: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let capacity = u32::try_from(byte_capacity).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot encode line-read capacity `{byte_capacity}` yet"
+        ))
+    })?;
+    Ok(build_runtime_text_line_read(target_offset, capacity, true)?.0)
 }
 
 // ---- compact_binary v0 wire-encode appends (chapter 20, decision 10) ----
@@ -3427,6 +3549,183 @@ pub fn encode_runtime_machine_string_write(
     Ok(bytes)
 }
 
+// Write a string literal into an owned `[u8; N]` bounded byte carrier at machine
+// storage (`{len, bytes}` inline). r15 = machine storage base (reloc @ +2); store
+// `len` (the literal length) as the leading 8-byte word at [r15 + byte_offset],
+// then copy each literal byte inline at [r15 + byte_offset + 8 + i] as an
+// immediate. The carrier OWNS its bytes (a value), unlike the String descriptor
+// which stores a {ptr -> rodata, len}. Content is immediate, so the ONLY
+// relocation is the base address (the leading `mov r15, imm64`).
+pub fn runtime_machine_bounded_buffer_write_width(literal: &str) -> usize {
+    // mov r15,imm64 (10) + mov rax,imm64 (10) + store rax->[r15+off] 8B (7) = 27,
+    // then per content byte: mov byte [r15 + disp32], imm8 (8).
+    27 + literal.len() * 8
+}
+
+// Write a string literal into an owned `[u8; N]` carrier reached THROUGH a stored
+// pointer (`rooms[0].label = "Gate"`): load the pointer from `frame[ptr]` into r15,
+// then store `len` + the literal bytes inline at `*ptr + field`. Content is
+// immediate, so the ONLY relocation is the base (the leading `mov r15, imm64`).
+pub fn runtime_pointee_bounded_buffer_write_width(literal: &str) -> usize {
+    // mov r15,imm64 (10) + mov r15,[r15+ptr] (7) + mov rax,imm64 (10)
+    // + store rax->[r15+field] 8B (7), then per content byte:
+    // mov byte [r15 + disp32], imm8 (8) = 34 + 8*len
+    34 + literal.len() * 8
+}
+
+pub fn encode_runtime_pointee_bounded_buffer_write(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_pointee_bounded_buffer_write_width(literal));
+    append_mov_r15_imm64(&mut bytes, 0); // frame/machine base (reloc @ +2)
+    append_load_r15_from_r15(&mut bytes, pointer_byte_offset)?; // r15 = stored pointer
+    append_mov_rax_imm64(&mut bytes, literal.len() as u64);
+    append_store_rax_to_r15(&mut bytes, field_byte_offset, 8)?; // [*ptr + field] = len word
+    for (index, byte) in literal.as_bytes().iter().enumerate() {
+        let displacement = disp32(field_byte_offset + 8 + index)?;
+        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
+        bytes.extend(displacement.to_le_bytes());
+        bytes.push(*byte);
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_pointee_bounded_buffer_write_width(literal)
+    );
+    Ok(bytes)
+}
+
+pub fn encode_runtime_machine_bounded_buffer_write(
+    byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_write_width(literal));
+    append_mov_r15_imm64(&mut bytes, 0); // machine storage base (reloc @ +2)
+    append_mov_rax_imm64(&mut bytes, literal.len() as u64);
+    append_store_rax_to_r15(&mut bytes, byte_offset, 8)?; // [base + off] = len word
+    for (index, byte) in literal.as_bytes().iter().enumerate() {
+        let displacement = disp32(byte_offset + 8 + index)?;
+        bytes.extend([0x41, 0xc6, 0x87]); // mov byte [r15 + disp32], imm8
+        bytes.extend(displacement.to_le_bytes());
+        bytes.push(*byte);
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_bounded_buffer_write_width(literal)
+    );
+    Ok(bytes)
+}
+
+// Append a source carrier's content onto a target carrier (concat builder source
+// segment, after the first literal initialized the target). r15 = machine
+// storage base (reloc @ +2). rax = target running len; rcx = source len (rep
+// count); rsi = source bytes (source + 8); rdi = target bytes + running len; copy
+// rcx bytes; store new len = target_len + source_len. Fixed width (no per-byte
+// loop), one relocation (the base).
+pub fn runtime_machine_bounded_buffer_source_append_width(source_in_frame: bool) -> usize {
+    // mov r15,imm64 (10) + mov rax,[r15+t] (7) + mov rcx,[base+s] (7)
+    // + lea rsi,[base+s+8] (7) + lea rdi,[r15+t+8] (7) + add rdi,rax (3)
+    // + rep movsb (2) + add rax,rcx (3) + mov [r15+t],rax (7) = 53.
+    // A frame-local source adds `mov r14, imm64(frame)` (10) for the source base.
+    if source_in_frame { 63 } else { 53 }
+}
+
+pub fn encode_runtime_machine_bounded_buffer_source_append(
+    target_byte_offset: usize,
+    source_byte_offset: usize,
+    source_in_frame: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let target = disp32(target_byte_offset)?;
+    let target_bytes = disp32(target_byte_offset + 8)?;
+    let source = disp32(source_byte_offset)?;
+    let source_bytes = disp32(source_byte_offset + 8)?;
+    let mut bytes =
+        Vec::with_capacity(runtime_machine_bounded_buffer_source_append_width(source_in_frame));
+    append_mov_r15_imm64(&mut bytes, 0); // machine storage base (target; reloc @ +2)
+    // The source carrier is read off r15 (machine) by default; a `let`-local source
+    // loads the runtime frame base into r14 (a second relocation @ +12) and reads
+    // from there. The two source instructions differ only in their base register.
+    let (source_len_modrm, source_bytes_modrm) = if source_in_frame {
+        append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +12)
+        (0x8eu8, 0xb6u8) // mov rcx,[r14+s] ; lea rsi,[r14+s+8]
+    } else {
+        (0x8fu8, 0xb7u8) // mov rcx,[r15+s] ; lea rsi,[r15+s+8]
+    };
+    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + target]   (target running len)
+    bytes.extend(target.to_le_bytes());
+    bytes.extend([0x49, 0x8b, source_len_modrm]); // mov rcx, [base + source] (source len)
+    bytes.extend(source.to_le_bytes());
+    bytes.extend([0x49, 0x8d, 0xbf]); // lea rdi, [r15 + target+8] (target bytes base)
+    bytes.extend(target_bytes.to_le_bytes());
+    bytes.extend([0x48, 0x01, 0xc7]); // add rdi, rax  (target bytes + running len)
+    // new len = target_len + source_len -- MUST precede `rep movsb`, which
+    // decrements rcx to 0 as it copies; computing it after would always add 0.
+    bytes.extend([0x48, 0x01, 0xc8]); // add rax, rcx  (rax = target_len + source_len)
+    bytes.extend([0x49, 0x8d, source_bytes_modrm]); // lea rsi, [base + source+8] (source bytes)
+    bytes.extend(source_bytes.to_le_bytes());
+    bytes.extend([0xf3, 0xa4]); // rep movsb  (copy rcx bytes; consumes rcx)
+    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + target], rax  (store new len)
+    bytes.extend(target.to_le_bytes());
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_bounded_buffer_source_append_width(source_in_frame)
+    );
+    Ok(bytes)
+}
+
+// Append a string LITERAL onto a target carrier at its running length (a later
+// concat segment, e.g. the trailing `" =="`). r15 = machine storage base (reloc
+// @ +2). rax = target running len; rdi = target bytes + running len; the literal
+// bytes are written as immediates at `[rdi + i]`; store new len = old + lit.len.
+// One relocation (the base); fixed width (no per-byte loop -- the bytes are
+// unrolled immediate stores).
+pub fn runtime_machine_bounded_buffer_literal_append_width(literal: &str) -> usize {
+    // mov r15,imm64 (10) + mov rax,[r15+t] (7) + lea rdi,[r15+t+8] (7)
+    // + add rdi,rax (3) + per byte: mov byte [rdi+disp8],imm8 (4)
+    // + add rax,imm32 (`48 05`+imm32 = 6) + mov [r15+t],rax (7) = 40 + 4*len
+    40 + 4 * literal.len()
+}
+
+pub fn encode_runtime_machine_bounded_buffer_literal_append(
+    target_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let target = disp32(target_byte_offset)?;
+    let target_bytes = disp32(target_byte_offset + 8)?;
+    let literal_bytes = literal.as_bytes();
+    let literal_len = u32::try_from(literal_bytes.len()).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 encoder cannot append a carrier literal of {} bytes",
+            literal_bytes.len()
+        ))
+    })?;
+    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_literal_append_width(literal));
+    append_mov_r15_imm64(&mut bytes, 0); // machine storage base (reloc @ +2)
+    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + target]   (target running len)
+    bytes.extend(target.to_le_bytes());
+    bytes.extend([0x49, 0x8d, 0xbf]); // lea rdi, [r15 + target+8] (target bytes base)
+    bytes.extend(target_bytes.to_le_bytes());
+    bytes.extend([0x48, 0x01, 0xc7]); // add rdi, rax  (dest = target bytes + running len)
+    for (index, byte) in literal_bytes.iter().enumerate() {
+        let disp = u8::try_from(index).map_err(|_| {
+            Diagnostic::error(
+                "X86_64 encoder cannot append a carrier literal longer than 127 bytes".to_string(),
+            )
+        })?;
+        bytes.extend([0xc6, 0x47, disp, *byte]); // mov byte [rdi + disp8], imm8
+    }
+    bytes.extend([0x48, 0x05]); // add rax, imm32  (new len = old + literal length)
+    bytes.extend(literal_len.to_le_bytes());
+    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + target], rax  (store new len)
+    bytes.extend(target.to_le_bytes());
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_bounded_buffer_literal_append_width(literal)
+    );
+    Ok(bytes)
+}
+
 pub fn encode_runtime_frame_string_write(
     byte_offset: usize,
     byte_length: usize,
@@ -3490,9 +3789,18 @@ pub fn runtime_storage_binary_write_width(
     {
         width_integer_add_sub_width(byte_size)
             + arithmetic_domain_clamp_width(domain, operator, byte_size, target_signed)
+    } else if domain == ArithmeticDomain::Saturating
+        && matches!(
+            operator,
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
+        )
+    {
+        // Saturating SIGNED divide/modulo wraps the normal idiv in a TYPE_MIN/-1
+        // guard (see append_saturating_signed_divide_modulo).
+        saturating_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
     } else {
-        // Trapping div/mod (and all Exact/Wrapping ops) use the normal op width;
-        // Saturating div/mod errors in emission, so its width is irrelevant.
+        // Trapping div/mod (and all Exact/Wrapping ops, plus unsigned saturating
+        // div/mod which cannot overflow) use the normal op width.
         runtime_binary_operation_or_float_width(operator, byte_size, is_float)
     };
     // 10 (mov r14,imm64) + left + push r10 (2) + right + mov r11,r10 (3)
@@ -3504,6 +3812,28 @@ pub fn runtime_storage_binary_write_width(
         + 2
         + operation_width
         + 7.max(store_width(byte_size))
+}
+
+/// Bytes of [`append_saturating_signed_divide_modulo`], for the relocation layout.
+/// MUST equal the emitter exactly. cmp r11,-1 (4) + jne (2) + the divisor==-1
+/// fixup + jmp (2) + the normal idiv core (the plain signed op width).
+fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -> usize {
+    let fixup = if want_remainder {
+        3 // xor r10d, r10d
+    } else if byte_size <= 4 {
+        13 // neg r10d (3) + mov r9d,imm32 (6) + cmovo r10d,r9d (4)
+    } else {
+        17 // neg r10 (3) + mov r9,imm64 (10) + cmovo r10,r9 (4)
+    };
+    let normal = runtime_binary_operation_width(
+        if want_remainder {
+            StateGuardOperator::Modulo
+        } else {
+            StateGuardOperator::Divide
+        },
+        byte_size,
+    );
+    4 + 2 + fixup + 2 + normal
 }
 
 /// Bytes of [`append_width_integer_add_sub`]: 4 for 16-bit (0x66 prefix), else 3.
@@ -3587,22 +3917,19 @@ pub fn encode_runtime_storage_binary_write(
     } else if domain == ArithmeticDomain::Saturating
         && matches!(
             operator,
-            StateGuardOperator::Divide
-                | StateGuardOperator::Modulo
-                | StateGuardOperator::DivideUnsigned
-                | StateGuardOperator::ModuloUnsigned
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
         )
     {
-        // Saturating divide/modulo: integer division only overflows at
-        // TYPE_MIN / -1 (a corner the hardware `idiv` traps on); clamping that to
-        // TYPE_MAX needs a dedicated pre-check, not implemented yet. (Trapping
-        // div/mod falls through to the normal path below, where `idiv` already
+        // Saturating SIGNED divide/modulo: clamp the one overflowing corner
+        // (TYPE_MIN / -1) to TYPE_MAX / 0 instead of trapping. The UNSIGNED variants
+        // cannot overflow, so they are absent from this arm and fall through to the
+        // normal path below. (Trapping div/mod also falls through, where `idiv`
         // traps on overflow and divide-by-zero -- exactly Trapping semantics.)
-        return Err(Diagnostic::error(
-            "saturating divide/modulo is not implemented yet (integer division only \
-             overflows at the type minimum divided by -1)"
-                .to_owned(),
-        ));
+        append_saturating_signed_divide_modulo(
+            &mut bytes,
+            byte_size,
+            operator == StateGuardOperator::Modulo,
+        )?;
     } else {
         append_runtime_binary_operation(
             &mut bytes,
@@ -4678,7 +5005,11 @@ pub fn runtime_value_operand_width(
         24
     } else if runtime_value_operands.text_equals(operand).is_some() {
         runtime_text_equals_operand_width()
-    } else if let Some((place, literal)) = runtime_value_operands.text_equals_literal(operand) {
+    } else if let Some((place, literal, _is_bounded_buffer)) =
+        runtime_value_operands.text_equals_literal(operand)
+    {
+        // Carrier vs descriptor place are byte-width identical, so the width is
+        // independent of `is_bounded_buffer`.
         runtime_text_equals_literal_operand_width(runtime_value_operands, place, &literal)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
@@ -4687,9 +5018,14 @@ pub fn runtime_value_operand_width(
             // recorded relocation offsets drift (silent runtime segfault).
             runtime_float_binary_operation_width()
         } else {
-            // Nested binary operands do not carry their result width; assume the
-            // 64-bit form (correct for i64 and for non-negative i32 division).
-            runtime_binary_operation_width(operator, 8)
+            // Use the SAME byte_size the emission picks (runtime_binary_operation_byte_size):
+            // div/mod run at the operand width so a negative i32 dividend is handled
+            // correctly, which changes the idiv/div core length -- the width MUST track
+            // it or relocation offsets drift (silent segfault). Other ops keep 64-bit.
+            runtime_binary_operation_width(
+                operator,
+                runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, 8),
+            )
         };
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
@@ -4790,13 +5126,16 @@ fn append_runtime_value_operand(
     {
         append_runtime_text_equals_operand(bytes, destination, left_offset, right_offset)?;
         Ok(())
-    } else if let Some((place, literal)) = runtime_value_operands.text_equals_literal(operand) {
+    } else if let Some((place, literal, place_is_bounded_buffer)) =
+        runtime_value_operands.text_equals_literal(operand)
+    {
         append_runtime_text_equals_literal_operand(
             runtime_value_operands,
             bytes,
             destination,
             place,
             &literal,
+            place_is_bounded_buffer,
         )?;
         Ok(())
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
@@ -4959,6 +5298,7 @@ fn append_runtime_text_equals_literal_operand(
     destination: Reg64,
     place: RuntimeValueOperandHandle,
     literal: &str,
+    place_is_bounded_buffer: bool,
 ) -> Result<(), Diagnostic> {
     let operand_start = bytes.len();
 
@@ -5029,10 +5369,22 @@ fn append_runtime_text_equals_literal_operand(
         ));
     }
 
-    bytes.extend([0x48, 0x8b, 0x88]); // mov rcx, [rax+disp32] (ptr)
-    bytes.extend(disp32(descriptor_disp)?.to_le_bytes());
-    bytes.extend([0x48, 0x8b, 0x90]); // mov rdx, [rax+disp32] (len)
-    bytes.extend(disp32(descriptor_disp + 8)?.to_le_bytes());
+    if place_is_bounded_buffer {
+        // Owned carrier `{len@0, bytes@8}`: rcx = bytes ADDRESS (rax+disp+8,
+        // computed, not a stored pointer); rdx = len read at offset 0. Same widths
+        // as the descriptor path (lea/mov are both `48 .. 88/90 disp32` = 7 bytes),
+        // so the byte-compare loop, branch offsets, and operand width are all
+        // unchanged.
+        bytes.extend([0x48, 0x8d, 0x88]); // lea rcx, [rax+disp32] (carrier bytes addr)
+        bytes.extend(disp32(descriptor_disp + 8)?.to_le_bytes());
+        bytes.extend([0x48, 0x8b, 0x90]); // mov rdx, [rax+disp32] (carrier.len @ 0)
+        bytes.extend(disp32(descriptor_disp)?.to_le_bytes());
+    } else {
+        bytes.extend([0x48, 0x8b, 0x88]); // mov rcx, [rax+disp32] (ptr)
+        bytes.extend(disp32(descriptor_disp)?.to_le_bytes());
+        bytes.extend([0x48, 0x8b, 0x90]); // mov rdx, [rax+disp32] (len)
+        bytes.extend(disp32(descriptor_disp + 8)?.to_le_bytes());
+    }
 
     // result = 0; a length mismatch is unequal text. The jne also means an
     // all-zero (default) descriptor never has its null pointer dereferenced
@@ -5147,9 +5499,125 @@ fn runtime_binary_operation_byte_size(
 ) -> usize {
     if is_comparison_operator(operator) {
         runtime_binary_compare_byte_size(operands, left, right)
+    } else if matches!(
+        operator,
+        StateGuardOperator::Divide
+            | StateGuardOperator::Modulo
+            | StateGuardOperator::DivideUnsigned
+            | StateGuardOperator::ModuloUnsigned
+    ) {
+        // Division/modulo are NOT modular: a 64-bit idiv/div on a zero-extended
+        // negative i32 dividend yields a wrong quotient. Run at the OPERAND width (an
+        // immediate has no width, so use the non-immediate operand's), so a 32-bit
+        // op handles the i32 dividend correctly -- signed via cdq, unsigned via the
+        // resolver mapping Divide->DivideUnsigned. Add/sub/mul are modular and keep
+        // the default 64-bit form. See [[guard-negative-i32-arithmetic]].
+        runtime_binary_compare_byte_size(operands, left, right)
     } else {
         target_byte_size
     }
+}
+
+/// The width-correct integer idiv/div core: dividend in r10, divisor in r11,
+/// quotient (or remainder, when `want_remainder`) back in r10. A 32-bit divide
+/// reads only the low dword, so the width must match the operands. Signed uses
+/// cdq/cqo + `idiv`; unsigned zeroes the dividend-high half + `div`. Shared by the
+/// normal binary-op path and the saturating divide/modulo helper.
+fn append_integer_divide_modulo_core(
+    bytes: &mut Vec<u8>,
+    byte_size: usize,
+    want_remainder: bool,
+    signed: bool,
+) {
+    if byte_size <= 4 {
+        bytes.extend([0x41, 0x8b, 0xc2]); // mov eax, r10d
+        if signed {
+            bytes.push(0x99); // cdq (sign-extend eax -> edx)
+            bytes.extend([0x41, 0xf7, 0xfb]); // idiv r11d
+        } else {
+            bytes.extend([0x31, 0xd2]); // xor edx, edx
+            bytes.extend([0x41, 0xf7, 0xf3]); // div r11d
+        }
+        if want_remainder {
+            bytes.extend([0x41, 0x89, 0xd2]); // mov r10d, edx (remainder)
+        } else {
+            bytes.extend([0x41, 0x89, 0xc2]); // mov r10d, eax (quotient)
+        }
+    } else {
+        bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
+        if signed {
+            bytes.extend([0x48, 0x99]); // cqo (sign-extend rax -> rdx)
+            bytes.extend([0x49, 0xf7, 0xfb]); // idiv r11
+        } else {
+            bytes.extend([0x31, 0xd2]); // xor edx, edx (clears rdx)
+            bytes.extend([0x49, 0xf7, 0xf3]); // div r11
+        }
+        if want_remainder {
+            bytes.extend([0x49, 0x89, 0xd2]); // mov r10, rdx (remainder)
+        } else {
+            bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (quotient)
+        }
+    }
+}
+
+/// Saturating SIGNED divide/modulo (dividend r10, divisor r11, result r10).
+/// Integer division overflows only at TYPE_MIN / -1, the one corner `idiv`
+/// hardware-traps on; guard the `divisor == -1` case so Saturating clamps instead
+/// of trapping: `a % -1 == 0`, and `a / -1 == -a` saturating TYPE_MIN -> TYPE_MAX.
+/// Every other divisor goes through the normal idiv (division reduces magnitude,
+/// so no quotient/remainder can overflow). Unsigned div/mod never overflow and so
+/// never reach here -- they fall through to the normal path.
+fn append_saturating_signed_divide_modulo(
+    bytes: &mut Vec<u8>,
+    byte_size: usize,
+    want_remainder: bool,
+) -> Result<(), Diagnostic> {
+    if !want_remainder && byte_size != 4 && byte_size != 8 {
+        // The TYPE_MIN -> TYPE_MAX saturation reads `neg`'s overflow flag, which
+        // only reflects the 32/64-bit register width; an i8/i16 dividend rides
+        // sign-extended in a 32-bit register, so `neg` never overflows for its
+        // (narrower) TYPE_MIN. Modulo is width-independent (a % -1 == 0).
+        return Err(Diagnostic::error(
+            "saturating signed i8/i16 divide is not implemented yet (i32/i64 only)".to_owned(),
+        ));
+    }
+    // cmp r11, -1 (sized): the only divisor needing the saturating fixup.
+    if byte_size <= 4 {
+        bytes.extend([0x41, 0x83, 0xfb, 0xff]); // cmp r11d, -1
+    } else {
+        bytes.extend([0x49, 0x83, 0xfb, 0xff]); // cmp r11, -1
+    }
+    // The divisor == -1 fixup block.
+    let mut special: Vec<u8> = Vec::new();
+    if want_remainder {
+        special.extend([0x45, 0x31, 0xd2]); // xor r10d, r10d  (a % -1 == 0)
+    } else if byte_size <= 4 {
+        let imax = ((1i128 << (8 * byte_size - 1)) - 1) as u32;
+        special.extend([0x41, 0xf7, 0xda]); // neg r10d  (sets OF iff r10d == TYPE_MIN)
+        special.push(0x41);
+        special.push(0xb9);
+        special.extend(imax.to_le_bytes()); // mov r9d, TYPE_MAX
+        special.extend([0x45, 0x0f, 0x40, 0xd1]); // cmovo r10d, r9d  (TYPE_MIN -> TYPE_MAX)
+    } else {
+        let imax = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
+        special.extend([0x49, 0xf7, 0xda]); // neg r10
+        special.push(0x49);
+        special.push(0xb9);
+        special.extend(imax.to_le_bytes()); // mov r9, TYPE_MAX
+        special.extend([0x4d, 0x0f, 0x40, 0xd1]); // cmovo r10, r9
+    }
+    // The normal idiv (every divisor except -1).
+    let mut normal: Vec<u8> = Vec::new();
+    append_integer_divide_modulo_core(&mut normal, byte_size, want_remainder, true);
+    // jne over (special + the jmp) to the idiv; run special; jmp past the idiv.
+    // Both blocks are well under 128 bytes, so rel8 offsets suffice.
+    bytes.push(0x75);
+    bytes.push((special.len() + 2) as u8); // jne -> normal
+    bytes.extend(special);
+    bytes.push(0xeb);
+    bytes.push(normal.len() as u8); // jmp -> done
+    bytes.extend(normal);
+    Ok(())
 }
 
 fn append_runtime_binary_operation(
@@ -5195,10 +5663,8 @@ fn append_runtime_binary_operation(
         | StateGuardOperator::Modulo
         | StateGuardOperator::DivideUnsigned
         | StateGuardOperator::ModuloUnsigned => {
-            // Width must match the operands so the high bit is interpreted right
-            // (a 32-bit divide reads only the low dword). Signed uses cdq/cqo +
-            // `idiv`; unsigned zeroes the dividend-high half + `div`. Quotient ->
-            // (r/e)ax, remainder -> (r/e)dx.
+            // Quotient -> (r/e)ax, remainder -> (r/e)dx; the width-correct idiv
+            // sequence lives in the shared core (also used by saturating div/mod).
             let want_remainder = matches!(
                 operator,
                 StateGuardOperator::Modulo | StateGuardOperator::ModuloUnsigned
@@ -5207,35 +5673,7 @@ fn append_runtime_binary_operation(
                 operator,
                 StateGuardOperator::Divide | StateGuardOperator::Modulo
             );
-            if byte_size <= 4 {
-                bytes.extend([0x41, 0x8b, 0xc2]); // mov eax, r10d
-                if signed {
-                    bytes.push(0x99); // cdq (sign-extend eax -> edx)
-                    bytes.extend([0x41, 0xf7, 0xfb]); // idiv r11d
-                } else {
-                    bytes.extend([0x31, 0xd2]); // xor edx, edx
-                    bytes.extend([0x41, 0xf7, 0xf3]); // div r11d
-                }
-                if want_remainder {
-                    bytes.extend([0x41, 0x89, 0xd2]); // mov r10d, edx (remainder)
-                } else {
-                    bytes.extend([0x41, 0x89, 0xc2]); // mov r10d, eax (quotient)
-                }
-            } else {
-                bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
-                if signed {
-                    bytes.extend([0x48, 0x99]); // cqo (sign-extend rax -> rdx)
-                    bytes.extend([0x49, 0xf7, 0xfb]); // idiv r11
-                } else {
-                    bytes.extend([0x31, 0xd2]); // xor edx, edx (clears rdx)
-                    bytes.extend([0x49, 0xf7, 0xf3]); // div r11
-                }
-                if want_remainder {
-                    bytes.extend([0x49, 0x89, 0xd2]); // mov r10, rdx (remainder)
-                } else {
-                    bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (quotient)
-                }
-            }
+            append_integer_divide_modulo_core(bytes, byte_size, want_remainder, signed);
         }
         StateGuardOperator::ShiftLeft
         | StateGuardOperator::ShiftRight

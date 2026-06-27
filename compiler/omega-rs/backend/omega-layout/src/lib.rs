@@ -43,6 +43,19 @@ pub enum TypeLayoutDescriptor {
         element_type: Box<TypeLayoutDescriptor>,
         length: usize,
     },
+    /// An owned, variable-fill bounded byte buffer: `[u8; N]` carrying a runtime
+    /// `len <= N`. Laid out as `{ len, [element; capacity] }` INLINE -- a value,
+    /// NOT a `{ptr,len}` descriptor: the length is an explicit leading word and
+    /// the bytes follow inline, so reads view it as `{ &bytes, len }` and writes
+    /// copy content in + set `len`. Distinct from `FixedArray` (always-full, no
+    /// len word) and from `Slice`/`Reference` (borrowed `{ptr,len}`). Produced for
+    /// a `[u8; N] in <text-domain>` field -- the owned text carrier (#66) -- since
+    /// the text domain is stripped before the backend descriptor, so the carrier
+    /// needs its own variant to survive.
+    BoundedByteBuffer {
+        element_type: Box<TypeLayoutDescriptor>,
+        capacity: usize,
+    },
     Slice {
         element_type: Box<TypeLayoutDescriptor>,
     },
@@ -69,6 +82,7 @@ impl TypeLayoutDescriptor {
             Self::Reference { referee, .. } => referee.storage_symbol(),
             Self::Constrained { base_type, .. } => base_type.storage_symbol(),
             Self::FixedArray { element_type, .. } => element_type.storage_symbol(),
+            Self::BoundedByteBuffer { element_type, .. } => element_type.storage_symbol(),
             Self::Slice { element_type } => element_type.storage_symbol(),
             Self::DynamicTrait { symbol, .. } => *symbol,
             Self::Named { symbol, .. } => *symbol,
@@ -100,9 +114,9 @@ impl TypeLayoutDescriptor {
         match self {
             Self::Constrained { base_type, .. } => base_type.element_type(),
             Self::Reference { referee, .. } => referee.element_type(),
-            Self::FixedArray { element_type, .. } | Self::Slice { element_type } => {
-                Some(element_type)
-            }
+            Self::FixedArray { element_type, .. }
+            | Self::BoundedByteBuffer { element_type, .. }
+            | Self::Slice { element_type } => Some(element_type),
             _ => None,
         }
     }

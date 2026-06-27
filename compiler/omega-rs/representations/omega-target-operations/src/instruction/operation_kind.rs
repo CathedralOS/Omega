@@ -387,6 +387,29 @@ pub enum TargetOperationKind {
         data: TargetDataObjectHandle,
         byte_length: usize,
     },
+    /// Owned `[u8; N]` bounded byte carrier write (`{len, bytes}` inline): store
+    /// `len` then copy the literal's bytes inline. See the abstract-operations
+    /// twin for the rationale (the carrier OWNS its bytes vs the String descriptor
+    /// that aliases rodata).
+    WriteRuntimeMachineBoundedBuffer {
+        byte_offset: usize,
+        literal: std::sync::Arc<str>,
+        target_in_frame: bool,
+    },
+    /// Append a source carrier's content onto a target carrier (concat builder
+    /// source segment). See the abstract-operations twin.
+    AppendRuntimeMachineBoundedBufferSource {
+        target_byte_offset: usize,
+        source_byte_offset: usize,
+        source_in_frame: bool,
+    },
+    /// Append a string LITERAL onto an owned `[u8; N]` carrier at its running
+    /// length (a later concat segment such as the trailing `" =="`). See the
+    /// abstract-operations twin.
+    AppendRuntimeMachineBoundedBufferLiteral {
+        target_byte_offset: usize,
+        literal: std::sync::Arc<str>,
+    },
     WriteRuntimeFrameString {
         byte_offset: usize,
         data: TargetDataObjectHandle,
@@ -397,6 +420,13 @@ pub enum TargetOperationKind {
         field_byte_offset: usize,
         data: TargetDataObjectHandle,
         byte_length: usize,
+    },
+    /// Write a string LITERAL into an owned `[u8; N]` carrier reached THROUGH a
+    /// stored pointer (a slice element's carrier field). See the abstract twin.
+    WriteRuntimePointeeBoundedBuffer {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        literal: std::sync::Arc<str>,
     },
     WriteRuntimeFrameIndexedString {
         descriptor_offset: usize,
@@ -451,6 +481,10 @@ pub enum TargetOperationKind {
         target_offset: usize,
         byte_capacity: usize,
         source: RuntimeTextReadSource,
+        /// The target is an owned `[u8; N]` carrier (`{len, bytes}` inline): read
+        /// stdin into its inline bytes (`region + target_offset + pointer_size`)
+        /// and write only `len` at `target_offset`; `buffer` is unused.
+        is_bounded_buffer: bool,
     },
     CopyRuntimeStorage {
         source_region: RuntimeStorageRegion,

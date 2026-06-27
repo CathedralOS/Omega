@@ -120,6 +120,8 @@ fn runtime_value_expression_can_emit(
                     | BinaryOperator::And
                     | BinaryOperator::Multiply
                     | BinaryOperator::Subtract
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
             ) && runtime_value_expression_can_emit(
                 input,
                 source_key,

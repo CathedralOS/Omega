@@ -7,12 +7,12 @@
 // machine calls.
 //
 // Data model:
-//   Stats [copy, zero_init] { deposits: i32; withdrawals: i32; balance: i32; }
-//   Log   [copy, zero_init] { stats: Stats; event_count: i32; }
+//   Stats [copy, zero_init] { deposits: i32 in Saturating; withdrawals: i32 in Saturating; balance: i32 in Saturating; }
+//   Log   [copy, zero_init] { stats: Stats; event_count: i32 in Saturating; }
 //
 // Event variants:
-//   Deposit(amount: i32)    -- add to balance, increment deposits
-//   Withdraw(amount: i32)   -- subtract from balance, increment withdrawals
+//   Deposit(amount: i32 in Saturating)    -- add to balance, increment deposits
+//   Withdraw(amount: i32 in Saturating)   -- subtract from balance, increment withdrawals
 //   Reset                   -- zero the balance, keep counts
 //
 // Scripted:
@@ -31,20 +31,20 @@
 use omega::language::std::console;
 
 data Event {
-    case Deposit(amount: i32);
-    case Withdraw(amount: i32);
+    case Deposit(amount: i32 in Saturating);
+    case Withdraw(amount: i32 in Saturating);
     case Reset;
 }
 
 data Stats [copy, zero_init] {
-    deposits: i32;
-    withdrawals: i32;
-    balance: i32;
+    deposits: i32 in Saturating;
+    withdrawals: i32 in Saturating;
+    balance: i32 in Saturating;
 }
 
 data Log [copy, zero_init] {
     stats: Stats;
-    event_count: i32;
+    event_count: i32 in Saturating;
 }
 
 data Main {
@@ -61,12 +61,12 @@ machine Main::apply(&mut self, event: Event) {
         _ -> done()
     }
 
-    state do_deposit(&mut self, amount: i32) {
+    state do_deposit(&mut self, amount: i32 in Saturating) {
         self.log.stats.balance = self.log.stats.balance + amount;
         self.log.stats.deposits = self.log.stats.deposits + 1;
     }
 
-    state do_withdraw(&mut self, amount: i32) {
+    state do_withdraw(&mut self, amount: i32 in Saturating) {
         self.log.stats.balance = self.log.stats.balance - amount;
         self.log.stats.withdrawals = self.log.stats.withdrawals + 1;
     }

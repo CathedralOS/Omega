@@ -1,4 +1,4 @@
-// Fixed-capacity ring buffer over [i32; 8].
+// Fixed-capacity ring buffer over [i32 in Saturating; 8].
 //
 // Demonstrates: const-dispatch indexed read/write on a fixed array (the proven
 // pattern for runtime-indexed array access), modular head/tail arithmetic,
@@ -28,11 +28,11 @@
 use omega::language::std::console;
 
 data Ring [copy, zero_init] {
-    slots: [i32; 8];
-    head: i32;
-    tail: i32;
-    size: i32;
-    last_pop: i32;
+    slots: [i32 in Saturating; 8];
+    head: i32 in Saturating;
+    tail: i32 in Saturating;
+    size: i32 in Saturating;
+    last_pop: i32 in Saturating;
 }
 
 data Main {
@@ -44,8 +44,8 @@ data Main {
 // push(value): write value at slots[tail], then advance tail mod 8, size++.
 // Uses a dispatch chain because tail is a runtime value.
 // ---------------------------------------------------------------------------
-machine Main::push(&mut self, value: i32) {
-    let t: i32 = self.ring.tail;
+machine Main::push(&mut self, value: i32 in Saturating) {
+    let t: i32 in Saturating = self.ring.tail;
     self.ring.size = self.ring.size + 1;
     // Advance tail mod 8.
     transition t == 7 {
@@ -53,12 +53,12 @@ machine Main::push(&mut self, value: i32) {
         _ -> tail_advance(value, t)
     }
 
-    state tail_wrap(&mut self, value: i32, t: i32) {
+    state tail_wrap(&mut self, value: i32 in Saturating, t: i32 in Saturating) {
         self.ring.tail = 0;
         self.write_slot(t, value);
     }
 
-    state tail_advance(&mut self, value: i32, t: i32) {
+    state tail_advance(&mut self, value: i32 in Saturating, t: i32 in Saturating) {
         self.ring.tail = t + 1;
         self.write_slot(t, value);
     }
@@ -66,75 +66,75 @@ machine Main::push(&mut self, value: i32) {
 
 // Dispatch write to const-indexed slot. Necessary because native does not yet
 // support runtime-indexed array writes directly.
-machine Main::write_slot(&mut self, idx: i32, value: i32) {
+machine Main::write_slot(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
     transition idx == 0 {
         true -> w0(value)
         _ -> try_w1(idx, value)
     }
 
-    state w0(&mut self, value: i32) { self.ring.slots[0] = value; }
+    state w0(&mut self, value: i32 in Saturating) { self.ring.slots[0] = value; }
 
-    state try_w1(&mut self, idx: i32, value: i32) {
+    state try_w1(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 1 {
             true -> w1(value)
             _ -> try_w2(idx, value)
         }
     }
 
-    state w1(&mut self, value: i32) { self.ring.slots[1] = value; }
+    state w1(&mut self, value: i32 in Saturating) { self.ring.slots[1] = value; }
 
-    state try_w2(&mut self, idx: i32, value: i32) {
+    state try_w2(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 2 {
             true -> w2(value)
             _ -> try_w3(idx, value)
         }
     }
 
-    state w2(&mut self, value: i32) { self.ring.slots[2] = value; }
+    state w2(&mut self, value: i32 in Saturating) { self.ring.slots[2] = value; }
 
-    state try_w3(&mut self, idx: i32, value: i32) {
+    state try_w3(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 3 {
             true -> w3(value)
             _ -> try_w4(idx, value)
         }
     }
 
-    state w3(&mut self, value: i32) { self.ring.slots[3] = value; }
+    state w3(&mut self, value: i32 in Saturating) { self.ring.slots[3] = value; }
 
-    state try_w4(&mut self, idx: i32, value: i32) {
+    state try_w4(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 4 {
             true -> w4(value)
             _ -> try_w5(idx, value)
         }
     }
 
-    state w4(&mut self, value: i32) { self.ring.slots[4] = value; }
+    state w4(&mut self, value: i32 in Saturating) { self.ring.slots[4] = value; }
 
-    state try_w5(&mut self, idx: i32, value: i32) {
+    state try_w5(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 5 {
             true -> w5(value)
             _ -> try_w6(idx, value)
         }
     }
 
-    state w5(&mut self, value: i32) { self.ring.slots[5] = value; }
+    state w5(&mut self, value: i32 in Saturating) { self.ring.slots[5] = value; }
 
-    state try_w6(&mut self, idx: i32, value: i32) {
+    state try_w6(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 6 {
             true -> w6(value)
             _ -> w7(value)
         }
     }
 
-    state w6(&mut self, value: i32) { self.ring.slots[6] = value; }
-    state w7(&mut self, value: i32) { self.ring.slots[7] = value; }
+    state w6(&mut self, value: i32 in Saturating) { self.ring.slots[6] = value; }
+    state w7(&mut self, value: i32 in Saturating) { self.ring.slots[7] = value; }
 }
 
 // ---------------------------------------------------------------------------
 // pop: read slots[head] into last_pop, advance head mod 8, size--.
 // ---------------------------------------------------------------------------
 machine Main::pop(&mut self) {
-    let h: i32 = self.ring.head;
+    let h: i32 in Saturating = self.ring.head;
     self.ring.size = self.ring.size - 1;
     // Advance head mod 8.
     transition h == 7 {
@@ -142,19 +142,19 @@ machine Main::pop(&mut self) {
         _ -> head_advance(h)
     }
 
-    state head_wrap(&mut self, h: i32) {
+    state head_wrap(&mut self, h: i32 in Saturating) {
         self.ring.head = 0;
         self.read_slot(h);
     }
 
-    state head_advance(&mut self, h: i32) {
+    state head_advance(&mut self, h: i32 in Saturating) {
         self.ring.head = h + 1;
         self.read_slot(h);
     }
 }
 
 // Dispatch read from const-indexed slot into self.ring.last_pop.
-machine Main::read_slot(&mut self, idx: i32) {
+machine Main::read_slot(&mut self, idx: i32 in Saturating) {
     transition idx == 0 {
         true -> r0()
         _ -> try_r1(idx)
@@ -162,7 +162,7 @@ machine Main::read_slot(&mut self, idx: i32) {
 
     state r0(&mut self) { self.ring.last_pop = self.ring.slots[0]; }
 
-    state try_r1(&mut self, idx: i32) {
+    state try_r1(&mut self, idx: i32 in Saturating) {
         transition idx == 1 {
             true -> r1()
             _ -> try_r2(idx)
@@ -171,7 +171,7 @@ machine Main::read_slot(&mut self, idx: i32) {
 
     state r1(&mut self) { self.ring.last_pop = self.ring.slots[1]; }
 
-    state try_r2(&mut self, idx: i32) {
+    state try_r2(&mut self, idx: i32 in Saturating) {
         transition idx == 2 {
             true -> r2()
             _ -> try_r3(idx)
@@ -180,7 +180,7 @@ machine Main::read_slot(&mut self, idx: i32) {
 
     state r2(&mut self) { self.ring.last_pop = self.ring.slots[2]; }
 
-    state try_r3(&mut self, idx: i32) {
+    state try_r3(&mut self, idx: i32 in Saturating) {
         transition idx == 3 {
             true -> r3()
             _ -> try_r4(idx)
@@ -189,7 +189,7 @@ machine Main::read_slot(&mut self, idx: i32) {
 
     state r3(&mut self) { self.ring.last_pop = self.ring.slots[3]; }
 
-    state try_r4(&mut self, idx: i32) {
+    state try_r4(&mut self, idx: i32 in Saturating) {
         transition idx == 4 {
             true -> r4()
             _ -> try_r5(idx)
@@ -198,7 +198,7 @@ machine Main::read_slot(&mut self, idx: i32) {
 
     state r4(&mut self) { self.ring.last_pop = self.ring.slots[4]; }
 
-    state try_r5(&mut self, idx: i32) {
+    state try_r5(&mut self, idx: i32 in Saturating) {
         transition idx == 5 {
             true -> r5()
             _ -> try_r6(idx)
@@ -207,7 +207,7 @@ machine Main::read_slot(&mut self, idx: i32) {
 
     state r5(&mut self) { self.ring.last_pop = self.ring.slots[5]; }
 
-    state try_r6(&mut self, idx: i32) {
+    state try_r6(&mut self, idx: i32 in Saturating) {
         transition idx == 6 {
             true -> r6()
             _ -> r7()
@@ -248,7 +248,7 @@ machine Main::main(&mut self) {
 
     state check_sum(&mut self) {
         // Remaining elements: slots[3]=50, slots[4]=5, slots[5]=15 -> sum=70.
-        let sum: i32 = self.ring.slots[3] + self.ring.slots[4] + self.ring.slots[5];
+        let sum: i32 in Saturating = self.ring.slots[3] + self.ring.slots[4] + self.ring.slots[5];
         transition sum == 70 {
             true -> good()
             _ -> bad_sum()

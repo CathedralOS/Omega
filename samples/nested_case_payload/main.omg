@@ -3,7 +3,7 @@
 //
 // FRESH COMBINATION:
 //   1. Outer machine dispatches on a case type (Command variant) to extract
-//      payload fields (op: i32, n: i32).
+//      payload fields (op: i32 in Saturating, n: i32 in Saturating).
 //   2. A sub-state of that machine invokes apply_op(op, n) which performs
 //      a SECOND level of guard-based dispatch on the extracted payload fields.
 //   This exercises case-payload extraction feeding a nested integer dispatch
@@ -11,7 +11,7 @@
 //
 // Op codes: 0=add, 1=sub, 2=scale
 // Command:
-//   case Run(op: i32, n: i32) -- run op with value n on accumulator
+//   case Run(op: i32 in Saturating, n: i32 in Saturating) -- run op with value n on accumulator
 //   case Noop
 //
 // Sequence:
@@ -36,12 +36,12 @@
 use omega::language::std::console;
 
 data Command {
-    case Run(op: i32, n: i32);
+    case Run(op: i32 in Saturating, n: i32 in Saturating);
     case Noop;
 }
 
 data State [copy, zero_init] {
-    acc: i32;
+    acc: i32 in Saturating;
 }
 
 data Main {
@@ -50,28 +50,28 @@ data Main {
 }
 
 // Inner dispatcher: interpret op code on accumulator with value n.
-machine Main::apply_op(&mut self, op: i32, n: i32) {
+machine Main::apply_op(&mut self, op: i32 in Saturating, n: i32 in Saturating) {
     transition op == 0 {
         true -> do_add(n)
         _ -> try_sub(op, n)
     }
 
-    state do_add(&mut self, n: i32) {
+    state do_add(&mut self, n: i32 in Saturating) {
         self.st.acc = self.st.acc + n;
     }
 
-    state try_sub(&mut self, op: i32, n: i32) {
+    state try_sub(&mut self, op: i32 in Saturating, n: i32 in Saturating) {
         transition op == 1 {
             true -> do_sub(n)
             _ -> do_scale(n)
         }
     }
 
-    state do_sub(&mut self, n: i32) {
+    state do_sub(&mut self, n: i32 in Saturating) {
         self.st.acc = self.st.acc - n;
     }
 
-    state do_scale(&mut self, n: i32) {
+    state do_scale(&mut self, n: i32 in Saturating) {
         self.st.acc = self.st.acc * n;
     }
 }
@@ -84,7 +84,7 @@ machine Main::apply_command(&mut self, cmd: Command) {
         _ -> done()
     }
 
-    state do_run(&mut self, op: i32, n: i32) {
+    state do_run(&mut self, op: i32 in Saturating, n: i32 in Saturating) {
         // Second-level dispatch: interpret the operation.
         self.apply_op(op, n);
     }

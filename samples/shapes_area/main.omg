@@ -19,19 +19,19 @@ use omega::language::std::console;
 
 data Main {
     console: Console;
-    total: i32;
+    total: i32 in Saturating;
 }
 
 machine Main::main(&mut self) {
     // Circle radius 3: r*r = 9, passed as scalar; callee returns 9*3 = 27.
-    let rr: i32 = 3 * 3;
-    let a1: i32 = self.triple(rr);
+    let rr: i32 in Saturating = 3 * 3;
+    let a1: i32 in Saturating = self.triple(rr);
 
     // Rectangle 5x8: callee returns 5*8 = 40.
-    let a2: i32 = self.product(5, 8);
+    let a2: i32 in Saturating = self.product(5, 8);
 
     // Triangle base=6, height=1: callee returns 6*1/2 = 3.
-    let a3: i32 = self.halve(6, 1);
+    let a3: i32 in Saturating = self.halve(6, 1);
 
     self.total = a1 + a2 + a3;
 
@@ -50,21 +50,21 @@ machine Main::main(&mut self) {
 }
 
 // Multiply by 3.
-machine Main::triple(&mut self, n: i32) -> i32 {
+machine Main::triple(&mut self, n: i32 in Saturating) -> i32 in Saturating {
     transition {
         _ -> (n * 3)
     }
 }
 
 // Multiply two integers.
-machine Main::product(&mut self, w: i32, h: i32) -> i32 {
+machine Main::product(&mut self, w: i32 in Saturating, h: i32 in Saturating) -> i32 in Saturating {
     transition {
         _ -> (w * h)
     }
 }
 
 // Divide two integers (integer division).
-machine Main::halve(&mut self, b: i32, h: i32) -> i32 {
+machine Main::halve(&mut self, b: i32 in Saturating, h: i32 in Saturating) -> i32 in Saturating {
     transition {
         _ -> (b * h / 2)
     }

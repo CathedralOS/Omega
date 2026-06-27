@@ -29,7 +29,7 @@ use omega::language::std::console;
 data Readings [copy, zero_init] {
     flags: u8;
     offset: i16;
-    total: i32;
+    total: i32 in Saturating;
 }
 
 data Main {
@@ -44,9 +44,9 @@ machine Main::main(&mut self) {
 
     // Compute: flags*10 = 50, offset = -300, 50 + (-300) + 320 = 70.
     // Cast through i32 arithmetic to combine the widths.
-    let flags_i32: i32 = self.data.flags as i32;
-    let offset_i32: i32 = self.data.offset as i32;
-    let contrib: i32 = flags_i32 * 10;
+    let flags_i32: i32 in Saturating = self.data.flags as i32;
+    let offset_i32: i32 in Saturating = self.data.offset as i32;
+    let contrib: i32 in Saturating = flags_i32 * 10;
     self.data.total = contrib + offset_i32 + 320;
 
     transition self.data.total == 70 {

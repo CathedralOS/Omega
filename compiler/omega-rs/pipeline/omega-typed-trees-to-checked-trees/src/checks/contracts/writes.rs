@@ -74,6 +74,44 @@ pub(super) fn check_domain_field_writes(
             )));
         }
 
+        // (1b) Length-fits for a write into an OWNED bounded text carrier
+        // `[u8; N] in D`: the assigned value's maximum byte length must provably
+        // be <= N. This is the capacity half of the rung-2 growth bound and the
+        // dual of the concat-domain law -- it is what makes admitting `a + b`
+        // into the domain sound, by proving the materialized result cannot
+        // overflow the N-byte inline storage ("overflow should never happen").
+        // Gated on the field carrying a domain, so it touches only the rung-2
+        // text carrier and not unrelated `[u8; N]` byte buffers. A view carrier
+        // `&[u8] in D` owns no inline storage (capacity is None) and is skipped.
+        // A value whose maximum length cannot be bounded (an unbounded view
+        // source, a runtime call result) is conservatively rejected.
+        if let StatementNode::Assignment(assignment) = statement
+            && crate::field_domain::target_field_domain_symbol(program, machine, assignment.target)
+                .is_some()
+            && let Some(field_type) =
+                crate::field_domain::attached_data_field_type(program, machine, assignment.target)
+            && let Some(capacity) =
+                crate::field_domain::type_reference_fixed_array_capacity(program, field_type)
+        {
+            let target_label = program.expression_table.display_name(assignment.target);
+            match static_max_byte_length(program, machine, assignment.value) {
+                Some(max_length) if max_length <= capacity => {}
+                Some(max_length) => diagnostics.push(Diagnostic::error(format!(
+                    "the value assigned to `{target_label}` in {} can be up to {max_length} \
+                     byte(s), exceeding the {capacity}-byte capacity of its `[u8; {capacity}]` \
+                     carrier; a bounded text carrier requires every write to provably fit",
+                    machine_name(program, state_flow.machine_symbol),
+                ))),
+                None => diagnostics.push(Diagnostic::error(format!(
+                    "cannot bound the maximum byte length of the value assigned to \
+                     `{target_label}` in {}; a bounded `[u8; {capacity}]` text carrier requires a \
+                     write whose length is statically bounded (a literal, a concatenation of \
+                     bounded operands, or another bounded carrier) so it provably fits",
+                    machine_name(program, state_flow.machine_symbol),
+                ))),
+            }
+        }
+
         // (2) Brace CONSTRUCTION `T { f: X }` of a domain-refined field (the
         // #60-1c parallel for domains): every constructed domain field must be
         // established too, else a later read trusting the field is unsound.
@@ -133,6 +171,40 @@ fn statement_root_expressions(
                 }
             }
             roots
+        }
+    }
+}
+
+/// The maximum byte length the runtime value of `expression` can take when that
+/// bound is statically known, or `None` when it cannot be bounded. Underwrites
+/// the length-fits check on writes into a bounded `[u8; N]` text carrier:
+///   * a string literal contributes its exact byte length;
+///   * a concatenation `a + b` contributes the sum of its operands' bounds;
+///   * a `self.field` read contributes its declared `[u8; N]` carrier capacity
+///     (an owned bounded source).
+/// Anything else -- a `&[u8]` view source (no inline capacity), a runtime call
+/// result, a local -- is unbounded, yielding `None` (conservatively rejected by
+/// the caller). Notably an in-place append `self.buf + "x"` into a `[u8; N]`
+/// buffer bounds to `N + 1 > N` and is correctly rejected: proving it fits needs
+/// the buffer's flow-sensitive running length, not this static bound.
+fn static_max_byte_length(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    expression: ExpressionHandle,
+) -> Option<usize> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::String(literal) => Some(literal.as_bytes().len()),
+        ExpressionNode::Binary(binary)
+            if binary.operator == omega_typed_trees::expression::BinaryOperator::Add =>
+        {
+            let left = static_max_byte_length(program, machine, binary.left)?;
+            let right = static_max_byte_length(program, machine, binary.right)?;
+            Some(left.saturating_add(right))
+        }
+        _ => {
+            let field_type =
+                crate::field_domain::attached_data_field_type(program, machine, expression)?;
+            crate::field_domain::type_reference_fixed_array_capacity(program, field_type)
         }
     }
 }
@@ -401,6 +473,25 @@ fn value_proves_domain(
 ) -> bool {
     if crate::field_domain::string_literal_expression_grants_domain(program, value, domain_symbol) {
         return true;
+    }
+
+    // Concat preserves a classifier-backed domain: a `left + right` whose two
+    // operands are each provably in `domain_symbol` is itself in the domain, for
+    // the recognized concat-preserving byte-predicates (valid_utf8/no_nul/
+    // ascii_only/non_empty). This is the DOMAIN half of the rung-2 growth bound;
+    // the capacity half -- that the result fits an owned `[u8; N]` carrier -- is
+    // the separate length-fits check at the write site, so admitting the domain
+    // here is not on its own a license to overflow the target.
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(value)
+        && binary.operator == omega_typed_trees::expression::BinaryOperator::Add
+        && crate::field_domain::domain_is_concat_preserving(program, domain_symbol)
+    {
+        let (left, right) = (binary.left, binary.right);
+        if value_proves_domain(program, facts, state_flow, statement_index, left, domain_symbol)
+            && value_proves_domain(program, facts, state_flow, statement_index, right, domain_symbol)
+        {
+            return true;
+        }
     }
 
     // A value-position call whose target's DECLARED return type carries a domain

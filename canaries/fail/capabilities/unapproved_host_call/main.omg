@@ -4,7 +4,7 @@
 // host-call authorization gate must reject this as an unapproved host call.
 
 boundary trait LocalDisk {
-    machine write_bytes(path: String)
+    machine write_bytes(path: &[u8])
     effects
         filesystem_io;
 }
@@ -13,7 +13,7 @@ data Disk {
     id: i32;
 }
 
-machine Disk::write_bytes(path: String) satisfies LocalDisk
+machine Disk::write_bytes(path: &[u8]) satisfies LocalDisk
 effects
     filesystem_io
 {

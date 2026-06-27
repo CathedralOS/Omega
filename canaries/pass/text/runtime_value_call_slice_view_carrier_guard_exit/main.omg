@@ -1,0 +1,46 @@
+// #66 carrier sibling of runtime_value_call_slice_view_element_arg_exit: a
+// value-call forwarded a SLICE-VIEW element by value (`read(r[0])`, r a local
+// `self.rooms.as_slice()`) and GUARDS on the element's CARRIER field
+// `room.label == "Gate"`. `room.label` resolves through the BranchParameter alias
+// `room = r[0]` to `(self.rooms.as_slice())[0].label`.
+//
+// Regression: carrier RECOGNITION (the leaf type-descriptor resolution) returned
+// None for a slice-view element through the elided local `r`, so the carrier `==`
+// failed to lower and the guarded arm was dropped (poisoned). A DIRECT inline
+// element (`read(self.rooms[0])` with a carrier guard) always worked. Fix: trace
+// the elided local to its as_slice initializer, see through the view, and resolve
+// the element's field descriptor against the underlying array.
+//
+// Expected exit: 70.
+
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room { label: [u8; 8] in Utf8; }
+data Reader {
+}
+
+machine Reader::read(&mut self, room: Room) -> i32 {
+    transition room.label == "Gate" {
+        true -> (70)
+        _ -> (71)
+    }
+}
+
+data Main {
+    console: Console;
+    rooms: [Room; 2];
+    reader: Reader;
+}
+
+machine Main::main(&mut self) {
+    let w: &mut [Room] = self.rooms.as_mut_slice();
+    w[0].label = "Gate";
+    let r: &[Room] = self.rooms.as_slice();
+    let code: i32 = self.reader.read(r[0]);
+    self.console.exit_process(code);
+}

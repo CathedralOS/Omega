@@ -1,6 +1,6 @@
 // Integer RPN (reverse-Polish notation) calculator over a fixed-capacity stack.
 //
-// Stack: [i32; 4], growing from index 0. `sp` is the next free index (0=empty).
+// Stack: [i32 in Saturating; 4], growing from index 0. `sp` is the next free index (0=empty).
 // Supported operations: push(v), add, sub, mul.
 //
 // RPN expression: "32 4 + 2 * 2 -"
@@ -25,9 +25,9 @@
 use omega::language::std::console;
 
 data Stack [copy, zero_init] {
-    slots: [i32; 4];
-    sp: i32;        // stack pointer: index of next free slot (0 = empty)
-    result: i32;    // set by pop_result() to hold the final answer
+    slots: [i32 in Saturating; 4];
+    sp: i32 in Saturating;        // stack pointer: index of next free slot (0 = empty)
+    result: i32 in Saturating;    // set by pop_result() to hold the final answer
 }
 
 data Main {
@@ -39,38 +39,38 @@ data Main {
 // push(value): write value at slots[sp], then sp++.
 // Dispatches on sp so we can use const-indexed writes.
 // ---------------------------------------------------------------------------
-machine Main::push(&mut self, value: i32) {
-    let s: i32 = self.stack.sp;
+machine Main::push(&mut self, value: i32 in Saturating) {
+    let s: i32 in Saturating = self.stack.sp;
     self.stack.sp = s + 1;
     self.write_slot(s, value);
 }
 
-machine Main::write_slot(&mut self, idx: i32, value: i32) {
+machine Main::write_slot(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
     transition idx == 0 {
         true -> w0(value)
         _ -> try_w1(idx, value)
     }
 
-    state w0(&mut self, value: i32) { self.stack.slots[0] = value; }
+    state w0(&mut self, value: i32 in Saturating) { self.stack.slots[0] = value; }
 
-    state try_w1(&mut self, idx: i32, value: i32) {
+    state try_w1(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 1 {
             true -> w1(value)
             _ -> try_w2(idx, value)
         }
     }
 
-    state w1(&mut self, value: i32) { self.stack.slots[1] = value; }
+    state w1(&mut self, value: i32 in Saturating) { self.stack.slots[1] = value; }
 
-    state try_w2(&mut self, idx: i32, value: i32) {
+    state try_w2(&mut self, idx: i32 in Saturating, value: i32 in Saturating) {
         transition idx == 2 {
             true -> w2(value)
             _ -> w3(value)
         }
     }
 
-    state w2(&mut self, value: i32) { self.stack.slots[2] = value; }
-    state w3(&mut self, value: i32) { self.stack.slots[3] = value; }
+    state w2(&mut self, value: i32 in Saturating) { self.stack.slots[2] = value; }
+    state w3(&mut self, value: i32 in Saturating) { self.stack.slots[3] = value; }
 }
 
 // ---------------------------------------------------------------------------
@@ -97,8 +97,8 @@ machine Main::add(&mut self) {
     }
 
     state add_sp2(&mut self) {
-        let a: i32 = self.stack.slots[0];
-        let b: i32 = self.stack.slots[1];
+        let a: i32 in Saturating = self.stack.slots[0];
+        let b: i32 in Saturating = self.stack.slots[1];
         self.stack.sp = 1;
         self.stack.slots[0] = a + b;
     }
@@ -116,8 +116,8 @@ machine Main::sub(&mut self) {
     }
 
     state sub_sp2(&mut self) {
-        let a: i32 = self.stack.slots[0];
-        let b: i32 = self.stack.slots[1];
+        let a: i32 in Saturating = self.stack.slots[0];
+        let b: i32 in Saturating = self.stack.slots[1];
         self.stack.sp = 1;
         self.stack.slots[0] = a - b;
     }
@@ -135,8 +135,8 @@ machine Main::mul(&mut self) {
     }
 
     state mul_sp2(&mut self) {
-        let a: i32 = self.stack.slots[0];
-        let b: i32 = self.stack.slots[1];
+        let a: i32 in Saturating = self.stack.slots[0];
+        let b: i32 in Saturating = self.stack.slots[1];
         self.stack.sp = 1;
         self.stack.slots[0] = a * b;
     }

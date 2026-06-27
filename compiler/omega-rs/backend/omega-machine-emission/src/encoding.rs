@@ -546,6 +546,33 @@ pub(super) fn encode_machine_instruction_bytes(
         } => {
             runtime_storage::encode_runtime_machine_string_write(input, *byte_offset, *byte_length)
         }
+        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
+            byte_offset,
+            literal,
+            ..
+        } => runtime_storage::encode_runtime_machine_bounded_buffer_write(
+            input,
+            *byte_offset,
+            literal,
+        ),
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+            target_byte_offset,
+            source_byte_offset,
+            source_in_frame,
+        } => runtime_storage::encode_runtime_machine_bounded_buffer_source_append(
+            input,
+            *target_byte_offset,
+            *source_byte_offset,
+            *source_in_frame,
+        ),
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
+            target_byte_offset,
+            literal,
+        } => runtime_storage::encode_runtime_machine_bounded_buffer_literal_append(
+            input,
+            *target_byte_offset,
+            literal,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameString {
             byte_offset,
             byte_length,
@@ -561,6 +588,16 @@ pub(super) fn encode_machine_instruction_bytes(
             *pointer_byte_offset,
             *field_byte_offset,
             *byte_length,
+        ),
+        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        } => runtime_storage::encode_runtime_pointee_bounded_buffer_write(
+            input,
+            *pointer_byte_offset,
+            *field_byte_offset,
+            literal,
         ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             descriptor_offset,
@@ -666,6 +703,7 @@ pub(super) fn encode_machine_instruction_bytes(
                 read.target_offset,
                 read.byte_capacity,
                 read.source,
+                read.is_bounded_buffer,
             )
         }
         SelectedInstructionKind::CopyRuntimeStorage {

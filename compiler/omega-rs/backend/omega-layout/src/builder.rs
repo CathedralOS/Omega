@@ -534,8 +534,34 @@ impl<'program> LayoutBuilder<'program> {
                     })
                 }
             }
-            TypeReferenceNode::Constrained { base_type, .. } => {
-                self.layout_type_reference_handle_with_bindings(*base_type, bindings)
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let base_layout =
+                    self.layout_type_reference_handle_with_bindings(*base_type, bindings)?;
+                // The owned bounded byte carrier `[u8; N] in <named-domain>` lays
+                // out as `{ len, bytes }`: a pointer-sized length word followed by
+                // the N inline bytes. Must agree with the BoundedByteBuffer arm of
+                // instruction-selection's `descriptor_layout`.
+                let has_named_domain = self
+                    .program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
+                if has_named_domain
+                    && matches!(
+                        self.program.type_reference_table.type_reference(*base_type),
+                        TypeReferenceNode::FixedArray { .. }
+                    )
+                {
+                    return Ok(TypeLayout {
+                        size: self.target.pointer_size.saturating_add(base_layout.size),
+                        alignment: self.target.pointer_alignment,
+                    });
+                }
+                Ok(base_layout)
             }
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -796,19 +822,40 @@ impl<'program> LayoutBuilder<'program> {
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
-            } => TypeLayoutDescriptor::Constrained {
-                base_type: Box::new(self.type_descriptor(*base_type)),
-                domain: self
-                    .program
-                    .type_reference_table
-                    .constraints(*constraints)
+            } => {
+                let base = self.type_descriptor(*base_type);
+                let constraint_list =
+                    self.program.type_reference_table.constraints(*constraints);
+                // An owned `[u8; N] in <named-domain>` field is the variable-fill
+                // bounded byte carrier (#66): a NAMED (text) domain over a fixed
+                // array. It becomes its own `BoundedByteBuffer` descriptor --
+                // `{len, bytes}` is a distinct layout from the always-full
+                // `FixedArray`, and the named domain does not otherwise survive to
+                // the backend (only arithmetic domains do), so the carrier needs
+                // its own variant to be recognizable downstream.
+                let has_named_domain = constraint_list
                     .iter()
-                    .find_map(|constraint| match constraint {
-                        TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
-                        _ => None,
-                    })
-                    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
-            },
+                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
+                match base {
+                    TypeLayoutDescriptor::FixedArray {
+                        element_type,
+                        length,
+                    } if has_named_domain => TypeLayoutDescriptor::BoundedByteBuffer {
+                        element_type,
+                        capacity: length,
+                    },
+                    base => TypeLayoutDescriptor::Constrained {
+                        base_type: Box::new(base),
+                        domain: constraint_list
+                            .iter()
+                            .find_map(|constraint| match constraint {
+                                TypeConstraintNode::ArithmeticDomain(domain) => Some(*domain),
+                                _ => None,
+                            })
+                            .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
+                    },
+                }
+            }
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,

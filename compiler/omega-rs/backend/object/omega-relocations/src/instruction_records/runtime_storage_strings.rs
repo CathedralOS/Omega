@@ -22,6 +22,44 @@ pub(super) fn collect_runtime_storage_string_relocations(
             );
             true
         }
+        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
+            target_in_frame,
+            ..
+        } => {
+            // The carrier encoder's leading instruction is `mov r15, imm64` (the
+            // storage base); content is immediate, so the base is the ONLY
+            // relocation. A frame-resident target (a `let`-local struct's carrier
+            // field) patches it to the runtime frame base instead of machine storage.
+            let base = if *target_in_frame {
+                context.runtime_frame_symbol_handle()
+            } else {
+                context.machine_storage_symbol_handle()
+            };
+            context.insert_data_address_at_instruction_start(base);
+            true
+        }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+            source_in_frame,
+            ..
+        } => {
+            // The target carrier is machine-resident, addressed off the leading
+            // `mov r15, imm64` base. A frame-local source adds a `mov r14, imm64`
+            // (the runtime frame base) right after, whose imm64 is at +12.
+            context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            if *source_in_frame {
+                context.insert_data_address_at_relative_offset(
+                    10,
+                    context.runtime_frame_symbol_handle(),
+                );
+            }
+            true
+        }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. } => {
+            // The literal bytes are immediates; the target carrier is machine-
+            // resident off the leading `mov r15, imm64` base -- the only reloc.
+            context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            true
+        }
         SelectedInstructionKind::WriteRuntimeFrameString { data, .. } => {
             let data_symbol = context.data_object_symbol_handle(*data);
             context.insert_data_address_at_instruction_start(data_symbol);
@@ -38,6 +76,13 @@ pub(super) fn collect_runtime_storage_string_relocations(
                 string_descriptor_pointee_address_offset(context.input.target.architecture),
                 context.runtime_frame_symbol_handle(),
             );
+            true
+        }
+        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. } => {
+            // The slice pointer lives in the runtime frame (`mov r15, imm64`
+            // leading instruction, then `mov r15, [r15 + ptr]`); the carrier bytes
+            // are immediates, so the frame base is the only relocation.
+            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
             true
         }
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {

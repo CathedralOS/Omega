@@ -127,6 +127,48 @@ pub(super) fn select_runtime_string_mutation_write_in_table(
     let value = expressions.string_literal_value(value)?;
     let data = string_literal_data_handle(input, operation_source_key, statement_index, &value);
 
+    // An owned `[u8; N]` carrier must NOT be claimed as a `{ptr, len}` String
+    // descriptor (its `{len, bytes}` size can even equal the descriptor size, e.g.
+    // `[u8; 8]` -> 16 bytes). A carrier reached THROUGH a pointer (a slice
+    // element's / pointee field, `rooms[0].label = "Gate"`) writes its `{len,
+    // bytes}` inline through the pointer; a direct machine-resident carrier defers
+    // to the mutation pass (which emits WriteRuntimeMachineBoundedBuffer).
+    if crate::selection::storage_places::resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        if let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        ) {
+            return Some(SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                field_byte_offset: pointer_target.field_byte_offset,
+                literal: std::sync::Arc::from(value.to_string()),
+            });
+        }
+        if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+        ) {
+            return Some(SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                field_byte_offset: pointer_target.field_byte_offset,
+                literal: std::sync::Arc::from(value.to_string()),
+            });
+        }
+        return None;
+    }
+
     if data.is_valid()
         && let Some(pointer_target) = resolve_runtime_pointee_fixed_indexed_target_in_table(
             input,

@@ -479,6 +479,45 @@ pub enum AbstractOperationKind {
         data: AbstractDataObjectHandle,
         byte_length: usize,
     },
+    /// Write a string literal into an owned `[u8; N]` bounded byte carrier
+    /// (`BoundedByteBuffer`, `{len, bytes}` inline) at machine storage. Unlike
+    /// `WriteRuntimeMachineString` -- which stores a `{ptr -> rodata, len}`
+    /// descriptor that ALIASES the literal -- the carrier OWNS its bytes: store
+    /// `len` (the literal length) at the leading word, then copy the literal's
+    /// bytes inline after it. The content is emitted as immediates, so no data
+    /// relocation is needed (only the storage base). The target is machine-resident
+    /// UNLESS `target_in_frame` (a `let`-local struct's carrier field such as a
+    /// local `room.label`), in which case it is written off the runtime frame base.
+    WriteRuntimeMachineBoundedBuffer {
+        byte_offset: usize,
+        literal: Arc<str>,
+        target_in_frame: bool,
+    },
+    /// Append another owned `[u8; N]` carrier's content onto a target carrier at
+    /// machine storage (the concat-builder's source segment after the first
+    /// literal initialized the target via `WriteRuntimeMachineBoundedBuffer`).
+    /// Reads the target's running `len` and the source's `len`, copies the
+    /// source's `len` content bytes (at `source + pointer_size`) onto the target's
+    /// bytes at the running offset (`target + pointer_size + target_len`), then
+    /// stores the new running `len = target_len + source_len`. The target carrier
+    /// is machine-resident; the source carrier is machine-resident UNLESS
+    /// `source_in_frame` (a `let`-local carrier such as `room.label`), in which
+    /// case it is read from the runtime frame base (a second relocation). The
+    /// length-fits guard proves the result still fits the target's `N`.
+    AppendRuntimeMachineBoundedBufferSource {
+        target_byte_offset: usize,
+        source_byte_offset: usize,
+        source_in_frame: bool,
+    },
+    /// Append a string LITERAL onto an owned `[u8; N]` carrier at its running
+    /// length (a later concat segment, e.g. the trailing `" =="` of
+    /// `"== " + room.label + " =="`). The literal's bytes are written as immediates
+    /// at `target + pointer_size + len`, then `len += literal.len`. The length-fits
+    /// guard proves the result still fits the target's `N`.
+    AppendRuntimeMachineBoundedBufferLiteral {
+        target_byte_offset: usize,
+        literal: Arc<str>,
+    },
     WriteRuntimeFrameString {
         byte_offset: usize,
         data: AbstractDataObjectHandle,
@@ -489,6 +528,16 @@ pub enum AbstractOperationKind {
         field_byte_offset: usize,
         data: AbstractDataObjectHandle,
         byte_length: usize,
+    },
+    /// Write a string LITERAL into an owned `[u8; N]` carrier reached THROUGH a
+    /// stored pointer (`rooms[0].label = "Gate"`, a slice element's carrier field):
+    /// load the pointer from `frame[pointer_byte_offset]`, then store `len` + the
+    /// literal bytes inline at `*ptr + field_byte_offset`. No `{ptr, len}`
+    /// descriptor; the bytes are immediates.
+    WriteRuntimePointeeBoundedBuffer {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        literal: Arc<str>,
     },
     WriteRuntimeFrameIndexedString {
         descriptor_offset: usize,
@@ -542,6 +591,12 @@ pub enum AbstractOperationKind {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_capacity: usize,
+        /// The target is an owned `[u8; N]` carrier (`{len, bytes}` inline): read
+        /// stdin straight into the carrier's inline bytes (`region + target_offset
+        /// + pointer_size`) and write only `len` at `target_offset`, rather than
+        /// filling `buffer` and writing a `{ptr, len}` descriptor. `buffer` is
+        /// unused in this case.
+        is_bounded_buffer: bool,
     },
     CopyRuntimeStorage {
         source_region: RuntimeStorageRegion,

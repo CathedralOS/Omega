@@ -1,0 +1,41 @@
+// #66 owned `[u8; N] in Utf8` carrier field reached THROUGH a slice pointer:
+// `rooms[0].label = "Gate"` writes the carrier's `{len, bytes}` inline through the
+// `&mut [Room]` slice pointer (a pointee write, not a `{ptr, len}` descriptor),
+// and the guard `rooms[0].label == "Gate"` reads it back through the same pointer.
+// Exits 70 (the interpreter agrees).
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Room {
+    label: [u8; 8] in Utf8;
+}
+
+data Main {
+    console: Console;
+    rooms: [Room; 2];
+}
+
+machine Main::main(&mut self) {
+    let cells: &mut [Room] = self.rooms.as_mut_slice();
+    cells[0].label = "Gate";
+
+    transition cells[0].label == "Gate" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

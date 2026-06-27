@@ -1,0 +1,27 @@
+// #66 owned `[u8; N] in Utf8` carrier byte indexing in guard subjects: `message[i]`
+// reads the byte at `base + pointer_size + i` (content lives after the length word,
+// u8 elements). The compound guard `message[0] == 'A' && message[2] == 'E'` reads
+// two bytes of "ALERT" -- both hold, so the ok arm exits 70. (Indexing in guards is
+// the parsing/scanning workhorse; using a byte's VALUE in a wider int context, e.g.
+// exiting it, needs a separate u8->i32 zero-extension still missing.)
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 8]::Utf8 when valid_utf8(self) {}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    message: [u8; 8] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.message = "ALERT";
+    transition self.message[0] == 65 && self.message[2] == 69 {
+        true -> ok()
+        _ -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

@@ -1,9 +1,12 @@
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
 data Room {
-    label: String;
+    label: &[u8] in Utf8;
 }
 
 data Main {
@@ -20,7 +23,7 @@ machine Main::main(&mut self) {
 
     state render(&mut self, source: Room) {
         let room: Room;
-        let out_line: String;
+        let out_line: &[u8] in Utf8;
 
         room.label = source.label;
         out_line = "== " + room.label + " ==";

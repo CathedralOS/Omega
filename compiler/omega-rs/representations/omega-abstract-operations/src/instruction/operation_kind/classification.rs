@@ -51,8 +51,12 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::WriteRuntimeFrameIndexedBinary { .. }
             | Self::WriteRuntimeFrameBaseIndexedBinary { .. }
             | Self::WriteRuntimeMachineString { .. }
+            | Self::WriteRuntimeMachineBoundedBuffer { .. }
+            | Self::AppendRuntimeMachineBoundedBufferSource { .. }
+            | Self::AppendRuntimeMachineBoundedBufferLiteral { .. }
             | Self::WriteRuntimeFrameString { .. }
             | Self::WriteRuntimePointeeString { .. }
+            | Self::WriteRuntimePointeeBoundedBuffer { .. }
             | Self::WriteRuntimeFrameIndexedString { .. }
             | Self::WriteRuntimeMachineIndexedString { .. }
             | Self::WriteRuntimeStorageAddressToRuntimeFrame { .. }

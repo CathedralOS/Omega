@@ -1,0 +1,61 @@
+// RUN CANARY (exit 70). DIVISION/MODULO in a transition guard subject with a
+// NEGATIVE i32 dividend (`self.state.neg / 2 == -4` for neg=-8) AND a large
+// UNSIGNED dividend (`self.state.big / 2` for big=4_000_000_000). Division is not
+// modular, so a guard div/mod must run at the OPERAND width -- a 64-bit op on a
+// zero-extended negative i32 gives the wrong quotient. Running 32-bit then needs
+// the right SIGNEDNESS: a signed idiv with cdq for i32 (so -8 stays -8), but a
+// 32-bit signed idiv would misread a large u32 (high bit set) as negative, so the
+// resolver maps Divide->DivideUnsigned / Modulo->ModuloUnsigned for unsigned
+// operands. The interpreter evaluates in i64, so the differential oracle pins both.
+//
+// Every arm is reached only on a correct guard; a regression exits 71-74.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data State {
+    neg: i32;
+    big: u32;
+}
+
+data Main {
+    console: Console;
+    state: State;
+}
+
+machine Main::main(&mut self) {
+    self.state.neg = 0 - 8;
+    self.state.big = 4000000000;
+
+    // -8 / 2 = -4  (signed, negative quotient)
+    transition self.state.neg / 2 == -4 {
+        true -> check_neg_mod()
+        _ -> bad(71)
+    }
+
+    // -8 % 3 = -2
+    state check_neg_mod(&mut self) {
+        transition self.state.neg % 3 == -2 {
+            true -> check_unsigned()
+            _ -> bad(72)
+        }
+    }
+
+    // 4000000000 / 2 = 2000000000  (unsigned; a signed 32-bit idiv would be wrong)
+    state check_unsigned(&mut self) {
+        transition self.state.big / 2 == 2000000000 {
+            true -> check_false()
+            _ -> bad(73)
+        }
+    }
+
+    // -8 / 2 = -4, which is NOT -5  (FALSE -> false arm)
+    state check_false(&mut self) {
+        transition self.state.neg / 2 == -5 {
+            true -> bad(74)
+            _ -> good()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

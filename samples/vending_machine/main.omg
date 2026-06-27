@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // A vending machine driven by a stream of case-payload events.
 //
 // Showcases features landed in the 2026-06 waves working together in one
@@ -13,16 +14,16 @@ use omega::language::std::console;
 // case (ZII), so a zeroed Event is `Idle`.
 data Event {
     case Idle;
-    case Insert(cents: i32);
-    case Press(slot: i32);
+    case Insert(cents: i32 in Saturating);
+    case Press(slot: i32 in Saturating);
 }
 
 // The running register. `[copy, zero_init]` are verified declared properties:
 // every field is a scalar (copy holds) and zero is the empty machine (no
 // balance, nothing dispensed).
 data Register [copy, zero_init] {
-    balance: i32;
-    dispensed: i32;
+    balance: i32 in Saturating;
+    dispensed: i32 in Saturating;
 }
 
 data Main {
@@ -50,7 +51,7 @@ machine Main::main(&mut self) {
         }
     }
 
-    state report(&mut self, code: i32) {
+    state report(&mut self, code: i32 in Saturating) {
         self.console.exit_process(code);
     }
 }
@@ -64,19 +65,19 @@ machine Main::apply(&mut self, event: Event) {
         _ -> idle()
     }
 
-    state add_balance(&mut self, cents: i32) {
+    state add_balance(&mut self, cents: i32 in Saturating) {
         self.register.balance = self.register.balance + cents;
     }
 
-    state try_dispense(&mut self, slot: i32) {
-        let price: i32 = self.price_of(slot);
+    state try_dispense(&mut self, slot: i32 in Saturating) {
+        let price: i32 in Saturating = self.price_of(slot);
         transition self.register.balance >= price {
             true -> dispense(price)
             false -> idle()
         }
     }
 
-    state dispense(&mut self, price: i32) {
+    state dispense(&mut self, price: i32 in Saturating) {
         self.register.dispensed = self.register.dispensed + price;
         self.register.balance = 0;
     }
@@ -86,19 +87,19 @@ machine Main::apply(&mut self, event: Event) {
 }
 
 // Slot 1 costs 75 cents; everything else is free (price 0) for this demo.
-machine Main::price_of(&mut self, slot: i32) -> i32 {
+machine Main::price_of(&mut self, slot: i32 in Saturating) -> i32 in Saturating {
     transition slot == 1 {
         true -> seventy_five()
         _ -> zero()
     }
 
-    state seventy_five(&mut self) -> i32 {
+    state seventy_five(&mut self) -> i32 in Saturating {
         transition {
             _ -> 75
         }
     }
 
-    state zero(&mut self) -> i32 {
+    state zero(&mut self) -> i32 in Saturating {
         transition {
             _ -> 0
         }
