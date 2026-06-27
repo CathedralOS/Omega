@@ -4,9 +4,11 @@
 //   - an enum-typed field (`c: Color`) is just a scalar slot holding the tag,
 //   - `Color::Green` is the tag constant (1), and
 //   - a `transition` arm `Color::Green -> state()` matches that tag.
-// (Payload variants `case X(..)`, mixed field+case data, and exhaustiveness checking
-// are later slices — payloads are rejected with a clear error today.)
-// Here Color::Green (tag 1) dispatches to green(), which exits 7.
+// A transition over an enum field is EXHAUSTIVENESS-CHECKED: it must cover every
+// variant or include a `_` arm, else the compiler rejects it. Here all three variants
+// are handled, so no `_` is needed. Color::Green (tag 1) dispatches to green() -> 7.
+// (Payload variants `case X(..)` and mixed field+case data are later slices — payloads
+// are rejected with a clear error today.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Color { case Red; case Green; case Blue; }
 data Main { console: Console; c: Color; }
@@ -16,10 +18,8 @@ machine Main::main(&mut self) {
         Color::Red -> red()
         Color::Green -> green()
         Color::Blue -> blue()
-        _ -> unknown()
     }
     state red() { self.console.exit_process(1) }
     state green() { self.console.exit_process(7) }
     state blue() { self.console.exit_process(3) }
-    state unknown() { self.console.exit_process(99) }
 }
