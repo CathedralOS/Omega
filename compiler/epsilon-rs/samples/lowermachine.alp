@@ -24,7 +24,7 @@ data Main {
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
     aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32; aop: i32; nstr: i32; wlstart: i32; wllen: i32;
-    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
+    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
     coff: i32; dsize: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
@@ -573,7 +573,7 @@ machine Main::p_lm(&mut self) {          // "Lm"  (label def, column 0)
     state b0(){ write_byte(109); }
 }
 machine Main::main(&mut self) {
-    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0; self.osp = 0;
+    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0; self.osp = 0; self.usesio = 0;
     transition 0 { _ -> rd() }
     state rd()    { self.c = read_byte(); transition self.c < 0 { true -> scan()  false -> store() } }
     state store() { transition self.n < 512 * 256 { true -> store2()  false -> rd() } }
@@ -707,7 +707,7 @@ machine Main::main(&mut self) {
     state wb0()    { transition self.buf[self.pos] == 40 { true -> wb1()  false -> wbadv() } }   // skip to '('
     state wbadv()  { self.pos = self.pos + 1; transition 0 { _ -> wb0() } }
     state wb1()    { self.pos = self.pos + 1; self.mode = 8; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '(', lower the byte arg
-    state wbemit() { self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    strb w0, [x9]"); self.console.write_line("    mov x0, #1"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _write"); transition 0 { _ -> wbsk() } }
+    state wbemit() { self.usesio = 1; self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    strb w0, [x9]"); self.console.write_line("    mov x0, #1"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _write"); transition 0 { _ -> wbsk() } }
     state wbsk()   { transition self.buf[self.pos] == 59 { true -> wbsk2()  false -> wbsk3() } }   // ';' -> consume
     state wbsk3()  { transition self.buf[self.pos] == 125 { true -> sk()  false -> wbadv2() } }    // '}' -> stop (block end)
     state wbadv2() { self.pos = self.pos + 1; transition 0 { _ -> wbsk() } }
@@ -752,7 +752,7 @@ machine Main::main(&mut self) {
     state wlscan(){ transition self.buf[self.pos] == 34 { true -> wllen0()  false -> wlsadv() } }   // scan to closing '"'
     state wlsadv(){ self.pos = self.pos + 1; transition 0 { _ -> wlscan() } }
     state wllen0(){ self.wllen = self.pos - self.wlstart + 1; transition 0 { _ -> wlemit() } }   // len = content + trailing '\n'
-    state wlemit(){ self.console.write_line("    mov x0, #1"); self.p_adrpx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGE"); self.p_addx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGEOFF"); self.p_movw2(); self.v = self.wllen; self.emit_int(); write_byte(10); self.console.write_line("    bl _write"); self.nstr = self.nstr + 1; transition 0 { _ -> wlsk() } }
+    state wlemit(){ self.usesio = 1; self.console.write_line("    mov x0, #1"); self.p_adrpx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGE"); self.p_addx1l(); self.v = self.nstr; self.emit_int(); self.console.write_line("@PAGEOFF"); self.p_movw2(); self.v = self.wllen; self.emit_int(); write_byte(10); self.console.write_line("    bl _write"); self.nstr = self.nstr + 1; transition 0 { _ -> wlsk() } }
     state wlsk()  { transition self.buf[self.pos] == 59 { true -> wlsk2()  false -> wlsk3() } }   // ';' consume
     state wlsk3() { transition self.buf[self.pos] == 125 { true -> sk()  false -> wlsadv2() } }   // '}' stop
     state wlsadv2(){ self.pos = self.pos + 1; transition 0 { _ -> wlsk() } }
@@ -827,7 +827,7 @@ machine Main::main(&mut self) {
     state ida()   { self.pos = self.pos + 1; transition 0 { _ -> idr() } }
     state ide()   { self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> fldname()  false -> ck_rb() } }
     state ck_rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> rbemit()  false -> locsub() } }
-    state rbemit(){ self.console.write_line("    mov x0, #0"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _read"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    ldrb w1, [x9]"); self.console.write_line("    movz w2, #65535"); self.console.write_line("    movk w2, #65535, lsl #16"); self.console.write_line("    cmp x0, #1"); self.console.write_line("    csel w0, w1, w2, ge"); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> rbsk() } }
+    state rbemit(){ self.usesio = 1; self.console.write_line("    mov x0, #0"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _read"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    ldrb w1, [x9]"); self.console.write_line("    movz w2, #65535"); self.console.write_line("    movk w2, #65535, lsl #16"); self.console.write_line("    cmp x0, #1"); self.console.write_line("    csel w0, w1, w2, ge"); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> rbsk() } }
     state rbsk()  { transition self.buf[self.pos] == 41 { true -> rbsk2()  false -> rbadv() } }   // skip to ')'
     state rbadv() { self.pos = self.pos + 1; transition 0 { _ -> rbsk() } }
     state rbsk2() { self.pos = self.pos + 1; transition 0 { _ -> opdisp() } }   // past ')', operand done
@@ -1018,5 +1018,7 @@ machine Main::main(&mut self) {
     state p2()    { self.console.write_line("// generated by epsilon-rs aarch64 backend (slices 1-2, 4-6)"); self.console.write_line(".global _main"); self.console.write_line(".align 2"); self.phase = 2; self.pos = 0; self.mi = 0 - 1; self.lsi = 0; self.depth = 0; self.pend = 0; transition 0 { _ -> sk() } }   // emit the asm header before any machine
     state done()  { self.emit_epilogue(); self.console.write_line("Ltrap:"); self.console.write_line("    brk #0x1"); transition self.dsize > 0 { true -> wself()  false -> wdone() } }
     state wself() { self.fv = (self.dsize + 7) / 8 * 8; self.p_zerosd(); self.v = self.fv; self.emit_int(); write_byte(44); write_byte(51); write_byte(10); transition 0 { _ -> wdone() } }   // .zerofill ...,_selfdata,align8(dsize),3
-    state wdone() { self.console.exit_process(0) }
+    state wdone() { transition self.usesio > 0 { true -> wio()  false -> wfin() } }
+    state wio()   { self.console.write_line(".zerofill __DATA,__bss,_iobyte,1,0"); transition 0 { _ -> wfin() } }
+    state wfin()  { self.console.exit_process(0) }
 }
