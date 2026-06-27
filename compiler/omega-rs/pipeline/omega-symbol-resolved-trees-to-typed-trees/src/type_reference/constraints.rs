@@ -82,6 +82,38 @@ pub(crate) fn lower_type_constraint_node_span_with_context(
     Ok(span)
 }
 
+/// Lower a COLLECTION's constraint span for re-application to an ELEMENT type,
+/// dropping encoding-`Domain` constraints. A declared domain (`[u8] in Utf8`) is
+/// bound to the collection's STORAGE type, not to each element, so re-applying it
+/// to the element (`u8 in Utf8`) is ill-typed -- there is no `domain` named `Utf8`
+/// declared for `u8`. Arithmetic domains (`[i32; N] in Trapping`) DO characterize
+/// each element and are kept. Used by the indexed-read hoist to type its temp.
+pub(crate) fn lower_element_applicable_constraints(
+    source_trees: &SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
+    constraints: HandleSpan<resolved::types::TypeConstraint>,
+) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
+    let mut span = HandleSpan::empty();
+
+    for constraint in source_trees
+        .tables
+        .types
+        .constraints
+        .span_or_empty(constraints)
+    {
+        if matches!(constraint, resolved::types::TypeConstraint::Domain(_)) {
+            continue;
+        }
+        let constraint =
+            lower_type_constraint_node_with_context(source_trees, typed_trees, constraint)?;
+        typed_trees
+            .type_reference_table
+            .push_constraint(&mut span, constraint);
+    }
+
+    Ok(span)
+}
+
 fn lower_type_constraints_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
