@@ -1,0 +1,67 @@
+// Writing a CONSTANT byte into a carrier at a RUNTIME index -- `self.out[self.i] =
+// 88` in a loop. This is a regression guard for a path that previously
+// miscompiled (the store ignored the runtime index and always hit byte 0): a
+// constant value, a runtime index, a `[u8;N] in Utf8` carrier target. Filling all
+// of "0000" with 'X'(88) and reading back index 0 AND index 3 confirms the index
+// is respected at both ends. Exits 70.
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 4]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    out: [u8; 4] in Utf8;
+    i: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.out = "0000";
+    self.i = 0;
+
+    transition {
+        _ -> fill()
+    }
+
+    state fill(&mut self) {
+        transition self.i < 4 {
+            true -> store()
+            _ -> check_first()
+        }
+    }
+
+    state store(&mut self) {
+        self.out[self.i] = 88;
+        self.i = self.i + 1;
+        transition {
+            _ -> fill()
+        }
+    }
+
+    state check_first(&mut self) {
+        transition self.out[0] == 88 {
+            true -> check_last()
+            _ -> bad()
+        }
+    }
+
+    state check_last(&mut self) {
+        transition self.out[3] == 88 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
