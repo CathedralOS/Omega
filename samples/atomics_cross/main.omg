@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // Cross-platform atomics smoke test: exercises BOTH atomic read-modify-write
 // ops so each target's real atomic instruction is emitted end-to-end.
 //

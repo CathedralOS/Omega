@@ -13,6 +13,15 @@ pub(super) fn selected_string_write_kind(
             *byte_offset,
             *byte_length,
         )),
+        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. } => {
+            Some(MachineInstructionKind::RuntimeMachineBoundedBufferWrite)
+        }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. } => {
+            Some(MachineInstructionKind::RuntimeMachineBoundedBufferSourceAppend)
+        }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { .. } => {
+            Some(MachineInstructionKind::RuntimeMachineBoundedBufferLiteralAppend)
+        }
         SelectedInstructionKind::WriteRuntimeFrameString {
             byte_offset,
             byte_length,
@@ -28,6 +37,9 @@ pub(super) fn selected_string_write_kind(
             *field_byte_offset,
             *byte_length,
         )),
+        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { .. } => {
+            Some(MachineInstructionKind::RuntimePointeeBoundedBufferWrite)
+        }
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             descriptor_offset,
             index_offset,

@@ -451,6 +451,59 @@ pub fn encode_runtime_machine_string_write(
     }
 }
 
+pub fn encode_runtime_machine_bounded_buffer_write(
+    architecture: Architecture,
+    byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        // aarch64 owned-carrier write is not yet implemented; x86_64 (the native
+        // run target) is. A carrier canary is therefore x86_64-run-only for now.
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 encoder does not yet support the owned `[u8; N]` bounded byte carrier write"
+                .to_string(),
+        )),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_machine_bounded_buffer_write(byte_offset, literal)
+        }
+    }
+}
+
+pub fn encode_runtime_machine_bounded_buffer_source_append(
+    architecture: Architecture,
+    target_byte_offset: usize,
+    source_byte_offset: usize,
+    source_in_frame: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 encoder does not yet support the owned `[u8; N]` bounded byte carrier append"
+                .to_string(),
+        )),
+        Architecture::X86_64 => x86_64::encode_runtime_machine_bounded_buffer_source_append(
+            target_byte_offset,
+            source_byte_offset,
+            source_in_frame,
+        ),
+    }
+}
+
+pub fn encode_runtime_machine_bounded_buffer_literal_append(
+    architecture: Architecture,
+    target_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 encoder does not yet support the owned `[u8; N]` bounded byte carrier append"
+                .to_string(),
+        )),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_machine_bounded_buffer_literal_append(target_byte_offset, literal)
+        }
+    }
+}
+
 pub fn encode_runtime_frame_string_write(
     architecture: Architecture,
     byte_offset: usize,
@@ -480,6 +533,25 @@ pub fn encode_runtime_pointee_string_write(
             pointer_byte_offset,
             field_byte_offset,
             byte_length,
+        ),
+    }
+}
+
+pub fn encode_runtime_pointee_bounded_buffer_write(
+    architecture: Architecture,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 encoder does not yet support the owned `[u8; N]` bounded byte carrier pointee write"
+                .to_string(),
+        )),
+        Architecture::X86_64 => x86_64::encode_runtime_pointee_bounded_buffer_write(
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
         ),
     }
 }

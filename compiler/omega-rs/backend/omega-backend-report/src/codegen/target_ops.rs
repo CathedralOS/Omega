@@ -710,6 +710,33 @@ fn selected_instruction_name(
                 "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
             )
         }
+        SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
+            byte_offset,
+            literal,
+            target_in_frame,
+        } => {
+            let region = if *target_in_frame { "frame" } else { "machine" };
+            format!(
+                "write runtime {region} bounded buffer offset {byte_offset} literal {literal:?} len {}",
+                literal.len()
+            )
+        }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+            target_byte_offset,
+            source_byte_offset,
+            source_in_frame,
+        } => {
+            let region = if *source_in_frame { "frame" } else { "machine" };
+            format!(
+                "append runtime machine bounded buffer source target@{target_byte_offset} {region}-source@{source_byte_offset}"
+            )
+        }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
+            target_byte_offset,
+            literal,
+        } => format!(
+            "append runtime machine bounded buffer literal target@{target_byte_offset} {literal:?}"
+        ),
         SelectedInstructionKind::WriteRuntimeFrameString {
             byte_offset,
             data,
@@ -731,6 +758,13 @@ fn selected_instruction_name(
                 "write runtime pointee string runtime_frame@{pointer_byte_offset} +{field_byte_offset} data `{data_symbol}` len {byte_length}"
             )
         }
+        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        } => format!(
+            "write runtime pointee bounded buffer runtime_frame@{pointer_byte_offset} +{field_byte_offset} {literal:?}"
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             descriptor_offset,
             index_offset,
@@ -808,14 +842,22 @@ fn selected_instruction_name(
             target_offset,
             byte_capacity,
             source,
+            is_bounded_buffer,
         } => {
             let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_ref();
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
-            format!(
-                "read runtime text line {} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}",
-                runtime_text_read_source_name(backend_plan, source)
-            )
+            if *is_bounded_buffer {
+                format!(
+                    "read runtime text line {} -> carrier {target_symbol}@{target_offset} cap {byte_capacity}",
+                    runtime_text_read_source_name(backend_plan, source)
+                )
+            } else {
+                format!(
+                    "read runtime text line {} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}",
+                    runtime_text_read_source_name(backend_plan, source)
+                )
+            }
         }
         SelectedInstructionKind::CopyRuntimeStorage {
             source_region,

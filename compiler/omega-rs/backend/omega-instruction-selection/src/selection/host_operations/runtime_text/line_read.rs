@@ -4,6 +4,7 @@ use crate::selection::bindings::{
 };
 use crate::selection::storage_places::{
     RuntimeStoragePlace, resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_place_is_bounded_byte_buffer_in_table,
 };
 use omega_abstract_operations::SelectedInstructionKind;
 use omega_calling_conventions::PlatformCallData;
@@ -14,6 +15,10 @@ use omega_platform_interface::HostCall;
 pub(in crate::selection) struct RuntimeStringDescriptorPlace {
     pub(in crate::selection) place: RuntimeStoragePlace,
     pub(in crate::selection) through_pointee: bool,
+    /// The place is an owned `[u8; N]` carrier (`{len, bytes}` inline), not a
+    /// `{ptr, len}` descriptor: host-call content addressing reads `len` at offset
+    /// 0 and uses `place + pointer_size` as the content pointer.
+    pub(in crate::selection) is_bounded_buffer: bool,
 }
 
 pub(in crate::selection::host_operations) fn runtime_text_line_read(
@@ -51,7 +56,17 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         &input.runtime_text.expressions,
         buffer.text_place,
     )?;
-    if target_place.byte_count != input.runtime_abi.string_descriptor_size() {
+    // An owned `[u8; N]` carrier target reads stdin straight into its inline
+    // bytes (no `{ptr, len}` descriptor); a borrowed String descriptor stays the
+    // 16-byte {ptr, len} path. Anything else is not a text-read target.
+    let is_bounded_buffer = resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.runtime_text.expressions,
+        buffer.text_place,
+    );
+    if !is_bounded_buffer && target_place.byte_count != input.runtime_abi.string_descriptor_size() {
         return None;
     }
 
@@ -60,6 +75,7 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
         byte_capacity,
+        is_bounded_buffer,
     })
 }
 
@@ -95,7 +111,14 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
             *expression,
         )
     {
-        return runtime_string_descriptor_from_place(input, place);
+        let is_bounded_buffer = resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+            input,
+            dispatch_index.unwrap_or(0),
+            host_call.source_key,
+            &input.host_calls.expressions,
+            *expression,
+        );
+        return runtime_string_descriptor_from_place(input, place, is_bounded_buffer);
     }
 
     let mut expressions = ExpressionTable::with_expression_capacity(
@@ -137,7 +160,14 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
         &expressions,
         resolved_expression,
     ) {
-        return runtime_string_descriptor_from_place(input, place);
+        let is_bounded_buffer = resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+            input,
+            dispatch_index.unwrap_or(0),
+            resolved_source_key,
+            &expressions,
+            resolved_expression,
+        );
+        return runtime_string_descriptor_from_place(input, place, is_bounded_buffer);
     }
 
     None
@@ -146,17 +176,30 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
 fn runtime_string_descriptor_from_place(
     input: &InstructionSelectionInput<'_>,
     place: RuntimeStoragePlace,
+    is_bounded_buffer: bool,
 ) -> Option<RuntimeStringDescriptorPlace> {
+    // An owned `[u8; N]` carrier owns its bytes inline -- take it directly with
+    // carrier addressing, BEFORE the size checks below (its `{len, bytes}` size
+    // can collide with the 16-byte descriptor size, e.g. `[u8; 8]`).
+    if is_bounded_buffer {
+        return Some(RuntimeStringDescriptorPlace {
+            place,
+            through_pointee: false,
+            is_bounded_buffer: true,
+        });
+    }
     if place.byte_count == input.runtime_abi.string_descriptor_size() {
         return Some(RuntimeStringDescriptorPlace {
             place,
             through_pointee: false,
+            is_bounded_buffer: false,
         });
     }
     if place.byte_count == input.runtime_abi.pointer_size {
         return Some(RuntimeStringDescriptorPlace {
             place,
             through_pointee: true,
+            is_bounded_buffer: false,
         });
     }
     None

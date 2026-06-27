@@ -22,8 +22,8 @@ use super::super::super::bindings::{
 };
 use super::super::super::storage_places::{
     resolve_runtime_storage_arithmetic_domain, resolve_runtime_storage_is_signed,
-    resolve_runtime_storage_place, resolve_runtime_storage_primitive_type,
-    runtime_storage_target_is_atomic,
+    resolve_runtime_storage_place, resolve_runtime_storage_place_is_bounded_byte_buffer,
+    resolve_runtime_storage_primitive_type, runtime_storage_target_is_atomic,
 };
 use omega_checked_trees::types::PrimitiveType;
 use super::super::super::storage_places::{
@@ -756,6 +756,21 @@ pub(super) fn select_runtime_state_call_result_write(
     );
 }
 
+/// Flatten a left-associative `+` string-concat tree into its segments in source
+/// order: `("== " + room.label) + " =="` -> `["== ", room.label, " =="]`. A
+/// non-`Add` expression is a single segment.
+fn flatten_string_concat_segments(value: &Expression) -> Vec<&Expression> {
+    if let Expression::Binary(binary) = value
+        && binary.operator == omega_checked_trees::expression::BinaryOperator::Add
+    {
+        let mut segments = flatten_string_concat_segments(&binary.left);
+        segments.push(&binary.right);
+        segments
+    } else {
+        vec![value]
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     input: &InstructionSelectionInput<'_>,
@@ -861,6 +876,100 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             selected_instructions,
         );
         return;
+    }
+
+    // Owned `[u8; N]` carrier concat (`self.text = "== " + self.label + " =="`):
+    // walk the left-associative `+` tree into segments; the FIRST (a literal)
+    // initializes the target carrier (`WriteRuntimeMachineBoundedBuffer` sets len +
+    // bytes), and each later segment is appended onto the target's inline bytes at
+    // the running length -- a literal via `AppendRuntimeMachineBoundedBufferLiteral`,
+    // another machine-resident carrier via `AppendRuntimeMachineBoundedBufferSource`.
+    // The length-fits guard already proved the result fits the target's N. (Handles
+    // the 2-segment `runtime_text_builder` shape as the n=2 special case.)
+    if let Expression::Binary(binary) = value
+        && binary.operator == omega_checked_trees::expression::BinaryOperator::Add
+        && resolve_runtime_storage_place_is_bounded_byte_buffer(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_target,
+        )
+        && let Some(target_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            target_source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+        )
+        && target_place.region == omega_abstract_operations::RuntimeStorageRegion::Machine
+    {
+        let segments = flatten_string_concat_segments(value);
+        if let [Expression::String(prefix), rest @ ..] = segments.as_slice() {
+            let mut kinds: Vec<SelectedInstructionKind> = Vec::with_capacity(segments.len());
+            kinds.push(SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer {
+                byte_offset: target_place.byte_offset,
+                literal: std::sync::Arc::from(prefix.to_string()),
+                // The concat target is gated to the Machine region above.
+                target_in_frame: false,
+            });
+            let mut all_segments_resolved = true;
+            for segment in rest {
+                if let Expression::String(literal) = segment {
+                    kinds.push(
+                        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
+                            target_byte_offset: target_place.byte_offset,
+                            literal: std::sync::Arc::from(literal.to_string()),
+                        },
+                    );
+                } else if resolve_runtime_storage_place_is_bounded_byte_buffer(
+                    input,
+                    dispatch_index,
+                    target_source_key,
+                    segment,
+                ) && let Some(source_place) = resolve_runtime_storage_place(
+                    input,
+                    dispatch_index,
+                    target_source_key,
+                    source_machine,
+                    source_state,
+                    segment,
+                ) && matches!(
+                    source_place.region,
+                    omega_abstract_operations::RuntimeStorageRegion::Machine
+                        | omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+                ) {
+                    // The source carrier is usually machine-resident, but a
+                    // `let`-local (`room.label` in a render machine) lives in the
+                    // runtime frame -- read it from the frame base instead. Without
+                    // this the append bailed and the concat fell to the String
+                    // builder, which writes a `{ptr, len}` descriptor into the
+                    // carrier target (a garbage len -> `rep movsb` overrun -> SIGSEGV).
+                    let source_in_frame = matches!(
+                        source_place.region,
+                        omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+                    );
+                    kinds.push(SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+                        target_byte_offset: target_place.byte_offset,
+                        source_byte_offset: source_place.byte_offset,
+                        source_in_frame,
+                    });
+                } else {
+                    all_segments_resolved = false;
+                    break;
+                }
+            }
+            if all_segments_resolved {
+                for kind in kinds {
+                    selected_instructions.push(SelectedInstruction {
+                        kind,
+                        source_key: operation_source_key,
+                        source_statement: statement_index,
+                    });
+                }
+                return;
+            }
+        }
     }
 
     if runtime_text_builder_write_with_scratch_emit(

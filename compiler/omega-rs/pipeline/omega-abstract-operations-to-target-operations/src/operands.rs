@@ -20,16 +20,20 @@ fn translate_operand_kind(
         omega_abstract_operations::InstructionOperandKind::RuntimeStringPointer {
             region,
             byte_offset,
+            is_bounded_buffer,
         } => InstructionOperandKind::RuntimeStringPointer {
             region: *region,
             byte_offset: *byte_offset,
+            is_bounded_buffer: *is_bounded_buffer,
         },
         omega_abstract_operations::InstructionOperandKind::RuntimeStringLength {
             region,
             byte_offset,
+            is_bounded_buffer,
         } => InstructionOperandKind::RuntimeStringLength {
             region: *region,
             byte_offset: *byte_offset,
+            is_bounded_buffer: *is_bounded_buffer,
         },
         omega_abstract_operations::InstructionOperandKind::RuntimePointeeStringPointer {
             region,

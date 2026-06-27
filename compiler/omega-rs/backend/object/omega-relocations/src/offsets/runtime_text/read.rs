@@ -11,9 +11,13 @@ pub(crate) fn runtime_text_line_read_target_address_offset(
 pub(crate) fn runtime_text_line_read_import_call_offset(
     architecture: Architecture,
     selected_text_offset: usize,
+    is_bounded_buffer: bool,
 ) -> usize {
     selected_text_offset
-        + omega_instruction_selection::runtime_text_line_read_import_call_offset(architecture)
+        + omega_instruction_selection::runtime_text_line_read_import_call_offset(
+            architecture,
+            is_bounded_buffer,
+        )
 }
 
 /// x86_64-only: absolute text offset of the GetStdHandle call rel32 displacement
@@ -23,9 +27,11 @@ pub(crate) fn runtime_text_line_read_import_call_offset(
 pub(crate) fn runtime_text_line_read_get_std_handle_call_offset(
     architecture: Architecture,
     selected_text_offset: usize,
+    is_bounded_buffer: bool,
 ) -> usize {
     selected_text_offset
         + omega_instruction_selection::runtime_text_line_read_get_std_handle_call_offset(
             architecture,
+            is_bounded_buffer,
         )
 }

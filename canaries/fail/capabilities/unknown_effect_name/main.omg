@@ -3,7 +3,7 @@
 // in the standard vocabulary, so the boundary trait declaration is rejected.
 
 boundary trait Console {
-    machine write_line(text: String)
+    machine write_line(text: &[u8])
     effects
         teleport_io;
 }

@@ -10,6 +10,9 @@ pub(super) struct SelectedHostTextRead {
     pub buffer: TargetDataObjectHandle,
     pub target_region: RuntimeStorageRegion,
     pub operation_key: HostOperationKey,
+    /// Owned `[u8; N]` carrier target: r14 relocates to the carrier's own region
+    /// (not a separate buffer) and there is no `{ptr, len}` descriptor write.
+    pub is_bounded_buffer: bool,
 }
 
 pub(super) fn selected_host_operation(
@@ -41,6 +44,7 @@ pub(super) fn selected_host_text_read(
         buffer,
         target_region,
         source: RuntimeTextReadSource::HostOperation { operation_key },
+        is_bounded_buffer,
         ..
     } = instruction
     else {
@@ -51,6 +55,7 @@ pub(super) fn selected_host_text_read(
         buffer: *buffer,
         target_region: *target_region,
         operation_key: *operation_key,
+        is_bounded_buffer: *is_bounded_buffer,
     })
 }
 

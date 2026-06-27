@@ -200,6 +200,7 @@ pub(super) fn encode_runtime_text_line_read(
     target_offset: usize,
     byte_capacity: usize,
     source: &RuntimeTextReadSource,
+    is_bounded_buffer: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let RuntimeTextReadSource::HostOperation { operation_key } = source;
     let Some(binding) = input
@@ -217,5 +218,6 @@ pub(super) fn encode_runtime_text_line_read(
         target_offset,
         byte_capacity,
         &binding.mechanism,
+        is_bounded_buffer,
     )
 }

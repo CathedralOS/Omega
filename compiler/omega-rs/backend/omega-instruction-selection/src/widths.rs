@@ -882,6 +882,41 @@ pub fn runtime_machine_string_write_width(architecture: Architecture, byte_lengt
     }
 }
 
+pub fn runtime_machine_bounded_buffer_write_width(
+    architecture: Architecture,
+    literal: &str,
+) -> usize {
+    match architecture {
+        // aarch64 carrier write is unimplemented (errors at encode); reuse the
+        // x86_64 width as a placeholder so layout reservation does not panic.
+        Architecture::Aarch64 | Architecture::X86_64 => {
+            x86_64::runtime_machine_bounded_buffer_write_width(literal)
+        }
+    }
+}
+
+pub fn runtime_machine_bounded_buffer_source_append_width(
+    architecture: Architecture,
+    source_in_frame: bool,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 | Architecture::X86_64 => {
+            x86_64::runtime_machine_bounded_buffer_source_append_width(source_in_frame)
+        }
+    }
+}
+
+pub fn runtime_machine_bounded_buffer_literal_append_width(
+    architecture: Architecture,
+    literal: &str,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 | Architecture::X86_64 => {
+            x86_64::runtime_machine_bounded_buffer_literal_append_width(literal)
+        }
+    }
+}
+
 pub fn runtime_frame_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_frame_string_write_width(byte_length),
@@ -904,6 +939,17 @@ pub fn runtime_pointee_string_write_width(
         Architecture::X86_64 => {
             let _ = pointer_byte_offset;
             x86_64::runtime_pointee_string_write_width(field_byte_offset, byte_length)
+        }
+    }
+}
+
+pub fn runtime_pointee_bounded_buffer_write_width(
+    architecture: Architecture,
+    literal: &str,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 | Architecture::X86_64 => {
+            x86_64::runtime_pointee_bounded_buffer_write_width(literal)
         }
     }
 }
@@ -1167,6 +1213,7 @@ pub fn runtime_text_line_read_width(
     architecture: Architecture,
     byte_capacity: usize,
     binding: &HostBindingMechanism,
+    is_bounded_buffer: bool,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => match binding {
@@ -1179,9 +1226,19 @@ pub fn runtime_text_line_read_width(
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                x86_64::runtime_text_line_read_width(byte_capacity)
+                if is_bounded_buffer {
+                    x86_64::runtime_text_line_read_carrier_width(byte_capacity)
+                } else {
+                    x86_64::runtime_text_line_read_width(byte_capacity)
+                }
             }
-            HostBindingMechanism::Syscall { .. } => x86_64::runtime_text_line_read_syscall_width(),
+            HostBindingMechanism::Syscall { .. } => {
+                if is_bounded_buffer {
+                    x86_64::runtime_text_line_read_syscall_carrier_width()
+                } else {
+                    x86_64::runtime_text_line_read_syscall_width()
+                }
+            }
         },
     }
 }
@@ -1210,20 +1267,38 @@ pub fn runtime_text_line_read_target_address_offset(
     }
 }
 
-pub fn runtime_text_line_read_import_call_offset(architecture: Architecture) -> usize {
+pub fn runtime_text_line_read_import_call_offset(
+    architecture: Architecture,
+    is_bounded_buffer: bool,
+) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_line_read_import_call_offset(),
-        // x86_64 ReadFile call rel32 displacement.
-        Architecture::X86_64 => x86_64::runtime_text_line_read_read_file_call_offset(),
+        // x86_64 ReadFile call rel32 displacement (shifted for the carrier prologue).
+        Architecture::X86_64 => {
+            if is_bounded_buffer {
+                x86_64::runtime_text_line_read_carrier_read_file_call_offset()
+            } else {
+                x86_64::runtime_text_line_read_read_file_call_offset()
+            }
+        }
     }
 }
 
 /// x86_64-only: rel32 displacement offset of the GetStdHandle call within the
 /// runtime line-read instruction (aarch64 has no separate handle call).
-pub fn runtime_text_line_read_get_std_handle_call_offset(architecture: Architecture) -> usize {
+pub fn runtime_text_line_read_get_std_handle_call_offset(
+    architecture: Architecture,
+    is_bounded_buffer: bool,
+) -> usize {
     match architecture {
         Architecture::Aarch64 => 0,
-        Architecture::X86_64 => x86_64::runtime_text_line_read_get_std_handle_call_offset(),
+        Architecture::X86_64 => {
+            if is_bounded_buffer {
+                x86_64::runtime_text_line_read_carrier_get_std_handle_call_offset()
+            } else {
+                x86_64::runtime_text_line_read_get_std_handle_call_offset()
+            }
+        }
     }
 }
 

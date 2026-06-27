@@ -1,0 +1,35 @@
+// The owned `[u8; N] in Utf8` bounded byte carrier, end to end on native: a
+// literal write materializes into the carrier's `{len, bytes}` inline storage
+// (len word + content bytes, the carrier OWNS its bytes -- not a `{ptr, len}`
+// descriptor aliasing rodata), and the `==` guard reads it back with carrier
+// addressing (length at offset 0, content at offset pointer_size) and content-
+// compares against the literal. `self.label == "Gate"` matches (length 4 == 4,
+// every byte equal) so it exits 70. The interpreter agrees (differential).
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    label: [u8; 8] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.label = "Gate";
+
+    transition self.label == "Gate" {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,33 @@
+// #66 owned `[u8; N] in Utf8` carrier byte WRITE `self.buffer[i] = <byte>`. A
+// carrier holds its content inline at `+pointer_size`, so an indexed write stores
+// the byte at `base + pointer_size + i`. Both forms work: a byte LITERAL
+// (`buffer[0] = 67` = 'C') and a u8 FIELD (`buffer[1] = self.ch` = 'D'). Starting
+// from "AB" the writes yield "CD", verified by `==` -> exit 70. (`==` rather than
+// write_line because a raw byte write cannot be PROVEN valid Utf8. A CAST result
+// `buffer[i] = expr as u8` does not yet lower for carriers -- workaround is staging
+// through a u8 field, as in samples/format_number.)
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 8]::Utf8 when valid_utf8(self) {}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 8] in Utf8;
+    ch: u8;
+}
+
+machine Main::main(&mut self) {
+    self.buffer = "AB";
+    self.ch = 68;
+    self.buffer[0] = 67;
+    self.buffer[1] = self.ch;
+    transition self.buffer == "CD" {
+        true -> ok()
+        _ -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

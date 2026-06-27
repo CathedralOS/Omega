@@ -201,6 +201,16 @@ each fallible escape hatch; state `outlives` at escape.
    carried generically — layout fails on `[T;N]` with no concrete extent) a
    prerequisite for an ergonomic generic `Vec`, or can stage 2 ship
    concrete-instantiated like FixedVec does today?
-9. **Automatic size inference (RAML/AARA).** Worth layering LP-based
-   per-function allocation bounds to cut annotation burden, given it's
-   polynomial-only and weak on higher-order/closures?
+9. **Automatic size inference (RAML/AARA) — ANSWERED, see
+   [`growth_inference_and_allocator.md`](growth_inference_and_allocator.md).**
+   Verdict: do **not** build AARA (polynomial-only; assigns invariant/no-usable
+   potential to mutable cells — exactly the buffer length↔inputs relation we need)
+   nor a string solver nor whole-program region inference nor size-indexed `Vect`.
+   Instead infer a **linear length bound** for the bounded-string case: straight-
+   line/literal concat folds for free; the **bounded-loop** case needs a *blessed*
+   `len ≤ iters·elem_len` invariant axiom (or octagons) because the interval engine
+   is **non-relational** — *not* free on what's shipped. Beyond the linear/bounded
+   frontier (unbounded loops, `n·len(s)` both symbolic, parse-back) it is
+   undecidable (Ganesh–Berzish) → widen to ⊤ and force the next rung up. This
+   turns the unsound 256-byte text-buffer hack into a `FixedVec<u8,B>` whose
+   compile-time push obligation is discharged for the whole concat chain.

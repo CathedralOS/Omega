@@ -1,0 +1,79 @@
+// RUN CANARY (exit 70). Decision 17: SATURATING signed divide/modulo. Integer
+// division overflows at exactly one point -- TYPE_MIN / -1 -- the corner the
+// hardware `idiv` traps on. The Saturating domain CLAMPS it (TYPE_MIN / -1 ->
+// TYPE_MAX, TYPE_MIN % -1 -> 0) instead of trapping; every other divisor goes
+// through the plain idiv (division reduces magnitude, so no result overflows).
+//
+// The divisor is decremented to -1 inside a LOOP so the compiler cannot prove it
+// is the constant -1 (a literal -1 would const-fold the whole division away),
+// forcing the native x86_64 divisor==-1 guard + `neg`/`cmovo` saturation in
+// append_saturating_signed_divide_modulo. The interpreter computes the division
+// in i64 and clamps to the i32 range, so the differential oracle agrees.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data State {
+    divisor: i32 in Saturating;
+    sat_quotient: i32 in Saturating;
+    sat_remainder: i32 in Saturating;
+    neg_quotient: i32 in Saturating;
+}
+
+data Main {
+    console: Console;
+    state: State;
+}
+
+machine Main::main(&mut self) {
+    self.state.divisor = 3;
+
+    transition {
+        _ -> spin()
+    }
+
+    // Spin the divisor down to -1; only then divide. Looping past 0 is safe: no
+    // division happens until the divisor reaches -1.
+    state spin(&mut self) {
+        transition self.state.divisor == -1 {
+            true -> divide()
+            _ -> step()
+        }
+    }
+
+    state step(&mut self) {
+        self.state.divisor = self.state.divisor - 1;
+        transition {
+            _ -> spin()
+        }
+    }
+
+    state divide(&mut self) {
+        let min: i32 in Saturating = -2147483648;
+        let small: i32 in Saturating = -8;
+        self.state.sat_quotient = min / self.state.divisor;    // MIN / -1 -> MAX (saturates)
+        self.state.sat_remainder = min % self.state.divisor;   // MIN % -1 -> 0
+        self.state.neg_quotient = small / self.state.divisor;  // -8 / -1 -> 8 (negate, no overflow)
+
+        transition self.state.sat_quotient == 2147483647 {
+            true -> check_remainder()
+            _ -> bad()
+        }
+    }
+
+    state check_remainder(&mut self) {
+        transition self.state.sat_remainder == 0 {
+            true -> check_neg()
+            _ -> bad()
+        }
+    }
+
+    state check_neg(&mut self) {
+        transition self.state.neg_quotient == 8 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

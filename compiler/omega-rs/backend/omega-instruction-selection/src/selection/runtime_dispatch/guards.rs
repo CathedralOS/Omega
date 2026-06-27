@@ -16,9 +16,12 @@ use super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_is_fat_slice_in_table,
     resolve_runtime_frame_indexed_target_in_table,
+    resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_frame_indexed_primitive_type_in_table, resolve_runtime_storage_place,
-    resolve_runtime_storage_place_in_table, resolve_runtime_storage_place_is_fat_slice_in_table,
+    resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_place_is_bounded_byte_buffer_in_table,
+    resolve_runtime_storage_place_is_fat_slice_in_table,
     resolve_runtime_storage_primitive_type_in_table,
     resolve_runtime_transition_guard_call_result_place, static_elided_local_value_in_table,
     static_fixed_array_len_in_table,
@@ -705,6 +708,22 @@ fn runtime_text_literal_guard_in_table(
         return None;
     };
 
+    // An owned `[u8; N]` carrier compared to a literal must use the carrier
+    // content compare (the equals-literal path), NOT this builder-buffer compare:
+    // the runtime-text planner associates a scratch buffer with a concat-target
+    // carrier, but the carrier write/append materialize into the carrier's INLINE
+    // storage, never that scratch. Defer so `runtime_text_equals_literal_guard`
+    // reads the carrier directly.
+    if resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        text_place,
+    ) {
+        return None;
+    }
+
     let buffer = runtime_text_input_buffer_data_for_text_place_in_table(
         input,
         dispatch_index,
@@ -775,17 +794,81 @@ fn runtime_text_equals_literal_guard_in_table(
     } else {
         return None;
     };
-    let place = resolve_runtime_text_descriptor_place_operand_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        expressions,
-        place_expression,
-        runtime_value_operands,
-    )?;
+    // An owned `[u8; N]` carrier is excluded from the String/slice `place_is_string`
+    // gate by design (its `{len, bytes}` layout is not a `{ptr, len}` descriptor),
+    // so resolve its storage place to a `Storage` ADDRESS operand directly and flag
+    // carrier addressing for the encoder; otherwise take the descriptor place path.
+    let (place, place_is_bounded_buffer) =
+        if resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            place_expression,
+        ) {
+            // A DIRECT (machine/frame) carrier resolves to a `Storage` ADDRESS
+            // operand. A carrier reached THROUGH a pointer -- a slice element
+            // `r[0].label` where `r: &[Room]` is a value-call param, or a `&mut
+            // Room` field -- resolves to a `Pointee` ADDRESS operand instead: the
+            // encoder loads the stored pointer first, then the carrier `{len,
+            // bytes}` sits at `*ptr + field` (len @ 0, bytes @ +pointer_size), the
+            // SAME bounded-buffer compare body, only the address setup differs.
+            // Without this pointee fallback the storage resolver returned `None`
+            // and the whole guard silently dropped -- the value-call
+            // slice-element text-compare arm-drop bug (task #14).
+            if let Some(storage) = resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                place_expression,
+            ) {
+                let operand = runtime_value_operands.insert(RuntimeValueOperand::Storage {
+                    region: storage.region,
+                    byte_offset: storage.byte_offset,
+                    byte_size: storage.byte_count,
+                });
+                (operand, true)
+            } else if let Some(pointee) = resolve_runtime_pointee_fixed_indexed_target_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                place_expression,
+            )
+            .or_else(|| {
+                resolve_runtime_pointee_slot_offset_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    place_expression,
+                )
+            }) {
+                let operand = runtime_value_operands.insert(RuntimeValueOperand::Pointee {
+                    pointer_byte_offset: pointee.pointer_byte_offset,
+                    field_byte_offset: pointee.field_byte_offset,
+                    byte_size: pointee.pointee_byte_size,
+                });
+                (operand, true)
+            } else {
+                return None;
+            }
+        } else {
+            let operand = resolve_runtime_text_descriptor_place_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                place_expression,
+                runtime_value_operands,
+            )?;
+            (operand, false)
+        };
     let text_equals = runtime_value_operands.insert(RuntimeValueOperand::TextEqualsLiteral {
         place,
         literal: literal.to_string(),
+        place_is_bounded_buffer,
     });
     let expected_true = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
     // `==` holds when the content-equality bool is 1; `!=` when it is not.
@@ -1537,7 +1620,22 @@ fn resolve_runtime_value_operand_in_table(
     }
 
     if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
-        let operator = runtime_arithmetic_operator(binary.operator)?;
+        let mut operator = runtime_arithmetic_operator(binary.operator)?;
+        // Divide/modulo run at the operand width (not modular), so a signed idiv
+        // misreads a large UNSIGNED dividend; switch to the unsigned op for unsigned
+        // operands, mirroring the ordered-comparison signedness adjustment above.
+        if matches!(operator, StateGuardOperator::Divide | StateGuardOperator::Modulo)
+            && guard_operands_unsigned_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.left,
+                binary.right,
+            )
+        {
+            operator = unsigned_arithmetic_operator(operator);
+        }
         let left = resolve_runtime_value_operand_in_table(
             input,
             dispatch_index,
@@ -1707,9 +1805,15 @@ fn runtime_value_operand_byte_size(
         | RuntimeValueOperand::FrameBaseIndexed { byte_size, .. } => *byte_size,
         RuntimeValueOperand::FrameFixedIndexed { byte_size, .. } => *byte_size,
         RuntimeValueOperand::Binary { left, right, .. } => {
-            runtime_value_operand_byte_size(runtime_value_operands, *left).max(
-                runtime_value_operand_byte_size(runtime_value_operands, *right),
-            )
+            // Use the NON-immediate operand's width (compare_byte_size logic), not a
+            // plain max: an integer literal operand reports 8 (it has no inherent
+            // width), and max() would then widen e.g. `self.x - 1` (i32) to 8. That
+            // makes a guard's compare 64-bit, which mishandles a NEGATIVE i32 because
+            // the computed value-operand's high 32 bits are zero- not sign-extended
+            // (`self.x - 1 == -9` for x=-8 took the wrong arm). Keeping it at the i32
+            // operand width makes the op + compare 32-bit, so only the (correct) low
+            // bytes matter. See [[guard-negative-i32-arithmetic]].
+            runtime_value_compare_byte_size(runtime_value_operands, *left, *right)
         }
         RuntimeValueOperand::Convert {
             target_byte_size, ..
@@ -1790,15 +1894,26 @@ fn comparison_operands_unsigned_in_table(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
-    if !matches!(
+    matches!(
         operator,
         StateGuardOperator::Greater
             | StateGuardOperator::GreaterOrEqual
             | StateGuardOperator::Less
             | StateGuardOperator::LessOrEqual
-    ) {
-        return false;
-    }
+    ) && guard_operands_unsigned_in_table(input, dispatch_index, source_key, expressions, left, right)
+}
+
+/// True when either guard operand resolves to an UNSIGNED integer storage place
+/// (a literal operand resolves to no place, so it does not decide signedness).
+/// Shared by the ordered-comparison signedness adjustment and the divide/modulo one.
+fn guard_operands_unsigned_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
     let signed =
         resolve_runtime_storage_is_signed_in_table(input, dispatch_index, source_key, expressions, left)
             .or_else(|| {
@@ -1813,15 +1928,27 @@ fn comparison_operands_unsigned_in_table(
     signed == Some(false)
 }
 
+/// Map signed divide/modulo to their unsigned forms, used when the guard operands
+/// are an unsigned integer type. Division is not modular, so a guard div/mod runs
+/// at the operand width; a 32-bit SIGNED idiv would misread a large u32 dividend
+/// (high bit set) as negative, so unsigned operands must use `div`, not `idiv`.
+fn unsigned_arithmetic_operator(operator: StateGuardOperator) -> StateGuardOperator {
+    match operator {
+        StateGuardOperator::Divide => StateGuardOperator::DivideUnsigned,
+        StateGuardOperator::Modulo => StateGuardOperator::ModuloUnsigned,
+        other => other,
+    }
+}
+
 fn runtime_arithmetic_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
         BinaryOperator::And => Some(StateGuardOperator::And),
+        BinaryOperator::Divide => Some(StateGuardOperator::Divide),
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        BinaryOperator::Divide
-        | BinaryOperator::Equal
+        BinaryOperator::Equal
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual
         | BinaryOperator::Less

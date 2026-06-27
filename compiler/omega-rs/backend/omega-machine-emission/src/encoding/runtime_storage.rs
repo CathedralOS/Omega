@@ -477,6 +477,44 @@ pub(super) fn encode_runtime_machine_string_write(
     )
 }
 
+pub(super) fn encode_runtime_machine_bounded_buffer_write(
+    input: MachineEmissionContext<'_>,
+    byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_machine_bounded_buffer_write(
+        input.target.architecture,
+        byte_offset,
+        literal,
+    )
+}
+
+pub(super) fn encode_runtime_machine_bounded_buffer_source_append(
+    input: MachineEmissionContext<'_>,
+    target_byte_offset: usize,
+    source_byte_offset: usize,
+    source_in_frame: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_machine_bounded_buffer_source_append(
+        input.target.architecture,
+        target_byte_offset,
+        source_byte_offset,
+        source_in_frame,
+    )
+}
+
+pub(super) fn encode_runtime_machine_bounded_buffer_literal_append(
+    input: MachineEmissionContext<'_>,
+    target_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_machine_bounded_buffer_literal_append(
+        input.target.architecture,
+        target_byte_offset,
+        literal,
+    )
+}
+
 pub(super) fn encode_runtime_frame_string_write(
     input: MachineEmissionContext<'_>,
     byte_offset: usize,
@@ -500,6 +538,20 @@ pub(super) fn encode_runtime_pointee_string_write(
         pointer_byte_offset,
         field_byte_offset,
         byte_length,
+    )
+}
+
+pub(super) fn encode_runtime_pointee_bounded_buffer_write(
+    input: MachineEmissionContext<'_>,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_pointee_bounded_buffer_write(
+        input.target.architecture,
+        pointer_byte_offset,
+        field_byte_offset,
+        literal,
     )
 }
 

@@ -987,6 +987,605 @@ fn domain_field_write_then_read_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 owned `[u8; N] in Utf8` bounded byte carrier, end to end on native: the
+// literal write materializes into the carrier's `{len, bytes}` inline storage
+// (the carrier OWNS its bytes -- not a {ptr,len} descriptor aliasing rodata),
+// and the `==` guard reads it back with carrier addressing (len @ 0, bytes @
+// pointer_size) and content-compares. `self.label == "Gate"` matches -> exit 70.
+// `[u8; 8]` is the 16-byte case (8 + 8 == the string descriptor size) that the
+// String text-write pass would otherwise claim as a descriptor.
+#[test]
+fn runtime_bounded_carrier_write_read_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_write_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-write-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier write-read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier write-read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the owned `[u8; 8] in Utf8` carrier to write `\"Gate\"` into its inline \
+         {{len, bytes}} storage and read it back so `self.label == \"Gate\"` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 owned `[u8; N] in Utf8` carrier `.len` as a marshaled host-call argument:
+// `self.message = "ALERT " + self.label` builds a length-10 carrier, and
+// `exit_process(self.message.len)` reads the carrier's length word (at the
+// carrier's own offset 0, not a fat-slice descriptor's `+pointer_size`) -> exit 10.
+// `.len` already resolved in guards; this exercises it in value/argument position.
+#[test]
+fn runtime_bounded_carrier_length_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_length_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-length-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier length canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier length canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(10),
+        "expected `exit_process(self.message.len)` to read the carrier's length word \
+         (\"ALERT temp\" = 10), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 owned `[u8; N] in Utf8` carrier `.len` as a MUTATION-WRITE value:
+// `self.count = self.message.len` reads the length-10 carrier's length word into a
+// plain i32 field (a 4-byte read narrowing exactly into the i32 target), then exits
+// the field -> 10. Covers the mutation value-operand consumer of the shared
+// resolver's carrier-`.len` resolution (the host-call consumer is _length_exit).
+#[test]
+fn runtime_bounded_carrier_length_field_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_length_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-length-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier length field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier length field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(10),
+        "expected `self.count = self.message.len` to store the carrier length (10) \
+         into the i32 field, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 owned `[u8; N] in Utf8` carrier byte indexing in guard subjects:
+// `message[i]` reads the byte at `base + pointer_size + i` (content after the
+// length word, u8 elements). The compound guard `message[0] == 'A' &&
+// message[2] == 'E'` reads two bytes of "ALERT"; both hold -> ok arm exits 70.
+// (Indexing in guards is the parsing workhorse; widening a byte's value into a
+// wider int, e.g. exiting it, needs a separate u8->i32 zero-extension still TODO.)
+#[test]
+fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_byte_index_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-byte-index-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier byte index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier byte index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the compound byte-index guard `message[0]=='A' && message[2]=='E'` \
+         to hold and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 owned `[u8; N] in Utf8` carrier byte WRITE `self.buffer[i] = <byte>`: the byte
+// stores inline at `base + pointer_size + i`. Both a byte literal (`buffer[0] = 67`
+// = 'C') and a u8 field (`buffer[1] = self.ch` = 'D') work; from "AB" the writes
+// yield "CD" -> `==` exits 70.
+#[test]
+fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_byte_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-byte-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier byte write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier byte write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected indexed byte writes (literal 'C' + u8-field 'D') to turn \"AB\" into \
+         \"CD\" so `==` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A runtime slice `.len` (descriptor read of a slice PARAM, not a folded
+// fixed-array constant) narrows into an i32 field: `self.count = s.len` where
+// `s: &[i32]` -> exit 5 for a 5-element view. The length value is 32-bit, so its
+// low 4-byte word lowers into the i32 target (an 8-byte read does not) -- the same
+// width convention as carrier `.len`.
+#[test]
+fn runtime_slice_length_field_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_slice_length_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-slice-length-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("slice length field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("slice length field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "expected `self.count = s.len` to store the slice param's length (5) into \
+         the i32 field, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 owned `[u8; N] in Utf8` carrier builder/concat, native: `self.text =
+// "Room " + self.label` materializes into the target carrier's inline storage --
+// the first literal initializes it, then the source carrier's content is appended
+// (running offset + running len). `self.text == "Room A1"` matches -> exit 70.
+#[test]
+fn runtime_bounded_carrier_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-concat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the owned `[u8; 16] in Utf8` carrier to materialize `\"Room \" + self.label` \
+         into its inline storage so `self.text == \"Room A1\"` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 owned `[u8; N] in Utf8` carrier MULTI-SEGMENT concat into a `&mut` OUT-PARAM
+// (the dungeon render-line shape): `out_line = "== " + self.label + " =="` writes
+// across a machine boundary into a borrowed carrier -- init literal, append the
+// source carrier, append the trailing literal at the running length. Exits 70.
+#[test]
+fn runtime_bounded_carrier_alias_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_alias_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-alias-concat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier alias concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier alias concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `out_line = \"== \" + self.label + \" ==\"` to materialize `== Gate ==` into the \
+         borrowed carrier so `self.line == \"== Gate ==\"` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 owned carrier concat with a FRAME-LOCAL source: `out_line = "== " + src +
+// " =="` where `src` is a `let`-local carrier read from the runtime frame base.
+#[test]
+fn runtime_bounded_carrier_local_source_concat_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_local_source_concat_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-local-source-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier local source concat canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier local source concat canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `out_line = \"== \" + src + \" ==\"` (frame-local source) to render `== Gate ==` \
+         so `self.line == \"== Gate ==\"` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// Carrier sibling of the slice-view-element test: a value-call guards on the
+// element's CARRIER field (`room.label == "Gate"`, room = r[0], r =
+// self.rooms.as_slice()). Carrier RECOGNITION now traces the elided local and
+// sees through the as_slice view to resolve the field descriptor against the
+// underlying array; before, the carrier `==` failed to lower (the arm was
+// poisoned). Exits 70.
+#[test]
+fn runtime_value_call_slice_view_carrier_guard_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_value_call_slice_view_carrier_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-slice-view-carrier-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call slice-view carrier guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call slice-view carrier guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the carrier guard `room.label == \"Gate\"` (room = r[0], r a \
+         slice view) to resolve and take the true arm -> exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A value-call forwarded a SLICE-VIEW element by value (`read(r[0])`, r a local
+// `self.rooms.as_slice()`): the body reads `room.id` through the BranchParameter
+// alias `room = r[0]` -> `(self.rooms.as_slice())[0].id`. The place resolver now
+// sees through the as_slice view AND traces the elided local to its initializer
+// so the element resolves against the underlying array; before, it read a zero
+// slot and the call returned 0. Exits 70.
+#[test]
+fn runtime_value_call_slice_view_element_arg_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_slice_view_element_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-slice-view-elem-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call slice-view element canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call slice-view element canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `read(r[0])` (r = self.rooms.as_slice()) to resolve room.id to the \
+         underlying array element and return 7 -> exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A `let`-local capturing `self.vm.sp + 1`, where `self.vm.sp` is reassigned
+// before the local is forwarded through a nested dispatch (try_push1 -> push1).
+// Argument materialization used to inline-fold the local back into its
+// initializer and re-evaluate it AFTER the field was overwritten, so a deeper
+// substate's guard saw the wrong value and branched into the wrong arm. The fix
+// keeps the captured slot. Exits 70 (both pushes land: stack[0]=3, stack[1]=4).
+#[test]
+fn runtime_captured_local_remutated_field_exit_canary_runs() {
+    let canary = pass_canary("control_flow/runtime_captured_local_remutated_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-captured-local-remutated-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("captured-local-remutated-field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("captured-local-remutated-field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the captured `new_sp` slot (not a re-folded `self.vm.sp + 1`) to \
+         drive the nested dispatch so both pushes land and exit is 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 carrier compare through a POINTEE in a VALUE-CALL guard: the value-call
+// `Finder::check(level) -> i32` branches on `r[0].label == "Gate"` where `r:
+// &[Room]` indexes the by-value `level` param, so `r[0].label` is a carrier
+// reached through the slice pointer. The guard resolves the pointee place and
+// lowers the bounded-buffer compare; before the fix the resolver bailed, the
+// leaf branch dropped the arm write (the literal-guard poison-skip), and the
+// value-call returned a stale 0. Exits 70 (the `== "Gate"` true arm).
+#[test]
+fn runtime_bounded_carrier_pointee_guard_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_pointee_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-pointee-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier pointee guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier pointee guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the value-call guard `r[0].label == \"Gate\"` (carrier through a \
+         slice-element pointee) to take the true arm and return 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 owned `[u8; N] in Utf8` carrier field reached THROUGH a slice pointer:
+// `cells[0].label = "Gate"` writes the carrier inline through the `&mut [Room]`
+// pointer (a pointee write), then reads it back through the same pointer. Exits 70.
+#[test]
+fn runtime_bounded_carrier_slice_field_write_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_slice_field_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-slice-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier slice field write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier slice field write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `cells[0].label = \"Gate\"` to write the carrier through the slice pointer so \
+         `cells[0].label == \"Gate\"` exits 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 owned `[u8; N] in Utf8` carrier through HOST OUTPUT, native: build a carrier
+// by concat and `write_line` it. The host-call path reads the carrier with carrier
+// addressing (len @ 0, content pointer = place + pointer_size). Prints "Room A1"
+// and exits 70.
+#[test]
+fn runtime_bounded_carrier_write_line_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_write_line_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-write-line-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier write_line canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier write_line canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the carrier write_line canary to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim_end_matches(['\r', '\n']),
+        "Room A1",
+        "expected the carrier `write_line` to print the materialized content `Room A1`",
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 builder over NESTED-field carriers, CROSS-STATE: `self.line.text = "Room " +
+// self.room.label` is built in `main` and `write_line`d in a later `shutdown`
+// state. The nested fields carry their declared `in Utf8` domain across the state
+// transition (entry-invariant seeded for nested fields, enforced at the nested
+// write), so the carrier persists and prints. Prints "Room A1", exits 0.
+#[test]
+fn runtime_text_builder_canary_runs() {
+    let canary = pass_canary("text/runtime_text_builder");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-text-builder-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-field carrier builder canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-field carrier builder canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected the nested-field carrier builder canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim_end_matches(['\r', '\n']),
+        "Room A1",
+        "expected the cross-state nested-field carrier builder to print `Room A1`",
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 (return a `&[u8] in Utf8` view from a machine): a value-position call
 // returning a `&[u8] in Utf8` literal view flows as a real 16-byte `{ptr,len}`
 // descriptor into a `==` content compare. `pick() == "Gate"` matches and exits 70;
@@ -3381,6 +3980,149 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected u8 in Saturating (200+100) to clamp to 255 and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn arithmetic_domain_saturating_div_mod_exit_canary_runs() {
+    // Decision 17: SATURATING signed divide/modulo. TYPE_MIN / -1 (the only
+    // overflowing division, and the corner `idiv` traps on) clamps to TYPE_MAX, and
+    // TYPE_MIN % -1 -> 0, instead of trapping. The divisor reaches -1 via a loop so
+    // it is a genuine runtime value (defeats const-folding), exercising the native
+    // divisor==-1 guard + cmovo saturation.
+    let canary = pass_canary("expressions/arithmetic_domain_saturating_div_mod_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-arith-domain-sat-div-mod-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_saturating_div_mod canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_saturating_div_mod canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected saturating i32::MIN/-1 -> i32::MAX, MIN%-1 -> 0, -8/-1 -> 8 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_guard_divide_modulo_exit_canary_runs() {
+    // Division and modulo in a transition GUARD subject (`self.x / 3 > 5`,
+    // `self.x % 5 == 3`). The planner whitelist excluded Divide+Modulo and the
+    // guard value-operand resolver did not map Divide, so a div/mod guard silently
+    // took the true arm. Every arm here is reached only on a correct guard, so the
+    // regression would exit 71-74 instead of 70.
+    let canary = pass_canary("expressions/runtime_guard_divide_modulo_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-guard-div-mod-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime_guard_divide_modulo canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime_guard_divide_modulo canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected div/mod guard subjects to evaluate correctly (exit 70), got {:?} (71-74 = a guard took the wrong arm)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_guard_negative_arithmetic_exit_canary_runs() {
+    // Negative-i32 arithmetic in a transition guard subject (`self.x - 1 == -9` for
+    // x=-8) took the wrong arm natively: a computed value-operand zero-extended the
+    // i32 but the compare ran 64-bit. Fixed by sizing a Binary value-operand from
+    // the non-immediate operand so the compare runs at the i32 width. Every arm is
+    // reached only on a correct guard, so a regression exits 71-74.
+    let canary = pass_canary("expressions/runtime_guard_negative_arithmetic_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-guard-neg-arith-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime_guard_negative_arithmetic canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime_guard_negative_arithmetic canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected negative-i32 guard arithmetic to evaluate correctly (exit 70), got {:?} (71-74 = a guard took the wrong arm)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_guard_divide_modulo_signedness_exit_canary_runs() {
+    // Division/modulo in a guard subject with a NEGATIVE i32 dividend (`neg / 2 ==
+    // -4`) and a large UNSIGNED dividend. Div/mod are not modular, so the op runs at
+    // the operand width (32-bit) -- signed idiv for i32, Divide->DivideUnsigned for
+    // u32 so a large u32 is not misread as negative. A regression exits 71-74.
+    let canary = pass_canary("expressions/runtime_guard_divide_modulo_signedness_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-guard-divmod-sign-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime_guard_divide_modulo_signedness canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime_guard_divide_modulo_signedness canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed/unsigned div/mod guard subjects to evaluate correctly (exit 70), got {:?} (71-74 = wrong arm)\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -9950,6 +10692,207 @@ fn runtime_stdin_command_branch_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 carrier stdin round-trip: `read_line` into a `[u8; 64] in Utf8` carrier
+// (stdin straight into the inline bytes + len), then `write_line` the carrier back.
+// #66 carrier command-LOOP: each prompt reads a line into a `[u8; 16]` carrier,
+// resolves it to a Command enum via a value-call, and loops until `quit`. Exercises
+// every branch (Look loops, Invalid loops, Quit exits) so the loop genuinely
+// re-reads + re-resolves -- the String original (reverted) was a broken orphan that
+// always returned Look.
+#[test]
+fn contained_loop_command_branch_carrier_canary_runs() {
+    let canary = run_canary("contained_loop_command_branch");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-contained-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier command-loop canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("carrier command-loop canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"look\nzzz\nlook\nquit\n")
+        .expect("carrier command-loop input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("carrier command-loop canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected carrier command-loop canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "look\ninvalid\nlook\n",
+        "expected each loop iteration to re-resolve its own command (Look, Invalid, Look) then quit"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 carrier command-loop with a health gate: each iteration checks health, reads
+// a line into a `[u8; 16]` carrier, resolves a Command, and loops until `quit`.
+#[test]
+fn contained_health_loop_command_branch_carrier_canary_runs() {
+    let canary = run_canary("contained_health_loop_command_branch");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-contained-health-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier health-loop canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("carrier health-loop canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"look\nzzz\nquit\n")
+        .expect("carrier health-loop input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("carrier health-loop canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected carrier health-loop canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "look\ninvalid\n",
+        "expected the health-gated loop to resolve each command (Look, Invalid) then quit"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 carrier sequential reads: two `read_line`s into the same `[u8; 64]` carrier,
+// each echoed -- the second read must overwrite the first line's bytes + length.
+#[test]
+fn runtime_stdin_line_buffering_carrier_canary_runs() {
+    let canary = pass_canary("text/runtime_stdin_line_buffering_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-line-buffering-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier line buffering canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("carrier line buffering canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"first\nsecond\n")
+        .expect("carrier line buffering input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("carrier line buffering canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected carrier line buffering canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "first\nsecond\n",
+        "expected each carrier read_line to echo its own line, the second overwriting the first"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// #66 carrier stdin round-trip: `read_line` into a `[u8; 64] in Utf8` carrier
+// (stdin straight into the inline bytes + len), then `write_line` the carrier back.
+#[test]
+fn runtime_text_storage_carrier_canary_runs() {
+    let canary = pass_canary("text/runtime_text_storage");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-text-storage-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier text storage canary should compile");
+
+    let mut child = Command::new(build_dir.join(executable_name()))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("carrier text storage canary should start");
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin should be piped")
+        .write_all(b"echo me\n")
+        .expect("carrier text storage input should be written");
+    let output = child
+        .wait_with_output()
+        .expect("carrier text storage canary should finish");
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected carrier text storage canary to exit 0, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "> echo me\n",
+        "expected the carrier read_line to round-trip the input line back through write_line"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_stderr_write_exit_canary_runs() {
     // The `write_error` host capability mirrors `write` but targets the stderr
@@ -11712,6 +12655,10 @@ fn fail_canary(path: &str) -> PathBuf {
 
 fn pending_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/pending").join(path)
+}
+
+fn run_canary(path: &str) -> PathBuf {
+    repo_root().join("canaries/run").join(path)
 }
 
 fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {

@@ -17,7 +17,9 @@
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::ExpressionNode;
 use omega_typed_trees::machine::Machine;
-use omega_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{
+    FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 /// The declared encoding-domain symbol of a `self.field` target, resolved
 /// through the machine's ATTACHED DATA (`self` is not itself a place type).
@@ -52,32 +54,60 @@ pub(crate) fn attached_data_field_type(
     machine: &Machine,
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    let field_name = match program.expression_table.expression(expression) {
-        ExpressionNode::Member(member) => {
-            let ExpressionNode::Name(receiver) =
-                program.expression_table.expression(member.receiver)
-            else {
-                return None;
-            };
-            match program.expression_table.name_path_members(receiver.members) {
-                [segment] if segment.as_str() == "self" => member.member.as_str().to_owned(),
-                _ => return None,
-            }
-        }
-        ExpressionNode::Name(path) => {
-            match program.expression_table.name_path_members(path.members) {
-                [receiver, field] if receiver.as_str() == "self" => field.as_str().to_owned(),
-                _ => return None,
-            }
-        }
-        _ => return None,
-    };
+    // A `self.a.b.c` field path -- ONE level (`self.f`) or NESTED. Descend into
+    // each intermediate field's data type so a nested domained field's declared
+    // type is resolved (its domain is then enforced at writes and trusted at
+    // reads, the same two sides one-level fields already have).
+    let path = self_field_path(program, expression)?;
+    let (last, parents) = path.split_last()?;
 
     let attached = machine.attached_data.as_ref()?;
-    let data = program
+    let mut data = program
         .data_definitions()
         .iter()
         .find(|data| data.name.as_str() == attached.as_str())?;
+    for segment in parents {
+        let field_type = data_field_type_by_name(program, data, segment)?;
+        let next = type_reference_data_name(program, field_type)?;
+        data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == next.as_str())?;
+    }
+    data_field_type_by_name(program, data, last)
+}
+
+/// The segments of a `self.a.b.c` field-access path AFTER `self` (so `self.f` is
+/// `["f"]`, `self.a.b` is `["a", "b"]`), or `None` if `expression` is not a
+/// `self`-rooted field access. Handles both the nested `Member` chain and a flat
+/// `Name` path the parser may produce.
+fn self_field_path(
+    program: &omega_typed_trees::TypedTrees,
+    expression: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<Vec<String>> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            let mut path = self_field_path(program, member.receiver)?;
+            path.push(member.member.as_str().to_owned());
+            Some(path)
+        }
+        ExpressionNode::Name(name) => {
+            match program.expression_table.name_path_members(name.members) {
+                [first, rest @ ..] if first.as_str() == "self" => {
+                    Some(rest.iter().map(|segment| segment.as_str().to_owned()).collect())
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn data_field_type_by_name(
+    program: &omega_typed_trees::TypedTrees,
+    data: &omega_typed_trees::data::DataDefinition,
+    field_name: &str,
+) -> Option<TypeReferenceHandle> {
     program
         .data_members(data)
         .iter()
@@ -92,6 +122,39 @@ pub(crate) fn attached_data_field_type(
             }
             _ => None,
         })
+}
+
+/// The data-type name a field's type reference names (peeling `&`/`&mut` and a
+/// domain `Constrained` wrapper), for descending a nested field path into the
+/// next data definition.
+fn type_reference_data_name(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<String> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { name, .. } => Some(name.as_str().to_owned()),
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_data_name(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_data_name(program, *base_type)
+        }
+        _ => None,
+    }
+}
+
+/// The data definition a field's type names (a struct-typed field, peeling
+/// `&`/`&mut` and a domain wrapper), or `None` if the field is not data-typed.
+/// Used to descend a nested field path for the entry-invariant seed.
+pub(crate) fn data_definition_for_field_type<'program>(
+    program: &'program omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&'program omega_typed_trees::data::DataDefinition> {
+    let name = type_reference_data_name(program, type_reference)?;
+    program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == name.as_str())
 }
 
 /// The short domain name (`Utf8`) declared on a type reference, looking through a
@@ -169,6 +232,41 @@ pub(crate) fn domain_admits_empty_byte_sequence(
         .is_some_and(|predicate| predicate.holds_for(&[]))
 }
 
+/// Whether `domain_symbol`'s classifier is a recognized comptime byte-predicate
+/// that is preserved under concatenation, so a `left + right` whose two operands
+/// are each in the domain is itself in the domain. Underwrites the concat-domain
+/// law in `checks::contracts::writes::value_proves_domain`.
+pub(crate) fn domain_is_concat_preserving(
+    program: &omega_typed_trees::TypedTrees,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    domain_classifier_byte_predicate(program, domain_symbol)
+        .is_some_and(ByteSequencePredicate::is_concat_preserving)
+}
+
+/// The fixed-array capacity `N` of a `[u8; N]`-shaped owned carrier (peeling a
+/// leading domain `Constrained` wrapper), or `None` for a type with no inline
+/// capacity such as a `&[u8]` view. The fixed-array length is a `Literal` by the
+/// time checking runs (the orchestration const-eval pass lowers `ConstParameter`
+/// / `ConstCall` lengths first), so an unresolved length conservatively yields
+/// `None`. Used by the length-fits check to bound writes into a bounded text
+/// carrier.
+pub(crate) fn type_reference_fixed_array_capacity(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<usize> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_fixed_array_capacity(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(capacity),
+            ..
+        } => Some(*capacity),
+        _ => None,
+    }
+}
+
 /// A compiler-recognized comptime byte-predicate primitive over a byte sequence.
 /// These are reusable building blocks (like `+`/`==`), NOT domain-specific: a
 /// domain selects one by spelling it as its `when <predicate>(self)` classifier.
@@ -203,6 +301,20 @@ impl ByteSequencePredicate {
             Self::NoNul => !bytes.contains(&0),
             Self::AsciiOnly => bytes.iter().all(|byte| *byte < 128),
             Self::NonEmpty => !bytes.is_empty(),
+        }
+    }
+
+    /// Whether `predicate(a) && predicate(b)` implies `predicate(a ++ b)`: the
+    /// classifier is preserved under byte-sequence concatenation. All four
+    /// recognized predicates are concat-preserving -- concatenating two
+    /// valid-UTF-8 / nul-free / ASCII-only / non-empty sequences yields one of
+    /// the same kind (UTF-8 sequences are self-delimiting, so a complete valid
+    /// sequence followed by another is valid). A future predicate that is NOT
+    /// concat-preserving (a fixed-length or parse-shaped one) must return
+    /// `false` here so the concat-domain law does not admit it.
+    fn is_concat_preserving(self) -> bool {
+        match self {
+            Self::ValidUtf8 | Self::NoNul | Self::AsciiOnly | Self::NonEmpty => true,
         }
     }
 }

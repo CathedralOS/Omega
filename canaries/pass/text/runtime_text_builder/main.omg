@@ -1,13 +1,30 @@
+// The builder pattern over NESTED-field owned `[u8; N] in Utf8` carriers (#66):
+// `self.line.text = "Room " + self.room.label` materializes the concat into the
+// nested target carrier's inline `{len, bytes}` storage, then a later state
+// `write_line`s it. The nested fields `self.room.label` / `self.line.text` have
+// their declared `in Utf8` domain forwarded through the multi-level field-path
+// resolver -- enforced at the write and trusted at the host-call read -- so this
+// owns its bytes end to end with no `String` and no `{ptr, len}` descriptor.
+// Prints "Room A1", exits 0 (the interpreter agrees on both).
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 4]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 16]::Utf8 when valid_utf8(self) {
+}
+
 data Room {
-    label: String;
+    label: [u8; 4] in Utf8;
 }
 
 data Line {
-    text: String;
+    text: [u8; 16] in Utf8;
 }
 
 boundary trait Console {
-    machine write_line(text: String);
+    machine write_line(text: &[u8] in Utf8);
     machine exit_process(return_code: i32);
 }
 
@@ -24,7 +41,7 @@ machine Main::main(&mut self) -> i32 {
     transition {
         _ -> shutdown()
     }
-    
+
 
     state shutdown(&mut self) {
         self.console.write_line(self.line.text);

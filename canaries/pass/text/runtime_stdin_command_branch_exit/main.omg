@@ -1,6 +1,15 @@
+// #66: a stdin command parser over an owned `[u8; N] in Utf8` carrier. The line is
+// read straight into the carrier's inline bytes, borrowed as a `&[u8] in Utf8`
+// view, and matched against literals to resolve a command -- no `String`.
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 32]::Utf8 when valid_utf8(self) {
+}
+
 boundary trait Console {
-    machine write_line(text: String);
-    machine read_line(out_line: &mut String);
+    machine write_line(text: &[u8] in Utf8);
+    machine read_line(out_line: &mut [u8; 32] in Utf8);
     machine exit_process(return_code: i32);
 }
 
@@ -13,7 +22,7 @@ data Command {
 data Parser {
 }
 
-machine Parser::resolve(&mut self, line: &String) -> Command {
+machine Parser::resolve(&mut self, line: &[u8] in Utf8) -> Command {
     transition {
         line == "look" -> Command::Look
         line == "quit" -> Command::Quit
@@ -23,7 +32,7 @@ machine Parser::resolve(&mut self, line: &String) -> Command {
 
 data Main {
     console: Console;
-    line: String;
+    line: [u8; 32] in Utf8;
     parser: Parser;
     command: Command;
 }

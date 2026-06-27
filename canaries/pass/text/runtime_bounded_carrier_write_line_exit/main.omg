@@ -1,0 +1,33 @@
+// The owned `[u8; N] in Utf8` carrier through host output, native: build a
+// carrier by concat, then `write_line` it. The carrier is passed to a
+// `&[u8] in Utf8` view parameter -- the host-call path reads the carrier with
+// carrier addressing (length at offset 0, content pointer = place + pointer_size,
+// the inline bytes) rather than as a `{ptr, len}` descriptor. Prints "Room A1"
+// then exits 70. The interpreter agrees on both the output and the exit code
+// (differential).
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 4]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 16]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine write_line(text: &[u8] in Utf8);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    label: [u8; 4] in Utf8;
+    text: [u8; 16] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.label = "A1";
+    self.text = "Room " + self.label;
+    self.console.write_line(self.text);
+    self.console.exit_process(70);
+}
