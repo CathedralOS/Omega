@@ -1,26 +1,33 @@
-# compiler/alpha-rs — the Alpha compiler (interim Rust)
+# compiler/epsilon-rs — the Epsilon on-ramp (interim Rust)
 
-Sibling of `compiler/omega-rs`. Alpha is the smallest subset of Omega (rung 0 of
-the self-building lattice). The `-rs` suffix marks this as the **throwaway Rust**
-implementation (binary `alpha`) — the "on-ramp." Eventually a `compiler/alpha`
-holds the Alpha seed + the Alpha-in-Alpha compiler, and this Rust on-ramp is
-discarded (just as `compiler/omega-rs` is the throwaway Rust Omega compiler,
-to be retired by a lattice-built `compiler/omega`).
-See `wiki/design_briefs/alpha_language.md` and the `self-building-lattice` notes.
+The `-rs` suffix marks this as the **throwaway Rust** on-ramp for the Epsilon rung:
+it compiles `.alp` source — Omega's executable surface (state **machines**, **data**
+structs, **transition** dispatch, **enums** with payloads) — to a native binary,
+to *discover what the language needs by compiling it*. Its trust lineage does not
+matter (it is discarded); it is deliberately dumb, arena/index-based, monomorphic
+Rust so the port down to the lattice is mechanical, and its front end is the spec.
 
-Its job is to *discover what Alpha needs by compiling it*, then be ported 1:1 to
-Alpha so Alpha compiles itself. Its trust lineage does not matter (it is
-discarded); it is written in deliberately dumb, arena/index-based, monomorphic
-Rust so the port is mechanical, and its front-end enforces the Alpha subset.
+> **Naming note.** Header, extension (`.alp`), and a few "Alpha" mentions in older
+> samples are inherited from the `alpha-rs` README this was forked from — they do
+> **not** mean this is the 21-opcode tape-VM *alpha* (that lives in `compiler/alpha/`).
+> This builds the richer machines/data/transition language and is gated as **epsilon**
+> in `verify-lattice.sh`. The precise rung name vs. the lattice doc's epsilon
+> definition (ownership/regions/effects) is an open question for a future pass.
 
-Standalone crate (own `[workspace]`), so the parent Omega workspace never absorbs
-it and it never rots when the main compiler churns.
+The trusted, self-hosting version is **`samples/lowermachine.alp`** — the compiler
+written *in this language*, which compiles itself to a byte-identical binary (the
+self-compile fixed point, gated by `test_aarch64.sh` / `convergence.sh`).
+
+Two backends: Windows x64 PE (`src/x64.rs`, the default) and macOS arm64 Mach-O
+(`src/aarch64.rs`, `EPS_ARCH=aarch64`, the runnable+gated one on this platform).
+Standalone crate (own `[workspace]`), so the parent Omega workspace never absorbs it.
 
 ## Run
 
 ```
-cargo run -- samples/exit7.alp out.exe
-./out.exe ; echo $?     # -> 7
+cargo run -- samples/exit7.alp out.exe          # Windows x64 PE
+./out.exe ; echo $?                             # -> 7
+EPS_ARCH=aarch64 cargo run -- samples/shape.alp out  # macOS arm64; ./out ; echo $? -> 42
 ```
 
 ## Status
@@ -113,21 +120,40 @@ and byte arrays with trapping indexing, and byte stdin/stdout I/O.
 
 The on-ramp is now feature-complete for writing a compiler: a `Main` holds the
 arenas/buffers as self fields, and lexer/parser/emitter helper machines mutate
-them through `self.*` method calls.
+them through `self.*` method calls. **`lowermachine.alp` self-compiles** (the
+byte-identical fixed point), so the Rust on-ramp is discardable from steady state.
+
+## Language additions (beyond slice 9)
+
+Each is on both backends and keeps the self-compile fixed point byte-identical
+(additive — existing programs lower unchanged).
+
+- **Operators.** `%` (remainder, traps on `/0` like `/`); bitwise `& | ^`; shifts
+  `<< >>` (arithmetic right, shift amount mod-32 on both backends); unary minus
+  `-x` (desugars to `0 - x`, so it reuses the overflow trap). Precedence: bit
+  operators share one level below comparison; `* / %` above `+ -` above comparison.
+  Samples: `modulo.alp`, `bitops.alp`, `shifts.alp`, `negate.alp`.
+
+- **Enums (`case`) — Omega's sum types.** `data E { case A; case B(x: i32); ... }`.
+  A value is a tag word (the variant index) plus, for payload variants, one word
+  per payload field at offset +8, +16, … (the enum is sized to the widest variant).
+  - construct: `self.e = E::B(5)` (or `E::Rect(w, h)`); a tag-only `E::A` is just the tag.
+  - match: `transition self.e { E::A -> s() ; E::B { x } -> s2(x) ; ... }` dispatches
+    on the tag and binds payload fields (reads of the matched value) for the arm.
+  - **exhaustiveness:** a transition over an enum field must cover every variant or
+    include `_`, else it is rejected (naming the missing variant).
+  - Samples: `enum.alp`, `payload.alp`, `shape.alp`.
+
+- **State parameters.** `state s(p: i32, ...) { ... }` takes value args; a transition
+  arm `pat -> s(args)` evaluates them into the machine's shared state-arg slots, then
+  branches. Lets a loop carry an accumulator without a `self` field, and is the
+  mechanism enum-payload bindings reuse. Sample: `stateparams.alp`.
 
 ## Next
 
-10. Write the Alpha compiler **in Alpha** under `compiler/alpha/` (lexer → parser →
-    layout → x64 + PE emitter, all as methods over a `Main` holding the source
-    buffer + arenas), bootstrap it through `alpha-rs`, and close the self-hosting
-    fixed point. Sum-types-as-tags is optional (token/AST kinds = i32 tags
-    dispatched by `transition`). De-recurse the tree-walks to an explicit worklist
-    (Alpha bans call recursion).
-
-Deferred subset-enforcement (front-end is the spec; add before self-host): reject
-a cyclic call graph (Alpha bans recursion — calls must be a DAG); >4-arg calls
-(stack args); arena-capacity bounds.
-
-Deferred subset-enforcement (front-end is the spec; add before self-host): reject
-a cyclic call graph (Alpha bans recursion — calls must be a DAG); >4-arg calls
-(stack args); arena-capacity bounds.
+- **Mixed field+case data** (`data X { common: i32; case A; case B(..); }`) — common
+  fields shared across all variants alongside the case part. The last `case` slice.
+- **Subset enforcement** the front end should add as it firms up (the front end is the
+  spec): arena-capacity bounds; `>4`-arg free calls already error.
+- Reconcile this rung's name/scope with the lattice doc's epsilon definition
+  (ownership/regions/effects), and retire the inherited `alpha-rs` framing.
