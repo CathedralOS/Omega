@@ -24,7 +24,7 @@ data Main {
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
     aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32; aop: i32; nstr: i32; wlstart: i32; wllen: i32;
-    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
+    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; sacnt: i32; saeb: i32; saoff: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
     coff: i32; dsize: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
@@ -769,7 +769,7 @@ machine Main::main(&mut self) {
     state astore0(){ self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.aoff = 0; self.acnt = 0; self.aeb = 0; self.astore = 1; transition 0 { _ -> aslk() } }
     state aslk()  { transition self.cj < self.nf { true -> aslkc()  false -> asidx() } }
     state aslkc() { self.qc = self.fns[self.cj]; self.qd = self.fne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> aslkh()  false -> aslkn() } }
-    state aslkh() { self.aoff = self.foffs[self.cj]; self.acnt = self.fcnt[self.cj]; self.aeb = self.feb[self.cj]; transition 0 { _ -> asidx() } }
+    state aslkh() { self.aoff = self.foffs[self.cj]; self.acnt = self.fcnt[self.cj]; self.aeb = self.feb[self.cj]; self.sacnt = self.acnt; self.saeb = self.aeb; self.saoff = self.aoff; transition 0 { _ -> asidx() } }
     state aslkn() { self.cj = self.cj + 1; transition 0 { _ -> aslk() } }
     state asidx() { self.pos = self.pos + 1; self.aidx = self.pos; transition 0 { _ -> assk() } }   // past '[', save index span start
     state assk()  { transition self.buf[self.pos] == 93 { true -> assk2()  false -> assadv() } }    // skip to ']'
@@ -863,8 +863,9 @@ machine Main::main(&mut self) {
     state flkc()  { self.qc = self.fns[self.cj]; self.qd = self.fne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> flkh()  false -> flkn() } }
     state flkh()  { self.foff = self.foffs[self.cj]; self.acnt = self.fcnt[self.cj]; self.aeb = self.feb[self.cj]; transition 0 { _ -> fchk() } }
     state fchk()  { transition self.buf[self.pos] == 91 { true -> arr0()  false -> femit() } }     // '[' -> array index
-    state arr0()  { self.omode = self.mode; self.oopnd = self.opnd; self.aoff = self.foff; self.astore = 0; self.pos = self.pos + 1; self.mode = 5; self.opnd = 0; transition 0 { _ -> subj0() } }
+    state arr0()  { self.omode = self.mode; self.oopnd = self.opnd; self.aoff = self.foff; self.sacnt = self.acnt; self.saeb = self.aeb; self.saoff = self.foff; self.astore = 0; self.pos = self.pos + 1; self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 1; self.osp = self.osp + 1; self.mode = 5; self.opnd = 0; transition 0 { _ -> subj0() } }
     state arremit(){
+        self.acnt = self.sacnt; self.aeb = self.saeb; self.aoff = self.saoff;
         self.console.write_line("    ldr x0, [sp], #16");
         self.movw1v();
         self.console.write_line("    cmp w0, w1");
@@ -905,7 +906,7 @@ machine Main::main(&mut self) {
     state opchk3(){ transition self.buf[self.pos] == 59 { true -> opflush()  false -> opchk4() } }   // ';' RHS end
     state opchk4(){ transition self.buf[self.pos] == 44 { true -> opflush()  false -> opchk5() } }   // ',' arg end
     state opchk5(){ transition self.buf[self.pos] == 41 { true -> pclose()  false -> opchk6() } }   // ')' -> paren close (if sentinel on stack) or arg/context end
-    state opchk6(){ transition self.buf[self.pos] == 93 { true -> opflush()  false -> opp() } }      // ']' index end
+    state opchk6(){ transition self.buf[self.pos] == 93 { true -> aclose()  false -> opp() } }      // ']' index end -> pop to sentinel
     state subjend(){ transition self.mode == 0 { true -> toarms()  false -> sjm12() } }
     state sjm12()  { transition self.mode == 1 { true -> stStore()  false -> sjm23() } }
     state sjm23()  { transition self.mode == 2 { true -> ltStore()  false -> sjm34() } }
@@ -914,7 +915,7 @@ machine Main::main(&mut self) {
     state sjm56()  { transition self.mode == 5 { true -> arremit()  false -> sjm67() } }
     state sjm67()  { transition self.mode == 6 { true -> astidx()  false -> sjm78() } }
     state sjm78()  { transition self.mode == 7 { true -> arremit()  false -> wbemit() } }
-    state astidx() { self.rpos = self.pos; self.pos = self.aidx; self.mode = 7; self.opnd = 0; transition 0 { _ -> subj0() } }
+    state astidx() { self.rpos = self.pos; self.pos = self.aidx; self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 1; self.osp = self.osp + 1; self.mode = 7; self.opnd = 0; transition 0 { _ -> subj0() } }
     state ltStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
     state opp()   { self.naop = 0; transition self.buf[self.pos] == 60 { true -> oplt()  false -> opp2() } }     // '<'
     state oplt()  { transition self.buf[self.pos + 1] == 61 { true -> ople()  false -> opltx() } }
@@ -944,12 +945,17 @@ machine Main::main(&mut self) {
     state opflush(){ transition self.osp > 0 { true -> opfpop()  false -> subjend() } }   // expression end: emit all remaining stacked ops, then end
     state opfpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 1; transition 0 { _ -> emitop() } }
     state opretdisp(){ transition self.opret == 0 { true -> opclimb()  false -> opretd2() } }
-    state opretd2(){ transition self.opret == 1 { true -> opflush()  false -> pclose() } }   // opret 2 -> paren-close pop loop
+    state opretd2(){ transition self.opret == 1 { true -> opflush()  false -> opretd3() } }
+    state opretd3(){ transition self.opret == 2 { true -> pclose()  false -> aclose() } }   // 2=paren close, 3=array index close
     // ')' : pop+emit stacked ops until the precedence -1 sentinel; if one is found it's a paren close (discard + continue), else it's the context end (arg/subject)
     state pclose(){ transition self.osp > 0 { true -> pclose2()  false -> subjend() } }
     state pclose2(){ transition self.opprec[self.osp - 1] == 0 - 1 { true -> pdiscard()  false -> pcpop() } }
     state pcpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 2; transition 0 { _ -> emitop() } }
     state pdiscard(){ self.osp = self.osp - 1; self.pos = self.pos + 1; transition 0 { _ -> opdisp() } }   // drop sentinel, skip ')', the paren value is now an operand
+    state aclose(){ transition self.osp > 0 { true -> aclose2()  false -> subjend() } }
+    state aclose2(){ transition self.opprec[self.osp - 1] == 0 - 1 { true -> adiscard()  false -> acpop() } }
+    state acpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 3; transition 0 { _ -> emitop() } }
+    state adiscard(){ self.osp = self.osp - 1; transition 0 { _ -> subjend() } }
     state emitop(){ self.console.write_line("    ldr x1, [sp], #16"); self.console.write_line("    ldr x0, [sp], #16"); transition self.aop == 0 { true -> emitcmp()  false -> emitar() } }
     state emitcmp(){ self.console.write_line("    cmp w0, w1"); self.p_cset(); transition 0 { _ -> ec() } }
     state emitar() { transition self.aop == 1 { true -> aadd()  false -> emitar2() } }
