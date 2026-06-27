@@ -175,6 +175,11 @@ fn lower_statement(
                 lower_statement(inner, machine_index, program, frame, self_disp, asm);
             }
         }
+        Statement::Assert(expression) => {
+            lower_expression(*expression, program, self_disp, asm);
+            asm.push_str("    ldr x0, [sp], #16\n"); // pop the condition
+            asm.push_str("    cbz w0, Ltrap\n"); // trap if false (zero)
+        }
         Statement::Let(local_index, expression) | Statement::Assign(local_index, expression) => {
             lower_expression(*expression, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop value

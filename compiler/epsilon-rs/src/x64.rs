@@ -330,6 +330,12 @@ fn lower_statement(
                 lower_statement(inner, context, code, relocations, state_fixups, call_fixups);
             }
         }
+        Statement::Assert(expression) => {
+            lower_expression(*expression, context, code, relocations, call_fixups);
+            code.push(0x58); // pop rax (the condition)
+            code.extend_from_slice(&[0x85, 0xC0]); // test eax, eax
+            code.extend_from_slice(&[0x75, 0x02, 0x0F, 0x0B]); // jnz +2 ; ud2 (trap if false/zero)
+        }
         Statement::Let(local_index, expression) => {
             lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax

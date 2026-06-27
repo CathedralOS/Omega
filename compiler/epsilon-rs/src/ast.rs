@@ -57,6 +57,7 @@ pub enum Statement {
     WriteLine(usize),                      // index into Program.strings (bytes include trailing '\n')
     Transition(usize, Vec<TransitionArm>), // subject expr node, arms (jump to a state)
     Block(Vec<Statement>),                 // a sequence lowered in order (enum construction = tag + payload stores)
+    Assert(usize),                         // runtime contract: trap if the condition expr is 0 (false)
 }
 
 // A machine: a named, callable unit. The first `param_count` locals are its value

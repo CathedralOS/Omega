@@ -762,6 +762,15 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_statement(&mut self) -> Result<Statement, String> {
+        // `assert <cond>;` — a runtime contract: trap (like overflow/OOB) if cond is false.
+        if self.current_kind() == TokenKind::Ident && self.current_text() == b"assert" {
+            self.bump(); // assert
+            let cond = self.parse_expression()?;
+            if self.current_kind() == TokenKind::Semi {
+                self.bump();
+            }
+            return Ok(Statement::Assert(cond));
+        }
         if self.current_kind() == TokenKind::Ident && self.current_text() == b"let" {
             self.bump(); // let
             let name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
