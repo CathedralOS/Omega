@@ -25,7 +25,7 @@ data Main {
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
     aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32; aop: i32; nstr: i32; wlstart: i32; wllen: i32;
     osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
-    coff: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
+    coff: i32; dsize: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
@@ -545,7 +545,8 @@ machine Main::emit_prologue(&mut self) {
         self.console.write_line("    mov x29, sp");
         transition self.mi == self.emi { true -> selfent()  false -> selfnon() }
     }
-    state selfent() {
+    state selfent() { transition self.dsize > 0 { true -> selfent2()  false -> pdone() } }   // empty self (struct has only the console boundary): no _selfdata to point at, skip the init
+    state selfent2() {
         self.console.write_line("    adrp x9, _selfdata@PAGE");
         self.console.write_line("    add x9, x9, _selfdata@PAGEOFF");
         self.p_strx9(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10);
@@ -1010,7 +1011,7 @@ machine Main::main(&mut self) {
     state aend2() { self.pos = self.pos + 1; transition 0 { _ -> arm() } }
     state endph() { transition self.phase == 0 { true -> p1()  false -> endph1() } }
     state endph1(){ transition self.phase == 1 { true -> p2()  false -> done() } }
-    state p1()    { self.phase = 1; self.pos = 0; self.mi = 0 - 1; self.depth = 0; self.pend = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.si = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; transition 0 { _ -> sk() } }
+    state p1()    { self.dsize = self.coff; self.phase = 1; self.pos = 0; self.mi = 0 - 1; self.depth = 0; self.pend = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.si = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; transition 0 { _ -> sk() } }   // capture the entry struct's data size (coff is final after phase 0)
     state p2()    { self.phase = 2; self.pos = 0; self.mi = 0 - 1; self.lsi = 0; self.depth = 0; self.pend = 0; transition 0 { _ -> sk() } }
     state done()  { self.emit_epilogue(); self.console.exit_process(0) }
 }
