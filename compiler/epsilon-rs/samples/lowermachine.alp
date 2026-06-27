@@ -266,6 +266,23 @@ machine Main::is_rbyte(&mut self, s: i32, e: i32) -> i32 {    // "read_byte"
     state rzy()  { return 1; }
     state rzn()  { return 0; }
 }
+machine Main::is_exitp(&mut self, s: i32, e: i32) -> i32 {    // "exit_process"
+    transition e - s == 12 { true -> ez0()  false -> ezn() }
+    state ez0() { transition self.buf[s]      == 101 { true -> ez1()  false -> ezn() } }
+    state ez1() { transition self.buf[s + 1]  == 120 { true -> ez2()  false -> ezn() } }
+    state ez2() { transition self.buf[s + 2]  == 105 { true -> ez3()  false -> ezn() } }
+    state ez3() { transition self.buf[s + 3]  == 116 { true -> ez4()  false -> ezn() } }
+    state ez4() { transition self.buf[s + 4]  == 95  { true -> ez5()  false -> ezn() } }
+    state ez5() { transition self.buf[s + 5]  == 112 { true -> ez6()  false -> ezn() } }
+    state ez6() { transition self.buf[s + 6]  == 114 { true -> ez7()  false -> ezn() } }
+    state ez7() { transition self.buf[s + 7]  == 111 { true -> ez8()  false -> ezn() } }
+    state ez8() { transition self.buf[s + 8]  == 99  { true -> ez9()  false -> ezn() } }
+    state ez9() { transition self.buf[s + 9]  == 101 { true -> eza()  false -> ezn() } }
+    state eza() { transition self.buf[s + 10] == 115 { true -> ezb()  false -> ezn() } }
+    state ezb() { transition self.buf[s + 11] == 115 { true -> ezy()  false -> ezn() } }
+    state ezy()  { return 1; }
+    state ezn()  { return 0; }
+}
 machine Main::p_subsp(&mut self) {       // "    sub sp, sp, #"
     write_byte(32); transition 0 { _ -> b0() }
     state b0(){ write_byte(32); transition 0 { _ -> b1() } }  state b1(){ write_byte(32); transition 0 { _ -> b2() } }
@@ -668,7 +685,8 @@ machine Main::main(&mut self) {
     state wbsk2()  { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state ret0()  { self.mode = 4; self.opnd = 0; transition 0 { _ -> subj0() } }
     state retemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    mov sp, x29"); self.console.write_line("    ldp x29, x30, [sp]"); self.p_addsp(); self.v = self.frame; self.emit_int(); write_byte(10); self.console.write_line("    ret"); transition 0 { _ -> retsk() } }
-    state retsk() { transition self.buf[self.pos] == 59 { true -> retsk2()  false -> retadv() } }
+    state retsk() { transition self.buf[self.pos] == 59 { true -> retsk2()  false -> retsk3() } }
+    state retsk3(){ transition self.buf[self.pos] == 125 { true -> sk()  false -> retadv() } }   // '}' (no trailing ';') -> stop, leave it for the block handler
     state retadv(){ self.pos = self.pos + 1; transition 0 { _ -> retsk() } }
     state retsk2(){ self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state let0()  { transition self.buf[self.pos] <= 32 { true -> let0a()  false -> let1() } }
@@ -689,7 +707,15 @@ machine Main::main(&mut self) {
     state asgn1() { self.pos = self.pos + 1; self.fs = self.pos; transition 0 { _ -> asgnr() } }              // past '.', capture LHS field
     state asgnr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> asgna()  false -> asgne() } }
     state asgna() { self.pos = self.pos + 1; transition 0 { _ -> asgnr() } }
-    state asgne() { self.fe = self.pos; transition self.buf[self.pos] == 91 { true -> astore0()  false -> asgnws() } }   // '[' -> array store
+    state asgne() { self.fe = self.pos; transition self.buf[self.pos] == 91 { true -> astore0()  false -> asgne2() } }   // '[' -> array store
+    state asgne2(){ transition self.buf[self.pos] == 46 { true -> qcall0()  false -> asgnws() } }   // '.' -> qualified console call (self.console.METHOD)
+    state qcall0(){ self.pos = self.pos + 1; self.fs = self.pos; transition 0 { _ -> qcr() } }   // skip '.', mark method-name start (reuse fs)
+    state qcr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> qca()  false -> qce() } }
+    state qca()   { self.pos = self.pos + 1; transition 0 { _ -> qcr() } }
+    state qce()   { self.w = self.is_exitp(self.fs, self.pos); transition self.w == 1 { true -> exitp0()  false -> sk() } }   // exit_process; other console methods (write_line) skipped for now
+    state exitp0(){ transition self.buf[self.pos] == 40 { true -> exitp1()  false -> exitpadv() } }   // skip to '('
+    state exitpadv(){ self.pos = self.pos + 1; transition 0 { _ -> exitp0() } }
+    state exitp1(){ self.pos = self.pos + 1; self.mode = 4; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '(', lower the exit code as a return value (mode 4 -> retemit)
     state astore0(){ self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.aoff = 0; self.acnt = 0; self.aeb = 0; self.astore = 1; transition 0 { _ -> aslk() } }
     state aslk()  { transition self.cj < self.nf { true -> aslkc()  false -> asidx() } }
     state aslkc() { self.qc = self.fns[self.cj]; self.qd = self.fne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> aslkh()  false -> aslkn() } }
