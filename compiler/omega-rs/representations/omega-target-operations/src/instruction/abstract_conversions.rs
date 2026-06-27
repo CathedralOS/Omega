@@ -959,6 +959,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             omega_abstract_operations::AbstractOperationKind::CopyRuntimeMachineIndexedToRuntimeStorage {
                 base_byte_offset,
                 index_offset,
+                index_region,
                 element_byte_size,
                 field_byte_offset,
                 target_region,
@@ -967,6 +968,7 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             } => Self::CopyRuntimeMachineIndexedToRuntimeStorage {
                 base_byte_offset: *base_byte_offset,
                 index_offset: *index_offset,
+                index_region: *index_region,
                 element_byte_size: *element_byte_size,
                 field_byte_offset: *field_byte_offset,
                 target_region: *target_region,
