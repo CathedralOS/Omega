@@ -1127,6 +1127,9 @@ fn binary_operator_name(operator: BinaryOperator) -> &'static str {
     match operator {
         BinaryOperator::Add => "+",
         BinaryOperator::And => "&&",
+        BinaryOperator::BitwiseAnd => "&",
+        BinaryOperator::BitwiseOr => "|",
+        BinaryOperator::BitwiseXor => "^",
         BinaryOperator::Divide => "/",
         BinaryOperator::Equal => "==",
         BinaryOperator::Greater => ">",

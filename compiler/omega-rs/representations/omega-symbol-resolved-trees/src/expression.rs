@@ -1002,6 +1002,9 @@ fn strip_float_literal_suffix(source: &str) -> &str {
 pub enum BinaryOperator {
     Add,
     And,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
     Divide,
     Equal,
     Greater,

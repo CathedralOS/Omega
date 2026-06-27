@@ -146,6 +146,9 @@ fn invert_comparison_operator(operator: BinaryOperator) -> Option<BinaryOperator
         BinaryOperator::LessOrEqual => BinaryOperator::Greater,
         BinaryOperator::Add
         | BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
         | BinaryOperator::Divide
         | BinaryOperator::Modulo
         | BinaryOperator::Multiply

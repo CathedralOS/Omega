@@ -1337,5 +1337,8 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
         BinaryOperator::ShiftLeft => Some(StateGuardOperator::ShiftLeft),
         BinaryOperator::ShiftRight => Some(StateGuardOperator::ShiftRight),
+        BinaryOperator::BitwiseAnd => Some(StateGuardOperator::BitwiseAnd),
+        BinaryOperator::BitwiseOr => Some(StateGuardOperator::BitwiseOr),
+        BinaryOperator::BitwiseXor => Some(StateGuardOperator::BitwiseXor),
     }
 }

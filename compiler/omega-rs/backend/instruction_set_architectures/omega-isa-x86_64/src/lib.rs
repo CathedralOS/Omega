@@ -5629,6 +5629,9 @@ fn append_runtime_binary_operation(
         StateGuardOperator::Add => bytes.extend([0x4d, 0x01, 0xda]), // add r10, r11
         StateGuardOperator::And => bytes.extend([0x4d, 0x21, 0xda]), // and r10, r11
         StateGuardOperator::Or => bytes.extend([0x4d, 0x09, 0xda]),  // or r10, r11
+        StateGuardOperator::BitwiseAnd => bytes.extend([0x4d, 0x21, 0xda]), // and r10, r11
+        StateGuardOperator::BitwiseOr => bytes.extend([0x4d, 0x09, 0xda]),  // or r10, r11
+        StateGuardOperator::BitwiseXor => bytes.extend([0x4d, 0x31, 0xda]), // xor r10, r11
         StateGuardOperator::Subtract => bytes.extend([0x4d, 0x29, 0xda]), // sub r10, r11
         StateGuardOperator::Multiply => bytes.extend([0x4d, 0x0f, 0xaf, 0xd3]), // imul r10, r11
         StateGuardOperator::Max
@@ -5794,6 +5797,9 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
         StateGuardOperator::Add
         | StateGuardOperator::And
         | StateGuardOperator::Or
+        | StateGuardOperator::BitwiseAnd
+        | StateGuardOperator::BitwiseOr
+        | StateGuardOperator::BitwiseXor
         | StateGuardOperator::Subtract => 3,
         StateGuardOperator::Multiply => 4,
         // cmp (3) + cmov (4), same at 32-bit or 64-bit.

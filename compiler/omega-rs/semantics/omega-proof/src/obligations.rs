@@ -1942,6 +1942,9 @@ fn integer_binary_range(
             })
         }
         BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
         | BinaryOperator::Divide
         | BinaryOperator::Equal
         | BinaryOperator::Greater
@@ -1997,6 +2000,9 @@ fn float_binary_range(
             })
         }
         BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
         | BinaryOperator::Equal
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual

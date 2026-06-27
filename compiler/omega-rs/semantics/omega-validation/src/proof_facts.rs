@@ -112,6 +112,9 @@ fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle
             | BinaryOperator::NotEqual
             | BinaryOperator::Or => true,
             BinaryOperator::Add
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
             | BinaryOperator::Divide
             | BinaryOperator::Modulo
             | BinaryOperator::Multiply

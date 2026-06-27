@@ -1,0 +1,53 @@
+// Bitwise operators as runtime values: AND (`&`), OR (`|`), XOR (`^`). They
+// produce integers (not booleans) and cannot overflow, so they carry no
+// arithmetic domain obligation. `12 & 10 == 8`, `12 | 10 == 14`, `12 ^ 10 == 6`.
+// Precedence sits between comparison and the shifts (Rust-style), and infix `&`
+// is disambiguated from a prefix reference by position.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i32;
+    b: i32;
+    and_result: i32;
+    or_result: i32;
+    xor_result: i32;
+}
+
+machine Main::main(&mut self) {
+    self.a = 12;
+    self.b = 10;
+    self.and_result = self.a & self.b; // 8
+    self.or_result = self.a | self.b;  // 14
+    self.xor_result = self.a ^ self.b; // 6
+
+    transition self.and_result == 8 {
+        true -> check_or()
+        false -> bad()
+    }
+
+    state check_or(&mut self) {
+        transition self.or_result == 14 {
+            true -> check_xor()
+            false -> bad()
+        }
+    }
+
+    state check_xor(&mut self) {
+        transition self.xor_result == 6 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

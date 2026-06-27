@@ -894,6 +894,9 @@ fn apply_right_literal_guard(
         BinaryOperator::LessOrEqual => range.maximum = range.maximum.min(value),
         BinaryOperator::Add
         | BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
         | BinaryOperator::Divide
         | BinaryOperator::Modulo
         | BinaryOperator::Multiply
@@ -928,6 +931,9 @@ fn apply_left_literal_guard(
         BinaryOperator::LessOrEqual => range.minimum = range.minimum.max(value),
         BinaryOperator::Add
         | BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
         | BinaryOperator::Divide
         | BinaryOperator::Modulo
         | BinaryOperator::Multiply
