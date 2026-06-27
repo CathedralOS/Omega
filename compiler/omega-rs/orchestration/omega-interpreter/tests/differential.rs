@@ -305,6 +305,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/f32_array_binary_op_zero", 70),
     ("expressions/arithmetic_domain_wrapping_exit", 70),
     ("expressions/arithmetic_domain_saturating_exit", 70),
+    ("expressions/arithmetic_domain_saturating_div_mod_exit", 70),
     ("expressions/arithmetic_domain_saturating_mul_exit", 70),
     ("expressions/arithmetic_domain_saturating_const_fold_exit", 70),
     ("expressions/arithmetic_domain_return_range_proven_exact_exit", 70),

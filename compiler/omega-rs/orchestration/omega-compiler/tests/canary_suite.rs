@@ -3803,6 +3803,42 @@ fn arithmetic_domain_saturating_exit_canary_runs() {
 }
 
 #[test]
+fn arithmetic_domain_saturating_div_mod_exit_canary_runs() {
+    // Decision 17: SATURATING signed divide/modulo. TYPE_MIN / -1 (the only
+    // overflowing division, and the corner `idiv` traps on) clamps to TYPE_MAX, and
+    // TYPE_MIN % -1 -> 0, instead of trapping. The divisor reaches -1 via a loop so
+    // it is a genuine runtime value (defeats const-folding), exercising the native
+    // divisor==-1 guard + cmovo saturation.
+    let canary = pass_canary("expressions/arithmetic_domain_saturating_div_mod_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-arith-domain-sat-div-mod-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_saturating_div_mod canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_saturating_div_mod canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected saturating i32::MIN/-1 -> i32::MAX, MIN%-1 -> 0, -8/-1 -> 8 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn case_payload_shared_field_name_exit_canary_runs() {
     // Regression: destructuring `Tx::Transfer { to, amount }` must read Transfer's
     // `amount` (40), not a same-named field in an earlier variant (would read to=3).
