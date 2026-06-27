@@ -69,7 +69,7 @@ machine Main::factor(&mut self) {
     transition self.buf[self.pos] == 40 { true -> fparen()  false -> fnp() }
     state fnp()   { transition self.buf[self.pos] < 97 { true -> fnum()  false -> fvar() } }
     state fparen() {
-        self.pos = self.pos + 1; self.expr(); self.pos = self.pos + 1;
+        self.pos = self.pos + 1; self.bitexpr(); self.pos = self.pos + 1;
         transition 0 { _ -> fend() }
     }
     state fvar() {  // load a variable's value
@@ -104,7 +104,8 @@ machine Main::term(&mut self) {
     self.factor();
     transition 0 { _ -> tloop() }
     state tloop() { transition self.buf[self.pos] == 42 { true -> tmul()  false -> tdivc() } }
-    state tdivc() { transition self.buf[self.pos] == 47 { true -> tdiv()  false -> tend() } }
+    state tdivc() { transition self.buf[self.pos] == 47 { true -> tdiv()  false -> tmodc() } }
+    state tmodc() { transition self.buf[self.pos] == 37 { true -> tmod()  false -> tend() } } // '%'
     state tmul()  {
         self.pos = self.pos + 1; self.factor();
         self.console.write_line("ldr x1, [sp], #16");
@@ -122,6 +123,16 @@ machine Main::term(&mut self) {
         self.console.write_line("ldr x0, [sp], #16");
         self.console.write_line("cbz w1, Ltrap");
         self.console.write_line("sdiv w0, w0, w1");
+        self.console.write_line("str x0, [sp, #-16]!");
+        transition 0 { _ -> tloop() }
+    }
+    state tmod()  {
+        self.pos = self.pos + 1; self.factor();
+        self.console.write_line("ldr x1, [sp], #16");
+        self.console.write_line("ldr x0, [sp], #16");
+        self.console.write_line("cbz w1, Ltrap");
+        self.console.write_line("sdiv w2, w0, w1");
+        self.console.write_line("msub w0, w2, w1, w0");
         self.console.write_line("str x0, [sp, #-16]!");
         transition 0 { _ -> tloop() }
     }
@@ -152,6 +163,24 @@ machine Main::expr(&mut self) {
     }
     state eend()  {}
 }
+// bitexpr = expr (('&'|'|'|'^'|'<<'|'>>') expr)*  -- lowest-precedence (outermost) level.
+machine Main::bitexpr(&mut self) {
+    self.expr();
+    transition 0 { _ -> bloop() }
+    state bloop() { transition self.buf[self.pos] == 38  { true -> band()  false -> b1() } }   // '&'
+    state b1()    { transition self.buf[self.pos] == 124 { true -> bor()   false -> b2() } }   // '|'
+    state b2()    { transition self.buf[self.pos] == 94  { true -> bxor()  false -> b3() } }   // '^'
+    state b3()    { transition self.buf[self.pos] == 60  { true -> bshlc() false -> b4() } }   // '<'
+    state b4()    { transition self.buf[self.pos] == 62  { true -> bshrc() false -> bend() } } // '>'
+    state bshlc() { transition self.buf[self.pos + 1] == 60 { true -> bshl() false -> bend() } }
+    state bshrc() { transition self.buf[self.pos + 1] == 62 { true -> bshr() false -> bend() } }
+    state band()  { self.pos = self.pos + 1; self.expr(); self.console.write_line("ldr x1, [sp], #16"); self.console.write_line("ldr x0, [sp], #16"); self.console.write_line("and w0, w0, w1"); self.console.write_line("str x0, [sp, #-16]!"); transition 0 { _ -> bloop() } }
+    state bor()   { self.pos = self.pos + 1; self.expr(); self.console.write_line("ldr x1, [sp], #16"); self.console.write_line("ldr x0, [sp], #16"); self.console.write_line("orr w0, w0, w1"); self.console.write_line("str x0, [sp, #-16]!"); transition 0 { _ -> bloop() } }
+    state bxor()  { self.pos = self.pos + 1; self.expr(); self.console.write_line("ldr x1, [sp], #16"); self.console.write_line("ldr x0, [sp], #16"); self.console.write_line("eor w0, w0, w1"); self.console.write_line("str x0, [sp, #-16]!"); transition 0 { _ -> bloop() } }
+    state bshl()  { self.pos = self.pos + 2; self.expr(); self.console.write_line("ldr x1, [sp], #16"); self.console.write_line("ldr x0, [sp], #16"); self.console.write_line("lsl w0, w0, w1"); self.console.write_line("str x0, [sp, #-16]!"); transition 0 { _ -> bloop() } }
+    state bshr()  { self.pos = self.pos + 2; self.expr(); self.console.write_line("ldr x1, [sp], #16"); self.console.write_line("ldr x0, [sp], #16"); self.console.write_line("asr w0, w0, w1"); self.console.write_line("str x0, [sp, #-16]!"); transition 0 { _ -> bloop() } }
+    state bend()  {}
+}
 machine Main::main(&mut self) {
     self.pos = 0;
     transition 0 { _ -> rd() }
@@ -171,12 +200,12 @@ machine Main::main(&mut self) {
         // clobbers `voff` for each variable it loads (shared-field re-entrancy).
         self.toff = (self.buf[self.pos] - 97) * 8;
         self.pos = self.pos + 2;        // skip "x="
-        self.expr();
+        self.bitexpr();
         self.emit_store(self.toff);
         self.pos = self.pos + 1;        // skip ';'
         transition 0 { _ -> stmtloop() }
     }
-    state result() { self.expr(); transition 0 { _ -> epi() } }
+    state result() { self.bitexpr(); transition 0 { _ -> epi() } }
     state epi() {
         self.console.write_line("ldr x0, [sp], #16");
         self.console.write_line("ret");
