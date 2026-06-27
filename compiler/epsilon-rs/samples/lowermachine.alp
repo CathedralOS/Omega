@@ -717,7 +717,20 @@ machine Main::main(&mut self) {
     state ck2self(){ self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> asgn0()  false -> ck2let() } }
     state ck2let() { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> let0()  false -> ck2ret() } }
     state ck2ret() { self.w = self.is_return(self.start, self.pos); transition self.w == 1 { true -> ret0()  false -> ck2wb() } }
-    state ck2wb()  { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> wb0()  false -> sk() } }
+    state ck2wb()  { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> wb0()  false -> lasgn0() } }
+    // local reassignment: `localname = expr` (bare ident; not self./let/return/write_byte). STRICT --
+    // only fires when the ident resolves to a declared local AND is followed by '='; else -> sk (the
+    // prior drop behavior). Reuses lstgt + mode 2 + ltStore, exactly like a `let` initializer store.
+    state lasgn0(){ self.qa = self.start; self.qb = self.pos; self.cj = 0; transition 0 { _ -> lalk() } }
+    state lalk()  { transition self.cj < self.nl { true -> lalkc()  false -> sk() } }
+    state lalkc() { transition self.lmi[self.cj] == self.mi { true -> lalkc2()  false -> lalkn() } }
+    state lalkc2(){ self.qc = self.lns[self.cj]; self.qd = self.lne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> lalkh()  false -> lalkn() } }
+    state lalkh() { self.lstgt = 16 + 8 * (self.pcs[self.mi] + self.plidx[self.cj]); transition 0 { _ -> laeq() } }
+    state lalkn() { self.cj = self.cj + 1; transition 0 { _ -> lalk() } }
+    state laeq()  { transition self.buf[self.pos] <= 32 { true -> laeqa()  false -> laeqck() } }   // skip ws to '='
+    state laeqa() { self.pos = self.pos + 1; transition 0 { _ -> laeq() } }
+    state laeqck(){ transition self.buf[self.pos] == 61 { true -> laeq2()  false -> sk() } }        // '=' -> assign; else not a local-assignment stmt
+    state laeq2() { self.pos = self.pos + 1; self.mode = 2; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '=', lower RHS (mode 2 -> ltStore to lstgt)
     state wb0()    { transition self.buf[self.pos] == 40 { true -> wb1()  false -> wbadv() } }   // skip to '('
     state wbadv()  { self.pos = self.pos + 1; transition 0 { _ -> wb0() } }
     state wb1()    { self.pos = self.pos + 1; self.mode = 8; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '(', lower the byte arg

@@ -467,6 +467,12 @@ fi
 # (precedence, parens, comparisons, modulo, and the bit ops), exercised end-to-end.
 selfhost_test "self-hosting: lowermachine compiles rpn.alp; binary matches the reference" samples/rpn.alp \
   "2 + 3" "2 + 3 * 4" "(1 + 2) * 3" "1 + 2 < 5" "8 >> 1 & 3" "10 % 3 + 1"
+# calc.alp: a recursive-descent evaluator -- exercises mutual recursion (factor/expr/term), parens,
+# and let-LOCAL accumulation reassigned ACROSS states (acc = acc + self.term()). The last needed the
+# bare-ident local-assignment statement path (ck2wb -> lasgn0); without it lowermachine dropped the
+# stores and returned the let-initializer.
+selfhost_test "self-hosting: lowermachine compiles calc.alp; binary matches the reference" samples/calc.alp \
+  "2+3*4" "(2+3)*4" "100/5/2" "((1+2))*3" "7-3-2"
 
 echo "aarch64 macOS backend gate (slices 1-7, full parity): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
