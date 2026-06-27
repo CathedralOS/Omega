@@ -44,6 +44,7 @@ use crate::ast::{BinaryOp, Expr, Machine, Program, Statement};
 // Library def ids the compiler cites (must match gen-contract-lib.py, which asserts them).
 const ADD_ZERO_RIGHT: usize = 0; // ∀x. x + 0 = x
 const ADD_COMMUTES: usize = 5; // ∀x∀y. x + y = y + x  (def 5: pulls its dep lemmas into 1..4)
+const LE_TRANS: usize = 9; // ∀x∀y∀z. x<=y -> y<=z -> x<=z  (def 9: pulls its dep lemmas into 6..8)
 
 // Translate an epsilon expression to a raw delta-checker term, each parameter rendered as the
 // de Bruijn variable `(v i+shift)`. Returns None outside the checkable arithmetic fragment
@@ -316,24 +317,53 @@ fn discharge_forwarding(caller_idx: usize, program: &Program) -> Vec<String> {
                 if !matches!(program.expressions[arg], Expr::Local(i) if i == ap) {
                     continue;
                 }
-                // ...and at which the callee demands the SAME order-precondition.
-                let forwards = callee
+                // ...and at which the callee demands an order-precondition of the same relation.
+                let callee_pc = callee
                     .preconditions
                     .iter()
                     .filter_map(|&bpc| param_order(bpc, program))
-                    .any(|(bpi, bop, bc)| bpi == pp && same_order(op, bop) && bc == c);
-                if !forwards {
-                    continue;
-                }
-                // ∀(caller params). (P -> P), proved by `(lam (hyp 0))`. Under the P binders the
-                // forwarded parameter `ap` is (v ap); inside the existential body it is (v ap+1)
-                // (the witness var is (v 0)).
-                if let Some(p) = order_prop(op, c, &format!("(v {})", ap + 1)) {
-                    certs.push(wrap_universal(
-                        caller.param_count,
-                        &format!("(-> {0} {0})", p),
-                        &format!("(lam {0} (hyp 0))", p),
-                    ));
+                    .find(|(bpi, bop, _)| *bpi == pp && same_order(op, *bop));
+                let bc = match callee_pc {
+                    Some((_, _, bc)) => bc,
+                    None => continue,
+                };
+                // Under the P caller binders the forwarded parameter `ap` is (v ap); inside an
+                // existential body it is (v ap+1) (the witness var is (v 0)). `lam` does not
+                // shift term vars, so in the proof body `ap` is still (v ap).
+                let pidx = format!("(v {})", ap + 1);
+                if c == bc {
+                    // FORWARDING: caller and callee demand the same bound. ∀params. (P -> P),
+                    // proved by `(lam (hyp 0))` -- assume the precondition, hand it back.
+                    if let Some(p) = order_prop(op, c, &pidx) {
+                        certs.push(wrap_universal(
+                            caller.param_count,
+                            &format!("(-> {0} {0})", p),
+                            &format!("(lam {0} (hyp 0))", p),
+                        ));
+                    }
+                } else if matches!(op, BinaryOp::Ge) && c > bc {
+                    // WEAKENING (lower bound): caller demands `param >= c`, callee only `>= bc`
+                    // with c > bc. From `c <= param` and the ground `bc <= c`, le-trans gives
+                    // `bc <= param`. Proof: assume P_strong, apply le-trans(bc, c, param) to the
+                    // ground premise `bc <= c` and the hypothesis.
+                    if let (Some(ps), Some(pw)) =
+                        (order_prop(op, c, &pidx), order_prop(op, bc, &pidx))
+                    {
+                        let (ca, cb, diff) = (unary(c), unary(bc), unary(c - bc));
+                        let prem1 = format!(
+                            "(wit (= (p {0} (v 0)) {1}) {2} (refl {1}))",
+                            cb, ca, diff
+                        );
+                        let body = format!(
+                            "(app (app (inst (inst (inst (use {}) {}) {}) (v {})) {}) (hyp 0))",
+                            LE_TRANS, cb, ca, ap, prem1
+                        );
+                        certs.push(wrap_universal(
+                            caller.param_count,
+                            &format!("(-> {} {})", ps, pw),
+                            &format!("(lam {} {})", ps, body),
+                        ));
+                    }
                 }
             }
         }
