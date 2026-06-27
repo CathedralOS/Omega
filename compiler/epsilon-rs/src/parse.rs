@@ -803,6 +803,8 @@ impl<'a> Parser<'a> {
                 TokenKind::Amp => (BinaryOp::BitAnd, 0),
                 TokenKind::Pipe => (BinaryOp::BitOr, 0),
                 TokenKind::Caret => (BinaryOp::BitXor, 0),
+                TokenKind::Shl => (BinaryOp::Shl, 0),
+                TokenKind::Shr => (BinaryOp::Shr, 0),
                 _ => break,
             };
             if precedence < min_precedence {

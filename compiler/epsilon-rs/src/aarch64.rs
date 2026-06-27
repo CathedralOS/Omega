@@ -334,6 +334,9 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
                 BinaryOp::BitAnd => asm.push_str("    and w0, w0, w1\n"),
                 BinaryOp::BitOr => asm.push_str("    orr w0, w0, w1\n"),
                 BinaryOp::BitXor => asm.push_str("    eor w0, w0, w1\n"),
+                // shifts: amount in w1, masked to 0-31 by the hardware (matches x64 cl).
+                BinaryOp::Shl => asm.push_str("    lsl w0, w0, w1\n"),
+                BinaryOp::Shr => asm.push_str("    asr w0, w0, w1\n"), // arithmetic (signed)
                 BinaryOp::Lt => emit_compare(asm, "lt"),
                 BinaryOp::Gt => emit_compare(asm, "gt"),
                 BinaryOp::Le => emit_compare(asm, "le"),
