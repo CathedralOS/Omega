@@ -14,6 +14,9 @@ data Main { console: Console; }
 machine adds(a: i32, b: i32) -> i32 ensures result == a + b { return a + b; }
 // reduction: result == a, returned as 0 + a -> (p z (v0)) reduces to (v0)
 machine zadd(a: i32) -> i32 ensures result == a { return 0 + a; }
+// LEMMA CITATION: result == a, returned as a + 0 -> (p (v0) z) does NOT reduce (p recurses on
+// the left); refl can't prove it. The compiler cites add-zero-right: (inst (use 0) a).
+machine azr(a: i32) -> i32 ensures result == a { return a + 0; }
 // multiplication: result == a * 3, returned verbatim
 machine triple(a: i32) -> i32 ensures result == a * 3 { return a * 3; }
 
