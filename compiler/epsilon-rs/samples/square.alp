@@ -4,7 +4,8 @@
 // numeric immediates into its output. Exercises, in one program:
 //   - multi-digit decimal PARSE      (n = n*10 + (c - '0'))
 //   - arithmetic on the real value   (n*n, not mod 256 — output proves it)
-//   - integer division + the %-via-(x - (x/10)*10) idiom (epsilon has no %)
+//   - integer division + the %-via-(x - (x/10)*10) idiom (predates epsilon's `%`;
+//     kept as-is to exercise division — see modulo.alp for the `%` operator)
 //   - a [u8;N] digit buffer, filled least-significant-first
 //   - reversed output                (write the buffer most-significant-first)
 //   square(144) = 20736.
