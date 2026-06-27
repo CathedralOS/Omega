@@ -109,9 +109,15 @@ machine Main::emit_op(&mut self, s: i32) {
     state o4()  { transition self.buf[s] == 60 { true -> lt2()  false -> o5() } }
     state o5()  { transition self.buf[s] == 62 { true -> gt2()  false -> o6() } }
     state o6()  { transition self.buf[s] == 61 { true -> eq()  false -> o7() } }
-    state o7()  { transition self.buf[s] == 33 { true -> ne()  false -> ret() } }
-    state lt2() { transition self.buf[s + 1] == 61 { true -> le()  false -> lt() } }
-    state gt2() { transition self.buf[s + 1] == 61 { true -> ge()  false -> gt() } }
+    state o7()  { transition self.buf[s] == 33 { true -> ne()  false -> o8() } }
+    state o8()  { transition self.buf[s] == 37  { true -> rem()  false -> o9() } }   // '%'
+    state o9()  { transition self.buf[s] == 38  { true -> band()  false -> o10() } } // '&'
+    state o10() { transition self.buf[s] == 124 { true -> bor()  false -> o11() } }  // '|'
+    state o11() { transition self.buf[s] == 94  { true -> bxor()  false -> ret() } } // '^'
+    state lt2() { transition self.buf[s + 1] == 61 { true -> le()  false -> lt2b() } }
+    state lt2b(){ transition self.buf[s + 1] == 60 { true -> shl()  false -> lt() } } // '<<'
+    state gt2() { transition self.buf[s + 1] == 61 { true -> ge()  false -> gt2b() } }
+    state gt2b(){ transition self.buf[s + 1] == 62 { true -> shr()  false -> gt() } } // '>>'
     state add() { self.pops(); self.console.write_line("    adds w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); self.push(); transition 0 { _ -> ret() } }
     state sub() { self.pops(); self.console.write_line("    subs w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); self.push(); transition 0 { _ -> ret() } }
     state mul() { self.pops(); self.console.write_line("    smull x0, w0, w1"); self.console.write_line("    sxtw x2, w0"); self.console.write_line("    cmp x0, x2"); self.console.write_line("    b.ne Ltrap"); self.push(); transition 0 { _ -> ret() } }
@@ -122,6 +128,12 @@ machine Main::emit_op(&mut self, s: i32) {
     state ge()  { self.pops(); self.console.write_line("    cmp w0, w1"); self.console.write_line("    cset w0, ge"); self.push(); transition 0 { _ -> ret() } }
     state eq()  { self.pops(); self.console.write_line("    cmp w0, w1"); self.console.write_line("    cset w0, eq"); self.push(); transition 0 { _ -> ret() } }
     state ne()  { self.pops(); self.console.write_line("    cmp w0, w1"); self.console.write_line("    cset w0, ne"); self.push(); transition 0 { _ -> ret() } }
+    state rem() { self.pops(); self.console.write_line("    cbz w1, Ltrap"); self.console.write_line("    sdiv w2, w0, w1"); self.console.write_line("    msub w0, w2, w1, w0"); self.push(); transition 0 { _ -> ret() } }
+    state band(){ self.pops(); self.console.write_line("    and w0, w0, w1"); self.push(); transition 0 { _ -> ret() } }
+    state bor() { self.pops(); self.console.write_line("    orr w0, w0, w1"); self.push(); transition 0 { _ -> ret() } }
+    state bxor(){ self.pops(); self.console.write_line("    eor w0, w0, w1"); self.push(); transition 0 { _ -> ret() } }
+    state shl() { self.pops(); self.console.write_line("    lsl w0, w0, w1"); self.push(); transition 0 { _ -> ret() } }
+    state shr() { self.pops(); self.console.write_line("    asr w0, w0, w1"); self.push(); transition 0 { _ -> ret() } }
     state ret() { }
 }
 machine Main::main(&mut self) {
@@ -148,11 +160,18 @@ machine Main::main(&mut self) {
     state opf()   { transition self.buf[self.pos] == 60 { true -> p1m()  false -> opg() } }
     state opg()   { transition self.buf[self.pos] == 62 { true -> p1m()  false -> oph() } }
     state oph()   { transition self.buf[self.pos] == 61 { true -> p1t()  false -> opi() } }
-    state opi()   { transition self.buf[self.pos] == 33 { true -> p1t()  false -> padv() } }
+    state opi()   { transition self.buf[self.pos] == 33 { true -> p1t()  false -> opj() } }
+    state opj()   { transition self.buf[self.pos] == 37  { true -> p3()  false -> opk() } }  // '%' (with * /)
+    state opk()   { transition self.buf[self.pos] == 38  { true -> p0()  false -> opl() } }  // '&'
+    state opl()   { transition self.buf[self.pos] == 124 { true -> p0()  false -> opm() } }  // '|'
+    state opm()   { transition self.buf[self.pos] == 94  { true -> p0()  false -> padv() } } // '^'
     state p3()    { self.curp = 3; self.curl = 1; transition 0 { _ -> sypop() } }
     state p2()    { self.curp = 2; self.curl = 1; transition 0 { _ -> sypop() } }
-    state p1m()   { self.curp = 1; transition self.buf[self.pos + 1] == 61 { true -> p1l2()  false -> p1l1() } }
+    state p0()    { self.curp = 0; self.curl = 1; transition 0 { _ -> sypop() } }             // & | ^ (lowest)
+    state p1m()   { self.curp = 1; transition self.buf[self.pos + 1] == 61 { true -> p1l2()  false -> p1mshc() } }
     state p1l2()  { self.curl = 2; transition 0 { _ -> sypop() } }
+    state p1mshc(){ transition self.buf[self.pos + 1] == self.buf[self.pos] { true -> p1msh()  false -> p1l1() } } // '<<' / '>>'
+    state p1msh() { self.curp = 0; self.curl = 2; transition 0 { _ -> sypop() } }             // shifts: prec 0, len 2
     state p1l1()  { self.curl = 1; transition 0 { _ -> sypop() } }
     state p1t()   { self.curp = 1; self.curl = 2; transition 0 { _ -> sypop() } }
     state padv()  { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
