@@ -111,7 +111,12 @@ The lattice's thesis — *trust by checking, not pedigree* — is now a working 
    calling-convention bug (the prologue clobbered argument 3 — the checker's first
    3-arg `alloc`). Still a *Beta* prototype (target: a Gamma program once stage 2
    lands) and with **no soundness bridge** to actual program execution — the deep
-   open problem.
+   open problem. What exists is bounded *evidence* for that bridge, at the seam where
+   a checker bug is most dangerous: `semantics-diamond.sh` (definitional `=` vs the
+   interpreter's operational eval), `induction-soundness.sh` (inductive universals
+   confirmed at concrete instances), and `soundness-sweep.sh` (curated corpus
+   theorems that must be BOTH proved by check.beta AND computed true by the gamma
+   interpreter — sourced straight from `proofs/*.elab`, so widening it is one line).
 
 ## How to build & verify (repo root; Git Bash on Windows, plain `sh` on macOS; `cargo` needed for `beta-lang-rs`)
 
