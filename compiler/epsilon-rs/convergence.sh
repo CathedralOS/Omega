@@ -62,6 +62,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-member.alp "$T/cmem" >/dev/
   || { echo "convergence FAIL — compiling certify-member"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-product.alp "$T/cprod" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-product"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-distinct.alp "$T/cdist" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-distinct"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -125,6 +127,21 @@ cprod() {
     FAIL=$((FAIL+1)); echo "  FAIL [prod($1,$2,$3)] : delta returned [$v], expected accept"; fi
 }
 cprod 2 3 5; cprod 1 1 7; cprod 4 2 3; cprod 2 2 2; cprod 1 6 1
+
+# a NEGATIVE fact (refutation): x != y, proved via sinj (injectivity) + disj (no-confusion)
+cdist() {
+  v=$(printf '%s %s' "$1" "$2" | "$T/cdist" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL [$1 != $2] : delta returned [$v], expected accept"; fi
+}
+cdist 3 5; cdist 5 3; cdist 7 0; cdist 0 4; cdist 1 2; cdist 100 99
+# and the dual: a FALSE inequality (x != x) must be REJECTED -- the refutation must not lie
+cdistno() {
+  v=$(printf '%s %s' "$1" "$1" | "$T/cdist" | "$T/check.exe")
+  if [ "$v" = reject ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  BREACH [$1 != $1 accepted] : delta returned [$v], expected reject"; fi
+}
+cdistno 4; cdistno 0; cdistno 9
 
 # CORRECTNESS (not safety): the result meets its spec -- m is genuinely max(a,b):
 # a<=m & b<=m & (m=a or m=b). inl branch when a>=b, inr when a<b.
