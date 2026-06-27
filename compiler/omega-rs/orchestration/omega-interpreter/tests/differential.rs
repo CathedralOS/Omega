@@ -308,6 +308,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/arithmetic_domain_saturating_div_mod_exit", 70),
     ("expressions/runtime_guard_divide_modulo_exit", 70),
     ("expressions/runtime_guard_negative_arithmetic_exit", 70),
+    ("expressions/runtime_guard_divide_modulo_signedness_exit", 70),
     ("expressions/arithmetic_domain_saturating_mul_exit", 70),
     ("expressions/arithmetic_domain_saturating_const_fold_exit", 70),
     ("expressions/arithmetic_domain_return_range_proven_exact_exit", 70),
