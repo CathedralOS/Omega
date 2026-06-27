@@ -1,0 +1,72 @@
+// Find the maximum element of an array -- a small but real data-processing loop
+// that exercises capabilities that just landed together: a bounded loop, a
+// RUNTIME-indexed array read (`self.nums[self.i]`, the loop head's `self.i < N`
+// proving the body's index across the state edge), and a conditional update.
+//
+//   max = 0
+//   for i in 0..N: if nums[i] > max: max = nums[i]
+//
+// Over [4, 15, 8, 42, 16, 23] the maximum (at index 3, not the last) is 42.
+// Expected exit: 42.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 6];
+    i: i32 in Trapping;
+    cur: i32 in Trapping;
+    max: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 4;
+    self.nums[1] = 15;
+    self.nums[2] = 8;
+    self.nums[3] = 42;
+    self.nums[4] = 16;
+    self.nums[5] = 23;
+    self.i = 0;
+    self.max = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    // Loop head: scan until every element has been visited.
+    state step(&mut self) {
+        transition self.i < 6 {
+            true -> body()
+            _ -> done()
+        }
+    }
+
+    // Read the current element; keep it if it beats the running maximum.
+    state body(&mut self) {
+        self.cur = self.nums[self.i];
+        transition self.cur > self.max {
+            true -> keep()
+            _ -> advance()
+        }
+    }
+
+    state keep(&mut self) {
+        self.max = self.cur;
+        transition {
+            _ -> advance()
+        }
+    }
+
+    state advance(&mut self) {
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(self.max);
+    }
+}
