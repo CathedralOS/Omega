@@ -1,0 +1,57 @@
+// Population count (Hamming weight) -- the number of set bits in a word, via the
+// classic shift-and-mask loop. It composes three things this language now has:
+// a bounded self-transition loop, the bitwise AND (`& 1` tests the low bit), and
+// the LOGICAL right shift (`>> 1` over an unsigned word feeds the next bit in,
+// never sign-extending). Counting 0xDEADBEEF yields 24 set bits.
+//
+//   while x != 0:
+//       count += x & 1     // add the low bit
+//       x >>= 1            // shift the next bit down
+//
+// `x` is `u32 in Wrapping` so the unsigned `>>` is logical and the loop always
+// terminates (a signed/arithmetic `>>` on a high-bit value would spin forever).
+// Expected exit: 24.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    x: u32 in Wrapping;
+    bit: u32 in Wrapping;
+    count: u32 in Wrapping;
+    result: i32;
+}
+
+machine Main::main(&mut self) {
+    self.x = 3735928559; // 0xDEADBEEF
+    self.count = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    // Loop head: stop once every bit has been shifted out.
+    state step(&mut self) {
+        transition self.x == 0 {
+            true -> done()
+            _ -> count_bit()
+        }
+    }
+
+    // Loop body: accumulate the low bit, then shift it away.
+    state count_bit(&mut self) {
+        self.bit = self.x & 1;
+        self.count = self.count + self.bit;
+        self.x = self.x >> 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state done(&mut self) {
+        self.result = self.count as i32;
+        self.console.exit_process(self.result);
+    }
+}
