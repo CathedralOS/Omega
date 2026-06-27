@@ -23,7 +23,7 @@ data Main {
     n: i32; pos: i32; c: i32; start: i32; w: i32; pend: i32; phase: i32; depth: i32; mi: i32; si: i32;
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
-    aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32;
+    aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32; aop: i32;
     coff: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
@@ -819,7 +819,7 @@ machine Main::main(&mut self) {
     state sjm78()  { transition self.mode == 7 { true -> arremit()  false -> wbemit() } }
     state astidx() { self.rpos = self.pos; self.pos = self.aidx; self.mode = 7; self.opnd = 0; transition 0 { _ -> subj0() } }
     state ltStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
-    state opp()   { transition self.buf[self.pos] == 60 { true -> oplt()  false -> opp2() } }     // '<'
+    state opp()   { self.aop = 0; transition self.buf[self.pos] == 60 { true -> oplt()  false -> opp2() } }     // '<'
     state oplt()  { transition self.buf[self.pos + 1] == 61 { true -> ople()  false -> opltx() } }
     state ople()  { self.cc = 1; self.pos = self.pos + 2; transition 0 { _ -> op2() } }
     state opltx() { self.cc = 0; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
@@ -829,9 +829,26 @@ machine Main::main(&mut self) {
     state opgtx() { self.cc = 4; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
     state opp3()  { transition self.buf[self.pos] == 61 { true -> opeq()  false -> opp4() } }      // '==' 
     state opeq()  { self.cc = 2; self.pos = self.pos + 2; transition 0 { _ -> op2() } }
-    state opp4()  { self.cc = 3; self.pos = self.pos + 2; transition 0 { _ -> op2() } }            // '!=' -> ne
+    state opp4()  { transition self.buf[self.pos] == 33 { true -> opne()  false -> opar() } }       // '!' -> '!=' ; else arithmetic
+    state opne()  { self.cc = 3; self.pos = self.pos + 2; transition 0 { _ -> op2() } }              // '!=' -> ne
+    state opar()  { transition self.buf[self.pos] == 43 { true -> opadd()  false -> opar2() } }      // '+'
+    state opar2() { transition self.buf[self.pos] == 45 { true -> opsub()  false -> opar3() } }      // '-'
+    state opar3() { transition self.buf[self.pos] == 42 { true -> opmul()  false -> opdiv() } }      // '*' else '/'
+    state opadd() { self.aop = 1; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
+    state opsub() { self.aop = 2; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
+    state opmul() { self.aop = 3; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
+    state opdiv() { self.aop = 4; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
     state op2()   { self.opnd = 1; transition 0 { _ -> subj0() } }
-    state emitop(){ self.console.write_line("    ldr x1, [sp], #16"); self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    cmp w0, w1"); self.p_cset(); transition 0 { _ -> ec() } }
+    state emitop(){ self.console.write_line("    ldr x1, [sp], #16"); self.console.write_line("    ldr x0, [sp], #16"); transition self.aop == 0 { true -> emitcmp()  false -> emitar() } }
+    state emitcmp(){ self.console.write_line("    cmp w0, w1"); self.p_cset(); transition 0 { _ -> ec() } }
+    state emitar() { transition self.aop == 1 { true -> aadd()  false -> emitar2() } }
+    state emitar2(){ transition self.aop == 2 { true -> asub()  false -> emitar3() } }
+    state emitar3(){ transition self.aop == 3 { true -> amul()  false -> adiv() } }
+    state aadd()   { self.console.write_line("    adds w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); transition 0 { _ -> apush() } }
+    state asub()   { self.console.write_line("    subs w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); transition 0 { _ -> apush() } }
+    state amul()   { self.console.write_line("    smull x0, w0, w1"); self.console.write_line("    sxtw x2, w0"); self.console.write_line("    cmp x0, x2"); self.console.write_line("    b.ne Ltrap"); transition 0 { _ -> apush() } }
+    state adiv()   { self.console.write_line("    cbz w1, Ltrap"); self.console.write_line("    sdiv w0, w0, w1"); transition 0 { _ -> apush() } }
+    state apush()  { self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> subjend() } }
     state ec()    { transition self.cc == 0 { true -> eclt()  false -> ec1() } }
     state ec1()   { transition self.cc == 1 { true -> ecle()  false -> ec2() } }
     state ec2()   { transition self.cc == 2 { true -> eceq()  false -> ec3() } }
