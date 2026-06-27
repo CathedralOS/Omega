@@ -814,7 +814,9 @@ machine Main::main(&mut self) {
     // lower the SUBJECT: skip ws, then a literal (digits) or a self.field
     state subj0() { transition self.buf[self.pos] <= 32 { true -> subadv()  false -> subc() } }
     state subadv(){ self.pos = self.pos + 1; transition 0 { _ -> subj0() } }
-    state subc()  { transition self.buf[self.pos] < 48 { true -> idsub()  false -> subc2() } }
+    state subc()  { transition self.buf[self.pos] == 40 { true -> opensent()  false -> subc1() } }   // '(' -> parenthesized sub-expression
+    state subc1() { transition self.buf[self.pos] < 48 { true -> idsub()  false -> subc2() } }
+    state opensent(){ self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 1; self.osp = self.osp + 1; self.pos = self.pos + 1; transition 0 { _ -> subj0() } }   // push precedence -1 sentinel, skip '(', lower the inner operand
     state subc2() { transition self.buf[self.pos] > 57 { true -> idsub()  false -> litsub() } }
     state idsub() { self.start = self.pos; transition 0 { _ -> idr() } }
     state idr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ida()  false -> ide() } }
@@ -892,7 +894,7 @@ machine Main::main(&mut self) {
     state opchk2(){ transition self.buf[self.pos] == 123 { true -> opflush()  false -> opchk3() } }  // '{' subject end
     state opchk3(){ transition self.buf[self.pos] == 59 { true -> opflush()  false -> opchk4() } }   // ';' RHS end
     state opchk4(){ transition self.buf[self.pos] == 44 { true -> opflush()  false -> opchk5() } }   // ',' arg end
-    state opchk5(){ transition self.buf[self.pos] == 41 { true -> opflush()  false -> opchk6() } }   // ')' arg end
+    state opchk5(){ transition self.buf[self.pos] == 41 { true -> pclose()  false -> opchk6() } }   // ')' -> paren close (if sentinel on stack) or arg/context end
     state opchk6(){ transition self.buf[self.pos] == 93 { true -> opflush()  false -> opp() } }      // ']' index end
     state subjend(){ transition self.mode == 0 { true -> toarms()  false -> sjm12() } }
     state sjm12()  { transition self.mode == 1 { true -> stStore()  false -> sjm23() } }
@@ -931,7 +933,13 @@ machine Main::main(&mut self) {
     state op2()   { transition 0 { _ -> subj0() } }
     state opflush(){ transition self.osp > 0 { true -> opfpop()  false -> subjend() } }   // expression end: emit all remaining stacked ops, then end
     state opfpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 1; transition 0 { _ -> emitop() } }
-    state opretdisp(){ transition self.opret == 0 { true -> opclimb()  false -> opflush() } }
+    state opretdisp(){ transition self.opret == 0 { true -> opclimb()  false -> opretd2() } }
+    state opretd2(){ transition self.opret == 1 { true -> opflush()  false -> pclose() } }   // opret 2 -> paren-close pop loop
+    // ')' : pop+emit stacked ops until the precedence -1 sentinel; if one is found it's a paren close (discard + continue), else it's the context end (arg/subject)
+    state pclose(){ transition self.osp > 0 { true -> pclose2()  false -> subjend() } }
+    state pclose2(){ transition self.opprec[self.osp - 1] == 0 - 1 { true -> pdiscard()  false -> pcpop() } }
+    state pcpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 2; transition 0 { _ -> emitop() } }
+    state pdiscard(){ self.osp = self.osp - 1; self.pos = self.pos + 1; transition 0 { _ -> opdisp() } }   // drop sentinel, skip ')', the paren value is now an operand
     state emitop(){ self.console.write_line("    ldr x1, [sp], #16"); self.console.write_line("    ldr x0, [sp], #16"); transition self.aop == 0 { true -> emitcmp()  false -> emitar() } }
     state emitcmp(){ self.console.write_line("    cmp w0, w1"); self.p_cset(); transition 0 { _ -> ec() } }
     state emitar() { transition self.aop == 1 { true -> aadd()  false -> emitar2() } }
