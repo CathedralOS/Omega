@@ -146,5 +146,13 @@ sweep "a==b & c==d -> a*c==b*d (mod m)"  mod-mul-two-sided \
 sweep "even n  <->  2 | n"      even-iff-two-divides \
   "(if (eqb (even $N4) (dvd $N2 $N4)) (if (eqb (even $N5) (dvd $N2 $N5)) (eqb (even Ze) (dvd $N2 Ze)) 0) 0)"
 
+# --- List LENGTH structural universals (length, append, reverse, maps twins; Nat eq via eqn) ---
+sweep "length(a++b) = length a + length b"  len-append-user \
+  "(if (eqn (length (append $LA $LB)) (plus (length $LA) (length $LB))) (eqn (length (append $LC $LA)) (plus (length $LC) (length $LA))) 0)"
+sweep "length(reverse a) = length a"        len-reverse \
+  "(if (eqn (length (reverse $LA)) (length $LA)) (eqn (length (reverse $LC)) (length $LC)) 0)"
+sweep "length(map a) = length a"            map-length \
+  "(if (eqn (length (maps $LA)) (length $LA)) (eqn (length (maps $LC)) (length $LC)) 0)"
+
 echo "soundness sweep (proved by check.beta AND true in the interpreter): $PASS confirmed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
