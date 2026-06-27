@@ -9,14 +9,10 @@ use super::runtime_text::{
     find_runtime_text_input_buffer_data_object, runtime_string_descriptor_place,
     runtime_text_literal_for_host_call,
 };
-use crate::selection::storage_places::{
-    resolve_runtime_storage_place_in_table,
-    resolve_runtime_storage_place_is_bounded_byte_buffer_in_table,
-};
+use crate::selection::storage_places::resolve_runtime_storage_place_in_table;
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
 pub(super) fn select_host_operation_operands(
@@ -243,72 +239,21 @@ fn exit_code_operand(
         HostCallArgumentKind::Integer(value) => {
             Some(InstructionOperandKind::ImmediateInteger(*value))
         }
-        HostCallArgumentKind::Expression(expression) => {
-            if let Some(operand) =
-                carrier_length_scalar_operand(input, host_call, dispatch_index, *expression)
-            {
-                return Some(operand);
-            }
-            resolve_runtime_storage_place_in_table(
-                input,
-                dispatch_index.unwrap_or(0),
-                host_call.source_key,
-                &input.host_calls.expressions,
-                *expression,
-            )
-            .filter(|place| matches!(place.byte_count, 1 | 2 | 4 | 8))
-            .map(|place| InstructionOperandKind::RuntimeScalarInteger {
-                region: place.region,
-                byte_offset: place.byte_offset,
-                byte_count: place.byte_count,
-            })
-        }
+        HostCallArgumentKind::Expression(expression) => resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index.unwrap_or(0),
+            host_call.source_key,
+            &input.host_calls.expressions,
+            *expression,
+        )
+        .filter(|place| matches!(place.byte_count, 1 | 2 | 4 | 8))
+        .map(|place| InstructionOperandKind::RuntimeScalarInteger {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_count: place.byte_count,
+        }),
         HostCallArgumentKind::Text(_) => Some(InstructionOperandKind::ImmediateInteger(0)),
     }
-}
-
-/// Resolve a carrier's `.len` argument (`exit_process(self.message.len)`) to the
-/// length word at the carrier's own offset. A `[u8; N]` carrier is `{len, bytes}`
-/// inline -- its length lives at `place + 0` and content at `place + pointer_size`
-/// -- so unlike a fat-slice descriptor (whose len sits at `+pointer_size`), the
-/// general `.len` place resolver does not reach it. Returns the scalar at the
-/// carrier place; `None` for any non-carrier receiver (the caller falls back to
-/// the ordinary runtime-storage resolution).
-fn carrier_length_scalar_operand(
-    input: &InstructionSelectionInput<'_>,
-    host_call: &HostCall,
-    dispatch_index: Option<u32>,
-    expression: ExpressionHandle,
-) -> Option<InstructionOperandKind> {
-    let expressions = &input.host_calls.expressions;
-    let ExpressionNode::Member(member) = expressions.expression(expression) else {
-        return None;
-    };
-    if member.member.as_str() != "len" {
-        return None;
-    }
-    let receiver = member.receiver;
-    if !resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
-        input,
-        dispatch_index.unwrap_or(0),
-        host_call.source_key,
-        expressions,
-        receiver,
-    ) {
-        return None;
-    }
-    let place = resolve_runtime_storage_place_in_table(
-        input,
-        dispatch_index.unwrap_or(0),
-        host_call.source_key,
-        expressions,
-        receiver,
-    )?;
-    Some(InstructionOperandKind::RuntimeScalarInteger {
-        region: place.region,
-        byte_offset: place.byte_offset,
-        byte_count: input.runtime_abi.pointer_size,
-    })
 }
 
 fn first_argument<'plan>(

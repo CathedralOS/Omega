@@ -1063,6 +1063,43 @@ fn runtime_bounded_carrier_length_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 owned `[u8; N] in Utf8` carrier `.len` as a MUTATION-WRITE value:
+// `self.count = self.message.len` reads the length-10 carrier's length word into a
+// plain i32 field (a 4-byte read narrowing exactly into the i32 target), then exits
+// the field -> 10. Covers the mutation value-operand consumer of the shared
+// resolver's carrier-`.len` resolution (the host-call consumer is _length_exit).
+#[test]
+fn runtime_bounded_carrier_length_field_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_length_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-length-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier length field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier length field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(10),
+        "expected `self.count = self.message.len` to store the carrier length (10) \
+         into the i32 field, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier builder/concat, native: `self.text =
 // "Room " + self.label` materializes into the target carrier's inline storage --
 // the first literal initializes it, then the source carrier's content is appended
