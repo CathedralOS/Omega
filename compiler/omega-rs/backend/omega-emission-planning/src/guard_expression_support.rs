@@ -116,8 +116,15 @@ fn runtime_value_expression_can_emit(
         Expression::Binary(binary) => {
             matches!(
                 binary.operator,
+                // Shifts are intentionally excluded: the guard-subject shift
+                // emitter does not thread operand signedness, so a signed `>>`
+                // would mis-lower to logical `shr` (`-8 >> 1` wrong). Bitwise
+                // `& | ^` carry no signedness, so they are safe here.
                 BinaryOperator::Add
                     | BinaryOperator::And
+                    | BinaryOperator::BitwiseAnd
+                    | BinaryOperator::BitwiseOr
+                    | BinaryOperator::BitwiseXor
                     | BinaryOperator::Multiply
                     | BinaryOperator::Subtract
                     | BinaryOperator::Divide

@@ -1947,17 +1947,18 @@ fn runtime_arithmetic_operator(operator: BinaryOperator) -> Option<StateGuardOpe
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
         BinaryOperator::And => Some(StateGuardOperator::And),
+        BinaryOperator::BitwiseAnd => Some(StateGuardOperator::BitwiseAnd),
+        BinaryOperator::BitwiseOr => Some(StateGuardOperator::BitwiseOr),
+        BinaryOperator::BitwiseXor => Some(StateGuardOperator::BitwiseXor),
         BinaryOperator::Divide => Some(StateGuardOperator::Divide),
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        // Bitwise (and shifts) are not yet wired as guard-SUBJECT arithmetic
-        // (the dispatch-loop width oracle for the subject path); they work as
-        // field-write values. A guard bit-check `x & 1 == 0` is a follow-up.
-        BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::Equal
+        // Shifts stay None here: the guard-subject shift emitter does not yet
+        // thread operand signedness (signed `>>` would mis-lower to logical
+        // `shr`). Bitwise above carry no signedness and are safe. Wiring shifts
+        // is a follow-up (see guard_expression_support.rs).
+        BinaryOperator::Equal
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual
         | BinaryOperator::Less
