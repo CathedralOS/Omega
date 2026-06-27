@@ -311,6 +311,42 @@ pub(super) fn resolve_runtime_storage_place_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<RuntimeStoragePlace> {
+    // A `[u8; N]` carrier's `.len` is the length word at the carrier's OWN offset
+    // (its content lives at `+pointer_size`), unlike a fat-slice descriptor whose
+    // `len` sits at `+pointer_size`. Resolve `<carrier>.len` by recursively
+    // resolving the carrier receiver, then reading the length word -- so every
+    // value-position consumer (host-call argument, mutation-write value) reads it
+    // uniformly. The length is a 32-bit count (`N < 2^32`), so the 4-byte read is
+    // exact and matches `i32` targets/exit codes (an 8-byte read does not lower
+    // into a 4-byte field write). The slice-descriptor `.len` paths below only
+    // cover fat descriptors.
+    let carrier_length_receiver = match expressions.expression(expression) {
+        ExpressionNode::Member(member) if member.member.as_str() == "len" => Some(member.receiver),
+        _ => None,
+    };
+    if let Some(receiver) = carrier_length_receiver
+        && resolve_runtime_storage_place_is_bounded_byte_buffer_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            receiver,
+        )
+        && let Some(place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            receiver,
+        )
+    {
+        return Some(RuntimeStoragePlace {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_count: 4,
+        });
+    }
+
     if let Some(place) = resolve_runtime_fixed_indexed_place_in_table(
         input,
         dispatch_index,

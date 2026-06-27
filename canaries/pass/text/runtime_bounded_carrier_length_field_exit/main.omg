@@ -1,0 +1,27 @@
+// #66 owned `[u8; N] in Utf8` carrier `.len` as a MUTATION-WRITE value (the
+// mutation value-operand consumer, distinct from a host-call argument): the
+// length-10 carrier's `.len` is read and stored into a plain `i32` field, which is
+// then exited. Exercises the shared place resolver's carrier-`.len` resolution
+// through `self.count = self.message.len` (a 4-byte length read narrowing exactly
+// into the i32 target). Exit 10.
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 32]::Utf8 when valid_utf8(self) {}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    message: [u8; 32] in Utf8;
+    count: i32;
+}
+
+machine Main::main(&mut self) {
+    self.message = "ALERT temp";
+    self.count = self.message.len;
+    transition { _ -> done() }
+    state done(&mut self) {
+        self.console.exit_process(self.count);
+    }
+}
