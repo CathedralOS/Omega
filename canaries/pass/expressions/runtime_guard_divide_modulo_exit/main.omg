@@ -1,0 +1,57 @@
+// RUN CANARY (exit 70). DIVISION and MODULO in a transition GUARD subject
+// (`self.x / 3 > 5`, `self.x % 5 == 3`). These were blocked two ways: the
+// emission-planner whitelist (guard_expression_support.rs) excluded Divide AND
+// Modulo, and the guard value-operand resolver (runtime_arithmetic_operator)
+// mapped Modulo but NOT Divide. With the whitelist opened, a div/mod guard whose
+// operand the resolver couldn't build silently took the TRUE arm regardless of
+// the actual comparison. Fixed by mapping Divide in runtime_arithmetic_operator
+// and adding Divide|Modulo to the planner whitelist; +/-/* guards already worked.
+//
+// Each arm below is reached ONLY if its guard evaluates correctly (true AND false
+// outcomes are checked), so a regression to the always-true-arm bug would exit
+// 71-74 instead of 70. The interpreter evaluates the same integer guards, so the
+// differential oracle agrees.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    x: i32;
+}
+
+machine Main::main(&mut self) {
+    self.x = 8;
+
+    // 8 / 3 = 2; 2 > 5 is FALSE -> must take the false arm.
+    transition self.x / 3 > 5 {
+        true -> bad(71)
+        _ -> check_mod_eq()
+    }
+
+    // 8 % 5 = 3; == 3 is TRUE.
+    state check_mod_eq(&mut self) {
+        transition self.x % 5 == 3 {
+            true -> check_div_eq()
+            _ -> bad(72)
+        }
+    }
+
+    // 8 / 2 = 4; == 4 is TRUE.
+    state check_div_eq(&mut self) {
+        transition self.x / 2 == 4 {
+            true -> check_mod_gt()
+            _ -> bad(73)
+        }
+    }
+
+    // 8 % 3 = 2; 2 > 5 is FALSE -> must take the false arm.
+    state check_mod_gt(&mut self) {
+        transition self.x % 3 > 5 {
+            true -> bad(74)
+            _ -> good()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

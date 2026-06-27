@@ -3839,6 +3839,42 @@ fn arithmetic_domain_saturating_div_mod_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_guard_divide_modulo_exit_canary_runs() {
+    // Division and modulo in a transition GUARD subject (`self.x / 3 > 5`,
+    // `self.x % 5 == 3`). The planner whitelist excluded Divide+Modulo and the
+    // guard value-operand resolver did not map Divide, so a div/mod guard silently
+    // took the true arm. Every arm here is reached only on a correct guard, so the
+    // regression would exit 71-74 instead of 70.
+    let canary = pass_canary("expressions/runtime_guard_divide_modulo_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-guard-div-mod-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime_guard_divide_modulo canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime_guard_divide_modulo canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected div/mod guard subjects to evaluate correctly (exit 70), got {:?} (71-74 = a guard took the wrong arm)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn case_payload_shared_field_name_exit_canary_runs() {
     // Regression: destructuring `Tx::Transfer { to, amount }` must read Transfer's
     // `amount` (40), not a same-named field in an earlier variant (would read to=3).
