@@ -53,8 +53,8 @@ pub struct Parser<'a> {
     data_field_maps: Vec<Vec<DataFieldInfo>>, // fields of each data type
     enum_names: Vec<Vec<u8>>,         // declared enum (`data X { case ... }`) names
     enum_variant_lists: Vec<Vec<Vec<u8>>>, // per enum: variant names; the tag is the index
-    enum_variant_haspayload: Vec<Vec<bool>>, // per enum, per variant: has a single i32 payload?
-    current_arm_binding: Option<(Vec<u8>, usize)>, // `Variant { x }` payload binding -> a synth payload-read node
+    enum_variant_payload_count: Vec<Vec<usize>>, // per enum, per variant: number of i32 payload fields
+    current_arm_bindings: Vec<(Vec<u8>, usize)>, // `Variant { a, b }` payload bindings -> synth payload-read nodes
     state_param_names: Vec<Vec<Vec<u8>>>, // per state (parallel to state_names): its param names
     current_state_params: Vec<Vec<u8>>, // params of the state body being parsed (resolve to arg slots)
     state_arg_base: usize,            // local index of the shared state-arg slot 0 in this machine
@@ -83,8 +83,8 @@ impl<'a> Parser<'a> {
             data_field_maps: Vec::new(),
             enum_names: Vec::new(),
             enum_variant_lists: Vec::new(),
-            enum_variant_haspayload: Vec::new(),
-            current_arm_binding: None,
+            enum_variant_payload_count: Vec::new(),
+            current_arm_bindings: Vec::new(),
             state_param_names: Vec::new(),
             current_state_params: Vec::new(),
             state_arg_base: 0,
@@ -264,7 +264,7 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::LBrace)?;
         let mut fields = Vec::new();
         let mut variants: Vec<Vec<u8>> = Vec::new();
-        let mut variant_payloads: Vec<bool> = Vec::new();
+        let mut variant_payloads: Vec<usize> = Vec::new();
         let mut offset = 0i32;
         while self.current_kind() != TokenKind::RBrace {
             if self.current_kind() == TokenKind::Eof {
@@ -277,20 +277,27 @@ impl<'a> Parser<'a> {
             {
                 self.bump(); // case
                 let variant = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
-                let mut has_payload = false;
+                let mut payload_count = 0usize;
                 if self.current_kind() == TokenKind::LParen {
                     self.bump(); // (
-                    self.expect(TokenKind::Ident)?; // payload field name (used only at the match)
-                    self.expect(TokenKind::Colon)?;
-                    self.expect(TokenKind::Ident)?; // type (everything is i32)
-                    if self.current_kind() == TokenKind::Comma {
-                        return Err("alpha-onramp: enum variants take at most one payload field (slice)".into());
+                    while self.current_kind() != TokenKind::RParen {
+                        if self.current_kind() == TokenKind::Eof {
+                            return Err("alpha-onramp: parse error: unterminated payload field list".into());
+                        }
+                        self.expect(TokenKind::Ident)?; // field name (bound at the match site)
+                        self.expect(TokenKind::Colon)?;
+                        self.expect(TokenKind::Ident)?; // type (everything is i32)
+                        payload_count += 1;
+                        if self.current_kind() == TokenKind::Comma {
+                            self.bump();
+                        } else {
+                            break;
+                        }
                     }
                     self.expect(TokenKind::RParen)?;
-                    has_payload = true;
                 }
                 variants.push(variant);
-                variant_payloads.push(has_payload);
+                variant_payloads.push(payload_count);
                 if self.current_kind() == TokenKind::Semi || self.current_kind() == TokenKind::Comma {
                     self.bump();
                 }
@@ -358,7 +365,7 @@ impl<'a> Parser<'a> {
             }
             self.enum_names.push(name);
             self.enum_variant_lists.push(variants);
-            self.enum_variant_haspayload.push(variant_payloads);
+            self.enum_variant_payload_count.push(variant_payloads);
             return Ok(());
         }
         self.data_type_names.push(name);
@@ -371,13 +378,15 @@ impl<'a> Parser<'a> {
         self.enum_names.iter().position(|enum_name| enum_name.as_slice() == name)
     }
 
-    // byte size of an enum value: a tag word, plus one payload word if any variant carries one
+    // byte size of an enum value: a tag word, plus one word per payload field of the
+    // widest variant (so every variant's payload fits at offset + 8, + 16, ...).
     fn enum_size(&self, enum_index: usize) -> i32 {
-        if self.enum_variant_haspayload[enum_index].iter().any(|&p| p) {
-            16
-        } else {
-            8
-        }
+        let max = self.enum_variant_payload_count[enum_index]
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0);
+        8 + (max as i32) * 8
     }
 
     // If the assignment RHS is `Enum::Variant(arg)`, parse it and desugar to a Block that
@@ -410,21 +419,43 @@ impl<'a> Parser<'a> {
                 String::from_utf8_lossy(&name)
             )
         })?;
-        if !self.enum_variant_haspayload[enum_index][tag as usize] {
+        let count = self.enum_variant_payload_count[enum_index][tag as usize];
+        if count == 0 {
             return Err(format!(
                 "alpha-onramp: variant '{}' has no payload to construct",
                 String::from_utf8_lossy(&variant)
             ));
         }
         self.bump(); // (
-        let arg = self.parse_expression()?;
+        let mut args = Vec::new();
+        while self.current_kind() != TokenKind::RParen {
+            if self.current_kind() == TokenKind::Eof {
+                return Err("alpha-onramp: parse error: unterminated enum construction".into());
+            }
+            args.push(self.parse_expression()?);
+            if self.current_kind() == TokenKind::Comma {
+                self.bump();
+            } else {
+                break;
+            }
+        }
         self.expect(TokenKind::RParen)?;
+        if args.len() != count {
+            return Err(format!(
+                "alpha-onramp: variant '{}' takes {} payload value(s), got {}",
+                String::from_utf8_lossy(&variant),
+                count,
+                args.len()
+            ));
+        }
         let field_offset = self.self_field_offset(field)?;
         let tag_node = self.add_expression(Expr::Int(tag));
-        Ok(Some(Statement::Block(vec![
-            Statement::StoreSelfField(field_offset, tag_node),
-            Statement::StoreSelfField(field_offset + 8, arg),
-        ])))
+        // tag at field+0, payloads at field+8, +16, ...
+        let mut stmts = vec![Statement::StoreSelfField(field_offset, tag_node)];
+        for (index, arg) in args.into_iter().enumerate() {
+            stmts.push(Statement::StoreSelfField(field_offset + 8 + (index as i32) * 8, arg));
+        }
+        Ok(Some(Statement::Block(stmts)))
     }
 
     fn enum_variant_tag(&self, enum_index: usize, variant: &[u8]) -> Option<i32> {
@@ -766,21 +797,21 @@ impl<'a> Parser<'a> {
                     return Err("alpha-onramp: parse error: unterminated transition".into());
                 }
                 // a pattern, plus an optional `{ x }` payload binding (only after a variant)
-                let (pattern, binding): (Pattern, Option<Vec<u8>>) = match self.current_kind() {
+                let (pattern, binding): (Pattern, Vec<Vec<u8>>) = match self.current_kind() {
                     TokenKind::Int => {
                         let token = self.bump();
                         let text = std::str::from_utf8(token_text(&token, self.source)).unwrap();
                         let value: i64 = text
                             .parse()
                             .map_err(|_| format!("alpha-onramp: bad integer pattern '{}'", text))?;
-                        (Pattern::Int(value as i32), None)
+                        (Pattern::Int(value as i32), Vec::new())
                     }
                     TokenKind::Ident => {
                         let token = self.bump();
                         match token_text(&token, self.source) {
-                            b"_" => (Pattern::Wild, None),
-                            b"true" => (Pattern::Int(1), None),
-                            b"false" => (Pattern::Int(0), None),
+                            b"_" => (Pattern::Wild, Vec::new()),
+                            b"true" => (Pattern::Int(1), Vec::new()),
+                            b"false" => (Pattern::Int(0), Vec::new()),
                             other => {
                                 // EnumType::Variant pattern -> the variant's i32 tag,
                                 // with an optional `{ x }` binding for the payload.
@@ -802,16 +833,34 @@ impl<'a> Parser<'a> {
                                                     String::from_utf8_lossy(&other)
                                                 )
                                             })?;
-                                        let mut binding = None;
+                                        let mut bindings: Vec<Vec<u8>> = Vec::new();
                                         if self.current_kind() == TokenKind::LBrace {
                                             self.bump(); // {
-                                            binding = Some(
-                                                token_text(&self.expect(TokenKind::Ident)?, self.source)
-                                                    .to_vec(),
-                                            );
+                                            while self.current_kind() != TokenKind::RBrace {
+                                                if self.current_kind() == TokenKind::Eof {
+                                                    return Err("alpha-onramp: parse error: unterminated payload binding".into());
+                                                }
+                                                bindings.push(
+                                                    token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec(),
+                                                );
+                                                if self.current_kind() == TokenKind::Comma {
+                                                    self.bump();
+                                                } else {
+                                                    break;
+                                                }
+                                            }
                                             self.expect(TokenKind::RBrace)?;
+                                            let pc = self.enum_variant_payload_count[enum_index][tag as usize];
+                                            if bindings.len() != pc {
+                                                return Err(format!(
+                                                    "alpha-onramp: variant '{}' has {} payload field(s), bound {}",
+                                                    String::from_utf8_lossy(&variant),
+                                                    pc,
+                                                    bindings.len()
+                                                ));
+                                            }
                                         }
-                                        (Pattern::Int(tag), binding)
+                                        (Pattern::Int(tag), bindings)
                                     } else {
                                         return Err(format!(
                                             "alpha-onramp: unknown enum '{}' in transition pattern",
@@ -842,20 +891,24 @@ impl<'a> Parser<'a> {
                         String::from_utf8_lossy(&target_name)
                     )
                 })?;
-                // a `Variant { x }` binding makes x resolve to the subject's payload (field+8)
-                // while this arm's target args are parsed
-                if let Some(bind_name) = binding {
-                    let payload_offset = subject_field_offset.ok_or_else(|| {
+                // a `Variant { a, b }` binding makes a,b resolve to the subject's payload
+                // fields (field+8, +16, ...) while this arm's target args are parsed
+                if !binding.is_empty() {
+                    let base = subject_field_offset.ok_or_else(|| {
                         "alpha-onramp: a payload binding requires matching on `self.<field>`".to_string()
                     })? + 8;
-                    let node = self.add_expression(Expr::SelfField(payload_offset));
-                    self.current_arm_binding = Some((bind_name, node));
+                    let mut binds = Vec::new();
+                    for (index, name) in binding.into_iter().enumerate() {
+                        let node = self.add_expression(Expr::SelfField(base + (index as i32) * 8));
+                        binds.push((name, node));
+                    }
+                    self.current_arm_bindings = binds;
                 }
                 self.expect(TokenKind::LParen)?;
                 let mut args = Vec::new();
                 while self.current_kind() != TokenKind::RParen {
                     if self.current_kind() == TokenKind::Eof {
-                        self.current_arm_binding = None;
+                        self.current_arm_bindings.clear();
                         return Err("alpha-onramp: parse error: unterminated transition target".into());
                     }
                     args.push(self.parse_expression()?);
@@ -865,7 +918,7 @@ impl<'a> Parser<'a> {
                         break;
                     }
                 }
-                self.current_arm_binding = None;
+                self.current_arm_bindings.clear();
                 self.expect(TokenKind::RParen)?;
                 let expected = self.state_param_names[target].len();
                 if args.len() != expected {
@@ -1191,8 +1244,8 @@ impl<'a> Parser<'a> {
                         )),
                     };
                 }
-                // a `Variant { x }` payload binding resolves to its synthesized payload-read node
-                if let Some((bind_name, node)) = &self.current_arm_binding {
+                // `Variant { a, b }` payload bindings resolve to their synthesized payload reads
+                for (bind_name, node) in &self.current_arm_bindings {
                     if bind_name.as_slice() == name.as_slice() {
                         return Ok(*node);
                     }
