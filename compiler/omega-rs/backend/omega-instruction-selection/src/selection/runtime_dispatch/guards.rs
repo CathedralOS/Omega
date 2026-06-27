@@ -1790,9 +1790,15 @@ fn runtime_value_operand_byte_size(
         | RuntimeValueOperand::FrameBaseIndexed { byte_size, .. } => *byte_size,
         RuntimeValueOperand::FrameFixedIndexed { byte_size, .. } => *byte_size,
         RuntimeValueOperand::Binary { left, right, .. } => {
-            runtime_value_operand_byte_size(runtime_value_operands, *left).max(
-                runtime_value_operand_byte_size(runtime_value_operands, *right),
-            )
+            // Use the NON-immediate operand's width (compare_byte_size logic), not a
+            // plain max: an integer literal operand reports 8 (it has no inherent
+            // width), and max() would then widen e.g. `self.x - 1` (i32) to 8. That
+            // makes a guard's compare 64-bit, which mishandles a NEGATIVE i32 because
+            // the computed value-operand's high 32 bits are zero- not sign-extended
+            // (`self.x - 1 == -9` for x=-8 took the wrong arm). Keeping it at the i32
+            // operand width makes the op + compare 32-bit, so only the (correct) low
+            // bytes matter. See [[guard-negative-i32-arithmetic]].
+            runtime_value_compare_byte_size(runtime_value_operands, *left, *right)
         }
         RuntimeValueOperand::Convert {
             target_byte_size, ..
