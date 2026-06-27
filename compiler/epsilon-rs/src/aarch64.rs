@@ -183,7 +183,13 @@ fn lower_statement(
             lower_expression(*expression, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop value
             asm.push_str(&format!("    ldr x9, [x29, #{}]\n", self_disp)); // self pointer
-            asm.push_str(&format!("    str w0, [x9, #{}]\n", offset)); // self.<field> = value
+            // LDR/STR (32-bit) scaled immediate maxes at 16380; fold a larger offset into x9.
+            if *offset <= 16380 {
+                asm.push_str(&format!("    str w0, [x9, #{}]\n", offset)); // self.<field> = value
+            } else {
+                add_imm_to_x9(*offset, asm);
+                asm.push_str("    str w0, [x9]\n");
+            }
         }
         Statement::StoreSelfIndex(field_offset, count, element_bytes, index, value) => {
             lower_expression(*value, program, self_disp, asm); // push value
@@ -259,7 +265,13 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
         }
         Expr::SelfField(offset) => {
             asm.push_str(&format!("    ldr x9, [x29, #{}]\n", self_disp)); // self pointer
-            asm.push_str(&format!("    ldr w0, [x9, #{}]\n", offset)); // self.<field>
+            // LDR/STR (32-bit) scaled immediate maxes at 16380; fold a larger offset into x9.
+            if offset <= 16380 {
+                asm.push_str(&format!("    ldr w0, [x9, #{}]\n", offset)); // self.<field>
+            } else {
+                add_imm_to_x9(offset, asm);
+                asm.push_str("    ldr w0, [x9]\n");
+            }
             asm.push_str("    str x0, [sp, #-16]!\n"); // push
         }
         Expr::SelfIndex(field_offset, count, element_bytes, index) => {
@@ -346,6 +358,25 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
 // Bounds-checked element address into x9. Pops the index off the stack, traps if
 // it is out of range (unsigned index >= count — the runtime counterpart of the
 // delta array-bounds VC), then x9 = self + field_offset + index*element_bytes.
+// Fold a (possibly large) byte offset into x9. ARM64 `add` immediates are 12-bit
+// (0..4095); a larger offset (a big struct -- several KB of buffers + arrays) splits
+// into a high part shifted left 12 and a low part, each within range (offsets up to 16M).
+fn add_imm_to_x9(offset: i32, asm: &mut String) {
+    if offset == 0 {
+        return;
+    }
+    if offset < 4096 {
+        asm.push_str(&format!("    add x9, x9, #{}\n", offset));
+    } else {
+        let hi = offset >> 12;
+        let lo = offset & 0xfff;
+        asm.push_str(&format!("    add x9, x9, #{}, lsl #12\n", hi));
+        if lo != 0 {
+            asm.push_str(&format!("    add x9, x9, #{}\n", lo));
+        }
+    }
+}
+
 fn emit_self_element_address(
     self_disp: i32,
     field_offset: i32,
@@ -358,21 +389,7 @@ fn emit_self_element_address(
     asm.push_str("    cmp w0, w1\n    b.hs Ltrap\n"); // trap if index >= count (unsigned)
     asm.push_str("    uxtw x0, w0\n"); // zero-extend the validated index
     asm.push_str(&format!("    ldr x9, [x29, #{}]\n", self_disp)); // self pointer
-    if field_offset != 0 {
-        // ARM64 `add` immediates are 12-bit (0..4095). For a field at a larger offset
-        // (a big struct -- several KB of buffers + arrays), split into a high part
-        // shifted left 12 and a low part, each within range (covers offsets up to 16M).
-        if field_offset < 4096 {
-            asm.push_str(&format!("    add x9, x9, #{}\n", field_offset));
-        } else {
-            let hi = field_offset >> 12;
-            let lo = field_offset & 0xfff;
-            asm.push_str(&format!("    add x9, x9, #{}, lsl #12\n", hi));
-            if lo != 0 {
-                asm.push_str(&format!("    add x9, x9, #{}\n", lo));
-            }
-        }
-    }
+    add_imm_to_x9(field_offset, asm);
     let shift = match element_bytes {
         2 => 1,
         4 => 2,
