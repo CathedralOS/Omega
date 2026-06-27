@@ -64,5 +64,31 @@ set +e; ( printf '\007' | "$T/neg" ) >/dev/null 2>&1; got=$?; set -e
 if [ "$got" -gt 128 ]; then PASS=$((PASS + 1)); echo "  ok   negative control traps at runtime (exit $got)";
 else FAIL=$((FAIL + 1)); echo "  FAIL negative control did NOT trap (exit $got)"; fi
 
+# 3. CALL-SITE COMPOSITION soundness: a wrapper's precondition is statically proved to imply its
+# callee's (forwarding + weakening). At runtime the callee still asserts its own precondition --
+# so if the wrapper is called with arguments that satisfy ITS precondition, the callee's assert
+# must never trap. (An unsound composition discharge would let it.) Each wrapper is called with
+# an argument constructed to satisfy its own precondition across the whole input range.
+cat > "$T/comp.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; }
+data Main { console: Console; }
+machine needs_pos(x: i32) -> i32 requires x >= 1 { return x; }
+machine fwd(a: i32) -> i32 requires a >= 1 { return needs_pos(a); }
+machine weaken(a: i32) -> i32 requires a >= 3 { return needs_pos(a); }
+machine Main::main(&mut self) {
+    let n: i32 = read_byte();      // 0..255
+    let f: i32 = fwd(n + 1);       // arg >= 1 -> satisfies fwd's requires; forwarding => needs_pos ok
+    let w: i32 = weaken(n + 3);    // arg >= 3 -> satisfies weaken's requires; weakening => needs_pos ok
+    self.console.exit_process(42)
+}
+EOF
+EPS_ARCH=aarch64 ./target/debug/beta "$T/comp.alp" "$T/comp" >/dev/null 2>&1 \
+  || { echo "discharge-soundness FAIL — compiling composition driver"; exit 1; }
+for n in 0 1 5 42 100 200 252; do
+  set +e; printf "\\$(printf '%03o' "$n")" | "$T/comp"; got=$?; set -e
+  if [ "$got" = 42 ]; then PASS=$((PASS + 1)); else
+    FAIL=$((FAIL + 1)); echo "  FAIL composition n=$n : exit $got (callee precondition trapped though the wrapper's held!)"; fi
+done
+
 echo "discharge soundness (static proof and runtime assert agree on discharged contracts): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
