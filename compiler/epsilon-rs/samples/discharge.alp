@@ -49,5 +49,9 @@ machine fwd2(a: i32, b: i32) -> i32 requires b >= 1 { return needs_pos(b); }
 // (x >= 1). The compiler discharges the callee's precondition from the caller's via le-trans
 // (3 >= 1, so a >= 3 implies a >= 1) -- the common modular case, not just identical contracts.
 machine weaken(a: i32) -> i32 requires a >= 3 { return needs_pos(a); }
+// UPPER-BOUND weakening (mirror): wrapper demands a TIGHTER ceiling (a <= 2) than the callee
+// needs (x <= 5); a <= 2 implies a <= 5, again via le-trans.
+machine bounded(x: i32) -> i32 requires x <= 5 { return x; }
+machine tighten(a: i32) -> i32 requires a <= 2 { return bounded(a); }
 
 machine Main::main(&mut self) { let r: i32 = adds(20, 22); self.console.exit_process(r) }

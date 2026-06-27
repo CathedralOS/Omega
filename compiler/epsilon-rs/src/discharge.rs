@@ -364,6 +364,29 @@ fn discharge_forwarding(caller_idx: usize, program: &Program) -> Vec<String> {
                             &format!("(lam {} {})", ps, body),
                         ));
                     }
+                } else if matches!(op, BinaryOp::Le) && c < bc {
+                    // WEAKENING (upper bound): caller demands `param <= c`, callee only `<= bc`
+                    // with c < bc. From the hypothesis `param <= c` and the ground `c <= bc`,
+                    // le-trans(param, c, bc) gives `param <= bc`. (Mirror of the lower-bound case:
+                    // the hypothesis is now the FIRST premise, the ground fact the second.)
+                    if let (Some(ps), Some(pw)) =
+                        (order_prop(op, c, &pidx), order_prop(op, bc, &pidx))
+                    {
+                        let (ca, cb, diff) = (unary(c), unary(bc), unary(bc - c));
+                        let prem2 = format!(
+                            "(wit (= (p {0} (v 0)) {1}) {2} (refl {1}))",
+                            ca, cb, diff
+                        );
+                        let body = format!(
+                            "(app (app (inst (inst (inst (use {}) (v {})) {}) {}) (hyp 0)) {})",
+                            LE_TRANS, ap, ca, cb, prem2
+                        );
+                        certs.push(wrap_universal(
+                            caller.param_count,
+                            &format!("(-> {} {})", ps, pw),
+                            &format!("(lam {} {})", ps, body),
+                        ));
+                    }
                 }
             }
         }
