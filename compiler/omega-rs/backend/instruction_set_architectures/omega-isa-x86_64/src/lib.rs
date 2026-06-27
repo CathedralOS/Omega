@@ -3789,9 +3789,18 @@ pub fn runtime_storage_binary_write_width(
     {
         width_integer_add_sub_width(byte_size)
             + arithmetic_domain_clamp_width(domain, operator, byte_size, target_signed)
+    } else if domain == ArithmeticDomain::Saturating
+        && matches!(
+            operator,
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
+        )
+    {
+        // Saturating SIGNED divide/modulo wraps the normal idiv in a TYPE_MIN/-1
+        // guard (see append_saturating_signed_divide_modulo).
+        saturating_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
     } else {
-        // Trapping div/mod (and all Exact/Wrapping ops) use the normal op width;
-        // Saturating div/mod errors in emission, so its width is irrelevant.
+        // Trapping div/mod (and all Exact/Wrapping ops, plus unsigned saturating
+        // div/mod which cannot overflow) use the normal op width.
         runtime_binary_operation_or_float_width(operator, byte_size, is_float)
     };
     // 10 (mov r14,imm64) + left + push r10 (2) + right + mov r11,r10 (3)
@@ -3803,6 +3812,28 @@ pub fn runtime_storage_binary_write_width(
         + 2
         + operation_width
         + 7.max(store_width(byte_size))
+}
+
+/// Bytes of [`append_saturating_signed_divide_modulo`], for the relocation layout.
+/// MUST equal the emitter exactly. cmp r11,-1 (4) + jne (2) + the divisor==-1
+/// fixup + jmp (2) + the normal idiv core (the plain signed op width).
+fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -> usize {
+    let fixup = if want_remainder {
+        3 // xor r10d, r10d
+    } else if byte_size <= 4 {
+        13 // neg r10d (3) + mov r9d,imm32 (6) + cmovo r10d,r9d (4)
+    } else {
+        17 // neg r10 (3) + mov r9,imm64 (10) + cmovo r10,r9 (4)
+    };
+    let normal = runtime_binary_operation_width(
+        if want_remainder {
+            StateGuardOperator::Modulo
+        } else {
+            StateGuardOperator::Divide
+        },
+        byte_size,
+    );
+    4 + 2 + fixup + 2 + normal
 }
 
 /// Bytes of [`append_width_integer_add_sub`]: 4 for 16-bit (0x66 prefix), else 3.
@@ -3886,22 +3917,19 @@ pub fn encode_runtime_storage_binary_write(
     } else if domain == ArithmeticDomain::Saturating
         && matches!(
             operator,
-            StateGuardOperator::Divide
-                | StateGuardOperator::Modulo
-                | StateGuardOperator::DivideUnsigned
-                | StateGuardOperator::ModuloUnsigned
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
         )
     {
-        // Saturating divide/modulo: integer division only overflows at
-        // TYPE_MIN / -1 (a corner the hardware `idiv` traps on); clamping that to
-        // TYPE_MAX needs a dedicated pre-check, not implemented yet. (Trapping
-        // div/mod falls through to the normal path below, where `idiv` already
+        // Saturating SIGNED divide/modulo: clamp the one overflowing corner
+        // (TYPE_MIN / -1) to TYPE_MAX / 0 instead of trapping. The UNSIGNED variants
+        // cannot overflow, so they are absent from this arm and fall through to the
+        // normal path below. (Trapping div/mod also falls through, where `idiv`
         // traps on overflow and divide-by-zero -- exactly Trapping semantics.)
-        return Err(Diagnostic::error(
-            "saturating divide/modulo is not implemented yet (integer division only \
-             overflows at the type minimum divided by -1)"
-                .to_owned(),
-        ));
+        append_saturating_signed_divide_modulo(
+            &mut bytes,
+            byte_size,
+            operator == StateGuardOperator::Modulo,
+        )?;
     } else {
         append_runtime_binary_operation(
             &mut bytes,
@@ -5471,6 +5499,108 @@ fn runtime_binary_operation_byte_size(
     }
 }
 
+/// The width-correct integer idiv/div core: dividend in r10, divisor in r11,
+/// quotient (or remainder, when `want_remainder`) back in r10. A 32-bit divide
+/// reads only the low dword, so the width must match the operands. Signed uses
+/// cdq/cqo + `idiv`; unsigned zeroes the dividend-high half + `div`. Shared by the
+/// normal binary-op path and the saturating divide/modulo helper.
+fn append_integer_divide_modulo_core(
+    bytes: &mut Vec<u8>,
+    byte_size: usize,
+    want_remainder: bool,
+    signed: bool,
+) {
+    if byte_size <= 4 {
+        bytes.extend([0x41, 0x8b, 0xc2]); // mov eax, r10d
+        if signed {
+            bytes.push(0x99); // cdq (sign-extend eax -> edx)
+            bytes.extend([0x41, 0xf7, 0xfb]); // idiv r11d
+        } else {
+            bytes.extend([0x31, 0xd2]); // xor edx, edx
+            bytes.extend([0x41, 0xf7, 0xf3]); // div r11d
+        }
+        if want_remainder {
+            bytes.extend([0x41, 0x89, 0xd2]); // mov r10d, edx (remainder)
+        } else {
+            bytes.extend([0x41, 0x89, 0xc2]); // mov r10d, eax (quotient)
+        }
+    } else {
+        bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
+        if signed {
+            bytes.extend([0x48, 0x99]); // cqo (sign-extend rax -> rdx)
+            bytes.extend([0x49, 0xf7, 0xfb]); // idiv r11
+        } else {
+            bytes.extend([0x31, 0xd2]); // xor edx, edx (clears rdx)
+            bytes.extend([0x49, 0xf7, 0xf3]); // div r11
+        }
+        if want_remainder {
+            bytes.extend([0x49, 0x89, 0xd2]); // mov r10, rdx (remainder)
+        } else {
+            bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (quotient)
+        }
+    }
+}
+
+/// Saturating SIGNED divide/modulo (dividend r10, divisor r11, result r10).
+/// Integer division overflows only at TYPE_MIN / -1, the one corner `idiv`
+/// hardware-traps on; guard the `divisor == -1` case so Saturating clamps instead
+/// of trapping: `a % -1 == 0`, and `a / -1 == -a` saturating TYPE_MIN -> TYPE_MAX.
+/// Every other divisor goes through the normal idiv (division reduces magnitude,
+/// so no quotient/remainder can overflow). Unsigned div/mod never overflow and so
+/// never reach here -- they fall through to the normal path.
+fn append_saturating_signed_divide_modulo(
+    bytes: &mut Vec<u8>,
+    byte_size: usize,
+    want_remainder: bool,
+) -> Result<(), Diagnostic> {
+    if !want_remainder && byte_size != 4 && byte_size != 8 {
+        // The TYPE_MIN -> TYPE_MAX saturation reads `neg`'s overflow flag, which
+        // only reflects the 32/64-bit register width; an i8/i16 dividend rides
+        // sign-extended in a 32-bit register, so `neg` never overflows for its
+        // (narrower) TYPE_MIN. Modulo is width-independent (a % -1 == 0).
+        return Err(Diagnostic::error(
+            "saturating signed i8/i16 divide is not implemented yet (i32/i64 only)".to_owned(),
+        ));
+    }
+    // cmp r11, -1 (sized): the only divisor needing the saturating fixup.
+    if byte_size <= 4 {
+        bytes.extend([0x41, 0x83, 0xfb, 0xff]); // cmp r11d, -1
+    } else {
+        bytes.extend([0x49, 0x83, 0xfb, 0xff]); // cmp r11, -1
+    }
+    // The divisor == -1 fixup block.
+    let mut special: Vec<u8> = Vec::new();
+    if want_remainder {
+        special.extend([0x45, 0x31, 0xd2]); // xor r10d, r10d  (a % -1 == 0)
+    } else if byte_size <= 4 {
+        let imax = ((1i128 << (8 * byte_size - 1)) - 1) as u32;
+        special.extend([0x41, 0xf7, 0xda]); // neg r10d  (sets OF iff r10d == TYPE_MIN)
+        special.push(0x41);
+        special.push(0xb9);
+        special.extend(imax.to_le_bytes()); // mov r9d, TYPE_MAX
+        special.extend([0x45, 0x0f, 0x40, 0xd1]); // cmovo r10d, r9d  (TYPE_MIN -> TYPE_MAX)
+    } else {
+        let imax = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
+        special.extend([0x49, 0xf7, 0xda]); // neg r10
+        special.push(0x49);
+        special.push(0xb9);
+        special.extend(imax.to_le_bytes()); // mov r9, TYPE_MAX
+        special.extend([0x4d, 0x0f, 0x40, 0xd1]); // cmovo r10, r9
+    }
+    // The normal idiv (every divisor except -1).
+    let mut normal: Vec<u8> = Vec::new();
+    append_integer_divide_modulo_core(&mut normal, byte_size, want_remainder, true);
+    // jne over (special + the jmp) to the idiv; run special; jmp past the idiv.
+    // Both blocks are well under 128 bytes, so rel8 offsets suffice.
+    bytes.push(0x75);
+    bytes.push((special.len() + 2) as u8); // jne -> normal
+    bytes.extend(special);
+    bytes.push(0xeb);
+    bytes.push(normal.len() as u8); // jmp -> done
+    bytes.extend(normal);
+    Ok(())
+}
+
 fn append_runtime_binary_operation(
     bytes: &mut Vec<u8>,
     operator: StateGuardOperator,
@@ -5514,10 +5644,8 @@ fn append_runtime_binary_operation(
         | StateGuardOperator::Modulo
         | StateGuardOperator::DivideUnsigned
         | StateGuardOperator::ModuloUnsigned => {
-            // Width must match the operands so the high bit is interpreted right
-            // (a 32-bit divide reads only the low dword). Signed uses cdq/cqo +
-            // `idiv`; unsigned zeroes the dividend-high half + `div`. Quotient ->
-            // (r/e)ax, remainder -> (r/e)dx.
+            // Quotient -> (r/e)ax, remainder -> (r/e)dx; the width-correct idiv
+            // sequence lives in the shared core (also used by saturating div/mod).
             let want_remainder = matches!(
                 operator,
                 StateGuardOperator::Modulo | StateGuardOperator::ModuloUnsigned
@@ -5526,35 +5654,7 @@ fn append_runtime_binary_operation(
                 operator,
                 StateGuardOperator::Divide | StateGuardOperator::Modulo
             );
-            if byte_size <= 4 {
-                bytes.extend([0x41, 0x8b, 0xc2]); // mov eax, r10d
-                if signed {
-                    bytes.push(0x99); // cdq (sign-extend eax -> edx)
-                    bytes.extend([0x41, 0xf7, 0xfb]); // idiv r11d
-                } else {
-                    bytes.extend([0x31, 0xd2]); // xor edx, edx
-                    bytes.extend([0x41, 0xf7, 0xf3]); // div r11d
-                }
-                if want_remainder {
-                    bytes.extend([0x41, 0x89, 0xd2]); // mov r10d, edx (remainder)
-                } else {
-                    bytes.extend([0x41, 0x89, 0xc2]); // mov r10d, eax (quotient)
-                }
-            } else {
-                bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
-                if signed {
-                    bytes.extend([0x48, 0x99]); // cqo (sign-extend rax -> rdx)
-                    bytes.extend([0x49, 0xf7, 0xfb]); // idiv r11
-                } else {
-                    bytes.extend([0x31, 0xd2]); // xor edx, edx (clears rdx)
-                    bytes.extend([0x49, 0xf7, 0xf3]); // div r11
-                }
-                if want_remainder {
-                    bytes.extend([0x49, 0x89, 0xd2]); // mov r10, rdx (remainder)
-                } else {
-                    bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (quotient)
-                }
-            }
+            append_integer_divide_modulo_core(bytes, byte_size, want_remainder, signed);
         }
         StateGuardOperator::ShiftLeft
         | StateGuardOperator::ShiftRight
