@@ -23,6 +23,14 @@
 //     The build-time REJECTION of a lie is shown by the equality path, whose shape always
 //     emits: `result == a + a` vs `return a` produces a certificate the checker rejects.
 //
+// LEMMA CITATION: when an obligation holds only up to a banked theorem, not by reduction, the
+// proof cites it with `(use N)` against a fixed library (gen-contract-lib.py, concatenated by
+// contracts.sh). The first is add-zero-right (`∀x. x+0=x`, id 0): `return X + 0` vs
+// `ensures result == X` discharges as `(inst (use 0) X)` -- the checker can't reduce `X+0`
+// (p recurses on the left), so refl alone is rejected; the cited inductive proof carries it.
+// This is exactly how a real verified compiler discharges an obligation: cite a proven lemma
+// at the site terms. (omega-rs's entailment engine does the same with its fact/lemma base.)
+//
 // de Bruijn: the cert binds each parameter with `All` (proof `gen`). Under the P binders a
 // parameter is `(v i)` (shift 0). The existential adds one more binder, so inside it params
 // are `(v i+1)` (shift 1) and the witness var is `(v 0)`; once `wit` consumes that binder the
@@ -30,6 +38,9 @@
 // non-constant gaps) are soundly rejected here and await a lemma-citing slice.
 
 use crate::ast::{BinaryOp, Expr, Machine, Program};
+
+// Library def ids the compiler cites (must match gen-contract-lib.py, which asserts them).
+const ADD_ZERO_RIGHT: usize = 0; // ∀x. x + 0 = x
 
 // Translate an epsilon expression to a raw delta-checker term, each parameter rendered as the
 // de Bruijn variable `(v i+shift)`. Returns None outside the checkable arithmetic fragment
@@ -145,8 +156,21 @@ pub fn discharge_machine(machine: &Machine, program: &Program) -> Option<String>
     let p = machine.param_count;
 
     match op {
-        // result == E  ->  ∀… (= e* E*), proved by refl
+        // result == E
         BinaryOp::EqEq => {
+            // LEMMA CITATION: `return X + 0` vs `ensures result == X` is the add-zero law
+            // x+0=x, which the checker does NOT reduce (p recurses on the left, so `(p X z)`
+            // is stuck). refl can't see it; cite the banked theorem instead.
+            if let Expr::Binary(BinaryOp::Add, l, r) = program.expressions[returned] {
+                if matches!(program.expressions[r], Expr::Int(0)) && expr_eq(l, rhs, program) {
+                    let lhs_t = term(returned, program, p, 0)?; // (p X z)
+                    let x = term(rhs, program, p, 0)?; // X
+                    let goal = format!("(= {} {})", lhs_t, x);
+                    let proof = format!("(inst (use {}) {})", ADD_ZERO_RIGHT, x);
+                    return Some(wrap_universal(p, &goal, &proof));
+                }
+            }
+            // otherwise a definitional equality -> refl
             let e = term(returned, program, p, 0)?;
             let big = term(rhs, program, p, 0)?;
             let goal = format!("(= {} {})", e, big);
