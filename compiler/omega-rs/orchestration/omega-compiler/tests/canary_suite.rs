@@ -1685,6 +1685,37 @@ fn runtime_bitwise_operators_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_xorshift_prng_exit_canary_runs() {
+    let canary = pass_canary("operators/runtime_xorshift_prng_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-xorshift-prng-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("xorshift prng canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("xorshift prng canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected xorshift32 (XOR + shifts composed) to draw 99 and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_bitwise_guard_exit_canary_runs() {
     let canary = pass_canary("operators/runtime_bitwise_guard_exit");
     let main_path = canary.join("main.omg");
@@ -13102,6 +13133,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "operators/runtime_shift_operators_exit",
     "operators/runtime_bitwise_operators_exit",
     "operators/runtime_bitwise_guard_exit",
+    "operators/runtime_xorshift_prng_exit",
     "calls/free_standing_machine_helper_compile",
     "calls/typed_return_from_local_call_compile",
     "capabilities/boundary_trait_multiple_effects",

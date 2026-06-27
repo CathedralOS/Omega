@@ -1,0 +1,46 @@
+// Xorshift32 -- George Marsaglia's classic pseudo-random number generator, the
+// canonical "real algorithm" built purely from bitwise XOR and bit shifts. The
+// state transform is three xor-shift rounds:
+//
+//   x ^= x << 13
+//   x ^= x >> 17     (logical: x is unsigned, so the high bits shift in as 0)
+//   x ^= x << 5
+//
+// The shifts run on `u32 in Wrapping` because a left shift deliberately drops
+// the bits carried past bit 31 (that truncation IS the generator's mixing). The
+// XORs carry no domain -- bitwise ops never overflow. Seeded with the well-known
+// constant 2463534242 (0x9E3779B9), one step yields 0x...63; the low byte is 99.
+// Expected exit: 99.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    state: u32 in Wrapping;
+    scratch: u32 in Wrapping;
+    output: i32;
+}
+
+machine Main::main(&mut self) {
+    self.state = 2463534242;
+
+    self.scratch = self.state << 13;
+    self.state = self.state ^ self.scratch;
+
+    self.scratch = self.state >> 17;
+    self.state = self.state ^ self.scratch;
+
+    self.scratch = self.state << 5;
+    self.state = self.state ^ self.scratch;
+
+    // Reduce the 32-bit draw to a process exit code via its low byte.
+    self.output = self.state & 255;
+
+    transition { _ -> emit() }
+
+    state emit(&mut self) {
+        self.console.exit_process(self.output);
+    }
+}

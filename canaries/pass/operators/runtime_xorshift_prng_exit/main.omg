@@ -1,0 +1,43 @@
+// Xorshift32 PRNG -- exercises bitwise XOR and bit shifts COMPOSING into a real
+// algorithm, and pins native==interpreter agreement on the whole sequence (a
+// signed-vs-logical `>>` divergence between backends would change the draw).
+// Seed 2463534242 -> one xorshift step -> low byte 99. Self-checks and exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    state: u32 in Wrapping;
+    scratch: u32 in Wrapping;
+    output: i32;
+}
+
+machine Main::main(&mut self) {
+    self.state = 2463534242;
+
+    self.scratch = self.state << 13;
+    self.state = self.state ^ self.scratch;
+
+    self.scratch = self.state >> 17;
+    self.state = self.state ^ self.scratch;
+
+    self.scratch = self.state << 5;
+    self.state = self.state ^ self.scratch;
+
+    self.output = self.state & 255;
+
+    transition self.output == 99 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
