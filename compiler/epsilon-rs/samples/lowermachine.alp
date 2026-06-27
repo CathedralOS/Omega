@@ -24,7 +24,7 @@ data Main {
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
     aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32; aop: i32; nstr: i32; wlstart: i32; wllen: i32;
-    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
+    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
     coff: i32; dsize: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
@@ -307,6 +307,12 @@ machine Main::p_addx1l(&mut self) {      // "    add x1, x1, Lstr"
 }
 machine Main::p_movw2(&mut self) {       // "    movz w2, #"
     write_byte(32); write_byte(32); write_byte(32); write_byte(32); write_byte(109); write_byte(111); write_byte(118); write_byte(122); write_byte(32); write_byte(119); write_byte(50); write_byte(44); write_byte(32); write_byte(35);
+}
+machine Main::p_lstr(&mut self) {        // "Lstr"
+    write_byte(76); write_byte(115); write_byte(116); write_byte(114);
+}
+machine Main::p_dotbyte(&mut self) {     // "    .byte "
+    write_byte(32); write_byte(32); write_byte(32); write_byte(32); write_byte(46); write_byte(98); write_byte(121); write_byte(116); write_byte(101); write_byte(32);
 }
 machine Main::p_zerosd(&mut self) {      // ".zerofill __DATA,__bss,_selfdata,"
     write_byte(46); write_byte(122); write_byte(101); write_byte(114); write_byte(111); write_byte(102); write_byte(105); write_byte(108); write_byte(108); write_byte(32); write_byte(95); write_byte(95); write_byte(68); write_byte(65); write_byte(84); write_byte(65); write_byte(44); write_byte(95); write_byte(95); write_byte(98); write_byte(115); write_byte(115); write_byte(44); write_byte(95); write_byte(115); write_byte(101); write_byte(108); write_byte(102); write_byte(100); write_byte(97); write_byte(116); write_byte(97); write_byte(44);
@@ -1020,5 +1026,19 @@ machine Main::main(&mut self) {
     state wself() { self.fv = (self.dsize + 7) / 8 * 8; self.p_zerosd(); self.v = self.fv; self.emit_int(); write_byte(44); write_byte(51); write_byte(10); transition 0 { _ -> wdone() } }   // .zerofill ...,_selfdata,align8(dsize),3
     state wdone() { transition self.usesio > 0 { true -> wio()  false -> wfin() } }
     state wio()   { self.console.write_line(".zerofill __DATA,__bss,_iobyte,1,0"); transition 0 { _ -> wfin() } }
-    state wfin()  { self.console.exit_process(0) }
+    state wfin()  { transition self.nstr > 0 { true -> wsec()  false -> wexit() } }
+    state wexit() { self.console.exit_process(0) }
+    state wsec()  { self.console.write_line(".section __TEXT,__const"); self.console.write_line(".align 2"); self.pos = 0; self.lstri = 0; transition 0 { _ -> rps() } }
+    // re-scan the source for write_line string literals (in source order = nstr order); skip // comments
+    state rps()   { transition self.pos < self.n { true -> rps2()  false -> wexit() } }
+    state rps2()  { transition self.buf[self.pos] == 47 { true -> rpcm()  false -> rps3() } }   // '/'
+    state rpcm()  { transition self.buf[self.pos + 1] == 47 { true -> rpcm2()  false -> rpadv() } }   // '//' comment
+    state rpcm2() { transition self.buf[self.pos] == 10 { true -> rpadv()  false -> rpcmadv() } }     // skip to newline
+    state rpcmadv(){ self.pos = self.pos + 1; transition 0 { _ -> rpcm2() } }
+    state rps3()  { transition self.buf[self.pos] == 34 { true -> rpstr()  false -> rpadv() } }   // '"' -> string literal
+    state rpadv() { self.pos = self.pos + 1; transition 0 { _ -> rps() } }
+    state rpstr() { self.p_lstr(); self.v = self.lstri; self.emit_int(); write_byte(58); write_byte(10); self.p_dotbyte(); self.pos = self.pos + 1; transition 0 { _ -> rpbyte() } }   // Lstr<i>:\n    .byte  ; skip opening '"'
+    state rpbyte(){ transition self.buf[self.pos] == 34 { true -> rpbend()  false -> rpb2() } }   // closing '"'?
+    state rpb2()  { self.v = self.buf[self.pos]; self.emit_int(); write_byte(44); self.pos = self.pos + 1; transition 0 { _ -> rpbyte() } }   // "<byte>,"
+    state rpbend(){ self.v = 10; self.emit_int(); write_byte(10); self.pos = self.pos + 1; self.lstri = self.lstri + 1; transition 0 { _ -> rps() } }
 }
