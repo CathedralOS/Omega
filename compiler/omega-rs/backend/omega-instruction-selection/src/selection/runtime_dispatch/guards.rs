@@ -1620,7 +1620,22 @@ fn resolve_runtime_value_operand_in_table(
     }
 
     if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
-        let operator = runtime_arithmetic_operator(binary.operator)?;
+        let mut operator = runtime_arithmetic_operator(binary.operator)?;
+        // Divide/modulo run at the operand width (not modular), so a signed idiv
+        // misreads a large UNSIGNED dividend; switch to the unsigned op for unsigned
+        // operands, mirroring the ordered-comparison signedness adjustment above.
+        if matches!(operator, StateGuardOperator::Divide | StateGuardOperator::Modulo)
+            && guard_operands_unsigned_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.left,
+                binary.right,
+            )
+        {
+            operator = unsigned_arithmetic_operator(operator);
+        }
         let left = resolve_runtime_value_operand_in_table(
             input,
             dispatch_index,
@@ -1879,15 +1894,26 @@ fn comparison_operands_unsigned_in_table(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
-    if !matches!(
+    matches!(
         operator,
         StateGuardOperator::Greater
             | StateGuardOperator::GreaterOrEqual
             | StateGuardOperator::Less
             | StateGuardOperator::LessOrEqual
-    ) {
-        return false;
-    }
+    ) && guard_operands_unsigned_in_table(input, dispatch_index, source_key, expressions, left, right)
+}
+
+/// True when either guard operand resolves to an UNSIGNED integer storage place
+/// (a literal operand resolves to no place, so it does not decide signedness).
+/// Shared by the ordered-comparison signedness adjustment and the divide/modulo one.
+fn guard_operands_unsigned_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    expressions: &ExpressionTable,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> bool {
     let signed =
         resolve_runtime_storage_is_signed_in_table(input, dispatch_index, source_key, expressions, left)
             .or_else(|| {
@@ -1900,6 +1926,18 @@ fn comparison_operands_unsigned_in_table(
                 )
             });
     signed == Some(false)
+}
+
+/// Map signed divide/modulo to their unsigned forms, used when the guard operands
+/// are an unsigned integer type. Division is not modular, so a guard div/mod runs
+/// at the operand width; a 32-bit SIGNED idiv would misread a large u32 dividend
+/// (high bit set) as negative, so unsigned operands must use `div`, not `idiv`.
+fn unsigned_arithmetic_operator(operator: StateGuardOperator) -> StateGuardOperator {
+    match operator {
+        StateGuardOperator::Divide => StateGuardOperator::DivideUnsigned,
+        StateGuardOperator::Modulo => StateGuardOperator::ModuloUnsigned,
+        other => other,
+    }
 }
 
 fn runtime_arithmetic_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {

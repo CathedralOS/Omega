@@ -5018,9 +5018,14 @@ pub fn runtime_value_operand_width(
             // recorded relocation offsets drift (silent runtime segfault).
             runtime_float_binary_operation_width()
         } else {
-            // Nested binary operands do not carry their result width; assume the
-            // 64-bit form (correct for i64 and for non-negative i32 division).
-            runtime_binary_operation_width(operator, 8)
+            // Use the SAME byte_size the emission picks (runtime_binary_operation_byte_size):
+            // div/mod run at the operand width so a negative i32 dividend is handled
+            // correctly, which changes the idiv/div core length -- the width MUST track
+            // it or relocation offsets drift (silent segfault). Other ops keep 64-bit.
+            runtime_binary_operation_width(
+                operator,
+                runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, 8),
+            )
         };
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
@@ -5493,6 +5498,20 @@ fn runtime_binary_operation_byte_size(
     target_byte_size: usize,
 ) -> usize {
     if is_comparison_operator(operator) {
+        runtime_binary_compare_byte_size(operands, left, right)
+    } else if matches!(
+        operator,
+        StateGuardOperator::Divide
+            | StateGuardOperator::Modulo
+            | StateGuardOperator::DivideUnsigned
+            | StateGuardOperator::ModuloUnsigned
+    ) {
+        // Division/modulo are NOT modular: a 64-bit idiv/div on a zero-extended
+        // negative i32 dividend yields a wrong quotient. Run at the OPERAND width (an
+        // immediate has no width, so use the non-immediate operand's), so a 32-bit
+        // op handles the i32 dividend correctly -- signed via cdq, unsigned via the
+        // resolver mapping Divide->DivideUnsigned. Add/sub/mul are modular and keep
+        // the default 64-bit form. See [[guard-negative-i32-arithmetic]].
         runtime_binary_compare_byte_size(operands, left, right)
     } else {
         target_byte_size
