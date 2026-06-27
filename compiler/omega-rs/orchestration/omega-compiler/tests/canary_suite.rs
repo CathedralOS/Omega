@@ -1201,6 +1201,37 @@ fn runtime_carrier_indexed_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_carrier_indexed_read_operand_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_indexed_read_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-carrier-read-operand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier indexed-read-operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier indexed-read-operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a carrier indexed read in operand position (`sum + self.text[self.i] as u32`, temp typed `u8` not `u8 in Utf8`) to sum 'ABCD' to 266 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_carrier_len_guard_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_len_guard_exit");
     let main_path = canary.join("main.omg");

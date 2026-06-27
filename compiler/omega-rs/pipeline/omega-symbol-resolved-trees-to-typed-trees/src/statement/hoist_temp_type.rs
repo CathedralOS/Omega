@@ -8,7 +8,7 @@
 //! codegen see a concrete declared type that matches the element read.
 
 use crate::lowerer::Lowerer;
-use crate::type_reference::lower_type_constraint_node_span_with_context;
+use crate::type_reference::lower_element_applicable_constraints;
 use crate::type_reference::lower_type_reference_into_table;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
@@ -52,11 +52,17 @@ pub(super) fn infer_hoist_temp_type(
         return Ok(Some(element_handle));
     }
 
-    let constraints = lower_type_constraint_node_span_with_context(
+    // Re-apply only the collection constraints that characterize the ELEMENT
+    // (arithmetic domains like `Trapping`); an encoding `Domain` (`[u8] in Utf8`)
+    // is bound to the collection's storage type, not to `u8`, so it is dropped.
+    let constraints = lower_element_applicable_constraints(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         constraints,
     )?;
+    if constraints.is_empty() {
+        return Ok(Some(element_handle));
+    }
     Ok(Some(lowerer.typed_trees.type_reference_table.insert(
         typed::types::TypeReferenceNode::Constrained {
             base_type: element_handle,
