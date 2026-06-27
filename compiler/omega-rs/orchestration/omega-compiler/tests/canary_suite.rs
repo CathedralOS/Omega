@@ -1232,6 +1232,37 @@ fn runtime_carrier_indexed_read_operand_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_carrier_cipher_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_cipher_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-cipher-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier cipher canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier cipher canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a Caesar-cipher loop (read `text[i]` in an expression, Wrapping-shift, write `out[i]`) to map \"HELLO\" to \"KHOOR\" and read it back (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_carrier_len_guard_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_len_guard_exit");
     let main_path = canary.join("main.omg");

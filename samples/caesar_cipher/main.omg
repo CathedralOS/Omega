@@ -1,0 +1,71 @@
+// Caesar cipher: shift each byte of a string by a fixed key and print the result.
+// A real string TRANSFORMATION -- read a carrier, compute a new byte per position,
+// write a new carrier, output it. The shift reads cleanly now that a carrier
+// indexed read works inside an expression:
+//
+//   out[i] = text[i] as u8 in Wrapping + key
+//
+// `in Wrapping` makes the byte add wrap (decision 17: byte arithmetic is modular,
+// not exact -- 'X' + 3 would otherwise need an unprovable no-overflow proof). The
+// element read is `u8` (the carrier's `in Utf8` domain is bound to `[u8]` storage,
+// not to a single byte). "HELLO" shifted by 3 is "KHOOR". After printing it, the
+// program self-checks out[0] == 'K' (75) and exits 0.
+//
+// Expected exit: 0.
+
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 5]::Utf8 when valid_utf8(self) {
+}
+
+data Main {
+    console: Console;
+    text: [u8; 5] in Utf8;
+    out: [u8; 5] in Utf8;
+    i: i32 in Trapping;
+    ch: u8 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.text = "HELLO";
+    self.out = ".....";
+    self.i = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.i < 5 {
+            true -> shift()
+            _ -> show()
+        }
+    }
+
+    state shift(&mut self) {
+        self.ch = self.text[self.i] as u8 in Wrapping + 3;
+        self.out[self.i] = self.ch;
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state show(&mut self) {
+        self.console.write_line(self.out);
+        transition self.out[0] == 75 {
+            true -> ok()
+            _ -> wrong()
+        }
+    }
+
+    state ok(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state wrong(&mut self) {
+        self.console.exit_process(1);
+    }
+}
