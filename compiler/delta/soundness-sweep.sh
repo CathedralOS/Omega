@@ -31,7 +31,10 @@ b ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exi
 
 # gamma operational twins of the corpus functions (the same defs the other seam scripts
 # use): + * (Nat) with structural eq; append/reverse/sum/map (List) with structural eq.
-DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def eqn (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (eqn x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (eqn h i) (leq t u) 0)) (w 0))))) (def reverse (l) (match l (Lnil Lnil) ((Lcons h t) (append (reverse t) (Lcons h Lnil))))) (def suml (l) (match l (Lnil Ze) ((Lcons h t) (plus h (suml t))))) (def maps (l) (match l (Lnil Lnil) ((Lcons h t) (Lcons (Su h) (maps t)))))'
+DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def eqn (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (eqn x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (eqn h i) (leq t u) 0)) (w 0))))) (def reverse (l) (match l (Lnil Lnil) ((Lcons h t) (append (reverse t) (Lcons h Lnil))))) (def suml (l) (match l (Lnil Ze) ((Lcons h t) (plus h (suml t))))) (def maps (l) (match l (Lnil Lnil) ((Lcons h t) (Lcons (Su h) (maps t))))) (def nle (a b) (match a (Ze 1) ((Su x) (match b (Ze 0) ((Su y) (nle x y)))))) (def even (n) (match n (Ze 1) ((Su x) (match x (Ze 0) ((Su y) (even y)))))) (def odd (n) (match n (Ze 0) ((Su x) (match x (Ze 1) ((Su y) (odd y)))))) (def band (a b) (if a b 0)) (def bnot (a) (if a 0 1)) (def eqb (a b) (if a b (bnot b)))'
+# nle/even/odd are INDEPENDENT structural twins of the corpus predicates (le encoded as
+# (ex d. a+d=b); even as (ex k. n=k+k); odd as (ex k. n=s(k+k))) — so "even n xor odd n"
+# is a fact the interpreter computes, not a tautology of the defs.
 
 # concrete Nats and Lists for the operational instances
 N1='(Su Ze)'; N2='(Su (Su Ze))'; N3='(Su (Su (Su Ze)))'; N4='(Su (Su (Su (Su Ze))))'
@@ -66,6 +69,24 @@ sweep "sum(a++b) = sum a + sum b"  sum-append \
   "(if (eqn (suml (append $LA $LB)) (plus (suml $LA) (suml $LB))) (eqn (suml (append $LC $LA)) (plus (suml $LC) (suml $LA))) 0)"
 sweep "map(a++b) = map a ++ map b" map-append \
   "(leq (maps (append $LA $LB)) (append (maps $LA) (maps $LB)))"
+
+# --- Relational / predicate universals (le = ex d. a+d=b ; parity via even/odd twins).
+# For implications, the instances are chosen to satisfy the hypotheses, and the
+# decidable conclusion must hold; for the parity laws, every n in range must comply. ---
+sweep "a <= a"                  le-refl \
+  "(if (nle Ze Ze) (if (nle $N2 $N2) (nle $N4 $N4) 0) 0)"
+sweep "a<=b & b<=c -> a<=c"     le-trans \
+  "(if (band (nle $N2 $N3) (nle $N3 $N4)) (nle $N2 $N4) 0)"
+sweep "a<=b -> s a <= s b"      le-succ-mono \
+  "(if (nle $N2 $N3) (nle (Su $N2) (Su $N3)) 0)"
+sweep "not (even n and odd n)"  parity-exclusive \
+  "(if (bnot (band (even Ze) (odd Ze))) (if (bnot (band (even $N3) (odd $N3))) (bnot (band (even $N4) (odd $N4))) 0) 0)"
+sweep "odd n  <->  not even n"  odd-iff-not-even \
+  "(if (eqb (odd $N1) (bnot (even $N1))) (if (eqb (odd $N2) (bnot (even $N2))) (eqb (odd $N3) (bnot (even $N3))) 0) 0)"
+sweep "even a -> even (a*b)"    even-mult \
+  "(if (even (mult $N2 $N3)) (even (mult $N4 $N3)) 0)"
+sweep "n + n = 2 * n"           double-is-twice \
+  "(if (eqn (plus $N2 $N2) (mult $N2 $N2)) (eqn (plus $N3 $N3) (mult $N2 $N3)) 0)"
 
 echo "soundness sweep (proved by check.beta AND true in the interpreter): $PASS confirmed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
