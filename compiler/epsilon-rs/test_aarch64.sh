@@ -123,6 +123,7 @@ run "unary minus (-x, negative literals)" samples/negate.alp 36
 run "tag-only enum (decl + ::variant + exhaustive match)" samples/enum.alp 7
 run "state params (loop carries i,acc -> 16)" samples/stateparams.alp 16
 run "enum payload (construct + match-bind + extract)" samples/payload.alp 42
+run "multi-field payload (Rectangle{w,h} -> w*h)" samples/shape.alp 42
 # Slices 4-5: transition/state control flow + back-edge loop + reassignment.
 # (write_line is a no-op here; the exit code is fixed by the control flow: i 0->3.)
 run "loop (count i 0->3, exit i)" samples/loop.alp 3
