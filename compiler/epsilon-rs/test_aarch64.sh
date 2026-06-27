@@ -124,11 +124,11 @@ selfhost_test() {
     FAIL=$((FAIL+1)); echo "  FAIL $shn : lowermachine-emitted asm did not assemble:"; sed 's/^/    /' "$T/cerr"; return; }
   for inp in "$@"; do
     set +e
-    a=$(printf '%s' "$inp" | "$T/shref" 2>/dev/null)
-    b=$(printf '%s' "$inp" | "$T/shg" 2>/dev/null)
+    a=$(printf '%s' "$inp" | "$T/shref" 2>/dev/null); ax=$?
+    b=$(printf '%s' "$inp" | "$T/shg" 2>/dev/null); bx=$?
     set -e
-    if [ "$a" = "$b" ]; then PASS=$((PASS+1)); else
-      FAIL=$((FAIL+1)); echo "  FAIL $shn : in [$inp] -> lm [$b], ref [$a]"; fi
+    if [ "$a" = "$b" ] && [ "$ax" = "$bx" ]; then PASS=$((PASS+1)); else
+      FAIL=$((FAIL+1)); echo "  FAIL $shn : in [$inp] -> lm [$b](exit $bx), ref [$a](exit $ax)"; fi
   done
 }
 
@@ -473,6 +473,12 @@ selfhost_test "self-hosting: lowermachine compiles rpn.alp; binary matches the r
 # stores and returned the let-initializer.
 selfhost_test "self-hosting: lowermachine compiles calc.alp; binary matches the reference" samples/calc.alp \
   "2+3*4" "(2+3)*4" "100/5/2" "((1+2))*3" "7-3-2"
+# assert.alp: the dynamic-contract feature (`assert <cond>;` traps on false). Needed the assert
+# statement path (ckas -> asrt0 -> mode 9 -> cbz w0, Ltrap). All asserts hold -> exit 42.
+selfhost_test "self-hosting: lowermachine compiles assert.alp; binary matches the reference" samples/assert.alp ""
+# a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
+compiler_trap "lowermachine compiles a false assert into a runtime trap" samples/lowermachine.alp \
+  "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"
 
 echo "aarch64 macOS backend gate (slices 1-7, full parity): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
