@@ -8371,6 +8371,41 @@ fn runtime_slice_index_read_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_read_operand_exit_canary_runs() {
+    // A runtime-indexed read `self.nums[self.i]` used as a SUB-EXPRESSION OPERAND
+    // (a child of `+` and of an `as i64` cast), hoisted into synthetic
+    // `let __hoist_N = self.nums[self.i];` temps. Exits 70 when acc == 20 and
+    // big == 20.
+    let canary = pass_canary("slices/runtime_indexed_read_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-indexed-operand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime indexed read operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime indexed read operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected hoisted runtime-indexed operand reads (binary + cast) to lower and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_subslice_len_exit_canary_runs() {
     // A `&[u8]` bound to a literal fixed-array subslice (`self.source[0..2]`)
     // and used only for `.len` is inlined to `(self.source[0..2]).len`; the
@@ -13418,6 +13453,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_slice_index_copy_exit",
     "slices/runtime_slice_index_read_dispatch_exit",
     "slices/runtime_slice_index_read_exit",
+    "slices/runtime_indexed_read_operand_exit",
     "slices/runtime_subslice_len_exit",
     "slices/runtime_machine_field_subslice_arg_index_exit",
     "slices/recursive_subslice_element_accumulator_exit",

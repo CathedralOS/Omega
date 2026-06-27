@@ -178,13 +178,20 @@ fn lower_statement_into_span(
     statement: syntax::statement::StatementHandle,
     span: &mut HandleSpan<Statement>,
 ) -> Result<(), Diagnostic> {
+    // A single syntax statement can lower to MULTIPLE resolved statements: an
+    // assignment or local whose value reads a runtime-indexed element in
+    // operand position hoists synthetic `let __hoist_N = arr[i];` temps that
+    // must precede the rewritten statement in source order (later passes seed
+    // and bind their symbols by statement order).
     let lowered = lower_statement_handle(lowerer, syntax_trees, statement)?;
-    lowerer
-        .symbol_resolved_trees
-        .tables
-        .declarations
-        .state_statements
-        .append_to_span(span, lowered);
+    for lowered in lowered {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_statements
+            .append_to_span(span, lowered);
+    }
 
     let syntax::statement::StatementNode::Relax(relax) =
         syntax_trees.statements.statement(statement)

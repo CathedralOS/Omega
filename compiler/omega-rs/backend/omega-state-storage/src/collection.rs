@@ -328,16 +328,21 @@ fn local_data_requires_storage(
         return true;
     }
 
-    // A VALUE-call-result local (`let bounded = min(self.seed, 60)`) whose result
-    // cannot be folded/substituted is correctly elided when consumed in positions
-    // the substitution covers (call arguments, slice ops -- see the `chance` /
+    // A VALUE-call-result local (`let bounded = min(self.seed, 60)`) OR a
+    // RUNTIME-INDEXED-READ local (`let h = self.nums[self.i]`, synthesized by
+    // the operand-hoisting normalization) whose value cannot be
+    // folded/substituted is correctly elided when consumed in positions the
+    // substitution covers (call arguments, slice ops -- see the `chance` /
     // subslice-chain canaries, which MUST stay slot-less). But as an
-    // ARITHMETIC-BINARY operand (`let s = bounded + 70`) the substitution does
-    // not fire, so the dependent binary write silently drops its unresolved
-    // operand. Keep the slot for exactly that combination -- narrow enough that
-    // call-arg / slice-op uses are untouched, and no slot-offset shift can
-    // regress a currently-passing program (none exercises this broken pattern).
-    if expression_contains_call(expressions, initial_value)
+    // ARITHMETIC-BINARY or CAST operand (`let s = bounded + 70`,
+    // `self.big = h as i64`) the substitution does not fire (the indexed read
+    // is deliberately NOT folded back -- it has no operand-position lowering),
+    // so the dependent binary/cast write silently drops its unresolved operand.
+    // Keep the slot for exactly that combination -- narrow enough that call-arg
+    // / slice-op uses are untouched, and no slot-offset shift can regress a
+    // currently-passing program (none exercises this broken pattern).
+    if (expression_contains_call(expressions, initial_value)
+        || initializer_is_runtime_indexed_read(expressions, initial_value))
         && statements
             .iter()
             .skip(local_statement_index + 1)
@@ -411,6 +416,28 @@ fn expression_contains_call(
     }
 }
 
+/// Whether an initializer is a RUNTIME-indexed read (`arr[i]` with a
+/// non-constant index), possibly wrapped in `Mutable`. Such a local is
+/// materialized into its own slot by the whole-value copy path; reading it as a
+/// binary/cast operand needs the slot (the indexed read is never folded back,
+/// so substitution cannot supply the operand). A CONSTANT-index read folds to a
+/// plain place and does not need this carve-out.
+fn initializer_is_runtime_indexed_read(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Indexed(indexed) => !matches!(
+            expressions.expression(indexed.index),
+            ExpressionNode::Integer(_)
+        ),
+        ExpressionNode::Mutable(inner) => {
+            initializer_is_runtime_indexed_read(expressions, *inner)
+        }
+        _ => false,
+    }
+}
+
 fn is_arithmetic_operator(operator: BinaryOperator) -> bool {
     matches!(
         operator,
@@ -467,7 +494,14 @@ fn expression_uses_symbol_as_arithmetic_operand(
                 || recurse(binary.right)
         }
         ExpressionNode::Unary(unary) => recurse(unary.operand),
-        ExpressionNode::Cast(cast) => recurse(cast.value),
+        // A CAST reads its operand as a runtime value (`local as i64`), the same
+        // unresolvable-without-a-slot position as an arithmetic-binary operand:
+        // a slot-less local is not substituted into the cast, so the cast write
+        // would drop it. Treat the cast OF the symbol as such a use.
+        ExpressionNode::Cast(cast) => {
+            expression_is_symbol(expressions, cast.value, symbol, local_name)
+                || recurse(cast.value)
+        }
         ExpressionNode::Mutable(inner) => recurse(*inner),
         ExpressionNode::Member(member) => recurse(member.receiver),
         ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),
