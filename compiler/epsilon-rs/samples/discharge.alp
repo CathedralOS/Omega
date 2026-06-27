@@ -17,6 +17,9 @@ machine zadd(a: i32) -> i32 ensures result == a { return 0 + a; }
 // LEMMA CITATION: result == a, returned as a + 0 -> (p (v0) z) does NOT reduce (p recurses on
 // the left); refl can't prove it. The compiler cites add-zero-right: (inst (use 0) a).
 machine azr(a: i32) -> i32 ensures result == a { return a + 0; }
+// LEMMA CITATION (multi-arg): result == b + a, returned as a + b -> commutativity, which refl
+// can't see. The compiler cites add-commutes at both terms: (inst (inst (use 5) b) a).
+machine comm(a: i32, b: i32) -> i32 ensures result == b + a { return a + b; }
 // multiplication: result == a * 3, returned verbatim
 machine triple(a: i32) -> i32 ensures result == a * 3 { return a * 3; }
 

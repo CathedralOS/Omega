@@ -25,9 +25,11 @@
 //
 // LEMMA CITATION: when an obligation holds only up to a banked theorem, not by reduction, the
 // proof cites it with `(use N)` against a fixed library (gen-contract-lib.py, concatenated by
-// contracts.sh). The first is add-zero-right (`∀x. x+0=x`, id 0): `return X + 0` vs
-// `ensures result == X` discharges as `(inst (use 0) X)` -- the checker can't reduce `X+0`
-// (p recurses on the left), so refl alone is rejected; the cited inductive proof carries it.
+// contracts.sh). Two lemmas are banked: add-zero-right (`∀x. x+0=x`, id 0) -- `return X + 0`
+// vs `ensures result == X` discharges as `(inst (use 0) X)`, since the checker can't reduce
+// `X+0` (p recurses on the left), so refl alone is rejected; and add-commutes (`∀x∀y. x+y=y+x`,
+// id 5) -- `return L + R` vs `ensures result == R + L` discharges as `(inst (inst (use 5) R) L)`,
+// a multi-argument lemma instantiated at both site terms.
 // This is exactly how a real verified compiler discharges an obligation: cite a proven lemma
 // at the site terms. (omega-rs's entailment engine does the same with its fact/lemma base.)
 //
@@ -41,6 +43,7 @@ use crate::ast::{BinaryOp, Expr, Machine, Program};
 
 // Library def ids the compiler cites (must match gen-contract-lib.py, which asserts them).
 const ADD_ZERO_RIGHT: usize = 0; // ∀x. x + 0 = x
+const ADD_COMMUTES: usize = 5; // ∀x∀y. x + y = y + x  (def 5: pulls its dep lemmas into 1..4)
 
 // Translate an epsilon expression to a raw delta-checker term, each parameter rendered as the
 // de Bruijn variable `(v i+shift)`. Returns None outside the checkable arithmetic fragment
@@ -158,10 +161,23 @@ pub fn discharge_machine(machine: &Machine, program: &Program) -> Option<String>
     match op {
         // result == E
         BinaryOp::EqEq => {
-            // LEMMA CITATION: `return X + 0` vs `ensures result == X` is the add-zero law
-            // x+0=x, which the checker does NOT reduce (p recurses on the left, so `(p X z)`
-            // is stuck). refl can't see it; cite the banked theorem instead.
+            // LEMMA CITATION — obligations the checker can't reduce, carried by a banked theorem:
             if let Expr::Binary(BinaryOp::Add, l, r) = program.expressions[returned] {
+                // COMMUTATIVITY: `return L + R` vs `ensures result == R + L` -> cite add-commutes.
+                // `(inst (inst (use 5) R) L)` proves `(p L R) = (p R L)`.
+                if let Expr::Binary(BinaryOp::Add, el, er) = program.expressions[rhs] {
+                    if expr_eq(el, r, program) && expr_eq(er, l, program) {
+                        let lhs_t = term(returned, program, p, 0)?; // (p L R)
+                        let rhs_t = term(rhs, program, p, 0)?; // (p R L)
+                        let rt = term(r, program, p, 0)?;
+                        let lt = term(l, program, p, 0)?;
+                        let goal = format!("(= {} {})", lhs_t, rhs_t);
+                        let proof = format!("(inst (inst (use {}) {}) {})", ADD_COMMUTES, rt, lt);
+                        return Some(wrap_universal(p, &goal, &proof));
+                    }
+                }
+                // ADD-ZERO: `return X + 0` vs `ensures result == X` is x+0=x, which the checker
+                // does NOT reduce (p recurses on the left, so `(p X z)` is stuck). Cite add-zero-right.
                 if matches!(program.expressions[r], Expr::Int(0)) && expr_eq(l, rhs, program) {
                     let lhs_t = term(returned, program, p, 0)?; // (p X z)
                     let x = term(rhs, program, p, 0)?; // X
