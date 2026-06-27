@@ -1138,6 +1138,37 @@ fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_carrier_indexed_read_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_indexed_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-indexed-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier indexed read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier indexed read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `self.text[self.i]` (runtime index on a [u8;N] carrier) to read 'a'/'c' past the len prefix and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier byte WRITE `self.buffer[i] = <byte>`: the byte
 // stores inline at `base + pointer_size + i`. Both a byte literal (`buffer[0] = 67`
 // = 'C') and a u8 field (`buffer[1] = self.ch` = 'D') work; from "AB" the writes
