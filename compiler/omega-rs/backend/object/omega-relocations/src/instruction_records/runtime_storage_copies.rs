@@ -84,19 +84,26 @@ pub(super) fn collect_runtime_storage_copy_relocations(
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             target_region,
             base_byte_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             ..
         } => {
             context
                 .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
-                    context.input.target.architecture,
-                    *base_byte_offset,
-                ),
-                context.runtime_frame_symbol_handle(),
-            );
+            // The runtime-frame base is only loaded (and thus only relocated)
+            // when the index itself is frame-resident; a machine-resident index
+            // reads from the machine base, so a program with no frame storage at
+            // all still relocates cleanly.
+            if *index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                context.insert_data_address_at_relative_offset(
+                    runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
+                        context.input.target.architecture,
+                        *base_byte_offset,
+                    ),
+                    context.runtime_frame_symbol_handle(),
+                );
+            }
             context.insert_data_address_at_relative_offset(
                 runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
                     context.input.target.architecture,

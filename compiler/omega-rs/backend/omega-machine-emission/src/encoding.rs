@@ -839,6 +839,7 @@ pub(super) fn encode_machine_instruction_bytes(
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset,
             index_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_offset,
@@ -848,6 +849,7 @@ pub(super) fn encode_machine_instruction_bytes(
             input,
             *base_byte_offset,
             *index_offset,
+            *index_region,
             *element_byte_size,
             *field_byte_offset,
             *target_offset,
