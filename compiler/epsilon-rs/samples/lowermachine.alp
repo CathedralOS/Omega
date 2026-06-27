@@ -24,6 +24,7 @@ data Main {
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
     aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32; aop: i32; nstr: i32; wlstart: i32; wllen: i32;
+    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
     coff: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
@@ -568,7 +569,7 @@ machine Main::p_lm(&mut self) {          // "Lm"  (label def, column 0)
     state b0(){ write_byte(109); }
 }
 machine Main::main(&mut self) {
-    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0;
+    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0; self.osp = 0;
     transition 0 { _ -> rd() }
     state rd()    { self.c = read_byte(); transition self.c < 0 { true -> scan()  false -> store() } }
     state store() { transition self.n < 512 * 256 { true -> store2()  false -> rd() } }
@@ -885,14 +886,14 @@ machine Main::main(&mut self) {
     state fBig()  { self.fv = self.foff; self.foldx9(); self.console.write_line("    ldr w0, [x9]"); transition 0 { _ -> fpush() } }
     state fpush() { self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
     // after an operand: first operand -> check for an operator; second operand -> emit it
-    state opdisp(){ transition self.opnd == 0 { true -> opchk()  false -> emitop() } }
+    state opdisp(){ transition 0 { _ -> opchk() } }
     state opchk() { transition self.buf[self.pos] <= 32 { true -> opadv()  false -> opchk2() } }
     state opadv() { self.pos = self.pos + 1; transition 0 { _ -> opchk() } }
-    state opchk2(){ transition self.buf[self.pos] == 123 { true -> subjend()  false -> opchk3() } }  // '{' subject end
-    state opchk3(){ transition self.buf[self.pos] == 59 { true -> subjend()  false -> opchk4() } }   // ';' RHS end
-    state opchk4(){ transition self.buf[self.pos] == 44 { true -> subjend()  false -> opchk5() } }   // ',' arg end
-    state opchk5(){ transition self.buf[self.pos] == 41 { true -> subjend()  false -> opchk6() } }   // ')' arg end
-    state opchk6(){ transition self.buf[self.pos] == 93 { true -> subjend()  false -> opp() } }      // ']' index end
+    state opchk2(){ transition self.buf[self.pos] == 123 { true -> opflush()  false -> opchk3() } }  // '{' subject end
+    state opchk3(){ transition self.buf[self.pos] == 59 { true -> opflush()  false -> opchk4() } }   // ';' RHS end
+    state opchk4(){ transition self.buf[self.pos] == 44 { true -> opflush()  false -> opchk5() } }   // ',' arg end
+    state opchk5(){ transition self.buf[self.pos] == 41 { true -> opflush()  false -> opchk6() } }   // ')' arg end
+    state opchk6(){ transition self.buf[self.pos] == 93 { true -> opflush()  false -> opp() } }      // ']' index end
     state subjend(){ transition self.mode == 0 { true -> toarms()  false -> sjm12() } }
     state sjm12()  { transition self.mode == 1 { true -> stStore()  false -> sjm23() } }
     state sjm23()  { transition self.mode == 2 { true -> ltStore()  false -> sjm34() } }
@@ -903,26 +904,34 @@ machine Main::main(&mut self) {
     state sjm78()  { transition self.mode == 7 { true -> arremit()  false -> wbemit() } }
     state astidx() { self.rpos = self.pos; self.pos = self.aidx; self.mode = 7; self.opnd = 0; transition 0 { _ -> subj0() } }
     state ltStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
-    state opp()   { self.aop = 0; transition self.buf[self.pos] == 60 { true -> oplt()  false -> opp2() } }     // '<'
+    state opp()   { self.naop = 0; transition self.buf[self.pos] == 60 { true -> oplt()  false -> opp2() } }     // '<'
     state oplt()  { transition self.buf[self.pos + 1] == 61 { true -> ople()  false -> opltx() } }
-    state ople()  { self.cc = 1; self.pos = self.pos + 2; transition 0 { _ -> op2() } }
-    state opltx() { self.cc = 0; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
+    state ople()  { self.ncc = 1; self.nprec = 0; self.pos = self.pos + 2; transition 0 { _ -> opclimb() } }
+    state opltx() { self.ncc = 0; self.nprec = 0; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
     state opp2()  { transition self.buf[self.pos] == 62 { true -> opgt()  false -> opp3() } }      // '>'
     state opgt()  { transition self.buf[self.pos + 1] == 61 { true -> opge()  false -> opgtx() } }
-    state opge()  { self.cc = 5; self.pos = self.pos + 2; transition 0 { _ -> op2() } }
-    state opgtx() { self.cc = 4; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
-    state opp3()  { transition self.buf[self.pos] == 61 { true -> opeq()  false -> opp4() } }      // '==' 
-    state opeq()  { self.cc = 2; self.pos = self.pos + 2; transition 0 { _ -> op2() } }
+    state opge()  { self.ncc = 5; self.nprec = 0; self.pos = self.pos + 2; transition 0 { _ -> opclimb() } }
+    state opgtx() { self.ncc = 4; self.nprec = 0; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
+    state opp3()  { transition self.buf[self.pos] == 61 { true -> opeq()  false -> opp4() } }      // '=='
+    state opeq()  { self.ncc = 2; self.nprec = 0; self.pos = self.pos + 2; transition 0 { _ -> opclimb() } }
     state opp4()  { transition self.buf[self.pos] == 33 { true -> opne()  false -> opar() } }       // '!' -> '!=' ; else arithmetic
-    state opne()  { self.cc = 3; self.pos = self.pos + 2; transition 0 { _ -> op2() } }              // '!=' -> ne
+    state opne()  { self.ncc = 3; self.nprec = 0; self.pos = self.pos + 2; transition 0 { _ -> opclimb() } }   // '!=' -> ne
     state opar()  { transition self.buf[self.pos] == 43 { true -> opadd()  false -> opar2() } }      // '+'
     state opar2() { transition self.buf[self.pos] == 45 { true -> opsub()  false -> opar3() } }      // '-'
     state opar3() { transition self.buf[self.pos] == 42 { true -> opmul()  false -> opdiv() } }      // '*' else '/'
-    state opadd() { self.aop = 1; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
-    state opsub() { self.aop = 2; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
-    state opmul() { self.aop = 3; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
-    state opdiv() { self.aop = 4; self.pos = self.pos + 1; transition 0 { _ -> op2() } }
-    state op2()   { self.opnd = 1; transition 0 { _ -> subj0() } }
+    state opadd() { self.naop = 1; self.nprec = 1; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
+    state opsub() { self.naop = 2; self.nprec = 1; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
+    state opmul() { self.naop = 3; self.nprec = 2; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
+    state opdiv() { self.naop = 4; self.nprec = 2; self.pos = self.pos + 1; transition 0 { _ -> opclimb() } }
+    // shunting-yard: pop stacked ops of >= precedence (emit them), then push this op (precedence climb -> left-assoc)
+    state opclimb(){ transition self.osp > 0 { true -> opclimb2()  false -> oppush() } }
+    state opclimb2(){ transition self.opprec[self.osp - 1] >= self.nprec { true -> oppop()  false -> oppush() } }
+    state oppop() { self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 0; transition 0 { _ -> emitop() } }
+    state oppush(){ self.opaop[self.osp] = self.naop; self.opcc[self.osp] = self.ncc; self.opprec[self.osp] = self.nprec; self.osp = self.osp + 1; transition 0 { _ -> op2() } }
+    state op2()   { transition 0 { _ -> subj0() } }
+    state opflush(){ transition self.osp > 0 { true -> opfpop()  false -> subjend() } }   // expression end: emit all remaining stacked ops, then end
+    state opfpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 1; transition 0 { _ -> emitop() } }
+    state opretdisp(){ transition self.opret == 0 { true -> opclimb()  false -> opflush() } }
     state emitop(){ self.console.write_line("    ldr x1, [sp], #16"); self.console.write_line("    ldr x0, [sp], #16"); transition self.aop == 0 { true -> emitcmp()  false -> emitar() } }
     state emitcmp(){ self.console.write_line("    cmp w0, w1"); self.p_cset(); transition 0 { _ -> ec() } }
     state emitar() { transition self.aop == 1 { true -> aadd()  false -> emitar2() } }
@@ -932,7 +941,7 @@ machine Main::main(&mut self) {
     state asub()   { self.console.write_line("    subs w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); transition 0 { _ -> apush() } }
     state amul()   { self.console.write_line("    smull x0, w0, w1"); self.console.write_line("    sxtw x2, w0"); self.console.write_line("    cmp x0, x2"); self.console.write_line("    b.ne Ltrap"); transition 0 { _ -> apush() } }
     state adiv()   { self.console.write_line("    cbz w1, Ltrap"); self.console.write_line("    sdiv w0, w0, w1"); transition 0 { _ -> apush() } }
-    state apush()  { self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opcont() } }
+    state apush()  { self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opretdisp() } }
     state opcont() { self.opnd = 0; transition 0 { _ -> opdisp() } }   // result is now the left operand of any following operator (left-assoc chain)
     state ec()    { transition self.cc == 0 { true -> eclt()  false -> ec1() } }
     state ec1()   { transition self.cc == 1 { true -> ecle()  false -> ec2() } }
@@ -945,7 +954,7 @@ machine Main::main(&mut self) {
     state ecne()  { write_byte(110); write_byte(101); transition 0 { _ -> ecend() } }
     state ecgt()  { write_byte(103); write_byte(116); transition 0 { _ -> ecend() } }
     state ecge()  { write_byte(103); write_byte(101); transition 0 { _ -> ecend() } }
-    state ecend() { write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opcont() } }
+    state ecend() { write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opretdisp() } }
     state toarms(){ transition self.buf[self.pos] == 123 { true -> arms0()  false -> toaadv() } }
     state toaadv(){ self.pos = self.pos + 1; transition 0 { _ -> toarms() } }
     state arms0() { self.console.write_line("    ldr x0, [sp], #16"); self.pos = self.pos + 1; self.tmi = self.mi; transition 0 { _ -> arm() } }   // '{', emit subject pop
