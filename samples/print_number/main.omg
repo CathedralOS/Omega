@@ -1,0 +1,83 @@
+// Compute a value and PRINT it as text -- the read/compute/print pipeline a real
+// CLI app needs. It sums an array with a runtime-indexed loop, then converts the
+// total to decimal digits and writes them to stdout (a fixed-width 3-digit
+// `itoa`: each digit char is `value % 10 + '0'`, written into a carrier whose
+// bytes are then printed).
+//
+//   sum([10,20,30,40,50]) = 150  ->  prints "150"
+//
+// Building the output string overwrites a 3-char carrier's bytes with computed
+// digit chars (constant-index carrier writes) and prints the carrier. Exits 0.
+// Expected exit: 0.
+
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 4]::Utf8 when valid_utf8(self) {
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 5];
+    i: i32 in Trapping;
+    elem: i32 in Trapping;
+    sum: i32 in Trapping;
+    out: [u8; 4] in Utf8;
+    digit: i32 in Trapping;
+    ch: u8;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 10;
+    self.nums[1] = 20;
+    self.nums[2] = 30;
+    self.nums[3] = 40;
+    self.nums[4] = 50;
+    self.i = 0;
+    self.sum = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.i < 5 {
+            true -> add()
+            _ -> render()
+        }
+    }
+
+    state add(&mut self) {
+        self.elem = self.nums[self.i];
+        self.sum = self.sum + self.elem;
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    // Convert the total to three decimal-digit characters and print them.
+    state render(&mut self) {
+        self.out = "000";
+
+        self.digit = self.sum / 100;
+        self.digit = self.digit + 48;
+        self.ch = self.digit as u8;
+        self.out[0] = self.ch;
+
+        self.digit = self.sum / 10;
+        self.digit = self.digit % 10;
+        self.digit = self.digit + 48;
+        self.ch = self.digit as u8;
+        self.out[1] = self.ch;
+
+        self.digit = self.sum % 10;
+        self.digit = self.digit + 48;
+        self.ch = self.digit as u8;
+        self.out[2] = self.ch;
+
+        self.console.write_line(self.out);
+        self.console.exit_process(0);
+    }
+}
