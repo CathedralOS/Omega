@@ -59,7 +59,7 @@ pub(crate) fn lower_type_constraints(
     lower_type_constraints_with_context(lowerer.source_trees, &mut lowerer.typed_trees, constraints)
 }
 
-pub(super) fn lower_type_constraint_node_span_with_context(
+pub(crate) fn lower_type_constraint_node_span_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraints: HandleSpan<resolved::types::TypeConstraint>,

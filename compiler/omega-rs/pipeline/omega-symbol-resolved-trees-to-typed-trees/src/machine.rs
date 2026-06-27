@@ -140,7 +140,7 @@ pub(crate) fn lower_machine(
             machine,
             state,
         ));
-        let state = lower_state(lowerer, state)?;
+        let state = lower_state(lowerer, machine.attached_data.as_ref(), state)?;
         lowerer.equality_scope = None;
         lowerer
             .typed_trees

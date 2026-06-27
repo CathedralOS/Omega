@@ -32,6 +32,11 @@ fn lower_syntax_trees_with_optional_sources(
 pub(crate) struct Lowerer {
     pub(crate) symbol_resolved_trees: SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
+    /// Per-lowering counter that mints unique names for synthetic `let`
+    /// temporaries hoisted out of operand-position indexed reads (see
+    /// `statement::hoist_indexed_operands`). `__hoist_` prefixed so the
+    /// generated names cannot collide with source identifiers.
+    hoist_counter: u32,
 }
 
 impl Lowerer {
@@ -39,7 +44,14 @@ impl Lowerer {
         Self {
             symbol_resolved_trees: SymbolResolvedTrees::default(),
             sources,
+            hoist_counter: 0,
         }
+    }
+
+    pub(crate) fn next_hoist_name(&mut self) -> String {
+        let name = format!("__hoist_{}", self.hoist_counter);
+        self.hoist_counter += 1;
+        name
     }
 
     pub(crate) fn finish(mut self) -> Result<SymbolResolvedTrees, Diagnostic> {
