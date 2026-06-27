@@ -43,7 +43,9 @@ idx=0; blk=""; ids={}
 def emb(name):
     global blk, idx
     b,last=shift(strip_decls(cof(name)),idx); blk+=b; idx=last+1; return last
-ids['add-zero-right'] = emb('add zero on the right (a+z = a)')
-assert ids['add-zero-right']==0, "contract library def id drifted: %r"%ids
+ids['add-zero-right'] = emb('add zero on the right (a+z = a)')   # discharge.rs: ADD_ZERO_RIGHT
+ids['add-commutes']   = emb('+ commutative')                     # discharge.rs: ADD_COMMUTES (pulls deps into 1..4)
+assert ids['add-zero-right']==0 and ids['add-commutes']==5, \
+    "contract library def ids drifted: %r (discharge.rs pins add-zero-right=0, add-commutes=5)"%ids
 full=elaborate(blk+" (= z z) (refl z)")
 sys.stdout.write(full.rsplit("(= z z) (refl z)",1)[0].rstrip())
