@@ -29,7 +29,7 @@ data Main {
     mn: i32; mdecl: i32; cmi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
     fns: [i32; 64]; fne: [i32; 64];
-    sns: [i32; 128]; sne: [i32; 128]; smi: [i32; 128]; ssi: [i32; 128];
+    sns: [i32; 256]; sne: [i32; 256]; smi: [i32; 256]; ssi: [i32; 256];
     qa: i32; qb: i32; qc: i32; qd: i32; qk: i32;
     dig: [i32; 16];
     buf: [u8; 16384];
