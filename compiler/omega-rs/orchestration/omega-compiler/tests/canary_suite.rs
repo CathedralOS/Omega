@@ -3875,6 +3875,42 @@ fn runtime_guard_divide_modulo_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_guard_negative_arithmetic_exit_canary_runs() {
+    // Negative-i32 arithmetic in a transition guard subject (`self.x - 1 == -9` for
+    // x=-8) took the wrong arm natively: a computed value-operand zero-extended the
+    // i32 but the compare ran 64-bit. Fixed by sizing a Binary value-operand from
+    // the non-immediate operand so the compare runs at the i32 width. Every arm is
+    // reached only on a correct guard, so a regression exits 71-74.
+    let canary = pass_canary("expressions/runtime_guard_negative_arithmetic_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-guard-neg-arith-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime_guard_negative_arithmetic canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime_guard_negative_arithmetic canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected negative-i32 guard arithmetic to evaluate correctly (exit 70), got {:?} (71-74 = a guard took the wrong arm)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn case_payload_shared_field_name_exit_canary_runs() {
     // Regression: destructuring `Tx::Transfer { to, amount }` must read Transfer's
     // `amount` (40), not a same-named field in an earlier variant (would read to=3).
