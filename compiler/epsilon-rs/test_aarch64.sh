@@ -260,6 +260,11 @@ filter_test "rpn handles array index (self.buf[i] -> index RPN then base[])" sam
 filter_test "loadk emits ARM64 constant load (movz + movk high half)" samples/loadk.alp "100000" "$(printf 'movz w0, #34464\nmovk w0, #1, lsl #16')"
 # lowerop: binary-operator ARM64 snippets (static half of expression lowering)
 filter_test "lowerop emits the backend binary-op snippet (<= -> cmp/cset le)" samples/lowerop.alp "<=" "$(printf '    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    cmp w0, w1\n    cset w0, le\n    str x0, [sp, #-16]!')"
+filter_test "lowerop modulo snippet (% -> sdiv/msub, like aarch64.rs Rem)" samples/lowerop.alp "%" "$(printf '    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    cbz w1, Ltrap\n    sdiv w2, w0, w1\n    msub w0, w2, w1, w0\n    str x0, [sp, #-16]!')"
+filter_test "lowerop bitwise-and snippet (& -> and)" samples/lowerop.alp "&" "$(printf '    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    and w0, w0, w1\n    str x0, [sp, #-16]!')"
+filter_test "lowerop bitwise-or/xor snippet (| -> orr)" samples/lowerop.alp "|" "$(printf '    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    orr w0, w0, w1\n    str x0, [sp, #-16]!')"
+filter_test "lowerop shift-left snippet (<< -> lsl, two-char)" samples/lowerop.alp "<<" "$(printf '    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    lsl w0, w0, w1\n    str x0, [sp, #-16]!')"
+filter_test "lowerop shift-right snippet (>> -> asr, two-char)" samples/lowerop.alp ">>" "$(printf '    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    asr w0, w0, w1\n    str x0, [sp, #-16]!')"
 # fieldload: self.field operand lowering -- the symbol-table half (field name -> layout offset -> SelfField load)
 filter_test "fieldload lowers a self.field read to its backend SelfField load" samples/fieldload.alp "data Main { a: i32; b: i32; c: i32; } machine Main::main(&mut self) { transition self.b { _ -> h() } state h(){} }" "$(printf '    ldr x9, [x29, #16]\n    ldr w0, [x9, #8]\n    str x0, [sp, #-16]!')"
 # lowerexpr: the ORCHESTRATOR -- lower a complete expression end-to-end (rpn + loadk + lowerop composed)

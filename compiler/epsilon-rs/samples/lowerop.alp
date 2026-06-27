@@ -40,9 +40,15 @@ machine Main::main(&mut self) {
     state c4()   { transition self.buf[0] == 60 { true -> lt0()  false -> c5() } }   // '<'
     state c5()   { transition self.buf[0] == 62 { true -> gt0()  false -> c6() } }   // '>'
     state c6()   { transition self.buf[0] == 61 { true -> eq()  false -> c7() } }    // '=' (==)
-    state c7()   { transition self.buf[0] == 33 { true -> ne()  false -> done() } }  // '!' (!=)
-    state lt0()  { transition self.buf[1] == 61 { true -> le()  false -> lt() } }
-    state gt0()  { transition self.buf[1] == 61 { true -> ge()  false -> gt() } }
+    state c7()   { transition self.buf[0] == 33 { true -> ne()  false -> c8() } }   // '!' (!=)
+    state c8()   { transition self.buf[0] == 37 { true -> rem()  false -> c9() } }   // '%'
+    state c9()   { transition self.buf[0] == 38 { true -> band()  false -> c10() } } // '&'
+    state c10()  { transition self.buf[0] == 124 { true -> bor()  false -> c11() } } // '|'
+    state c11()  { transition self.buf[0] == 94 { true -> bxor()  false -> done() } } // '^'
+    state lt0()  { transition self.buf[1] == 61 { true -> le()  false -> lt0b() } }
+    state lt0b() { transition self.buf[1] == 60 { true -> shl()  false -> lt() } }   // '<<'
+    state gt0()  { transition self.buf[1] == 61 { true -> ge()  false -> gt0b() } }
+    state gt0b() { transition self.buf[1] == 62 { true -> shr()  false -> gt() } }   // '>>'
     // arithmetic
     state add()  { self.pops(); self.console.write_line("    adds w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); self.push(); transition 0 { _ -> done() } }
     state sub()  { self.pops(); self.console.write_line("    subs w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); self.push(); transition 0 { _ -> done() } }
@@ -55,5 +61,12 @@ machine Main::main(&mut self) {
     state ge()   { self.pops(); self.console.write_line("    cmp w0, w1"); self.console.write_line("    cset w0, ge"); self.push(); transition 0 { _ -> done() } }
     state eq()   { self.pops(); self.console.write_line("    cmp w0, w1"); self.console.write_line("    cset w0, eq"); self.push(); transition 0 { _ -> done() } }
     state ne()   { self.pops(); self.console.write_line("    cmp w0, w1"); self.console.write_line("    cset w0, ne"); self.push(); transition 0 { _ -> done() } }
+    // bitwise / shift / modulo (match src/aarch64.rs; bitwise + shift carry no overflow, no trap)
+    state rem()  { self.pops(); self.console.write_line("    cbz w1, Ltrap"); self.console.write_line("    sdiv w2, w0, w1"); self.console.write_line("    msub w0, w2, w1, w0"); self.push(); transition 0 { _ -> done() } }
+    state band() { self.pops(); self.console.write_line("    and w0, w0, w1"); self.push(); transition 0 { _ -> done() } }
+    state bor()  { self.pops(); self.console.write_line("    orr w0, w0, w1"); self.push(); transition 0 { _ -> done() } }
+    state bxor() { self.pops(); self.console.write_line("    eor w0, w0, w1"); self.push(); transition 0 { _ -> done() } }
+    state shl()  { self.pops(); self.console.write_line("    lsl w0, w0, w1"); self.push(); transition 0 { _ -> done() } }
+    state shr()  { self.pops(); self.console.write_line("    asr w0, w0, w1"); self.push(); transition 0 { _ -> done() } }
     state done() { self.console.exit_process(0) }
 }
