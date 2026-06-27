@@ -1764,8 +1764,19 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
         indexed.suffix_root,
     )?;
 
+    // A carrier (`[u8;N]` BoundedByteBuffer) stores its inline bytes AFTER a
+    // leading `len` word, so a runtime index must address past that prefix --
+    // the same adjustment the constant-index path
+    // (`bounded_byte_buffer_indexed_place`) makes. A plain inline array has no
+    // prefix.
+    let carrier_byte_prefix = if descriptor_is_bounded_byte_buffer(&collection.type_descriptor) {
+        input.runtime_abi.pointer_size
+    } else {
+        0
+    };
+
     Some(RuntimeMachineIndexedTarget {
-        base_byte_offset: collection.byte_offset,
+        base_byte_offset: collection.byte_offset + carrier_byte_prefix,
         index_region: index_place.region,
         index_offset: index_place.byte_offset,
         element_byte_size: element_layout.size,
