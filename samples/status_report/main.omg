@@ -5,9 +5,9 @@
 // carrier concatenation composing across transition arms.) With reading 95 > 90 the
 // `high` arm builds "ALERT temp", so the program prints it and exits 70.
 //
-// Note: a carrier's `.len` is usable in GUARDS but does not yet marshal as a host
-// call / value-position operand (it surfaces "argument did not marshal to an
-// operand"), so verification here uses `==` rather than exiting `message.len`.
+// (Verification uses `==`, a content check stronger than a length check. A
+// carrier's `.len` also marshals as a value/host-call operand now -- see the
+// runtime_bounded_carrier_length_exit canary.)
 // Expected exit: 70.
 
 domain [u8]::Utf8 when valid_utf8(self) {}
