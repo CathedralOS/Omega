@@ -53,10 +53,15 @@ fn runtime_slice_descriptor_member_place(
     }
 
     match member_name {
+        // The length VALUE is a 32-bit count (the language types `.len` as
+        // `i32`-assignable without a cast); the descriptor's 8-byte len slot is
+        // storage, so read the low 4-byte word. This matches the carrier `.len`
+        // convention and lets `.len` narrow into an `i32` target (an 8-byte read
+        // does not lower into a 4-byte field write).
         Some("len") => Some(RuntimeStoragePlace {
             region: RuntimeStorageRegion::RuntimeFrame,
             byte_offset: root_offset.checked_add(descriptor.len_offset())?,
-            byte_count: descriptor.len_size(),
+            byte_count: 4,
         }),
         _ => None,
     }
@@ -132,7 +137,9 @@ fn runtime_nested_slice_descriptor_len_place(
     Some(RuntimeStoragePlace {
         region: RuntimeStorageRegion::RuntimeFrame,
         byte_offset: cursor.byte_offset().checked_add(descriptor.len_offset())?,
-        byte_count: descriptor.len_size(),
+        // The length value is a 32-bit count -- read the low 4-byte word (see the
+        // root-slot `.len` resolver above).
+        byte_count: 4,
     })
 }
 
