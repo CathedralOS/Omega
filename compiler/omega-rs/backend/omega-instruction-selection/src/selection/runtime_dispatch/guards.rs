@@ -1900,11 +1900,11 @@ fn runtime_arithmetic_operator(operator: BinaryOperator) -> Option<StateGuardOpe
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
         BinaryOperator::And => Some(StateGuardOperator::And),
+        BinaryOperator::Divide => Some(StateGuardOperator::Divide),
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        BinaryOperator::Divide
-        | BinaryOperator::Equal
+        BinaryOperator::Equal
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual
         | BinaryOperator::Less
