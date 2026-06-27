@@ -70,6 +70,13 @@ pub struct Machine {
     pub has_self: bool,     // has a `&mut self`/`&self` receiver => has a self-pointer slot
     pub entry: Vec<Statement>,
     pub states: Vec<Vec<Statement>>,
+    // Contract residue retained for STATIC discharge (compiler-generated proof certificates),
+    // captured before `ensures` is desugared to runtime asserts. `result_local` is the slot
+    // `result` names in a postcondition; `postconditions` are the raw cond expr nodes;
+    // `return_exprs` are the body's returned-value nodes. See discharge.rs.
+    pub result_local: Option<usize>,
+    pub postconditions: Vec<usize>,
+    pub return_exprs: Vec<usize>,
 }
 
 pub struct Program {

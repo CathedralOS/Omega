@@ -25,6 +25,7 @@
 
 mod aarch64;
 mod ast;
+mod discharge;
 mod lex;
 mod parse;
 mod pe;
@@ -107,6 +108,32 @@ fn main() {
                 exit(1);
             }
         }
+    }
+
+    // Static contract discharge: instead of emitting a binary, print one delta certificate
+    // per statically-dischargeable `ensures` contract. The trust anchor (check.beta) validates
+    // them at build time -- a true postcondition is accepted, a false one rejected. The
+    // compiler proves the contract; it is not trusted to.
+    if std::env::var("EPS_EMIT").as_deref() == Ok("contracts") {
+        let tokens = match lex::lex(&source) {
+            Ok(tokens) => tokens,
+            Err(error) => {
+                eprintln!("{}", error);
+                exit(1);
+            }
+        };
+        let mut parser = parse::Parser::new(&tokens, &source);
+        let program = match parser.parse_program() {
+            Ok(program) => program,
+            Err(error) => {
+                eprintln!("{}", error);
+                exit(1);
+            }
+        };
+        for certificate in discharge::emit_contracts(&program) {
+            println!("{}", certificate);
+        }
+        return;
     }
 
     if std::env::var("EPS_ARCH").as_deref() == Ok("aarch64") {

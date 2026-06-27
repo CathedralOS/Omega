@@ -631,12 +631,20 @@ impl<'a> Parser<'a> {
         self.machine_self_types.push(self_data_type);
 
         let (mut entry, mut states) = self.parse_machine_body()?;
+        // Capture the body's return-value nodes BEFORE desugaring, so static discharge can
+        // form the obligation (postcondition with `result` := the returned expression).
+        let mut return_exprs = Vec::new();
+        Self::collect_return_exprs(&entry, &mut return_exprs);
+        for block in &states {
+            Self::collect_return_exprs(block, &mut return_exprs);
+        }
         // Prepend the precondition checks (in source order) so they run before the body.
         for cond in preconditions.into_iter().rev() {
             entry.insert(0, Statement::Assert(cond));
         }
         // Postconditions: check `ensures` at every return site, with `result` bound to the
         // value being returned. Rewrite `return e` -> { result = e; assert <cond>...; return result }.
+        let result_local = if postconditions.is_empty() { None } else { Some(result_index) };
         if !postconditions.is_empty() {
             entry = self.rewrite_returns_with_postconditions(entry, result_index, &postconditions);
             states = states
@@ -645,6 +653,9 @@ impl<'a> Parser<'a> {
                 .collect();
         }
         Ok(Machine {
+            result_local,
+            postconditions,
+            return_exprs,
             param_count,
             local_count: self.local_names.len(),
             makes_call: self.current_machine_makes_call,
@@ -652,6 +663,18 @@ impl<'a> Parser<'a> {
             entry,
             states,
         })
+    }
+
+    // Collect the value-expression node of every `return` in a statement list (recursing
+    // into Blocks), for static contract discharge. Read-only; runs before desugaring.
+    fn collect_return_exprs(statements: &[Statement], out: &mut Vec<usize>) {
+        for statement in statements {
+            match statement {
+                Statement::Return(value) => out.push(*value),
+                Statement::Block(inner) => Self::collect_return_exprs(inner, out),
+                _ => {}
+            }
+        }
     }
 
     // Rewrite each `return e` into `{ result = e; assert <postcondition>...; return result }`,
