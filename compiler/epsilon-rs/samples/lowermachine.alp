@@ -466,6 +466,11 @@ machine Main::movw1v(&mut self) {        // "movz w1,#lo [+ movk w1,#hi, lsl #16
     state mvk() { write_byte(32); write_byte(32); write_byte(32); write_byte(32); write_byte(109); write_byte(111); write_byte(118); write_byte(107); write_byte(32); write_byte(119); write_byte(49); write_byte(44); write_byte(32); write_byte(35); self.v = self.fhipart; self.emit_int(); write_byte(44); write_byte(32); write_byte(108); write_byte(115); write_byte(108); write_byte(32); write_byte(35); write_byte(49); write_byte(54); write_byte(10); transition 0 { _ -> mvd() } }
     state mvd() { }
 }
+machine Main::movw0v(&mut self) {        // "movz w0,#lo [+ movk w0,#hi, lsl #16]" for self.sval (mirrors emit_load_w0; literals > 65535)
+    self.fhipart = self.sval / 256 / 256; self.flopart = self.sval - self.fhipart * 256 * 256; self.p_movw0(); self.v = self.flopart; self.emit_int(); write_byte(10); transition self.fhipart > 0 { true -> mvk0()  false -> mvd0() }
+    state mvk0() { write_byte(32); write_byte(32); write_byte(32); write_byte(32); write_byte(109); write_byte(111); write_byte(118); write_byte(107); write_byte(32); write_byte(119); write_byte(48); write_byte(44); write_byte(32); write_byte(35); self.v = self.fhipart; self.emit_int(); write_byte(44); write_byte(32); write_byte(108); write_byte(115); write_byte(108); write_byte(32); write_byte(35); write_byte(49); write_byte(54); write_byte(10); transition 0 { _ -> mvd0() } }
+    state mvd0() { }
+}
 machine Main::p_addidx(&mut self) {      // "    add x9, x9, x0"
     write_byte(32); transition 0 { _ -> b0() }
     state b0(){ write_byte(32); transition 0 { _ -> b1() } }  state b1(){ write_byte(32); transition 0 { _ -> b2() } }
@@ -857,7 +862,7 @@ machine Main::main(&mut self) {
     state litr()  { transition self.buf[self.pos] < 48 { true -> litdone()  false -> litr2() } }
     state litr2() { transition self.buf[self.pos] > 57 { true -> litdone()  false -> litacc() } }
     state litacc(){ self.sval = self.sval * 10 + self.buf[self.pos] - 48; self.pos = self.pos + 1; transition 0 { _ -> litr() } }
-    state litdone(){ self.p_movw0(); self.v = self.sval; self.emit_int(); write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
+    state litdone(){ self.movw0v(); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
     state fldname(){ self.pos = self.pos + 1; self.fs = self.pos; transition 0 { _ -> fldr() } }   // past '.', capture field name
     state fldr()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> flda()  false -> flde() } }
     state flda()  { self.pos = self.pos + 1; transition 0 { _ -> fldr() } }
