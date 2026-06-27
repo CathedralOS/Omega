@@ -1,0 +1,66 @@
+// Runtime-indexed WRITE into a carrier (`[u8;N] in Utf8`) of a RUNTIME value:
+// `self.out[self.i] = self.ch`. The carrier stores its bytes after a leading
+// `len` word, so the indexed store must address past that prefix -- the same
+// adjustment the read side makes. A loop fills out[i] = i (as a byte) for
+// i in 0..4, producing the bytes [0,1,2,3], then reads index 2 back to confirm
+// it holds 2. This is the carrier counterpart of the inline-array indexed write
+// that makes in-place mutation (e.g. building text byte-by-byte) possible.
+// Exits 70.
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 4]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    out: [u8; 4] in Utf8;
+    i: i32 in Trapping;
+    ch: u8;
+}
+
+machine Main::main(&mut self) {
+    self.out = "0000";
+    self.i = 0;
+
+    transition {
+        _ -> fill()
+    }
+
+    state fill(&mut self) {
+        transition self.i < 4 {
+            true -> store()
+            _ -> check()
+        }
+    }
+
+    state store(&mut self) {
+        self.ch = self.i as u8;
+        self.out[self.i] = self.ch;
+        self.i = self.i + 1;
+        transition {
+            _ -> fill()
+        }
+    }
+
+    // out is now the bytes [0, 1, 2, 3]; confirm the runtime-indexed writes
+    // landed past the carrier's len prefix.
+    state check(&mut self) {
+        transition self.out[2] == 2 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
