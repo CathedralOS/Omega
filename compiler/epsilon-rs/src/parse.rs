@@ -798,6 +798,7 @@ impl<'a> Parser<'a> {
                 TokenKind::Minus => (BinaryOp::Sub, 2),
                 TokenKind::Star => (BinaryOp::Mul, 3),
                 TokenKind::Slash => (BinaryOp::Div, 3),
+                TokenKind::Percent => (BinaryOp::Rem, 3),
                 _ => break,
             };
             if precedence < min_precedence {

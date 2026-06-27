@@ -21,6 +21,7 @@ pub enum TokenKind {
     Minus,
     Star,
     Slash,
+    Percent,
     Lt,
     Gt,
     Le,
@@ -150,6 +151,7 @@ pub fn lex(source: &[u8]) -> Result<Vec<Token>, String> {
             b'-' => TokenKind::Minus,
             b'*' => TokenKind::Star,
             b'/' => TokenKind::Slash,
+            b'%' => TokenKind::Percent,
             _ => {
                 return Err(format!(
                     "alpha-onramp: lex error: unexpected byte {:?} at offset {}",

@@ -116,6 +116,7 @@ run "exit7 (exit_process(7))" samples/exit7.alp 7
 # Slice 2: expressions + locals + arithmetic precedence.
 run "arith (3 + 4*2)"          samples/arith.alp  11
 run "locals (a=10; b=a-3; b*2)" samples/locals.alp 14
+run "modulo (% operator + precedence)" samples/modulo.alp 222
 # Slices 4-5: transition/state control flow + back-edge loop + reassignment.
 # (write_line is a no-op here; the exit code is fixed by the control flow: i 0->3.)
 run "loop (count i 0->3, exit i)" samples/loop.alp 3
@@ -293,6 +294,12 @@ data Main { console: Console; }
 machine Main::main(&mut self) { let z: i32 = 0; let q: i32 = 5 / z; self.console.exit_process(q) }
 EOF
 trap_test "divide by zero traps" "$T/dz.alp"
+cat > "$T/mz.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let z: i32 = 0; let r: i32 = 7 % z; self.console.exit_process(r) }
+EOF
+trap_test "modulo by zero traps" "$T/mz.alp"
 
 # lowermachine array read: self.buf[i] -> bounds-checked element load
 filter_test "lowermachine lowers a bounds-checked array read (self.buf[i])" samples/lowermachine.alp "boundary trait Console { machine exit_process(return_code: i32); machine write_byte(b: i32); machine read_byte() -> i32; machine write_line(text: &[u8]); } data Main { console: Console; buf: [u8; 256]; n: i32; } machine Main::main(&mut self) { self.n = self.buf[5]; transition 0 { _ -> s() } state s(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    movz w0, #5\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #256\n    cmp w0, w1\n    b.hs Ltrap\n    uxtw x0, w0\n    ldr x9, [x29, #16]\n    add x9, x9, x0\n    ldrb w0, [x9]\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    ldr x9, [x29, #16]\n    str w0, [x9, #256]\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm0s0\nLm0s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"

@@ -326,6 +326,10 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
                     // ARM64 sdiv does NOT trap on /0 (returns 0); enforce the trap.
                     asm.push_str("    cbz w1, Ltrap\n    sdiv w0, w0, w1\n");
                 }
+                BinaryOp::Rem => {
+                    // remainder = w0 - (w0 / w1) * w1; same /0 trap as Div (no native rem).
+                    asm.push_str("    cbz w1, Ltrap\n    sdiv w2, w0, w1\n    msub w0, w2, w1, w0\n");
+                }
                 BinaryOp::Lt => emit_compare(asm, "lt"),
                 BinaryOp::Gt => emit_compare(asm, "gt"),
                 BinaryOp::Le => emit_compare(asm, "le"),

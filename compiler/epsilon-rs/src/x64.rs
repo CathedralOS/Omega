@@ -282,6 +282,11 @@ fn lower_expression(
                     code.push(0x99); // cdq
                     code.extend_from_slice(&[0xF7, 0xF9]); // idiv ecx (traps on /0, INT_MIN/-1)
                 }
+                BinaryOp::Rem => {
+                    code.push(0x99); // cdq
+                    code.extend_from_slice(&[0xF7, 0xF9]); // idiv ecx (same /0 trap as Div)
+                    code.extend_from_slice(&[0x89, 0xD0]); // mov eax, edx (remainder)
+                }
                 BinaryOp::Lt => emit_cmp_set(code, 0x9C),   // setl
                 BinaryOp::Gt => emit_cmp_set(code, 0x9F),   // setg
                 BinaryOp::Le => emit_cmp_set(code, 0x9E),   // setle
