@@ -25,4 +25,10 @@ machine plus5_gt(a: i32) -> i32 ensures result > a { return a + 5; }
 // upper bound: result < a + 1 (i.e. result <= a), returned verbatim a -> witness 0
 machine lt_succ(a: i32) -> i32 ensures result < a + 1 { return a; }
 
+// NON-STRICT ORDER (a <= b == exists w. a+w=b; the witness IS the gap, so it can be a param):
+// constant margin: result <= a + 10, returned verbatim a -> witness 10
+machine within10(a: i32) -> i32 ensures result <= a + 10 { return a; }
+// PARAMETER witness: result <= a + b, returned a -> witness b (not a literal)
+machine bounded_by_sum(a: i32, b: i32) -> i32 ensures result <= a + b { return a; }
+
 machine Main::main(&mut self) { let r: i32 = adds(20, 22); self.console.exit_process(r) }

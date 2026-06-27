@@ -8,12 +8,15 @@
 // a false one is REJECTED before the program ever runs. The proof is carried, not trusted:
 // the compiler is untrusted, the checker decides.
 //
-// Two obligation shapes are discharged, both against a single `return e`:
+// Three obligation shapes are discharged, all against a single `return e`:
 //   * EQUALITY  `ensures result == E`  ->  `∀a… (= e* E*)`, proved by `refl`. Definitional
 //     equalities discharge (incl. `0 + a == a`, since the checker's p/m recurse on the FIRST
 //     argument and reduce); a false claim like `result == a + a` vs `return a` is rejected.
 //   * STRICT ORDER `ensures result < B` / `result > B`  ->  the standard `a < b == ∃w. a+(s w)=b`,
 //     proved with a constant witness when the larger side is syntactically `smaller + k` (k≥1).
+//   * NON-STRICT ORDER `ensures result <= B` / `result >= B`  ->  `a <= b == ∃w. a+w=b`, whose
+//     witness is the additive gap itself and so may be a PARAMETER, not just a literal -- e.g.
+//     `result <= a + b` discharges with witness `b`.
 //     So `ensures result > a` vs `return a + 1` discharges (witness 0). The order path is
 //     CONSERVATIVE: when it can't find a constant gap (`result > a` vs `return a`) it emits no
 //     certificate at all (the runtime contract still stands) -- it never emits a false one.
@@ -88,6 +91,19 @@ fn additive_gap(smaller: usize, larger: usize, program: &Program) -> Option<i32>
     None
 }
 
+// If `larger` is syntactically `smaller + G` for ANY gap expression G (constant or a
+// parameter), return G's node. Used for non-strict order: a <= smaller+G holds for any G>=0,
+// so the witness can be a parameter, not just a literal. (Only `smaller + G` with smaller on
+// the LEFT discharges -- `G + smaller` would need commutativity, which refl can't see.)
+fn additive_gap_expr(smaller: usize, larger: usize, program: &Program) -> Option<usize> {
+    if let Expr::Binary(BinaryOp::Add, l, r) = program.expressions[larger] {
+        if expr_eq(l, smaller, program) {
+            return Some(r);
+        }
+    }
+    None
+}
+
 fn unary(n: i32) -> String {
     let mut s = String::from("z");
     for _ in 0..n {
@@ -152,6 +168,25 @@ pub fn discharge_machine(machine: &Machine, program: &Program) -> Option<String>
             let body = format!("(= (p {} (s (v 0))) {})", smaller1, larger1);
             let goal = format!("(Exists {})", body);
             let proof = format!("(wit {} {} (refl {}))", body, unary(k - 1), larger0);
+            Some(wrap_universal(p, &goal, &proof))
+        }
+        // result <= B (= e <= B): discharge when B is `e + G`; smaller=e, larger=B
+        // result >= B (= B <= e): discharge when e is `B + G`; smaller=B, larger=e
+        BinaryOp::Le | BinaryOp::Ge => {
+            let (smaller_expr, larger_expr) = match op {
+                BinaryOp::Le => (returned, rhs),
+                _ => (rhs, returned),
+            };
+            let gap = additive_gap_expr(smaller_expr, larger_expr, program)?;
+            // a <= b  ==  ∃w. a + w = b ; the witness is the gap itself (valid for any gap >= 0,
+            // so it may be a parameter -- e.g. result <= a + b proved with witness b)
+            let smaller1 = term(smaller_expr, program, p, 1)?;
+            let larger1 = term(larger_expr, program, p, 1)?;
+            let larger0 = term(larger_expr, program, p, 0)?;
+            let gap0 = term(gap, program, p, 0)?;
+            let body = format!("(= (p {} (v 0)) {})", smaller1, larger1);
+            let goal = format!("(Exists {})", body);
+            let proof = format!("(wit {} {} (refl {}))", body, gap0, larger0);
             Some(wrap_universal(p, &goal, &proof))
         }
         _ => None,
