@@ -1,0 +1,59 @@
+// SOUNDNESS (G3): the seed is `i < K + 1`, NOT `i < capacity`. Here the entry
+// establishes `i = 9` over `[i32; 4]`, so the inductive bound is `i < 10`. The
+// index check still requires `i < 4`; `i < 10` does NOT discharge it (and indeed
+// the first read `self.nums[9]` is out of bounds). The program is rejected --
+// an init that exceeds the array capacity stays unproven.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 4] in Trapping;
+    i: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 1;
+    self.nums[1] = 2;
+    self.nums[2] = 3;
+    self.nums[3] = 4;
+    self.i = 9;
+    self.acc = 0;
+
+    transition {
+        _ -> loop_()
+    }
+
+    state loop_(&mut self) {
+        transition self.i >= 0 {
+            true -> body()
+            _ -> done()
+        }
+    }
+
+    state body(&mut self) {
+        self.acc = self.acc + self.nums[self.i];
+        self.i = self.i - 1;
+        transition {
+            _ -> loop_()
+        }
+    }
+
+    state done(&mut self) {
+        transition self.acc == 10 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

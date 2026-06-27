@@ -342,6 +342,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ),
     ("slices/runtime_array_indexed_read_exit", 70),
     ("slices/runtime_array_indexed_loop_exit", 70),
+    ("slices/runtime_decreasing_index_exit", 70),
     ("slices/runtime_slice_indexed_read_exit", 70),
     ("slices/runtime_array_adjacent_index_exit", 70),
     ("slices/runtime_branched_index_bound_exit", 70),
