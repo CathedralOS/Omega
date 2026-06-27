@@ -110,6 +110,27 @@ compiler_trap() {
       FAIL=$((FAIL+1)); echo "  FAIL $1 : compiled [$3] -> exit $got, expected a trap (>128)"; fi
   else FAIL=$((FAIL+1)); echo "  FAIL $1 : emitted asm did not assemble"; fi
 }
+# selfhost NAME SAMPLE.alp INPUT...  — SECOND-ORDER self-hosting: the self-hosted compiler
+# ($T/lmx, the byte-identical lowermachine, built by the fixpoint block) compiles ANOTHER real
+# epsilon program, and the resulting binary's runtime output must equal the trusted Rust-beta
+# reference compilation of the SAME program on every INPUT. Proves lowermachine compiles real
+# compilers correctly end-to-end, not just its own source.
+selfhost_test() {
+  shn="$1"; shs="$2"; shift 2
+  EPS_ARCH=aarch64 "$BIN" "$shs" "$T/shref" >/dev/null 2>"$T/err" && codesign -f -s - "$T/shref" 2>/dev/null || {
+    FAIL=$((FAIL+1)); echo "  FAIL $shn : reference build"; return; }
+  "$T/lmx" < "$shs" > "$T/shg.s" 2>/dev/null
+  clang -arch arm64 -o "$T/shg" "$T/shg.s" 2>"$T/cerr" && codesign -f -s - "$T/shg" 2>/dev/null || {
+    FAIL=$((FAIL+1)); echo "  FAIL $shn : lowermachine-emitted asm did not assemble:"; sed 's/^/    /' "$T/cerr"; return; }
+  for inp in "$@"; do
+    set +e
+    a=$(printf '%s' "$inp" | "$T/shref" 2>/dev/null)
+    b=$(printf '%s' "$inp" | "$T/shg" 2>/dev/null)
+    set -e
+    if [ "$a" = "$b" ]; then PASS=$((PASS+1)); else
+      FAIL=$((FAIL+1)); echo "  FAIL $shn : in [$inp] -> lm [$b], ref [$a]"; fi
+  done
+}
 
 # Slice 1: exit_process(<const>) -> the constant is the process exit status.
 run "exit7 (exit_process(7))" samples/exit7.alp 7
@@ -439,6 +460,13 @@ wrap_test "lowermachine keeps the outer operator across a call with an operator-
 else
   FAIL=$((FAIL+1)); echo "  FAIL self-compile fixpoint: not byte-identical"
 fi
+
+# SECOND-ORDER self-hosting: the byte-identical lowermachine ($T/lmx) compiles rpn.alp -- another
+# real ~200-line epsilon program (a shunting-yard compiler) -- and the resulting arm64 binary
+# behaves identically to the trusted Rust-beta reference across the full operator range
+# (precedence, parens, comparisons, modulo, and the bit ops), exercised end-to-end.
+selfhost_test "self-hosting: lowermachine compiles rpn.alp; binary matches the reference" samples/rpn.alp \
+  "2 + 3" "2 + 3 * 4" "(1 + 2) * 3" "1 + 2 < 5" "8 >> 1 & 3" "10 % 3 + 1"
 
 echo "aarch64 macOS backend gate (slices 1-7, full parity): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
