@@ -638,6 +638,8 @@ impl<'a> Parser<'a> {
         for block in &states {
             Self::collect_return_exprs(block, &mut return_exprs);
         }
+        // Retain the preconditions for static call-site discharge before they are consumed.
+        let preconditions_kept = preconditions.clone();
         // Prepend the precondition checks (in source order) so they run before the body.
         for cond in preconditions.into_iter().rev() {
             entry.insert(0, Statement::Assert(cond));
@@ -656,6 +658,7 @@ impl<'a> Parser<'a> {
             result_local,
             postconditions,
             return_exprs,
+            preconditions: preconditions_kept,
             param_count,
             local_count: self.local_names.len(),
             makes_call: self.current_machine_makes_call,
