@@ -2,20 +2,27 @@
 //
 // The runtime contract path desugars `ensures` into an assert that traps if violated for the
 // concrete inputs of one call. Static discharge is the other half: `EPS_EMIT=contracts` makes
-// the compiler emit, for each machine below, a delta certificate that the postcondition's
-// obligation holds SYMBOLICALLY (for all inputs `a`, `b`), which the trust anchor checks. The
-// compiler proves the contract; it is not trusted to — a false postcondition would emit a
-// certificate the checker REJECTS, failing the build before the program runs. (See contracts.sh.)
+// the compiler emit, for each machine below, a delta certificate that the postcondition holds
+// for ALL inputs (a closed `forall a… obligation`), which the trust anchor checks. The compiler
+// proves the contract; it is not trusted to — a false postcondition emits a certificate the
+// checker REJECTS, failing the build before the program runs. (See contracts.sh.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 
-// identity: result == a + b, returned verbatim -> obligation (p (v0)(v1)) == (p (v0)(v1)), refl
+// EQUALITY (proved by refl):
+// identity: result == a + b, returned verbatim
 machine adds(a: i32, b: i32) -> i32 ensures result == a + b { return a + b; }
-
-// reduction: result == a, returned as 0 + a -> (p z (v0)) reduces to (v0), so refl discharges
+// reduction: result == a, returned as 0 + a -> (p z (v0)) reduces to (v0)
 machine zadd(a: i32) -> i32 ensures result == a { return 0 + a; }
-
-// multiplication: result == a * 3, returned verbatim -> (m (v0) 3) == (m (v0) 3), refl
+// multiplication: result == a * 3, returned verbatim
 machine triple(a: i32) -> i32 ensures result == a * 3 { return a * 3; }
+
+// STRICT ORDER (proved by an existential witness, a < b == exists w. a+(s w)=b):
+// result exceeds the input: result > a, returned as a + 1 -> witness 0
+machine succ_gt(a: i32) -> i32 ensures result > a { return a + 1; }
+// bounded below by a margin: result > a, returned as a + 5 -> witness 4
+machine plus5_gt(a: i32) -> i32 ensures result > a { return a + 5; }
+// upper bound: result < a + 1 (i.e. result <= a), returned verbatim a -> witness 0
+machine lt_succ(a: i32) -> i32 ensures result < a + 1 { return a; }
 
 machine Main::main(&mut self) { let r: i32 = adds(20, 22); self.console.exit_process(r) }
