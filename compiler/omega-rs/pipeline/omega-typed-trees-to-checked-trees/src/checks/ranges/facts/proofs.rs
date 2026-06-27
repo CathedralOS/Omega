@@ -59,6 +59,16 @@ impl RangeFacts<'_> {
             .any(|(known_index, upper_bound)| known_index == index && *upper_bound <= length)
     }
 
+    /// The tightest (smallest) proven EXCLUSIVE upper bound for `index`, if any.
+    /// Used to carry a bound across `field = otherfield + const`.
+    pub(in crate::checks::ranges) fn proven_index_upper_bound(&self, index: &str) -> Option<i64> {
+        self.proven_index_upper_bounds
+            .iter()
+            .filter(|(known_index, _)| known_index == index)
+            .map(|(_, upper_bound)| *upper_bound)
+            .min()
+    }
+
     pub(in crate::checks::ranges) fn index_value_is_proven(
         &self,
         collection: &str,

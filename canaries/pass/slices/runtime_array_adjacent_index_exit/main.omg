@@ -1,0 +1,65 @@
+// Check whether an array is sorted by comparing ADJACENT elements: `nums[j]`
+// vs `nums[j+1]`. The `j+1` index is a DERIVED index -- the bound on `j` (the
+// loop guard `j < 4`) must carry across `jp = j + 1` so `nums[jp]` proves
+// (jp < 5). Before that relational bound propagation, `nums[j+1]` could not be
+// proven in-bounds. This pattern underlies sorts, sliding windows, and reversal.
+// [10,20,30,40,50] is sorted, so every adjacent pair is ordered -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 5];
+    j: i32 in Trapping;
+    jp: i32 in Trapping;
+    a: i32;
+    b: i32;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 10;
+    self.nums[1] = 20;
+    self.nums[2] = 30;
+    self.nums[3] = 40;
+    self.nums[4] = 50;
+    self.j = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    // Walk adjacent pairs: j ranges 0..4 so j+1 stays in 1..5.
+    state step(&mut self) {
+        transition self.j < 4 {
+            true -> compare()
+            _ -> sorted()
+        }
+    }
+
+    state compare(&mut self) {
+        self.jp = self.j + 1;
+        self.a = self.nums[self.j];
+        self.b = self.nums[self.jp];
+        transition self.a > self.b {
+            true -> unsorted()
+            _ -> advance()
+        }
+    }
+
+    state advance(&mut self) {
+        self.j = self.j + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state sorted(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state unsorted(&mut self) {
+        self.console.exit_process(71);
+    }
+}
