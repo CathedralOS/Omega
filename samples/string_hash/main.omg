@@ -1,0 +1,67 @@
+// FNV-1a string hash -- a real byte-string algorithm over a `[u8;N] in Utf8`
+// carrier. It walks the string's bytes by runtime index, bounded by the carrier's
+// runtime `.len`, and folds each byte into a 32-bit hash:
+//
+//   hash = 2166136261
+//   for each byte b in text: hash = (hash ^ b) * 16777619   (u32, wrapping)
+//
+// This composes everything needed to process real text: a `.len`-bounded loop,
+// a runtime-indexed carrier byte read, a widening cast, bitwise XOR, and a
+// wrapping multiply. Hashing "omega", the low byte of the digest is 40.
+// Expected exit: 40.
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    text: [u8; 8] in Utf8;
+    i: i32 in Trapping;
+    b: u8;
+    bw: u32 in Wrapping;
+    hash: u32 in Wrapping;
+    digest: u32 in Wrapping;
+    out: i32;
+}
+
+machine Main::main(&mut self) {
+    self.text = "omega";
+    self.hash = 2166136261;
+    self.i = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    // Loop over the string's bytes, bounded by its runtime length.
+    state step(&mut self) {
+        transition self.i < self.text.len {
+            true -> mix()
+            _ -> done()
+        }
+    }
+
+    // Fold the current byte into the hash (FNV-1a: xor then multiply).
+    state mix(&mut self) {
+        self.b = self.text[self.i];
+        self.bw = self.b as u32;
+        self.hash = self.hash ^ self.bw;
+        self.hash = self.hash * 16777619;
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state done(&mut self) {
+        self.digest = self.hash & 255;
+        self.out = self.digest as i32;
+        self.console.exit_process(self.out);
+    }
+}

@@ -282,6 +282,16 @@ fn is_slice_descriptor(descriptor: &TypeLayoutDescriptor) -> bool {
     }
 }
 
+fn descriptor_is_bounded_byte_buffer(descriptor: &TypeLayoutDescriptor) -> bool {
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            descriptor_is_bounded_byte_buffer(base_type)
+        }
+        TypeLayoutDescriptor::BoundedByteBuffer { .. } => true,
+        _ => false,
+    }
+}
+
 fn resolve_nested_slot_layout(
     layouts: &LayoutPlan,
     root_byte_offset: usize,
@@ -633,13 +643,29 @@ fn resolve_nested_field_layout_by_symbol(
     let mut byte_offset = root_field.offset;
     let mut type_symbol = root_field.type_symbol;
     let mut layout = root_field.layout;
+    let mut type_descriptor = root_field.type_descriptor.clone();
 
     for (segment, field_symbol, field_index) in suffix.iter() {
+        // A `[u8;N]` carrier (BoundedByteBuffer) has no real `len` field; its
+        // length word lives at the carrier's own base offset (size 4), matching
+        // the instruction-selection resolver. Recognize `.len` BEFORE the
+        // record-field lookup, which would otherwise return None and leave the
+        // guard operand with `storage = Unknown` -- a silently-dropped guard.
+        if segment.as_str() == "len" && descriptor_is_bounded_byte_buffer(&type_descriptor) {
+            return Some((
+                byte_offset,
+                TypeLayout {
+                    size: 4,
+                    alignment: 4,
+                },
+            ));
+        }
         let field_segment = parse_field_segment(segment, field_index)?;
         let field = data_member_field_layout(layouts, type_symbol, field_symbol, segment)?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
         layout = field.layout;
+        type_descriptor = field.type_descriptor.clone();
 
         if let Some(index) = field_segment.index {
             let (element_type, length) = field.type_descriptor.fixed_array()?;

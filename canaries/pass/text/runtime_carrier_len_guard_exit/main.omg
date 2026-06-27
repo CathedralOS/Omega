@@ -1,0 +1,47 @@
+// A `[u8;N] in Utf8` carrier's runtime `.len` used as a GUARD subject. The
+// state-guards operand resolver did not recognize a carrier's `.len` (a
+// BoundedByteBuffer has no real `len` field), so the operand resolved to
+// storage=Unknown/size=0 and the guard compare emitted ZERO bytes -- silently
+// dropped, taking the `true` arm unconditionally regardless of the comparison.
+// "abc" has len 3: `len == 3` is TRUE, `len == 9` is FALSE. Exercising both arms
+// proves the guard actually evaluates now.
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    text: [u8; 8] in Utf8;
+}
+
+machine Main::main(&mut self) {
+    self.text = "abc";
+
+    // TRUE arm: len == 3 holds.
+    transition self.text.len == 3 {
+        true -> check_false()
+        _ -> bad()
+    }
+
+    state check_false(&mut self) {
+        // FALSE arm: len == 9 does not hold, so the `_` arm must be taken.
+        transition self.text.len == 9 {
+            true -> bad()
+            _ -> good()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,68 @@
+// FNV-1a hash over a `[u8;N] in Utf8` carrier STRING -- real byte-string
+// processing, the payoff of carrier byte reads + the carrier `.len` loop guard
+// fix. Iterates the string's bytes (`self.i < self.text.len`), folds each into
+// the hash (`hash = (hash ^ byte) * FNV_prime`, u32-wrapping), and self-checks:
+// FNV-1a("abc") & 255 == 11.
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    text: [u8; 8] in Utf8;
+    i: i32 in Trapping;
+    b: u8;
+    bw: u32 in Wrapping;
+    hash: u32 in Wrapping;
+    masked: u32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.text = "abc";
+    self.hash = 2166136261;
+    self.i = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.i < self.text.len {
+            true -> body()
+            _ -> check()
+        }
+    }
+
+    state body(&mut self) {
+        self.b = self.text[self.i];
+        self.bw = self.b as u32;
+        self.hash = self.hash ^ self.bw;
+        self.hash = self.hash * 16777619;
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state check(&mut self) {
+        self.masked = self.hash & 255;
+        transition self.masked == 11 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
