@@ -325,6 +325,11 @@ fn lower_statement(
     call_fixups: &mut Vec<(u32, usize)>,
 ) {
     match statement {
+        Statement::Block(statements) => {
+            for inner in statements {
+                lower_statement(inner, context, code, relocations, state_fixups, call_fixups);
+            }
+        }
         Statement::Let(local_index, expression) => {
             lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax

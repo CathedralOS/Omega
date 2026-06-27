@@ -56,6 +56,7 @@ pub enum Statement {
     WriteByte(usize),                      // write the low byte of the value expr node to stdout
     WriteLine(usize),                      // index into Program.strings (bytes include trailing '\n')
     Transition(usize, Vec<TransitionArm>), // subject expr node, arms (jump to a state)
+    Block(Vec<Statement>),                 // a sequence lowered in order (enum construction = tag + payload stores)
 }
 
 // A machine: a named, callable unit. The first `param_count` locals are its value
