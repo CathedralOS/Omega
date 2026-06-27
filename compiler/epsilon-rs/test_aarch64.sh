@@ -355,5 +355,16 @@ boundary trait Console {
     machine read_byte() -> i32;
     machine write_line(text: &[u8]);
 } data Main { console: Console; x: i32; } machine Main::dbl(&mut self, c: i32) -> i32 { transition 0 { _ -> r() } state r(){ return c + c; } } machine Main::main(&mut self) { self.x = self.dbl(21); transition 0 { _ -> t() } state t(){} }" "$(printf 'Lmachine0:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    str w1, [x29, #16]\n    str x0, [x29, #24]\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm0s0\nLm0s0:\n    ldr w0, [x29, #16]\n    str x0, [sp, #-16]!\n    ldr w0, [x29, #16]\n    str x0, [sp, #-16]!\n    ldr x1, [sp], #16\n    ldr x0, [sp], #16\n    adds w0, w0, w1\n    b.vs Ltrap\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret\n_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    movz w0, #21\n    str x0, [sp, #-16]!\n    ldr x1, [sp], #16\n    ldr x0, [x29, #16]\n    bl Lmachine0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    ldr x9, [x29, #16]\n    str w0, [x9, #0]\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm1s0\nLm1s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
+# THE SELF-HOSTING FIXPOINT: lowermachine.alp compiled by the backend (= lmx), run on its OWN
+# source, must emit byte-for-byte the same .s the backend emits for that source. This is the
+# closing of the epsilon arc -- the .alp compiler reproducing itself exactly.
+EPS_ARCH=aarch64 "$BIN" samples/lowermachine.alp "$T/lmx" >/dev/null 2>"$T/err" \
+  && "$T/lmx" < samples/lowermachine.alp > "$T/self.s" 2>/dev/null
+if cmp -s "$T/self.s" "$T/lmx.s"; then
+  PASS=$((PASS+1)); echo "  ok  self-compile FIXPOINT: lowermachine.alp emits itself byte-identical"
+else
+  FAIL=$((FAIL+1)); echo "  FAIL self-compile fixpoint: not byte-identical"
+fi
+
 echo "aarch64 macOS backend gate (slices 1-7, full parity): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
