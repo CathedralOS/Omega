@@ -819,6 +819,14 @@ impl<'a> Parser<'a> {
 
     fn parse_primary(&mut self) -> Result<usize, String> {
         match self.current_kind() {
+            TokenKind::Minus => {
+                // unary minus: -x desugars to (0 - x), reusing Sub's overflow trap (so
+                // negating INT_MIN traps). Recurse into a primary so unary binds tightest.
+                self.bump();
+                let operand = self.parse_primary()?;
+                let zero = self.add_expression(Expr::Int(0));
+                Ok(self.add_expression(Expr::Binary(BinaryOp::Sub, zero, operand)))
+            }
             TokenKind::Int => {
                 let token = self.bump();
                 let text = std::str::from_utf8(token_text(&token, self.source)).unwrap();
