@@ -743,7 +743,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> Result<usize, String> {
-        self.parse_binary(1)
+        self.parse_binary(0)
     }
 
     // Parse `(arg, arg, ...)` after a machine name; record args in the flat
@@ -799,6 +799,10 @@ impl<'a> Parser<'a> {
                 TokenKind::Star => (BinaryOp::Mul, 3),
                 TokenKind::Slash => (BinaryOp::Div, 3),
                 TokenKind::Percent => (BinaryOp::Rem, 3),
+                // bitwise ops share one level, looser than comparison (parens to mix & | ^)
+                TokenKind::Amp => (BinaryOp::BitAnd, 0),
+                TokenKind::Pipe => (BinaryOp::BitOr, 0),
+                TokenKind::Caret => (BinaryOp::BitXor, 0),
                 _ => break,
             };
             if precedence < min_precedence {

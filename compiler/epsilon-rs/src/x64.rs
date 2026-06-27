@@ -287,6 +287,10 @@ fn lower_expression(
                     code.extend_from_slice(&[0xF7, 0xF9]); // idiv ecx (same /0 trap as Div)
                     code.extend_from_slice(&[0x89, 0xD0]); // mov eax, edx (remainder)
                 }
+                // bitwise ops: no overflow possible, so no trap (mirror Add's ModRM)
+                BinaryOp::BitAnd => code.extend_from_slice(&[0x21, 0xC8]), // and eax, ecx
+                BinaryOp::BitOr => code.extend_from_slice(&[0x09, 0xC8]),  // or  eax, ecx
+                BinaryOp::BitXor => code.extend_from_slice(&[0x31, 0xC8]), // xor eax, ecx
                 BinaryOp::Lt => emit_cmp_set(code, 0x9C),   // setl
                 BinaryOp::Gt => emit_cmp_set(code, 0x9F),   // setg
                 BinaryOp::Le => emit_cmp_set(code, 0x9E),   // setle

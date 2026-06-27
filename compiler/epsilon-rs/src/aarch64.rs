@@ -330,6 +330,10 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
                     // remainder = w0 - (w0 / w1) * w1; same /0 trap as Div (no native rem).
                     asm.push_str("    cbz w1, Ltrap\n    sdiv w2, w0, w1\n    msub w0, w2, w1, w0\n");
                 }
+                // bitwise ops: no overflow possible, so no trap.
+                BinaryOp::BitAnd => asm.push_str("    and w0, w0, w1\n"),
+                BinaryOp::BitOr => asm.push_str("    orr w0, w0, w1\n"),
+                BinaryOp::BitXor => asm.push_str("    eor w0, w0, w1\n"),
                 BinaryOp::Lt => emit_compare(asm, "lt"),
                 BinaryOp::Gt => emit_compare(asm, "gt"),
                 BinaryOp::Le => emit_compare(asm, "le"),
