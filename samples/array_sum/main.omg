@@ -1,14 +1,13 @@
 // Overflow-safe reduction: sum a [i32; N] array into an i64 accumulator so a
-// total that would overflow i32 is computed correctly. Summing 2_000_000_000 +
-// 200_000_000 = 2_200_000_000 exceeds i32's max (2_147_483_647) -- in an i32
-// Trapping accumulator that add would TRAP; widening each element to i64 first
-// keeps the running total in range. The result is checked to equal 2.2e9.
+// total that would overflow i32 is still correct. 2_000_000_000 + 200_000_000 =
+// 2_200_000_000 exceeds i32's max (2_147_483_647) -- in an i32 Trapping
+// accumulator that add would TRAP; widening each element to i64 first keeps the
+// running total in range. The result is checked to equal 2.2e9.
 //
-// Note the read-then-widen idiom: `cur = nums[i]; wide = cur as i64`. Today a
-// runtime-indexed read must be materialized into a field before it can be used
-// inside a larger expression (a cast or arithmetic) -- writing the widening
-// inline as `sum = sum + nums[i] as i64` is a known gap (the machine-indexed
-// value operand). The temp makes the same computation work now.
+// The element is read and widened INLINE -- `sum + nums[i] as i64 in Trapping` --
+// a runtime-indexed read now works as a sub-expression operand. The `in Trapping`
+// matches the accumulator's domain (decision 17: arithmetic operands must share
+// an arithmetic domain).
 //
 // Expected exit: 70.
 
@@ -18,10 +17,8 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    nums: [i32; 2];
+    nums: [i32; 2] in Trapping;
     i: i32 in Trapping;
-    cur: i32;
-    wide: i64 in Trapping;
     sum: i64 in Trapping;
 }
 
@@ -43,9 +40,7 @@ machine Main::main(&mut self) {
     }
 
     state add(&mut self) {
-        self.cur = self.nums[self.i];
-        self.wide = self.cur as i64;
-        self.sum = self.sum + self.wide;
+        self.sum = self.sum + self.nums[self.i] as i64 in Trapping;
         self.i = self.i + 1;
         transition {
             _ -> step()
