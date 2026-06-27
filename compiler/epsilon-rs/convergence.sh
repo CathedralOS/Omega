@@ -64,6 +64,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-product.alp "$T/cprod" >/de
   || { echo "convergence FAIL — compiling certify-product"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-distinct.alp "$T/cdist" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-distinct"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sum.alp "$T/csum" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-sum"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -142,6 +144,15 @@ cdistno() {
     FAIL=$((FAIL+1)); echo "  BREACH [$1 != $1 accepted] : delta returned [$v], expected reject"; fi
 }
 cdistno 4; cdistno 0; cdistno 9
+
+# computation over a USER-DEFINED function: the checker REDUCES a recursive `sum` over a
+# user list to validate sum([a b c]) = a+b+c -- the fun/rec machinery, exercised here
+csum() {
+  v=$(printf '%s %s %s' "$1" "$2" "$3" | "$T/csum" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL [sum($1,$2,$3)] : delta returned [$v], expected accept"; fi
+}
+csum 2 3 5; csum 1 1 1; csum 4 0 6; csum 10 20 30; csum 0 0 0
 
 # CORRECTNESS (not safety): the result meets its spec -- m is genuinely max(a,b):
 # a<=m & b<=m & (m=a or m=b). inl branch when a>=b, inr when a<b.
