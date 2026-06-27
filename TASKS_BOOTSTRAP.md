@@ -89,8 +89,14 @@ The lattice's thesis — *trust by checking, not pedigree* — is now a working 
    Rust-free by `bc`. 11/11 in `test-interp.sh`. Stage 2 (ADTs + pattern matching) DONE; a static type system (`typeck.beta`,
    Int + ADTs, catches Int-vs-List etc.) DONE; the Delta checker rewritten in gamma
    (`checker.gamma`, full parity, ~12 functions vs ~350 lines) DONE — runs on the
-   reference route and agrees with check.beta (`checker-diamond.sh`). Remaining:
-   type-annotate checker.gamma so the type system validates the checker itself.
+   reference route and agrees with check.beta (`checker-diamond.sh`). The fully
+   type-annotated `checker_typed.gamma` (which `typeck.beta` accepts) is DONE too,
+   and is now mechanically tied to the trusted checker: `erase_types.py` type-erases
+   it and the checker diamond runs it as a THIRD oracle (77/83 cases agree with
+   `checker.gamma`; the 6 user-function-reduction cases use a different rule
+   representation and are skipped — closing that `fdisp`-coverage gap is the one
+   remaining follow-up). So "the checker is statically type-safe" and "the checker is
+   behaviorally correct" are now claims about the SAME artifact.
 9. **Delta — the checker / evidence rung (where trust actually starts): PROTOTYPE
    DONE + GROWN.** [`compiler/delta/check.beta`](compiler/delta/check.beta) is now a
    **full intuitionistic propositional** proof checker (`-> & + ⊥`; Curry-Howard =

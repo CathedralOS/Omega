@@ -27,7 +27,7 @@ step "delta — soundness battery (no false proof)"     delta       soundness.sh
 step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.sh
 step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — the Delta checker, written IN gamma"    gamma       test-checker.sh
-step "diamond — two checkers (Beta vs Gamma) agree"   delta       checker-diamond.sh
+step "diamond — checkers agree (Beta, Gamma, type-erased typed)" delta  checker-diamond.sh
 step "diamond — definitional eq vs operational eval"  delta       semantics-diamond.sh
 step "seam — inductive universals vs operational eval" delta      induction-soundness.sh
 step "epsilon — on-ramp compiles + RUNS its corpus"   epsilon-rs  test_aarch64.sh

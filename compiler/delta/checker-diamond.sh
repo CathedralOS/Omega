@@ -10,6 +10,12 @@
 # at different rungs. For each proof below — expressed in BOTH input syntaxes — the
 # two checkers must return the SAME verdict, and it must be the expected one. A
 # disagreement would expose a bug (or a backdoor) in one of them.
+#
+# A THIRD oracle joins below: checker_typed.gamma — the fully type-annotated checker
+# that typeck.beta accepts — mechanically type-erased (erase_types.py) to the untyped
+# surface interp runs. It must agree with checker.gamma on every non-user-function case.
+# This makes "the checker is statically type-safe" and "the checker is behaviorally
+# correct" claims about the SAME artifact, rather than two copies kept in sync by hand.
 cd "$(dirname "$0")"
 . ../alpha/seed_env.sh
 SEED=../alpha/$ALPHA_SEED
@@ -21,6 +27,20 @@ bcc() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/a.asm" && "$ASM" < "$T/a.asm" 
 bcc check.beta "$T/check.exe"          || { echo "build check.beta failed"; exit 1; }
 bcc ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
 DEFS=$(cat ../gamma/checker.gamma)
+# Third oracle: the TYPE-CHECKED checker (checker_typed.gamma, the artifact typeck.beta
+# accepts), mechanically type-erased to the untyped surface interp runs. Agreement here
+# means the checker gamma's type system validates is the SAME checker that's behaviorally
+# trusted — not a second, hand-kept-in-sync copy. Guarded on python3 (the eraser), exactly
+# like the elaborator tools in verify-lattice.sh; without python3 the two-checker diamond
+# is unchanged. The user-function cases (Fapp/Frule) encode rules in checker.gamma's
+# wrapper form, which the flat typed representation doesn't share — those are skipped
+# (counted, not silently dropped); fdisp coverage is a separate follow-up.
+TPASS=0; TSKIP=0; TFAIL=0; HAVE_TYPED=0
+if command -v python3 >/dev/null 2>&1; then
+  if python3 ../gamma/erase_types.py < ../gamma/checker_typed.gamma > "$T/erased.gamma"; then
+    TDEFS=$(cat "$T/erased.gamma"); HAVE_TYPED=1
+  fi
+fi
 
 PASS=0; FAIL=0
 # dia DESC  BETA_INPUT  GAMMA_CHECK_EXPR  EXPECT(accept|reject)
@@ -30,6 +50,14 @@ dia() {
   gv=reject; [ "$vg" = 1 ] && gv=accept
   if [ "$vb" = "$gv" ] && [ "$vb" = "$4" ]; then PASS=$((PASS+1))
   else FAIL=$((FAIL+1)); echo "  FAIL $1 : beta=$vb gamma=$gv expect=$4"; fi
+  if [ "$HAVE_TYPED" = 1 ]; then
+    case "$3" in
+      *Fapp*|*Frule*) TSKIP=$((TSKIP+1)) ;;
+      *) printf '%s\n%s\n' "$TDEFS" "$3" | "$T/interp.exe" >/dev/null; vt=$?
+         if [ "$vt" = "$vg" ]; then TPASS=$((TPASS+1))
+         else TFAIL=$((TFAIL+1)); echo "  FAIL(typed) $1 : checker.gamma=$vg type-erased=$vt"; fi ;;
+    esac
+  fi
 }
 #    desc            check.beta syntax                                          checker.gamma syntax                                                                   expect
 dia "identity"       "(-> P P) (lam P (hyp 0))"                                  "(check (Lam (Atom 0) (Hyp 0)) (Arrow (Atom 0) (Atom 0)))"                              accept
@@ -146,3 +174,9 @@ dia "memcons binders" "(All (All (-> (Rel 777 (v 1) (cons (v 1) (v 0))) (+ (= (v
 dia "pconsinv wrong"  "(All (All (All (-> (Rel 778 (cons (v 2) (v 1)) (v 0)) (Exists (& (= (v 1) (m (v 0) (v 3))) (Rel 778 (v 2) (v 0)))))))) (gen (gen (gen (lam (Rel 778 (cons (v 2) (v 1)) (v 0)) (prodconsinv (hyp 0))))))" "(check (Gen (Gen (Gen (Lam (Rel 778 (Lcons (Iv 2) (Iv 1)) (Iv 0)) (Prodconsinv (Hyp 0)))))) (All (All (All (Arrow (Rel 778 (Lcons (Iv 2) (Iv 1)) (Iv 0)) (Exists (And (Eq (Iv 1) (Mu (Iv 0) (Iv 3))) (Rel 778 (Iv 2) (Iv 0)))))))))" reject
 echo "checker diamond (check.beta vs checker.gamma): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
+if [ "$HAVE_TYPED" = 1 ]; then
+  echo "  + 3rd oracle (type-erased checker_typed.gamma vs checker.gamma): $TPASS agree, $TSKIP skipped (user-fn repr), $TFAIL disagree"
+  [ "$TFAIL" = 0 ] || exit 1
+else
+  echo "  + 3rd oracle (typed checker) skipped — python3 absent"
+fi
