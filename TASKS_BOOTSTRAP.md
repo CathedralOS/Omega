@@ -34,7 +34,7 @@ honest edges) lives in
 | `compiler/beta-lang/` | The Beta compiler **written in Beta** (`bc.beta`) — slice 7. | **DONE — self-hosts** (byte-for-byte fixed point) |
 | `compiler/delta/` | **The certificate checker** (`check.beta`) — the trust anchor: full intuitionistic prop logic + equality/conversion + ∀∃ + induction + `Mem`/`ProdIs`. Compiled by `bc`, run on the seed. Plus a ~204-proof corpus (sqrt2, FTA, infinitude-of-primes), a 43-case soundness battery (no false proof accepted), and a 29-theorem soundness sweep (proved by check.beta **and** computed-true in the interpreter). | **WORKING** — also rewritten in gamma (`checker.gamma`, type-checked + diamond-tested); **no soundness bridge** to execution yet (the deep open problem) |
 | `compiler/gamma/` | `gamma.alpha` = parked v13 imperative compiler. **`interp.beta`** = interpreter-first reference interpreter (functional, ADTs + pattern matching, fuel-bounded) + **`typeck.beta`** = a static type checker + **`checker.gamma`** = the Delta checker in gamma, all in Beta. | interpreter + type system done |
-| `compiler/epsilon-rs/` | The **Epsilon on-ramp** (throwaway Rust): compiles a machines / `data` / `transition` / `enum` systems language — Omega's executable surface — to x64 PE **and** arm64 Mach-O. Self-hosts (`lowermachine.alp` emits itself byte-identically). Hosts the **convergence**: `certify-*.alp` programs that compute and emit delta certificates the trust anchor checks. | **GATED** — slices 1–9 + `% & \| ^ << >>`/unary-minus, enums with single/multi-field payloads + exhaustiveness, state parameters; 134 aarch64 tests; 106-certificate convergence |
+| `compiler/epsilon-rs/` | The **Epsilon on-ramp** (throwaway Rust): compiles a machines / `data` / `transition` / `enum` systems language — Omega's executable surface — to x64 PE **and** arm64 Mach-O. Self-hosts (`lowermachine.alp` emits itself byte-identically). Hosts the **convergence** (`certify-*.alp` programs emit delta certificates) **and a proof-carrying contract system** (`assert`/`requires`/`ensures`, compiler-emitted static discharge, call-site composition). | **GATED** — slices 1–9 + operators/enums/state-params; 140 aarch64 tests; 106-cert convergence; contract discharge (`contracts.sh` 14, `discharge-soundness.sh`) |
 | `compiler/epsilon/`, `compiler/alpha-rs` | Old/renamed experiment soup (a misfiled alpha-in-alpha attempt; not the live rung). | **IGNORE** |
 | `compiler/omega-rs/` | The real Omega compiler, in Rust. Separate concern: the *producer*, not the lattice. | (other workstream) |
 
@@ -132,20 +132,36 @@ The lattice's thesis — *trust by checking, not pedigree* — is now a working 
     logic (∃ `divides`/`mod`, ∧ `safety`, ∨ `max`, ¬ `distinct`), both inductive predicates
     (`member`=Mem, `product`=ProdIs), builtin arithmetic, AND user-defined-function
     reduction (`sum`). A wrong computation emits a certificate delta REJECTS.
+11. **Epsilon contracts — the verification-compiler, BUILT.** What the frontier once called
+    "the open question" is now a working proof-carrying contract system (`src/discharge.rs`,
+    `contracts.sh`, `discharge-soundness.sh`). Surface: `assert` (runtime trap),
+    `requires`/`ensures` (pre/postconditions, desugared to runtime asserts at entry / every
+    return). **Static discharge** (`EPS_EMIT=contracts`): the COMPILER emits a delta certificate
+    that a contract holds for ALL inputs (a closed `∀`-proof) which the trust anchor checks at
+    BUILD time — `refl` for definitional equalities, existential witnesses for the order family
+    (`< > <= >=`, constant *and* parameter gaps), and **lemma citation** (`(use N)` against
+    `gen-contract-lib.py`) for obligations that hold only up to a banked theorem (add-zero,
+    commutativity, le-trans). Conservative (never a false cert) and cross-checked against
+    execution (`discharge-soundness.sh`: discharged contracts never trap). **Call-site
+    composition** (omega's BoundedCallArgumentObligation): a wrapper discharges a callee's
+    precondition from its own — forwarding (identical, any arity) via `(lam (hyp 0))`, and
+    weakening (caller's bound strictly stronger) via an le-trans citation. This is omega-rs's
+    entailment model — cite a proven lemma at the site terms — in miniature.
 
-## The frontier (what's left — research-grade)
+## The frontier (what's left)
 
-The lattice is comprehensively built from the seed to a certifying systems language. The
-two remaining steps to *Omega* are large and want a deliberate design pass, not a slice:
+The lattice is comprehensively built from the seed through a certifying systems language **with
+a working proof-carrying contract system** (item 11). What remains:
 
-- **Contracts** (`requires`/`ensures`) — making the convergence DECLARATIVE: a machine
-  states a pre/post-condition and the compiler *generates and discharges* the proof
-  obligation (today every `certify-*` hand-emits its proof). This is the
-  verification-compiler leap, and the design (how a contract proposition references
-  program values, how VCs are generated) is the open question.
-- **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the meta-theorem
-  connecting the checker's logic to the reference interpreter's semantics. We have broad
-  *bounded evidence* (the diamonds + the seam + the 29-theorem sweep) but not the theorem.
+- **Richer contract composition** — incremental, all on the proven mechanism (cite the right
+  banked lemma at the site, no new design): `<=` upper-bound weakening, expression arguments
+  (`B(a+1)`, via the commutativity citation), implicit obligations (array-bounds / overflow
+  discharged from context, like the convergence's `certify-bounds` but compiler-emitted), and
+  domain types (`i32 in Trapping/Wrapping`).
+- **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
+  research-grade step: the meta-theorem connecting the checker's logic to the reference
+  interpreter's semantics. Broad *bounded evidence* (the diamonds, the seam, the 30-theorem
+  sweep, discharge-soundness) but not the theorem.
 
 ## How to build & verify (repo root; Git Bash on Windows, plain `sh` on macOS; `cargo` needed for `beta-lang-rs`)
 
