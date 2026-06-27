@@ -7954,6 +7954,37 @@ fn runtime_array_indexed_loop_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_slice_indexed_read_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_slice_indexed_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-slice-indexed-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice indexed read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice indexed read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `s[self.i]` (runtime index on a &[T] slice) to read 20 and 40 and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn recursive_subslice_element_accumulator_exit_canary_runs() {
     // `sum(s[1..], acc + s[0])`: the element read s[0] must happen before the
     // s descriptor is retargeted to s[1..]. Was an off-by-one (descriptor
@@ -13063,6 +13094,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_dispatch_mutable_slice_element_write_exit",
     "slices/runtime_array_indexed_read_exit",
     "slices/runtime_array_indexed_loop_exit",
+    "slices/runtime_slice_indexed_read_exit",
     "arithmetic/runtime_modulo_value",
     "arithmetic/runtime_modulo_div_narrowing_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
