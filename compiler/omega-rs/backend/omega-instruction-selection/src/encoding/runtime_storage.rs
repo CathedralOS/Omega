@@ -985,6 +985,41 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     }
 }
 
+pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+    architecture: Architecture,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+                source_offset,
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+                source_offset,
+                base_byte_offset,
+                index_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                byte_count,
+            )
+        }
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_pointee(
     architecture: Architecture,
     source_offset: usize,

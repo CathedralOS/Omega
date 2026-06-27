@@ -811,6 +811,12 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
         + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
+/// Write-side mirror; aarch64 emits no real instruction (the encoder errors),
+/// so the reserved width is zero.
+pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width() -> usize {
+    0
+}
+
 pub fn runtime_storage_copy_to_runtime_pointee_width(
     source_offset: usize,
     pointer_byte_offset: usize,

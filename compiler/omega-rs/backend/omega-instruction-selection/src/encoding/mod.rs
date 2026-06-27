@@ -54,6 +54,7 @@ pub use runtime_storage::{
     encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage,
     encode_runtime_storage_copy_from_runtime_pointee_to_runtime_frame,
     encode_runtime_storage_copy_to_runtime_frame_indexed,
+    encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage,
     encode_runtime_storage_copy_to_runtime_pointee, encode_runtime_storage_value_compare_bytes,
     encode_runtime_value_compare,
 };

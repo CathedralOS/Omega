@@ -115,6 +115,15 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             );
             true
         }
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed { .. } => {
+            // Single shared machine base: the only relocation is the machine
+            // symbol at the `mov r15,imm64` that opens the instruction (the
+            // planner offsets the imm itself). The source value, the index, and
+            // the target element all read off this one base.
+            context
+                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            true
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { source_region, .. } => {
             let source_symbol = context.storage_region_symbol_handle(*source_region);
             context.insert_data_address_at_instruction_start(source_symbol);

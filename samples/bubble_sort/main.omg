@@ -1,0 +1,105 @@
+// Bubble sort -- the first IN-PLACE mutation algorithm Omega can express, and a
+// milestone: it needs every piece of runtime array indexing working together.
+//
+//   for i in 0..N:
+//     for j in 0..N-1:
+//       if nums[j] > nums[j+1]: swap(nums[j], nums[j+1])
+//
+// Three capabilities compose here:
+//   * the DERIVED index `nums[j+1]` (the `j < N-1` bound carried across `jp=j+1`),
+//   * the loop bound carried TRANSITIVELY into the `swap` state -- reached only
+//     via `compare`'s `a > b` arm, yet still proving `j < N-1` (because no state
+//     between rewrites `j`), so the swap's indexed accesses are in bounds,
+//   * the runtime-indexed WRITE `nums[j] = value` with a runtime value source.
+//
+// Sorting [29, 10, 14, 37, 13] ascending puts the minimum, 10, at index 0.
+// Expected exit: 10.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 5];
+    i: i32 in Trapping;
+    j: i32 in Trapping;
+    jp: i32 in Trapping;
+    a: i32 in Trapping;
+    b: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 29;
+    self.nums[1] = 10;
+    self.nums[2] = 14;
+    self.nums[3] = 37;
+    self.nums[4] = 13;
+    self.i = 0;
+
+    transition {
+        _ -> outer()
+    }
+
+    // Outer pass: N passes settle every element into place.
+    state outer(&mut self) {
+        transition self.i < 5 {
+            true -> inner_init()
+            _ -> done()
+        }
+    }
+
+    state inner_init(&mut self) {
+        self.j = 0;
+        transition {
+            _ -> inner()
+        }
+    }
+
+    // Inner loop head: compare adjacent pairs up to N-1.
+    state inner(&mut self) {
+        transition self.j < 4 {
+            true -> compare()
+            _ -> outer_next()
+        }
+    }
+
+    state compare(&mut self) {
+        self.jp = self.j + 1;
+        self.a = self.nums[self.j];
+        self.b = self.nums[self.jp];
+        transition self.a > self.b {
+            true -> swap()
+            _ -> advance()
+        }
+    }
+
+    // Reached only via `a > b`; the inner bound `j < 4` carries here
+    // transitively, so both indexed writes prove in bounds.
+    state swap(&mut self) {
+        self.jp = self.j + 1;
+        self.nums[self.j] = self.b;
+        self.nums[self.jp] = self.a;
+        transition {
+            _ -> advance()
+        }
+    }
+
+    state advance(&mut self) {
+        self.j = self.j + 1;
+        transition {
+            _ -> inner()
+        }
+    }
+
+    state outer_next(&mut self) {
+        self.i = self.i + 1;
+        transition {
+            _ -> outer()
+        }
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(self.nums[0]);
+    }
+}

@@ -135,6 +135,22 @@ pub(super) fn selected_runtime_storage_copy_kind(
             *target_offset,
             *byte_count,
         )),
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
+            source_offset,
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+            ..
+        } => Some(runtime_storage_copy_to_runtime_machine_indexed_kind(
+            *source_offset,
+            *base_byte_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_count,
+        )),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
             source_offset,
             pointer_byte_offset,
@@ -228,6 +244,17 @@ fn runtime_storage_copy_from_runtime_machine_indexed_kind(
     _byte_count: usize,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeStorageCopyFromRuntimeMachineIndexed
+}
+
+fn runtime_storage_copy_to_runtime_machine_indexed_kind(
+    _source_offset: usize,
+    _base_byte_offset: usize,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_count: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeStorageCopyToRuntimeMachineIndexed
 }
 
 fn runtime_storage_copy_to_runtime_pointee_kind(

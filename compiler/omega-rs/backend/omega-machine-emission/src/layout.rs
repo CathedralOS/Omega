@@ -28,6 +28,7 @@ use omega_instruction_selection::{
     runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width,
     runtime_storage_copy_from_runtime_frame_indexed_width,
     runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width,
+    runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width,
     runtime_storage_copy_to_return_register_width,
     runtime_storage_copy_to_runtime_frame_indexed_width,
@@ -904,6 +905,11 @@ fn machine_instruction_width(
             *target_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed { .. } => {
+            runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+                input.target.architecture,
+            )
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
             source_offset,
             pointer_byte_offset,

@@ -8171,6 +8171,37 @@ fn runtime_branched_index_bound_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_array_write_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_indexed_array_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-indexed-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime indexed-array-write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime indexed-array-write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a runtime-indexed array WRITE of a field value (`nums[self.i] = self.v`) to fill nums[i]=i+100 and read 103 back at index 3 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn recursive_subslice_element_accumulator_exit_canary_runs() {
     // `sum(s[1..], acc + s[0])`: the element read s[0] must happen before the
     // s descriptor is retargeted to s[1..]. Was an off-by-one (descriptor
@@ -13283,6 +13314,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_slice_indexed_read_exit",
     "slices/runtime_array_adjacent_index_exit",
     "slices/runtime_branched_index_bound_exit",
+    "slices/runtime_indexed_array_write_exit",
     "arithmetic/runtime_modulo_value",
     "arithmetic/runtime_modulo_div_narrowing_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
