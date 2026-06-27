@@ -50,6 +50,8 @@ pub struct Parser<'a> {
     data_type_names: Vec<Vec<u8>>,    // declared `data` type names
     data_type_sizes: Vec<i32>,        // byte size of each data type
     data_field_maps: Vec<Vec<DataFieldInfo>>, // fields of each data type
+    enum_names: Vec<Vec<u8>>,         // declared tag-only enum (`data X { case ... }`) names
+    enum_variant_lists: Vec<Vec<Vec<u8>>>, // per enum: variant names; the tag is the index
     local_names: Vec<Vec<u8>>,        // locals of the machine being parsed (params first)
     state_names: Vec<Vec<u8>>,        // pre-scanned state names of the machine being parsed
     self_data_type: Option<usize>,    // data type of `self` in the machine being parsed
@@ -73,6 +75,8 @@ impl<'a> Parser<'a> {
             data_type_names: Vec::new(),
             data_type_sizes: Vec::new(),
             data_field_maps: Vec::new(),
+            enum_names: Vec::new(),
+            enum_variant_lists: Vec::new(),
             local_names: Vec::new(),
             state_names: Vec::new(),
             self_data_type: None,
@@ -244,10 +248,27 @@ impl<'a> Parser<'a> {
         let name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
         self.expect(TokenKind::LBrace)?;
         let mut fields = Vec::new();
+        let mut variants: Vec<Vec<u8>> = Vec::new();
         let mut offset = 0i32;
         while self.current_kind() != TokenKind::RBrace {
             if self.current_kind() == TokenKind::Eof {
                 return Err("alpha-onramp: parse error: unterminated data body".into());
+            }
+            // tag-only enum variant: `case Name;` (the tag is the variant's index). Payload
+            // variants `case Name(..)` are a later slice; reject them explicitly for now.
+            if self.current_kind() == TokenKind::Ident
+                && token_text(&self.tokens[self.position], self.source) == b"case"
+            {
+                self.bump(); // case
+                let variant = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+                if self.current_kind() == TokenKind::LParen {
+                    return Err("alpha-onramp: enum payloads `case X(..)` are not yet supported".into());
+                }
+                variants.push(variant);
+                if self.current_kind() == TokenKind::Semi || self.current_kind() == TokenKind::Comma {
+                    self.bump();
+                }
+                continue;
             }
             let field_name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
             self.expect(TokenKind::Colon)?;
@@ -297,10 +318,32 @@ impl<'a> Parser<'a> {
             }
         }
         self.bump(); // '}'
+        if !variants.is_empty() {
+            // A tag-only enum, not a struct: its value is an i32 tag (the variant index),
+            // so it is stored and matched exactly like a scalar. Keep it out of the data-
+            // struct tables (which model nested field layout) and in the enum tables.
+            if !fields.is_empty() {
+                return Err("alpha-onramp: mixing fields and `case` variants is not yet supported".into());
+            }
+            self.enum_names.push(name);
+            self.enum_variant_lists.push(variants);
+            return Ok(());
+        }
         self.data_type_names.push(name);
         self.data_type_sizes.push(offset);
         self.data_field_maps.push(fields);
         Ok(())
+    }
+
+    fn find_enum(&self, name: &[u8]) -> Option<usize> {
+        self.enum_names.iter().position(|enum_name| enum_name.as_slice() == name)
+    }
+
+    fn enum_variant_tag(&self, enum_index: usize, variant: &[u8]) -> Option<i32> {
+        self.enum_variant_lists[enum_index]
+            .iter()
+            .position(|candidate| candidate.as_slice() == variant)
+            .map(|index| index as i32)
     }
 
     fn classify_field_type(&self, type_name: &[u8]) -> Result<FieldKind, String> {
@@ -309,6 +352,10 @@ impl<'a> Parser<'a> {
         }
         if let Some(index) = self.find_data_type(type_name) {
             return Ok(FieldKind::Data(index));
+        }
+        if self.find_enum(type_name).is_some() {
+            // a tag-only enum field is just an 8-byte slot holding the i32 tag
+            return Ok(FieldKind::Scalar);
         }
         if is_scalar_type(type_name) {
             return Ok(FieldKind::Scalar);
@@ -594,10 +641,38 @@ impl<'a> Parser<'a> {
                             b"true" => Pattern::Int(1),
                             b"false" => Pattern::Int(0),
                             other => {
-                                return Err(format!(
-                                    "alpha-onramp: unsupported transition pattern '{}'",
-                                    String::from_utf8_lossy(other)
-                                ))
+                                // EnumType::Variant pattern -> the variant's i32 tag
+                                let other = other.to_vec();
+                                if self.current_kind() == TokenKind::ColonColon {
+                                    if let Some(enum_index) = self.find_enum(&other) {
+                                        self.bump(); // ::
+                                        let variant = token_text(
+                                            &self.expect(TokenKind::Ident)?,
+                                            self.source,
+                                        )
+                                        .to_vec();
+                                        let tag = self
+                                            .enum_variant_tag(enum_index, &variant)
+                                            .ok_or_else(|| {
+                                                format!(
+                                                    "alpha-onramp: '{}' is not a variant of enum '{}'",
+                                                    String::from_utf8_lossy(&variant),
+                                                    String::from_utf8_lossy(&other)
+                                                )
+                                            })?;
+                                        Pattern::Int(tag)
+                                    } else {
+                                        return Err(format!(
+                                            "alpha-onramp: unknown enum '{}' in transition pattern",
+                                            String::from_utf8_lossy(&other)
+                                        ));
+                                    }
+                                } else {
+                                    return Err(format!(
+                                        "alpha-onramp: unsupported transition pattern '{}'",
+                                        String::from_utf8_lossy(&other)
+                                    ));
+                                }
                             }
                         }
                     }
@@ -870,6 +945,21 @@ impl<'a> Parser<'a> {
                     self.uses_host_io = true;
                     self.current_machine_makes_call = true;
                     return Ok(self.add_expression(Expr::ReadByte));
+                }
+                if self.current_kind() == TokenKind::ColonColon {
+                    if let Some(enum_index) = self.find_enum(&name) {
+                        self.bump(); // ::
+                        let variant = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+                        let tag = self.enum_variant_tag(enum_index, &variant).ok_or_else(|| {
+                            format!(
+                                "alpha-onramp: '{}' is not a variant of enum '{}'",
+                                String::from_utf8_lossy(&variant),
+                                String::from_utf8_lossy(&name)
+                            )
+                        })?;
+                        // tag-only enum value IS its i32 tag
+                        return Ok(self.add_expression(Expr::Int(tag)));
+                    }
                 }
                 if self.current_kind() == TokenKind::LParen {
                     return match self.find_machine_index(&name) {
