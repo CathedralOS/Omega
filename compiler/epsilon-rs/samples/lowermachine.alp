@@ -252,6 +252,20 @@ machine Main::is_wbyte(&mut self, s: i32, e: i32) -> i32 {    // "write_byte"
     state wzy()  { return 1; }
     state wzn()  { return 0; }
 }
+machine Main::is_rbyte(&mut self, s: i32, e: i32) -> i32 {    // "read_byte"
+    transition e - s == 9 { true -> rz0()  false -> rzn() }
+    state rz0() { transition self.buf[s]     == 114 { true -> rz1()  false -> rzn() } }
+    state rz1() { transition self.buf[s + 1] == 101 { true -> rz2()  false -> rzn() } }
+    state rz2() { transition self.buf[s + 2] == 97  { true -> rz3()  false -> rzn() } }
+    state rz3() { transition self.buf[s + 3] == 100 { true -> rz4()  false -> rzn() } }
+    state rz4() { transition self.buf[s + 4] == 95  { true -> rz5()  false -> rzn() } }
+    state rz5() { transition self.buf[s + 5] == 98  { true -> rz6()  false -> rzn() } }
+    state rz6() { transition self.buf[s + 6] == 121 { true -> rz7()  false -> rzn() } }
+    state rz7() { transition self.buf[s + 7] == 116 { true -> rz8()  false -> rzn() } }
+    state rz8() { transition self.buf[s + 8] == 101 { true -> rzy()  false -> rzn() } }
+    state rzy()  { return 1; }
+    state rzn()  { return 0; }
+}
 machine Main::p_subsp(&mut self) {       // "    sub sp, sp, #"
     write_byte(32); transition 0 { _ -> b0() }
     state b0(){ write_byte(32); transition 0 { _ -> b1() } }  state b1(){ write_byte(32); transition 0 { _ -> b2() } }
@@ -739,7 +753,12 @@ machine Main::main(&mut self) {
     state idsub() { self.start = self.pos; transition 0 { _ -> idr() } }
     state idr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ida()  false -> ide() } }
     state ida()   { self.pos = self.pos + 1; transition 0 { _ -> idr() } }
-    state ide()   { self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> fldname()  false -> locsub() } }
+    state ide()   { self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> fldname()  false -> ck_rb() } }
+    state ck_rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> rbemit()  false -> locsub() } }
+    state rbemit(){ self.console.write_line("    mov x0, #0"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _read"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    ldrb w1, [x9]"); self.console.write_line("    movz w2, #65535"); self.console.write_line("    movk w2, #65535, lsl #16"); self.console.write_line("    cmp x0, #1"); self.console.write_line("    csel w0, w1, w2, ge"); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> rbsk() } }
+    state rbsk()  { transition self.buf[self.pos] == 41 { true -> rbsk2()  false -> rbadv() } }   // skip to ')'
+    state rbadv() { self.pos = self.pos + 1; transition 0 { _ -> rbsk() } }
+    state rbsk2() { self.pos = self.pos + 1; transition 0 { _ -> opdisp() } }   // past ')', operand done
     state locsub(){ self.qa = self.start; self.qb = self.pos; self.cj = 0; self.ldisp = 0; transition 0 { _ -> plk() } }
     state plk()   { transition self.cj < self.np { true -> plkc()  false -> rlk0() } }
     state plkc()  { transition self.pmi[self.cj] == self.mi { true -> plkc2()  false -> plkn() } }
