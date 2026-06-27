@@ -170,6 +170,11 @@ fn lower_statement(
     asm: &mut String,
 ) {
     match statement {
+        Statement::Block(statements) => {
+            for inner in statements {
+                lower_statement(inner, machine_index, program, frame, self_disp, asm);
+            }
+        }
         Statement::Let(local_index, expression) | Statement::Assign(local_index, expression) => {
             lower_expression(*expression, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop value
