@@ -584,11 +584,27 @@ impl<'a> Parser<'a> {
 
         if self.current_kind() == TokenKind::Arrow {
             self.bump();
-            while self.current_kind() != TokenKind::LBrace {
+            while self.current_kind() != TokenKind::LBrace
+                && !(self.current_kind() == TokenKind::Ident && self.current_text() == b"requires")
+            {
                 if self.current_kind() == TokenKind::Eof {
                     return Err("alpha-onramp: parse error: unterminated return type".into());
                 }
                 self.bump(); // skip the return type
+            }
+        }
+
+        // Optional `requires <cond>` preconditions — Omega's contract syntax. Each is checked
+        // at machine entry; a false precondition TRAPS, exactly like an inline `assert`. This
+        // desugars to entry asserts: the dynamic half of contracts, declared on the signature.
+        // (The static, proof-carrying half is the convergence's certify-*.) Conditions range
+        // over the parameters, which are already in scope as locals 0..param_count.
+        let mut preconditions = Vec::new();
+        while self.current_kind() == TokenKind::Ident && self.current_text() == b"requires" {
+            self.bump(); // requires
+            preconditions.push(self.parse_expression()?);
+            if self.current_kind() == TokenKind::Semi {
+                self.bump();
             }
         }
 
@@ -597,7 +613,11 @@ impl<'a> Parser<'a> {
         self.self_data_type = self_data_type;
         self.machine_self_types.push(self_data_type);
 
-        let (entry, states) = self.parse_machine_body()?;
+        let (mut entry, states) = self.parse_machine_body()?;
+        // Prepend the precondition checks (in source order) so they run before the body.
+        for cond in preconditions.into_iter().rev() {
+            entry.insert(0, Statement::Assert(cond));
+        }
         Ok(Machine {
             param_count,
             local_count: self.local_names.len(),
