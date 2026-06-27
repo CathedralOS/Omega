@@ -828,6 +828,64 @@ fn descriptor_is_bounded_byte_buffer(descriptor: &TypeLayoutDescriptor) -> bool 
     }
 }
 
+/// The element type of a `[u8; N]` carrier (`BoundedByteBuffer`), peeling a domain
+/// `Constrained` wrapper. `None` for any non-carrier descriptor.
+fn bounded_byte_buffer_element_type(
+    descriptor: &TypeLayoutDescriptor,
+) -> Option<&TypeLayoutDescriptor> {
+    match descriptor {
+        TypeLayoutDescriptor::Constrained { base_type, .. } => {
+            bounded_byte_buffer_element_type(base_type)
+        }
+        TypeLayoutDescriptor::BoundedByteBuffer { element_type, .. } => Some(element_type),
+        _ => None,
+    }
+}
+
+/// Resolve `<carrier>[index]` (a byte read into a `[u8; N]` carrier) to its
+/// storage place. The carrier holds its content inline at `+pointer_size` (after
+/// the length word) with `element_type`-sized elements, so the indexed byte sits
+/// at `base + pointer_size + index * element_size`. Mirrors the fixed-array
+/// element path (including any indexed-suffix layout) but offsets into the
+/// carrier's content region. `None` for a non-carrier collection (the caller then
+/// falls through to the fixed-array resolution).
+fn bounded_byte_buffer_indexed_place(
+    input: &InstructionSelectionInput<'_>,
+    collection_descriptor: &TypeLayoutDescriptor,
+    region: RuntimeStorageRegion,
+    base_offset: usize,
+    index: usize,
+    expressions: &ExpressionTable,
+    suffix_root: ExpressionHandle,
+) -> Option<RuntimeStoragePlace> {
+    let element_descriptor = bounded_byte_buffer_element_type(collection_descriptor)?;
+    let element_layout = descriptor_layout(input, element_descriptor);
+    let element_offset = index.checked_mul(element_layout.size)?;
+    let root_field = FieldLayout {
+        symbol: SymbolHandle::invalid(),
+        name: "".into(),
+        offset: 0,
+        type_symbol: element_descriptor.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_descriptor.clone(),
+        layout: element_layout,
+    };
+    let (field_byte_offset, field_layout) = resolve_indexed_target_suffix_layout_in_table(
+        input,
+        &root_field,
+        expressions,
+        suffix_root,
+    )?;
+    Some(RuntimeStoragePlace {
+        region,
+        byte_offset: base_offset
+            .checked_add(input.runtime_abi.pointer_size)?
+            .checked_add(element_offset)?
+            .checked_add(field_byte_offset)?,
+        byte_count: field_layout.size,
+    })
+}
+
 /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17) of a
 /// storage PLACE — read from the `Constrained` wrapper the layout builder records
 /// on the slot/field descriptor. Used at the binary-write site to decide whether
@@ -2048,6 +2106,17 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         expressions,
         fixed.collection,
     ) {
+        if let Some(place) = bounded_byte_buffer_indexed_place(
+            input,
+            &slot.type_descriptor,
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            index,
+            expressions,
+            fixed.suffix_root,
+        ) {
+            return Some(place);
+        }
         let element_descriptor = inline_fixed_array_element_type(&slot.type_descriptor)?;
         let element_layout = descriptor_layout(input, element_descriptor);
         let element_offset = index.checked_mul(element_layout.size)?;
@@ -2105,6 +2174,17 @@ fn resolve_runtime_fixed_indexed_place_in_table(
             )?
         }
     };
+    if let Some(place) = bounded_byte_buffer_indexed_place(
+        input,
+        &collection.type_descriptor,
+        RuntimeStorageRegion::Machine,
+        collection.byte_offset,
+        index,
+        expressions,
+        fixed.suffix_root,
+    ) {
+        return Some(place);
+    }
     let element_descriptor = inline_fixed_array_element_type(&collection.type_descriptor)?;
     let element_layout = descriptor_layout(input, element_descriptor);
     let element_offset = index.checked_mul(element_layout.size)?;

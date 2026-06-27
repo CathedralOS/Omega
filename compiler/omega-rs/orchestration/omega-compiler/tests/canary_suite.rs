@@ -1100,6 +1100,44 @@ fn runtime_bounded_carrier_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// #66 owned `[u8; N] in Utf8` carrier byte indexing in guard subjects:
+// `message[i]` reads the byte at `base + pointer_size + i` (content after the
+// length word, u8 elements). The compound guard `message[0] == 'A' &&
+// message[2] == 'E'` reads two bytes of "ALERT"; both hold -> ok arm exits 70.
+// (Indexing in guards is the parsing workhorse; widening a byte's value into a
+// wider int, e.g. exiting it, needs a separate u8->i32 zero-extension still TODO.)
+#[test]
+fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_bounded_carrier_byte_index_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-bounded-carrier-byte-index-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bounded carrier byte index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bounded carrier byte index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the compound byte-index guard `message[0]=='A' && message[2]=='E'` \
+         to hold and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A runtime slice `.len` (descriptor read of a slice PARAM, not a folded
 // fixed-array constant) narrows into an i32 field: `self.count = s.len` where
 // `s: &[i32]` -> exit 5 for a 5-element view. The length value is 32-bit, so its
