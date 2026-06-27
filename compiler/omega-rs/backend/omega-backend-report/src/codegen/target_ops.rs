@@ -972,6 +972,7 @@ fn selected_instruction_name(
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset,
             index_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_region,
@@ -981,7 +982,7 @@ fn selected_instruction_name(
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
-                "copy runtime-machine indexed base@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
+                "copy runtime-machine indexed base@{base_byte_offset} index@{index_offset}({index_region:?}) elem {element_byte_size} field +{field_byte_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
             )
         }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {

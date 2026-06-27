@@ -170,6 +170,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset: indexed_source.base_byte_offset,
             index_offset: indexed_source.index_offset,
+            index_region: indexed_source.index_region,
             element_byte_size: indexed_source.element_byte_size,
             field_byte_offset: indexed_source.field_byte_offset,
             target_region: target_place.region,
@@ -506,6 +507,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset: indexed_source.base_byte_offset,
             index_offset: indexed_source.index_offset,
+            index_region: indexed_source.index_region,
             element_byte_size: indexed_source.element_byte_size,
             field_byte_offset: indexed_source.field_byte_offset,
             target_region: target_place.region,
