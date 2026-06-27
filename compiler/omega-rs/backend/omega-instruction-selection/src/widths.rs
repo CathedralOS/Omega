@@ -1506,7 +1506,9 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
                 byte_count,
             )
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width()
+        }
     }
 }
 

@@ -1748,6 +1748,73 @@ pub fn encode_runtime_machine_indexed_integer_write(
     Ok(bytes)
 }
 
+/// Width of [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`]
+/// for the machine-resident-index case. MUST equal the emitter exactly. The
+/// two relocations are the machine source base (@+2, the instruction start) and
+/// the target base (@+36); there is NO runtime-frame load, so a program without
+/// any frame storage relocates cleanly.
+pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width() -> usize {
+    // mov r15,imm64 (10) + mov eax,[r15+idx] (7) + imul rax,rax,imm32 (7)
+    // + add r15,rax (3) + mov rax,[r15+disp] (7) + mov r15,imm64 (10)
+    // + store [r15+disp] (7).
+    51
+}
+
+/// Read `collection[index]` (an element of a machine-resident inline array,
+/// indexed by a runtime field) and copy it into a runtime-storage target -- the
+/// mirror of [`encode_runtime_machine_indexed_integer_write`] in the read
+/// direction. Only a machine-resident index is implemented; a frame-resident
+/// index (`let i = ..; self.arr[i]`) is a clean error for now.
+pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot read {byte_count}-byte machine indexed values yet"
+        )));
+    }
+    if index_region != omega_target_operations::RuntimeStorageRegion::Machine {
+        return Err(Diagnostic::error(
+            "X86_64 MVP encoder cannot read a machine indexed value with a frame-resident index yet",
+        ));
+    }
+    let element_scale = i32::try_from(element_byte_size).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot scale machine index by element size `{element_byte_size}`"
+        ))
+    })?;
+    let index_displacement = disp32(index_offset)?;
+    let mut bytes = Vec::with_capacity(
+        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(),
+    );
+    // r15 = machine source base (imm64 at +2 relocated to the machine symbol).
+    append_mov_r15_imm64(&mut bytes, 0);
+    // eax = index, loaded 32-bit (zero-extended, so a nonzero adjacent slot can't
+    // splice into it) from the machine storage base.
+    bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
+    bytes.extend(index_displacement.to_le_bytes());
+    // rax = index * element_byte_size; r15 = source base + scaled index.
+    append_imul_rax_imm32(&mut bytes, element_scale);
+    append_add_r15_rax(&mut bytes);
+    // rax = the source element at [r15 + base + field].
+    append_load_rax_from_r15(&mut bytes, base_byte_offset + field_byte_offset)?;
+    // r15 = target base (imm64 at +36 relocated to the target region symbol);
+    // store the low byte_count bytes of rax there.
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width()
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_pointee_integer_write_width(_field_byte_offset: usize, _byte_size: usize) -> usize {
     // mov r15,imm64 (10) + mov r15,[r15+ptr] (7) + mov rax,imm64 (10) + store [r15+field] (7)
     34

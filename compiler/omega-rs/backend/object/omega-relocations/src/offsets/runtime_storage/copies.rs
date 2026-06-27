@@ -49,7 +49,11 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_ad
                 base_byte_offset,
             )
         }
-        Architecture::X86_64 => 8,
+        // Start of the `mov r10,imm64` runtime-frame base (the second 10-byte
+        // `mov`); the relocation planner adds the +2 immediate offset itself.
+        // (Only used for a frame-resident index, which the x86_64 encoder does
+        // not emit yet.)
+        Architecture::X86_64 => 10,
     }
 }
 
@@ -68,7 +72,10 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => 8,
+        // Start of the second `mov r15,imm64` (the target base), which follows
+        // the 34-byte source-address sequence (10+7+7+3+7); the relocation
+        // planner adds the +2 immediate offset itself.
+        Architecture::X86_64 => 34,
     }
 }
 
