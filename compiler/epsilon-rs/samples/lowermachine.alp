@@ -848,7 +848,8 @@ machine Main::main(&mut self) {
     state asub()   { self.console.write_line("    subs w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); transition 0 { _ -> apush() } }
     state amul()   { self.console.write_line("    smull x0, w0, w1"); self.console.write_line("    sxtw x2, w0"); self.console.write_line("    cmp x0, x2"); self.console.write_line("    b.ne Ltrap"); transition 0 { _ -> apush() } }
     state adiv()   { self.console.write_line("    cbz w1, Ltrap"); self.console.write_line("    sdiv w0, w0, w1"); transition 0 { _ -> apush() } }
-    state apush()  { self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> subjend() } }
+    state apush()  { self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opcont() } }
+    state opcont() { self.opnd = 0; transition 0 { _ -> opdisp() } }   // result is now the left operand of any following operator (left-assoc chain)
     state ec()    { transition self.cc == 0 { true -> eclt()  false -> ec1() } }
     state ec1()   { transition self.cc == 1 { true -> ecle()  false -> ec2() } }
     state ec2()   { transition self.cc == 2 { true -> eceq()  false -> ec3() } }
@@ -860,7 +861,7 @@ machine Main::main(&mut self) {
     state ecne()  { write_byte(110); write_byte(101); transition 0 { _ -> ecend() } }
     state ecgt()  { write_byte(103); write_byte(116); transition 0 { _ -> ecend() } }
     state ecge()  { write_byte(103); write_byte(101); transition 0 { _ -> ecend() } }
-    state ecend() { write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> subjend() } }
+    state ecend() { write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opcont() } }
     state toarms(){ transition self.buf[self.pos] == 123 { true -> arms0()  false -> toaadv() } }
     state toaadv(){ self.pos = self.pos + 1; transition 0 { _ -> toarms() } }
     state arms0() { self.console.write_line("    ldr x0, [sp], #16"); self.pos = self.pos + 1; self.tmi = self.mi; transition 0 { _ -> arm() } }   // '{', emit subject pop
