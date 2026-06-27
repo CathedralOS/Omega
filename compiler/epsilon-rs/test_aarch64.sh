@@ -179,6 +179,12 @@ compiler_test "exprc bit-op precedence (1+2&3 = 3)" samples/exprc.alp "1+2&3" 3
 compiler_test "minic vars (a=2+3;a*4)"       samples/minic.alp "a=2+3;a*4"          20
 compiler_test "minic chained (a=3;b=a+1;c=b*2;c+a)" samples/minic.alp "a=3;b=a+1;c=b*2;c+a" 11
 compiler_test "minic var-expr (a=2;b=a*a;b+1)" samples/minic.alp "a=2;b=a*a;b+1"     5
+# minic: operator set caught up to the backend (% and the bit/shift level), over variables.
+compiler_test "minic modulo (a=7;a%3)"        samples/minic.alp "a=7;a%3"       1
+compiler_test "minic bitwise-and (a=12;a&10)" samples/minic.alp "a=12;a&10"     8
+compiler_test "minic bitwise-or (a=3;b=5;a|b)" samples/minic.alp "a=3;b=5;a|b"  7
+compiler_test "minic shift-left (a=1;a<<4)"   samples/minic.alp "a=1;a<<4"      16
+compiler_test "minic shift-right (a=16;a>>2)" samples/minic.alp "a=16;a>>2"     4
 # tokenize: a real .alp lexer in epsilon — the first stage of a self-hosting compiler.
 tokens_test "tokenize .alp source" samples/tokenize.alp "machine f(x){return x+1;}" "machine f ( x ) { return x + 1 ; }"
 tokens_test "tokenize drops // comments" samples/tokenize.alp "a // c
