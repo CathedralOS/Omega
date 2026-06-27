@@ -122,6 +122,7 @@ run "shifts (<< >> + field-build idiom)" samples/shifts.alp 129
 run "unary minus (-x, negative literals)" samples/negate.alp 36
 run "tag-only enum (decl + ::variant + exhaustive match)" samples/enum.alp 7
 run "state params (loop carries i,acc -> 16)" samples/stateparams.alp 16
+run "assert (runtime contract, passing)" samples/assert.alp 42
 run "enum payload (construct + match-bind + extract)" samples/payload.alp 42
 run "multi-field payload (Rectangle{w,h} -> w*h)" samples/shape.alp 42
 # Slices 4-5: transition/state control flow + back-edge loop + reassignment.
@@ -307,6 +308,12 @@ data Main { console: Console; }
 machine Main::main(&mut self) { let z: i32 = 0; let r: i32 = 7 % z; self.console.exit_process(r) }
 EOF
 trap_test "modulo by zero traps" "$T/mz.alp"
+cat > "$T/af.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let x: i32 = 5; assert x > 100; self.console.exit_process(x) }
+EOF
+trap_test "false assert traps" "$T/af.alp"
 
 # lowermachine array read: self.buf[i] -> bounds-checked element load
 filter_test "lowermachine lowers a bounds-checked array read (self.buf[i])" samples/lowermachine.alp "boundary trait Console { machine exit_process(return_code: i32); machine write_byte(b: i32); machine read_byte() -> i32; machine write_line(text: &[u8]); } data Main { console: Console; buf: [u8; 256]; n: i32; } machine Main::main(&mut self) { self.n = self.buf[5]; transition 0 { _ -> s() } state s(){} }" "$(printf '_main:\n    sub sp, sp, #32\n    stp x29, x30, [sp]\n    mov x29, sp\n    adrp x9, _selfdata@PAGE\n    add x9, x9, _selfdata@PAGEOFF\n    str x9, [x29, #16]\n    movz w0, #5\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    movz w1, #256\n    cmp w0, w1\n    b.hs Ltrap\n    uxtw x0, w0\n    ldr x9, [x29, #16]\n    add x9, x9, x0\n    ldrb w0, [x9]\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    ldr x9, [x29, #16]\n    str w0, [x9, #256]\n    movz w0, #0\n    str x0, [sp, #-16]!\n    ldr x0, [sp], #16\n    b Lm0s0\nLm0s0:\n    mov w0, #0\n    mov sp, x29\n    ldp x29, x30, [sp]\n    add sp, sp, #32\n    ret')"
