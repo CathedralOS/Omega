@@ -23,7 +23,7 @@ data Main {
     n: i32; pos: i32; c: i32; start: i32; w: i32; pend: i32; phase: i32; depth: i32; mi: i32; si: i32;
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
-    aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32;
+    aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32;
     coff: i32; foffs: [i32; 64]; fcnt: [i32; 64]; feb: [i32; 64];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     mn: i32; mdecl: i32; cmi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
@@ -373,6 +373,14 @@ machine Main::p_addx9i(&mut self) {      // "    add x9, x9, #"
     state bc(){ write_byte(57);  transition 0 { _ -> bd() } } state bd(){ write_byte(44);  transition 0 { _ -> be() } }
     state be(){ write_byte(32);  transition 0 { _ -> bf() } } state bf(){ write_byte(35); }
 }
+machine Main::foldx9(&mut self) {        // fold self.fv into x9 (mirrors backend add_imm_to_x9: 0 / single / hi<<12 + lo)
+    transition self.fv == 0 { true -> fxdone()  false -> fxsmall() }
+    state fxsmall() { transition self.fv < 4096 { true -> fxone()  false -> fxhi() } }
+    state fxone()   { self.p_addx9i(); self.v = self.fv; self.emit_int(); write_byte(10); transition 0 { _ -> fxdone() } }
+    state fxhi()    { self.fhipart = self.fv / 4096; self.flopart = self.fv - self.fhipart * 4096; self.p_addx9i(); self.v = self.fhipart; self.emit_int(); write_byte(44); write_byte(32); write_byte(108); write_byte(115); write_byte(108); write_byte(32); write_byte(35); write_byte(49); write_byte(50); write_byte(10); transition self.flopart > 0 { true -> fxlo()  false -> fxdone() } }
+    state fxlo()    { self.p_addx9i(); self.v = self.flopart; self.emit_int(); write_byte(10); transition 0 { _ -> fxdone() } }
+    state fxdone()  { }
+}
 machine Main::p_addidx(&mut self) {      // "    add x9, x9, x0"
     write_byte(32); transition 0 { _ -> b0() }
     state b0(){ write_byte(32); transition 0 { _ -> b1() } }  state b1(){ write_byte(32); transition 0 { _ -> b2() } }
@@ -681,7 +689,9 @@ machine Main::main(&mut self) {
     state alkh()  { self.laoff = self.foffs[self.cj]; transition 0 { _ -> argo() } }
     state alkn()  { self.cj = self.cj + 1; transition 0 { _ -> alk() } }
     state argo()  { self.pos = self.pos + 1; self.mode = 1; self.opnd = 0; transition 0 { _ -> subj0() } }    // past '=', lower the RHS
-    state stStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_strw0(); self.v = self.laoff; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
+    state stStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); transition self.laoff > 16380 { true -> stBig()  false -> stImm() } }
+    state stImm()  { self.p_strw0(); self.v = self.laoff; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
+    state stBig()  { self.fv = self.laoff; self.foldx9(); self.console.write_line("    str w0, [x9]"); transition 0 { _ -> stsk() } }
     state stsk()  { transition self.buf[self.pos] == 59 { true -> stsk2()  false -> stadv() } }               // skip past ';'
     state stadv() { self.pos = self.pos + 1; transition 0 { _ -> stsk() } }
     state stsk2() { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
@@ -731,7 +741,7 @@ machine Main::main(&mut self) {
         self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10);
         transition self.aoff > 0 { true -> aroff()  false -> aridx() }
     }
-    state aroff() { self.p_addx9i(); self.v = self.aoff; self.emit_int(); write_byte(10); transition 0 { _ -> aridx() } }
+    state aroff() { self.fv = self.aoff; self.foldx9(); transition 0 { _ -> aridx() } }
     state aridx() { self.p_addidx(); transition self.aeb == 8 { true -> arlsl()  false -> aridxe() } }
     state arlsl() { write_byte(44); write_byte(32); write_byte(108); write_byte(115); write_byte(108); write_byte(32); write_byte(35); write_byte(51); write_byte(10); transition 0 { _ -> arend() } }
     state aridxe(){ write_byte(10); transition 0 { _ -> arend() } }
@@ -751,7 +761,10 @@ machine Main::main(&mut self) {
     state arsadv(){ self.pos = self.pos + 1; transition 0 { _ -> arsk() } }
     state arsk2() { self.pos = self.pos + 1; transition 0 { _ -> opdisp() } }
     state flkn()  { self.cj = self.cj + 1; transition 0 { _ -> flk() } }
-    state femit() { self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_ldrw0(); self.v = self.foff; self.emit_int(); write_byte(93); write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
+    state femit() { self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); transition self.foff > 16380 { true -> fBig()  false -> fImm() } }
+    state fImm()  { self.p_ldrw0(); self.v = self.foff; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> fpush() } }
+    state fBig()  { self.fv = self.foff; self.foldx9(); self.console.write_line("    ldr w0, [x9]"); transition 0 { _ -> fpush() } }
+    state fpush() { self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
     // after an operand: first operand -> check for an operator; second operand -> emit it
     state opdisp(){ transition self.opnd == 0 { true -> opchk()  false -> emitop() } }
     state opchk() { transition self.buf[self.pos] <= 32 { true -> opadv()  false -> opchk2() } }
