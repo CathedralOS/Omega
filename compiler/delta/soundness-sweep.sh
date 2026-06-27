@@ -134,5 +134,17 @@ sweep "a<=b & c<=d -> a+c<=b+d" le-add-both \
 sweep "a<b -> c+a < c+b"        lt-add-left \
   "(if (nle (Su $N2) $N5) (nle (Su (plus $N3 $N2)) (plus $N3 $N5)) 0)"
 
+# --- More divisibility / congruence / parity (dvd, modeq, even twins) ---
+sweep "a | 0"                   divides-zero \
+  "(if (dvd $N2 Ze) (if (dvd $N3 Ze) (dvd $N5 Ze) 0) 0)"
+sweep "1 | a"                   divides-one \
+  "(if (dvd $N1 $N2) (if (dvd $N1 $N3) (dvd $N1 $N5) 0) 0)"
+sweep "a==b & c==d -> a+c==b+d (mod m)"  mod-add-two-sided \
+  "(if (band (modeq $N2 $N5 $N3) (modeq $N1 $N4 $N3)) (modeq (plus $N2 $N1) (plus $N5 $N4) $N3) 0)"
+sweep "a==b & c==d -> a*c==b*d (mod m)"  mod-mul-two-sided \
+  "(if (band (modeq $N2 $N5 $N3) (modeq $N1 $N4 $N3)) (modeq (mult $N2 $N1) (mult $N5 $N4) $N3) 0)"
+sweep "even n  <->  2 | n"      even-iff-two-divides \
+  "(if (eqb (even $N4) (dvd $N2 $N4)) (if (eqb (even $N5) (dvd $N2 $N5)) (eqb (even Ze) (dvd $N2 Ze)) 0) 0)"
+
 echo "soundness sweep (proved by check.beta AND true in the interpreter): $PASS confirmed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
