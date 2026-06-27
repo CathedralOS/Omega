@@ -313,6 +313,7 @@ struct LoweringContext<'a> {
     written_displacement: i32,    // also the byte-count slot for read/write_byte
     io_byte_displacement: i32,    // 1-byte scratch buffer for read_byte/write_byte
     self_ptr_displacement: i32,   // frame slot holding the `self` pointer (if has_self)
+    state_arg_base: usize,        // local index of state-arg slot 0 (= param_count)
 }
 
 fn lower_statement(
@@ -403,20 +404,51 @@ fn lower_statement(
             lower_expression(*subject, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax (subject value)
             for arm in arms {
-                match arm.pattern {
-                    Pattern::Int(value) => {
+                if arm.args.is_empty() {
+                    // argless arm — byte-identical to the pre-state-params lowering
+                    match arm.pattern {
+                        Pattern::Int(value) => {
+                            code.push(0x3D);
+                            code.extend_from_slice(&value.to_le_bytes()); // cmp eax, imm32
+                            code.extend_from_slice(&[0x0F, 0x84]); // je rel32
+                            let patch_offset = code.len() as u32;
+                            code.extend_from_slice(&[0, 0, 0, 0]);
+                            state_fixups.push((patch_offset, arm.target));
+                        }
+                        Pattern::Wild => {
+                            code.push(0xE9); // jmp rel32
+                            let patch_offset = code.len() as u32;
+                            code.extend_from_slice(&[0, 0, 0, 0]);
+                            state_fixups.push((patch_offset, arm.target));
+                        }
+                    }
+                } else {
+                    // arg-passing arm: on a match, evaluate all args (left→right onto the
+                    // stack), pop them into the shared state-arg slots, then jump. The eval
+                    // runs only on the matching (jump-away) path, so eax (the subject) is
+                    // preserved for the remaining arms' comparisons.
+                    let mut skip_patch: Option<usize> = None;
+                    if let Pattern::Int(value) = arm.pattern {
                         code.push(0x3D);
                         code.extend_from_slice(&value.to_le_bytes()); // cmp eax, imm32
-                        code.extend_from_slice(&[0x0F, 0x84]); // je rel32
-                        let patch_offset = code.len() as u32;
+                        code.extend_from_slice(&[0x0F, 0x85]);         // jne rel32 (skip)
+                        skip_patch = Some(code.len());
                         code.extend_from_slice(&[0, 0, 0, 0]);
-                        state_fixups.push((patch_offset, arm.target));
                     }
-                    Pattern::Wild => {
-                        code.push(0xE9); // jmp rel32
-                        let patch_offset = code.len() as u32;
-                        code.extend_from_slice(&[0, 0, 0, 0]);
-                        state_fixups.push((patch_offset, arm.target));
+                    for arg in &arm.args {
+                        lower_expression(*arg, context, code, relocations, call_fixups);
+                    }
+                    for i in (0..arm.args.len()).rev() {
+                        code.push(0x58); // pop rax (last-pushed arg first)
+                        emit_store_local(code, context.state_arg_base + i);
+                    }
+                    code.push(0xE9); // jmp target rel32
+                    let patch_offset = code.len() as u32;
+                    code.extend_from_slice(&[0, 0, 0, 0]);
+                    state_fixups.push((patch_offset, arm.target));
+                    if let Some(p) = skip_patch {
+                        let rel = (code.len() - (p + 4)) as i32;
+                        code[p..p + 4].copy_from_slice(&rel.to_le_bytes());
                     }
                 }
             }
@@ -456,6 +488,7 @@ fn lower_machine(
         handle_displacement: -(named_bytes + 16),
         io_byte_displacement: -(named_bytes + 24),
         self_ptr_displacement,
+        state_arg_base: machine.param_count,
     };
 
     // prologue

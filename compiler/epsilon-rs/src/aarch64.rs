@@ -212,15 +212,43 @@ fn lower_statement(
             // conditional branch to its state label; `_` is an unconditional branch.
             lower_expression(*subject, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop subject into w0
+            let state_arg_base = program.machines[machine_index].param_count;
             for arm in arms {
-                match arm.pattern {
-                    Pattern::Int(value) => {
+                if arm.args.is_empty() {
+                    // argless arm — unchanged lowering
+                    match arm.pattern {
+                        Pattern::Int(value) => {
+                            emit_load_w1(value, asm);
+                            asm.push_str("    cmp w0, w1\n");
+                            asm.push_str(&format!("    b.eq Lm{}s{}\n", machine_index, arm.target));
+                        }
+                        Pattern::Wild => {
+                            asm.push_str(&format!("    b Lm{}s{}\n", machine_index, arm.target));
+                        }
+                    }
+                } else {
+                    // arg-passing arm: on a match, evaluate args into the shared state-arg
+                    // slots, then branch. Eval runs only on the match (branch-away) path, so
+                    // w0 (the subject) survives for later arms. `1f`/`1:` is a forward local label.
+                    let is_int = matches!(arm.pattern, Pattern::Int(_));
+                    if let Pattern::Int(value) = arm.pattern {
                         emit_load_w1(value, asm);
                         asm.push_str("    cmp w0, w1\n");
-                        asm.push_str(&format!("    b.eq Lm{}s{}\n", machine_index, arm.target));
+                        asm.push_str("    b.ne 1f\n");
                     }
-                    Pattern::Wild => {
-                        asm.push_str(&format!("    b Lm{}s{}\n", machine_index, arm.target));
+                    for arg in &arm.args {
+                        lower_expression(*arg, program, self_disp, asm);
+                    }
+                    for i in (0..arm.args.len()).rev() {
+                        asm.push_str("    ldr x0, [sp], #16\n"); // pop last-pushed arg first
+                        asm.push_str(&format!(
+                            "    str w0, [x29, #{}]\n",
+                            local_displacement(state_arg_base + i)
+                        ));
+                    }
+                    asm.push_str(&format!("    b Lm{}s{}\n", machine_index, arm.target));
+                    if is_int {
+                        asm.push_str("1:\n");
                     }
                 }
             }
