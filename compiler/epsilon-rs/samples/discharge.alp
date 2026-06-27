@@ -32,10 +32,11 @@ machine plus5_gt(a: i32) -> i32 ensures result > a { return a + 5; }
 machine lt_succ(a: i32) -> i32 ensures result < a + 1 { return a; }
 
 // NON-STRICT ORDER (a <= b == exists w. a+w=b; the witness IS the gap, so it can be a param):
-// constant margin: result <= a + 10, returned verbatim a -> witness 10
+// constant margin: result <= a + 10, returned verbatim a -> witness 10 (a literal, so
+// provably >= 0 -- sound for signed i32). A PARAMETER gap (result <= a + b) is deliberately
+// NOT discharged: b could be negative, which would make the runtime assert trap while a
+// natural-number proof "accepts" -- the discharge refuses unprovably-non-negative witnesses.
 machine within10(a: i32) -> i32 ensures result <= a + 10 { return a; }
-// PARAMETER witness: result <= a + b, returned a -> witness b (not a literal)
-machine bounded_by_sum(a: i32, b: i32) -> i32 ensures result <= a + b { return a; }
 
 // CALL-SITE COMPOSITION (modular verification): a wrapper forwards its parameter to a callee
 // with the SAME precondition. The compiler proves the callee's `requires` holds for the
