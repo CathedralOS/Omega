@@ -1,0 +1,38 @@
+// Unix-style permission bits built and manipulated with the bitwise operators
+// `&`, `|`, `^`. A small but complete demonstration of flag arithmetic:
+//
+//   READ = 4   WRITE = 2   EXEC = 1   STICKY = 8
+//
+//   grant read+write with `|`          -> rw-       (6)
+//   add execute with `|`               -> rwx       (7)
+//   revoke execute by AND-masking ~EXEC -> rw-       (6)
+//   set the sticky bit with `|`         -> rw- +s   (14)
+//   toggle the write bit off with `^`   -> r-- +s   (12)
+//
+// The starting `4 | 2` folds at compile time (const bitwise OR); the rest are
+// runtime field operations. Bitwise results are plain integers and never
+// overflow, so `mode` needs no arithmetic domain.
+// Expected exit: 12.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    mode: i32;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 4 | 2;          // READ | WRITE          -> 6
+    self.mode = self.mode | 1;  // + EXEC                -> 7
+    self.mode = self.mode & 6;  // revoke EXEC (mask ~1) -> 6
+    self.mode = self.mode | 8;  // + STICKY              -> 14
+    self.mode = self.mode ^ 2;  // toggle WRITE off      -> 12
+
+    transition { _ -> emit() }
+
+    state emit(&mut self) {
+        self.console.exit_process(self.mode);
+    }
+}
