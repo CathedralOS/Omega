@@ -39,7 +39,7 @@
 // proof term drops back to shift 0. Lemma-dependent orders (`a + 0 == a`, commutativity,
 // non-constant gaps) are soundly rejected here and await a lemma-citing slice.
 
-use crate::ast::{BinaryOp, Expr, Machine, Program};
+use crate::ast::{BinaryOp, Expr, Machine, Program, Statement};
 
 // Library def ids the compiler cites (must match gen-contract-lib.py, which asserts them).
 const ADD_ZERO_RIGHT: usize = 0; // ∀x. x + 0 = x
@@ -233,11 +233,120 @@ pub fn discharge_machine(machine: &Machine, program: &Program) -> Option<String>
     }
 }
 
-// One certificate per statically-dischargeable machine, in declaration order.
+// ---- Call-site contract composition (omega's BoundedCallArgumentObligation) --------------
+//
+// When machine A calls B(args) and B has a `requires`, A owes a proof that B's precondition
+// holds for the actual args. The modular case is PRECONDITION FORWARDING: a wrapper A that
+// `requires P(a)` and calls B(a) where B also `requires P(a)`. The obligation is then
+// `∀a. (A.requires -> B.requires[a])`, and since the two are identical it is discharged by
+// `(lam (hyp 0))` -- assume A's precondition, hand it back as B's. The trust anchor accepts it
+// only if the two propositions truly match, so a mismatched forward is (soundly) not emitted.
+// This first slice scopes to a single-parameter wrapper forwarding its parameter to a callee
+// with the same single order-precondition; richer entailment is the follow-on.
+
+// Render `param OP const` (param at de Bruijn `param_db`) as a delta proposition. Order
+// relations only (the existential `<=`/`<`/`>=`/`>` shapes); None otherwise.
+fn order_prop(op: BinaryOp, c: i32, param_db: &str) -> Option<String> {
+    let cc = unary(c);
+    Some(match op {
+        BinaryOp::Ge => format!("(Exists (= (p {} (v 0)) {}))", cc, param_db), // c <= param
+        BinaryOp::Gt => format!("(Exists (= (p {} (s (v 0))) {}))", cc, param_db), // c < param
+        BinaryOp::Le => format!("(Exists (= (p {} (v 0)) {}))", param_db, cc), // param <= c
+        BinaryOp::Lt => format!("(Exists (= (p {} (s (v 0))) {}))", param_db, cc), // param < c
+        _ => return None,
+    })
+}
+
+// Collect (callee index, arg nodes) for every direct call statement (`B(args)` as an Eval or a
+// Let initializer) in a machine, recursing into Blocks.
+fn collect_calls(statements: &[Statement], program: &Program, out: &mut Vec<(usize, Vec<usize>)>) {
+    for statement in statements {
+        let call_node = match statement {
+            Statement::Eval(e) | Statement::Let(_, e) | Statement::Return(e) => Some(*e),
+            Statement::Block(inner) => {
+                collect_calls(inner, program, out);
+                None
+            }
+            _ => None,
+        };
+        if let Some(node) = call_node {
+            if let Expr::Call(callee, start, count) = program.expressions[node] {
+                out.push((callee, program.call_args[start..start + count].to_vec()));
+            }
+        }
+    }
+}
+
+// As a precondition over a single parameter, return `(op, const)` if it is `Local(0) OP Int(c)`.
+fn single_param_order(cond: usize, program: &Program) -> Option<(BinaryOp, i32)> {
+    if let Expr::Binary(op, l, r) = program.expressions[cond] {
+        if matches!(program.expressions[l], Expr::Local(0)) {
+            if let Expr::Int(c) = program.expressions[r] {
+                if matches!(op, BinaryOp::Ge | BinaryOp::Gt | BinaryOp::Le | BinaryOp::Lt) {
+                    return Some((op, c));
+                }
+            }
+        }
+    }
+    None
+}
+
+// Forwarding certificates for one caller machine.
+fn discharge_forwarding(caller_idx: usize, program: &Program) -> Vec<String> {
+    let caller = &program.machines[caller_idx];
+    let mut certs = Vec::new();
+    // scope: a single-parameter wrapper with a single order-precondition on its parameter
+    if caller.param_count != 1 || caller.preconditions.len() != 1 {
+        return certs;
+    }
+    let (op, c) = match single_param_order(caller.preconditions[0], program) {
+        Some(t) => t,
+        None => return certs,
+    };
+    let mut calls = Vec::new();
+    collect_calls(&caller.entry, program, &mut calls);
+    for block in &caller.states {
+        collect_calls(block, program, &mut calls);
+    }
+    for (callee_idx, args) in calls {
+        // the call must forward the caller's parameter: B(<param 0>)
+        if args.len() != 1 || !matches!(program.expressions[args[0]], Expr::Local(0)) {
+            continue;
+        }
+        let callee = &program.machines[callee_idx];
+        // the callee must demand the SAME precondition on its parameter
+        let forwards = callee
+            .preconditions
+            .iter()
+            .filter_map(|&bpc| single_param_order(bpc, program))
+            .any(|(bop, bc)| same_order(op, bop) && bc == c);
+        if !forwards {
+            continue;
+        }
+        // ∀a. (P(a) -> P(a)), proved by assuming P and returning it. Under the All, `a` is the
+        // existential body's free var at (v 1) (the witness var is (v 0)).
+        if let Some(p) = order_prop(op, c, "(v 1)") {
+            certs.push(format!("(All (-> {0} {0})) (gen (lam {0} (hyp 0)))", p));
+        }
+    }
+    certs
+}
+
+fn same_order(a: BinaryOp, b: BinaryOp) -> bool {
+    use BinaryOp::*;
+    matches!((a, b), (Ge, Ge) | (Gt, Gt) | (Le, Le) | (Lt, Lt))
+}
+
+// One certificate per statically-dischargeable machine (postconditions), plus one per
+// dischargeable call site (forwarded preconditions).
 pub fn emit_contracts(program: &Program) -> Vec<String> {
-    program
+    let mut certs: Vec<String> = program
         .machines
         .iter()
         .filter_map(|machine| discharge_machine(machine, program))
-        .collect()
+        .collect();
+    for caller_idx in 0..program.machines.len() {
+        certs.extend(discharge_forwarding(caller_idx, program));
+    }
+    certs
 }

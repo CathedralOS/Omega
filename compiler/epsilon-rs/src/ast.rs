@@ -77,6 +77,10 @@ pub struct Machine {
     pub result_local: Option<usize>,
     pub postconditions: Vec<usize>,
     pub return_exprs: Vec<usize>,
+    // Preconditions (`requires`) retained for static CALL-SITE discharge: at a call to this
+    // machine, the caller must prove these hold for the actual arguments. Each is a raw cond
+    // expr node over this machine's parameters (locals 0..param_count). See discharge.rs.
+    pub preconditions: Vec<usize>,
 }
 
 pub struct Program {
