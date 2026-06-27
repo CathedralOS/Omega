@@ -13,9 +13,11 @@
 #
 # A THIRD oracle joins below: checker_typed.gamma — the fully type-annotated checker
 # that typeck.beta accepts — mechanically type-erased (erase_types.py) to the untyped
-# surface interp runs. It must agree with checker.gamma on every non-user-function case.
-# This makes "the checker is statically type-safe" and "the checker is behaviorally
-# correct" claims about the SAME artifact, rather than two copies kept in sync by hand.
+# surface interp runs. It must agree with checker.gamma on ALL 83 cases (user-function
+# proofs are rewritten from the wrapper rule form to the typed flat form by
+# frule_to_flat.py). This makes "the checker is statically type-safe" and "the checker is
+# behaviorally correct" claims about the SAME artifact, rather than two copies kept in sync
+# by hand.
 cd "$(dirname "$0")"
 . ../alpha/seed_env.sh
 SEED=../alpha/$ALPHA_SEED
@@ -33,9 +35,10 @@ DEFS=$(cat ../gamma/checker.gamma)
 # trusted — not a second, hand-kept-in-sync copy. Guarded on python3 (the eraser), exactly
 # like the elaborator tools in verify-lattice.sh; without python3 the two-checker diamond
 # is unchanged. The user-function cases (Fapp/Frule) encode rules in checker.gamma's
-# wrapper form, which the flat typed representation doesn't share — those are skipped
-# (counted, not silently dropped); fdisp coverage is a separate follow-up.
-TPASS=0; TSKIP=0; TFAIL=0; HAVE_TYPED=0
+# WRAPPER form ((Frule ca ba)); frule_to_flat.py rewrites those to the typed checker's
+# FLAT form ((Fapp arg ca ba cb bb)) so they cross-check too — exercising fdisp, the one
+# helper where the two representations actually diverge. No case is skipped.
+TPASS=0; TFAIL=0; HAVE_TYPED=0
 if command -v python3 >/dev/null 2>&1; then
   if python3 ../gamma/erase_types.py < ../gamma/checker_typed.gamma > "$T/erased.gamma"; then
     TDEFS=$(cat "$T/erased.gamma"); HAVE_TYPED=1
@@ -52,11 +55,12 @@ dia() {
   else FAIL=$((FAIL+1)); echo "  FAIL $1 : beta=$vb gamma=$gv expect=$4"; fi
   if [ "$HAVE_TYPED" = 1 ]; then
     case "$3" in
-      *Fapp*|*Frule*) TSKIP=$((TSKIP+1)) ;;
-      *) printf '%s\n%s\n' "$TDEFS" "$3" | "$T/interp.exe" >/dev/null; vt=$?
-         if [ "$vt" = "$vg" ]; then TPASS=$((TPASS+1))
-         else TFAIL=$((TFAIL+1)); echo "  FAIL(typed) $1 : checker.gamma=$vg type-erased=$vt"; fi ;;
+      *Fapp*|*Frule*) t3=$(printf '%s' "$3" | python3 ../gamma/frule_to_flat.py) ;;  # wrapper rules -> flat
+      *) t3=$3 ;;
     esac
+    printf '%s\n%s\n' "$TDEFS" "$t3" | "$T/interp.exe" >/dev/null; vt=$?
+    if [ "$vt" = "$vg" ]; then TPASS=$((TPASS+1))
+    else TFAIL=$((TFAIL+1)); echo "  FAIL(typed) $1 : checker.gamma=$vg type-erased=$vt"; fi
   fi
 }
 #    desc            check.beta syntax                                          checker.gamma syntax                                                                   expect
@@ -175,7 +179,7 @@ dia "pconsinv wrong"  "(All (All (All (-> (Rel 778 (cons (v 2) (v 1)) (v 0)) (Ex
 echo "checker diamond (check.beta vs checker.gamma): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
 if [ "$HAVE_TYPED" = 1 ]; then
-  echo "  + 3rd oracle (type-erased checker_typed.gamma vs checker.gamma): $TPASS agree, $TSKIP skipped (user-fn repr), $TFAIL disagree"
+  echo "  + 3rd oracle (type-erased checker_typed.gamma vs checker.gamma): $TPASS agree, $TFAIL disagree"
   [ "$TFAIL" = 0 ] || exit 1
 else
   echo "  + 3rd oracle (typed checker) skipped — python3 absent"
