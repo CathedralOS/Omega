@@ -26,6 +26,7 @@ struct DataFieldInfo {
     name: Vec<u8>,
     offset: i32, // byte offset within the struct
     kind: FieldKind,
+    enum_index: Option<usize>, // Some(idx) if this scalar slot holds a tag-only enum's tag
 }
 
 fn is_scalar_type(type_name: &[u8]) -> bool {
@@ -272,7 +273,7 @@ impl<'a> Parser<'a> {
             }
             let field_name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
             self.expect(TokenKind::Colon)?;
-            let (kind, size) = if self.current_kind() == TokenKind::LBracket {
+            let (kind, size, enum_index) = if self.current_kind() == TokenKind::LBracket {
                 // `[ElementType; N]` — N scalar elements of 8 bytes each
                 self.bump(); // [
                 let element = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
@@ -287,7 +288,7 @@ impl<'a> Parser<'a> {
                     .map_err(|_| "alpha-onramp: bad array length".to_string())?;
                 self.expect(TokenKind::RBracket)?;
                 let element_bytes = if element == b"u8" { 1 } else { 8 };
-                (FieldKind::Array(count, element_bytes), count * element_bytes)
+                (FieldKind::Array(count, element_bytes), count * element_bytes, None)
             } else if self.current_kind() == TokenKind::Amp {
                 return Err("alpha-onramp: ref/slice data fields are unsupported (slice 7a)".into());
             } else {
@@ -299,9 +300,9 @@ impl<'a> Parser<'a> {
                     FieldKind::Data(index) => self.data_type_sizes[index],
                     FieldKind::Array(count, element_bytes) => count * element_bytes,
                 };
-                (kind, size)
+                (kind, size, self.find_enum(&type_name))
             };
-            fields.push(DataFieldInfo { name: field_name, offset, kind });
+            fields.push(DataFieldInfo { name: field_name, offset, kind, enum_index });
             offset += size;
             // skip any remaining type tokens (e.g. `in Utf8`) up to the separator
             while self.current_kind() != TokenKind::Semi
@@ -704,6 +705,40 @@ impl<'a> Parser<'a> {
             self.bump(); // '}'
             if self.current_kind() == TokenKind::Semi {
                 self.bump();
+            }
+            // Exhaustiveness: a transition whose subject is `self.<enum field>` must cover
+            // every variant of that enum, or include a `_` arm. (Narrow but sound: only
+            // direct enum-field subjects are checked; other subjects are unconstrained.)
+            let subject_offset = match &self.expressions[subject] {
+                Expr::SelfField(offset) => Some(*offset),
+                _ => None,
+            };
+            if let Some(offset) = subject_offset {
+                let enum_index = self.self_data_type.and_then(|self_type| {
+                    // zero-size boundary fields can share an offset with a real slot, so
+                    // match the enum field at this offset specifically (at most one exists).
+                    self.data_field_maps[self_type]
+                        .iter()
+                        .find(|field| field.offset == offset && field.enum_index.is_some())
+                        .and_then(|field| field.enum_index)
+                });
+                if let Some(enum_index) = enum_index {
+                    let has_wild = arms.iter().any(|arm| matches!(arm.pattern, Pattern::Wild));
+                    if !has_wild {
+                        for tag in 0..self.enum_variant_lists[enum_index].len() {
+                            let covered = arms
+                                .iter()
+                                .any(|arm| matches!(arm.pattern, Pattern::Int(value) if value == tag as i32));
+                            if !covered {
+                                return Err(format!(
+                                    "alpha-onramp: non-exhaustive transition over enum '{}': missing variant '{}' (add it or a `_` arm)",
+                                    String::from_utf8_lossy(&self.enum_names[enum_index]),
+                                    String::from_utf8_lossy(&self.enum_variant_lists[enum_index][tag])
+                                ));
+                            }
+                        }
+                    }
+                }
             }
             return Ok(Statement::Transition(subject, arms));
         }

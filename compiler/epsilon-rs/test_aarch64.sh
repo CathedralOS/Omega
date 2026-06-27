@@ -120,7 +120,7 @@ run "modulo (% operator + precedence)" samples/modulo.alp 222
 run "bitwise (& | ^ + precedence)" samples/bitops.alp 125
 run "shifts (<< >> + field-build idiom)" samples/shifts.alp 129
 run "unary minus (-x, negative literals)" samples/negate.alp 36
-run "tag-only enum (case decl + ::variant + match)" samples/enum.alp 7
+run "tag-only enum (decl + ::variant + exhaustive match)" samples/enum.alp 7
 # Slices 4-5: transition/state control flow + back-edge loop + reassignment.
 # (write_line is a no-op here; the exit code is fixed by the control flow: i 0->3.)
 run "loop (count i 0->3, exit i)" samples/loop.alp 3
