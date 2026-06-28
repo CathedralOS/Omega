@@ -481,6 +481,10 @@ selfhost_test "self-hosting: lowermachine compiles assert.alp; binary matches th
 # without the callsk '}'-stop the post-call skip ran past the next machine, breaking _main.
 selfhost_test "self-hosting: lowermachine compiles lowerexpr.alp (a compiler); emitted asm matches reference" samples/lowerexpr.alp \
   "2 + 3" "2 + 3 * 4" "(1 + 2) * 3" "8 >> 1 & 3"
+# enum.alp: tag-only sum types (data E { case A; case B; }). lowermachine needed a variant->tag
+# table (pass-1 'case' parsing) + Type::Variant as a tag literal in operand (construction) AND arm
+# (matching) positions. Color::Green (tag 1) -> green() -> exit 7.
+selfhost_test "self-hosting: lowermachine compiles enum.alp (tag-only sum types); matches reference" samples/enum.alp ""
 # a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
 compiler_trap "lowermachine compiles a false assert into a runtime trap" samples/lowermachine.alp \
   "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"
