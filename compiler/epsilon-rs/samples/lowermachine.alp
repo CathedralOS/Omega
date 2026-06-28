@@ -807,7 +807,8 @@ machine Main::main(&mut self) {
     state ck2self(){ self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> asgn0()  false -> ck2let() } }
     state ck2let() { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> let0()  false -> ck2ret() } }
     state ck2ret() { self.w = self.is_return(self.start, self.pos); transition self.w == 1 { true -> ret0()  false -> ck2wb() } }
-    state ck2wb()  { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> wb0()  false -> ckas() } }
+    state ck2wb()  { self.w = self.is_wbyte(self.start, self.pos); transition self.w == 1 { true -> wb0()  false -> ck2wl() } }
+    state ck2wl()  { self.w = self.is_wline(self.start, self.pos); transition self.w == 1 { true -> wline()  false -> ckas() } }   // bare `write_line("...")` statement (reuses the qualified-call string emitter)
     state ckas()   { self.w = self.is_assert(self.start, self.pos); transition self.w == 1 { true -> asrt0()  false -> lasgn0() } }
     state asrt0()  { self.mode = 9; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower the assert condition; mode 9 -> asrtemit (cbz w0, Ltrap)
     // local reassignment: `localname = expr` (bare ident; not self./let/return/write_byte). STRICT --

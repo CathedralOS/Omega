@@ -511,6 +511,10 @@ selfhost_test "self-hosting: lowermachine compiles negate.alp (unary minus); mat
 # Each param is a consecutive frame local; an arm `go(a, b)` stores arg j to the (first+j)-th slot,
 # looping by source ',' / ')'. Recursive doubling go(0..3) -> fin(16) -> exit 16. (Sweep DIFF.)
 selfhost_test "self-hosting: lowermachine compiles stateparams.alp (multi-param states); matches reference" samples/stateparams.alp ""
+# loop.alp: BARE `write_line("tick")` (not self.console.write_line) in a back-edge loop. lowermachine
+# handled the qualified call + bare write_byte/read_byte but not bare write_line -> the call was dropped.
+# Fix: ck2wb-false -> ck2wl (is_wline) -> the existing wline string emitter. Prints tick x3, exit 3. (Sweep DIFF.)
+selfhost_test "self-hosting: lowermachine compiles loop.alp (bare write_line); matches reference" samples/loop.alp ""
 # a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
 compiler_trap "lowermachine compiles a false assert into a runtime trap" samples/lowermachine.alp \
   "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"
