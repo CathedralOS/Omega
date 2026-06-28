@@ -8,27 +8,38 @@ use omega_typed_trees::statement::{
 
 use super::facts::RangeFacts;
 
-/// A sound, inductive loop-invariant range fact for a DECREASING counter.
+/// A sound, inductive loop-invariant range fact for a MONOTONE counter.
 ///
 /// For a loop head `H` (a state reached by a back edge from inside its own
 /// cycle), a counter field `i` that is
 ///   (1) established to a constant `K` on every loop-entry edge (a predecessor
 ///       of `H` OUTSIDE the loop assigns `self.i = K`), and
-///   (2) modified inside the loop ONLY by decrements `self.i = self.i - c`
-///       (`c` a positive integer literal), and nothing else,
-/// provably satisfies `i < K + 1` at every state on the loop: the entry
-/// establishes `i = K < K + 1`, and each decrement preserves it
-/// (`i <= K  =>  i - c <= K - 1 <= K`). That exclusive upper bound is seeded as
-/// an index upper bound, so `arr[self.i]` in the loop body proves exactly when
-/// `K + 1 <= capacity` (the existing index check still requires `i < capacity`,
-/// so an init that exceeds the array stays rejected — G3).
+///   (2) modified inside the loop ONLY in one direction -- every write is a
+///       decrement `self.i = self.i - c`, or every write is an increment
+///       `self.i = self.i + c` (`c` a positive integer literal), nothing else,
+/// satisfies a one-sided bound at every loop state:
+///   * DECREASING (init `K`): `i < K + 1` -- entry gives `i = K < K + 1`, each
+///     decrement preserves it. Seeded as an index UPPER bound (so `arr[i]` proves
+///     when `K + 1 <= capacity`; the index check still requires `i < capacity`).
+///   * INCREASING (init `M >= 0`): `i >= 0` -- entry gives `i = M >= 0`, each
+///     increment preserves it (the counter only grows from a non-negative start,
+///     so this IS a blanket loop invariant, unlike a decreasing counter's lower
+///     bound). Seeded as a NON-NEGATIVE fact, the lower half of a SIGNED index
+///     obligation for an `i = 0; i < len; i = i + 1` loop with no `>= 0` guard.
 pub(super) struct LoopInvariant {
     state: SymbolHandle,
-    /// The display name of the counter as it appears as an index (`self.i`),
-    /// matching `expression_table.display_name` of the index expression.
+    /// The display name of the counter as an index (`self.i`), matching
+    /// `expression_table.display_name` of the index expression.
     index_name: String,
-    /// The exclusive upper bound `K + 1` to seed.
-    exclusive_upper_bound: i64,
+    kind: InvariantKind,
+}
+
+#[derive(Clone, Copy)]
+enum InvariantKind {
+    /// `i < bound` (exclusive). Decreasing counter.
+    UpperBound(i64),
+    /// `i >= 0`. Increasing counter with a non-negative init.
+    NonNegative,
 }
 
 #[derive(Clone)]
@@ -38,16 +49,27 @@ struct Edge {
 }
 
 /// One write a state performs to the counter field, classified for G1.
+#[derive(PartialEq)]
 enum CounterWrite {
-    /// `self.i = self.i - c`, `c` a positive integer literal. The only form
-    /// that preserves the inductive bound.
+    /// `self.i = self.i - c`, `c` a positive integer literal. Preserves an upper
+    /// bound (decreasing).
     Decrement,
-    /// Any other modification of the counter (increment, set-to-value,
-    /// multiply, add, ...). Blocks the seed.
+    /// `self.i = self.i + c` / `self.i = c + self.i`, `c` a positive literal.
+    /// Preserves `>= init` (increasing).
+    Increment,
+    /// Any other modification of the counter. Blocks the seed.
     Other,
 }
 
-/// Collect every sound decreasing-counter invariant for `machine`. Computed once
+/// The single monotone direction of every in-loop write to a counter, or `None`
+/// if the writes are mixed / non-monotone / a call is present.
+#[derive(Clone, Copy, PartialEq)]
+enum Direction {
+    Decreasing,
+    Increasing,
+}
+
+/// Collect every sound monotone-counter invariant for `machine`. Computed once
 /// per machine; `seed_loop_invariant_facts` then seeds the matching states.
 pub(super) fn collect_loop_invariant_facts(
     program: &omega_typed_trees::TypedTrees,
@@ -65,11 +87,8 @@ pub(super) fn collect_loop_invariant_facts(
         // A TRUE back edge `S -> head` is one where `head` DOMINATES `S`: every
         // path from the machine entry to `S` goes through `head`, i.e. `S` is
         // unreachable from the entry once `head` is removed. Dominance (not mere
-        // "head reaches S") is what excludes a NESTED inner head: the inner head
-        // is reachable from the outer loop's states (which cycle back to it), but
-        // it does not dominate them, so their edges to it are NOT back edges --
-        // only the genuine inner back edge is, keeping the inner loop's body from
-        // swallowing the outer states (and its own entry edge).
+        // "head reaches S") excludes a NESTED inner head, keeping the inner
+        // loop's body from swallowing the outer states.
         let reachable_without_head = reachable_from_excluding(&edges, entry, head.symbol);
         let back_sources: Vec<SymbolHandle> = edges
             .iter()
@@ -82,21 +101,10 @@ pub(super) fn collect_loop_invariant_facts(
             continue;
         }
 
-        // G4: the loop states are the NATURAL LOOP of those back edges -- `head`
-        // plus every node that can reach a back-edge source WITHOUT passing
-        // through `head`. Using the natural loop (not the SCC "cycle through
-        // head") is what keeps a NESTED inner loop's body from swallowing the
-        // outer states: with the SCC definition the inner head reaches the outer
-        // states (via the outer back edge) and they reach it back, so the inner
-        // loop's own entry edge is misclassified as a loop edge and its counter
-        // never gets a constant init. Every node executed in one iteration
-        // reaches the back-edge source without crossing the head, so the natural
-        // loop still captures every in-loop modification of the counter (G1
-        // stays sound) -- it is only tighter, never under-inclusive.
+        // G4: the loop states are the NATURAL LOOP of those back edges.
         let loop_states = natural_loop(&edges, head.symbol, &back_sources);
 
-        // Candidate counters: any field a loop state decrements. (A field never
-        // decremented in the loop cannot carry a decreasing-counter bound.)
+        // Candidate counters: any field a loop state increments or decrements.
         let mut candidates: Vec<SymbolHandle> = Vec::new();
         for &state_symbol in &loop_states {
             let Some(state) = find_state(states, state_symbol) else {
@@ -107,7 +115,7 @@ pub(super) fn collect_loop_invariant_facts(
                     && let Some(field) = assignment_counter_field(program, assignment)
                     && matches!(
                         classify_counter_write(program, field, assignment),
-                        CounterWrite::Decrement
+                        CounterWrite::Decrement | CounterWrite::Increment
                     )
                     && !candidates.contains(&field)
                 {
@@ -117,17 +125,16 @@ pub(super) fn collect_loop_invariant_facts(
         }
 
         for counter in candidates {
-            // G1: every modification of `counter` inside the loop must be a
-            // decrement, and no loop state may make a call (which could mutate
-            // any field via `&mut self`).
-            if !loop_modifications_are_all_decrements(program, states, &loop_states, counter) {
+            // G1: every modification of `counter` inside the loop moves in ONE
+            // monotone direction, and no loop state makes a call.
+            let Some(direction) =
+                loop_modifications_direction(program, states, &loop_states, counter)
+            else {
                 continue;
-            }
+            };
 
-            // G2: every loop-entry edge (a predecessor of `head` that is NOT in
-            // the loop) must establish `counter = K` for a constant `K`. If any
-            // entry leaves the counter unconstrained, there is no bound.
-            let Some(init) = entry_constant_init(
+            // G2: every loop-entry edge must establish `counter = K` constant.
+            let Some((min_init, max_init)) = entry_constant_init_range(
                 program,
                 states,
                 &edges,
@@ -138,11 +145,22 @@ pub(super) fn collect_loop_invariant_facts(
                 continue;
             };
 
-            // Seed `i < K + 1` (G3): the existing index check requires
-            // `i < capacity`, so `K + 1 > capacity` is correctly NOT proven.
-            let Some(exclusive_upper_bound) = init.checked_add(1) else {
-                continue;
+            let kind = match direction {
+                // `i < K + 1` (G3): the weakest sound bound uses the MAX init.
+                Direction::Decreasing => match max_init.checked_add(1) {
+                    Some(exclusive_upper_bound) => InvariantKind::UpperBound(exclusive_upper_bound),
+                    None => continue,
+                },
+                // `i >= 0` holds only if EVERY entry starts the counter `>= 0`
+                // (the MIN init `>= 0`); an increment never decreases it.
+                Direction::Increasing => {
+                    if min_init < 0 {
+                        continue;
+                    }
+                    InvariantKind::NonNegative
+                }
             };
+
             let Some(index_name) = counter_display_name(program, states, &loop_states, counter)
             else {
                 continue;
@@ -152,7 +170,7 @@ pub(super) fn collect_loop_invariant_facts(
                 invariants.push(LoopInvariant {
                     state: state_symbol,
                     index_name: index_name.clone(),
-                    exclusive_upper_bound,
+                    kind,
                 });
             }
         }
@@ -161,7 +179,7 @@ pub(super) fn collect_loop_invariant_facts(
     invariants
 }
 
-/// Seed `facts` with every loop-invariant index bound collected for `state`.
+/// Seed `facts` with every loop-invariant fact collected for `state`.
 pub(super) fn seed_loop_invariant_facts(
     _program: &omega_typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
@@ -172,15 +190,19 @@ pub(super) fn seed_loop_invariant_facts(
         .iter()
         .filter(|invariant| invariant.state == state.symbol)
     {
-        facts.prove_index_upper_bound(
-            invariant.index_name.clone(),
-            invariant.exclusive_upper_bound,
-        );
+        match invariant.kind {
+            InvariantKind::UpperBound(exclusive_upper_bound) => {
+                facts.prove_index_upper_bound(invariant.index_name.clone(), exclusive_upper_bound);
+            }
+            InvariantKind::NonNegative => {
+                facts.prove_non_negative(invariant.index_name.clone());
+            }
+        }
     }
 }
 
-/// Build the directed state-transition edges (target + continuation arms),
-/// restricted to edges whose target is a state of `machine`.
+/// Build the directed state-transition edges, restricted to edges whose target
+/// is a state of `machine`.
 fn build_edges(program: &omega_typed_trees::TypedTrees, machine: &Machine) -> Vec<Edge> {
     let mut edges = Vec::new();
     for state in program.machine_states(machine) {
@@ -228,10 +250,7 @@ fn push_edge(
     }
 }
 
-/// The states reachable from `start` by following edges WITHOUT entering
-/// `excluded` (includes `start` itself). `head` dominates `S` iff `S` is NOT in
-/// `reachable_from_excluding(entry, head)`. SymbolHandle is not `Hash`, so this
-/// uses a `Vec` + `==` set (matching `incoming_guards.rs`).
+/// States reachable from `start` without entering `excluded` (includes `start`).
 fn reachable_from_excluding(
     edges: &[Edge],
     start: SymbolHandle,
@@ -255,10 +274,8 @@ fn reachable_from_excluding(
     reached
 }
 
-/// The NATURAL LOOP of the back edges into `head`: `head` plus every node from
-/// which a `back_source` is reachable WITHOUT passing through `head`. Computed by
-/// a backward walk from the back-edge sources that never expands `head` (so it
-/// does not climb above the loop into the entry / an enclosing loop).
+/// The natural loop of the back edges into `head`: `head` plus every node from
+/// which a `back_source` is reachable without passing through `head`.
 fn natural_loop(
     edges: &[Edge],
     head: SymbolHandle,
@@ -272,7 +289,6 @@ fn natural_loop(
             continue;
         }
         loop_nodes.push(node);
-        // Walk to predecessors, but never past `head` (it is the loop boundary).
         for edge in edges.iter().filter(|edge| edge.target == node) {
             if edge.source != head && !loop_nodes.contains(&edge.source) {
                 worklist.push(edge.source);
@@ -283,15 +299,12 @@ fn natural_loop(
     loop_nodes
 }
 
-fn find_state<'state>(
-    states: &'state [State],
-    symbol: SymbolHandle,
-) -> Option<&'state State> {
+fn find_state<'state>(states: &'state [State], symbol: SymbolHandle) -> Option<&'state State> {
     states.iter().find(|state| state.symbol == symbol)
 }
 
 /// The counter field a state assignment targets, when the target is a direct
-/// `self.field` member (`ExpressionNode::Member`). Returns the field symbol.
+/// `self.field` member. Returns the field symbol.
 fn assignment_counter_field(
     program: &omega_typed_trees::TypedTrees,
     assignment: &TableAssignment,
@@ -302,9 +315,9 @@ fn assignment_counter_field(
     }
 }
 
-/// Classify a single write to `counter`: a decrement `self.i = self.i - c`
-/// (`c` a positive integer literal, left operand the SAME counter member) or
-/// anything else.
+/// Classify a single write to `counter`: a decrement `self.i = self.i - c`, an
+/// increment `self.i = self.i + c` / `self.i = c + self.i` (`c` a positive
+/// integer literal), or anything else. A literal `c` is deliberately required.
 fn classify_counter_write(
     program: &omega_typed_trees::TypedTrees,
     counter: SymbolHandle,
@@ -314,19 +327,40 @@ fn classify_counter_write(
     else {
         return CounterWrite::Other;
     };
-    if binary.operator != BinaryOperator::Subtract {
-        return CounterWrite::Other;
-    }
-    // Left must be the same counter field; right must be a positive integer
-    // literal. We deliberately require a literal `c` (not a folded local), so a
-    // `self.i = self.i - self.step` with an unknown step is NOT a decrement.
-    if !expression_is_counter_member(program, binary.left, counter) {
-        return CounterWrite::Other;
-    }
-    match program.expression_table.expression(binary.right) {
-        ExpressionNode::Integer(value) if *value > 0 => CounterWrite::Decrement,
+    match binary.operator {
+        BinaryOperator::Subtract => {
+            // Not commutative: only `self.i - c` decreases `i`.
+            if expression_is_counter_member(program, binary.left, counter)
+                && is_positive_integer_literal(program, binary.right)
+            {
+                CounterWrite::Decrement
+            } else {
+                CounterWrite::Other
+            }
+        }
+        BinaryOperator::Add => {
+            let left_is_counter = expression_is_counter_member(program, binary.left, counter);
+            let right_is_counter = expression_is_counter_member(program, binary.right, counter);
+            if left_is_counter && is_positive_integer_literal(program, binary.right) {
+                CounterWrite::Increment
+            } else if right_is_counter && is_positive_integer_literal(program, binary.left) {
+                CounterWrite::Increment
+            } else {
+                CounterWrite::Other
+            }
+        }
         _ => CounterWrite::Other,
     }
+}
+
+fn is_positive_integer_literal(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
+    matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Integer(value) if *value > 0
+    )
 }
 
 /// Whether `expression` is a direct `self.field` member naming `counter`.
@@ -341,16 +375,16 @@ fn expression_is_counter_member(
     )
 }
 
-/// G1: every in-loop modification of `counter` is a decrement, and no loop state
-/// makes a call or bare-expression statement (which could mutate any field via
-/// `&mut self`). A single non-decrement modification or any call blocks the
-/// seed.
-fn loop_modifications_are_all_decrements(
+/// G1: every in-loop modification of `counter` moves in ONE monotone direction,
+/// and no loop state makes a call or bare-expression statement (which could
+/// mutate any field via `&mut self`). Returns the common direction, or `None`.
+fn loop_modifications_direction(
     program: &omega_typed_trees::TypedTrees,
     states: &[State],
     loop_states: &[SymbolHandle],
     counter: SymbolHandle,
-) -> bool {
+) -> Option<Direction> {
+    let mut direction: Option<Direction> = None;
     for &state_symbol in loop_states {
         let Some(state) = find_state(states, state_symbol) else {
             continue;
@@ -358,40 +392,38 @@ fn loop_modifications_are_all_decrements(
         for statement in program.statement_table.statements(state.statement_nodes) {
             match statement {
                 StatementNode::Assignment(assignment) => {
-                    if assignment_counter_field(program, assignment) == Some(counter)
-                        && matches!(
-                            classify_counter_write(program, counter, assignment),
-                            CounterWrite::Other
-                        )
-                    {
-                        return false;
+                    if assignment_counter_field(program, assignment) != Some(counter) {
+                        continue;
+                    }
+                    let observed = match classify_counter_write(program, counter, assignment) {
+                        CounterWrite::Decrement => Direction::Decreasing,
+                        CounterWrite::Increment => Direction::Increasing,
+                        CounterWrite::Other => return None,
+                    };
+                    match direction {
+                        Some(existing) if existing != observed => return None,
+                        _ => direction = Some(observed),
                     }
                 }
-                // A call (or bare expression statement) may mutate any field via
-                // `&mut self`, so it could change the counter in an unanalyzable
-                // way -- conservatively block the seed.
-                StatementNode::Call(_) | StatementNode::Expression(_) => return false,
+                StatementNode::Call(_) | StatementNode::Expression(_) => return None,
                 _ => {}
             }
         }
     }
-    true
+    direction
 }
 
-/// G2 + G4: every loop-ENTRY edge (a predecessor of `head` that is NOT in the
-/// loop) must assign `counter = K` for a constant integer literal `K`. Returns
-/// the bound `K` to use -- the MAXIMUM over all entry edges, which is the
-/// weakest sound bound (each entry's own `K_j <= max` still satisfies
-/// `i < max + 1`). Returns `None` if there is no non-loop predecessor, or if any
-/// non-loop predecessor fails to establish a constant init for `counter`.
-fn entry_constant_init(
+/// G2 + G4: every loop-ENTRY edge must assign `counter = K` for a constant
+/// integer literal `K`. Returns `(min, max)` over the entry inits.
+fn entry_constant_init_range(
     program: &omega_typed_trees::TypedTrees,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
     head: SymbolHandle,
     counter: SymbolHandle,
-) -> Option<i64> {
+) -> Option<(i64, i64)> {
+    let mut min_init: Option<i64> = None;
     let mut max_init: Option<i64> = None;
     let mut saw_entry = false;
 
@@ -402,15 +434,18 @@ fn entry_constant_init(
         saw_entry = true;
         let predecessor = find_state(states, edge.source)?;
         let init = state_constant_init(program, predecessor, counter)?;
+        min_init = Some(min_init.map_or(init, |current| current.min(init)));
         max_init = Some(max_init.map_or(init, |current| current.max(init)));
     }
 
-    saw_entry.then_some(max_init).flatten()
+    if !saw_entry {
+        return None;
+    }
+    Some((min_init?, max_init?))
 }
 
 /// The constant value the predecessor state assigns to `counter`, when its LAST
-/// assignment to `counter` is `self.counter = <integer literal>`. Returns `None`
-/// if the state never assigns the counter, or assigns it a non-literal.
+/// assignment to `counter` is `self.counter = <integer literal>`.
 fn state_constant_init(
     program: &omega_typed_trees::TypedTrees,
     state: &State,
@@ -423,18 +458,11 @@ fn state_constant_init(
                 if assignment_counter_field(program, assignment) != Some(counter) {
                     continue;
                 }
-                // Track the LAST counter assignment -- it is the value live at the
-                // transition into `head`.
                 match program.expression_table.expression(assignment.value) {
                     ExpressionNode::Integer(value) => init = Some(*value),
-                    // A non-literal write makes the counter unknown here; a later
-                    // literal write may still re-establish it.
                     _ => init = None,
                 }
             }
-            // A call (or bare expression statement) may mutate the counter via
-            // `&mut self`, so any constant established BEFORE it is no longer
-            // reliable at the transition into the loop head -- invalidate it.
             StatementNode::Call(_) | StatementNode::Expression(_) => init = None,
             _ => {}
         }
@@ -442,11 +470,8 @@ fn state_constant_init(
     init
 }
 
-/// The display name of `counter` as it appears as an index (`self.i`), matching
-/// `expression_table.display_name` for the index expression so the seeded fact
-/// is keyed identically. Sourced from an actual counter member node (a decrement
-/// LHS or its initializer use), which renders as `<receiver>.<field>` exactly
-/// like the index use does.
+/// The display name of `counter` as it appears as an index (`self.i`), sourced
+/// from an actual monotone-write LHS so it renders identically to the index use.
 fn counter_display_name(
     program: &omega_typed_trees::TypedTrees,
     states: &[State],
@@ -464,9 +489,6 @@ fn counter_display_name(
             if assignment_counter_field(program, assignment) != Some(counter) {
                 continue;
             }
-            // The decrement's LHS `self.i` is a Member node naming the counter;
-            // its display name is `<receiver>.<field>` -- the same string the
-            // index check computes for `self.nums[self.i]`'s index `self.i`.
             if expression_is_counter_member(program, assignment.target, counter) {
                 return Some(program.expression_table.display_name(assignment.target));
             }

@@ -22,9 +22,9 @@ boundary trait Console {
 data Main {
     console: Console;
     nums: [i32; 5];
-    i: i32 in Trapping;
-    j: i32 in Trapping;
-    jp: i32 in Trapping;
+    i: u64 in Trapping;
+    j: u64 in Trapping;
+    jp: u64 in Trapping;
     a: i32 in Trapping;
     b: i32 in Trapping;
 }

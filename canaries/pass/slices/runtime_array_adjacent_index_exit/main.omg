@@ -12,8 +12,8 @@ boundary trait Console {
 data Main {
     console: Console;
     nums: [i32; 5];
-    j: i32 in Trapping;
-    jp: i32 in Trapping;
+    j: u64 in Trapping;
+    jp: u64 in Trapping;
     a: i32;
     b: i32;
 }

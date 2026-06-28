@@ -10,4 +10,4 @@ pub(super) use lengths::{
     seed_length_at_least_fact, seed_length_equality_fact, seed_length_greater_than_fact,
     seed_length_not_zero_fact,
 };
-pub(super) use orderings::seed_at_most_fact;
+pub(super) use orderings::{seed_at_most_fact, seed_non_negative_fact};

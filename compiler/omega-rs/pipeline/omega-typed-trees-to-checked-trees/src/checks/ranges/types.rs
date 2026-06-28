@@ -2,7 +2,47 @@ use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
-use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+
+/// Whether `expression`'s type is provably an UNSIGNED integer primitive. An
+/// unsigned index is non-negative by construction, so it discharges the lower
+/// half of the index obligation (`0 <= i`) by type and never needs a separate
+/// `>= 0` proof. A signed index -- or one whose type cannot be resolved -- is
+/// NOT exempt (closed-world: exempt only when provably unsigned).
+pub(super) fn expression_is_unsigned_integer(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    matches!(
+        expression_type_reference(program, machine, state, expression)
+            .and_then(|type_reference| primitive_of_type_reference(program, type_reference)),
+        Some(
+            PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64
+                | PrimitiveType::Usize
+        )
+    )
+}
+
+/// Resolves a type reference (through references and constraints) to its
+/// underlying primitive, when it names one.
+fn primitive_of_type_reference(
+    program: &omega_typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } => primitive_of_type_reference(program, *referee),
+        TypeReferenceNode::Named { name, .. } => PrimitiveType::from_name(name.as_str()),
+        _ => None,
+    }
+}
 
 pub(super) fn expression_is_slice(
     program: &omega_typed_trees::TypedTrees,
@@ -41,6 +81,20 @@ fn expression_type_reference(
         )
         .and_then(|receiver_type| {
             data_field_type_reference(program, receiver_type, member.member_symbol, &member.member)
+        })
+        .or_else(|| {
+            // `self.field`: the receiver `self` does not resolve to a type
+            // reference (attached-data fields are not in the machine's owned-data
+            // span), so resolve the field directly from its data definition. The
+            // member symbol is field-unique, so this matches the right field.
+            program.data_definitions().iter().find_map(|definition| {
+                data_field_in_definition(
+                    program,
+                    definition,
+                    member.member_symbol,
+                    &member.member,
+                )
+            })
         }),
         _ => None,
     }

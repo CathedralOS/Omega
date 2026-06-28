@@ -19,7 +19,7 @@ use super::super::expressions::{
 };
 use super::super::facts::RangeFacts;
 use super::super::proofs::{unknown_length_index_is_proven, unknown_length_range_is_proven};
-use super::super::types::expression_is_slice;
+use super::super::types::{expression_is_slice, expression_is_unsigned_integer};
 
 /// The proof obligation for an `items[i]` / `items[a..b]` access, sourced from
 /// the spelled boundary operator that governs the access.
@@ -137,6 +137,8 @@ pub(super) fn check_indexed_access(
     if let Some(length) = expression_indexable_length(program, facts, indexed.collection) {
         check_known_length_index(
             program,
+            machine,
+            state,
             facts,
             indexed.collection,
             indexed.index,
@@ -170,6 +172,8 @@ fn with_attribution(message: String, attribution: Option<&str>) -> String {
 
 fn check_known_length_index(
     program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
     facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     index: ExpressionHandle,
@@ -192,19 +196,31 @@ fn check_known_length_index(
             let Some(index_value) = expression_integer_value(program, facts, index) else {
                 let collection_label = program.expression_table.display_name(collection);
                 let index_label = program.expression_table.display_name(index);
-                if facts.index_is_proven(&collection_label, &index_label) {
+                // A non-constant index needs BOTH `index < length` (upper) and
+                // `0 <= index` (lower). The upper half is the proofs below. The
+                // lower half is FREE for an unsigned index type (non-negative by
+                // construction); a SIGNED index must prove it -- without that, a
+                // counter that runs negative reads out of bounds (a confirmed
+                // segfault). Exempt only when PROVABLY unsigned (closed-world).
+                let upper_bound_proven = facts
+                    .index_is_proven(&collection_label, &index_label)
+                    || facts.index_upper_bound_is_proven(&index_label, length);
+                let lower_bound_proven = expression_is_unsigned_integer(
+                    program, machine, state, index,
+                ) || facts.non_negative_is_proven(&index_label);
+                if upper_bound_proven && lower_bound_proven {
                     return;
                 }
-                if facts.index_upper_bound_is_proven(&index_label, length) {
-                    return;
-                }
-                diagnostics.push(Diagnostic::error(with_attribution(
+                // Tailor the diagnostic to the half that is missing.
+                let message = if !upper_bound_proven {
                     format!(
                         "cannot prove index `{}` is within length {}",
                         index_label, length
-                    ),
-                    attribution,
-                )));
+                    )
+                } else {
+                    format!("cannot prove index `{}` is non-negative (>= 0)", index_label)
+                };
+                diagnostics.push(Diagnostic::error(with_attribution(message, attribution)));
                 return;
             };
             let valid =

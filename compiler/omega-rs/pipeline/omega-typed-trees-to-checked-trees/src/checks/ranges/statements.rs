@@ -46,6 +46,9 @@ pub(super) fn check_statement(
             // wrongly prove an access AFTER the mutation. Any new bound is
             // re-derived below from the value (`seed_offset_index_bound`).
             facts.forget_index_upper_bound(&program.expression_table.display_name(assignment.target));
+            // The `>= 0` fact is likewise STALE on reassignment -- the new value
+            // may be negative. A `>= 0` guard re-establishes it where it holds.
+            facts.forget_non_negative(&program.expression_table.display_name(assignment.target));
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);
