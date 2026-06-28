@@ -489,6 +489,9 @@ selfhost_test "self-hosting: lowermachine compiles enum.alp (tag-only sum types)
 # target state's frame slot before branching; the state reads it by name. The prerequisite for `case`
 # payload binding. 6 * 7 -> show(42) -> exit 42. (Needed addS2->ckspar param parsing + mode-10 arg store.)
 selfhost_test "self-hosting: lowermachine compiles stateargs.alp (state parameters); matches reference" samples/stateargs.alp ""
+# statedispatch.alp: tag-matched arm with a state arg -- `N -> s(EXPR)` lowers as cmp/b.ne Lsk/store/b
+# target/Lsk: (the arg stored only on match). The eval-arm half of state-args; payload arms reuse it.
+selfhost_test "self-hosting: lowermachine compiles statedispatch.alp (eval-arm state args); matches reference" samples/statedispatch.alp ""
 # a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
 compiler_trap "lowermachine compiles a false assert into a runtime trap" samples/lowermachine.alp \
   "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"
