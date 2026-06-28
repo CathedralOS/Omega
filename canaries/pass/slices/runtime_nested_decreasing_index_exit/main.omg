@@ -1,14 +1,18 @@
-// NESTED decreasing loops. The OUTER counter `i` (3..0) and the INNER counter `j`
-// (2..0) are each a decreasing loop variable, and both index `nums` inside the
-// inner body. Proving `nums[j]` requires the inner loop's invariant `j < 3`,
-// which depends on identifying the inner loop's body via DOMINANCE-based back
-// edges -- with a looser "cycle through head" definition the inner loop's body
-// swallows the outer states (the inner head is reachable from the outer loop,
-// which cycles back to it) and the inner counter never gets a bound. The outer
-// invariant `i < 4` must hold through the whole inner loop too.
+// NESTED decreasing loops, both SIGNED i32 counters (a decreasing counter must be
+// signed -- it relies on running below 0 to terminate against a `>= 0` guard).
+// The INNER counter `j` (2..0) indexes `nums` inside the inner body: proving
+// `nums[j]` needs the inner loop's invariant `j < 3` (upper, via DOMINANCE-based
+// back edges so the inner body is not swallowed by the outer loop) AND `j >= 0`
+// (lower, from the inner `j >= 0` guard). The OUTER counter `i` (3..0) indexes
+// `nums` in an OUTER-loop state (`outer_body`), where its `i >= 0` guard reaches
+// directly -- a signed decreasing counter's non-negativity does NOT propagate
+// into a nested inner loop (the incoming-guard walk stops at the inner join), so
+// `nums[self.i]` lives where the guard dominates it.
 //
-// sum = 3*(nums[3]+nums[2]+nums[1]+nums[0]) + 4*(nums[2]+nums[1]+nums[0])
-//     = 3*10 + 4*6 = 54.  Exits 70.
+//   outer_body adds nums[i] once per outer iter: nums[3..0] = 4+3+2+1 = 10
+//   inner adds nums[j] each inner iter, 3 per outer iter, 4 outer iters:
+//     4 * (nums[2]+nums[1]+nums[0]) = 4 * 6 = 24
+//   total = 10 + 24 = 34.  Exits 70.
 
 boundary trait Console {
     machine exit_process(return_code: i32);
@@ -36,8 +40,17 @@ machine Main::main(&mut self) {
 
     state outer(&mut self) {
         transition self.i >= 0 {
-            true -> inner_init()
+            true -> outer_body()
             _ -> done()
+        }
+    }
+
+    // Outer-counter access lives here: `i >= 0` (from the outer guard, single
+    // predecessor) and `i < 4` (the outer decreasing-counter invariant) both hold.
+    state outer_body(&mut self) {
+        self.acc = self.acc + self.nums[self.i];
+        transition {
+            _ -> inner_init()
         }
     }
 
@@ -56,7 +69,6 @@ machine Main::main(&mut self) {
     }
 
     state ibody(&mut self) {
-        self.acc = self.acc + self.nums[self.i];
         self.acc = self.acc + self.nums[self.j];
         self.j = self.j - 1;
         transition {
@@ -72,7 +84,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
-        transition self.acc == 54 {
+        transition self.acc == 34 {
             true -> good()
             _ -> bad()
         }

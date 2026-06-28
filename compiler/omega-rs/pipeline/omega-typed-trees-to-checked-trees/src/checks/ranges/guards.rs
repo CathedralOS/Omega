@@ -7,7 +7,7 @@ use bounds::{
     seed_at_most_fact, seed_at_most_len_range_bound_fact, seed_index_at_most_integer_fact,
     seed_index_less_than_integer_fact, seed_length_at_least_fact, seed_length_equality_fact,
     seed_length_greater_than_fact, seed_length_not_zero_fact, seed_less_than_len_fact,
-    seed_successor_at_most_len_fact,
+    seed_non_negative_fact, seed_successor_at_most_len_fact,
 };
 
 pub(super) fn seed_guard_facts(
@@ -43,9 +43,13 @@ pub(super) fn seed_guard_facts(
             seed_less_than_len_fact(program, facts, binary.left, binary.right);
             seed_index_less_than_integer_fact(program, facts, binary.left, binary.right);
             seed_at_most_fact(program, facts, binary.left, binary.right);
+            // `K < right` (left a constant) floors `right` at `K + 1`.
+            seed_non_negative_fact(program, facts, binary.right, binary.left, false);
         }
         BinaryOperator::Greater => {
             seed_length_greater_than_fact(program, facts, binary.left, binary.right);
+            // `left > K` (right a constant) floors `left` at `K + 1`.
+            seed_non_negative_fact(program, facts, binary.left, binary.right, false);
         }
         BinaryOperator::LessOrEqual => {
             seed_length_at_least_fact(program, facts, binary.right, binary.left);
@@ -53,11 +57,15 @@ pub(super) fn seed_guard_facts(
             seed_at_most_len_range_bound_fact(program, facts, binary.left, binary.right);
             seed_index_at_most_integer_fact(program, facts, binary.left, binary.right);
             seed_at_most_fact(program, facts, binary.left, binary.right);
+            // `K <= right` (left a constant) floors `right` at `K`.
+            seed_non_negative_fact(program, facts, binary.right, binary.left, true);
         }
         BinaryOperator::GreaterOrEqual => {
             seed_length_at_least_fact(program, facts, binary.left, binary.right);
             seed_successor_at_most_len_fact(program, facts, binary.right, binary.left);
             seed_at_most_len_range_bound_fact(program, facts, binary.right, binary.left);
+            // `left >= K` (right a constant) floors `left` at `K`.
+            seed_non_negative_fact(program, facts, binary.left, binary.right, true);
         }
         BinaryOperator::And => {
             seed_guard_facts(program, facts, binary.left);

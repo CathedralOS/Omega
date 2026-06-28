@@ -99,6 +99,24 @@ impl RangeFacts<'_> {
             .any(|length| index < length)
     }
 
+    /// Records that `name` is provably `>= 0`.
+    pub(in crate::checks::ranges) fn prove_non_negative(&mut self, name: String) {
+        if !self.proven_non_negatives.iter().any(|known| known == &name) {
+            self.proven_non_negatives.push(name);
+        }
+    }
+
+    pub(in crate::checks::ranges) fn non_negative_is_proven(&self, name: &str) -> bool {
+        self.proven_non_negatives.iter().any(|known| known == name)
+    }
+
+    /// Drops the `>= 0` fact for `name` -- STALE once `name` is reassigned (the
+    /// new value may be negative). The per-state re-seed (a `>= 0` guard) restores
+    /// it where it still holds.
+    pub(in crate::checks::ranges) fn forget_non_negative(&mut self, name: &str) {
+        self.proven_non_negatives.retain(|known| known != name);
+    }
+
     pub(in crate::checks::ranges) fn prove_at_most(&mut self, lower: String, upper: String) {
         if !self
             .proven_orderings
