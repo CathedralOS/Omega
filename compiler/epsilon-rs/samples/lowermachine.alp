@@ -30,7 +30,7 @@ data Main {
     vns: [i32; 32]; vne: [i32; 32]; vtag: [i32; 32]; nv: i32; vcc: i32;
     spls: [i32; 2048]; skl: i32; eskl: i32;
     etn: [i32; 32]; etne: [i32; 32]; etsz: [i32; 32]; ne: i32; cei: i32; cdtns: i32; cdtne: i32; fc: i32;
-    bnactive: i32; bns: i32; bne: i32; bndoff: i32; subjoff: i32;
+    bns: [i32; 8]; bne: [i32; 8]; bndoff: [i32; 8]; nb: i32; subjoff: i32; payidx: i32;
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; hsf: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
     fns: [i32; 256]; fne: [i32; 256];
@@ -943,8 +943,11 @@ machine Main::main(&mut self) {
     state ctlkh() { self.sval = self.vtag[self.cj]; transition 0 { _ -> ctstag() } }
     state ctlkn() { self.cj = self.cj + 1; transition 0 { _ -> ctlk() } }
     state ctstag(){ self.movw0v(); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_strw0(); self.v = self.laoff; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> ctpay() } }   // movz w0,#tag ; ldr x9,[x29,#sd] ; str w0,[x9,#laoff]
-    state ctpay() { transition self.buf[self.pos] == 40 { true -> ctpay2()  false -> ctpsk() } }   // '(' -> payload, else tag-only variant
-    state ctpay2(){ self.pos = self.pos + 1; self.lstgt = self.laoff + 8; self.mode = 12; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower the payload (mode 12 -> ctpemit, stores at laoff+8)
+    state ctpay() { transition self.buf[self.pos] == 40 { true -> ctpay2()  false -> ctpsk() } }   // '(' -> payload(s), else tag-only variant
+    state ctpay2(){ self.pos = self.pos + 1; self.payidx = 0; transition 0 { _ -> ctpayw() } }    // past '('
+    state ctpayw(){ transition self.buf[self.pos] <= 32 { true -> ctpayws()  false -> ctpayl() } }   // skip ws (also after ',')
+    state ctpayws(){ self.pos = self.pos + 1; transition 0 { _ -> ctpayw() } }
+    state ctpayl(){ self.lstgt = self.laoff + 8 + 8 * self.payidx; self.mode = 12; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower the payidx-th payload (mode 12 -> ctpemit stores at laoff+8+8*i)
     state ctpsk() { transition self.buf[self.pos] == 59 { true -> ctpsk2()  false -> ctpsk3() } }   // ';' -> consume
     state ctpsk3(){ transition self.buf[self.pos] == 125 { true -> sk()  false -> ctpadv() } }       // '}' -> stop
     state ctpadv(){ self.pos = self.pos + 1; transition 0 { _ -> ctpsk() } }
@@ -979,9 +982,11 @@ machine Main::main(&mut self) {
     state cvlkn() { self.cj = self.cj + 1; transition 0 { _ -> cvlk() } }
     state cvemit(){ self.movw0v(); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }   // tag as a constant operand
     state ckfcall(){ transition self.buf[self.pos] == 40 { true -> fcall()  false -> bchk() } }   // bare ident '(' -> free-machine call; else maybe a payload binding, else a local/param
-    state bchk()  { transition self.bnactive == 1 { true -> bchk2()  false -> locsub() } }
-    state bchk2() { self.qa = self.start; self.qb = self.pos; self.qc = self.bns; self.qd = self.bne; self.w = self.streq(); transition self.w == 1 { true -> bemit()  false -> locsub() } }
-    state bemit() { self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_ldrw0(); self.v = self.bndoff; self.emit_int(); write_byte(93); write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }   // payload read: ldr x9,[x29,#sd]; ldr w0,[x9,#bndoff]; push
+    state bchk()  { self.cj = 0; transition 0 { _ -> bchk2() } }                                      // search the binding table
+    state bchk2() { transition self.cj < self.nb { true -> bchk3()  false -> locsub() } }              // not a binding -> local/param
+    state bchk3() { self.qa = self.start; self.qb = self.pos; self.qc = self.bns[self.cj]; self.qd = self.bne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> bemit()  false -> bchkn() } }
+    state bchkn() { self.cj = self.cj + 1; transition 0 { _ -> bchk2() } }
+    state bemit() { self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_ldrw0(); self.v = self.bndoff[self.cj]; self.emit_int(); write_byte(93); write_byte(10); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }   // payload read: ldr x9,[x29,#sd]; ldr w0,[x9,#bndoff[i]]; push
     state fcall() { self.ocmode = self.mode; self.ocopnd = self.opnd; self.callmode = 1; self.fs = self.start; self.fe = self.pos; transition 0 { _ -> calllk() } }
     state rbemit(){ self.usesio = 1; self.console.write_line("    mov x0, #0"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _read"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    ldrb w1, [x9]"); self.console.write_line("    movz w2, #65535"); self.console.write_line("    movk w2, #65535, lsl #16"); self.console.write_line("    cmp x0, #1"); self.console.write_line("    csel w0, w1, w2, ge"); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> rbsk() } }
     state rbsk()  { transition self.buf[self.pos] == 41 { true -> rbsk2()  false -> rbadv() } }   // skip to ')'
@@ -1075,7 +1080,12 @@ machine Main::main(&mut self) {
     state sjm9a()  { transition self.mode == 9 { true -> asrtemit()  false -> sjm10a() } }
     state sjm10a() { transition self.mode == 10 { true -> sargemit()  false -> sjm11a() } }
     state sjm11a() { transition self.mode == 11 { true -> eargemit()  false -> ctpemit() } }   // mode 12 -> enum-construction payload: store at laoff+8
-    state ctpemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_strw0(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> ctpsk() } }
+    state ctpemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_strw0(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> ctpnx() } }
+    state ctpnx() { transition self.buf[self.pos] <= 32 { true -> ctpnxa()  false -> ctpnxc() } }   // skip ws after a payload
+    state ctpnxa(){ self.pos = self.pos + 1; transition 0 { _ -> ctpnx() } }
+    state ctpnxc(){ transition self.buf[self.pos] == 44 { true -> ctpcom()  false -> ctpdone() } }   // ',' -> another payload, else ')'
+    state ctpcom(){ self.pos = self.pos + 1; self.payidx = self.payidx + 1; transition 0 { _ -> ctpayw() } }   // past ',', next payload at +8*(i+1)
+    state ctpdone(){ self.pos = self.pos + 1; transition 0 { _ -> ctpsk() } }   // past ')'
     state eargemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); self.p_b(); self.emit_lab(); self.p_lsk(); self.v = self.eskl; self.emit_int(); write_byte(58); write_byte(10); transition 0 { _ -> aend() } }
     state sargemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); self.p_b(); self.emit_lab(); transition 0 { _ -> aend() } }
     state asrtemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    cbz w0, Ltrap"); transition 0 { _ -> asrtsk() } }
@@ -1185,8 +1195,8 @@ machine Main::main(&mut self) {
     state arm()   { transition self.buf[self.pos] <= 32 { true -> aadv()  false -> arm2() } }
     state aadv()  { self.pos = self.pos + 1; transition 0 { _ -> arm() } }
     state arm2()  { transition self.buf[self.pos] == 125 { true -> armend()  false -> patw() } }   // arms '}' -> continue the body walk
-    state armend(){ self.pos = self.pos + 1; transition 0 { _ -> sk() } }
-    state patw()  { self.ps = self.pos; self.bnactive = 0; transition 0 { _ -> pwr() } }   // reset the payload binding for this arm
+    state armend(){ self.nb = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }   // arms done -> clear bindings so state bodies don't see them
+    state patw()  { self.ps = self.pos; self.nb = 0; transition 0 { _ -> pwr() } }   // reset the payload bindings for this arm
     state pwr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> pwa()  false -> pwe() } }
     state pwa()   { self.pos = self.pos + 1; transition 0 { _ -> pwr() } }
     state pwe()   { self.pe = self.pos; transition self.buf[self.pos] == 58 { true -> pvar0()  false -> cls() } }   // 'Type::Variant' arm pattern, else classify
@@ -1201,16 +1211,20 @@ machine Main::main(&mut self) {
     state ckbind(){ transition self.buf[self.pos] <= 32 { true -> ckbinda()  false -> ckbindc() } }   // skip ws
     state ckbinda(){ self.pos = self.pos + 1; transition 0 { _ -> ckbind() } }
     state ckbindc(){ transition self.buf[self.pos] == 123 { true -> bind0()  false -> toarrow() } }   // '{' -> a binding, else go to '->'
-    state bind0() { self.pos = self.pos + 1; transition 0 { _ -> bindw() } }
+    state bind0() { self.pos = self.pos + 1; transition 0 { _ -> bindw() } }   // past '{'
     state bindw() { transition self.buf[self.pos] <= 32 { true -> bindws()  false -> bind1() } }
     state bindws(){ self.pos = self.pos + 1; transition 0 { _ -> bindw() } }
-    state bind1() { self.bns = self.pos; transition 0 { _ -> bindr() } }                              // binding name start
+    state bind1() { self.bns[self.nb] = self.pos; transition 0 { _ -> bindr() } }                     // i-th binding name start
     state bindr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> binda()  false -> binde() } }
     state binda() { self.pos = self.pos + 1; transition 0 { _ -> bindr() } }
-    state binde() { self.bne = self.pos; self.bndoff = self.subjoff + 8; self.bnactive = 1; transition 0 { _ -> bindsk() } }   // name -> read of subject + 8
-    state bindsk(){ transition self.buf[self.pos] == 125 { true -> bindsk2()  false -> bindadv() } }   // skip to '}'
-    state bindadv(){ self.pos = self.pos + 1; transition 0 { _ -> bindsk() } }
-    state bindsk2(){ self.pos = self.pos + 1; transition 0 { _ -> toarrow() } }
+    state binde() { self.bne[self.nb] = self.pos; self.bndoff[self.nb] = self.subjoff + 8 + 8 * self.nb; self.nb = self.nb + 1; transition 0 { _ -> bindnx() } }   // i-th field at subject + 8 + 8*i
+    state bindnx(){ transition self.buf[self.pos] <= 32 { true -> bindnxa()  false -> bindnxc() } }   // skip ws
+    state bindnxa(){ self.pos = self.pos + 1; transition 0 { _ -> bindnx() } }
+    state bindnxc(){ transition self.buf[self.pos] == 44 { true -> bindcom()  false -> bindend() } }  // ',' -> another field, else '}'
+    state bindcom(){ self.pos = self.pos + 1; transition 0 { _ -> bindw() } }                          // past ',', next name
+    state bindend(){ transition self.buf[self.pos] == 125 { true -> bindend2()  false -> bindenda() } } // skip to '}'
+    state bindenda(){ self.pos = self.pos + 1; transition 0 { _ -> bindend() } }
+    state bindend2(){ self.pos = self.pos + 1; transition 0 { _ -> toarrow() } }
     state pvlkn() { self.cj = self.cj + 1; transition 0 { _ -> pvlk() } }
     state cls()   { transition self.pe - self.ps == 1 { true -> cku()  false -> ckk() } }
     state cku()   { transition self.buf[self.ps] == 95 { true -> setWild()  false -> ckdig() } }  // '_'
