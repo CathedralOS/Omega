@@ -485,6 +485,10 @@ selfhost_test "self-hosting: lowermachine compiles lowerexpr.alp (a compiler); e
 # table (pass-1 'case' parsing) + Type::Variant as a tag literal in operand (construction) AND arm
 # (matching) positions. Color::Green (tag 1) -> green() -> exit 7.
 selfhost_test "self-hosting: lowermachine compiles enum.alp (tag-only sum types); matches reference" samples/enum.alp ""
+# stateargs.alp: state PARAMETERS -- an arm `_ -> show(EXPR)` evaluates EXPR and stores it into the
+# target state's frame slot before branching; the state reads it by name. The prerequisite for `case`
+# payload binding. 6 * 7 -> show(42) -> exit 42. (Needed addS2->ckspar param parsing + mode-10 arg store.)
+selfhost_test "self-hosting: lowermachine compiles stateargs.alp (state parameters); matches reference" samples/stateargs.alp ""
 # a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
 compiler_trap "lowermachine compiles a false assert into a runtime trap" samples/lowermachine.alp \
   "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"
