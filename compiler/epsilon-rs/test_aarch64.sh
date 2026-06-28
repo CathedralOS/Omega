@@ -500,6 +500,10 @@ selfhost_test "self-hosting: lowermachine compiles payloadctor.alp (payload cons
 # binds s to the subject's payload (read of subject-field + 8) and passes s + 6 to a state param.
 # Square(36) -> got(42) -> exit 42. Completes the single-payload sum-type system.
 selfhost_test "self-hosting: lowermachine compiles payload.alp (payload binding); matches reference" samples/payload.alp ""
+# shape.alp: MULTI-FIELD payloads -- `case Rectangle(w: i32, h: i32)` (enum sized to the widest variant,
+# 24 bytes); construction stores each field at +8, +16, ...; the arm `Rectangle { w, h } -> area(w*h)`
+# binds each name to its field. Rectangle(6,7) -> area(42) -> exit 42. Completes the sum-type system.
+selfhost_test "self-hosting: lowermachine compiles shape.alp (multi-field payloads); matches reference" samples/shape.alp ""
 # a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
 compiler_trap "lowermachine compiles a false assert into a runtime trap" samples/lowermachine.alp \
   "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"
