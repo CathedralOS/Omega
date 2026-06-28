@@ -504,6 +504,9 @@ selfhost_test "self-hosting: lowermachine compiles payload.alp (payload binding)
 # 24 bytes); construction stores each field at +8, +16, ...; the arm `Rectangle { w, h } -> area(w*h)`
 # binds each name to its field. Rectangle(6,7) -> area(42) -> exit 42. Completes the sum-type system.
 selfhost_test "self-hosting: lowermachine compiles shape.alp (multi-field payloads); matches reference" samples/shape.alp ""
+# negate.alp: unary minus on a primary -- `-7`, `-a`, `2 * -3`, `10 - -5`. lowered as: lower the
+# following primary, then `neg w0`. Found by the selfhost run-compare sweep. -(-7)+ (2*-3+20) + (10--5) = 36.
+selfhost_test "self-hosting: lowermachine compiles negate.alp (unary minus); matches reference" samples/negate.alp ""
 # a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
 compiler_trap "lowermachine compiles a false assert into a runtime trap" samples/lowermachine.alp \
   "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"
