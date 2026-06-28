@@ -28,6 +28,7 @@ data Main {
     coff: i32; dsize: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     vns: [i32; 32]; vne: [i32; 32]; vtag: [i32; 32]; nv: i32; vcc: i32;
+    spls: [i32; 2048];
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; hsf: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
     fns: [i32; 128]; fne: [i32; 128];
@@ -713,7 +714,19 @@ machine Main::main(&mut self) {
     state wc1b()  { transition self.lpend == 1 { true -> addL()  false -> ck1m() } }
     state addL()  { self.lns[self.nl] = self.start; self.lne[self.nl] = self.pos; self.lmi[self.nl] = self.mi; self.plidx[self.nl] = self.lcs[self.mi]; self.nl = self.nl + 1; self.lcs[self.mi] = self.lcs[self.mi] + 1; self.lpend = 0; transition 0 { _ -> sk() } }
     state addS()  { self.sns[self.ns] = self.start; transition 0 { _ -> addS2() } }
-    state addS2() { self.sne[self.ns] = self.pos; self.smi[self.ns] = self.mi; self.ssi[self.ns] = self.si; self.ns = self.ns + 1; self.si = self.si + 1; self.pend = 0; transition 0 { _ -> sk() } }
+    state addS2() { self.sne[self.ns] = self.pos; self.smi[self.ns] = self.mi; self.ssi[self.ns] = self.si; self.spls[self.ns] = 0 - 1; transition 0 { _ -> ckspar() } }
+    // state parameter: `state got(v: i32)` registers v as a machine local (slot after params), and
+    // records spls[state] = that local's index so an arm `got(EXPR)` can store EXPR to it before branching.
+    state ckspar(){ transition self.buf[self.pos] == 40 { true -> spar0()  false -> addSf() } }   // '(' -> has a param
+    state spar0() { self.pos = self.pos + 1; transition 0 { _ -> sparw() } }
+    state sparw() { transition self.buf[self.pos] <= 32 { true -> sparws()  false -> sparck() } }
+    state sparws(){ self.pos = self.pos + 1; transition 0 { _ -> sparw() } }
+    state sparck(){ transition self.buf[self.pos] == 41 { true -> addSf()  false -> spar1() } }   // ')' -> empty params
+    state spar1() { self.start = self.pos; transition 0 { _ -> sparr() } }
+    state sparr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> spara()  false -> spare() } }
+    state spara() { self.pos = self.pos + 1; transition 0 { _ -> sparr() } }
+    state spare() { self.lns[self.nl] = self.start; self.lne[self.nl] = self.pos; self.lmi[self.nl] = self.mi; self.plidx[self.nl] = self.lcs[self.mi]; self.spls[self.ns] = self.lcs[self.mi]; self.nl = self.nl + 1; self.lcs[self.mi] = self.lcs[self.mi] + 1; transition 0 { _ -> addSf() } }
+    state addSf() { self.ns = self.ns + 1; self.si = self.si + 1; self.pend = 0; transition 0 { _ -> sk() } }
     state ck1m()  { self.w = self.is_machine(self.start, self.pos); transition self.w == 1 { true -> newM1()  false -> ck1l() } }
     state ck1l()  { self.w = self.is_let(self.start, self.pos); transition self.w == 1 { true -> setL1()  false -> ck1s() } }
     state setL1() { self.lpend = 1; transition 0 { _ -> sk() } }
@@ -988,7 +1001,9 @@ machine Main::main(&mut self) {
     state sjm56()  { transition self.mode == 5 { true -> arremit()  false -> sjm67() } }
     state sjm67()  { transition self.mode == 6 { true -> astidx()  false -> sjm78() } }
     state sjm78()  { transition self.mode == 7 { true -> arremit()  false -> sjm89() } }
-    state sjm89()  { transition self.mode == 8 { true -> wbemit()  false -> asrtemit() } }   // mode 9 -> assert: trap if cond false
+    state sjm89()  { transition self.mode == 8 { true -> wbemit()  false -> sjm9a() } }
+    state sjm9a()  { transition self.mode == 9 { true -> asrtemit()  false -> sargemit() } }   // mode 10 -> state-arg: store the arg to the target's param slot, then branch
+    state sargemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); self.p_b(); self.emit_lab(); transition 0 { _ -> aend() } }
     state asrtemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    cbz w0, Ltrap"); transition 0 { _ -> asrtsk() } }
     state asrtsk()  { transition self.buf[self.pos] == 59 { true -> asrtsk2()  false -> asrtsk3() } }   // ';' -> consume
     state asrtsk3() { transition self.buf[self.pos] == 125 { true -> sk()  false -> asrtadv() } }       // '}' -> stop (block end)
@@ -1137,7 +1152,12 @@ machine Main::main(&mut self) {
     // emit the arm
     state emitA() { transition self.found == 1 { true -> ekind()  false -> aend() } }
     state ekind() { transition self.kind == 0 { true -> ewild()  false -> eval() } }
-    state ewild() { self.p_b(); self.emit_lab(); transition 0 { _ -> aend() } }
+    state ewild() { transition self.spls[self.cj] == 0 - 1 { true -> ewildp()  false -> ewilda() } }   // target has a param? -> pass the arg
+    state ewildp(){ self.p_b(); self.emit_lab(); transition 0 { _ -> aend() } }                          // plain unconditional branch
+    state ewilda(){ self.lstgt = 16 + 8 * (self.pcs[self.tmi] + self.spls[self.cj]); transition 0 { _ -> ewa2() } }   // target's param frame slot
+    state ewa2()  { transition self.buf[self.pos] == 40 { true -> ewa3()  false -> ewaadv() } }          // skip to '('
+    state ewaadv(){ self.pos = self.pos + 1; transition 0 { _ -> ewa2() } }
+    state ewa3()  { self.pos = self.pos + 1; self.mode = 10; self.opnd = 0; transition 0 { _ -> subj0() } }   // past '(', lower the arg (mode 10 -> sargemit)
     state eval()  { self.p_movw1(); self.v = self.val; self.emit_int(); write_byte(10); self.console.write_line("    cmp w0, w1"); self.p_beq(); self.emit_lab(); transition 0 { _ -> aend() } }
     state aend()  { transition self.buf[self.pos] == 41 { true -> aend2()  false -> aendsk() } }     // skip up to & incl ')' after target
     state aendsk(){ self.pos = self.pos + 1; transition 0 { _ -> aend() } }
