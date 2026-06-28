@@ -22,6 +22,21 @@ This page tracks design pressure that is not fully nailed down yet.
   type-scoped invariant parameters such as `&[T, [non_empty]]`; indexing is
   valid when the current facts prove the index is inside the slice bounds.
 - Old bracketed refinement syntax is dead. Range-heavy proof vocabulary lives directly in contracts, using Rust-style ranges like `1..=100` and `min..=max`. The inclusive/exclusive forms are now resolved: `a..b` is exclusive and `a..=b` is inclusive, with `a..=b` normalizing to `a..(b+1)`. Against a length `len`, an exclusive end requires `b <= len` and an inclusive end requires `b < len` (so inclusive-end validity equals index validity); a non-empty inclusive range establishes a `non_empty` fact. These are the same `..` / `..=` forms used for subslicing.
+- Index, count, and address types are settled (see
+  [`design_briefs/index_count_and_address_model.md`](../design_briefs/index_count_and_address_model.md)).
+  `usize` is retired into two honest axes — a **count** (`len`, sizes) and an
+  **address** (`addr`, first-class for drivers, *not* quarantined) — with
+  `width(count) <= width(addr)` so the model survives CHERI-class ISAs.
+  **Indexing is untyped:** `arr[i]` carries the single obligation `0 <= i < len`
+  and accepts any integer that discharges it (an unsigned index proves `0 <= i`
+  by type, a signed one must prove it); the proof is erased at codegen, and
+  arithmetic stays on a plain integer (no `Fin` value, no modular wrap). Machine
+  width is a lowering detail (narrowest-fits, `u64` default); a narrowing
+  conversion is legal only when the fit is *proven* (the Decision-17 `Exact`
+  case), never "unless we can prove it overflows." Named index types fall out of
+  domains as nominal tags (the bound stays the obligation). Governing rule: a
+  sound fact is *derived from a positive proof*, never *assumed from the absence
+  of a disproof* — the same principle that makes domain membership closed-world.
 - Text is not a type (decided; see ch8 "Domains On Strings And Encodings").
   "A string" is `[u8] in Utf8`: a byte container (`&[u8]` view, `Vec<u8>` owned,
   or `[u8; N]` fixed) carrying an encoding *domain* (`Slice<u8>::Utf8`,
