@@ -30,7 +30,7 @@ data Main {
     vns: [i32; 32]; vne: [i32; 32]; vtag: [i32; 32]; nv: i32; vcc: i32;
     spls: [i32; 2048]; skl: i32; eskl: i32;
     etn: [i32; 32]; etne: [i32; 32]; etsz: [i32; 32]; ne: i32; cei: i32; cdtns: i32; cdtne: i32; fc: i32;
-    bns: [i32; 8]; bne: [i32; 8]; bndoff: [i32; 8]; nb: i32; subjoff: i32; payidx: i32;
+    bns: [i32; 8]; bne: [i32; 8]; bndoff: [i32; 8]; nb: i32; subjoff: i32; payidx: i32; unegate: i32;
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; hsf: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
     fns: [i32; 256]; fne: [i32; 256];
@@ -962,7 +962,9 @@ machine Main::main(&mut self) {
     // lower the SUBJECT: skip ws, then a literal (digits) or a self.field
     state subj0() { transition self.buf[self.pos] <= 32 { true -> subadv()  false -> subc() } }
     state subadv(){ self.pos = self.pos + 1; transition 0 { _ -> subj0() } }
-    state subc()  { transition self.buf[self.pos] == 40 { true -> opensent()  false -> subc1() } }   // '(' -> parenthesized sub-expression
+    state subc()  { transition self.buf[self.pos] == 45 { true -> uminus0()  false -> subc0() } }    // '-' -> unary minus on the following primary
+    state uminus0(){ self.pos = self.pos + 1; self.unegate = 1; transition 0 { _ -> subj0() } }       // skip '-', flag negate, re-lower the operand
+    state subc0() { transition self.buf[self.pos] == 40 { true -> opensent()  false -> subc1() } }   // '(' -> parenthesized sub-expression
     state subc1() { transition self.buf[self.pos] < 48 { true -> idsub()  false -> subc2() } }
     state opensent(){ self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 3; self.osp = self.osp + 1; self.pos = self.pos + 1; transition 0 { _ -> subj0() } }   // push paren sentinel (-3, below the -1 bit-op prec), skip '(', lower the inner operand
     state subc2() { transition self.buf[self.pos] > 57 { true -> idsub()  false -> litsub() } }
@@ -1060,7 +1062,8 @@ machine Main::main(&mut self) {
     state fBig()  { self.fv = self.foff; self.foldx9(); self.console.write_line("    ldr w0, [x9]"); transition 0 { _ -> fpush() } }
     state fpush() { self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
     // after an operand: first operand -> check for an operator; second operand -> emit it
-    state opdisp(){ transition 0 { _ -> opchk() } }
+    state opdisp(){ transition self.unegate == 1 { true -> uneg()  false -> opchk() } }   // negate the just-lowered primary if a unary '-' preceded it
+    state uneg()  { self.unegate = 0; self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    neg w0, w0"); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opchk() } }
     state opchk() { transition self.buf[self.pos] <= 32 { true -> opadv()  false -> opchk2() } }
     state opadv() { self.pos = self.pos + 1; transition 0 { _ -> opchk() } }
     state opchk2(){ transition self.buf[self.pos] == 123 { true -> opflush()  false -> opchk3() } }  // '{' subject end
