@@ -507,6 +507,10 @@ selfhost_test "self-hosting: lowermachine compiles shape.alp (multi-field payloa
 # negate.alp: unary minus on a primary -- `-7`, `-a`, `2 * -3`, `10 - -5`. lowered as: lower the
 # following primary, then `neg w0`. Found by the selfhost run-compare sweep. -(-7)+ (2*-3+20) + (10--5) = 36.
 selfhost_test "self-hosting: lowermachine compiles negate.alp (unary minus); matches reference" samples/negate.alp ""
+# stateparams.alp: MULTI-param states -- `state go(i: i32, acc: i32)` + `go(0,1)` / `go(i+1, acc*2)`.
+# Each param is a consecutive frame local; an arm `go(a, b)` stores arg j to the (first+j)-th slot,
+# looping by source ',' / ')'. Recursive doubling go(0..3) -> fin(16) -> exit 16. (Sweep DIFF.)
+selfhost_test "self-hosting: lowermachine compiles stateparams.alp (multi-param states); matches reference" samples/stateparams.alp ""
 # a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
 compiler_trap "lowermachine compiles a false assert into a runtime trap" samples/lowermachine.alp \
   "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"
