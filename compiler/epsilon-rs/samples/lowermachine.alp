@@ -27,10 +27,11 @@ data Main {
     osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; sacnt: i32; saeb: i32; saoff: i32; callmode: i32; ocmode: i32; ocopnd: i32; stoff: i32; stcnt: i32; steb: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
     coff: i32; dsize: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
+    vns: [i32; 32]; vne: [i32; 32]; vtag: [i32; 32]; nv: i32; vcc: i32;
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; hsf: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
     fns: [i32; 128]; fne: [i32; 128];
-    sns: [i32; 1024]; sne: [i32; 1024]; smi: [i32; 1024]; ssi: [i32; 1024];
+    sns: [i32; 2048]; sne: [i32; 2048]; smi: [i32; 2048]; ssi: [i32; 2048];
     qa: i32; qb: i32; qc: i32; qd: i32; qk: i32;
     dig: [i32; 16];
     buf: [u8; 131072];
@@ -237,6 +238,15 @@ machine Main::is_let(&mut self, s: i32, e: i32) -> i32 {      // "let"
     state l2() { transition self.buf[s + 2] == 116 { true -> lyes() false -> lno() } }
     state lyes() { return 1; }
     state lno()  { return 0; }
+}
+machine Main::is_case(&mut self, s: i32, e: i32) -> i32 {     // "case"
+    transition e - s == 4 { true -> cs0()  false -> csno() }
+    state cs0() { transition self.buf[s]     == 99  { true -> cs1()  false -> csno() } }  // 'c'
+    state cs1() { transition self.buf[s + 1] == 97  { true -> cs2()  false -> csno() } }  // 'a'
+    state cs2() { transition self.buf[s + 2] == 115 { true -> cs3()  false -> csno() } }  // 's'
+    state cs3() { transition self.buf[s + 3] == 101 { true -> csyes() false -> csno() } } // 'e'
+    state csyes(){ return 1; }
+    state csno() { return 0; }
 }
 machine Main::is_wbyte(&mut self, s: i32, e: i32) -> i32 {    // "write_byte"
     transition e - s == 10 { true -> wz0()  false -> wzn() }
@@ -625,7 +635,14 @@ machine Main::main(&mut self) {
     state wc0()   { self.w = self.is_data(self.start, self.pos); transition self.w == 1 { true -> setdp()  false -> wc0b() } }
     state setdp() { self.dp = 1; transition 0 { _ -> sk() } }
     state wc0b()  { transition self.ind == 1 { true -> wc0c()  false -> sk() } }
-    state wc0c()  { transition self.expf == 1 { true -> addF()  false -> sk() } }
+    state wc0c()  { transition self.expf == 1 { true -> ckcase()  false -> sk() } }
+    state ckcase()  { self.w = self.is_case(self.start, self.pos); transition self.w == 1 { true -> casev0()  false -> addF() } }   // 'case X;' enum variant, else a normal field
+    state casev0()  { transition self.buf[self.pos] <= 32 { true -> casev0a()  false -> casev1() } }   // skip ws after 'case'
+    state casev0a() { self.pos = self.pos + 1; transition 0 { _ -> casev0() } }
+    state casev1()  { self.qa = self.pos; transition 0 { _ -> casevr() } }                              // variant name start
+    state casevr()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> caseva()  false -> casevd() } }
+    state caseva()  { self.pos = self.pos + 1; transition 0 { _ -> casevr() } }
+    state casevd()  { self.vns[self.nv] = self.qa; self.vne[self.nv] = self.pos; self.vtag[self.nv] = self.vcc; self.nv = self.nv + 1; self.vcc = self.vcc + 1; self.expf = 0; transition 0 { _ -> sk() } }
     state addF()  { self.fns[self.nf] = self.start; self.fne[self.nf] = self.pos; self.foffs[self.nf] = self.coff; self.fcnt[self.nf] = 0; self.feb[self.nf] = 0; transition 0 { _ -> ftc() } }
     state ftc()   { transition self.buf[self.pos] == 58 { true -> ftc2()  false -> ftadv() } }     // skip to ':'
     state ftadv() { self.pos = self.pos + 1; transition 0 { _ -> ftc() } }
@@ -657,7 +674,7 @@ machine Main::main(&mut self) {
     state fdone() { self.nf = self.nf + 1; self.expf = 0; transition 0 { _ -> sk() } }
     state punc0() { transition self.buf[self.pos] == 123 { true -> opn0()  false -> p0b() } }
     state opn0()  { transition self.dp == 1 { true -> opn0b()  false -> p0adv() } }
-    state opn0b() { self.ind = 1; self.expf = 1; self.dp = 0; self.coff = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
+    state opn0b() { self.ind = 1; self.expf = 1; self.dp = 0; self.coff = 0; self.vcc = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state p0b()   { transition self.buf[self.pos] == 125 { true -> cls0()  false -> p0c() } }
     state cls0()  { self.ind = 0; self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state p0c()   { transition self.buf[self.pos] == 59 { true -> semi0()  false -> p0adv() } }
@@ -872,7 +889,17 @@ machine Main::main(&mut self) {
     state idr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ida()  false -> ide() } }
     state ida()   { self.pos = self.pos + 1; transition 0 { _ -> idr() } }
     state ide()   { self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> fldname()  false -> ck_rb() } }
-    state ck_rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> rbemit()  false -> ckfcall() } }
+    state ck_rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> rbemit()  false -> ckcolon() } }
+    state ckcolon(){ transition self.buf[self.pos] == 58 { true -> cvar0()  false -> ckfcall() } }   // 'Type::Variant' enum-tag literal (else a bare ident -> call/local)
+    state cvar0() { self.pos = self.pos + 2; self.qa = self.pos; transition 0 { _ -> cvarr() } }     // skip '::', mark variant name
+    state cvarr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> cvara()  false -> cvare() } }
+    state cvara() { self.pos = self.pos + 1; transition 0 { _ -> cvarr() } }
+    state cvare() { self.qb = self.pos; self.cj = 0; self.sval = 0; transition 0 { _ -> cvlk() } }    // look the variant up -> its tag
+    state cvlk()  { transition self.cj < self.nv { true -> cvlkc()  false -> cvemit() } }
+    state cvlkc() { self.qc = self.vns[self.cj]; self.qd = self.vne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> cvlkh()  false -> cvlkn() } }
+    state cvlkh() { self.sval = self.vtag[self.cj]; transition 0 { _ -> cvemit() } }
+    state cvlkn() { self.cj = self.cj + 1; transition 0 { _ -> cvlk() } }
+    state cvemit(){ self.movw0v(); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }   // tag as a constant operand
     state ckfcall(){ transition self.buf[self.pos] == 40 { true -> fcall()  false -> locsub() } }   // bare ident '(' -> free-machine call (operand position)
     state fcall() { self.ocmode = self.mode; self.ocopnd = self.opnd; self.callmode = 1; self.fs = self.start; self.fe = self.pos; transition 0 { _ -> calllk() } }
     state rbemit(){ self.usesio = 1; self.console.write_line("    mov x0, #0"); self.console.write_line("    adrp x1, _iobyte@PAGE"); self.console.write_line("    add x1, x1, _iobyte@PAGEOFF"); self.console.write_line("    mov x2, #1"); self.console.write_line("    bl _read"); self.console.write_line("    adrp x9, _iobyte@PAGE"); self.console.write_line("    add x9, x9, _iobyte@PAGEOFF"); self.console.write_line("    ldrb w1, [x9]"); self.console.write_line("    movz w2, #65535"); self.console.write_line("    movk w2, #65535, lsl #16"); self.console.write_line("    cmp x0, #1"); self.console.write_line("    csel w0, w1, w2, ge"); self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> rbsk() } }
@@ -1073,7 +1100,15 @@ machine Main::main(&mut self) {
     state patw()  { self.ps = self.pos; transition 0 { _ -> pwr() } }
     state pwr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> pwa()  false -> pwe() } }
     state pwa()   { self.pos = self.pos + 1; transition 0 { _ -> pwr() } }
-    state pwe()   { self.pe = self.pos; transition 0 { _ -> cls() } }   // classify the pattern buf[ps..pe)
+    state pwe()   { self.pe = self.pos; transition self.buf[self.pos] == 58 { true -> pvar0()  false -> cls() } }   // 'Type::Variant' arm pattern, else classify
+    state pvar0() { self.pos = self.pos + 2; self.qa = self.pos; transition 0 { _ -> pvarr() } }
+    state pvarr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> pvara()  false -> pvare() } }
+    state pvara() { self.pos = self.pos + 1; transition 0 { _ -> pvarr() } }
+    state pvare() { self.qb = self.pos; self.cj = 0; self.kind = 1; self.val = 0; transition 0 { _ -> pvlk() } }
+    state pvlk()  { transition self.cj < self.nv { true -> pvlkc()  false -> toarrow() } }
+    state pvlkc() { self.qc = self.vns[self.cj]; self.qd = self.vne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> pvlkh()  false -> pvlkn() } }
+    state pvlkh() { self.val = self.vtag[self.cj]; transition 0 { _ -> toarrow() } }
+    state pvlkn() { self.cj = self.cj + 1; transition 0 { _ -> pvlk() } }
     state cls()   { transition self.pe - self.ps == 1 { true -> cku()  false -> ckk() } }
     state cku()   { transition self.buf[self.ps] == 95 { true -> setWild()  false -> ckdig() } }  // '_'
     state setWild(){ self.kind = 0; transition 0 { _ -> toarrow() } }
