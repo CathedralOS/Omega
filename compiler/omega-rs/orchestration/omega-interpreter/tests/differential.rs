@@ -349,6 +349,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("slices/runtime_narrow_widen_cast_exit", 70),
     ("slices/runtime_signed_index_guarded_exit", 70),
     ("slices/runtime_two_pointer_sum_exit", 70),
+    ("slices/runtime_two_pointer_reverse_exit", 70),
     ("slices/runtime_branched_index_bound_exit", 70),
     ("slices/runtime_indexed_array_write_exit", 70),
     ("slices/runtime_frame_array_slice_parameter_alias_exit", 72),
