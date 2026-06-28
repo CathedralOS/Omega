@@ -496,6 +496,10 @@ selfhost_test "self-hosting: lowermachine compiles statedispatch.alp (eval-arm s
 # tag at sh+0, payload at sh+8; the enum field is sized to tag+widest-payload (.zerofill 16). Bare-arm
 # tag dispatch -> Square -> b -> exit 2. (Needed field tables bumped 128->256 for lowermachine's own struct.)
 selfhost_test "self-hosting: lowermachine compiles payloadctor.alp (payload construction + sizing); matches reference" samples/payloadctor.alp ""
+# payload.alp: the full single-payload enum round-trip -- a match arm `Shape::Square { s } -> got(s + 6)`
+# binds s to the subject's payload (read of subject-field + 8) and passes s + 6 to a state param.
+# Square(36) -> got(42) -> exit 42. Completes the single-payload sum-type system.
+selfhost_test "self-hosting: lowermachine compiles payload.alp (payload binding); matches reference" samples/payload.alp ""
 # a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
 compiler_trap "lowermachine compiles a false assert into a runtime trap" samples/lowermachine.alp \
   "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"
