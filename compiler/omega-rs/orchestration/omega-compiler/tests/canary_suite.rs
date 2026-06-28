@@ -13965,6 +13965,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "ranges/loop_increment_index_unbounded",
     "ranges/loop_body_resets_index",
     "ranges/loop_init_exceeds_capacity",
+    "ranges/index_read_after_increment_oob",
+    "ranges/index_read_after_decrement_negative",
     "slices/invalid_slice_folded_index_unchecked",
     "slices/invalid_slice_local_index_unchecked",
     "slices/invalid_subslice_folded_bounds_unchecked",
