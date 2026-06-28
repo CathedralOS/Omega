@@ -133,6 +133,33 @@ impl RangeFacts<'_> {
             .any(|(known_lower, known_upper)| known_lower == lower && known_upper == upper)
     }
 
+    /// Proves `index < length` by chaining an ordering with a bound: if
+    /// `index <= j` (an `at_most` fact, e.g. from a two-pointer loop guard
+    /// `index < j`) and `j` has a proven exclusive upper bound `<= length`, then
+    /// `index <= j < length`, so `index < length`. One level of chaining --
+    /// enough for the palindrome / two-pointer case where the increasing pointer
+    /// is bounded only relative to the decreasing pointer (which carries the loop
+    /// invariant). Sound because `at_most` is seeded from `<`/`<=` guards and
+    /// dropped on reassignment, so it reflects a fact live at the access.
+    pub(in crate::checks::ranges) fn index_upper_bound_is_proven_via_ordering(
+        &self,
+        index: &str,
+        length: usize,
+    ) -> bool {
+        self.proven_orderings
+            .iter()
+            .filter(|(lower, _)| lower == index)
+            .any(|(_, upper)| self.index_upper_bound_is_proven(upper, length))
+    }
+
+    /// Drops every ordering naming `name` -- STALE once `name` is reassigned (the
+    /// `i <= j` relation no longer holds for the new value). A `<`/`<=` guard
+    /// re-establishes it where it still holds.
+    pub(in crate::checks::ranges) fn forget_orderings(&mut self, name: &str) {
+        self.proven_orderings
+            .retain(|(lower, upper)| lower != name && upper != name);
+    }
+
     pub(in crate::checks::ranges) fn prove_range_bound(
         &mut self,
         collection: String,
