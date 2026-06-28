@@ -55,29 +55,45 @@ pub(super) fn collect_loop_invariant_facts(
 ) -> Vec<LoopInvariant> {
     let states = program.machine_states(machine);
     let edges = build_edges(program, machine);
+    let Some(entry) = states.first().map(|state| state.symbol) else {
+        return Vec::new();
+    };
 
     let mut invariants = Vec::new();
 
     for head in states {
-        // A loop head is reached by a back edge: an edge `source -> head` whose
-        // `source` is itself reachable FROM `head` (i.e. on `head`'s cycle).
-        let head_reaches = reachable_from(&edges, head.symbol);
-        let is_loop_head = edges
+        // A TRUE back edge `S -> head` is one where `head` DOMINATES `S`: every
+        // path from the machine entry to `S` goes through `head`, i.e. `S` is
+        // unreachable from the entry once `head` is removed. Dominance (not mere
+        // "head reaches S") is what excludes a NESTED inner head: the inner head
+        // is reachable from the outer loop's states (which cycle back to it), but
+        // it does not dominate them, so their edges to it are NOT back edges --
+        // only the genuine inner back edge is, keeping the inner loop's body from
+        // swallowing the outer states (and its own entry edge).
+        let reachable_without_head = reachable_from_excluding(&edges, entry, head.symbol);
+        let back_sources: Vec<SymbolHandle> = edges
             .iter()
-            .any(|edge| edge.target == head.symbol && head_reaches.contains(&edge.source));
-        if !is_loop_head {
+            .filter(|edge| {
+                edge.target == head.symbol && !reachable_without_head.contains(&edge.source)
+            })
+            .map(|edge| edge.source)
+            .collect();
+        if back_sources.is_empty() {
             continue;
         }
 
-        // G4: the loop states are exactly {X : head reaches X AND X reaches
-        // head} -- the cycle through `head`. Only modifications to the counter
-        // inside these states count, and only predecessors OUTSIDE these states
-        // establish K.
-        let loop_states: Vec<SymbolHandle> = head_reaches
-            .iter()
-            .copied()
-            .filter(|&symbol| reaches(&edges, symbol, head.symbol))
-            .collect();
+        // G4: the loop states are the NATURAL LOOP of those back edges -- `head`
+        // plus every node that can reach a back-edge source WITHOUT passing
+        // through `head`. Using the natural loop (not the SCC "cycle through
+        // head") is what keeps a NESTED inner loop's body from swallowing the
+        // outer states: with the SCC definition the inner head reaches the outer
+        // states (via the outer back edge) and they reach it back, so the inner
+        // loop's own entry edge is misclassified as a loop edge and its counter
+        // never gets a constant init. Every node executed in one iteration
+        // reaches the back-edge source without crossing the head, so the natural
+        // loop still captures every in-loop modification of the counter (G1
+        // stays sound) -- it is only tighter, never under-inclusive.
+        let loop_states = natural_loop(&edges, head.symbol, &back_sources);
 
         // Candidate counters: any field a loop state decrements. (A field never
         // decremented in the loop cannot carry a decreasing-counter bound.)
@@ -212,24 +228,25 @@ fn push_edge(
     }
 }
 
-/// The set of states reachable FROM `start` by following edges (excluding
-/// `start` itself unless it lies on a cycle back to itself). SymbolHandle is not
-/// `Hash`, so this uses a `Vec` + `==` set (matching `incoming_guards.rs`).
-fn reachable_from(edges: &[Edge], start: SymbolHandle) -> Vec<SymbolHandle> {
-    let mut reached: Vec<SymbolHandle> = Vec::new();
-    let mut frontier: Vec<SymbolHandle> = edges
-        .iter()
-        .filter(|edge| edge.source == start)
-        .map(|edge| edge.target)
-        .collect();
+/// The states reachable from `start` by following edges WITHOUT entering
+/// `excluded` (includes `start` itself). `head` dominates `S` iff `S` is NOT in
+/// `reachable_from_excluding(entry, head)`. SymbolHandle is not `Hash`, so this
+/// uses a `Vec` + `==` set (matching `incoming_guards.rs`).
+fn reachable_from_excluding(
+    edges: &[Edge],
+    start: SymbolHandle,
+    excluded: SymbolHandle,
+) -> Vec<SymbolHandle> {
+    if start == excluded {
+        return Vec::new();
+    }
+    let mut reached: Vec<SymbolHandle> = vec![start];
+    let mut frontier: Vec<SymbolHandle> = vec![start];
 
     while let Some(symbol) = frontier.pop() {
-        if reached.contains(&symbol) {
-            continue;
-        }
-        reached.push(symbol);
         for edge in edges.iter().filter(|edge| edge.source == symbol) {
-            if !reached.contains(&edge.target) {
+            if edge.target != excluded && !reached.contains(&edge.target) {
+                reached.push(edge.target);
                 frontier.push(edge.target);
             }
         }
@@ -238,9 +255,32 @@ fn reachable_from(edges: &[Edge], start: SymbolHandle) -> Vec<SymbolHandle> {
     reached
 }
 
-/// Whether `target` is reachable from `source` over the edges.
-fn reaches(edges: &[Edge], source: SymbolHandle, target: SymbolHandle) -> bool {
-    reachable_from(edges, source).contains(&target)
+/// The NATURAL LOOP of the back edges into `head`: `head` plus every node from
+/// which a `back_source` is reachable WITHOUT passing through `head`. Computed by
+/// a backward walk from the back-edge sources that never expands `head` (so it
+/// does not climb above the loop into the entry / an enclosing loop).
+fn natural_loop(
+    edges: &[Edge],
+    head: SymbolHandle,
+    back_sources: &[SymbolHandle],
+) -> Vec<SymbolHandle> {
+    let mut loop_nodes: Vec<SymbolHandle> = vec![head];
+    let mut worklist: Vec<SymbolHandle> = back_sources.to_vec();
+
+    while let Some(node) = worklist.pop() {
+        if loop_nodes.contains(&node) {
+            continue;
+        }
+        loop_nodes.push(node);
+        // Walk to predecessors, but never past `head` (it is the loop boundary).
+        for edge in edges.iter().filter(|edge| edge.target == node) {
+            if edge.source != head && !loop_nodes.contains(&edge.source) {
+                worklist.push(edge.source);
+            }
+        }
+    }
+
+    loop_nodes
 }
 
 fn find_state<'state>(
