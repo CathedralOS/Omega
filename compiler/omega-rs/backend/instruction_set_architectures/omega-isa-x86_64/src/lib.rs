@@ -4335,10 +4335,18 @@ fn runtime_convert_operation_width(
             }
         }
         (false, false) => {
-            // Sign-extend a narrow signed source when widening; otherwise the
-            // load already zero-extended and the store truncates.
-            if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
-                3 // movsxd r10, r10d
+            // Widen a narrow integer source into r10. A 1/2-byte source was loaded
+            // with movb/movw, which leave the upper bits GARBAGE, so it MUST be
+            // movzx/movsx-extended (zero for unsigned, sign for signed). A 4-byte
+            // source was loaded with movl (already zero-extended), so only a SIGNED
+            // 4-byte source needs movsxd; an unsigned 4-byte source is already
+            // correct. Narrowing/equal widths need nothing (the store truncates).
+            if target_byte_size > source_byte_size {
+                match source_byte_size {
+                    1 | 2 => 4, // movzx/movsx r10, r10b / r10w
+                    4 if source_signed => 3, // movsxd r10, r10d
+                    _ => 0,
+                }
             } else {
                 0
             }
@@ -4399,8 +4407,18 @@ fn append_runtime_convert_operation(
             }
         }
         (false, false) => {
-            if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
-                bytes.extend([0x4d, 0x63, 0xd2]); // movsxd r10, r10d
+            if target_byte_size > source_byte_size {
+                match (source_byte_size, source_signed) {
+                    // movb/movw left the upper bits garbage: extend r10b/r10w -> r10.
+                    (1, true) => bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]), // movsx r10, r10b
+                    (1, false) => bytes.extend([0x4d, 0x0f, 0xb6, 0xd2]), // movzx r10, r10b
+                    (2, true) => bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]), // movsx r10, r10w
+                    (2, false) => bytes.extend([0x4d, 0x0f, 0xb7, 0xd2]), // movzx r10, r10w
+                    (4, true) => bytes.extend([0x4d, 0x63, 0xd2]),       // movsxd r10, r10d
+                    // 4-byte unsigned (and 8-byte) sources were already zero-extended
+                    // by the movl/movq load.
+                    _ => {}
+                }
             }
         }
     }

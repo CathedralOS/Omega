@@ -1,0 +1,99 @@
+// Widening an inline narrow integer operand must extend correctly by SIGNEDNESS:
+// an unsigned u8 byte > 127 ZERO-extends, a signed i8 < 0 SIGN-extends. The cast
+// in operand position (`sum + nums[i] as u32`) goes through the value-operand
+// Convert path, whose narrow (1/2-byte) source was loaded with movb/movw and so
+// MUST be movzx/movsx-extended. Before the fix it was left un-extended (upper
+// bits garbage), silently miscompiling any byte > 127 -- latent because the
+// string samples only use bytes < 128.
+//
+//  unsigned: [200,201,202,203] read as u32 sum to 806 (zero-extend);
+//  signed:   i8 -5 read as i32 is -5 (sign-extend).
+// Both correct -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [u8; 4];
+    i: i32 in Trapping;
+    v: u8 in Wrapping;
+    sum: u32 in Wrapping;
+    n8: i8 in Trapping;
+    isum: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.i = 0;
+    self.sum = 0;
+
+    transition {
+        _ -> fill()
+    }
+
+    state fill(&mut self) {
+        transition self.i < 4 {
+            true -> store()
+            _ -> rewind()
+        }
+    }
+
+    state store(&mut self) {
+        self.v = self.i as u8 in Wrapping + 200;
+        self.nums[self.i] = self.v;
+        self.i = self.i + 1;
+        transition {
+            _ -> fill()
+        }
+    }
+
+    state rewind(&mut self) {
+        self.i = 0;
+        transition {
+            _ -> sum_loop()
+        }
+    }
+
+    // Unsigned widen: each high byte must ZERO-extend.
+    state sum_loop(&mut self) {
+        transition self.i < 4 {
+            true -> add()
+            _ -> signed_part()
+        }
+    }
+
+    state add(&mut self) {
+        self.sum = self.sum + self.nums[self.i] as u32 in Wrapping;
+        self.i = self.i + 1;
+        transition {
+            _ -> sum_loop()
+        }
+    }
+
+    // Signed widen: a negative i8 must SIGN-extend.
+    state signed_part(&mut self) {
+        self.n8 = 0 - 5;
+        self.isum = 0;
+        self.isum = self.isum + self.n8 as i32 in Trapping;
+        transition self.sum == 806 {
+            true -> check_signed()
+            _ -> bad()
+        }
+    }
+
+    state check_signed(&mut self) {
+        transition self.isum == 0 - 5 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
