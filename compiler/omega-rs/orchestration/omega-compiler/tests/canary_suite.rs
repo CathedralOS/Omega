@@ -1356,6 +1356,37 @@ fn runtime_carrier_fnv_loop_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_string_palindrome_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_string_palindrome_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-string-palindrome-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("string palindrome canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("string palindrome canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a two-pointer string palindrome check -- text[i] proved via the relational chain (i <= j < len), bytes compared through local temps -- to detect 'ABCBA' (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_carrier_itoa_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_itoa_exit");
     let main_path = canary.join("main.omg");
