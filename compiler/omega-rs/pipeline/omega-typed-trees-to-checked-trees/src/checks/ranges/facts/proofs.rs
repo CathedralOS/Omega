@@ -59,6 +59,18 @@ impl RangeFacts<'_> {
             .any(|(known_index, upper_bound)| known_index == index && *upper_bound <= length)
     }
 
+    /// Drop every proven upper bound for `index` -- it is STALE once `index` is
+    /// reassigned (the field/local now holds a different value). Without this a
+    /// loosening reassignment (`j = j + 1`, which should weaken `j < 4` to
+    /// `j < 5`) would keep the old tighter bound via `prove_index_upper_bound`'s
+    /// min-merge, so an access AFTER the mutation (`arr[j]` with `j` now possibly
+    /// out of range) would wrongly prove. Called on every assignment to the
+    /// target's name; the new bound, if any, is then re-derived from the value.
+    pub(in crate::checks::ranges) fn forget_index_upper_bound(&mut self, index: &str) {
+        self.proven_index_upper_bounds
+            .retain(|(known_index, _)| known_index != index);
+    }
+
     /// The tightest (smallest) proven EXCLUSIVE upper bound for `index`, if any.
     /// Used to carry a bound across `field = otherfield + const`.
     pub(in crate::checks::ranges) fn proven_index_upper_bound(&self, index: &str) -> Option<i64> {

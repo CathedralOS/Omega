@@ -40,6 +40,12 @@ pub(super) fn check_statement(
                 assignment.value,
                 diagnostics,
             );
+            // The target's prior index upper bound is STALE the moment it is
+            // reassigned (it now holds a different value). Drop it so a loosening
+            // reassignment (`j = j + 1`) cannot retain an old tighter bound and
+            // wrongly prove an access AFTER the mutation. Any new bound is
+            // re-derived below from the value (`seed_offset_index_bound`).
+            facts.forget_index_upper_bound(&program.expression_table.display_name(assignment.target));
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);
