@@ -476,6 +476,11 @@ selfhost_test "self-hosting: lowermachine compiles calc.alp; binary matches the 
 # assert.alp: the dynamic-contract feature (`assert <cond>;` traps on false). Needed the assert
 # statement path (ckas -> asrt0 -> mode 9 -> cbz w0, Ltrap). All asserts hold -> exit 42.
 selfhost_test "self-hosting: lowermachine compiles assert.alp; binary matches the reference" samples/assert.alp ""
+# lowerexpr.alp: itself a COMPILER (emits arm64 asm). lowermachine compiling it exercises a
+# self-method-call statement with no trailing ';' as a block's last statement (state pu(){self.push()});
+# without the callsk '}'-stop the post-call skip ran past the next machine, breaking _main.
+selfhost_test "self-hosting: lowermachine compiles lowerexpr.alp (a compiler); emitted asm matches reference" samples/lowerexpr.alp \
+  "2 + 3" "2 + 3 * 4" "(1 + 2) * 3" "8 >> 1 & 3"
 # a FALSE assert in a lowermachine-compiled program must TRAP at runtime (cbz w0, Ltrap fires).
 compiler_trap "lowermachine compiles a false assert into a runtime trap" samples/lowermachine.alp \
   "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; } machine Main::main(&mut self) { let a: i32 = 0; assert a > 5; self.console.exit_process(7) }"
