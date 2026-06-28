@@ -25,13 +25,14 @@ data Main {
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
     aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32; aop: i32; nstr: i32; wlstart: i32; wllen: i32;
     osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; sacnt: i32; saeb: i32; saoff: i32; callmode: i32; ocmode: i32; ocopnd: i32; stoff: i32; stcnt: i32; steb: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
-    coff: i32; dsize: i32; foffs: [i32; 128]; fcnt: [i32; 128]; feb: [i32; 128];
+    coff: i32; dsize: i32; foffs: [i32; 256]; fcnt: [i32; 256]; feb: [i32; 256];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     vns: [i32; 32]; vne: [i32; 32]; vtag: [i32; 32]; nv: i32; vcc: i32;
     spls: [i32; 2048]; skl: i32; eskl: i32;
+    etn: [i32; 32]; etne: [i32; 32]; etsz: [i32; 32]; ne: i32; cei: i32; cdtns: i32; cdtne: i32; fc: i32;
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; hsf: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
-    fns: [i32; 128]; fne: [i32; 128];
+    fns: [i32; 256]; fne: [i32; 256];
     sns: [i32; 2048]; sne: [i32; 2048]; smi: [i32; 2048]; ssi: [i32; 2048];
     qa: i32; qb: i32; qc: i32; qd: i32; qk: i32;
     dig: [i32; 16];
@@ -626,7 +627,7 @@ machine Main::p_lm(&mut self) {          // "Lm"  (label def, column 0)
     state b0(){ write_byte(109); }
 }
 machine Main::main(&mut self) {
-    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0; self.osp = 0; self.usesio = 0; self.skl = 0;
+    self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0; self.osp = 0; self.usesio = 0; self.skl = 0; self.ne = 0;
     transition 0 { _ -> rd() }
     state rd()    { self.c = read_byte(); transition self.c < 0 { true -> scan()  false -> store() } }
     state store() { transition self.n < 512 * 256 { true -> store2()  false -> rd() } }
@@ -654,7 +655,9 @@ machine Main::main(&mut self) {
     state wa0()   { self.pos = self.pos + 1; transition 0 { _ -> wr0() } }
     state wc0()   { self.w = self.is_data(self.start, self.pos); transition self.w == 1 { true -> setdp()  false -> wc0b() } }
     state setdp() { self.dp = 1; transition 0 { _ -> sk() } }
-    state wc0b()  { transition self.ind == 1 { true -> wc0c()  false -> sk() } }
+    state wc0b()  { transition self.dp == 1 { true -> captype()  false -> wc0bb() } }   // 'data NAME' -> capture NAME (for enum-field sizing)
+    state captype(){ self.cdtns = self.start; self.cdtne = self.pos; self.cei = 0 - 1; transition 0 { _ -> sk() } }
+    state wc0bb() { transition self.ind == 1 { true -> wc0c()  false -> sk() } }
     state wc0c()  { transition self.expf == 1 { true -> ckcase()  false -> sk() } }
     state ckcase()  { self.w = self.is_case(self.start, self.pos); transition self.w == 1 { true -> casev0()  false -> addF() } }   // 'case X;' enum variant, else a normal field
     state casev0()  { transition self.buf[self.pos] <= 32 { true -> casev0a()  false -> casev1() } }   // skip ws after 'case'
@@ -662,7 +665,18 @@ machine Main::main(&mut self) {
     state casev1()  { self.qa = self.pos; transition 0 { _ -> casevr() } }                              // variant name start
     state casevr()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> caseva()  false -> casevd() } }
     state caseva()  { self.pos = self.pos + 1; transition 0 { _ -> casevr() } }
-    state casevd()  { self.vns[self.nv] = self.qa; self.vne[self.nv] = self.pos; self.vtag[self.nv] = self.vcc; self.nv = self.nv + 1; self.vcc = self.vcc + 1; self.expf = 0; transition 0 { _ -> sk() } }
+    state casevd()  { self.vns[self.nv] = self.qa; self.vne[self.nv] = self.pos; self.vtag[self.nv] = self.vcc; self.nv = self.nv + 1; self.vcc = self.vcc + 1; self.expf = 0; transition 0 { _ -> cpc0() } }
+    // count this variant's payload fields (one per ':' in its `(...)`) and size the enum to the widest variant
+    state cpc0()  { self.fc = 0; transition self.buf[self.pos] == 40 { true -> cpc1()  false -> regenum() } }   // '(' -> has payload
+    state cpc1()  { self.pos = self.pos + 1; transition 0 { _ -> cpcscan() } }
+    state cpcscan(){ transition self.buf[self.pos] == 41 { true -> regenum()  false -> cpcchk() } }   // ')' -> done counting
+    state cpcchk(){ transition self.buf[self.pos] == 58 { true -> cpcinc()  false -> cpcadv() } }     // ':' -> one payload field
+    state cpcinc(){ self.fc = self.fc + 1; self.pos = self.pos + 1; transition 0 { _ -> cpcscan() } }
+    state cpcadv(){ self.pos = self.pos + 1; transition 0 { _ -> cpcscan() } }
+    state regenum(){ transition self.cei == 0 - 1 { true -> regnew()  false -> regupd() } }   // first case of this enum -> register; else widen
+    state regnew(){ self.etn[self.ne] = self.cdtns; self.etne[self.ne] = self.cdtne; self.etsz[self.ne] = 8 + 8 * self.fc; self.cei = self.ne; self.ne = self.ne + 1; transition 0 { _ -> sk() } }
+    state regupd(){ transition 8 + 8 * self.fc > self.etsz[self.cei] { true -> regbig()  false -> sk() } }
+    state regbig(){ self.etsz[self.cei] = 8 + 8 * self.fc; transition 0 { _ -> sk() } }
     state addF()  { self.fns[self.nf] = self.start; self.fne[self.nf] = self.pos; self.foffs[self.nf] = self.coff; self.fcnt[self.nf] = 0; self.feb[self.nf] = 0; transition 0 { _ -> ftc() } }
     state ftc()   { transition self.buf[self.pos] == 58 { true -> ftc2()  false -> ftadv() } }     // skip to ':'
     state ftadv() { self.pos = self.pos + 1; transition 0 { _ -> ftc() } }
@@ -670,7 +684,15 @@ machine Main::main(&mut self) {
     state ftw()   { transition self.buf[self.pos] <= 32 { true -> ftw2()  false -> ftt() } }
     state ftw2()  { self.pos = self.pos + 1; transition 0 { _ -> ftw() } }
     state ftt()   { transition self.buf[self.pos] == 91 { true -> farr()  false -> ftt2() } }       // '[' -> array type
-    state ftt2()  { transition self.buf[self.pos] <= 90 { true -> fbnd()  false -> fscal() } }      // uppercase -> boundary; else scalar
+    state ftt2()  { transition self.buf[self.pos] <= 90 { true -> ftname()  false -> fscal() } }    // uppercase -> enum-or-boundary; else scalar
+    state ftname(){ self.start = self.pos; transition 0 { _ -> ftnr() } }                            // capture the type name to look it up
+    state ftnr()  { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ftna()  false -> ftne() } }
+    state ftna()  { self.pos = self.pos + 1; transition 0 { _ -> ftnr() } }
+    state ftne()  { self.qa = self.start; self.qb = self.pos; self.cj = 0; transition 0 { _ -> ftelk() } }
+    state ftelk() { transition self.cj < self.ne { true -> ftelkc()  false -> fbnd() } }             // not a known enum -> boundary (size 0)
+    state ftelkc(){ self.qc = self.etn[self.cj]; self.qd = self.etne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> ftelkh()  false -> ftelkn() } }
+    state ftelkh(){ self.coff = self.coff + self.etsz[self.cj]; transition 0 { _ -> fdone() } }      // enum field: reserve tag + widest payload
+    state ftelkn(){ self.cj = self.cj + 1; transition 0 { _ -> ftelk() } }
     state fbnd()  { transition 0 { _ -> fdone() } }                                                 // boundary (Console): size 0
     state fscal() { self.coff = self.coff + 8; transition 0 { _ -> fdone() } }                      // scalar: 8
     state farr()  { self.pos = self.pos + 1; transition 0 { _ -> farw() } }                          // past '['
@@ -902,7 +924,30 @@ machine Main::main(&mut self) {
     state alkc()  { self.qc = self.fns[self.cj]; self.qd = self.fne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> alkh()  false -> alkn() } }
     state alkh()  { self.laoff = self.foffs[self.cj]; transition 0 { _ -> argo() } }
     state alkn()  { self.cj = self.cj + 1; transition 0 { _ -> alk() } }
-    state argo()  { self.pos = self.pos + 1; self.mode = 1; self.opnd = 0; transition 0 { _ -> subj0() } }    // past '=', lower the RHS
+    state argo()  { self.pos = self.pos + 1; transition 0 { _ -> argows() } }    // past '='
+    state argows(){ transition self.buf[self.pos] <= 32 { true -> argowsa()  false -> ckctor() } }   // skip ws to the RHS
+    state argowsa(){ self.pos = self.pos + 1; transition 0 { _ -> argows() } }
+    state ckctor(){ self.start = self.pos; transition 0 { _ -> ckctr2() } }   // capture the RHS first ident, to detect Type::Variant construction
+    state ckctr2(){ self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ckctr3()  false -> ckctr4() } }
+    state ckctr3(){ self.pos = self.pos + 1; transition 0 { _ -> ckctr2() } }
+    state ckctr4(){ transition self.buf[self.pos] == 58 { true -> ctor0()  false -> argplain() } }   // '::' -> enum construction, else a normal value RHS
+    state argplain(){ self.pos = self.start; self.mode = 1; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower the RHS as a value (-> stStore at laoff)
+    // enum construction: self.FIELD = Type::Variant(payload) -> store tag at laoff, payload at laoff+8
+    state ctor0() { self.pos = self.pos + 2; self.qa = self.pos; transition 0 { _ -> ctorr() } }   // skip '::', mark variant name
+    state ctorr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ctora()  false -> ctore() } }
+    state ctora() { self.pos = self.pos + 1; transition 0 { _ -> ctorr() } }
+    state ctore() { self.qb = self.pos; self.cj = 0; self.sval = 0; transition 0 { _ -> ctlk() } }   // variant -> tag
+    state ctlk()  { transition self.cj < self.nv { true -> ctlkc()  false -> ctstag() } }
+    state ctlkc() { self.qc = self.vns[self.cj]; self.qd = self.vne[self.cj]; self.w = self.streq(); transition self.w == 1 { true -> ctlkh()  false -> ctlkn() } }
+    state ctlkh() { self.sval = self.vtag[self.cj]; transition 0 { _ -> ctstag() } }
+    state ctlkn() { self.cj = self.cj + 1; transition 0 { _ -> ctlk() } }
+    state ctstag(){ self.movw0v(); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_strw0(); self.v = self.laoff; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> ctpay() } }   // movz w0,#tag ; ldr x9,[x29,#sd] ; str w0,[x9,#laoff]
+    state ctpay() { transition self.buf[self.pos] == 40 { true -> ctpay2()  false -> ctpsk() } }   // '(' -> payload, else tag-only variant
+    state ctpay2(){ self.pos = self.pos + 1; self.lstgt = self.laoff + 8; self.mode = 12; self.opnd = 0; transition 0 { _ -> subj0() } }   // lower the payload (mode 12 -> ctpemit, stores at laoff+8)
+    state ctpsk() { transition self.buf[self.pos] == 59 { true -> ctpsk2()  false -> ctpsk3() } }   // ';' -> consume
+    state ctpsk3(){ transition self.buf[self.pos] == 125 { true -> sk()  false -> ctpadv() } }       // '}' -> stop
+    state ctpadv(){ self.pos = self.pos + 1; transition 0 { _ -> ctpsk() } }
+    state ctpsk2(){ self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state stStore(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); transition self.laoff > 16380 { true -> stBig()  false -> stImm() } }
     state stImm()  { self.p_strw0(); self.v = self.laoff; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> stsk() } }
     state stBig()  { self.fv = self.laoff; self.foldx9(); self.console.write_line("    str w0, [x9]"); transition 0 { _ -> stsk() } }
@@ -1022,7 +1067,9 @@ machine Main::main(&mut self) {
     state sjm78()  { transition self.mode == 7 { true -> arremit()  false -> sjm89() } }
     state sjm89()  { transition self.mode == 8 { true -> wbemit()  false -> sjm9a() } }
     state sjm9a()  { transition self.mode == 9 { true -> asrtemit()  false -> sjm10a() } }
-    state sjm10a() { transition self.mode == 10 { true -> sargemit()  false -> eargemit() } }   // mode 11 -> eval-arm state-arg: store arg, branch to target, then the b.ne skip label
+    state sjm10a() { transition self.mode == 10 { true -> sargemit()  false -> sjm11a() } }
+    state sjm11a() { transition self.mode == 11 { true -> eargemit()  false -> ctpemit() } }   // mode 12 -> enum-construction payload: store at laoff+8
+    state ctpemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_ldrx29(); self.v = self.sd; self.emit_int(); write_byte(93); write_byte(10); self.p_strw0(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); transition 0 { _ -> ctpsk() } }
     state eargemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); self.p_b(); self.emit_lab(); self.p_lsk(); self.v = self.eskl; self.emit_int(); write_byte(58); write_byte(10); transition 0 { _ -> aend() } }
     state sargemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.p_strw0x29(); self.v = self.lstgt; self.emit_int(); write_byte(93); write_byte(10); self.p_b(); self.emit_lab(); transition 0 { _ -> aend() } }
     state asrtemit(){ self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    cbz w0, Ltrap"); transition 0 { _ -> asrtsk() } }
