@@ -844,7 +844,8 @@ machine Main::main(&mut self) {
     state callpush(){ transition self.callmode == 1 { true -> ocallret()  false -> callpush0() } }
     state callpush0(){ self.console.write_line("    str x0, [sp, #-16]!"); self.console.write_line("    ldr x0, [sp], #16"); transition 0 { _ -> callsk() } }
     state ocallret(){ self.console.write_line("    str x0, [sp, #-16]!"); self.pos = self.pos + 1; self.mode = self.ocmode; self.opnd = self.ocopnd; transition 0 { _ -> opdisp() } }
-    state callsk(){ transition self.buf[self.pos] == 59 { true -> callsk2()  false -> calladv() } }
+    state callsk(){ transition self.buf[self.pos] == 59 { true -> callsk2()  false -> callsk3() } }   // ';' -> consume
+    state callsk3(){ transition self.buf[self.pos] == 125 { true -> sk()  false -> calladv() } }       // '}' -> stop (last stmt in a block, no trailing ';')
     state calladv(){ self.pos = self.pos + 1; transition 0 { _ -> callsk() } }
     state callsk2(){ self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state asgnlk(){ self.qa = self.fs; self.qb = self.fe; self.cj = 0; self.laoff = 0; transition 0 { _ -> alk() } } // resolve LHS offset
