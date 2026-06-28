@@ -49,6 +49,11 @@ pub(super) fn check_statement(
             // The `>= 0` fact is likewise STALE on reassignment -- the new value
             // may be negative. A `>= 0` guard re-establishes it where it holds.
             facts.forget_non_negative(&program.expression_table.display_name(assignment.target));
+            // Orderings (`i <= j`) naming the target are STALE on reassignment --
+            // a guard re-establishes them where they still hold. Without this a
+            // chained bound (`i <= j < len => i < len`) could survive a loosening
+            // write to `i` or `j`.
+            facts.forget_orderings(&program.expression_table.display_name(assignment.target));
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 let next_length = expression_indexable_length(program, facts, assignment.value);
                 let next_integer = expression_integer_value(program, facts, assignment.value);

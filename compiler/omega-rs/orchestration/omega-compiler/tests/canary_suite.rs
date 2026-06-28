@@ -8398,6 +8398,37 @@ fn runtime_signed_index_guarded_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_two_pointer_sum_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_two_pointer_sum_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-two-pointer-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime two-pointer-sum canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime two-pointer-sum canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the two-pointer traversal to prove nums[i] via the relational chain (i <= j < len) and sum converging pairs to 210 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_branched_index_bound_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_branched_index_bound_exit");
     let main_path = canary.join("main.omg");
@@ -13610,6 +13641,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_nested_decreasing_index_exit",
     "slices/runtime_narrow_widen_cast_exit",
     "slices/runtime_signed_index_guarded_exit",
+    "slices/runtime_two_pointer_sum_exit",
     "slices/runtime_branched_index_bound_exit",
     "slices/runtime_indexed_array_write_exit",
     "arithmetic/runtime_modulo_value",
