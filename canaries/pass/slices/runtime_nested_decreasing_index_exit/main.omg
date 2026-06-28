@@ -1,0 +1,88 @@
+// NESTED decreasing loops. The OUTER counter `i` (3..0) and the INNER counter `j`
+// (2..0) are each a decreasing loop variable, and both index `nums` inside the
+// inner body. Proving `nums[j]` requires the inner loop's invariant `j < 3`,
+// which depends on identifying the inner loop's body via DOMINANCE-based back
+// edges -- with a looser "cycle through head" definition the inner loop's body
+// swallows the outer states (the inner head is reachable from the outer loop,
+// which cycles back to it) and the inner counter never gets a bound. The outer
+// invariant `i < 4` must hold through the whole inner loop too.
+//
+// sum = 3*(nums[3]+nums[2]+nums[1]+nums[0]) + 4*(nums[2]+nums[1]+nums[0])
+//     = 3*10 + 4*6 = 54.  Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 4] in Trapping;
+    i: i32 in Trapping;
+    j: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 1;
+    self.nums[1] = 2;
+    self.nums[2] = 3;
+    self.nums[3] = 4;
+    self.i = 3;
+    self.acc = 0;
+
+    transition {
+        _ -> outer()
+    }
+
+    state outer(&mut self) {
+        transition self.i >= 0 {
+            true -> inner_init()
+            _ -> done()
+        }
+    }
+
+    state inner_init(&mut self) {
+        self.j = 2;
+        transition {
+            _ -> inner()
+        }
+    }
+
+    state inner(&mut self) {
+        transition self.j >= 0 {
+            true -> ibody()
+            _ -> outer_next()
+        }
+    }
+
+    state ibody(&mut self) {
+        self.acc = self.acc + self.nums[self.i];
+        self.acc = self.acc + self.nums[self.j];
+        self.j = self.j - 1;
+        transition {
+            _ -> inner()
+        }
+    }
+
+    state outer_next(&mut self) {
+        self.i = self.i - 1;
+        transition {
+            _ -> outer()
+        }
+    }
+
+    state done(&mut self) {
+        transition self.acc == 54 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
