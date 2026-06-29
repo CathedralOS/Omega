@@ -50,6 +50,13 @@ dia "add"          "$H machine Main::main(&mut self) { let a: i32 = 2 + 3; self.
 dia "chain *,-"    "$H machine Main::main(&mut self) { let a: i32 = 2 + 3; let b: i32 = a * 4; let c: i32 = b - 1; self.console.exit_process(c); }" 19
 dia "nested arith" "$H machine Main::main(&mut self) { let a: i32 = (2 + 3) * (4 + 1); self.console.exit_process(a); }" 25
 dia "reuse local"  "$H machine Main::main(&mut self) { let a: i32 = 7; let b: i32 = a * a; let c: i32 = b - a; self.console.exit_process(c); }" 42
+# division, modulo, and the full comparison set (faithfully encoded from lt/eq in gamma)
+dia "div,mod"      "$H machine Main::main(&mut self) { let q: i32 = 17 / 5; let r: i32 = 17 % 5; self.console.exit_process(q * 10 + r); }" 32
+dia "lt true"      "$H machine Main::main(&mut self) { let c: i32 = 3 < 5; self.console.exit_process(c); }" 1
+dia "gt false"     "$H machine Main::main(&mut self) { let c: i32 = 3 > 5; self.console.exit_process(c); }" 0
+dia "eq/ne"        "$H machine Main::main(&mut self) { let a: i32 = 4 == 4; let b: i32 = 4 != 4; self.console.exit_process(a * 2 + b); }" 2
+dia "le boundary"  "$H machine Main::main(&mut self) { let a: i32 = 5 <= 5; let b: i32 = 6 <= 5; self.console.exit_process(a * 2 + b); }" 2
+dia "ge boundary"  "$H machine Main::main(&mut self) { let a: i32 = 5 >= 5; let b: i32 = 4 >= 5; self.console.exit_process(a * 2 + b); }" 2
 
 echo "epsilon-meaning diamond (native execution vs gamma reference interpreter, straight-line subset): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
