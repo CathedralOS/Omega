@@ -285,11 +285,13 @@ fn resolve_runtime_resolved_static_integer_value(
     }
 }
 
-/// If `target` (after stripping `Mutable`) is `collection[index]` with a
-/// NON-constant index, return the collection's `PlaceKey`. A runtime-indexed
-/// write can touch any element, so the whole collection's recorded constants
-/// are stale. A CONSTANT-index write (`arr[2]`) is keyable precisely and is
-/// handled by the normal single-place set/invalidate (returns `None` here).
+/// If writing `target` touches an element of an array through a NON-constant
+/// index -- `arr[i]` OR `arr[i].field` (a field of an indexed element) OR a
+/// deeper path over it -- return that array's `PlaceKey`. A runtime-indexed write
+/// can land on any element, so every recorded constant for the whole array is
+/// stale and must be voided. A CONSTANT-index write (`arr[2]`, `arr[2].field`) is
+/// keyable precisely and handled by the normal single-place set/invalidate
+/// (returns `None`).
 fn runtime_indexed_write_collection(target: &Expression) -> Option<PlaceKey> {
     match target {
         Expression::Mutable(inner) => runtime_indexed_write_collection(inner),
@@ -299,6 +301,9 @@ fn runtime_indexed_write_collection(target: &Expression) -> Option<PlaceKey> {
             }
             PlaceKey::from_expression(&indexed.collection)
         }
+        // A field (or deeper) of an indexed element keeps the index in the
+        // RECEIVER: `arr[i].field` is `Member(Indexed(arr[i]), field)`. Walk in.
+        Expression::Member(member) => runtime_indexed_write_collection(&member.receiver),
         _ => None,
     }
 }
@@ -317,6 +322,9 @@ fn runtime_indexed_write_collection_in_table(
                 return None;
             }
             PlaceKey::from_expression_handle(expressions, indexed.collection)
+        }
+        ExpressionNode::Member(member) => {
+            runtime_indexed_write_collection_in_table(expressions, member.receiver)
         }
         _ => None,
     }
