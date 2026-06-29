@@ -996,7 +996,11 @@ fn build_runtime_convert_write(
 
     let target_byte_size = scalar_primitive_byte_size(target_primitive)?;
     let source_byte_size = scalar_primitive_byte_size(source_primitive)?;
-    if !matches!(target_byte_size, 1 | 4 | 8) || !matches!(source_byte_size, 1 | 4 | 8) {
+    // The convert encoder handles 1/2/4/8-byte integer widths: a 2-byte source is
+    // movzx/movsx-extended like a 1-byte one, and a 2-byte target stores through
+    // the 0x66-prefixed word form (same pipeline as 16-bit arithmetic). 16-byte+
+    // and unmapped widths are still unsupported.
+    if !matches!(target_byte_size, 1 | 2 | 4 | 8) || !matches!(source_byte_size, 1 | 2 | 4 | 8) {
         return None;
     }
 
