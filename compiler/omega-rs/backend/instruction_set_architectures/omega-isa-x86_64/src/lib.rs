@@ -1729,10 +1729,10 @@ pub fn encode_runtime_machine_indexed_integer_write(
         omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
             // r10 = runtime-frame base (imm64 at +12 relocated to the frame symbol).
             append_mov_r10_imm64(&mut bytes, 0);
-            append_load_rax_from_r10(&mut bytes, index_offset)?;
+            append_load_index_eax_from_r10(&mut bytes, index_offset)?;
         }
         omega_target_operations::RuntimeStorageRegion::Machine => {
-            append_load_rax_from_r15(&mut bytes, index_offset)?;
+            append_load_index_eax_from_r15(&mut bytes, index_offset)?;
         }
     }
     // rax = index * element_byte_size; r15 = machine base + scaled index.
@@ -6304,16 +6304,29 @@ fn append_load_r8_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<()
     Ok(())
 }
 
-fn append_load_rax_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
-    bytes.extend([0x49, 0x8b, 0x82]); // mov rax, [r10 + disp32]
+    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
 
-fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+/// 32-bit zero-extending load of an array INDEX. A 64-bit `mov rax` reads 8 bytes,
+/// which for a 4-byte index field (i32/u32) pulls in the ADJACENT field's bytes as
+/// the high dword -> a garbage index and an OOB store (segfault). Every valid array
+/// index fits in 32 bits, so load `eax` (which zero-extends into rax); matches the
+/// machine-indexed COPY encoder.
+fn append_load_index_eax_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
-    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + disp32]
+    bytes.extend([0x41, 0x8b, 0x82]); // mov eax, [r10 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+/// See [`append_load_index_eax_from_r10`].
+fn append_load_index_eax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
