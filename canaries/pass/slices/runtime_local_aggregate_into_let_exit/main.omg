@@ -8,8 +8,10 @@
 // so the gate is array-only.)
 //
 // Covers: local-array element into a let (`let a = arr[1]`), a second const index,
-// a value-struct field into a let (`let px = p.x`, works via folding), and a
-// local-array element used as an arithmetic operand (`arr[0] + a + px`). Exits 70.
+// a value-struct field into a let (`let px = p.x`, works via folding), a local-array
+// element used as an arithmetic operand (`arr[0] + a + px`), and a slotted-array let
+// passed to a VALUE-CALL (`self.dbl(a1)` -- previously broke before the array got a
+// slot). Exits 70.
 
 boundary trait Console {
     machine exit_process(return_code: i32);
@@ -24,6 +26,10 @@ data Main {
     console: Console;
 }
 
+machine Main::dbl(&self, n: i32 in Wrapping) -> i32 in Wrapping {
+    n + n
+}
+
 machine Main::main(&mut self) {
     let arr: [i32; 4] = [10, 20, 30, 40];
     let a1: i32 in Wrapping = arr[1];
@@ -33,9 +39,13 @@ machine Main::main(&mut self) {
     let px: i32 in Wrapping = p.x;
 
     let sum: i32 in Wrapping = arr[0] + a1 + px; // 10 + 20 + 7 = 37
+    let doubled: i32 in Wrapping = self.dbl(a1); // value-call arg from a slotted-array let -> 40
 
-    transition a1 == 20 { true -> check_a3(a3, px, sum) _ -> bad() }
+    transition doubled == 40 { true -> check_a1(a1, a3, px, sum) _ -> bad() }
 
+    state check_a1(&mut self, a1: i32 in Wrapping, a3: i32 in Wrapping, px: i32 in Wrapping, sum: i32 in Wrapping) {
+        transition a1 == 20 { true -> check_a3(a3, px, sum) _ -> bad() }
+    }
     state check_a3(&mut self, a3: i32 in Wrapping, px: i32 in Wrapping, sum: i32 in Wrapping) {
         transition a3 == 40 { true -> check_px(px, sum) _ -> bad() }
     }
