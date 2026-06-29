@@ -32,6 +32,13 @@
 // forward references in the call graph just work.
 
 use crate::ast::{BinaryOp, Expr, Machine, Pattern, Program, Statement};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+// Set while lowering the initializer of a `let _: i32 in Wrapping = ...`; the arithmetic ops below then
+// OMIT the overflow trap (wrap instead of trap to Ltrap). Lowering is single-threaded, so a module flag
+// suffices. NOTE: it stays set across the whole initializer expression but is cleared before the next
+// statement, so wrapping inits should be direct arithmetic (the Wrapping slice's samples are).
+static WRAPPING: AtomicBool = AtomicBool::new(false);
 
 pub fn lower_program(program: &Program) -> String {
     let mut asm = String::new();
@@ -180,7 +187,14 @@ fn lower_statement(
             asm.push_str("    ldr x0, [sp], #16\n"); // pop the condition
             asm.push_str("    cbz w0, Ltrap\n"); // trap if false (zero)
         }
-        Statement::Let(local_index, expression) | Statement::Assign(local_index, expression) => {
+        Statement::Let(local_index, expression, wrapping) => {
+            WRAPPING.store(*wrapping, Ordering::Relaxed); // arithmetic in the initializer wraps if set
+            lower_expression(*expression, program, self_disp, asm);
+            WRAPPING.store(false, Ordering::Relaxed);
+            asm.push_str("    ldr x0, [sp], #16\n"); // pop value
+            asm.push_str(&format!("    str w0, [x29, #{}]\n", local_displacement(*local_index)));
+        }
+        Statement::Assign(local_index, expression) => {
             lower_expression(*expression, program, self_disp, asm);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop value
             asm.push_str(&format!("    str w0, [x29, #{}]\n", local_displacement(*local_index)));
@@ -349,16 +363,28 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
             asm.push_str("    ldr x0, [sp], #16\n"); // pop lhs
             match op {
                 BinaryOp::Add => {
-                    asm.push_str("    adds w0, w0, w1\n    b.vs Ltrap\n");
+                    if WRAPPING.load(Ordering::Relaxed) {
+                        asm.push_str("    add w0, w0, w1\n"); // i32 in Wrapping: wrap on overflow
+                    } else {
+                        asm.push_str("    adds w0, w0, w1\n    b.vs Ltrap\n");
+                    }
                 }
                 BinaryOp::Sub => {
-                    asm.push_str("    subs w0, w0, w1\n    b.vs Ltrap\n");
+                    if WRAPPING.load(Ordering::Relaxed) {
+                        asm.push_str("    sub w0, w0, w1\n");
+                    } else {
+                        asm.push_str("    subs w0, w0, w1\n    b.vs Ltrap\n");
+                    }
                 }
                 BinaryOp::Mul => {
-                    // 32x32 -> 64 signed product; result fits in i32 iff it equals
-                    // the sign-extension of its low 32 bits.
-                    asm.push_str("    smull x0, w0, w1\n");
-                    asm.push_str("    sxtw x2, w0\n    cmp x0, x2\n    b.ne Ltrap\n");
+                    if WRAPPING.load(Ordering::Relaxed) {
+                        asm.push_str("    mul w0, w0, w1\n"); // low 32 bits, wraps
+                    } else {
+                        // 32x32 -> 64 signed product; result fits in i32 iff it equals
+                        // the sign-extension of its low 32 bits.
+                        asm.push_str("    smull x0, w0, w1\n");
+                        asm.push_str("    sxtw x2, w0\n    cmp x0, x2\n    b.ne Ltrap\n");
+                    }
                 }
                 BinaryOp::Div => {
                     // ARM64 sdiv does NOT trap on /0 (returns 0); enforce the trap.

@@ -336,7 +336,9 @@ fn lower_statement(
             code.extend_from_slice(&[0x85, 0xC0]); // test eax, eax
             code.extend_from_slice(&[0x75, 0x02, 0x0F, 0x0B]); // jnz +2 ; ud2 (trap if false/zero)
         }
-        Statement::Let(local_index, expression) => {
+        Statement::Let(local_index, expression, _wrapping) => {
+            // x64 keeps trapping arithmetic regardless of domain (the aarch64 macOS target is the gated
+            // path for the Wrapping slice; x64 Wrapping is a follow-on).
             lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax
             emit_store_local(code, *local_index);
