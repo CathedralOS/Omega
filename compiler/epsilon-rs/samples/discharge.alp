@@ -43,10 +43,14 @@ machine lt_succ(a: i32) -> i32 ensures result < a + 1 { return a; }
 
 // NON-STRICT ORDER (a <= b == exists w. a+w=b; the witness IS the gap, so it can be a param):
 // constant margin: result <= a + 10, returned verbatim a -> witness 10 (a literal, so
-// provably >= 0 -- sound for signed i32). A PARAMETER gap (result <= a + b) is deliberately
-// NOT discharged: b could be negative, which would make the runtime assert trap while a
-// natural-number proof "accepts" -- the discharge refuses unprovably-non-negative witnesses.
+// provably >= 0 -- sound for signed i32, discharged UNCONDITIONALLY).
 machine within10(a: i32) -> i32 ensures result <= a + 10 { return a; }
+// PARAMETER gap: result <= a + b, witness the parameter b. A negative b would trap the runtime
+// while a naturals proof "accepts", so the bare gap is unsound -- UNLESS the machine guarantees
+// b >= 0. Under `requires b >= 0` the discharge emits a CONDITIONAL cert `∀a∀b. (b >= 0) -> result
+// <= a+b`, the postcondition mirror of the call-site `a+k` slice; the entry assert of `requires b
+// >= 0` then makes the postcondition assert sound. Without the `requires`, no cert (still refused).
+machine within_b(a: i32, b: i32) -> i32 requires b >= 0 ensures result <= a + b { return a; }
 // REFLEXIVE bound: result <= a (and result >= a), returned verbatim. The gap is 0, but `(p a z)` does
 // not reduce (p recurses on the left, a is stuck), so refl can't prove `a <= a` -- the discharge cites
 // add-zero-right, exactly like `result == a` returned as `a + 0`. Two postconditions, both reflexive.

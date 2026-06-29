@@ -90,5 +90,40 @@ for n in 0 1 5 42 100 200 252; do
     FAIL=$((FAIL + 1)); echo "  FAIL composition n=$n : exit $got (callee precondition trapped though the wrapper's held!)"; fi
 done
 
+# 4. PARAMETER-GAP postcondition soundness: `within_b` (ensures result <= a + b) is discharged ONLY
+# under `requires b >= 0`, and CONDITIONALLY on that fact. At runtime the entry assert of the requires
+# guards the postcondition: with b >= 0 the postcondition `7 <= 7 + b` must never trap, and with b < 0
+# the REQUIRES assert (not the postcondition) must trap -- so the signed witness is sound exactly where
+# the conditional cert claims, and unsound input is caught at the entry, not silently "proved".
+cat > "$T/pgap.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; }
+data Main { console: Console; }
+machine within_b(a: i32, b: i32) -> i32 requires b >= 0 ensures result <= a + b { return a; }
+machine Main::main(&mut self) {
+    let n: i32 = read_byte();        // 0..255, so n >= 0 satisfies requires b >= 0
+    let w: i32 = within_b(7, n);     // postcondition 7 <= 7 + n holds for n >= 0 -> no trap
+    self.console.exit_process(42)
+}
+EOF
+EPS_ARCH=aarch64 ./target/debug/beta "$T/pgap.alp" "$T/pgap" >/dev/null 2>&1 \
+  || { echo "discharge-soundness FAIL — compiling parameter-gap driver"; exit 1; }
+for n in 0 1 5 42 100 200 255; do
+  set +e; printf "\\$(printf '%03o' "$n")" | "$T/pgap"; got=$?; set -e
+  if [ "$got" = 42 ]; then PASS=$((PASS + 1)); else
+    FAIL=$((FAIL + 1)); echo "  FAIL param-gap n=$n : exit $got (a conditionally-discharged contract trapped though requires held!)"; fi
+done
+# the requires-assert is the real guard: a negative b must trap at ENTRY, not silently pass the postcondition
+cat > "$T/pgapneg.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine within_b(a: i32, b: i32) -> i32 requires b >= 0 ensures result <= a + b { return a; }
+machine Main::main(&mut self) { let w: i32 = within_b(7, 0 - 1); self.console.exit_process(42) }
+EOF
+EPS_ARCH=aarch64 ./target/debug/beta "$T/pgapneg.alp" "$T/pgapneg" >/dev/null 2>&1 \
+  || { echo "discharge-soundness FAIL — compiling parameter-gap negative driver"; exit 1; }
+set +e; "$T/pgapneg"; got=$?; set -e
+if [ "$got" -gt 128 ]; then PASS=$((PASS + 1)); echo "  ok   param-gap negative b traps at the requires assert (exit $got)";
+else FAIL=$((FAIL + 1)); echo "  FAIL param-gap negative b did NOT trap (exit $got) -- the entry guard is missing"; fi
+
 echo "discharge soundness (static proof and runtime assert agree on discharged contracts): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
