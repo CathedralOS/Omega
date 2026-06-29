@@ -1,0 +1,43 @@
+// Narrow (i8) SIGNED comparisons and arithmetic with NEGATIVE values, evaluated as
+// guard subjects. Complements runtime_narrow_signed_divide_guard_exit (div/mod): these
+// siblings already work (compare/sub run at the narrow width; multiply sign-extends
+// itself), so this guards the whole narrow-signed-in-guard area against regressions.
+//
+// Covers: i8 `>` and `<` against negatives, i8 subtract to a negative, and i8 multiply
+// to a negative -- all in guards. Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a8: i8 in Saturating;
+    b8: i8 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    self.a8 = 0 - 10;
+    transition self.a8 > 0 - 15 { true -> check_less() _ -> bad() } // -10 > -15 == true
+
+    state check_less(&mut self) {
+        transition self.a8 < 0 - 5 { true -> check_sub() _ -> bad() } // -10 < -5 == true
+    }
+    state check_sub(&mut self) {
+        self.a8 = 2;
+        self.b8 = 7;
+        transition self.a8 - self.b8 == 0 - 5 { true -> check_mul() _ -> bad() } // 2 - 7 == -5
+    }
+    state check_mul(&mut self) {
+        self.a8 = 0 - 4;
+        self.b8 = 3;
+        transition self.a8 * self.b8 == 0 - 12 { true -> good() _ -> bad() } // -4 * 3 == -12
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
