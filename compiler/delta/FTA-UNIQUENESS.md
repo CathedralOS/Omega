@@ -64,16 +64,17 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    (which is the proof parser and starts with `expect('(')`). Validated with 5 positive + 3 negative
    raw certs; `elab.py` got the four matching keyword cases. `proofs/perm-refl.elab` lands (∀L. Perm(L,L)
    by `listind`: nil→permnil, cons→permskip on the IH). elab-test now **206 ok**; full lattice VERIFIED.
-2. **`checker.gamma`** (+ `checker_typed.gamma`) — ⏳ NEXT (Stage 2). Mirror the four rules in the
-   pattern-match style (see the `MemHead`/`Pcons` arms ~line 358): `((Permnil) (Rel 779 Lnil Lnil))`,
-   `((Permskip x pf) …(Rel 779 (Lcons x t1) (Lcons x t2))…)`, `((Permswap x y r) (Rel 779 (Lcons x
-   (Lcons y r)) (Lcons y (Lcons x r))))`, `((Permtrans p1 p2) …conv_eq the middle…)`. Add ADT variants
-   in `checker_typed.gamma` (erase_types.py derives the untyped 3rd oracle). **`checker-diamond.sh`
-   requires all checkers to agree**, so add ~6 `dia()` cases (both syntaxes) when the mirror lands.
-   Until then Perm is check.beta-only: the existing 205 stay fully 3-checker-gated; perm proofs are
-   check.beta-gated (via elab-test) — a documented, temporary asymmetry.
-3. **Re-verify** `elab-test.sh`, `checker-diamond.sh`, `semantics-diamond.sh`, full `verify-lattice.sh`.
-4. Then `perm-sym` (skip/swap/trans induction) and the **member-to-front surgery** lemma below.
+2. **`checker.gamma`** (+ `checker_typed.gamma`) — ✅ DONE. The four rules mirrored in the pattern-match
+   style (`((Permnil) (Rel 779 Lnil Lnil))`, `((Permskip x pf) …)`, `((Permswap x y r) …)`,
+   `((Permtrans p1 p2) …conveq the middle…)`); the typed checker got matching ADT variants
+   (`(Permskip Nat Term) (Permswap Nat Nat Nat) (Permtrans Term Term)`) and stays well-typed
+   (`test-typeck.sh` 23/0). `checker-diamond.sh` got six `dia()` cases (both syntaxes) — now **89 agree,
+   0 disagree** across check.beta, checker.gamma, AND the type-erased checker_typed.gamma. The asymmetry
+   is closed: Perm is a full three-checker predicate, exactly like Mem/ProdIs.
+3. **Re-verified**: `test-typeck.sh` 23/0, `checker-diamond.sh` 89/0 (+ 89/0 typed), `elab-test.sh` 206/0,
+   full `verify-lattice.sh` VERIFIED.
+4. **NEXT**: `perm-sym` (Perm(a,b)→Perm(b,a), by induction using swap/skip/trans), then the
+   **member-to-front surgery** lemma below, then general FTA uniqueness by strong induction on n.
 
 ## Uniqueness proof plan (once `Perm` exists)
 

@@ -381,6 +381,20 @@
     ((Prodconsinv pf) (match (infer pf ctx)
                         ((Rel id l n) (if (eq id 778)
                           (match l ((Lcons h t) (Exists (And (Eq (shiftt n 1 0) (Mu (shiftt h 1 0) (Iv 0))) (Rel 778 (shiftt t 1 0) (Iv 0))))) (z Bad)) Bad)) (z Bad)))
+    ; ---- list permutation: Perm(L1,L2) = (Rel 779 L1 L2), four sound intro-only rules
+    ; (nil, skip=cons-congruence, swap=adjacent transposition, trans). Mirrors check.beta exactly.
+    ((Permnil) (Rel 779 Lnil Lnil))                            ; Perm(nil, nil)
+    ((Permskip x pf) (match (infer pf ctx)
+                       ((Rel id t1 t2) (if (eq id 779) (Rel 779 (Lcons x t1) (Lcons x t2)) Bad))
+                       (z Bad)))                                ; Perm(t1,t2) |- Perm(cons x t1, cons x t2)
+    ((Permswap x y r) (Rel 779 (Lcons x (Lcons y r)) (Lcons y (Lcons x r))))   ; adjacent transposition
+    ((Permtrans p1 p2) (match (infer p1 ctx)
+                         ((Rel i1 a b1) (if (eq i1 779)
+                           (match (infer p2 ctx)
+                             ((Rel i2 b2 c) (if (eq i2 779) (if (conveq b1 b2) (Rel 779 a c) Bad) Bad))
+                             (z Bad))
+                           Bad))
+                         (z Bad)))                              ; Perm(a,b) & Perm(b,c) |- Perm(a,c)
     (z Bad)))
 
 (def check (tm goal) (teq (infer tm Nil) goal))
