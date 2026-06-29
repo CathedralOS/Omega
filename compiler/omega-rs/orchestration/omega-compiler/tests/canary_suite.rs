@@ -10833,6 +10833,41 @@ fn runtime_value_call_return_types_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_call_struct_literal_arms_exit_canary_runs() {
+    // A value-call whose transition arms return STRUCT / enum-CASE literals
+    // (`transition d { Dir::E -> Vec2 { dx: 1, dy: 0 } ... }`). This was a parse error
+    // (a struct-literal arm value is name-like, so the target parser read only the
+    // leading path and left the `{`); fixed by re-parsing a path-followed-by-`{` arm
+    // value as an expression. The natural "dispatch on an enum, return a struct" shape.
+    let canary = pass_canary("calls/runtime_value_call_struct_literal_arms_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-struct-lit-arms-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call struct-literal-arms canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call struct-literal-arms canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a value-call returning struct/case literals from its arms to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_contained_machine_exit_canary_runs() {
     // A contained machine (component with state): single-instance method calls --
     // statement-call mutation, arg, and a value-call return -- all work. (Multiple

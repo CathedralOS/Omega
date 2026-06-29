@@ -1,0 +1,73 @@
+// A value-call whose transition ARMS return STRUCT / enum-CASE LITERALS --
+// `transition d { Dir::E -> Vec2 { dx: 1, dy: 0 } ... }`. This was a PARSE ERROR
+// ("expected expression"): a struct-literal arm value is name-like, so the
+// transition-target parser read only the leading path (`Vec2`) and left the `{`.
+// Fixed by recognizing a bare path followed by `{` in an arm value as a struct/case
+// literal and re-parsing it as an expression. This is the natural "dispatch on an
+// enum, return a struct" pattern (e.g. `direction.delta() -> Vec2`).
+//
+// Covers: a plain struct literal arm (`-> Vec2 { .. }`, incl. negative fields) and an
+// enum CASE literal arm (`-> Token::Num { value: 9 }`). Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Dir {
+    case N;
+    case S;
+    case E;
+    case W;
+}
+data Vec2 {
+    dx: i32 in Trapping;
+    dy: i32 in Trapping;
+}
+data Token {
+    case Num(value: i32 in Trapping);
+    case Zero;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::delta(&self, d: Dir) -> Vec2 {
+    transition d {
+        Dir::N -> Vec2 { dx: 0, dy: 0 - 1 }
+        Dir::S -> Vec2 { dx: 0, dy: 1 }
+        Dir::E -> Vec2 { dx: 1, dy: 0 }
+        Dir::W -> Vec2 { dx: 0 - 1, dy: 0 }
+    }
+}
+machine Main::mk(&self, b: bool) -> Token {
+    transition b {
+        true -> Token::Num { value: 9 }
+        false -> Token::Zero
+    }
+}
+
+machine Main::main(&mut self) {
+    let e: Vec2 = self.delta(Dir::E);
+    let w: Vec2 = self.delta(Dir::W);
+    let t: Token = self.mk(true);
+
+    transition e.dx == 1 { true -> check_w(w, t) _ -> bad() }
+
+    state check_w(&mut self, w: Vec2, t: Token) {
+        transition w.dx == 0 - 1 { true -> check_token(t) _ -> bad() }
+    }
+    state check_token(&mut self, t: Token) {
+        transition t { Token::Num { value } -> check_value(value) Token::Zero -> bad() }
+    }
+    state check_value(&mut self, value: i32 in Trapping) {
+        transition value == 9 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
