@@ -10833,6 +10833,40 @@ fn runtime_value_call_return_types_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_call_self_field_enum_match_exit_canary_runs() {
+    // A value-call dispatching on an ENUM FIELD of self (`transition self.s { .. }`),
+    // called twice with different field values to prove real dispatch. (A method on the
+    // enum TYPE matching bare `self`, called `self.s.sides()`, mis-dispatches -- tracked
+    // separately; dispatching on a self field or a param both work.)
+    let canary = pass_canary("calls/runtime_value_call_self_field_enum_match_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-self-field-enum-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call self-field-enum-match canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call self-field-enum-match canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a value-call dispatching on a self enum field to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_value_call_struct_literal_arms_exit_canary_runs() {
     // A value-call whose transition arms return STRUCT / enum-CASE literals
     // (`transition d { Dir::E -> Vec2 { dx: 1, dy: 0 } ... }`). This was a parse error
