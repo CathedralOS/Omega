@@ -16,7 +16,10 @@
 //!    states `Expected exit: N` is compiled, RUN, and its exit asserted. This
 //!    catches runtime miscompiles that compile cleanly: stack_vm exited 71 vs 70
 //!    for weeks because nothing ran the samples. Now a native miscompile in a
-//!    demo fails the suite the same day.
+//!    demo fails the suite the same day. A sample may ALSO state
+//!    `Expected output contains: <text>`, and its stdout is asserted to contain
+//!    that text — exit code alone passes even when a RENDERER silently draws
+//!    nothing (a broken carrier render), so the renderers assert a glyph they draw.
 
 use omega_compiler::{CompileOptions, compile};
 use std::fs;
@@ -43,6 +46,19 @@ fn documented_expected_exit(source: &str) -> Option<i32> {
         .take_while(|c| c.is_ascii_digit())
         .collect();
     digits.parse().ok()
+}
+
+/// Parse a `// Expected output contains: <text>` annotation from a sample's source.
+/// Returns the (original-case) substring that the sample's stdout must contain --
+/// the smoke test that a RENDERER actually drew something, since exit code alone
+/// passes even when a renderer silently emits nothing.
+fn documented_expected_output(source: &str) -> Option<String> {
+    const MARKER: &str = "expected output contains:";
+    // Lower-cased copy is ASCII-length-preserving, so the byte index is valid in the
+    // original source -- extract the substring from the original to keep its case.
+    let index = source.to_ascii_lowercase().find(MARKER)? + MARKER.len();
+    let line = source[index..].lines().next()?.trim();
+    (!line.is_empty()).then(|| line.to_owned())
 }
 
 fn sample_mains() -> Vec<PathBuf> {
@@ -146,6 +162,20 @@ fn samples_with_documented_exit_run_correctly() {
                                 output.status.code(),
                                 String::from_utf8_lossy(&output.stderr)
                             ));
+                        }
+                        // A renderer can exit cleanly while drawing NOTHING (a broken
+                        // carrier render). If the sample documents an expected output
+                        // substring, assert the stdout actually contains it.
+                        if let Some(expected_output) = documented_expected_output(&source) {
+                            let stdout = String::from_utf8_lossy(&output.stdout);
+                            if !stdout.contains(&expected_output) {
+                                failures.push(format!(
+                                    "{name}: stdout did not contain {expected_output:?} \
+                                     (a renderer that exits cleanly but drew nothing); \
+                                     {} bytes of stdout",
+                                    output.stdout.len()
+                                ));
+                            }
                         }
                         checked += 1;
                     }

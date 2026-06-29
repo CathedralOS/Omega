@@ -8,6 +8,7 @@
 // compiler features: float arithmetic, float->int casts, field-vs-literal float
 // guards, runtime-indexed carrier writes, and nested state-machine loops.
 // Expected exit: 0.
+// Expected output contains: O
 use omega::language::std::console;
 
 domain [u8]::Utf8 when valid_utf8(self) {}
