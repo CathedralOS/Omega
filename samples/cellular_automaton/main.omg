@@ -1,0 +1,161 @@
+// An elementary cellular automaton (Wolfram Rule 90) rendered as a scrolling space-time
+// diagram -- each generation is one printed row, so the history builds downward. From a
+// single live cell in the centre, Rule 90 (next = left XOR right) draws the SIERPINSKI
+// TRIANGLE, a fractal. The same engine runs any 8-bit rule (e.g. 110, which is
+// Turing-complete) by changing the rule constant + the seed.
+//
+// The generation step is a SLIDING WINDOW: a 3-bit register holds the (left,centre,right)
+// neighbourhood and shifts in one freshly-read cell at a time, so every array access uses
+// a PLAIN counter index (no computed `cells[x+1]` subscript). The new cell is the rule bit
+// `(rule >> neighbourhood) & 1` (a value-position shift). Rendering maps 0/1 through a
+// 2-glyph Utf8 ramp " #"; the double buffer is copied back via a field temp (a direct
+// `cells[x] = next[x]` is a known dual-indexed gap). Pure compute + stdout + Clock.sleep.
+// Expected exit: 0.
+// Expected output contains: #
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 64]::Utf8 when valid_utf8(self) {}
+domain [u8; 2]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    cells: [i32; 64] in Trapping;  // current generation (0/1)
+    next: [i32; 64] in Trapping;   // next generation
+    line: [u8; 64] in Utf8;        // render buffer
+    chars: [u8; 2] in Utf8;        // " #"  dead / alive glyphs
+    gen: i32 in Trapping;
+    rp: i32 in Trapping;     // sliding-window read head, 0..64
+    op: i32 in Trapping;     // output head = rp - 1
+    window: i32 in Trapping; // 3-bit (left,centre,right) neighbourhood
+    cell: i32 in Trapping;   // freshly read cell value
+    nv: i32 in Trapping;     // computed next value
+    x: i32 in Trapping;      // render / copy index
+    cv: i32 in Trapping;     // cell value during render / copy
+    glyph: u8;               // rendered byte (from the Utf8 ramp)
+}
+
+machine Main::main(&mut self) {
+    self.line = "                                                                ";
+    self.chars = " #";
+    self.x = 0;
+    transition { _ -> zero_loop() }
+
+    // --- clear the grid, then light a single centre cell ---
+    state zero_loop(&mut self) {
+        transition self.x >= 0 && self.x < 64 { true -> zero_cell() _ -> seed() }
+    }
+    state zero_cell(&mut self) {
+        self.cells[self.x] = 0;
+        self.x = self.x + 1;
+        transition { _ -> zero_loop() }
+    }
+    state seed(&mut self) {
+        self.cells[32] = 1;
+        self.gen = 0;
+        transition { _ -> gen_loop() }
+    }
+
+    state gen_loop(&mut self) {
+        transition self.gen < 32 { true -> render_init() _ -> finish() }
+    }
+
+    // --- render the current generation as one row ---
+    state render_init(&mut self) {
+        self.x = 0;
+        transition { _ -> render_loop() }
+    }
+    state render_loop(&mut self) {
+        transition self.x >= 0 && self.x < 64 { true -> render_cell() _ -> emit() }
+    }
+    state render_cell(&mut self) {
+        self.cv = self.cells[self.x];
+        transition self.cv >= 0 && self.cv < 2 { true -> render_put() _ -> bad() }
+    }
+    state render_put(&mut self) {
+        // ramp lookup carries the Utf8-ness into the carrier (the ripple_field pattern)
+        self.glyph = self.chars[self.cv];
+        transition self.x >= 0 && self.x < 64 { true -> render_emit() _ -> bad() }
+    }
+    state render_emit(&mut self) {
+        self.line[self.x] = self.glyph;
+        self.x = self.x + 1;
+        transition { _ -> render_loop() }
+    }
+    state emit(&mut self) {
+        self.console.write_line(self.line);
+        transition { _ -> scan_init() }
+    }
+
+    // --- compute the next generation with a sliding 3-cell window ---
+    state scan_init(&mut self) {
+        self.window = 0;
+        self.rp = 0;
+        self.op = 0 - 1;
+        transition { _ -> scan_loop() }
+    }
+    state scan_loop(&mut self) {
+        transition self.rp >= 0 && self.rp <= 64 { true -> scan_read() _ -> copy_init() }
+    }
+    state scan_read(&mut self) {
+        transition self.rp < 64 { true -> scan_real() _ -> scan_border() }
+    }
+    state scan_real(&mut self) {
+        transition self.rp >= 0 && self.rp < 64 { true -> scan_got() _ -> bad() }
+    }
+    state scan_got(&mut self) {
+        self.cell = self.cells[self.rp];
+        transition { _ -> scan_update() }
+    }
+    state scan_border(&mut self) {
+        self.cell = 0; // cells outside the grid are dead
+        transition { _ -> scan_update() }
+    }
+    state scan_update(&mut self) {
+        self.window = ((self.window << 1) | self.cell) & 7;
+        transition { _ -> scan_write() }
+    }
+    state scan_write(&mut self) {
+        transition self.op >= 0 && self.op < 64 { true -> scan_do() _ -> scan_advance() }
+    }
+    state scan_do(&mut self) {
+        self.nv = (90 >> self.window) & 1; // Rule 90: next = left XOR right
+        self.next[self.op] = self.nv;
+        transition { _ -> scan_advance() }
+    }
+    state scan_advance(&mut self) {
+        self.op = self.rp;
+        self.rp = self.rp + 1;
+        transition { _ -> scan_loop() }
+    }
+
+    // --- copy next -> cells (via a field temp; a direct cells[x]=next[x] is refused) ---
+    state copy_init(&mut self) {
+        self.x = 0;
+        transition { _ -> copy_loop() }
+    }
+    state copy_loop(&mut self) {
+        transition self.x >= 0 && self.x < 64 { true -> copy_cell() _ -> gen_next() }
+    }
+    state copy_cell(&mut self) {
+        self.cv = self.next[self.x];
+        transition self.x >= 0 && self.x < 64 { true -> copy_put() _ -> bad() }
+    }
+    state copy_put(&mut self) {
+        self.cells[self.x] = self.cv;
+        self.x = self.x + 1;
+        transition { _ -> copy_loop() }
+    }
+    state gen_next(&mut self) {
+        self.gen = self.gen + 1;
+        self.console.sleep(50);
+        transition { _ -> gen_loop() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
