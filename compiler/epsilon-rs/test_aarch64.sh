@@ -182,6 +182,10 @@ sed 's/ in Wrapping//' samples/wraptest.alp > "$T/wraptrap.alp"
 trap_test "default i32 overflow traps (no Wrapping domain)" "$T/wraptrap.alp"
 # `i32 in Saturating` clamps the overflowing add to i32 MAX (2147483647) -> reaches exit 42.
 stdin_exit "i32 in Saturating: overflowing add clamps to i32 MAX" samples/sattest.alp "" 42
+# The arithmetic domain on a FIELD's type: `self.v = self.v + ...` clamps because `v: i32 in Saturating`.
+stdin_exit "i32 in Saturating FIELD: direct self.field add clamps to MAX" samples/fieldsat.alp "" 42
+sed 's/ in Saturating//' samples/fieldsat.alp > "$T/fieldtrap.alp"
+trap_test "plain i32 field overflow traps (no domain on the field)" "$T/fieldtrap.alp"
 # Slice 3 complete: byte I/O — read_byte/write_byte filters over real stdin/stdout.
 filter_test "echo (read->write byte loop)" samples/echo.alp "hello, bytes!" "hello, bytes!"
 filter_test "buffer ([u8;N], reverse stdin)" samples/buffer.alp "abcde" "edcba"

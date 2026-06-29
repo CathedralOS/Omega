@@ -199,8 +199,10 @@ fn lower_statement(
             asm.push_str("    ldr x0, [sp], #16\n"); // pop value
             asm.push_str(&format!("    str w0, [x29, #{}]\n", local_displacement(*local_index)));
         }
-        Statement::StoreSelfField(offset, expression) => {
+        Statement::StoreSelfField(offset, expression, domain) => {
+            DOMAIN.store(*domain, Ordering::Relaxed); // arithmetic stored into a domain-typed field uses it
             lower_expression(*expression, program, self_disp, asm);
+            DOMAIN.store(0, Ordering::Relaxed);
             asm.push_str("    ldr x0, [sp], #16\n"); // pop value
             asm.push_str(&format!("    ldr x9, [x29, #{}]\n", self_disp)); // self pointer
             // LDR/STR (32-bit) scaled immediate maxes at 16380; fold a larger offset into x9.

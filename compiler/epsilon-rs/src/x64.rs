@@ -352,7 +352,7 @@ fn lower_statement(
             lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax (discard the result)
         }
-        Statement::StoreSelfField(offset, expression) => {
+        Statement::StoreSelfField(offset, expression, _domain) => {
             lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x59); // pop rcx (value)
             emit_rbp_memory_operand(code, &[0x48, 0x8B], 0, context.self_ptr_displacement); // mov rax, [rbp+self]
