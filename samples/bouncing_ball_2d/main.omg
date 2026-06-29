@@ -1,0 +1,140 @@
+// A 2D ball bouncing in a box under GRAVITY, animated in place -- the first physics
+// SIMULATION (a continuous state integrated over time), as opposed to the
+// static-per-frame fractals. Each frame homes the cursor (\x1b[H), redraws a 24x12
+// grid one cell at a time (the Mandelbrot per-cell pattern: a single carrier write per
+// cell whose value a guard decides), then integrates the physics -- gravity pulls vy
+// down, position += velocity, and the ball bounces off the floor (losing energy),
+// ceiling, and side walls -- and sleeps. Pure compute + stdout + Clock.sleep; no new
+// compiler features: float arithmetic, float->int casts, field-vs-literal float
+// guards, runtime-indexed carrier writes, and nested state-machine loops.
+// Expected exit: 0.
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 24]::Utf8 when valid_utf8(self) {}
+domain [u8; 3]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    line: [u8; 24] in Utf8;
+    home: [u8; 3] in Utf8;
+    bx: f64;
+    by: f64;
+    vx: f64;
+    vy: f64;
+    ball_x: i32 in Trapping;
+    ball_y: i32 in Trapping;
+    frame: i32 in Trapping;
+    y: i32 in Trapping;
+    x: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.line = "                        ";
+    self.home = "XXX";
+    self.home[0] = 27;
+    self.home[1] = 91;
+    self.home[2] = 72;
+    self.bx = 3.0;
+    self.by = 1.0;
+    self.vx = 0.85;
+    self.vy = 0.0;
+    self.ball_x = 3;
+    self.ball_y = 1;
+    self.frame = 0;
+    transition { _ -> frame_loop() }
+
+    state frame_loop(&mut self) {
+        transition self.frame < 70 { true -> frame_start() _ -> finish() }
+    }
+    state frame_start(&mut self) {
+        self.console.write(self.home);
+        self.y = 0;
+        transition { _ -> row_loop() }
+    }
+
+    // --- render a 24x12 grid, one CELL at a time (a single write per cell whose
+    // value a guard decides), one row per write_line ---
+    state row_loop(&mut self) {
+        transition self.y >= 0 && self.y < 12 { true -> col_init() _ -> after_frame() }
+    }
+    state col_init(&mut self) {
+        self.x = 0;
+        transition { _ -> col_loop() }
+    }
+    state col_loop(&mut self) {
+        transition self.x >= 0 && self.x < 24 { true -> cell() _ -> emit_row() }
+    }
+    state cell(&mut self) {
+        transition self.x == self.ball_x && self.y == self.ball_y {
+            true -> ball_cell()
+            _ -> space_cell()
+        }
+    }
+    state ball_cell(&mut self) {
+        self.line[self.x] = 79;
+        self.x = self.x + 1;
+        transition { _ -> col_loop() }
+    }
+    state space_cell(&mut self) {
+        self.line[self.x] = 32;
+        self.x = self.x + 1;
+        transition { _ -> col_loop() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        self.y = self.y + 1;
+        transition { _ -> row_loop() }
+    }
+
+    // --- integrate the physics, then bounce off the four walls ---
+    state after_frame(&mut self) {
+        self.vy = self.vy + 0.45;
+        self.bx = self.bx + self.vx;
+        self.by = self.by + self.vy;
+        transition { _ -> bounce_floor() }
+    }
+    state bounce_floor(&mut self) {
+        transition self.by >= 11.0 { true -> floor_hit() _ -> bounce_ceil() }
+    }
+    state floor_hit(&mut self) {
+        self.by = 11.0;
+        self.vy = 0.0 - self.vy * 0.72;
+        transition { _ -> bounce_ceil() }
+    }
+    state bounce_ceil(&mut self) {
+        transition self.by <= 0.0 { true -> ceil_hit() _ -> bounce_walls() }
+    }
+    state ceil_hit(&mut self) {
+        self.by = 0.0;
+        self.vy = 0.0 - self.vy;
+        transition { _ -> bounce_walls() }
+    }
+    state bounce_walls(&mut self) {
+        transition self.bx >= 23.0 { true -> wall_right() _ -> bounce_wall_left() }
+    }
+    state wall_right(&mut self) {
+        self.bx = 23.0;
+        self.vx = 0.0 - self.vx;
+        transition { _ -> recompute() }
+    }
+    state bounce_wall_left(&mut self) {
+        transition self.bx <= 0.0 { true -> wall_left() _ -> recompute() }
+    }
+    state wall_left(&mut self) {
+        self.bx = 0.0;
+        self.vx = 0.0 - self.vx;
+        transition { _ -> recompute() }
+    }
+    state recompute(&mut self) {
+        self.ball_x = self.bx as i32 in Trapping;
+        self.ball_y = self.by as i32 in Trapping;
+        self.console.sleep(40);
+        self.frame = self.frame + 1;
+        transition { _ -> frame_loop() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+}
