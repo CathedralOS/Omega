@@ -186,6 +186,9 @@ stdin_exit "i32 in Saturating: overflowing add clamps to i32 MAX" samples/sattes
 stdin_exit "i32 in Saturating FIELD: direct self.field add clamps to MAX" samples/fieldsat.alp "" 42
 sed 's/ in Saturating//' samples/fieldsat.alp > "$T/fieldtrap.alp"
 trap_test "plain i32 field overflow traps (no domain on the field)" "$T/fieldtrap.alp"
+# Nested data field access (self.a.b): the real Omega bounded_counter shape — read+write a nested struct's
+# scalar field via flat-offset resolution over the inlined layout.
+stdin_exit "nested data field access (self.counter.value read+write)" samples/nested.alp "" 42
 # Slice 3 complete: byte I/O — read_byte/write_byte filters over real stdin/stdout.
 filter_test "echo (read->write byte loop)" samples/echo.alp "hello, bytes!" "hello, bytes!"
 filter_test "buffer ([u8;N], reverse stdin)" samples/buffer.alp "abcde" "edcba"
