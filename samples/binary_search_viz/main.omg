@@ -1,0 +1,128 @@
+// A visual binary search: each step prints one row of a 31-cell strip, so the search's
+// history builds downward as a scrolling trace. A row shows the active `[lo, hi]` range
+// as '-', the goal cell as '*', and the current midpoint probe as '#'. Watching the rows,
+// the '-' band halves each step and '#' marches toward '*' -- the logarithmic narrowing
+// made visible. The array holds arr[i] = i (so the value `target` lives at index `target`);
+// the search itself reads arr[mid] for real. Pure compute + stdout + Clock.sleep.
+// Expected exit: 0.
+// Expected output contains: #
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 31]::Utf8 when valid_utf8(self) {}
+domain [u8; 4]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    arr: [i32; 31] in Trapping;
+    line: [u8; 31] in Utf8;   // render buffer
+    chars: [u8; 4] in Utf8;   // " -*#"  excluded / range / target / mid
+    target: i32 in Trapping;
+    lo: i32 in Trapping;
+    hi: i32 in Trapping;
+    mid: i32 in Trapping;
+    vmid: i32 in Trapping;
+    x: i32 in Trapping;
+    kind: i32 in Trapping;
+    glyph: u8;
+}
+
+machine Main::main(&mut self) {
+    self.line = "                               ";
+    self.chars = " -*#";
+    self.x = 0;
+    transition { _ -> init_loop() }
+
+    // arr[i] = i, so the value `target` sits at index `target`
+    state init_loop(&mut self) {
+        transition self.x >= 0 && self.x < 31 { true -> init_cell() _ -> setup() }
+    }
+    state init_cell(&mut self) {
+        self.arr[self.x] = self.x;
+        self.x = self.x + 1;
+        transition { _ -> init_loop() }
+    }
+    state setup(&mut self) {
+        self.lo = 0;
+        self.hi = 30;
+        self.target = 20;
+        transition { _ -> search() }
+    }
+
+    state search(&mut self) {
+        transition self.lo <= self.hi { true -> mid_calc() _ -> not_found() }
+    }
+    state mid_calc(&mut self) {
+        self.mid = (self.lo + self.hi) / 2;
+        transition self.mid >= 0 && self.mid < 31 { true -> render_init() _ -> bad() }
+    }
+
+    // --- render one row: priority mid '#' > target '*' > range '-' > excluded ' ' ---
+    state render_init(&mut self) {
+        self.x = 0;
+        transition { _ -> render_loop() }
+    }
+    state render_loop(&mut self) {
+        transition self.x >= 0 && self.x < 31 { true -> cell() _ -> emit() }
+    }
+    state cell(&mut self) {
+        transition self.x == self.mid { true -> kind_mid() _ -> chk_target() }
+    }
+    state chk_target(&mut self) {
+        transition self.x == self.target { true -> kind_target() _ -> chk_range() }
+    }
+    state chk_range(&mut self) {
+        transition self.lo <= self.x && self.x <= self.hi { true -> kind_range() _ -> kind_none() }
+    }
+    state kind_mid(&mut self) { self.kind = 3; transition { _ -> put_cell() } }
+    state kind_target(&mut self) { self.kind = 2; transition { _ -> put_cell() } }
+    state kind_range(&mut self) { self.kind = 1; transition { _ -> put_cell() } }
+    state kind_none(&mut self) { self.kind = 0; transition { _ -> put_cell() } }
+    state put_cell(&mut self) {
+        transition self.kind >= 0 && self.kind < 4 { true -> glyph_lookup() _ -> bad() }
+    }
+    state glyph_lookup(&mut self) {
+        self.glyph = self.chars[self.kind];
+        transition self.x >= 0 && self.x < 31 { true -> emit_cell() _ -> bad() }
+    }
+    state emit_cell(&mut self) {
+        self.line[self.x] = self.glyph;
+        self.x = self.x + 1;
+        transition { _ -> render_loop() }
+    }
+    state emit(&mut self) {
+        self.console.write_line(self.line);
+        self.console.sleep(250);
+        transition { _ -> probe() }
+    }
+
+    // --- the actual binary search step (reads arr[mid]) ---
+    state probe(&mut self) {
+        transition self.mid >= 0 && self.mid < 31 { true -> probe_read() _ -> bad() }
+    }
+    state probe_read(&mut self) {
+        self.vmid = self.arr[self.mid];
+        transition self.vmid == self.target { true -> finish() _ -> narrow() }
+    }
+    state narrow(&mut self) {
+        transition self.vmid < self.target { true -> go_right() _ -> go_left() }
+    }
+    state go_right(&mut self) {
+        self.lo = self.mid + 1;
+        transition { _ -> search() }
+    }
+    state go_left(&mut self) {
+        self.hi = self.mid - 1;
+        transition { _ -> search() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state not_found(&mut self) {
+        self.console.exit_process(1);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
