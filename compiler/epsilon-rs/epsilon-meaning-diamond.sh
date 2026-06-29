@@ -62,6 +62,11 @@ dia "sum 1..4"     "$H machine Main::main(&mut self) { let i: i32 = 0; let s: i3
 dia "sum 1..10"    "$H machine Main::main(&mut self) { let i: i32 = 0; let s: i32 = 0; transition 0 { _ -> lp() } state lp() { transition i < 10 { true -> bd()  false -> dn() } } state bd() { i = i + 1; s = s + i; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(s); } }" 55
 dia "factorial 5"  "$H machine Main::main(&mut self) { let i: i32 = 1; let a: i32 = 1; transition 0 { _ -> lp() } state lp() { transition i <= 5 { true -> bd()  false -> dn() } } state bd() { a = a * i; i = i + 1; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(a); } }" 120
 dia "gcd 48,36"    "$H machine Main::main(&mut self) { let a: i32 = 48; let b: i32 = 36; let t: i32 = 0; transition 0 { _ -> lp() } state lp() { transition b == 0 { true -> dn()  false -> st() } } state st() { t = a % b; a = b; b = t; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(a); } }" 12
+# SELF DATA FIELDS — zero-initialised, threaded through the state vector alongside locals
+F='boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; i: i32; s: i32; }'
+dia "field write-read" "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; acc: i32; } machine Main::main(&mut self) { self.acc = 5; self.acc = self.acc + 3; self.console.exit_process(self.acc); }" 8
+dia "field loop sum"   "$F machine Main::main(&mut self) { transition 0 { _ -> lp() } state lp() { transition self.i < 5 { true -> bd()  false -> dn() } } state bd() { self.i = self.i + 1; self.s = self.s + self.i; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(self.s); } }" 15
+dia "field+local mix"  "$F machine Main::main(&mut self) { let k: i32 = 3; transition 0 { _ -> lp() } state lp() { transition self.i < k { true -> bd()  false -> dn() } } state bd() { self.i = self.i + 1; self.s = self.s + self.i * k; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(self.s); } }" 18
 
 echo "epsilon-meaning diamond (native execution vs gamma reference interpreter): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
