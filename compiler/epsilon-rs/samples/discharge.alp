@@ -29,6 +29,9 @@ machine mcomm(a: i32, b: i32) -> i32 ensures result == b * a { return a * b; }
 // LEMMA CITATION (associativity): result == a + (b + c), returned as (a + b) + c -> re-association,
 // which refl can't see ((p (p a b) c) is stuck). The compiler cites add-assoc (inst order b, c, a).
 machine assoc(a: i32, b: i32, c: i32) -> i32 ensures result == a + (b + c) { return (a + b) + c; }
+// LEMMA CITATION (multiplicative associativity): result == a * (b * c), returned as (a * b) * c -> the
+// * mirror of `assoc`; refl can't see it ((m (m a b) c) is stuck). Cites mult-assoc (inst order a, b, c).
+machine massoc(a: i32, b: i32, c: i32) -> i32 ensures result == a * (b * c) { return (a * b) * c; }
 
 // STRICT ORDER (proved by an existential witness, a < b == exists w. a+(s w)=b):
 // result exceeds the input: result > a, returned as a + 1 -> witness 0
