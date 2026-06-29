@@ -201,10 +201,15 @@ a working proof-carrying contract system** (item 11). What remains:
   SAME bytes to native stdin); and **STDOUT** (`write_byte`/`write_line` modeled as an accumulated output
   LIST the program RETURNS — interp prints it, the diamond decodes it back to bytes and compares to native's
   raw stdout; needs NO interp change since interp already renders its result value). 29 diamond cases
-  (echo+1 filter, write_line, count-up). Remaining: method (`self.m()`) calls (callee mutates caller `self`
-  — tuple-return threading; the last piece for the certify-* family, which uses `self.emit_nat()`), and
-  bitwise/shift (BLOCKED — absent from Beta and the frozen 21-opcode seed, so no `interp.beta` primitive).
-  Epsilon's full I/O + compute surface (read→transform→write filters) is now lattice-defined.
+  (echo+1 filter, write_line, count-up); and **SELF-METHOD CALLS** (`self.m()` mutates the shared `self`,
+  so the program-wide UNIFIED self-state — all fields/arrays/stdin/stdout any `&mut self` machine touches —
+  is threaded into the callee and bundled back out as a right-nested `Pair` tuple the caller unbundles via
+  `match`; a method terminates by returning that bundle). 33 diamond cases (emit-pair method, method inside
+  a read loop). This is the LAST language feature: epsilon's full effectful surface — arithmetic, state
+  machines, locals/fields/arrays, calls + recursion, stdin/stdout, and methods — is now lattice-defined and
+  cross-checked against native execution. Only bitwise/shift remain BLOCKED (absent from Beta and the frozen
+  21-opcode seed). Next: attempt validating a real `certify-*.alp`'s meaning through the diamond (watch interp
+  fuel / output length), then the strategic step — porting the translator itself off Rust.
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
