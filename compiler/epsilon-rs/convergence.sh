@@ -68,6 +68,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sum.alp "$T/csum" >/dev/nul
   || { echo "convergence FAIL — compiling certify-sum"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-op.alp "$T/cop" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-op"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-shape.alp "$T/csh" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-shape"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -165,6 +167,20 @@ cop() {
     FAIL=$((FAIL+1)); echo "  FAIL op [$1] : delta returned [$v], expected accept"; fi
 }
 cop "0 2 3"; cop "1 2 3"; cop "0 7 5"; cop "1 4 6"; cop "0 0 0"; cop "1 1 1"
+
+# a PAYLOAD sum type: an enum whose variants CARRY data. Shape::Square(s) / Shape::Rect(w, h) --
+# construction with variable payload fields, single AND multi-field binding (`{ s }`, `{ w, h }`),
+# and binding-as-state-argument -- the full enum machinery, certifying the computed area.
+csh() {
+  v=$(printf '%s' "$1" | "$T/csh" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL shape [$1] : delta returned [$v], expected accept"; fi
+}
+csh "0 4"; csh "0 5"; csh "0 9"; csh "1 6 7"; csh "1 3 9"; csh "1 2 8"
+# tamper: shrink the first operand so (m S S) no longer equals the claimed area -- must reject.
+badsh=$(printf '0 4' | "$T/csh" | sed 's/(s (s (s (s z))))/(s (s (s z)))/' | "$T/check.exe")
+if [ "$badsh" = reject ]; then PASS=$((PASS+1)); else
+  FAIL=$((FAIL+1)); echo "  FAIL tamper-shape : delta returned [$badsh], expected reject"; fi
 
 # CORRECTNESS (not safety): the result meets its spec -- m is genuinely max(a,b):
 # a<=m & b<=m & (m=a or m=b). inl branch when a>=b, inr when a<b.

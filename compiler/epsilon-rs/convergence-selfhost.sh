@@ -53,6 +53,7 @@ build_lm certify-sort2    cs2
 build_lm certify-gcd      cg
 build_lm certify-triangle ct
 build_lm certify-op       cop
+build_lm certify-shape    csh
 
 # the checker prints accept/reject but exits with the alpha VM's halt code, so judge by stdout.
 set +e
@@ -81,6 +82,10 @@ chk ct    "4"       accept; chk ct    "10"      accept                         #
 # the result -- exercising the self-hosted compiler's enum/value-call/local machinery in the proof path
 chk cop   "0 2 3"   accept; chk cop   "1 2 3"   accept                         # Op::Sum a+b ; Op::Prod a*b
 chk cop   "0 7 5"   accept; chk cop   "1 4 6"   accept
+# a PAYLOAD sum type: Shape::Square(s) / Shape::Rect(w,h) -- construction with variable fields, single
+# AND multi-field binding, state args -- the self-hosted compiler's full enum machinery in the proof path
+chk csh   "0 4"     accept; chk csh   "1 6 7"   accept                         # Square s*s ; Rect w*h
+chk csh   "0 5"     accept; chk csh   "1 3 9"   accept
 
 # the dual must hold too: a FALSE refutation (x != x) must be REJECTED, even self-hosted-compiled
 chk cdist "4 4"     reject; chk cdist "0 0"     reject
