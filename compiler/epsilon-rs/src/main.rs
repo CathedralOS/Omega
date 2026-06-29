@@ -26,6 +26,7 @@
 mod aarch64;
 mod ast;
 mod discharge;
+mod gamma_emit;
 mod lex;
 mod parse;
 mod pe;
@@ -132,6 +133,31 @@ fn main() {
         };
         for certificate in discharge::emit_contracts(&program) {
             println!("{}", certificate);
+        }
+        return;
+    }
+
+    // Epsilon meaning via gamma: translate the supported subset to a gamma expression the
+    // Rust-free reference interpreter evaluates. The epsilon-meaning diamond checks it against
+    // native execution. Prints nothing (and exits 0) for programs outside the supported subset.
+    if std::env::var("EPS_EMIT").as_deref() == Ok("gamma") {
+        let tokens = match lex::lex(&source) {
+            Ok(tokens) => tokens,
+            Err(error) => {
+                eprintln!("{}", error);
+                exit(1);
+            }
+        };
+        let mut parser = parse::Parser::new(&tokens, &source);
+        let program = match parser.parse_program() {
+            Ok(program) => program,
+            Err(error) => {
+                eprintln!("{}", error);
+                exit(1);
+            }
+        };
+        if let Some(expr) = gamma_emit::emit_gamma(&program) {
+            println!("{}", expr);
         }
         return;
     }
