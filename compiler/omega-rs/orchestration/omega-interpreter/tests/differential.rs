@@ -423,6 +423,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("text/runtime_bounded_carrier_byte_index_exit", 70),
     ("text/runtime_carrier_indexed_read_exit", 70),
     ("text/runtime_carrier_indexed_write_exit", 70),
+    ("text/runtime_mandelbrot_render_exit", 70),
     ("text/runtime_carrier_indexed_read_operand_exit", 70),
     ("text/runtime_carrier_cipher_exit", 70),
     ("text/runtime_carrier_indexed_const_write_exit", 70),
