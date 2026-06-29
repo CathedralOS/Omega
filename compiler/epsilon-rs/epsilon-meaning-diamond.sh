@@ -59,6 +59,21 @@ diar() {
     FAIL=$((FAIL+1)); echo "  FAIL $1 : native=$nat gamma=$gi expect=$4"; fi
 }
 
+# diao DESC SRC "in-bytes" "out-bytes" : OUTPUT programs. Compares native STDOUT (raw bytes) to the
+# gamma route, where the program returns its output as a LIST that interp prints -- decoded back to bytes.
+diao() {
+  printf '%s' "$2" > "$T/p.alp"
+  EPS_ARCH=aarch64 ./target/debug/beta "$T/p.alp" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
+  chmod +x "$T/p"
+  bytes=""; for b in $3; do bytes="$bytes$(printf '\\%03o' "$b")"; done
+  nout=$(printf "$bytes" | "$T/p" | od -An -tu1 | tr ' ' '\n' | grep -vE '^$' | tr '\n' ' '); nout=${nout% }
+  g=$(EPS_GAMMA_INPUT="$3" EPS_EMIT=gamma ./target/debug/beta "$T/p.alp" 2>/dev/null)
+  if [ -z "$g" ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : no gamma emitted"; return; fi
+  gout=$(printf '%s\n' "$g" | "$T/interp.exe" | grep -oE '[0-9]+' | tr '\n' ' '); gout=${gout% }
+  if [ "$nout" = "$gout" ] && [ "$nout" = "$4" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=[$nout] gamma=[$gout] expect=[$4]"; fi
+}
+
 H='boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; }'
 dia "const"        "$H machine Main::main(&mut self) { self.console.exit_process(42); }" 42
 dia "add"          "$H machine Main::main(&mut self) { let a: i32 = 2 + 3; self.console.exit_process(a); }" 5
@@ -95,6 +110,12 @@ R='boundary trait Console { machine exit_process(return_code: i32); machine read
 diar "sum input bytes" "$R machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.c = read_byte(); transition self.c < 0 { true -> dn()  false -> ac() } } state ac() { self.s = self.s + self.c; transition 0 { _ -> rd() } } state dn() { self.console.exit_process(self.s); } }" "10 20 12" 42
 diar "first byte"      "$R machine Main::main(&mut self) { self.c = read_byte(); self.console.exit_process(self.c); }" "200" 200
 diar "count to EOF"    "$R machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.c = read_byte(); transition self.c < 0 { true -> dn()  false -> ct() } } state ct() { self.s = self.s + 1; transition 0 { _ -> rd() } } state dn() { self.console.exit_process(self.s); } }" "7 7 7 7 7" 5
+# STDOUT — write_byte/write_line modeled as an accumulated output list the program returns; interp prints
+# it, the diamond decodes it back to bytes and compares to native's raw stdout.
+W='boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; machine write_byte(b: i32); machine write_line(text: &[u8]); } data Main { console: Console; c: i32; }'
+diao "echo +1"     "$W machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.c = read_byte(); transition self.c < 0 { true -> dn()  false -> ec() } } state ec() { self.console.write_byte(self.c + 1); transition 0 { _ -> rd() } } state dn() { self.console.exit_process(0); } }" "65 66 67" "66 67 68"
+diao "write_line+byte" "$W machine Main::main(&mut self) { write_line(\"Hi\"); self.console.write_byte(33); self.console.exit_process(0); }" "" "72 105 10 33"
+diao "count up output"  "$W machine Main::main(&mut self) { transition 0 { _ -> lp() } state lp() { transition self.c < 3 { true -> em()  false -> dn() } } state em() { self.console.write_byte(self.c + 65); self.c = self.c + 1; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(0); } }" "" "65 66 67"
 
 echo "epsilon-meaning diamond (native execution vs gamma reference interpreter): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1

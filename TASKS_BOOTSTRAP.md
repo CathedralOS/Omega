@@ -198,11 +198,13 @@ a working proof-carrying contract system** (item 11). What remains:
   to its element count; sum-of-squares over a buffer agrees); and **`read_byte`** (the input stream is a
   threaded LIST slot; `x = read_byte()` consumes the head — or `-1` at EOF — and advances to the tail, as
   two functional `match`es; the compiler bakes the bytes via `EPS_GAMMA_INPUT` and the diamond feeds the
-  SAME bytes to native stdin). 26 diamond cases (sum-input=42, first-byte, count-to-EOF). Remaining:
-  bitwise/shift (no `interp.beta` primitive — blocked without extending interp), method (`self.m()`) calls
-  (callee mutates caller `self` — tuple-return threading), and `write_byte`/`write_line` STDOUT (the diamond
-  compares exit codes, not output — a separate harness). Epsilon's input-driven compute surface is now
-  lattice-defined; only effectful output and bit-ops remain.
+  SAME bytes to native stdin); and **STDOUT** (`write_byte`/`write_line` modeled as an accumulated output
+  LIST the program RETURNS — interp prints it, the diamond decodes it back to bytes and compares to native's
+  raw stdout; needs NO interp change since interp already renders its result value). 29 diamond cases
+  (echo+1 filter, write_line, count-up). Remaining: method (`self.m()`) calls (callee mutates caller `self`
+  — tuple-return threading; the last piece for the certify-* family, which uses `self.emit_nat()`), and
+  bitwise/shift (BLOCKED — absent from Beta and the frozen 21-opcode seed, so no `interp.beta` primitive).
+  Epsilon's full I/O + compute surface (read→transform→write filters) is now lattice-defined.
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR

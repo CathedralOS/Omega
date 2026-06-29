@@ -34,6 +34,7 @@ struct Env {
     array_cnt: Vec<i32>,    // element count per array (parallel to array_off) -- for zero-init
     array_cur: Vec<String>, // current gamma name per array (the list)
     input_cur: Option<String>, // the remaining stdin as a list, if this machine reads it (read_byte)
+    output_cur: Option<String>, // the stdout written so far (reversed list), if this machine writes
 }
 
 impl Env {
@@ -60,8 +61,19 @@ impl Env {
         v.extend(self.field_cur.iter().cloned());
         v.extend(self.array_cur.iter().cloned());
         v.extend(self.input_cur.iter().cloned());
+        v.extend(self.output_cur.iter().cloned());
         v.join(" ")
     }
+}
+
+// Does this machine write stdout (write_byte / write_line anywhere)?
+fn uses_output(machine: &Machine) -> bool {
+    let mut blocks: Vec<&[Statement]> = vec![&machine.entry];
+    blocks.extend(machine.states.iter().map(|s| s.as_slice()));
+    blocks
+        .iter()
+        .flat_map(|b| b.iter())
+        .any(|s| matches!(s, Statement::WriteByte(_) | Statement::WriteLine(_)))
 }
 
 // Does this machine read stdin (a `read_byte()` anywhere in entry or states)?
@@ -117,8 +129,8 @@ fn gexpr(node: usize, program: &Program, env: &Env) -> Option<String> {
         // gexpr) which is this expression's value. SELF/method callees are a later slice.
         Expr::Call(callee, start, count) => {
             let cm = &program.machines[callee];
-            if !collect_field_offsets(cm, program).is_empty() || uses_read_byte(cm, program) {
-                return None; // a callee touching self fields or stdin is a later slice (no stream threaded in)
+            if !collect_field_offsets(cm, program).is_empty() || uses_read_byte(cm, program) || uses_output(cm) {
+                return None; // a callee touching self fields, stdin, or stdout is a later slice
             }
             let mut parts = Vec::new();
             for j in 0..count {
@@ -262,9 +274,36 @@ fn translate_seq(
             let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
             Some(format!("(let {} {} {})", nm, update, rest))
         }
-        Statement::Exit(e) | Statement::Return(e) => gexpr(*e, program, env),
+        // stdout writes: cons the byte(s) onto the reversed output accumulator (a later `rev` un-reverses)
+        Statement::WriteByte(e) => {
+            let out = env.output_cur.clone()?;
+            let cons = format!("(Cons {} {})", gexpr(*e, program, env)?, out);
+            let nm = format!("t{}", *fresh);
+            *fresh += 1;
+            env.output_cur = Some(nm.clone());
+            let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
+            Some(format!("(let {} {} {})", nm, cons, rest))
+        }
+        Statement::WriteLine(sidx) => {
+            let out = env.output_cur.clone()?;
+            let mut cons = out;
+            for &b in program.strings.get(*sidx)? {
+                cons = format!("(Cons {} {})", b, cons); // bytes in order -> innermost is the first byte
+            }
+            let nm = format!("t{}", *fresh);
+            *fresh += 1;
+            env.output_cur = Some(nm.clone());
+            let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
+            Some(format!("(let {} {} {})", nm, cons, rest))
+        }
+        // a terminating exit/return: in OUTPUT mode the program's value IS the produced stdout
+        // (un-reversed via rev); otherwise the exit-code expression.
+        Statement::Exit(e) | Statement::Return(e) => match &env.output_cur {
+            Some(out) => Some(format!("(rev {} Nil)", out)),
+            None => gexpr(*e, program, env),
+        },
         Statement::Transition(subject, arms) => translate_transition(mi, *subject, arms, program, env),
-        _ => None, // WriteByte/WriteLine/Eval/Assert/Block -> later slices
+        _ => None, // Eval/Assert/Block -> later slices
     }
 }
 
@@ -398,6 +437,7 @@ fn machine_env(mi: usize, program: &Program) -> Env {
         array_off: arrays.iter().map(|&(o, _)| o).collect(),
         array_cnt: arrays.iter().map(|&(_, c)| c).collect(),
         input_cur: if uses_read_byte(machine, program) { Some("inp".to_string()) } else { None },
+        output_cur: if uses_output(machine) { Some("out".to_string()) } else { None },
     }
 }
 
@@ -436,8 +476,12 @@ pub fn emit_gamma(program: &Program, input: &[i32]) -> Option<String> {
             }
         }
     }
-    // only the entry machine reads stdin in this slice (its input stream isn't threaded into calls)
-    if reachable.iter().skip(1).any(|&mi| uses_read_byte(&program.machines[mi], program)) {
+    // only the entry machine does I/O in this slice (its streams aren't threaded into calls)
+    if reachable
+        .iter()
+        .skip(1)
+        .any(|&mi| uses_read_byte(&program.machines[mi], program) || uses_output(&program.machines[mi]))
+    {
         return None;
     }
 
@@ -450,6 +494,10 @@ pub fn emit_gamma(program: &Program, input: &[i32]) -> Option<String> {
     if !entry_env.array_off.is_empty() {
         out.push_str("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nth t (- k 1)))))) ");
         out.push_str("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setl t (- k 1) v)))))) ");
+    }
+    // reverse helper for output: the accumulator conses bytes front-first, so the final value is rev'd
+    if entry_env.output_cur.is_some() {
+        out.push_str("(def rev (xs acc) (match xs (Nil acc) ((Cons h t) (rev t (Cons h acc))))) ");
     }
 
     for &mi in &reachable {
@@ -474,6 +522,9 @@ pub fn emit_gamma(program: &Program, input: &[i32]) -> Option<String> {
             list = format!("(Cons {} {})", b, list);
         }
         init.push(list);
+    }
+    if entry_env.output_cur.is_some() {
+        init.push("Nil".to_string()); // the output accumulator starts empty
     }
     if init.is_empty() {
         out.push_str(&format!("(m{}_me)", entry));
