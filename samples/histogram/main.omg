@@ -1,0 +1,96 @@
+// Histogram: tally how many samples fall in each of four categories, then report
+// the count for category 2. A real counting computation -- the kind that was
+// blocked until a runtime-indexed write learned to invalidate the whole array's
+// folded constants (so `histogram[v]` accumulates instead of re-reading 0).
+//
+// The accumulation uses the temp-field read-modify-write idiom:
+//   tmp = histogram[v] + 1;   // indexed-read operand into a field
+//   histogram[v] = tmp;        // field -> runtime-indexed write
+// (the direct `histogram[v] = histogram[v] + 1` form -- a binary value into an
+// indexed target -- is not yet selectable; see the language notes.)
+//
+// Every histogram index `v` is bounds-checked by an explicit `v < 4` guard before
+// the write, matching Omega's proof model -- the index is admitted only where it
+// is provably in range.
+//
+//   samples = [2, 0, 2, 1, 2, 3, 0, 2]  ->  category 2 occurs 4 times.
+// The program exits with that count. Expected exit: 4.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    samples: [usize; 8];
+    histogram: [i32; 4] in Trapping;
+    k: usize;
+    v: usize;
+    tmp: i32 in Trapping;
+    result: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.histogram[0] = 0;
+    self.histogram[1] = 0;
+    self.histogram[2] = 0;
+    self.histogram[3] = 0;
+
+    self.samples[0] = 2;
+    self.samples[1] = 0;
+    self.samples[2] = 2;
+    self.samples[3] = 1;
+    self.samples[4] = 2;
+    self.samples[5] = 3;
+    self.samples[6] = 0;
+    self.samples[7] = 2;
+
+    self.k = 0;
+
+    transition {
+        _ -> tally_loop()
+    }
+
+    // Walk the samples; the loop counter `k` is bounded by the array length.
+    state tally_loop(&mut self) {
+        transition self.k < 8 {
+            true -> load_sample()
+            _ -> done()
+        }
+    }
+
+    state load_sample(&mut self) {
+        self.v = self.samples[self.k];
+        transition {
+            _ -> bounded_tally()
+        }
+    }
+
+    // Admit the histogram index only where it is provably in range.
+    state bounded_tally(&mut self) {
+        transition self.v < 4 {
+            true -> bump()
+            _ -> advance()
+        }
+    }
+
+    state bump(&mut self) {
+        self.tmp = self.histogram[self.v] + 1;
+        self.histogram[self.v] = self.tmp;
+        transition {
+            _ -> advance()
+        }
+    }
+
+    state advance(&mut self) {
+        self.k = self.k + 1;
+        transition {
+            _ -> tally_loop()
+        }
+    }
+
+    state done(&mut self) {
+        self.result = self.histogram[2];
+        self.console.exit_process(self.result);
+    }
+}

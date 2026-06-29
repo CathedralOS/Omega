@@ -42,7 +42,8 @@ use super::super::text_writes::{
 };
 use super::slice_descriptors::emit_runtime_frame_slot_slice_descriptor_write_in_table;
 use super::static_values::{
-    RuntimeStaticValues, resolve_runtime_static_integer_value, set_runtime_static_value,
+    RuntimeStaticValues, invalidate_runtime_static_collection_for_indexed_write,
+    resolve_runtime_static_integer_value, set_runtime_static_value,
 };
 use super::storage_copy::runtime_storage_copy;
 use super::storage_copy::runtime_storage_indexed_source_copy;
@@ -790,6 +791,14 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    // A runtime-indexed write `arr[i] = ..` (non-constant index) can land on any
+    // element of `arr`, so every folded constant for the whole collection is now
+    // stale. Void it up front -- this covers every indexed sub-path below
+    // (frame/machine copy, indexed-integer) in one place, and stays correct
+    // because at runtime the RHS read precedes the write. No-op for non-indexed
+    // and const-indexed targets, which keep precise per-place tracking.
+    invalidate_runtime_static_collection_for_indexed_write(static_values, resolved_target);
+
     if let Expression::StructLiteral(struct_literal) = value {
         for field in struct_literal.fields.iter() {
             let field_target =

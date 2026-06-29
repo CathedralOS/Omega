@@ -8284,6 +8284,36 @@ fn runtime_indexed_write_const_read_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_rmw_temp_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_indexed_rmw_temp_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-indexed-rmw-temp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-rmw-temp canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-rmw-temp canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the temp-field RMW idiom over a runtime-indexed array to accumulate (the copy write must invalidate the array's folded constants) (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_array_indexed_loop_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_array_indexed_loop_exit");
     let main_path = canary.join("main.omg");

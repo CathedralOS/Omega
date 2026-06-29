@@ -1,0 +1,61 @@
+// Regression: the temp-field read-modify-write idiom over a runtime-indexed array.
+//   tmp = arr[i] + 1;   // indexed-read operand into a field
+//   arr[i] = tmp;        // field -> runtime-indexed COPY write
+// The copy write must invalidate the WHOLE array's folded constants, so the next
+// `tmp = arr[i] + 1` (and any const-indexed read) sees the updated element rather
+// than the stale init value. Before the fix the field->indexed copy path emitted
+// its instruction without invalidating `static_values`, so accumulation silently
+// stalled (every step re-read the init 0).
+//
+// Tallies counts[2] three times and counts[0] once, then checks via CONST-indexed
+// reads. All correct -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    counts: [i32; 4] in Trapping;
+    i: usize;
+    tmp: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.counts[0] = 0;
+    self.counts[1] = 0;
+    self.counts[2] = 0;
+    self.counts[3] = 0;
+
+    self.i = 2;
+    self.tmp = self.counts[self.i] + 1;
+    self.counts[self.i] = self.tmp;          // counts[2] = 1
+    self.tmp = self.counts[self.i] + 1;
+    self.counts[self.i] = self.tmp;          // counts[2] = 2
+    self.tmp = self.counts[self.i] + 1;
+    self.counts[self.i] = self.tmp;          // counts[2] = 3
+
+    self.i = 0;
+    self.tmp = self.counts[self.i] + 1;
+    self.counts[self.i] = self.tmp;          // counts[0] = 1
+
+    transition self.counts[2] == 3 {
+        true -> check_zero()
+        _ -> bad()
+    }
+
+    state check_zero(&mut self) {
+        transition self.counts[0] == 1 { true -> check_untouched() _ -> bad() }
+    }
+    state check_untouched(&mut self) {
+        // counts[1] was never tallied.
+        transition self.counts[1] == 0 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
