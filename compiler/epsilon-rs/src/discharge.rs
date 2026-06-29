@@ -745,6 +745,62 @@ fn discharge_const_call_args(caller_idx: usize, program: &Program) -> Vec<String
     certs
 }
 
+// ---- Expression call arguments (the `a + k` slice, via commutativity) ------------------------
+//
+// When machine A (which `requires a >= 0`) calls B(a + k) at a position B constrains by `param >= k`,
+// A owes `(a + k) >= k`. That is NOT ground (a is a parameter) and is true at runtime exactly when
+// a >= 0 -- so it is discharged CONDITIONALLY on A's own precondition, and only when A actually
+// declares `requires a >= 0`: `∀a. (a >= 0) -> ((a + k) >= k)`. The witness is `a` and the matrix
+// `k + a = a + k` is the add-commutes citation -- the call-site mirror of the postcondition
+// commutativity branch. Soundness: A's entry asserts a >= 0 before the call, so the callee's
+// precondition assert never traps. Conservative: no `requires a >= 0` -> no cert (a could be negative).
+fn discharge_expr_call_args(caller_idx: usize, program: &Program) -> Vec<String> {
+    let caller = &program.machines[caller_idx];
+    let p = caller.param_count;
+    let mut calls = Vec::new();
+    collect_calls(&caller.entry, program, &mut calls);
+    for block in &caller.states {
+        collect_calls(block, program, &mut calls);
+    }
+    let mut certs = Vec::new();
+    for (callee_idx, args) in &calls {
+        let callee = &program.machines[*callee_idx];
+        for (pp, &arg) in args.iter().enumerate() {
+            // arg = a + k : a caller parameter plus a non-negative literal
+            let (ai, k) = match program.expressions[arg] {
+                Expr::Binary(BinaryOp::Add, l, r) => match (program.expressions[l], program.expressions[r]) {
+                    (Expr::Local(a), Expr::Int(k)) if a < p && k >= 0 => (a, k),
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            // B constrains arg at pp by exactly `param >= k` (the offset == bound -> commutes alone)
+            let wants = callee.preconditions.iter().any(|&bpc| {
+                matches!(param_order(bpc, program), Some((bpi, BinaryOp::Ge, c)) if bpi == pp && c == k)
+            });
+            // A must guarantee a >= 0 for `(a+k) >= k` to hold at runtime (signed i32)
+            let nonneg = caller.preconditions.iter().any(|&pc| {
+                matches!(param_order(pc, program), Some((pi, BinaryOp::Ge, 0)) if pi == ai)
+            });
+            if !wants || !nonneg {
+                continue;
+            }
+            let aidx = format!("(v {})", ai + 1); // a inside an order Exists
+            let ant = match order_prop(BinaryOp::Ge, 0, &aidx) {
+                Some(a) => a,
+                None => continue,
+            };
+            let matrix = format!("(= (p {0} (v 0)) (p {1} {0}))", unary(k), aidx); // k + w = a + k
+            let proof = format!(
+                "(lam {ant} (wit {matrix} (v {bd}) (inst (inst (use {cm}) (v {bd})) {ku})))",
+                ant = ant, matrix = matrix, bd = ai, cm = ADD_COMMUTES, ku = unary(k)
+            );
+            certs.push(wrap_universal(p, &format!("(-> {} (Exists {}))", ant, matrix), &proof));
+        }
+    }
+    certs
+}
+
 // One certificate per statically-dischargeable machine (postconditions), plus one per
 // dischargeable call site (forwarded preconditions) and per dischargeable array access.
 pub fn emit_contracts(program: &Program) -> Vec<String> {
@@ -756,6 +812,7 @@ pub fn emit_contracts(program: &Program) -> Vec<String> {
     for caller_idx in 0..program.machines.len() {
         certs.extend(discharge_forwarding(caller_idx, program));
         certs.extend(discharge_const_call_args(caller_idx, program));
+        certs.extend(discharge_expr_call_args(caller_idx, program));
         certs.extend(discharge_array_bounds(caller_idx, program));
     }
     certs
