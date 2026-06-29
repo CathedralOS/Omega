@@ -188,7 +188,9 @@ a working proof-carrying contract system** (item 11). What remains:
   (EQUALITY / conversion), `induction-soundness` (inductive UNIVERSALS), and `predicate-soundness`
   (the inductive PREDICATES — for each accepted Mem/ProdIs/Perm proof the interpreter independently
   DECIDES the predicate via `member`/`prod`/`isperm` and must agree; the perturbed goal is rejected
-  AND decided false).
+  AND decided false). `predicate-soundness` also has a random FUZZER twin (`predicate-soundness-fuzz`,
+  80+ random goals/run) — the kernel-vs-operational-decision bridge under broad coverage, the way the
+  curated diamonds each grew a fuzzed twin.
 
 ## How to build & verify (repo root; Git Bash on Windows, plain `sh` on macOS; `cargo` needed for `beta-lang-rs`)
 
