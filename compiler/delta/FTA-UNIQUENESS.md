@@ -73,8 +73,19 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    is closed: Perm is a full three-checker predicate, exactly like Mem/ProdIs.
 3. **Re-verified**: `test-typeck.sh` 23/0, `checker-diamond.sh` 89/0 (+ 89/0 typed), `elab-test.sh` 206/0,
    full `verify-lattice.sh` VERIFIED.
-4. **NEXT**: `perm-sym` (Perm(a,b)→Perm(b,a), by induction using swap/skip/trans), then the
-   **member-to-front surgery** lemma below, then general FTA uniqueness by strong induction on n.
+4. ✅ `perm-front` (`proofs/perm-front.elab`): `∀p L. Mem(p,L) → ∃L'. Perm(cons p L', L)` — a list member
+   can be permuted to the head. Proved by LIST induction + Mem inversion, *constructing* the permutation
+   (permswap∘permskip via permtrans; perm-refl for the head case). **Key design fact this confirms: Perm
+   needs NO eliminator.** `perm-sym` and "Perm preserves product" would require induction on a Perm
+   derivation, but the uniqueness proof never eliminates a Perm — it only ever *constructs* one in a
+   conclusion. So Perm stays intro-only (like Mem/ProdIs), and `perm-sym` is dropped as off-path.
+5. **NEXT**: the **ProdIs-carrying surgery** — `Mem(p,L) & ProdIs(L,n) → ∃m L'. (n = p*m) & ProdIs(L',m)
+   & Perm(cons p L', L)` (and carry `allPrime(L')` too). Same list-induction shape as `perm-front` but
+   threading the product equation (prodconsinv + pcons + mult comm/assoc) and the membership facts
+   through, so the Perm and the ProdIs are built together — avoiding any "Perm preserves product"
+   (which WOULD need elimination). Then general FTA uniqueness by strong induction on n: nil/nil base
+   (product-one-list-nil); cons-p step uses prime-factor-in-list → Mem(p,L2) → this surgery → mult-cancel
+   → IH → permskip + permtrans.
 
 ## Uniqueness proof plan (once `Perm` exists)
 
