@@ -31,7 +31,7 @@ b ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exi
 
 # gamma operational twins of the corpus functions (the same defs the other seam scripts
 # use): + * (Nat) with structural eq; append/reverse/sum/map (List) with structural eq.
-DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def eqn (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (eqn x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (eqn h i) (leq t u) 0)) (w 0))))) (def reverse (l) (match l (Lnil Lnil) ((Lcons h t) (append (reverse t) (Lcons h Lnil))))) (def suml (l) (match l (Lnil Ze) ((Lcons h t) (plus h (suml t))))) (def maps (l) (match l (Lnil Lnil) ((Lcons h t) (Lcons (Su h) (maps t))))) (def prod (l) (match l (Lnil (Su Ze)) ((Lcons h t) (mult h (prod t))))) (def nle (a b) (match a (Ze 1) ((Su x) (match b (Ze 0) ((Su y) (nle x y)))))) (def even (n) (match n (Ze 1) ((Su x) (match x (Ze 0) ((Su y) (even y)))))) (def odd (n) (match n (Ze 0) ((Su x) (match x (Ze 1) ((Su y) (odd y)))))) (def band (a b) (if a b 0)) (def bnot (a) (if a 0 1)) (def eqb (a b) (if a b (bnot b))) (def dvds (a b m) (if (nle (mult m a) b) (if (eqn (mult m a) b) 1 (dvds a b (Su m))) 0)) (def dvd (a b) (match a (Ze (eqn b Ze)) (w (dvds a b Ze)))) (def monus (a b) (match b (Ze a) ((Su y) (match a (Ze Ze) ((Su x) (monus x y)))))) (def nmodk (a m) (if (nle m a) (nmodk (monus a m) m) a)) (def nmod (a m) (match m (Ze a) (w (nmodk a m)))) (def modeq (a b m) (eqn (nmod a m) (nmod b m)))'
+DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def eqn (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (eqn x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (eqn h i) (leq t u) 0)) (w 0))))) (def reverse (l) (match l (Lnil Lnil) ((Lcons h t) (append (reverse t) (Lcons h Lnil))))) (def suml (l) (match l (Lnil Ze) ((Lcons h t) (plus h (suml t))))) (def maps (l) (match l (Lnil Lnil) ((Lcons h t) (Lcons (Su h) (maps t))))) (def prod (l) (match l (Lnil (Su Ze)) ((Lcons h t) (mult h (prod t))))) (def nle (a b) (match a (Ze 1) ((Su x) (match b (Ze 0) ((Su y) (nle x y)))))) (def even (n) (match n (Ze 1) ((Su x) (match x (Ze 0) ((Su y) (even y)))))) (def odd (n) (match n (Ze 0) ((Su x) (match x (Ze 1) ((Su y) (odd y)))))) (def band (a b) (if a b 0)) (def bnot (a) (if a 0 1)) (def eqb (a b) (if a b (bnot b))) (def dvds (a b m) (if (nle (mult m a) b) (if (eqn (mult m a) b) 1 (dvds a b (Su m))) 0)) (def dvd (a b) (match a (Ze (eqn b Ze)) (w (dvds a b Ze)))) (def monus (a b) (match b (Ze a) ((Su y) (match a (Ze Ze) ((Su x) (monus x y)))))) (def nmodk (a m) (if (nle m a) (nmodk (monus a m) m) a)) (def nmod (a m) (match m (Ze a) (w (nmodk a m)))) (def modeq (a b m) (eqn (nmod a m) (nmod b m))) (def pow (b e) (match e (Ze (Su Ze)) ((Su k) (mult b (pow b k)))))'
 # nle/even/odd are INDEPENDENT structural twins of the corpus predicates (le encoded as
 # (ex d. a+d=b); even as (ex k. n=k+k); odd as (ex k. n=s(k+k))) — so "even n xor odd n"
 # is a fact the interpreter computes, not a tautology of the defs. dvd decides the divides
@@ -187,6 +187,20 @@ sweep "a==b & c==d -> a*c==b*d (mod m)"  mod-mul-two-sided \
   "(if (band (modeq $N2 $N5 $N3) (modeq $N1 $N4 $N3)) (modeq (mult $N2 $N1) (mult $N5 $N4) $N3) 0)"
 sweep "even n  <->  2 | n"      even-iff-two-divides \
   "(if (eqb (even $N4) (dvd $N2 $N4)) (if (eqb (even $N5) (dvd $N2 $N5)) (eqb (even Ze) (dvd $N2 Ze)) 0) 0)"
+
+# --- EXPONENTIATION family (pow twin: b^0=1, b^(Sk)=b*b^k) — the laws the omega growth proofs lean on ---
+sweep "a^(m+n) = a^m * a^n"     power-add \
+  "(if (eqn (pow $N2 (plus $N2 $N1)) (mult (pow $N2 $N2) (pow $N2 $N1))) (eqn (pow $N3 (plus $N1 $N2)) (mult (pow $N3 $N1) (pow $N3 $N2))) 0)"
+sweep "(a*b)^k = a^k * b^k"     power-mul-distrib \
+  "(if (eqn (pow (mult $N2 $N3) $N2) (mult (pow $N2 $N2) (pow $N3 $N2))) (eqn (pow (mult $N2 $N2) $N2) (mult (pow $N2 $N2) (pow $N2 $N2))) 0)"
+sweep "(a^m)^n = a^(m*n)"       power-mul-exponent \
+  "(if (eqn (pow (pow $N2 $N2) $N2) (pow $N2 (mult $N2 $N2))) (eqn (pow (pow $N3 $N1) $N2) (pow $N3 (mult $N1 $N2))) 0)"
+sweep "0<a -> 0<a^n"            power-positive \
+  "(if (nle $N1 (pow $N2 $N3)) (nle $N1 (pow $N3 $N2)) 0)"
+sweep "a|b -> a^n | b^n"        divides-power \
+  "(if (dvd $N2 $N4) (dvd (pow $N2 $N2) (pow $N4 $N2)) 0)"
+sweep "even a -> even a^(S k)"  even-power \
+  "(if (even $N2) (even (pow $N2 (Su $N1))) 0)"
 
 # --- List LENGTH structural universals (length, append, reverse, maps twins; Nat eq via eqn) ---
 sweep "length(a++b) = length a + length b"  len-append-user \
