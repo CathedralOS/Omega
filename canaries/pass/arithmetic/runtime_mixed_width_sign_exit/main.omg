@@ -1,0 +1,50 @@
+// Mixed-width and mixed-sign arithmetic auto-promote to the wider/result type and
+// extend the narrower operand CORRECTLY before the operation. Locks:
+//   - sign-extension in a mixed-width add:   i32(-5) + i64(10)   == 5
+//   - zero-extension of an unsigned narrow:  u8(200) + i32(100)  == 300
+//   - sign-extension of a narrower signed:   i16(-3) + i32(100)  == 97
+//   - mixed-sign add:                        i32(100) + u32(3)   == 103
+// Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let neg32: i32 in Wrapping = 0 - 5;
+    let wide64: i64 in Wrapping = 10;
+    let sign_ext: i64 in Wrapping = neg32 + wide64; // -5 + 10 = 5
+
+    let small_u: u8 in Wrapping = 200;
+    let mid_i: i32 in Wrapping = 100;
+    let zero_ext: i32 in Wrapping = small_u + mid_i; // 200 + 100 = 300
+
+    let neg16: i16 in Wrapping = 0 - 3;
+    let narrow_sign: i32 in Wrapping = neg16 + mid_i; // -3 + 100 = 97
+
+    let pos_u: u32 in Wrapping = 3;
+    let mixed_sign: u32 in Wrapping = mid_i + pos_u; // 100 + 3 = 103
+
+    transition sign_ext == 5 { true -> check_zext(zero_ext, narrow_sign, mixed_sign) _ -> bad() }
+
+    state check_zext(&mut self, zero_ext: i32 in Wrapping, narrow_sign: i32 in Wrapping, mixed_sign: u32 in Wrapping) {
+        transition zero_ext == 300 { true -> check_narrow(narrow_sign, mixed_sign) _ -> bad() }
+    }
+    state check_narrow(&mut self, narrow_sign: i32 in Wrapping, mixed_sign: u32 in Wrapping) {
+        transition narrow_sign == 97 { true -> check_mixed(mixed_sign) _ -> bad() }
+    }
+    state check_mixed(&mut self, mixed_sign: u32 in Wrapping) {
+        transition mixed_sign == 103 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
