@@ -1,0 +1,66 @@
+// Grid walk: a direction enum maps to a 2D step vector via a value-call whose
+// transition arms return STRUCT LITERALS (`Dir::E -> Vec2 { dx: 1, dy: 0 }`), and a
+// scripted sequence of moves accumulates a position. This showcases the natural
+// "dispatch on an enum, return a struct" shape, plus reading the returned struct's
+// fields into scalar accumulators.
+//
+// Walk from the origin: E, E, E, S, S  ->  x = 3, y = 2.
+// Reports x * 10 + y = 32.
+// Expected exit: 32.
+
+use omega::language::std::console;
+
+data Dir {
+    case N;
+    case S;
+    case E;
+    case W;
+}
+
+data Vec2 [copy, zero_init] {
+    dx: i32 in Saturating;
+    dy: i32 in Saturating;
+}
+
+data Main {
+    console: Console;
+    px: i32 in Saturating;
+    py: i32 in Saturating;
+}
+
+// Dispatch on the direction, returning the unit step as a struct literal per arm.
+machine Main::delta(&self, d: Dir) -> Vec2 {
+    transition d {
+        Dir::N -> Vec2 { dx: 0, dy: 0 - 1 }
+        Dir::S -> Vec2 { dx: 0, dy: 1 }
+        Dir::E -> Vec2 { dx: 1, dy: 0 }
+        Dir::W -> Vec2 { dx: 0 - 1, dy: 0 }
+    }
+}
+
+// Apply one move: read the step vector into a local, fold it into the position.
+machine Main::step(&mut self, d: Dir) {
+    let v: Vec2 = self.delta(d);
+    self.px = self.px + v.dx;
+    self.py = self.py + v.dy;
+}
+
+machine Main::main(&mut self) {
+    self.px = 0;
+    self.py = 0;
+
+    self.step(Dir::E);
+    self.step(Dir::E);
+    self.step(Dir::E);
+    self.step(Dir::S);
+    self.step(Dir::S);
+
+    transition {
+        _ -> report()
+    }
+
+    state report(&mut self) {
+        self.px = self.px * 10 + self.py;
+        self.console.exit_process(self.px);
+    }
+}
