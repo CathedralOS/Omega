@@ -4891,6 +4891,65 @@ fn runtime_domain_boundaries_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_comparison_signedness_exit_canary_runs() {
+    // Comparison-operator signedness across widths: a signed compare used for
+    // unsigned operands (or vice versa) flips the branch past the signed/unsigned
+    // boundary. The canary self-checks u32/u8/u16 unsigned cases and i32/i64 signed
+    // cases; the wrong arm exits 71.
+    let canary = pass_canary("arithmetic/runtime_comparison_signedness_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-comparison-signedness-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("comparison-signedness canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("comparison-signedness canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed/unsigned compares to pick the right branch at each width's boundary (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_i64_divide_modulo_exit_canary_runs() {
+    // i64 signed divide/modulo with both operands immediate (constant/constant): the
+    // byte-size resolver must fall back to the i64 target width, not 4, or the encoder
+    // emits a 32-bit idiv (width mismatch + a truncated 64-bit dividend).
+    let canary = pass_canary("arithmetic/runtime_i64_divide_modulo_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-i64-divmod-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("i64 divide/modulo canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("i64 divide/modulo canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i64 constant divide/modulo to run 64-bit and self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_float_operations_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float_operations_exit");
     let build_dir =
