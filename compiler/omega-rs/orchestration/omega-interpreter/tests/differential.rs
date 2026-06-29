@@ -333,6 +333,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/f32_to_f64_local_cast", 70),
     ("expressions/runtime_float_place_comparison_exit", 70),
     ("expressions/runtime_literal_source_cast_exit", 70),
+    ("expressions/runtime_enum_match_breadth_exit", 70),
     ("expressions/runtime_match_value_exit", 70),
     ("expressions/runtime_numeric_cast_exit", 70),
     ("expressions/runtime_16bit_cast_exit", 70),
