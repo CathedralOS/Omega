@@ -41,6 +41,10 @@ machine lt_succ(a: i32) -> i32 ensures result < a + 1 { return a; }
 // NOT discharged: b could be negative, which would make the runtime assert trap while a
 // natural-number proof "accepts" -- the discharge refuses unprovably-non-negative witnesses.
 machine within10(a: i32) -> i32 ensures result <= a + 10 { return a; }
+// REFLEXIVE bound: result <= a (and result >= a), returned verbatim. The gap is 0, but `(p a z)` does
+// not reduce (p recurses on the left, a is stuck), so refl can't prove `a <= a` -- the discharge cites
+// add-zero-right, exactly like `result == a` returned as `a + 0`. Two postconditions, both reflexive.
+machine cap(a: i32) -> i32 ensures result <= a ensures result >= a { return a; }
 
 // MULTIPLE POSTCONDITIONS: a machine may declare several `ensures`; each is discharged independently
 // into its own certificate (mirroring the runtime path, which desugars each to its own assert). Here

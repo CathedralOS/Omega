@@ -245,6 +245,17 @@ fn discharge_postcondition(machine: &Machine, program: &Program, pc: usize) -> O
                 BinaryOp::Le => (returned, rhs),
                 _ => (rhs, returned),
             };
+            // REFLEXIVE bound: `result <= X` (or `result >= X`) returning X. The gap is 0, but `(p X z)`
+            // does NOT reduce (p recurses on the left, X is stuck), so refl can't see `(p X z) = X` --
+            // cite add-zero-right, exactly like the `result == X` returned-as-`X + 0` equality case.
+            if expr_eq(smaller_expr, larger_expr, program) {
+                let s1 = term(smaller_expr, program, p, 1)?;
+                let s0 = term(smaller_expr, program, p, 0)?;
+                let body = format!("(= (p {} (v 0)) {})", s1, s1);
+                let goal = format!("(Exists {})", body);
+                let proof = format!("(wit {} z (inst (use {}) {}))", body, ADD_ZERO_RIGHT, s0);
+                return Some(wrap_universal(p, &goal, &proof));
+            }
             let gap = additive_gap_expr(smaller_expr, larger_expr, program)?;
             // a <= b  ==  ∃w. a + w = b, witness the gap. SOUNDNESS: epsilon `i32` is SIGNED, but
             // the proof is over delta NATURALS -- so the witness must be PROVABLY non-negative,
