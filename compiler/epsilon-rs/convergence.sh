@@ -54,6 +54,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sort2.alp "$T/cs2" >/dev/nu
   || { echo "convergence FAIL — compiling certify-sort2"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sort3.alp "$T/cs3" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-sort3"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-is-sorted.alp "$T/cis" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-is-sorted"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-gcd.alp "$T/cg" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-gcd"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-triangle.alp "$T/ct" >/dev/null 2>&1 \
@@ -259,6 +261,15 @@ cs3() {
     FAIL=$((FAIL+1)); echo "  FAIL sort3($1,$2,$3) : delta returned [$v], expected accept"; fi
 }
 cs3 3 1 2; cs3 1 2 3; cs3 3 2 1; cs3 2 3 1; cs3 1 3 2; cs3 2 1 3; cs3 2 2 1; cs3 5 5 5
+
+# a VARIABLE-LENGTH certifier: reads a list of ANY length and certifies it is SORTED via a right-nested
+# conjunction of one adjacent-order witness per pair -- the proof size scales with the input, loop-driven.
+cis() {
+  v=$(printf '%s' "$1" | "$T/cis" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL is_sorted [$1] : delta returned [$v], expected accept"; fi
+}
+cis "1 2"; cis "1 2 3"; cis "0 0 1 5"; cis "1 3 3 7 9"; cis "0 1 2 3 4 5"
 
 # a real ALGORITHM certified: Euclid's gcd output divides both inputs (g|a & g|b)
 cg() {
