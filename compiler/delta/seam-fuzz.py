@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-# Random broad coverage of the gamma/delta soundness seam. Generates closed expressions over BOTH
-# domains the checker reduces -- Peano naturals {z, s, +, *, length} and Lists {nil, cons, append} --
-# and requires the checker's DEFINITIONAL equality (eq.beta: normalize both sides) and the reference
-# interpreter's OPERATIONAL evaluation (interp.beta running gamma's own plus/mult/append/length) to
-# AGREE on each: both that `E = value(E)` (verdict "equal") and that `E != value(E)`-perturbed (verdict
-# "differ"). Nat results are compared with neq, List results with leq. A single disagreement is a
-# soundness break at the seam. Deterministic (fixed seed), so it is reproducible.
+# Random broad coverage of the gamma/delta soundness seam across ALL THREE of the checker's reduction
+# paths: built-in Peano arithmetic {z, s, +, *, length}, built-in Lists {nil, cons, append}, AND
+# USER-FUNCTION recursion (the `fun`/`rec` machinery -- add/mult defined as user functions over a
+# user-Nat, the most complex and bug-prone reducer). For each generated case the checker's DEFINITIONAL
+# equality (eq.beta: normalize both sides) and the reference interpreter's OPERATIONAL evaluation
+# (interp.beta running gamma's own plus/mult/append/length) must AGREE: both that `E = value(E)`
+# (verdict "equal") and that they differ from a perturbation (verdict "differ"). Nat results compare
+# with neq, List results with leq. A single disagreement is a soundness break at the seam. Deterministic
+# (fixed seed), so it is reproducible.
 import sys, random, subprocess
 
 EQ, INTERP = sys.argv[1], sys.argv[2]
@@ -18,6 +20,9 @@ DEFS = (
     '(def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) '
     '(def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (neq h i) (leq t u) 0)) (w 0)))))'
 )
+# user-function add (fid 10) and mult (fid 11) over a user-Nat (Z = (k 2), S x = (k 3 x)) -- the same
+# fun/rec encoding the semantics-diamond uses, exercised here at random arguments.
+MFUN = "(fun 10 2 (y 0)) (fun 10 3 (k 3 (rec 0))) (fun 11 2 (k 2)) (fun 11 3 (f 10 (y 0) (rec 0)))"
 random.seed(20240607)  # deterministic -- reproducible cases every run
 
 DELTA = {"z": "z", "s": "s", "+": "p", "*": "m", "len": "len", "nil": "nil", "cons": "cons", "app": "app"}
@@ -57,7 +62,7 @@ def val_nat(e):
         return val_nat(e[1]) + val_nat(e[2])
     if e[0] == "*":
         return val_nat(e[1]) * val_nat(e[2])
-    return len(val_list(e[1]))  # len
+    return len(val_list(e[1]))
 
 
 def val_list(e):
@@ -65,7 +70,7 @@ def val_list(e):
         return []
     if e[0] == "cons":
         return [val_nat(e[1])] + val_list(e[2])
-    return val_list(e[1]) + val_list(e[2])  # app
+    return val_list(e[1]) + val_list(e[2])
 
 
 def render(e, T):
@@ -82,7 +87,7 @@ def render(e, T):
         return T["nil"]
     if t == "cons":
         return "(%s %s %s)" % (T["cons"], render(e[1], T), render(e[2], T))
-    return "(%s %s %s)" % (T["app"], render(e[1], T), render(e[2], T))  # app
+    return "(%s %s %s)" % (T["app"], render(e[1], T), render(e[2], T))
 
 
 def rnat(n, T):
@@ -99,6 +104,13 @@ def rlist(lst, T):
     return out
 
 
+def un(n):  # user-Nat: Z = (k 2), S x = (k 3 x)
+    out = "(k 2)"
+    for _ in range(n):
+        out = "(k 3 %s)" % out
+    return out
+
+
 def eq_verdict(d1, d2):
     return subprocess.run([EQ], input="%s %s" % (d1, d2), capture_output=True, text=True).stdout.strip()
 
@@ -108,35 +120,52 @@ def op_verdict(rel, g1, g2):  # rel = "neq" (Nat) or "leq" (List); exit 1 => equ
     return "equal" if r.returncode == 1 else "differ"
 
 
+# Build a case: (ed, eg, same_d, diff_d, same_g, diff_g, rel). ed/eg are the expression in the checker
+# and interpreter syntaxes; same/diff are the matching and perturbed right-hand sides in each.
+def make_case():
+    r = random.random()
+    if r < 0.30:  # USER-FUNCTION recursion path (fun/rec): add (fid 10) / mult (fid 11)
+        op = random.choice(("add", "mult"))
+        a, b = random.randint(0, 4), random.randint(0, 4)
+        v = a + b if op == "add" else a * b
+        cid, gop = ("10", "plus") if op == "add" else ("11", "mult")
+        ed = "%s (f %s %s %s)" % (MFUN, cid, un(a), un(b))  # checker: fun defs + the call
+        eg = "(%s %s %s)" % (gop, rnat(a, GAMMA), rnat(b, GAMMA))  # interp: Peano op
+        return ed, eg, un(v), un(v + 1), rnat(v, GAMMA), rnat(v + 1, GAMMA), "neq"
+    if r < 0.62:  # built-in List path
+        e = gen_list(random.randint(1, 4))
+        v = val_list(e)
+        if len(v) > 8 or any(x > 8 for x in v):
+            return None
+        return (render(e, DELTA), render(e, GAMMA),
+                rlist(v, DELTA), rlist([0] + v, DELTA), rlist(v, GAMMA), rlist([0] + v, GAMMA), "leq")
+    # built-in Nat path
+    e = gen_nat(random.randint(1, 4))
+    v = val_nat(e)
+    if v > 36:
+        return None
+    return (render(e, DELTA), render(e, GAMMA),
+            rnat(v, DELTA), rnat(v + 1, DELTA), rnat(v, GAMMA), rnat(v + 1, GAMMA), "neq")
+
+
 checks = 0
 fails = 0
 i = 0
 attempts = 0
 while i < K and attempts < K * 8:
     attempts += 1
-    is_list = random.random() < 0.45
-    e = gen_list(random.randint(1, 4)) if is_list else gen_nat(random.randint(1, 4))
-    if is_list:
-        v = val_list(e)
-        if len(v) > 8 or any(x > 8 for x in v):
-            continue
-        same, diff, rel = rlist(v, DELTA), rlist([0] + v, DELTA), "leq"
-        same_g, diff_g = rlist(v, GAMMA), rlist([0] + v, GAMMA)
-    else:
-        v = val_nat(e)
-        if v > 36:
-            continue
-        same, diff, rel = rnat(v, DELTA), rnat(v + 1, DELTA), "neq"
-        same_g, diff_g = rnat(v, GAMMA), rnat(v + 1, GAMMA)
+    case = make_case()
+    if case is None:
+        continue
     i += 1
-    ed, eg = render(e, DELTA), render(e, GAMMA)
-    for rhs_d, rhs_g, expect in ((same, same_g, "equal"), (diff, diff_g, "differ")):
+    ed, eg, same_d, diff_d, same_g, diff_g, rel = case
+    for rhs_d, rhs_g, expect in ((same_d, same_g, "equal"), (diff_d, diff_g, "differ")):
         veq = eq_verdict(ed, rhs_d)
         vop = op_verdict(rel, eg, rhs_g)
         checks += 1
         if not (veq == vop == expect):
             fails += 1
-            print("  FAIL  %s vs %s : definitional=%s operational=%s expect=%s" % (ed[:40], rhs_d[:24], veq, vop, expect))
+            print("  FAIL  %s vs %s : definitional=%s operational=%s expect=%s" % (ed[:46], rhs_d[:24], veq, vop, expect))
 
-print("seam fuzz (%d random naturals AND lists over +/*/append/length, %d checks): %d disagreements" % (i, checks, fails))
+print("seam fuzz (%d random cases over +/*/length/append AND user-function add/mult, %d checks): %d disagreements" % (i, checks, fails))
 sys.exit(1 if fails else 0)
