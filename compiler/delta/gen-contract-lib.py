@@ -49,7 +49,8 @@ ids['le-trans']       = emb('le trans')                          # discharge.rs:
 ids['mult-commutes']  = emb('mult commutes')                     # discharge.rs: MULT_COMMUTES (pulls deps into 10..19)
 ids['add-assoc']      = emb('+ associative')                     # discharge.rs: ADD_ASSOC (self-contained, id 21)
 ids['mult-assoc']     = emb('mult assoc (a*b)*c=a*(b*c)')        # discharge.rs: MULT_ASSOC (pulls deps into 22..27)
-assert ids['add-zero-right']==0 and ids['add-commutes']==5 and ids['le-trans']==9 and ids['mult-commutes']==20 and ids['add-assoc']==21 and ids['mult-assoc']==28, \
-    "contract library def ids drifted: %r (discharge.rs pins add-zero-right=0, add-commutes=5, le-trans=9, mult-commutes=20, add-assoc=21, mult-assoc=28)"%ids
+ids['lt-le-trans']    = emb('lt-le trans (i<m & m<=c -> i<c)')   # discharge.rs: LT_LE_TRANS (pulls deps into 29..31)
+assert ids['add-zero-right']==0 and ids['add-commutes']==5 and ids['le-trans']==9 and ids['mult-commutes']==20 and ids['add-assoc']==21 and ids['mult-assoc']==28 and ids['lt-le-trans']==32, \
+    "contract library def ids drifted: %r (discharge.rs pins add-zero-right=0, add-commutes=5, le-trans=9, mult-commutes=20, add-assoc=21, mult-assoc=28, lt-le-trans=32)"%ids
 full=elaborate(blk+" (= z z) (refl z)")
 sys.stdout.write(full.rsplit("(= z z) (refl z)",1)[0].rstrip())

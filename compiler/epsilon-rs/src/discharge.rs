@@ -49,6 +49,7 @@ const LE_TRANS: usize = 9; // ∀x∀y∀z. x<=y -> y<=z -> x<=z  (def 9: pulls 
 const MULT_COMMUTES: usize = 20; // ∀x∀y. x * y = y * x  (def 20: pulls its dep lemmas into 10..19)
 const ADD_ASSOC: usize = 21; // ∀v0∀v1∀v2. (v0+v2)+v1 = v0+(v2+v1)  (def 21; inst order is v2,v1,v0)
 const MULT_ASSOC: usize = 28; // ∀a∀b∀c. (a*b)*c = a*(b*c)  (def 28: pulls deps into 22..27; inst order a,b,c)
+const LT_LE_TRANS: usize = 32; // ∀i∀m∀c. i<m -> m<=c -> i<c  (def 32: pulls deps into 29..31)
 
 // Translate an epsilon expression to a raw delta-checker term, each parameter rendered as the
 // de Bruijn variable `(v i+shift)`. Returns None outside the checkable arithmetic fragment
@@ -639,17 +640,45 @@ fn discharge_array_bounds(machine_idx: usize, program: &Program) -> Vec<String> 
             // precondition, so it is discharged by forwarding it (assume i < count, hand it back) --
             // the modular memory-safety statement: the access is in bounds under the contract.
             Expr::Local(i) => {
-                let has_req = machine.preconditions.iter().any(|&pc| {
-                    matches!(param_order(pc, program), Some((pi, BinaryOp::Lt, c)) if pi == i && c == count)
+                // The tightest declared `requires i < M` upper bound on this index parameter.
+                let req = machine.preconditions.iter().find_map(|&pc| match param_order(pc, program) {
+                    Some((pi, BinaryOp::Lt, m)) if pi == i => Some(m),
+                    _ => None,
                 });
-                if has_req {
-                    if let Some(prop) = order_prop(BinaryOp::Lt, count, &format!("(v {})", i + 1)) {
-                        certs.push(wrap_universal(
-                            p,
-                            &format!("(-> {0} {0})", prop),
-                            &format!("(lam {0} (hyp 0))", prop),
-                        ));
+                let idx = format!("(v {})", i + 1); // the index inside the order Exists (gen + Exists)
+                match req {
+                    // EXACT: the bounds obligation IS the precondition -> forward it (assume i<count,
+                    // hand it back) -- the access is in bounds under the contract.
+                    Some(m) if m == count => {
+                        if let Some(prop) = order_prop(BinaryOp::Lt, count, &idx) {
+                            certs.push(wrap_universal(
+                                p,
+                                &format!("(-> {0} {0})", prop),
+                                &format!("(lam {0} (hyp 0))", prop),
+                            ));
+                        }
                     }
+                    // WEAKENING: a TIGHTER precondition i<M (M<count) composes with the ground bound
+                    // M<=count through lt-le-trans to discharge the real obligation i<count. Sound: the
+                    // runtime enforces i<M at entry, and M<=count is a literal fact. (m>count can't
+                    // discharge -- i<m allows i in [count,m) -- so it conservatively emits no cert.)
+                    Some(m) if m >= 0 && m < count => {
+                        if let (Some(ant), Some(cons)) = (
+                            order_prop(BinaryOp::Lt, m, &idx),
+                            order_prop(BinaryOp::Lt, count, &idx),
+                        ) {
+                            let ground = format!(
+                                "(wit (= (p {0} (v 0)) {1}) {2} (refl {1}))",
+                                unary(m), unary(count), unary(count - m)
+                            );
+                            let proof = format!(
+                                "(lam {ant} (app (app (inst (inst (inst (use {llt}) (v {bd})) {mu}) {cu}) (hyp 0)) {ground}))",
+                                ant = ant, llt = LT_LE_TRANS, bd = i, mu = unary(m), cu = unary(count), ground = ground
+                            );
+                            certs.push(wrap_universal(p, &format!("(-> {} {})", ant, cons), &proof));
+                        }
+                    }
+                    _ => {}
                 }
             }
             _ => {}
