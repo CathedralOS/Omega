@@ -1,14 +1,18 @@
 // Clock.sleep host op: a kernel32 `Sleep(DWORD ms)` native call -- the first host
 // operation beyond the original four, and the first rung of the native-FFI ladder.
-// Pauses 2 ms then exits 70; the program reaching `exit_process(70)` proves the
-// call obeyed the Win64 ABI (shadow space, ecx arg, clean return) and continued.
+// Pauses with both an IMMEDIATE arg and a RUNTIME (field) arg, then exits 70;
+// reaching `exit_process(70)` proves both call forms obeyed the Win64 ABI (shadow
+// space, ecx arg from a constant and from a relocated storage scalar, clean return)
+// and continued. The runtime-arg form shares exit_process's single-u32-arg encoder.
 boundary trait Console {
     machine exit_process(return_code: i32);
     machine sleep(milliseconds: u32);
 }
-data Main { console: Console; }
+data Main { console: Console; delay: u32 in Wrapping; }
 machine Main::main(&mut self) {
     self.console.sleep(2);
+    self.delay = 1;
+    self.console.sleep(self.delay);
     transition { _ -> done() }
     state done(&mut self) { self.console.exit_process(70); }
 }
