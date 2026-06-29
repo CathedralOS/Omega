@@ -150,6 +150,53 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // Resolve a nested `self.a.b.c…` path to (total byte offset, final field's arithmetic domain).
+    // Nested data is inlined, so offsets just sum; every segment but the last must be a nested-data
+    // field, and the last must be scalar. `self.a` (single segment) still goes through self_field_offset.
+    fn self_field_path(&self, path: &[Vec<u8>]) -> Result<(i32, u8), String> {
+        let mut data_type = self.self_data_type.ok_or_else(|| {
+            "alpha-onramp: `self` used in a machine with no receiver".to_string()
+        })?;
+        let mut offset = 0i32;
+        for (i, seg) in path.iter().enumerate() {
+            let info = self.data_field_maps[data_type]
+                .iter()
+                .find(|field_info| field_info.name.as_slice() == seg.as_slice())
+                .ok_or_else(|| {
+                    format!("alpha-onramp: unknown field '{}' in a self.* path", String::from_utf8_lossy(seg))
+                })?;
+            let last = i == path.len() - 1;
+            match info.kind {
+                FieldKind::Data(idx) => {
+                    if last {
+                        return Err(format!(
+                            "alpha-onramp: 'self…{}' is a nested struct, not a scalar value",
+                            String::from_utf8_lossy(seg)
+                        ));
+                    }
+                    offset += info.offset;
+                    data_type = idx;
+                }
+                FieldKind::Scalar => {
+                    if !last {
+                        return Err(format!(
+                            "alpha-onramp: 'self…{}' is scalar; cannot select a field of it",
+                            String::from_utf8_lossy(seg)
+                        ));
+                    }
+                    return Ok((offset + info.offset, info.domain));
+                }
+                _ => {
+                    return Err(format!(
+                        "alpha-onramp: 'self…{}' must be a nested-data or scalar field",
+                        String::from_utf8_lossy(seg)
+                    ));
+                }
+            }
+        }
+        Err("alpha-onramp: empty self field path".to_string())
+    }
+
     // Resolve `self.<array>` to (byte offset, element count, element bytes) for indexing.
     fn self_array_field(&self, field: &[u8]) -> Result<(i32, i32, i32), String> {
         let data_type = self.self_data_type.ok_or_else(|| {
@@ -1174,11 +1221,15 @@ impl<'a> Parser<'a> {
                 self.bump();
             }
             if segments[0] == b"self" {
-                if segments.len() != 2 {
-                    return Err("alpha-onramp: only `self.<field> = ...` is supported (slice 7a)".into());
+                if segments.len() < 2 {
+                    return Err("alpha-onramp: `self = ...` is not assignable".into());
                 }
-                let offset = self.self_field_offset(&segments[1])?;
-                let domain = self.self_field_domain(&segments[1]);
+                // single field via the scalar resolver; nested `self.a.b = ...` via the path resolver
+                let (offset, domain) = if segments.len() == 2 {
+                    (self.self_field_offset(&segments[1])?, self.self_field_domain(&segments[1]))
+                } else {
+                    self.self_field_path(&segments[1..])?
+                };
                 return Ok(Statement::StoreSelfField(offset, value, domain));
             }
             if segments.len() != 1 {
@@ -1364,6 +1415,16 @@ impl<'a> Parser<'a> {
                         let index = self.parse_expression()?;
                         self.expect(TokenKind::RBracket)?;
                         return Ok(self.add_expression(Expr::SelfIndex(offset, count, element_bytes, index)));
+                    }
+                    if self.current_kind() == TokenKind::Dot {
+                        // nested read: self.a.b.c… — walk the inlined-struct path to a flat offset
+                        let mut path = vec![field];
+                        while self.current_kind() == TokenKind::Dot {
+                            self.bump(); // .
+                            path.push(token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec());
+                        }
+                        let (offset, _domain) = self.self_field_path(&path)?;
+                        return Ok(self.add_expression(Expr::SelfField(offset)));
                     }
                     let offset = self.self_field_offset(&field)?;
                     return Ok(self.add_expression(Expr::SelfField(offset)));
