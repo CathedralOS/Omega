@@ -27,6 +27,7 @@ use std::process::{Command, Stdio};
 /// `output.status.code() == Some(N)`).
 const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_chained_field_mutation_exit", 70),
+    ("arithmetic/runtime_domain_boundaries_exit", 70),
     ("arithmetic/runtime_comparison_guard_signedness_exit", 70),
     ("arithmetic/runtime_comparison_value_signedness_exit", 70),
     ("arithmetic/runtime_copy_then_read_exit", 70),

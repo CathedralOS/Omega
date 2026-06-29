@@ -4804,6 +4804,32 @@ fn runtime_cast_element_accumulator_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_domain_boundaries_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_domain_boundaries_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-domain-boundaries-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("domain-boundaries canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("domain-boundaries canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Saturating/Wrapping at i32 & u8 boundaries to clamp/wrap correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// ch15 stage 2 -- multi-path return-range inference: a callee returning via two
 /// transition arms (3 / 7) infers the UNION [3,7], so the caller's `pick(b) + 63`
 /// proves Exact. run(false) -> 70.
