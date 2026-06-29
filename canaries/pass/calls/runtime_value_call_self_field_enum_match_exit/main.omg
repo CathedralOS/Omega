@@ -1,0 +1,52 @@
+// A value-call that dispatches on an ENUM FIELD of self -- `machine Main::sides(&self)
+// -> i32 { transition self.s { Shape::Circle -> 0 ... } }`, called `self.sides()`. The
+// common "classify based on my current state" shape. Called twice with different field
+// values to prove the dispatch is real (not always the first arm).
+//
+// NOTE the distinction (tracked separately): a method ON THE ENUM TYPE that matches
+// bare `self` -- `machine Shape::sides(&self) { transition self { .. } }` called
+// `self.s.sides()` -- mis-dispatches (the contained-method `self` -> receiver
+// substitution doesn't reach the value-call guard subject). Dispatching on a self
+// FIELD (here) or on a PARAM both work; use one of those. Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Shape {
+    case Circle;
+    case Square;
+    case Triangle;
+}
+
+data Main {
+    console: Console;
+    s: Shape;
+}
+
+machine Main::sides(&self) -> i32 in Trapping {
+    transition self.s {
+        Shape::Circle -> 0
+        Shape::Square -> 4
+        Shape::Triangle -> 3
+    }
+}
+
+machine Main::main(&mut self) {
+    self.s = Shape::Triangle;
+    let triangle: i32 in Trapping = self.sides();
+    self.s = Shape::Square;
+    let square: i32 in Trapping = self.sides();
+
+    transition triangle == 3 { true -> check_square(square) _ -> bad() }
+
+    state check_square(&mut self, square: i32 in Trapping) {
+        transition square == 4 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
