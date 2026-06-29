@@ -850,8 +850,10 @@ machine Main::main(&mut self) {
     state llkh()  { self.lstgt = 16 + 8 * (self.pcs[self.mi] + self.plidx[self.cj]); transition 0 { _ -> leteq() } }
     state llkn()  { self.cj = self.cj + 1; transition 0 { _ -> llk() } }
     state leteq() { transition self.buf[self.pos] == 61 { true -> leteq2()  false -> letadv() } }
-    state letadv(){ transition self.buf[self.pos] == 87 { true -> letadvw()  false -> letadv2() } }  // 'W' of `in Wrapping` (unique in a let's type region)
-    state letadvw(){ self.wrap = 1; self.pos = self.pos + 1; transition 0 { _ -> leteq() } }
+    state letadv(){ transition self.buf[self.pos] == 87 { true -> letadvw()  false -> letadvs() } }   // 'W' of `in Wrapping` (unique in a let's type region)
+    state letadvs(){ transition self.buf[self.pos] == 83 { true -> letadvsat()  false -> letadv2() } } // 'S' of `in Saturating`
+    state letadvw(){ self.wrap = 1; self.pos = self.pos + 1; transition 0 { _ -> leteq() } }           // wrap = domain: 1 Wrapping
+    state letadvsat(){ self.wrap = 2; self.pos = self.pos + 1; transition 0 { _ -> leteq() } }         // 2 Saturating
     state letadv2(){ self.pos = self.pos + 1; transition 0 { _ -> leteq() } }
     state leteq2(){ self.pos = self.pos + 1; self.mode = 2; self.opnd = 0; transition 0 { _ -> subj0() } }
     state asgn0() { transition self.buf[self.pos] == 46 { true -> asgn1()  false -> sk() } }                  // '.' ? else not an assignment
@@ -1187,14 +1189,20 @@ machine Main::main(&mut self) {
     state emitar7(){ transition self.aop == 7 { true -> abor()  false -> emitar8() } }
     state emitar8(){ transition self.aop == 8 { true -> abxor()  false -> emitar9() } }
     state emitar9(){ transition self.aop == 9 { true -> ashl()  false -> ashr() } }
-    state aadd()   { transition self.wrap == 1 { true -> aaddw()  false -> aaddt() } }
-    state aaddw()  { self.console.write_line("    add w0, w0, w1"); transition 0 { _ -> apush() } }   // i32 in Wrapping: no overflow trap
+    state aadd()   { transition self.wrap == 1 { true -> aaddw()  false -> aadds() } }
+    state aadds()  { transition self.wrap == 2 { true -> aaddsat()  false -> aaddt() } }
+    state aaddw()  { self.console.write_line("    add w0, w0, w1"); transition 0 { _ -> apush() } }   // 1 Wrapping: no overflow trap
     state aaddt()  { self.console.write_line("    adds w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); transition 0 { _ -> apush() } }
-    state asub()   { transition self.wrap == 1 { true -> asubw()  false -> asubt() } }
+    state aaddsat(){ self.console.write_line("    adds w0, w0, w1"); self.console.write_line("    asr w2, w0, #31"); self.console.write_line("    movz w3, #0x8000, lsl #16"); self.console.write_line("    eor w2, w2, w3"); self.console.write_line("    csel w0, w2, w0, vs"); transition 0 { _ -> apush() } }   // 2 Saturating: clamp to MIN/MAX
+    state asub()   { transition self.wrap == 1 { true -> asubw()  false -> asubs() } }
+    state asubs()  { transition self.wrap == 2 { true -> asubsat()  false -> asubt() } }
     state asubw()  { self.console.write_line("    sub w0, w0, w1"); transition 0 { _ -> apush() } }
     state asubt()  { self.console.write_line("    subs w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); transition 0 { _ -> apush() } }
-    state amul()   { transition self.wrap == 1 { true -> amulw()  false -> amult() } }
+    state asubsat(){ self.console.write_line("    subs w0, w0, w1"); self.console.write_line("    asr w2, w0, #31"); self.console.write_line("    movz w3, #0x8000, lsl #16"); self.console.write_line("    eor w2, w2, w3"); self.console.write_line("    csel w0, w2, w0, vs"); transition 0 { _ -> apush() } }
+    state amul()   { transition self.wrap == 1 { true -> amulw()  false -> amuls() } }
+    state amuls()  { transition self.wrap == 2 { true -> amulsat()  false -> amult() } }
     state amulw()  { self.console.write_line("    mul w0, w0, w1"); transition 0 { _ -> apush() } }
+    state amulsat(){ self.console.write_line("    smull x0, w0, w1"); self.console.write_line("    sxtw x2, w0"); self.console.write_line("    asr x3, x0, #63"); self.console.write_line("    eor w3, w3, #0x7fffffff"); self.console.write_line("    cmp x0, x2"); self.console.write_line("    csel w0, w0, w3, eq"); transition 0 { _ -> apush() } }
     state amult()  { self.console.write_line("    smull x0, w0, w1"); self.console.write_line("    sxtw x2, w0"); self.console.write_line("    cmp x0, x2"); self.console.write_line("    b.ne Ltrap"); transition 0 { _ -> apush() } }
     state adiv()   { self.console.write_line("    cbz w1, Ltrap"); self.console.write_line("    sdiv w0, w0, w1"); transition 0 { _ -> apush() } }
     state arem()   { self.console.write_line("    cbz w1, Ltrap"); self.console.write_line("    sdiv w2, w0, w1"); self.console.write_line("    msub w0, w2, w1, w0"); transition 0 { _ -> apush() } }

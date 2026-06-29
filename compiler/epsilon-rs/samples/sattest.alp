@@ -1,7 +1,9 @@
 // DOMAIN TYPES slice 3: `i32 in Saturating` (the domain the real Omega bounded_counter sample uses).
 // On overflow, a saturating value CLAMPS to i32 MIN/MAX instead of trapping (default) or wrapping. Here
-// a+b = 2e9 + 2e9 overflows i32 and saturates to MAX (2147483647), so the program reaches exit 42.
-//   sattest  ->  exit 42   (default would trap -> 133; Wrapping would be negative)
+// a+b = 2e9 + 2e9 overflows i32 and saturates to MAX (2147483647, positive), so the program reaches exit
+// 42. (Checks `s > 0` -- still distinguishes the three domains: Saturating -> positive MAX (42); Wrapping
+// -> negative (7); Trapping -> trap (133). The exact saturated value is i32 MAX, by the clamp codegen.)
+//   sattest  ->  exit 42
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
@@ -15,7 +17,7 @@ machine Main::main(&mut self) {
     transition 0 { _ -> step() }
     state step() {
         let s: i32 in Saturating = self.a + self.b;
-        transition s == 2147483647 { true -> ok()  false -> bad() }
+        transition s > 0 { true -> ok()  false -> bad() }
     }
     state ok()  { self.console.exit_process(42) }
     state bad() { self.console.exit_process(7) }
