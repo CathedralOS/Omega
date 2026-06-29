@@ -228,14 +228,17 @@ a working proof-carrying contract system** (item 11). What remains:
   - `predicate-diamond-fuzz` — the INDUCTIVE PREDICATES (Mem / ProdIs / Perm — the FTA's foundation)
     across all three checkers.
 
-  And the three OPERATIONAL seams now bridge all three logic pillars to the reference interpreter
-  (kernel derivation vs an independent executable, not checker-vs-checker): `semantics-diamond`
-  (EQUALITY / conversion), `induction-soundness` (inductive UNIVERSALS), and `predicate-soundness`
-  (the inductive PREDICATES — for each accepted Mem/ProdIs/Perm proof the interpreter independently
-  DECIDES the predicate via `member`/`prod`/`isperm` and must agree; the perturbed goal is rejected
-  AND decided false). `predicate-soundness` also has a random FUZZER twin (`predicate-soundness-fuzz`,
-  80+ random goals/run) — the kernel-vs-operational-decision bridge under broad coverage, the way the
-  curated diamonds each grew a fuzzed twin.
+  And FOUR OPERATIONAL seams now bridge ALL FOUR checker subsystems to an independent notion of truth
+  (kernel derivation vs an independent executable/oracle, not checker-vs-checker): `semantics-diamond`
+  (EQUALITY / conversion), `induction-soundness` (inductive UNIVERSALS), `predicate-soundness` (the
+  inductive PREDICATES — for each accepted Mem/ProdIs/Perm proof the interpreter independently DECIDES it
+  via `member`/`prod`/`isperm`; perturbed goal rejected AND decided false), and `logic-soundness` (the
+  propositional LOGIC — check.beta's intuitionistic provability implies CLASSICAL validity, so every
+  proposition it proves is confirmed a TAUTOLOGY by a truth-table oracle, and a perturbed genuine
+  non-tautology is rejected — it would catch the checker ever accepting a classically-INVALID prop).
+  `predicate-soundness` also has a random FUZZER twin (`predicate-soundness-fuzz`, 80+ random goals/run)
+  — the kernel-vs-operational-decision bridge under broad coverage, the way the curated diamonds each
+  grew a fuzzed twin.
 
 ## How to build & verify (repo root; Git Bash on Windows, plain `sh` on macOS; `cargo` needed for `beta-lang-rs`)
 
