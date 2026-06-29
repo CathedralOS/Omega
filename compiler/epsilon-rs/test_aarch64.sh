@@ -491,6 +491,7 @@ selfhost_test "self-hosting: lowermachine compiles calc.alp; binary matches the 
 selfhost_test "self-hosting: lowermachine compiles assert.alp; binary matches the reference" samples/assert.alp ""
 selfhost_test "self-hosting: lowermachine lowers `i32 in Wrapping` (no overflow trap); matches reference" samples/wraptest.alp ""
 selfhost_test "self-hosting: lowermachine lowers `i32 in Saturating` (clamp to MIN/MAX); matches reference" samples/sattest.alp ""
+selfhost_test "self-hosting: lowermachine lowers a Saturating FIELD store (per-field fdom table); matches reference" samples/fieldsat.alp ""
 # lowerexpr.alp: itself a COMPILER (emits arm64 asm). lowermachine compiling it exercises a
 # self-method-call statement with no trailing ';' as a block's last statement (state pu(){self.push()});
 # without the callsk '}'-stop the post-call skip ran past the next machine, breaking _main.
