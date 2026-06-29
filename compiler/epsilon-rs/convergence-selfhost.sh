@@ -28,6 +28,10 @@ if ../beta-lang-rs/build/bc.exe < ../delta/check.beta > "$T/c.asm" 2>/dev/null \
    && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1; then :; else
   echo "self-hosted convergence FAIL — could not build the delta checker"; exit 1; fi
 
+# 1b. the PROOF LIBRARY (bounds-2d=30, lt-le-trans=34, mult-overflow=66) for the library-citing certifiers.
+HAVE_LIB=0
+if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
+
 # 2. the SELF-HOSTED epsilon compiler: lowermachine, lowered by the backend, then used to compile certify-*.
 #    lmx emits arm64 asm to stdout; clang assembles + signs it. (No EPS_ARCH backend on the certified path.)
 cargo build -q 2>/dev/null || { echo "self-hosted convergence FAIL — cargo build"; exit 1; }
@@ -64,6 +68,9 @@ build_lm certify-max-any   cxa
 build_lm certify-accesses  cacc
 build_lm certify-safety    csaf
 build_lm certify-source    csrc
+build_lm certify-linked    cl
+build_lm certify-loop      clp
+build_lm certify-mul       cm
 
 # the checker prints accept/reject but exits with the alpha VM's halt code, so judge by stdout.
 set +e
@@ -123,6 +130,21 @@ chk csrc "arr 4 5  band 4 0" accept   # a bounded loop unrolls to a range of VCs
 # overrun) is refused -- it exits 1 and emits NO proof, rather than emitting one the anchor would reject.
 csrc_reject() { printf '%s' "$1" | "$T/csrc" >/dev/null 2>&1; if [ $? -eq 1 ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL unsafe-not-rejected [$1]"; fi; }
 csrc_reject "arr 4 5  get 3 7"; csrc_reject "arr 4 5  get 2 3  div 0"; csrc_reject "arr 5 5  get 5 0"; csrc_reject "arr 4 5  band 5 0"
+
+# the self-hosted compiler LINKING against a proof library (lib2d.delta from gen-lib2d.py): emit only the
+# LINKAGE that CITES a banked theorem with site witnesses, prepend the library, and let the trust anchor
+# check both. This completes the keystone -- the ENTIRE certify corpus self-hosted, Rust off the path.
+if [ "$HAVE_LIB" = 1 ]; then
+  lchk() { v=$( { cat "$T/lib2d.delta"; printf ' '; printf '%s' "$2" | "$T/$1"; } | "$T/check.exe" ); if [ "$v" = accept ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL $1 [$2] : delta [$v], expected accept"; fi; }
+  lchk cl  "2 5 3 4"; lchk cl  "0 8 0 1"; lchk cl  "5 6 2 9"   # bounds-2d (use 30) cited with i<m, j<n witnesses
+  lchk clp "4 5 0 4"; lchk clp "3 10 2 8"; lchk clp "8 8 0 8"  # whole loop forall i<K: lt-le-trans (34) into bounds-2d
+  lchk cm  "3 4 5 6"; lchk cm  "7 2 8 9"; lchk cm  "0 0 1 1"   # mult-overflow (use 66): a*b<B*C from a<B, b<C
+  # a tampered premise / wrong-def citation must REJECT even with a valid library present
+  blk=$( { cat "$T/lib2d.delta"; printf ' '; printf '2 5 3 4' | "$T/cl" | sed 's/(s z) (refl/(s (s z)) (refl/'; } | "$T/check.exe" )
+  if [ "$blk" = reject ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL tamper-linked : [$blk], expected reject"; fi
+  bpk=$( { cat "$T/lib2d.delta"; printf ' '; printf '4 5 0 4' | "$T/clp" | sed 's/(use 30)/(use 0)/'; } | "$T/check.exe" )
+  if [ "$bpk" = reject ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL tamper-loop : [$bpk], expected reject"; fi
+else echo "  (skipped library-linked certifiers — no python3 / gen-lib2d failed)"; fi
 
 # the trust anchor still REJECTS tampered certificates from self-hosted-compiled programs -- delta
 # checks the computation, not the compiler that built it:
