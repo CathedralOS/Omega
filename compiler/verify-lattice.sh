@@ -30,6 +30,7 @@ step "gamma — the Delta checker, written IN gamma"    gamma       test-checker
 step "diamond — checkers agree (Beta, Gamma, type-erased typed)" delta  checker-diamond.sh
 step "diamond — definitional eq vs operational eval"  delta       semantics-diamond.sh
 step "seam — inductive universals vs operational eval" delta      induction-soundness.sh
+step "seam — inductive predicates vs operational decision" delta   predicate-soundness.sh
 step "seam — corpus theorems: proved AND operationally true" delta soundness-sweep.sh
 step "seam — FUZZ: random +/* defeq vs operational eval" delta     seam-fuzz.sh
 step "checker diamond — FUZZ: random props, check.beta vs checker.gamma" delta checker-diamond-fuzz.sh
