@@ -579,6 +579,64 @@ fn discharge_array_bounds(machine_idx: usize, program: &Program) -> Vec<String> 
     certs
 }
 
+// ---- Constant call arguments (the constant slice of expression-argument obligations) ----------
+//
+// When machine A calls B(.., k, ..) with a LITERAL constant at a position B constrains with an
+// order-precondition, A owes that B's precondition holds for k -- but that obligation is now GROUND
+// (`k OP c`, both constants), so it needs no caller precondition: a ground existential witness proves
+// it. E.g. `needs_pos(5)` against `requires x >= 1` discharges `5 >= 1` directly.
+fn discharge_const_call_args(caller_idx: usize, program: &Program) -> Vec<String> {
+    let caller = &program.machines[caller_idx];
+    let mut calls = Vec::new();
+    collect_calls(&caller.entry, program, &mut calls);
+    for block in &caller.states {
+        collect_calls(block, program, &mut calls);
+    }
+    let mut certs = Vec::new();
+    for (callee_idx, args) in &calls {
+        let callee = &program.machines[*callee_idx];
+        for (pp, &arg) in args.iter().enumerate() {
+            let k = match program.expressions[arg] {
+                Expr::Int(k) if k >= 0 => k,
+                _ => continue,
+            };
+            for &bpc in &callee.preconditions {
+                let (bpi, bop, c) = match param_order(bpc, program) {
+                    Some(t) => t,
+                    None => continue,
+                };
+                if bpi != pp {
+                    continue;
+                }
+                // Does the literal k satisfy `param bop c`? If so, a ground existential witness.
+                let cert = match bop {
+                    BinaryOp::Ge if k >= c => {
+                        let body = format!("(= (p {} (v 0)) {})", unary(c), unary(k)); // c <= k
+                        Some(format!("(Exists {0}) (wit {0} {1} (refl {2}))", body, unary(k - c), unary(k)))
+                    }
+                    BinaryOp::Gt if k > c => {
+                        let body = format!("(= (p {} (s (v 0))) {})", unary(c), unary(k)); // c < k
+                        Some(format!("(Exists {0}) (wit {0} {1} (refl {2}))", body, unary(k - c - 1), unary(k)))
+                    }
+                    BinaryOp::Le if k <= c => {
+                        let body = format!("(= (p {} (v 0)) {})", unary(k), unary(c)); // k <= c
+                        Some(format!("(Exists {0}) (wit {0} {1} (refl {2}))", body, unary(c - k), unary(c)))
+                    }
+                    BinaryOp::Lt if k < c => {
+                        let body = format!("(= (p {} (s (v 0))) {})", unary(k), unary(c)); // k < c
+                        Some(format!("(Exists {0}) (wit {0} {1} (refl {2}))", body, unary(c - k - 1), unary(c)))
+                    }
+                    _ => None,
+                };
+                if let Some(c) = cert {
+                    certs.push(c);
+                }
+            }
+        }
+    }
+    certs
+}
+
 // One certificate per statically-dischargeable machine (postconditions), plus one per
 // dischargeable call site (forwarded preconditions) and per dischargeable array access.
 pub fn emit_contracts(program: &Program) -> Vec<String> {
@@ -589,6 +647,7 @@ pub fn emit_contracts(program: &Program) -> Vec<String> {
         .collect();
     for caller_idx in 0..program.machines.len() {
         certs.extend(discharge_forwarding(caller_idx, program));
+        certs.extend(discharge_const_call_args(caller_idx, program));
         certs.extend(discharge_array_bounds(caller_idx, program));
     }
     certs

@@ -72,6 +72,9 @@ machine weaken(a: i32) -> i32 requires a >= 3 { return needs_pos(a); }
 // needs (x <= 5); a <= 2 implies a <= 5, again via le-trans.
 machine bounded(x: i32) -> i32 requires x <= 5 { return x; }
 machine tighten(a: i32) -> i32 requires a <= 2 { return bounded(a); }
+// CONSTANT CALL ARGUMENT: a call passing a LITERAL that meets the callee's precondition directly. The
+// obligation `5 >= 1` is GROUND -- no caller `requires` is needed -- so a ground witness proves it.
+machine call_pos() -> i32 { return needs_pos(5); }
 
 // IMPLICIT ARRAY-BOUNDS (compiler-emitted memory safety): every `self.vals[i]` owes `i < 16` (the
 // declared length). The programmer never wrote that obligation -- the compiler finds the access and
