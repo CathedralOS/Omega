@@ -52,6 +52,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-max.alp "$T/cmax" >/dev/nul
   || { echo "convergence FAIL — compiling certify-max"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sort2.alp "$T/cs2" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-sort2"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sort3.alp "$T/cs3" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-sort3"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-gcd.alp "$T/cg" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-gcd"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-triangle.alp "$T/ct" >/dev/null 2>&1 \
@@ -247,6 +249,16 @@ cs2() {
     FAIL=$((FAIL+1)); echo "  FAIL sort2($1,$2) : delta returned [$v], expected accept"; fi
 }
 cs2 5 3; cs2 3 7; cs2 4 4; cs2 0 9; cs2 100 2
+
+# a verified 3-element SORT: certifies the output is ORDERED *and* a PERMUTATION of the input (the Perm
+# inductive predicate), the permutation proved by a 3-compare-swap bubble network composed via permtrans.
+# Functional correctness of a real sorting algorithm. Run across all orderings + ties.
+cs3() {
+  v=$(printf '%s %s %s' "$1" "$2" "$3" | "$T/cs3" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL sort3($1,$2,$3) : delta returned [$v], expected accept"; fi
+}
+cs3 3 1 2; cs3 1 2 3; cs3 3 2 1; cs3 2 3 1; cs3 1 3 2; cs3 2 1 3; cs3 2 2 1; cs3 5 5 5
 
 # a real ALGORITHM certified: Euclid's gcd output divides both inputs (g|a & g|b)
 cg() {
