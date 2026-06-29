@@ -156,7 +156,14 @@ fn main() {
                 exit(1);
             }
         };
-        if let Some(expr) = gamma_emit::emit_gamma(&program) {
+        // EPS_GAMMA_INPUT="65 66 67" bakes stdin bytes into the gamma program for read_byte() programs
+        // (the diamond feeds the SAME bytes to native stdin); absent/empty -> no input.
+        let input: Vec<i32> = std::env::var("EPS_GAMMA_INPUT")
+            .unwrap_or_default()
+            .split_whitespace()
+            .filter_map(|t| t.parse::<i32>().ok())
+            .collect();
+        if let Some(expr) = gamma_emit::emit_gamma(&program, &input) {
             println!("{}", expr);
         }
         return;

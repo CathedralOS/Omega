@@ -33,6 +33,7 @@ struct Env {
     array_off: Vec<i32>,    // distinct self-array base offsets, ascending
     array_cnt: Vec<i32>,    // element count per array (parallel to array_off) -- for zero-init
     array_cur: Vec<String>, // current gamma name per array (the list)
+    input_cur: Option<String>, // the remaining stdin as a list, if this machine reads it (read_byte)
 }
 
 impl Env {
@@ -52,14 +53,31 @@ impl Env {
         self.array_cur[i] = name;
         Some(())
     }
-    // The full state vector (locals, then fields, then arrays), current bindings -- the args a state
-    // tail-call forwards.
+    // The full state vector (locals, fields, arrays, then the input stream), current bindings -- the
+    // args a state tail-call forwards.
     fn slots(&self) -> String {
         let mut v = self.locals.clone();
         v.extend(self.field_cur.iter().cloned());
         v.extend(self.array_cur.iter().cloned());
+        v.extend(self.input_cur.iter().cloned());
         v.join(" ")
     }
+}
+
+// Does this machine read stdin (a `read_byte()` anywhere in entry or states)?
+fn uses_read_byte(machine: &Machine, program: &Program) -> bool {
+    let mut blocks: Vec<&[Statement]> = vec![&machine.entry];
+    blocks.extend(machine.states.iter().map(|s| s.as_slice()));
+    blocks.iter().flat_map(|b| b.iter()).any(|s| stmt_value_is_read_byte(s, program))
+}
+
+// Is the statement a write whose value is exactly read_byte()? (the only supported read_byte shape)
+fn stmt_value_is_read_byte(statement: &Statement, program: &Program) -> bool {
+    let v = match statement {
+        Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::StoreSelfField(_, e, _) => *e,
+        _ => return false,
+    };
+    matches!(program.expressions[v], Expr::ReadByte)
 }
 
 // Render an expression node as a gamma s-expression under the current Env, or None if outside the
@@ -99,8 +117,8 @@ fn gexpr(node: usize, program: &Program, env: &Env) -> Option<String> {
         // gexpr) which is this expression's value. SELF/method callees are a later slice.
         Expr::Call(callee, start, count) => {
             let cm = &program.machines[callee];
-            if !collect_field_offsets(cm, program).is_empty() {
-                return None; // a callee touching self fields is a method-call slice
+            if !collect_field_offsets(cm, program).is_empty() || uses_read_byte(cm, program) {
+                return None; // a callee touching self fields or stdin is a later slice (no stream threaded in)
             }
             let mut parts = Vec::new();
             for j in 0..count {
@@ -159,6 +177,40 @@ fn translate_transition(
     Some(acc)
 }
 
+// The destination of a read_byte(): a local slot or a scalar self-field slot.
+enum Target {
+    Local(usize),
+    Field(i32),
+}
+
+// Translate `<target> = read_byte()`: bind the target to the head of the input stream (or -1 at EOF)
+// and advance the stream to its tail, both as fresh SSA bindings, then continue. Models epsilon's
+// stateful read as two functional `match`es over the threaded input list. Requires an input slot.
+fn read_byte_into(
+    target: Target,
+    mi: usize,
+    stmts: &[Statement],
+    idx: usize,
+    program: &Program,
+    env: &mut Env,
+    fresh: &mut usize,
+) -> Option<String> {
+    let inp = env.input_cur.clone()?;
+    let head = format!("(match {0} (Nil (- 0 1)) ((Cons h t) h))", inp); // next byte, or -1 at EOF
+    let tail = format!("(match {0} (Nil Nil) ((Cons h t) t))", inp); // remaining stream
+    let cnm = format!("t{}", *fresh);
+    *fresh += 1;
+    let inm = format!("t{}", *fresh);
+    *fresh += 1;
+    match target {
+        Target::Local(i) => env.locals[i] = cnm.clone(),
+        Target::Field(off) => env.field_set(off, cnm.clone())?,
+    }
+    env.input_cur = Some(inm.clone());
+    let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
+    Some(format!("(let {} {} (let {} {} {}))", cnm, head, inm, tail, rest))
+}
+
 // Translate a statement sequence (an entry or state body) from `idx`, threading the SSA Env. The
 // sequence must terminate in a transition / exit / return.
 fn translate_seq(
@@ -176,6 +228,9 @@ fn translate_seq(
             if i >= env.locals.len() {
                 return None;
             }
+            if matches!(program.expressions[e], Expr::ReadByte) {
+                return read_byte_into(Target::Local(i), mi, stmts, idx, program, env, fresh);
+            }
             let value = gexpr(e, program, env)?; // evaluated under pre-write bindings
             let nm = format!("t{}", *fresh);
             *fresh += 1;
@@ -186,6 +241,9 @@ fn translate_seq(
         // a self-field write: self.<offset> = e
         Statement::StoreSelfField(off, val, _domain) => {
             let (off, val) = (*off, *val);
+            if matches!(program.expressions[val], Expr::ReadByte) {
+                return read_byte_into(Target::Field(off), mi, stmts, idx, program, env, fresh);
+            }
             let value = gexpr(val, program, env)?;
             let nm = format!("t{}", *fresh);
             *fresh += 1;
@@ -339,6 +397,7 @@ fn machine_env(mi: usize, program: &Program) -> Env {
         array_cur: (0..arrays.len()).map(|i| format!("a{}", i)).collect(),
         array_off: arrays.iter().map(|&(o, _)| o).collect(),
         array_cnt: arrays.iter().map(|&(_, c)| c).collect(),
+        input_cur: if uses_read_byte(machine, program) { Some("inp".to_string()) } else { None },
     }
 }
 
@@ -361,7 +420,7 @@ fn emit_machine_defs(mi: usize, program: &Program, fresh: &mut usize, out: &mut 
 // Translate the program to a gamma expression: every machine reachable from the entry via Call
 // becomes its own set of `m{idx}_*` defs; the program starts by calling the entry with all slots 0.
 // None if anything is outside the supported subset.
-pub fn emit_gamma(program: &Program) -> Option<String> {
+pub fn emit_gamma(program: &Program, input: &[i32]) -> Option<String> {
     let entry = program.entry_machine;
     // reachable set: entry + transitive Call targets
     let mut seen: BTreeSet<usize> = [entry].into_iter().collect();
@@ -376,6 +435,10 @@ pub fn emit_gamma(program: &Program) -> Option<String> {
                 queue.push(c);
             }
         }
+    }
+    // only the entry machine reads stdin in this slice (its input stream isn't threaded into calls)
+    if reachable.iter().skip(1).any(|&mi| uses_read_byte(&program.machines[mi], program)) {
+        return None;
     }
 
     let entry_env = machine_env(entry, program);
@@ -393,7 +456,8 @@ pub fn emit_gamma(program: &Program) -> Option<String> {
         emit_machine_defs(mi, program, &mut fresh, &mut out)?;
     }
 
-    // initial call: 0 for every local and scalar field, a zero-list `(Cons 0 … Nil)` per array.
+    // initial call: 0 for every local and scalar field, a zero-list per array, and (if the entry reads
+    // stdin) the baked input stream as a `(Cons b0 … Nil)` list -- the same bytes the diamond feeds native.
     let mut init: Vec<String> = Vec::new();
     init.extend(std::iter::repeat("0".to_string()).take(entry_env.locals.len()));
     init.extend(std::iter::repeat("0".to_string()).take(entry_env.field_off.len()));
@@ -401,6 +465,13 @@ pub fn emit_gamma(program: &Program) -> Option<String> {
         let mut list = String::from("Nil");
         for _ in 0..count {
             list = format!("(Cons 0 {})", list);
+        }
+        init.push(list);
+    }
+    if entry_env.input_cur.is_some() {
+        let mut list = String::from("Nil");
+        for &b in input.iter().rev() {
+            list = format!("(Cons {} {})", b, list);
         }
         init.push(list);
     }

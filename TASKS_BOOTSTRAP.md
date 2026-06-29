@@ -195,11 +195,14 @@ a working proof-carrying contract system** (item 11). What remains:
   callee's parameter locals and 0 for the rest — recursion and callees-with-states included: `fact(5)` via
   a recursive helper agrees); and **SELF ARRAYS** (`self.arr[i]` modeled as a threaded gamma LIST with
   emitted `nth`/`setl` helpers — read → `(nth a i)`, write → functional `(setl a i v)`, zero-initialised
-  to its element count; sum-of-squares over a buffer agrees). 23 diamond cases. Widen toward the full
-  language — remaining: `read_byte` (needs stateful stdin injection — bake input as a threaded list),
-  bitwise/shift (no `interp.beta` primitive — blocked without extending interp), and method (`self.m()`)
-  calls (callee mutates caller `self` — thread the field record in/out, tuple return). The PURE compute
-  core (arithmetic, state machines, fields, arrays, free calls + recursion) is now fully lattice-defined.
+  to its element count; sum-of-squares over a buffer agrees); and **`read_byte`** (the input stream is a
+  threaded LIST slot; `x = read_byte()` consumes the head — or `-1` at EOF — and advances to the tail, as
+  two functional `match`es; the compiler bakes the bytes via `EPS_GAMMA_INPUT` and the diamond feeds the
+  SAME bytes to native stdin). 26 diamond cases (sum-input=42, first-byte, count-to-EOF). Remaining:
+  bitwise/shift (no `interp.beta` primitive — blocked without extending interp), method (`self.m()`) calls
+  (callee mutates caller `self` — tuple-return threading), and `write_byte`/`write_line` STDOUT (the diamond
+  compares exit codes, not output — a separate harness). Epsilon's input-driven compute surface is now
+  lattice-defined; only effectful output and bit-ops remain.
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
