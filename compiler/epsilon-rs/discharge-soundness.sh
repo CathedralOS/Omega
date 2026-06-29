@@ -99,9 +99,11 @@ cat > "$T/pgap.alp" <<'EOF'
 boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; }
 data Main { console: Console; }
 machine within_b(a: i32, b: i32) -> i32 requires b >= 0 ensures result <= a + b { return a; }
+machine atleast_b(a: i32, b: i32) -> i32 requires b >= 0 ensures result >= a { return a + b; }
 machine Main::main(&mut self) {
     let n: i32 = read_byte();        // 0..255, so n >= 0 satisfies requires b >= 0
     let w: i32 = within_b(7, n);     // postcondition 7 <= 7 + n holds for n >= 0 -> no trap
+    let g: i32 = atleast_b(7, n);    // Ge twin: 7 + n >= 7 holds for n >= 0 -> no trap
     self.console.exit_process(42)
 }
 EOF
