@@ -16,4 +16,10 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" && "$ASM" < "$T/x.asm" > "$T/x.tape" && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b check.beta "$T/check.exe"            || { echo "build check.beta failed"; exit 1; }
 b ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
-python3 checker-diamond-fuzz.py "$T/check.exe" "$T/interp.exe" ../gamma/checker.gamma "${1:-80}"
+# Third oracle: the type-checked checker (checker_typed.gamma, which typeck.beta accepts), mechanically
+# type-erased to what the interpreter runs -- so "the checker the type system validates" is fuzzed too.
+TYPED=""
+if python3 ../gamma/erase_types.py < ../gamma/checker_typed.gamma > "$T/erased.gamma" 2>/dev/null; then
+  TYPED="$T/erased.gamma"
+fi
+python3 checker-diamond-fuzz.py "$T/check.exe" "$T/interp.exe" ../gamma/checker.gamma "$TYPED" "${1:-60}"

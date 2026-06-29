@@ -9,8 +9,10 @@
 import sys, random, subprocess
 
 CHECK, INTERP, CGAMMA = sys.argv[1], sys.argv[2], sys.argv[3]
-K = int(sys.argv[4]) if len(sys.argv) > 4 else 120
+CTYPED = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else None  # type-erased checker_typed.gamma (3rd oracle)
+K = int(sys.argv[5]) if len(sys.argv) > 5 else 120
 CGDEFS = open(CGAMMA).read()
+CTDEFS = open(CTYPED).read() if CTYPED else None
 random.seed(20240607)
 
 # check.beta term syntax vs checker.gamma term syntax (NB: gamma uses Pl/Mu/Lapp/Llen, not plus/mult).
@@ -97,8 +99,8 @@ def beta_verdict(goal, proof):  # check.beta: 'accept' | 'reject'
     return subprocess.run([CHECK], input="%s %s" % (goal, proof), capture_output=True, text=True).stdout.strip()
 
 
-def gamma_verdict(check_expr):  # checker.gamma on the interpreter: exit 1 => accept
-    r = subprocess.run([INTERP], input="%s\n%s\n" % (CGDEFS, check_expr), capture_output=True, text=True)
+def gamma_verdict(defs, check_expr):  # a gamma checker on the interpreter: exit 1 => accept
+    r = subprocess.run([INTERP], input="%s\n%s\n" % (defs, check_expr), capture_output=True, text=True)
     return "accept" if r.returncode == 1 else "reject"
 
 
@@ -131,12 +133,17 @@ while i < K and attempts < K * 8:
     eb, eg, tb, tg, fb, fg = c
     # true: E = value(E)  -> both must ACCEPT ; false: E = value(E)+/-perturb -> both must REJECT
     for rb, rg, expect in ((tb, tg, "accept"), (fb, fg, "reject")):
+        gexpr = "(check (Refl %s) (Eq %s %s))" % (eg, eg, rg)
         vb = beta_verdict("(= %s %s)" % (eb, rb), "(refl %s)" % eb)
-        vg = gamma_verdict("(check (Refl %s) (Eq %s %s))" % (eg, eg, rg))
+        vg = gamma_verdict(CGDEFS, gexpr)
+        vt = gamma_verdict(CTDEFS, gexpr) if CTDEFS else expect  # type-erased checker_typed.gamma
         checks += 1
-        if not (vb == vg == expect):
+        if not (vb == vg == vt == expect):
             fails += 1
-            print("  FAIL  (= %s %s) : check.beta=%s checker.gamma=%s expect=%s" % (eb[:34], rb[:18], vb, vg, expect))
+            print("  FAIL  (= %s %s) : check.beta=%s checker.gamma=%s typed=%s expect=%s"
+                  % (eb[:30], rb[:16], vb, vg, vt, expect))
 
-print("checker-diamond fuzz (%d random Peano/List equations, %d checks): %d disagreements" % (i, checks, fails))
+oracles = "check.beta + checker.gamma" + (" + checker_typed.gamma" if CTDEFS else "")
+print("checker-diamond fuzz (%d random Peano/List equations, %d checks, oracles: %s): %d disagreements"
+      % (i, checks, oracles, fails))
 sys.exit(1 if fails else 0)
