@@ -10667,6 +10667,39 @@ fn runtime_value_call_return_types_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_contained_machine_exit_canary_runs() {
+    // A contained machine (component with state): single-instance method calls --
+    // statement-call mutation, arg, and a value-call return -- all work. (Multiple
+    // contained machines of the SAME type alias to the first; tracked separately.)
+    let canary = pass_canary("calls/runtime_contained_machine_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-contained-machine-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("contained-machine canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("contained-machine canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected contained-machine method calls (increment/add_to/get) to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_call_result_after_splice_mutation_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_call_result_after_splice_mutation_exit");
     let main_path = canary.join("main.omg");
