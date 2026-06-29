@@ -5083,6 +5083,34 @@ fn runtime_shift_signedness_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_narrow_signed_guard_ops_exit_canary_runs() {
+    // Narrow (i8) signed compare/sub/mul with negative values as guard subjects -- the
+    // working siblings of the narrow-signed-divide-guard fix; guards the area.
+    let canary = pass_canary("arithmetic/runtime_narrow_signed_guard_ops_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-narrow-signed-guard-ops-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("narrow-signed-guard-ops canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("narrow-signed-guard-ops canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i8 signed compare/sub/mul with negatives in guards to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_narrow_signed_divide_guard_exit_canary_runs() {
     // Narrow (i8/i16) signed div/mod evaluated as a GUARD SUBJECT with a negative
     // result. Guard-subject operands arrive zero-extended, so the 32-bit idiv divided
