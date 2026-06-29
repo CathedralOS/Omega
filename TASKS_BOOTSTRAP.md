@@ -193,9 +193,13 @@ a working proof-carrying contract system** (item 11). What remains:
   write; field-based loops agree); and **CROSS-MACHINE CALLS** (each machine reachable from the entry via
   a `Call` becomes its own `m{idx}_*` gamma defs; a free-machine call returns a value, args filling the
   callee's parameter locals and 0 for the rest — recursion and callees-with-states included: `fact(5)` via
-  a recursive helper agrees). 21 diamond cases. Widen toward the full language — next: `read_byte` (stdin
-  threading), bitwise/shift ops, self arrays, and method (`self.m()`) calls — until epsilon's meaning is
-  fully a lattice program. (Scopes to value-returning free callees; methods/`self`-callees still skipped.)
+  a recursive helper agrees); and **SELF ARRAYS** (`self.arr[i]` modeled as a threaded gamma LIST with
+  emitted `nth`/`setl` helpers — read → `(nth a i)`, write → functional `(setl a i v)`, zero-initialised
+  to its element count; sum-of-squares over a buffer agrees). 23 diamond cases. Widen toward the full
+  language — remaining: `read_byte` (needs stateful stdin injection — bake input as a threaded list),
+  bitwise/shift (no `interp.beta` primitive — blocked without extending interp), and method (`self.m()`)
+  calls (callee mutates caller `self` — thread the field record in/out, tuple return). The PURE compute
+  core (arithmetic, state machines, fields, arrays, free calls + recursion) is now fully lattice-defined.
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR

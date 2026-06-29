@@ -23,12 +23,16 @@
 use crate::ast::{BinaryOp, Expr, Machine, Pattern, Program, Statement};
 use std::collections::BTreeSet;
 
-// The current SSA binding of every mutable slot: locals (by index) and self fields (by byte offset).
+// The current SSA binding of every mutable slot: locals (by index), scalar self fields (by byte
+// offset), and self arrays (by base byte offset; each holds a gamma LIST modeling the array).
 #[derive(Clone)]
 struct Env {
     locals: Vec<String>,    // current gamma name per local index
     field_off: Vec<i32>,    // distinct self-field byte offsets, ascending (canonical slot order)
     field_cur: Vec<String>, // current gamma name per field (parallel to field_off)
+    array_off: Vec<i32>,    // distinct self-array base offsets, ascending
+    array_cnt: Vec<i32>,    // element count per array (parallel to array_off) -- for zero-init
+    array_cur: Vec<String>, // current gamma name per array (the list)
 }
 
 impl Env {
@@ -40,10 +44,20 @@ impl Env {
         self.field_cur[i] = name;
         Some(())
     }
-    // The full state vector (locals then fields), current bindings -- the args of a state tail-call.
+    fn array_name(&self, offset: i32) -> Option<&str> {
+        self.array_off.iter().position(|&o| o == offset).map(|i| self.array_cur[i].as_str())
+    }
+    fn array_set(&mut self, offset: i32, name: String) -> Option<()> {
+        let i = self.array_off.iter().position(|&o| o == offset)?;
+        self.array_cur[i] = name;
+        Some(())
+    }
+    // The full state vector (locals, then fields, then arrays), current bindings -- the args a state
+    // tail-call forwards.
     fn slots(&self) -> String {
         let mut v = self.locals.clone();
         v.extend(self.field_cur.iter().cloned());
+        v.extend(self.array_cur.iter().cloned());
         v.join(" ")
     }
 }
@@ -58,6 +72,10 @@ fn gexpr(node: usize, program: &Program, env: &Env) -> Option<String> {
         Expr::Int(k) if k >= 0 => Some(k.to_string()),
         Expr::Local(i) => env.locals.get(i).cloned(),
         Expr::SelfField(off) => env.field_name(off).map(|s| s.to_string()),
+        Expr::SelfIndex(off, _count, _eb, idx) => {
+            let arr = env.array_name(off)?.to_string();
+            Some(format!("(nth {} {})", arr, gexpr(idx, program, env)?))
+        }
         Expr::Binary(o, l, r) => {
             let a = gexpr(l, program, env)?;
             let b = gexpr(r, program, env)?;
@@ -175,9 +193,20 @@ fn translate_seq(
             let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
             Some(format!("(let {} {} {})", nm, value, rest))
         }
+        // a self-array write: self.<arr>[ix] = e  (functional update of the modeled list)
+        Statement::StoreSelfIndex(off, _count, _eb, ix, val) => {
+            let (off, ix, val) = (*off, *ix, *val);
+            let arr = env.array_name(off)?.to_string();
+            let update = format!("(setl {} {} {})", arr, gexpr(ix, program, env)?, gexpr(val, program, env)?);
+            let nm = format!("t{}", *fresh);
+            *fresh += 1;
+            env.array_set(off, nm.clone())?;
+            let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
+            Some(format!("(let {} {} {})", nm, update, rest))
+        }
         Statement::Exit(e) | Statement::Return(e) => gexpr(*e, program, env),
         Statement::Transition(subject, arms) => translate_transition(mi, *subject, arms, program, env),
-        _ => None, // StoreSelfIndex/WriteByte/WriteLine/Eval/Assert/Block -> later slices
+        _ => None, // WriteByte/WriteLine/Eval/Assert/Block -> later slices
     }
 }
 
@@ -209,12 +238,57 @@ fn collect_field_offsets(machine: &Machine, program: &Program) -> Vec<i32> {
                     set.insert(*off);
                     collect_expr_offsets(*val, program, &mut set);
                 }
+                Statement::StoreSelfIndex(_, _, _, ix, val) => {
+                    collect_expr_offsets(*ix, program, &mut set);
+                    collect_expr_offsets(*val, program, &mut set);
+                }
                 Statement::Transition(subj, _) => collect_expr_offsets(*subj, program, &mut set),
                 _ => {}
             }
         }
     }
     set.into_iter().collect()
+}
+
+// Collect SelfIndex array (base offset -> element count) in an expression tree.
+fn collect_arrays_expr(node: usize, program: &Program, out: &mut std::collections::BTreeMap<i32, i32>) {
+    match program.expressions[node] {
+        Expr::SelfIndex(off, count, _eb, idx) => {
+            out.insert(off, count);
+            collect_arrays_expr(idx, program, out);
+        }
+        Expr::Binary(_, l, r) => {
+            collect_arrays_expr(l, program, out);
+            collect_arrays_expr(r, program, out);
+        }
+        _ => {}
+    }
+}
+
+// Collect every distinct self-array the machine reads or writes, as (base offset, element count),
+// ascending by offset. Each becomes one threaded list slot, zero-initialised to `count` elements.
+fn collect_arrays(machine: &Machine, program: &Program) -> Vec<(i32, i32)> {
+    let mut map = std::collections::BTreeMap::new();
+    let mut blocks: Vec<&[Statement]> = vec![&machine.entry];
+    blocks.extend(machine.states.iter().map(|s| s.as_slice()));
+    for block in blocks {
+        for statement in block {
+            match statement {
+                Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::Exit(e)
+                | Statement::Return(e) | Statement::StoreSelfField(_, e, _) => {
+                    collect_arrays_expr(*e, program, &mut map)
+                }
+                Statement::StoreSelfIndex(off, count, _eb, ix, val) => {
+                    map.insert(*off, *count);
+                    collect_arrays_expr(*ix, program, &mut map);
+                    collect_arrays_expr(*val, program, &mut map);
+                }
+                Statement::Transition(subj, _) => collect_arrays_expr(*subj, program, &mut map),
+                _ => {}
+            }
+        }
+    }
+    map.into_iter().collect()
 }
 
 // Collect machine indices reached by Call exprs in an expression tree.
@@ -254,14 +328,23 @@ fn machine_callees(mi: usize, program: &Program, out: &mut BTreeSet<usize>) {
 }
 
 // Emit machine `mi`'s defs (entry `m{mi}_me` plus each state `m{mi}_s{k}`) into `out`.
-fn emit_machine_defs(mi: usize, program: &Program, fresh: &mut usize, out: &mut String) -> Option<()> {
+fn machine_env(mi: usize, program: &Program) -> Env {
     let machine = &program.machines[mi];
     let field_off = collect_field_offsets(machine, program);
-    let base = Env {
+    let arrays = collect_arrays(machine, program);
+    Env {
         locals: (0..machine.local_count).map(|i| format!("l{}", i)).collect(),
         field_cur: (0..field_off.len()).map(|i| format!("g{}", i)).collect(),
         field_off,
-    };
+        array_cur: (0..arrays.len()).map(|i| format!("a{}", i)).collect(),
+        array_off: arrays.iter().map(|&(o, _)| o).collect(),
+        array_cnt: arrays.iter().map(|&(_, c)| c).collect(),
+    }
+}
+
+fn emit_machine_defs(mi: usize, program: &Program, fresh: &mut usize, out: &mut String) -> Option<()> {
+    let machine = &program.machines[mi];
+    let base = machine_env(mi, program);
     let sig = base.slots();
 
     let mut env = base.clone();
@@ -295,18 +378,36 @@ pub fn emit_gamma(program: &Program) -> Option<String> {
         }
     }
 
+    let entry_env = machine_env(entry, program);
     let mut fresh = 0usize;
     let mut out = String::new();
+
+    // list helpers for self arrays: nth (read) and setl (functional update). Emitted only when the
+    // entry uses arrays (free callees have no self, so only the entry can). interp's Cons/Nil + match.
+    if !entry_env.array_off.is_empty() {
+        out.push_str("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nth t (- k 1)))))) ");
+        out.push_str("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setl t (- k 1) v)))))) ");
+    }
+
     for &mi in &reachable {
         emit_machine_defs(mi, program, &mut fresh, &mut out)?;
     }
 
-    let slot_count = program.machines[entry].local_count
-        + collect_field_offsets(&program.machines[entry], program).len();
-    if slot_count == 0 {
+    // initial call: 0 for every local and scalar field, a zero-list `(Cons 0 … Nil)` per array.
+    let mut init: Vec<String> = Vec::new();
+    init.extend(std::iter::repeat("0".to_string()).take(entry_env.locals.len()));
+    init.extend(std::iter::repeat("0".to_string()).take(entry_env.field_off.len()));
+    for &count in &entry_env.array_cnt {
+        let mut list = String::from("Nil");
+        for _ in 0..count {
+            list = format!("(Cons 0 {})", list);
+        }
+        init.push(list);
+    }
+    if init.is_empty() {
         out.push_str(&format!("(m{}_me)", entry));
     } else {
-        out.push_str(&format!("(m{}_me {})", entry, vec!["0"; slot_count].join(" ")));
+        out.push_str(&format!("(m{}_me {})", entry, init.join(" ")));
     }
     Some(out)
 }
