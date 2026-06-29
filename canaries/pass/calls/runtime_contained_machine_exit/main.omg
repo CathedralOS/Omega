@@ -1,0 +1,50 @@
+// A contained MACHINE (a component with its own state) -- a Counter field of Main,
+// driven by method calls. Locks the working single-instance component pattern:
+//   - a statement call mutating the contained machine's state (`increment`)
+//   - a statement call with an argument (`add_to`)
+//   - a VALUE-call returning from the contained machine's state (`get`)
+//
+// CAVEAT (tracked separately, NOT fixed): MULTIPLE contained machines of the SAME
+// type alias -- `self.b.method()` runs on `self.a` because the dispatch resolves the
+// receiver region by TYPE (the first field of that type), losing which field. Direct
+// field access (`self.b.value`) is fine. So a single instance per type is sound; for
+// several, use distinct types or direct field ops until the receiver field is threaded.
+// Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Counter {
+    value: i32 in Wrapping;
+}
+
+machine Counter::increment(&mut self) {
+    self.value = self.value + 1;
+}
+machine Counter::add_to(&mut self, n: i32 in Wrapping) {
+    self.value = self.value + n;
+}
+machine Counter::get(&self) -> i32 in Wrapping {
+    self.value
+}
+
+data Main {
+    console: Console;
+    counter: Counter;
+}
+
+machine Main::main(&mut self) {
+    self.counter.increment();
+    self.counter.increment();
+    self.counter.add_to(10);
+    let v: i32 in Wrapping = self.counter.get();
+
+    transition v == 12 { true -> ok() _ -> bad() }
+    state ok(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
