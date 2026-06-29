@@ -180,6 +180,8 @@ out_test "hello (write_line to stdout)" samples/hello.alp "hello, alpha"
 stdin_exit "i32 in Wrapping: overflowing add wraps, no trap" samples/wraptest.alp "" 42
 sed 's/ in Wrapping//' samples/wraptest.alp > "$T/wraptrap.alp"
 trap_test "default i32 overflow traps (no Wrapping domain)" "$T/wraptrap.alp"
+# `i32 in Saturating` clamps the overflowing add to i32 MAX (2147483647) -> reaches exit 42.
+stdin_exit "i32 in Saturating: overflowing add clamps to i32 MAX" samples/sattest.alp "" 42
 # Slice 3 complete: byte I/O — read_byte/write_byte filters over real stdin/stdout.
 filter_test "echo (read->write byte loop)" samples/echo.alp "hello, bytes!" "hello, bytes!"
 filter_test "buffer ([u8;N], reverse stdin)" samples/buffer.alp "abcde" "edcba"

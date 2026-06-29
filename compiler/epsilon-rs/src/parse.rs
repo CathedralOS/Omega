@@ -884,12 +884,14 @@ impl<'a> Parser<'a> {
             self.expect(TokenKind::Ident)?; // type (ignored at slice 2: everything is i32)
             // optional domain annotation `in <Domain>` (Omega's arithmetic-safety types). Only Wrapping
             // changes codegen (omit the overflow trap); Trapping is the default, others fall through to it.
-            let mut wrapping = false;
+            let mut domain: u8 = 0; // 0 Trapping (default), 1 Wrapping, 2 Saturating
             if self.current_kind() == TokenKind::Ident && self.current_text() == b"in" {
                 self.bump(); // in
-                let domain = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
-                if domain == b"Wrapping" {
-                    wrapping = true;
+                let dom = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+                if dom == b"Wrapping" {
+                    domain = 1;
+                } else if dom == b"Saturating" {
+                    domain = 2;
                 }
             }
             self.expect(TokenKind::Eq)?;
@@ -905,7 +907,7 @@ impl<'a> Parser<'a> {
             }
             let local_index = self.local_names.len();
             self.local_names.push(name);
-            return Ok(Statement::Let(local_index, init, wrapping));
+            return Ok(Statement::Let(local_index, init, domain));
         }
         if self.current_kind() == TokenKind::Ident && self.current_text() == b"transition" {
             self.bump(); // transition
