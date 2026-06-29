@@ -100,4 +100,11 @@ machine Store::get(&mut self, i: i32) -> i32 requires i < 16 { return self.vals[
 // to discharge i<16 -- the compiler proves the access safe from a stronger-than-needed contract.
 machine Store::tight(&mut self, i: i32) -> i32 requires i < 8 { return self.vals[i]; }
 
+// EXPRESSION CALL ARGUMENT (a + k via commutativity): fwd_off promises `a >= 0` and calls
+// needs3(a + 3), where needs3 requires its argument >= 3. The obligation `(a+3) >= 3` is not ground
+// (a is a parameter) but holds whenever a >= 0 -- so it discharges CONDITIONALLY on fwd_off's own
+// precondition: a+3 >= 3 because 3+a = a+3 (add-commutes) and a >= 0 is guaranteed at the call site.
+machine needs3(x: i32) -> i32 requires x >= 3 { return x; }
+machine fwd_off(a: i32) -> i32 requires a >= 0 { return needs3(a + 3); }
+
 machine Main::main(&mut self) { let r: i32 = adds(20, 22); self.console.exit_process(r) }
