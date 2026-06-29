@@ -46,6 +46,7 @@ use crate::ast::{BinaryOp, Expr, Machine, Program, Statement};
 const ADD_ZERO_RIGHT: usize = 0; // ∀x. x + 0 = x
 const ADD_COMMUTES: usize = 5; // ∀x∀y. x + y = y + x  (def 5: pulls its dep lemmas into 1..4)
 const LE_TRANS: usize = 9; // ∀x∀y∀z. x<=y -> y<=z -> x<=z  (def 9: pulls its dep lemmas into 6..8)
+const MULT_COMMUTES: usize = 20; // ∀x∀y. x * y = y * x  (def 20: pulls its dep lemmas into 10..19)
 
 // Translate an epsilon expression to a raw delta-checker term, each parameter rendered as the
 // de Bruijn variable `(v i+shift)`. Returns None outside the checkable arithmetic fragment
@@ -186,6 +187,22 @@ pub fn discharge_machine(machine: &Machine, program: &Program) -> Option<String>
                     let goal = format!("(= {} {})", lhs_t, x);
                     let proof = format!("(inst (use {}) {})", ADD_ZERO_RIGHT, x);
                     return Some(wrap_universal(p, &goal, &proof));
+                }
+            }
+            // MULTIPLICATIVE COMMUTATIVITY: `return L * R` vs `ensures result == R * L` -> cite
+            // mult-commutes. `(inst (inst (use 20) R) L)` proves `(m L R) = (m R L)` (the * mirror of
+            // the add-commutes branch; the checker can't reduce a*b=b*a since m recurses on the left).
+            if let Expr::Binary(BinaryOp::Mul, l, r) = program.expressions[returned] {
+                if let Expr::Binary(BinaryOp::Mul, el, er) = program.expressions[rhs] {
+                    if expr_eq(el, r, program) && expr_eq(er, l, program) {
+                        let lhs_t = term(returned, program, p, 0)?; // (m L R)
+                        let rhs_t = term(rhs, program, p, 0)?; // (m R L)
+                        let rt = term(r, program, p, 0)?;
+                        let lt = term(l, program, p, 0)?;
+                        let goal = format!("(= {} {})", lhs_t, rhs_t);
+                        let proof = format!("(inst (inst (use {}) {}) {})", MULT_COMMUTES, rt, lt);
+                        return Some(wrap_universal(p, &goal, &proof));
+                    }
                 }
             }
             // otherwise a definitional equality -> refl

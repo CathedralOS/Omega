@@ -32,9 +32,9 @@ honest edges) lives in
 | `compiler/beta-rs/` | Throwaway Rust on-ramp for the *assembler* (cold-start only). | parked |
 | `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | slices 1–6 done; self-check passed |
 | `compiler/beta-lang/` | The Beta compiler **written in Beta** (`bc.beta`) — slice 7. | **DONE — self-hosts** (byte-for-byte fixed point) |
-| `compiler/delta/` | **The certificate checker** (`check.beta`) — the trust anchor: full intuitionistic prop logic + equality/conversion + ∀∃ + induction + `Mem`/`ProdIs`. Compiled by `bc`, run on the seed. Plus a ~204-proof corpus (sqrt2, FTA, infinitude-of-primes), a 43-case soundness battery (no false proof accepted), and a 29-theorem soundness sweep (proved by check.beta **and** computed-true in the interpreter). | **WORKING** — also rewritten in gamma (`checker.gamma`, type-checked + diamond-tested); **no soundness bridge** to execution yet (the deep open problem) |
+| `compiler/delta/` | **The certificate checker** (`check.beta`) — the trust anchor: full intuitionistic prop logic + equality/conversion + ∀∃ + induction + `Mem`/`ProdIs`/`Perm` (three list inductive predicates). Compiled by `bc`, run on the seed. Plus a 211-proof corpus (sqrt2-irrational, infinitude-of-primes, and **the Fundamental Theorem of Arithmetic — BOTH halves: existence AND uniqueness up to permutation**), a 43-case soundness battery (no false proof accepted), and a soundness sweep (proved by check.beta **and** computed-true in the interpreter). The `Perm` permutation relation that FTA uniqueness needs was added to all three checkers (`check.beta`, `checker.gamma`, `checker_typed.gamma`) and is diamond-cross-validated. | **WORKING** — also rewritten in gamma (`checker.gamma`, type-checked + diamond-tested); **no soundness bridge** to execution yet (the deep open problem) |
 | `compiler/gamma/` | `gamma.alpha` = parked v13 imperative compiler. **`interp.beta`** = interpreter-first reference interpreter (functional, ADTs + pattern matching, fuel-bounded) + **`typeck.beta`** = a static type checker + **`checker.gamma`** = the Delta checker in gamma, all in Beta. | interpreter + type system done |
-| `compiler/epsilon-rs/` | The **Epsilon on-ramp** (throwaway Rust): compiles a machines / `data` / `transition` / `enum` systems language — Omega's executable surface — to x64 PE **and** arm64 Mach-O. Self-hosts (`lowermachine.alp` emits itself byte-identically). Hosts the **convergence** (`certify-*.alp` programs emit delta certificates) **and a proof-carrying contract system** (`assert`/`requires`/`ensures`, compiler-emitted static discharge, call-site composition). | **GATED** — slices 1–9 + operators/enums/state-params; 140 aarch64 tests; 106-cert convergence; contract discharge (`contracts.sh` 14, `discharge-soundness.sh`) |
+| `compiler/epsilon-rs/` | The **Epsilon on-ramp** (throwaway Rust): compiles a machines / `data` / `transition` / `enum` systems language — Omega's executable surface — to x64 PE **and** arm64 Mach-O. Self-hosts (`lowermachine.alp` emits itself byte-identically). Hosts the **convergence** (`certify-*.alp` programs emit delta certificates — including over the `Perm` predicate) **and a proof-carrying contract system** (`assert`/`requires`/`ensures`, compiler-emitted static discharge, call-site composition). | **GATED** — slices 1–9 + operators/enums/state-params; 191 aarch64 tests; 132-cert convergence (arithmetic, structure, **permutation**); contract discharge (`contracts.sh` 15: equality + add/mult-commutativity citations + order witnesses + call-site forwarding/weakening, `discharge-soundness.sh`) |
 | `compiler/epsilon/`, `compiler/alpha-rs` | Old/renamed experiment soup (a misfiled alpha-in-alpha attempt; not the live rung). | **IGNORE** |
 | `compiler/omega-rs/` | The real Omega compiler, in Rust. Separate concern: the *producer*, not the lattice. | (other workstream) |
 
@@ -154,9 +154,11 @@ The lattice is comprehensively built from the seed through a certifying systems 
 a working proof-carrying contract system** (item 11). What remains:
 
 - **Richer contract composition** — incremental, all on the proven mechanism (cite the right
-  banked lemma at the site, no new design): `<=` upper-bound weakening, expression arguments
-  (`B(a+1)`, via the commutativity citation), implicit obligations (array-bounds / overflow
-  discharged from context, like the convergence's `certify-bounds` but compiler-emitted), and
+  banked lemma at the site, no new design). DONE: `<=` upper-bound weakening (call-site, via le-trans),
+  additive AND multiplicative commutativity citations (`result == b+a` / `result == b*a`, citing
+  add-commutes / mult-commutes). REMAINING: expression arguments (`B(a+1)`, via the commutativity /
+  monotonicity citation), implicit obligations (array-bounds / overflow discharged from context, like
+  the convergence's `certify-bounds` but compiler-emitted), multiple postconditions per machine, and
   domain types (`i32 in Trapping/Wrapping`).
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference

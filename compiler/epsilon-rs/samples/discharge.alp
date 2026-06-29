@@ -22,6 +22,10 @@ machine azr(a: i32) -> i32 ensures result == a { return a + 0; }
 machine comm(a: i32, b: i32) -> i32 ensures result == b + a { return a + b; }
 // multiplication: result == a * 3, returned verbatim
 machine triple(a: i32) -> i32 ensures result == a * 3 { return a * 3; }
+// LEMMA CITATION (multiplicative): result == b * a, returned as a * b -> commutativity of `*`,
+// which refl can't see (m recurses on the left, so a*b vs b*a is stuck). The compiler cites
+// mult-commutes at both terms: (inst (inst (use 20) b) a) -- the * mirror of the `comm` case.
+machine mcomm(a: i32, b: i32) -> i32 ensures result == b * a { return a * b; }
 
 // STRICT ORDER (proved by an existential witness, a < b == exists w. a+(s w)=b):
 // result exceeds the input: result > a, returned as a + 1 -> witness 0
