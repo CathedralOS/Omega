@@ -4317,6 +4317,36 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_two_pointer_palindrome_exit_canary_runs() {
+    // A two-pointer palindrome check whose DECREASING pointer `j` stays >= 0 only
+    // because j > i >= 0 -- proven by chaining the loop ordering `i < j` with `i`'s
+    // non-negativity (non_negative_is_proven_via_ordering). Compiling + exiting 70
+    // confirms the decreasing-counter lower bound is derived and the walk is correct.
+    let canary = pass_canary("collections/runtime_two_pointer_palindrome_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-two-pointer-palindrome-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("two-pointer palindrome canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("two-pointer palindrome canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the two-pointer palindrome walk to confirm [3,7,9,7,3] (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_rule90_automaton_exit_canary_runs() {
     // A self-checking Rule 90 cellular automaton (the engine behind
     // samples/cellular_automaton): a sliding 3-cell window, the value-position rule

@@ -183,6 +183,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_transition_unsigned_guard_exit", 70),
     ("collections/runtime_fixed_vec_round_trip_exit", 70),
     ("collections/runtime_rule90_automaton_exit", 70),
+    ("collections/runtime_two_pointer_palindrome_exit", 70),
     ("comptime/runtime_const_array_length_exit", 70),
     ("comptime/runtime_const_array_length_transitive_exit", 70),
     ("comptime/runtime_const_array_length_bare_call_arm_exit", 70),

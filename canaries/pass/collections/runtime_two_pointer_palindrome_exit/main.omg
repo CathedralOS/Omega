@@ -1,0 +1,48 @@
+// A two-pointer palindrome check: `i` runs UP, `j` runs DOWN, comparing arr[i] vs arr[j]
+// from both ends inward. The DECREASING pointer `j` stays in bounds because `j > i >= 0`:
+// its lower bound (j >= 0) is proven by chaining the loop ordering `i < j` (an at_most
+// fact) with `i`'s non-negativity -- the non_negative_is_proven_via_ordering derivation.
+// Without it, j's lower bound is unprovable and this rejects (the prior state of the
+// world). Elements are compared through field temps because a direct `arr[i] == arr[j]`
+// guard is a separate, cleanly-errored gap (two runtime-indexed comparison operands).
+// The palindrome [3,7,9,7,3] is confirmed -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5] in Trapping;
+    i: i32 in Trapping;
+    j: i32 in Trapping;
+    vi: i32 in Trapping;
+    vj: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.arr = [3, 7, 9, 7, 3];
+    self.i = 0;
+    self.j = 4;
+    transition { _ -> walk() }
+
+    state walk(&mut self) {
+        transition self.i < self.j { true -> read() _ -> palindrome() }
+    }
+    state read(&mut self) {
+        self.vi = self.arr[self.i];
+        self.vj = self.arr[self.j]; // j proven >= 0 via `i < j` chained with `i >= 0`
+        transition self.vi == self.vj { true -> advance() _ -> mismatch() }
+    }
+    state advance(&mut self) {
+        self.i = self.i + 1;
+        self.j = self.j - 1;
+        transition { _ -> walk() }
+    }
+
+    state palindrome(&mut self) {
+        self.console.exit_process(70);
+    }
+    state mismatch(&mut self) {
+        self.console.exit_process(71);
+    }
+}

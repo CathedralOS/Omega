@@ -208,7 +208,8 @@ fn check_known_length_index(
                     || facts.index_upper_bound_is_proven_via_ordering(&index_label, length);
                 let lower_bound_proven = expression_is_unsigned_integer(
                     program, machine, state, index,
-                ) || facts.non_negative_is_proven(&index_label);
+                ) || facts.non_negative_is_proven(&index_label)
+                    || facts.non_negative_is_proven_via_ordering(&index_label);
                 if upper_bound_proven && lower_bound_proven {
                     return;
                 }
