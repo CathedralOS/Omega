@@ -1,0 +1,125 @@
+// An animated radial "ripple" -- concentric diamonds pulsing out from the centre of a
+// 30x16 character field, the first per-CELL animated SHADER (every cell's brightness is
+// a function of its position AND time, mapped through a brightness ramp), as opposed to
+// the single-ball samples (one moving object) and the static-per-frame Mandelbrot.
+//
+// Per cell: Manhattan distance to the centre, scrolled by the frame counter, taken mod
+// the 8-char ramp " .:-=+*#" (dim->bright). The ramp lookup uses a FIELD intermediate
+// (self.c = ramp[level]; line[x] = self.c) -- a runtime-indexed READ into a scalar then
+// a runtime-indexed WRITE from that scalar -- because the fused both-runtime-indexed
+// form line[x] = ramp[level] is a known gap. Each frame homes the cursor (ESC[H),
+// redraws the grid one row at a time, then sleeps. Pure compute + stdout + Clock.sleep;
+// no new compiler features.
+// Expected exit: 0.
+// Expected output contains: #
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 30]::Utf8 when valid_utf8(self) {}
+domain [u8; 8]::Utf8 when valid_utf8(self) {}
+domain [u8; 3]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    line: [u8; 30] in Utf8;   // one rendered row
+    ramp: [u8; 8] in Utf8;    // " .:-=+*#"  dim -> bright
+    home: [u8; 3] in Utf8;    // ESC [ H  (cursor home)
+    frame: i32 in Trapping;
+    y: i32 in Trapping;
+    x: i32 in Trapping;
+    dx: i32 in Trapping;
+    dy: i32 in Trapping;
+    dist: i32 in Trapping;
+    level: i32 in Trapping;
+    c: u8;
+}
+
+machine Main::main(&mut self) {
+    self.line = "                              ";
+    self.ramp = " .:-=+*#";
+    self.home = "XXX";
+    self.home[0] = 27; // ESC
+    self.home[1] = 91; // [
+    self.home[2] = 72; // H
+    self.frame = 0;
+    transition { _ -> frame_loop() }
+
+    state frame_loop(&mut self) {
+        transition self.frame < 60 { true -> frame_start() _ -> finish() }
+    }
+    state frame_start(&mut self) {
+        self.console.write(self.home);
+        self.y = 0;
+        transition { _ -> row_loop() }
+    }
+
+    // --- redraw the 30x16 grid one cell at a time, one row per write_line ---
+    state row_loop(&mut self) {
+        transition self.y >= 0 && self.y < 16 { true -> col_init() _ -> after_frame() }
+    }
+    state col_init(&mut self) {
+        self.x = 0;
+        transition { _ -> col_loop() }
+    }
+    state col_loop(&mut self) {
+        transition self.x >= 0 && self.x < 30 { true -> cell() _ -> emit_row() }
+    }
+    state cell(&mut self) {
+        self.dx = self.x - 15; // offset from centre column
+        self.dy = self.y - 8;  // offset from centre row
+        transition { _ -> abs_dx() }
+    }
+    state abs_dx(&mut self) {
+        transition self.dx < 0 { true -> neg_dx() _ -> chk_dy() }
+    }
+    state neg_dx(&mut self) {
+        self.dx = 0 - self.dx;
+        transition { _ -> chk_dy() }
+    }
+    state chk_dy(&mut self) {
+        transition self.dy < 0 { true -> neg_dy() _ -> level_calc() }
+    }
+    state neg_dy(&mut self) {
+        self.dy = 0 - self.dy;
+        transition { _ -> level_calc() }
+    }
+    state level_calc(&mut self) {
+        // Manhattan distance to centre (LINEAR in radius -> evenly spaced rings),
+        // scrolled by time, mod the ramp length -> concentric diamonds pulsing out.
+        self.dist = self.dx + self.dy;
+        self.level = (self.dist + self.frame) % 8;
+        transition { _ -> bounds() }
+    }
+    state bounds(&mut self) {
+        // Re-assert both indices right before the write so the prover carries them the
+        // single hop into write_cell (the col_loop guard is too many states back).
+        transition self.x >= 0 && self.x < 30 && self.level >= 0 && self.level < 8 {
+            true -> write_cell()
+            _ -> bad()
+        }
+    }
+    state write_cell(&mut self) {
+        self.c = self.ramp[self.level]; // runtime-indexed READ into a scalar
+        self.line[self.x] = self.c;     // runtime-indexed WRITE from that scalar
+        self.x = self.x + 1;
+        transition { _ -> col_loop() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        self.y = self.y + 1;
+        transition { _ -> row_loop() }
+    }
+
+    state after_frame(&mut self) {
+        self.console.sleep(40);
+        self.frame = self.frame + 1;
+        transition { _ -> frame_loop() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
