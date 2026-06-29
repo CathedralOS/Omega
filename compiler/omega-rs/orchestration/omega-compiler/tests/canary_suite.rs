@@ -1775,6 +1775,40 @@ fn runtime_value_call_slice_view_element_arg_exit_canary_runs() {
 // substate's guard saw the wrong value and branched into the wrong arm. The fix
 // keeps the captured slot. Exits 70 (both pushes land: stack[0]=3, stack[1]=4).
 #[test]
+fn runtime_composite_initializer_local_arg_exit_canary_runs() {
+    // A let-local whose initializer is a composite (binary / unary / cast) reading a
+    // prior local or field, forwarded as a transition argument. The dispatch-arg fold
+    // must recurse into the composite to resolve the inner local; missing Cast/Binary/
+    // Unary arms re-materialized it in the target frame (no slot) and read 0.
+    let canary = pass_canary("control_flow/runtime_composite_initializer_local_arg_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-composite-initializer-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("composite-initializer-local-arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("composite-initializer-local-arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected binary/unary/field-read composite initializers forwarded as args to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_captured_local_remutated_field_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_captured_local_remutated_field_exit");
     let main_path = canary.join("main.omg");
