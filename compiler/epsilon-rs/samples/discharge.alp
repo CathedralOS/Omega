@@ -52,6 +52,14 @@ machine within10(a: i32) -> i32 ensures result <= a + 10 { return a; }
 // add-zero-right, exactly like `result == a` returned as `a + 0`. Two postconditions, both reflexive.
 machine cap(a: i32) -> i32 ensures result <= a ensures result >= a { return a; }
 
+// SAME-BASE OFFSET GAP: both sides are `a + literal`. `result < a + 5` returned as `a + 2` is
+// `a+2 < a+5` -- additive_gap can't see it (a+5 is not syntactically (a+2)+k), and the gap is on a
+// COMMON base that cancels, so it is sound for any sign of a (unlike a bare parameter gap). The
+// witness is (5-2)-1=2; add-assoc factors `(a+2)+3 = a+(2+3)`, whose inner ground sum reduces to 5
+// under the stuck `(p a _)`, converting to `a+5`. The non-strict `<=` twin discharges the same way.
+machine offlt(a: i32) -> i32 ensures result < a + 5 { return a + 2; }
+machine offle(a: i32) -> i32 ensures result <= a + 7 { return a + 3; }
+
 // MULTIPLE POSTCONDITIONS: a machine may declare several `ensures`; each is discharged independently
 // into its own certificate (mirroring the runtime path, which desugars each to its own assert). Here
 // `return a + 5` proves TWO postconditions of different KINDS -- a strict order (result > a, witness 4)

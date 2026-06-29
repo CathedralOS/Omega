@@ -131,6 +131,23 @@ fn unary(n: i32) -> String {
     s
 }
 
+// If `smaller` is `B + m` and `larger` is `B + n` for the SAME base B and literals m < n, return
+// (B, m, n). Both `B+m < B+n` and `B+m <= B+n` hold for ANY value of B -- the base cancels -- so,
+// unlike a bare parameter gap (which a negative i32 could violate), this is sound regardless of sign.
+// additive_gap can't see it because `larger` is not syntactically `smaller + k` (it is `B + n`).
+fn same_base_gap(smaller: usize, larger: usize, program: &Program) -> Option<(usize, i32, i32)> {
+    if let (Expr::Binary(BinaryOp::Add, bs, ms), Expr::Binary(BinaryOp::Add, bl, nl)) =
+        (program.expressions[smaller], program.expressions[larger])
+    {
+        if let (Expr::Int(m), Expr::Int(n)) = (program.expressions[ms], program.expressions[nl]) {
+            if m >= 0 && n > m && expr_eq(bs, bl, program) {
+                return Some((bs, m, n));
+            }
+        }
+    }
+    None
+}
+
 // Wrap a goal proposition and its proof in `∀` over `param_count` parameters: P `All`s around
 // the goal, P `gen`s around the proof. With zero params the binders vanish (a closed ground
 // obligation), which is fine.
@@ -289,14 +306,31 @@ fn discharge_postcondition(machine: &Machine, program: &Program, pc: usize) -> O
                 BinaryOp::Lt => (returned, rhs),
                 _ => (rhs, returned),
             };
-            let k = additive_gap(smaller_expr, larger_expr, program)?;
-            // a < b  ==  ∃w. a + (s w) = b ; witness k-1 makes a+(s(k-1)) = a+k = b
+            if let Some(k) = additive_gap(smaller_expr, larger_expr, program) {
+                // a < b  ==  ∃w. a + (s w) = b ; witness k-1 makes a+(s(k-1)) = a+k = b
+                let smaller1 = term(smaller_expr, program, p, 1)?;
+                let larger1 = term(larger_expr, program, p, 1)?;
+                let larger0 = term(larger_expr, program, p, 0)?;
+                let body = format!("(= (p {} (s (v 0))) {})", smaller1, larger1);
+                let goal = format!("(Exists {})", body);
+                let proof = format!("(wit {} {} (refl {}))", body, unary(k - 1), larger0);
+                return Some(wrap_universal(p, &goal, &proof));
+            }
+            // SAME-BASE OFFSET GAP: `B+m < B+n` (m<n). The witness is (n-m)-1, so the matrix is
+            // `(B+m) + (n-m) = (B+n)`. refl can't see it -- `(p (p B m) (n-m))` is stuck on the
+            // variable B. Cite add-assoc to factor `(B+m)+(n-m) = B+(m+(n-m))`; the inner GROUND
+            // sum `(m+(n-m))` then reduces to `n` even under the stuck `(p B _)` (conversion
+            // compares arguments), so add-assoc's RHS converts to `B+n` and proves the matrix.
+            let (base, m, n) = same_base_gap(smaller_expr, larger_expr, program)?;
             let smaller1 = term(smaller_expr, program, p, 1)?;
             let larger1 = term(larger_expr, program, p, 1)?;
-            let larger0 = term(larger_expr, program, p, 0)?;
+            let base0 = term(base, program, p, 0)?; // PROOF position: the Exists binder is consumed
             let body = format!("(= (p {} (s (v 0))) {})", smaller1, larger1);
             let goal = format!("(Exists {})", body);
-            let proof = format!("(wit {} {} (refl {}))", body, unary(k - 1), larger0);
+            let proof = format!(
+                "(wit {} {} (inst (inst (inst (use {}) {}) {}) {}))",
+                body, unary(n - m - 1), ADD_ASSOC, unary(m), unary(n - m), base0
+            );
             Some(wrap_universal(p, &goal, &proof))
         }
         // result <= B (= e <= B): discharge when B is `e + G`; smaller=e, larger=B
@@ -315,6 +349,21 @@ fn discharge_postcondition(machine: &Machine, program: &Program, pc: usize) -> O
                 let body = format!("(= (p {} (v 0)) {})", s1, s1);
                 let goal = format!("(Exists {})", body);
                 let proof = format!("(wit {} z (inst (use {}) {}))", body, ADD_ZERO_RIGHT, s0);
+                return Some(wrap_universal(p, &goal, &proof));
+            }
+            // SAME-BASE OFFSET GAP (non-strict): `B+m <= B+n` (m<n). Witness (n-m); matrix
+            // `(B+m) + (n-m) = (B+n)`, discharged by add-assoc exactly as the strict case (sound
+            // for any B, since B cancels). m==n is the reflexive bound handled just above.
+            if let Some((base, m, n)) = same_base_gap(smaller_expr, larger_expr, program) {
+                let smaller1 = term(smaller_expr, program, p, 1)?;
+                let larger1 = term(larger_expr, program, p, 1)?;
+                let base0 = term(base, program, p, 0)?; // PROOF position: the Exists binder is consumed
+                let body = format!("(= (p {} (v 0)) {})", smaller1, larger1);
+                let goal = format!("(Exists {})", body);
+                let proof = format!(
+                    "(wit {} {} (inst (inst (inst (use {}) {}) {}) {}))",
+                    body, unary(n - m), ADD_ASSOC, unary(m), unary(n - m), base0
+                );
                 return Some(wrap_universal(p, &goal, &proof));
             }
             let gap = additive_gap_expr(smaller_expr, larger_expr, program)?;
