@@ -8598,6 +8598,39 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_struct_array_literal_exit_canary_runs() {
+    // Composite literal nesting: a struct literal with an array-literal field AND an
+    // array-of-struct-literals field. Guards the expression-handle + struct-field copy
+    // paths near the nested-struct panic fix. Self-checks the constructed values.
+    let canary = pass_canary("structs/runtime_struct_array_literal_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-array-literal-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-array literal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct-array literal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a struct literal with array + struct-array fields to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_write_const_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_write_const_read_exit");
     let build_dir = std::env::temp_dir()
