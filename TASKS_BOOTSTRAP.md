@@ -136,7 +136,12 @@ The lattice's thesis — *trust by checking, not pedigree* — is now a working 
     CONTROL too — `certify-wrong` is a deliberately-buggy computation (claims `a+b = a+b+1`) whose
     certificate the anchor must REJECT, so the thesis "the anchor checks the computation, not the
     compiler" is a falsifiable test in every run (without it, all accept-tests would pass vacuously
-    if the checker ever degenerated to accept-everything).
+    if the checker ever degenerated to accept-everything). And `convergence-reference.sh` runs the SAME
+    loop down the **reference / meaning route**: the certifier is translated to gamma and EXECUTED by the
+    Rust-free reference interpreter `interp.beta` (the rung's "meaning"), which emits the certificate, and
+    `check.beta` accepts it — so COMPUTE-then-CHECK runs on lattice artifacts via the reference interpreter
+    (not the fast native route), answering the architecture's "checker run down the reference route" open
+    question. 4 diverse cert kinds (refl, ProdIs, Mem, divisibility) + the `certify-wrong` reject control.
 11. **Epsilon contracts — the verification-compiler, BUILT.** What the frontier once called
     "the open question" is now a working proof-carrying contract system (`src/discharge.rs`,
     `contracts.sh`, `discharge-soundness.sh`). Surface: `assert` (runtime trap),
