@@ -368,22 +368,39 @@ fn discharge_postcondition(machine: &Machine, program: &Program, pc: usize) -> O
                 return Some(wrap_universal(p, &goal, &proof));
             }
             let gap = additive_gap_expr(smaller_expr, larger_expr, program)?;
-            // a <= b  ==  ∃w. a + w = b, witness the gap. SOUNDNESS: epsilon `i32` is SIGNED, but
-            // the proof is over delta NATURALS -- so the witness must be PROVABLY non-negative,
-            // else a negative argument makes the runtime assert trap while this "proves" it.
-            // A literal gap is >= 0 (unary minus desugars to Sub, so `Int` nodes are non-negative);
-            // a parameter or expression gap could be negative, so refuse it (conservative).
-            if !matches!(program.expressions[gap], Expr::Int(k) if k >= 0) {
-                return None;
-            }
+            // a <= smaller+gap  ==  ∃w. smaller + w = smaller+gap, witness the gap, proof refl.
+            // SOUNDNESS: epsilon `i32` is SIGNED but the proof is over delta NATURALS, so the witness
+            // must be PROVABLY non-negative -- else a negative argument traps the runtime while this
+            // "proves" it. A literal gap is >= 0 by construction (unary minus desugars to Sub), so it
+            // discharges UNCONDITIONALLY. A parameter gap is sound ONLY under `requires param >= 0`,
+            // and is then discharged CONDITIONALLY on that fact -- the postcondition mirror of the
+            // call-site `a+k` slice (discharge_expr_call_args). An expression gap is still refused.
             let smaller1 = term(smaller_expr, program, p, 1)?;
             let larger1 = term(larger_expr, program, p, 1)?;
             let larger0 = term(larger_expr, program, p, 0)?;
             let gap0 = term(gap, program, p, 0)?;
             let body = format!("(= (p {} (v 0)) {})", smaller1, larger1);
-            let goal = format!("(Exists {})", body);
-            let proof = format!("(wit {} {} (refl {}))", body, gap0, larger0);
-            Some(wrap_universal(p, &goal, &proof))
+            match program.expressions[gap] {
+                Expr::Int(k) if k >= 0 => {
+                    let goal = format!("(Exists {})", body);
+                    let proof = format!("(wit {} {} (refl {}))", body, gap0, larger0);
+                    Some(wrap_universal(p, &goal, &proof))
+                }
+                // `requires param >= 0` makes the signed witness sound; emit ∀p. (param>=0) -> ∃w. …
+                Expr::Local(gi)
+                    if gi < p
+                        && machine.preconditions.iter().any(|&pc| {
+                            matches!(param_order(pc, program), Some((pi, BinaryOp::Ge, 0)) if pi == gi)
+                        }) =>
+                {
+                    let ant_param = term(gap, program, p, 1)?; // param under the antecedent's own Exists
+                    let ant = order_prop(BinaryOp::Ge, 0, &ant_param)?;
+                    let goal = format!("(-> {} (Exists {}))", ant, body);
+                    let proof = format!("(lam {} (wit {} {} (refl {})))", ant, body, gap0, larger0);
+                    Some(wrap_universal(p, &goal, &proof))
+                }
+                _ => None,
+            }
         }
         _ => None,
     }
