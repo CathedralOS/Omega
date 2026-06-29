@@ -5083,6 +5083,35 @@ fn runtime_shift_signedness_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_saturating_narrow_divide_exit_canary_runs() {
+    // i8/i16 saturating signed divide (previously a hard "not implemented" error):
+    // normal divide, and the TYPE_MIN/-1 overflow clamped to TYPE_MAX (i8 127, i16
+    // 32767). The narrow path clamps -a > TYPE_MAX instead of using neg's overflow flag.
+    let canary = pass_canary("arithmetic/runtime_saturating_narrow_divide_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-saturating-narrow-divide-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating-narrow-divide canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating-narrow-divide canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i8/i16 saturating divide (normal + TYPE_MIN/-1 -> TYPE_MAX) to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_mixed_width_sign_exit_canary_runs() {
     // Mixed-width / mixed-sign arithmetic auto-promotes and extends the narrower
     // operand correctly: sign-extension (i32(-5)+i64), zero-extension (u8+i32),

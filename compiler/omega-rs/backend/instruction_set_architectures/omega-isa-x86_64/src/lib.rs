@@ -3956,6 +3956,8 @@ pub fn runtime_storage_binary_write_width(
 fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -> usize {
     let fixup = if want_remainder {
         3 // xor r10d, r10d
+    } else if byte_size <= 2 {
+        16 // neg r10d (3) + mov r9d,imm32 (6) + cmp r10d,r9d (3) + cmovg r10d,r9d (4)
     } else if byte_size <= 4 {
         13 // neg r10d (3) + mov r9d,imm32 (6) + cmovo r10d,r9d (4)
     } else {
@@ -5734,15 +5736,6 @@ fn append_saturating_signed_divide_modulo(
     byte_size: usize,
     want_remainder: bool,
 ) -> Result<(), Diagnostic> {
-    if !want_remainder && byte_size != 4 && byte_size != 8 {
-        // The TYPE_MIN -> TYPE_MAX saturation reads `neg`'s overflow flag, which
-        // only reflects the 32/64-bit register width; an i8/i16 dividend rides
-        // sign-extended in a 32-bit register, so `neg` never overflows for its
-        // (narrower) TYPE_MIN. Modulo is width-independent (a % -1 == 0).
-        return Err(Diagnostic::error(
-            "saturating signed i8/i16 divide is not implemented yet (i32/i64 only)".to_owned(),
-        ));
-    }
     // cmp r11, -1 (sized): the only divisor needing the saturating fixup.
     if byte_size <= 4 {
         bytes.extend([0x41, 0x83, 0xfb, 0xff]); // cmp r11d, -1
@@ -5753,6 +5746,19 @@ fn append_saturating_signed_divide_modulo(
     let mut special: Vec<u8> = Vec::new();
     if want_remainder {
         special.extend([0x45, 0x31, 0xd2]); // xor r10d, r10d  (a % -1 == 0)
+    } else if byte_size <= 2 {
+        // i8/i16: the dividend rides sign-extended in a 32-bit register, so `neg`
+        // does NOT wrap at the narrow width -- a == TYPE_MIN yields -TYPE_MIN ==
+        // TYPE_MAX + 1 (e.g. 128 for i8), the only overflow. The i32/i64 path below
+        // detects TYPE_MIN via `neg`'s overflow flag, which a narrow TYPE_MIN cannot
+        // set; here instead clamp any result above TYPE_MAX down to TYPE_MAX.
+        let imax = ((1i128 << (8 * byte_size - 1)) - 1) as u32;
+        special.extend([0x41, 0xf7, 0xda]); // neg r10d  (-a; a==TYPE_MIN -> TYPE_MAX+1)
+        special.push(0x41);
+        special.push(0xb9);
+        special.extend(imax.to_le_bytes()); // mov r9d, TYPE_MAX
+        special.extend([0x45, 0x39, 0xca]); // cmp r10d, r9d
+        special.extend([0x45, 0x0f, 0x4f, 0xd1]); // cmovg r10d, r9d  (> TYPE_MAX -> TYPE_MAX)
     } else if byte_size <= 4 {
         let imax = ((1i128 << (8 * byte_size - 1)) - 1) as u32;
         special.extend([0x41, 0xf7, 0xda]); // neg r10d  (sets OF iff r10d == TYPE_MIN)
