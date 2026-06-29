@@ -8564,6 +8564,40 @@ fn runtime_indexed_struct_field_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_struct_construction_exit_canary_runs() {
+    // Nested struct construction `Rect { top_left: Point { .. }, .. }` PANICKED the
+    // compiler (an arena span-contiguity assert: the field-value copy appended the
+    // inner struct's fields mid-loop, interleaving the outer span). Fixed with
+    // reserve-then-set. This canary self-checks the constructed nested fields.
+    let canary = pass_canary("structs/runtime_nested_struct_construction_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-struct-construct-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested struct construction canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested struct construction canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nested struct construction (Rect of two Points) to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_write_const_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_write_const_read_exit");
     let build_dir = std::env::temp_dir()
