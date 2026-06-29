@@ -70,6 +70,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-op.alp "$T/cop" >/dev/null 
   || { echo "convergence FAIL — compiling certify-op"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-shape.alp "$T/csh" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-shape"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-shapes.alp "$T/css" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-shapes"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -181,6 +183,19 @@ csh "0 4"; csh "0 5"; csh "0 9"; csh "1 6 7"; csh "1 3 9"; csh "1 2 8"
 badsh=$(printf '0 4' | "$T/csh" | sed 's/(s (s (s (s z))))/(s (s (s z)))/' | "$T/check.exe")
 if [ "$badsh" = reject ]; then PASS=$((PASS+1)); else
   FAIL=$((FAIL+1)); echo "  FAIL tamper-shape : delta returned [$badsh], expected reject"; fi
+
+# the capstone: a counted list of shapes -> total area = nested sum of per-shape products. Composes a
+# loop + per-element enum construct/match + payload binding + state args + mult + accumulation.
+css() {
+  v=$(printf '%s' "$1" | "$T/css" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL shapes [$1] : delta returned [$v], expected accept"; fi
+}
+css "2  1 6 7  0 4"; css "3  0 2  0 3  1 4 5"; css "1  1 5 5"; css "0"; css "2  0 3  0 3"; css "4  0 1  0 2  0 3  0 4"
+# tamper: shrink the first product's operand (6 -> 5) so the nested sum no longer equals the total.
+badcss=$(printf '2  1 6 7  0 4' | "$T/css" | sed 's/(s (s (s (s (s (s z))))))/(s (s (s (s (s z)))))/' | "$T/check.exe")
+if [ "$badcss" = reject ]; then PASS=$((PASS+1)); else
+  FAIL=$((FAIL+1)); echo "  FAIL tamper-shapes : delta returned [$badcss], expected reject"; fi
 
 # CORRECTNESS (not safety): the result meets its spec -- m is genuinely max(a,b):
 # a<=m & b<=m & (m=a or m=b). inl branch when a>=b, inr when a<b.

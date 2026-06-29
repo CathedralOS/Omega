@@ -54,6 +54,7 @@ build_lm certify-gcd      cg
 build_lm certify-triangle ct
 build_lm certify-op       cop
 build_lm certify-shape    csh
+build_lm certify-shapes   css
 
 # the checker prints accept/reject but exits with the alpha VM's halt code, so judge by stdout.
 set +e
@@ -86,6 +87,10 @@ chk cop   "0 7 5"   accept; chk cop   "1 4 6"   accept
 # AND multi-field binding, state args -- the self-hosted compiler's full enum machinery in the proof path
 chk csh   "0 4"     accept; chk csh   "1 6 7"   accept                         # Square s*s ; Rect w*h
 chk csh   "0 5"     accept; chk csh   "1 3 9"   accept
+# the CAPSTONE: a counted list of shapes, total area = nested sum of per-shape products -- composes a
+# loop + per-element enum construct/match + binding + state args + mult + accumulation, all certified
+chk css   "2  1 6 7  0 4"     accept; chk css   "3  0 2  0 3  1 4 5"  accept    # 42+16=58 ; 4+9+20=33
+chk css   "1  1 5 5"          accept; chk css   "0"                  accept    # single Rect ; empty list (z=0)
 
 # the dual must hold too: a FALSE refutation (x != x) must be REJECTED, even self-hosted-compiled
 chk cdist "4 4"     reject; chk cdist "0 0"     reject
