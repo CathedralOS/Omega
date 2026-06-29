@@ -742,7 +742,8 @@ proc parse_term() {
     let kc2 = byte[2097152 + word[2097144] + 1]   ; second letter (app vs absurd)
     let kc3 = byte[2097152 + word[2097144] + 2]   ; third letter (inl vs inr)
     let kc4 = byte[2097152 + word[2097144] + 3]   ; fourth letter (memHead/Tail/Cons/Nil)
-    let kc5 = byte[2097152 + word[2097144] + 4]   ; fifth letter (prodNilinv/prodConsinv)
+    let kc5 = byte[2097152 + word[2097144] + 4]   ; fifth letter (prodNilinv/prodConsinv ; perm Nil/Skip/Swap/Trans)
+    let kc6 = byte[2097152 + word[2097144] + 5]   ; sixth letter (permsKip vs permsWap)
     skip_ident()
     let x = 0
     let y = 0
@@ -766,8 +767,16 @@ proc parse_term() {
     state k_p { to is_p when (kc == 'p')  to k_f }
     state is_p { to do_pnil when (kc2 == 'n')  to is_pc }       ; pnil  : product-of-nil intro
     state do_pnil { expect(')')  return alloc(46, 0, 0) }
-    state is_pc { to do_pcons when (kc2 == 'c')  to is_pr }     ; pcons : product-of-cons intro
+    state is_pc { to do_pcons when (kc2 == 'c')  to is_pe }     ; pcons : product-of-cons intro
     state do_pcons { x = parse_nat()  y = parse_term()  expect(')')  return alloc(47, x, y) }
+    state is_pe { to do_perm when (kc2 == 'e')  to is_pr }      ; perm* : list-permutation intro
+    state do_perm { to do_permnil when (kc5 == 'n')  to perm_t }
+    state do_permnil { expect(')')  return alloc(57, 0, 0) }                       ; permnil : Perm(nil,nil)
+    state perm_t { to do_permtr when (kc5 == 't')  to perm_sk }
+    state do_permtr { x = parse_term()  y = parse_term()  expect(')')  return alloc(60, x, y) }  ; permtrans pf1 pf2
+    state perm_sk { to do_permsk when (kc6 == 'k')  to do_permsw }
+    state do_permsk { x = parse_nat()  y = parse_term()  expect(')')  return alloc(58, x, y) }   ; permskip x pf
+    state do_permsw { x = parse_nat()  y = parse_nat()  z = parse_nat()  expect(')')  return alloc(59, x, alloc(99, y, z)) }  ; permswap x y r (r is a list term)
     state is_pr { to is_pinv when (kc2 == 'r')  to do_pair }    ; prod*inv : ProdIs inversion
     state is_pinv { to do_pnilinv when (kc5 == 'n')  to do_pconsinv }
     state do_pnilinv { x = parse_term()  expect(')')  return alloc(48, x, 0) }
@@ -1294,7 +1303,7 @@ proc infer(term) {
         to reject when (word[word[word[t1 + 16] + 8]] != 35)    ; list arg must be NIL
         return alloc(5, word[word[t1 + 16] + 16], alloc(31, alloc(30, 0, 0), 0))   ; (= n 1)
     }
-    state d49 { to pconsinv when (tag == 49)  return 0 }
+    state d49 { to pconsinv when (tag == 49)  to d57 }
     state pconsinv {             ; PCONSINV pf : from ProdIs(cons h t, n) infer exists m. n=h*m & ProdIs(t,m)
         t1 = infer(word[term + 8])
         to reject when (t1 == 0)
@@ -1307,6 +1316,51 @@ proc infer(term) {
         to reject when (word[t2] != 36)                        ; must be CONS(h,t)
         ; under the Exists binder (m = Iv 0), shift h/t/n up one: AND(EQ(n', MUL(h',m)), Rel(778, t', m))
         return alloc(8, alloc(2, alloc(5, shift_term(word[word[t1 + 16] + 16], 1, 0), alloc(33, shift_term(word[t2 + 8], 1, 0), alloc(34, 0, 0))), alloc(9, 778, alloc(99, shift_term(word[t2 + 16], 1, 0), alloc(34, 0, 0)))), 0)
+    }
+    ; ---- list permutation: Perm(L1,L2) is Rel(779, L1, L2), four SOUND introduction rules.
+    ; nil: Perm(nil,nil); skip: cons-congruence; swap: adjacent transposition; trans: composition.
+    ; Intro-only — the only closed sources of Rel(779,..) are these, each a true permutation fact,
+    ; so (as with Mem/ProdIs) no inversion rule is needed and none can be unsoundly assumed.
+    state d57 { to permnil when (tag == 57)  to d58 }
+    state permnil {              ; PERMNIL : Perm(nil, nil)   [no premise]
+        return alloc(9, 779, alloc(99, alloc(35, 0, 0), alloc(35, 0, 0)))
+    }
+    state d58 { to permskip when (tag == 58)  to d59 }
+    state permskip {             ; PERMSKIP x pf : from Perm(t1,t2) infer Perm(cons x t1, cons x t2)
+        t1 = infer(word[term + 16])                      ; pf : Perm(t1,t2) = Rel(779, t1, t2)
+        to reject when (t1 == 0)
+        to permskip1
+    }
+    state permskip1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 779)
+        return alloc(9, 779, alloc(99, alloc(36, word[term + 8], word[word[t1 + 16] + 8]), alloc(36, word[term + 8], word[word[t1 + 16] + 16])))
+    }
+    state d59 { to permswap when (tag == 59)  to d60 }
+    state permswap {             ; PERMSWAP x y r : Perm(cons x (cons y r), cons y (cons x r))   [no premise]
+        return alloc(9, 779, alloc(99, alloc(36, word[term + 8], alloc(36, word[word[term + 16] + 8], word[word[term + 16] + 16])), alloc(36, word[word[term + 16] + 8], alloc(36, word[term + 8], word[word[term + 16] + 16]))))
+    }
+    state d60 { to permtrans when (tag == 60)  return 0 }
+    state permtrans {            ; PERMTRANS pf1 pf2 : from Perm(a,b) & Perm(b,c) infer Perm(a,c)
+        t1 = infer(word[term + 8])                       ; pf1 : Rel(779, a, b)
+        to reject when (t1 == 0)
+        to permtrans1
+    }
+    state permtrans1 {
+        t2 = infer(word[term + 16])                      ; pf2 : Rel(779, b, c)
+        to reject when (t2 == 0)
+        to permtrans2
+    }
+    state permtrans2 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 779)
+        to reject when (word[t2] != 9)
+        to reject when (word[t2 + 8] != 779)
+        to permtrans3
+    }
+    state permtrans3 {           ; the shared middle term must match up to conversion
+        to reject when (conv_eq(word[word[t1 + 16] + 16], word[word[t2 + 16] + 8]) == 0)
+        return alloc(9, 779, alloc(99, word[word[t1 + 16] + 8], word[word[t2 + 16] + 16]))
     }
 }
 
