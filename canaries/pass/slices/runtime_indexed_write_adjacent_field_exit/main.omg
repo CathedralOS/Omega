@@ -1,0 +1,50 @@
+// Regression: a runtime-indexed WRITE `arr[i] = v` loaded the index `i` with a
+// 64-bit `mov rax` even when `i` is a 4-byte field -- pulling the ADJACENT field's
+// bytes into the high dword. With a non-zero neighbour the index became garbage and
+// the store went out of bounds (SIGSEGV). The fix loads the index 32-bit
+// zero-extended (every valid array index fits in 32 bits).
+//
+// This pins it: the index field `idx` is declared immediately before a NON-ZERO
+// field `sentinel`, and `sentinel` is written before the indexed write so the high
+// bytes of a 64-bit index load would be 99. The write must still land at arr[2], and
+// neither the index nor the sentinel may be corrupted. All correct -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 4] in Trapping;
+    idx: i32 in Trapping;
+    sentinel: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.arr[0] = 10;
+    self.arr[1] = 20;
+    self.arr[2] = 30;
+    self.arr[3] = 40;
+
+    self.sentinel = 99;          // non-zero neighbour, written first
+    self.idx = 2;
+    self.arr[self.idx] = 5;      // runtime-indexed write; before the fix this faulted
+
+    transition self.arr[2] == 5 {
+        true -> check_sentinel()
+        _ -> bad()
+    }
+    state check_sentinel(&mut self) {
+        transition self.sentinel == 99 { true -> check_untouched() _ -> bad() }
+    }
+    state check_untouched(&mut self) {
+        transition self.arr[0] == 10 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

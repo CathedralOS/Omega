@@ -1,0 +1,101 @@
+// Stack calculator: evaluate (3 + 4) * 5 with an explicit operand stack -- the core
+// of a bytecode VM / RPN evaluator. Demonstrates a bounded mutable stack pointer
+// driving runtime-indexed reads and writes:
+//
+//   push v   ->  stack[sp] = v; sp = sp + 1     (guard sp < CAP first)
+//   pop      ->  sp = sp - 1;   x = stack[sp]    (guard sp > 0 first)
+//
+// AUTHORING RECIPE: the stack pointer is `i32 in Trapping`, NOT `usize`. Exact
+// `usize` arithmetic rejects `sp - 1` (cannot prove no underflow from a cross-state
+// guard) and `usize in Wrapping` defeats the index-bounds prover; `i32 in Trapping`
+// lets +/- run (trapping at runtime) while an explicit `sp >= 0 && sp < CAP` guard
+// before each indexed access discharges the bounds obligation, honestly.
+//
+//   (3 + 4) * 5 = 35. The program exits with the value it computed.
+// Expected exit: 35.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    stack: [i32; 8] in Trapping;
+    sp: i32 in Trapping;
+    a: i32 in Trapping;
+    b: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.sp = 0;
+
+    transition self.sp >= 0 && self.sp < 8 {
+        true -> push_three()
+        _ -> bad()
+    }
+
+    state push_three(&mut self) {
+        self.stack[self.sp] = 3;
+        self.sp = self.sp + 1;
+        transition self.sp >= 0 && self.sp < 8 { true -> push_four() _ -> bad() }
+    }
+
+    state push_four(&mut self) {
+        self.stack[self.sp] = 4;
+        self.sp = self.sp + 1;
+        transition self.sp >= 2 && self.sp <= 8 { true -> add_pop_b() _ -> bad() }
+    }
+
+    state add_pop_b(&mut self) {
+        self.sp = self.sp - 1;
+        transition self.sp >= 0 && self.sp < 8 { true -> add_read_b() _ -> bad() }
+    }
+    state add_read_b(&mut self) {
+        self.b = self.stack[self.sp];
+        transition self.sp >= 1 && self.sp <= 8 { true -> add_pop_a() _ -> bad() }
+    }
+    state add_pop_a(&mut self) {
+        self.sp = self.sp - 1;
+        transition self.sp >= 0 && self.sp < 8 { true -> add_read_a() _ -> bad() }
+    }
+    state add_read_a(&mut self) {
+        self.a = self.stack[self.sp];
+        self.acc = self.a + self.b;              // compute into a temp (a binary value
+        self.stack[self.sp] = self.acc;          // into an indexed target is unsupported)
+        self.sp = self.sp + 1;
+        transition self.sp >= 0 && self.sp < 8 { true -> push_five() _ -> bad() }
+    }
+
+    state push_five(&mut self) {
+        self.stack[self.sp] = 5;
+        self.sp = self.sp + 1;
+        transition self.sp >= 2 && self.sp <= 8 { true -> mul_pop_b() _ -> bad() }
+    }
+
+    state mul_pop_b(&mut self) {
+        self.sp = self.sp - 1;
+        transition self.sp >= 0 && self.sp < 8 { true -> mul_read_b() _ -> bad() }
+    }
+    state mul_read_b(&mut self) {
+        self.b = self.stack[self.sp];
+        transition self.sp >= 1 && self.sp <= 8 { true -> mul_pop_a() _ -> bad() }
+    }
+    state mul_pop_a(&mut self) {
+        self.sp = self.sp - 1;
+        transition self.sp >= 0 && self.sp < 8 { true -> mul_read_a() _ -> bad() }
+    }
+    state mul_read_a(&mut self) {
+        self.a = self.stack[self.sp];
+        self.acc = self.a * self.b;              // compute into a temp, then push
+        self.stack[self.sp] = self.acc;
+        transition self.sp >= 0 && self.sp < 8 { true -> done() _ -> bad() }
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(self.stack[0]);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
