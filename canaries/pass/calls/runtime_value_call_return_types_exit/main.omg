@@ -1,0 +1,79 @@
+// Value-returning calls (functions) across RETURN TYPES, the working core. A
+// value-call is a method whose body is an expression (or value-arm transition),
+// called in value position. This locks the cases that work:
+//   - i32 return + multiple args
+//   - STRUCT return (`-> Point { Point { .. } }`)
+//   - ENUM return (`-> Tag { Tag::Found { .. } }`)
+//   - bool return used in a guard
+//   - a value-call result passed to another value-call VIA A LOCAL (the un-nested
+//     form), e.g. `let inner = add(1,2); add(inner, 3)`.
+//
+// NOTE the un-nesting: a value-call written DIRECTLY as an argument to another
+// VALUE-call -- `add(add(1,2), 3)` -- silently miscompiles (returns the inner result,
+// not the outer). A value-call arg to a STATEMENT call works (the dungeon does this).
+// The sound pattern is to bind the inner call to a local first. Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Point {
+    x: i32 in Trapping;
+    y: i32 in Trapping;
+}
+
+data Tag {
+    case Found(v: i32 in Trapping);
+    case Missing;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::add(&self, a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {
+    a + b
+}
+machine Main::mk_point(&self) -> Point {
+    Point { x: 30, y: 12 }
+}
+machine Main::mk_tag(&self) -> Tag {
+    Tag::Found { v: 28 }
+}
+machine Main::positive(&self, x: i32 in Trapping) -> bool {
+    x > 0
+}
+
+machine Main::main(&mut self) {
+    let s: i32 in Wrapping = self.add(30, 40);
+    let p: Point = self.mk_point();
+    let t: Tag = self.mk_tag();
+    let b: bool = self.positive(5);
+    let inner: i32 in Wrapping = self.add(1, 2);
+    let nested: i32 in Wrapping = self.add(inner, 3);
+
+    transition s == 70 { true -> check_point(p, t, b, nested) _ -> bad() }
+
+    state check_point(&mut self, p: Point, t: Tag, b: bool, nested: i32 in Wrapping) {
+        transition p.x == 30 { true -> check_bool(t, b, nested) _ -> bad() }
+    }
+    state check_bool(&mut self, t: Tag, b: bool, nested: i32 in Wrapping) {
+        transition b { true -> check_nested(t, nested) _ -> bad() }
+    }
+    state check_nested(&mut self, t: Tag, nested: i32 in Wrapping) {
+        transition nested == 6 { true -> check_tag(t) _ -> bad() }
+    }
+    state check_tag(&mut self, t: Tag) {
+        transition t { Tag::Found { v } -> check_v(v) Tag::Missing -> bad() }
+    }
+    state check_v(&mut self, v: i32 in Trapping) {
+        transition v == 28 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

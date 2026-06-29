@@ -10633,6 +10633,40 @@ fn runtime_assignment_call_post_mutation_value_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_call_return_types_exit_canary_runs() {
+    // Value-returning calls across return types (i32 / struct / enum / bool) + the
+    // un-nested nested-call pattern. Locks the working value-call core. (A value-call
+    // written directly as an arg to another VALUE-call miscompiles -- tracked
+    // separately; the sound form is to bind the inner call to a local first.)
+    let canary = pass_canary("calls/runtime_value_call_return_types_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-value-call-return-types-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call return-types canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call return-types canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected value-calls returning i32/struct/enum/bool to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_call_result_after_splice_mutation_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_call_result_after_splice_mutation_exit");
     let main_path = canary.join("main.omg");
