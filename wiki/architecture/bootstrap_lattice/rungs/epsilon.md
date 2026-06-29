@@ -2,11 +2,11 @@
 
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Delta](delta.md) | Next: [Omega](omega.md)
 
-> **Status: DIRECTION.** Does not exist yet as part of the lattice.
->
-> **Naming collision:** the current `compiler/epsilon/` folder is unrelated
-> legacy experiment soup (a renamed/parked structured-language compiler), to be
-> cleared. Do not conflate it with this rung.
+> **Status: DIRECTION.** The on-ramp (`compiler/epsilon-rs/`, throwaway Rust) and
+> its self-hosting backend (`lowermachine.alp`) exist; the rung's *meaning* (a
+> reference interpreter in Delta/Gamma) is approximated by the epsilon-meaning
+> diamond (`EPS_EMIT=gamma` → `interp.beta`). (The old misfiled `compiler/epsilon/`
+> alpha-in-alpha experiment has been pruned, freeing the name.)
 
 Once the [evidence machinery](delta.md) exists, epsilon introduces real systems
 programming — the features that are *checked then erased*, so they do not expand
@@ -54,4 +54,3 @@ deliberately manage this separate hardware-interface surface — it is the one p
   or native support.
 - The hardware-interface boundary: its minimal surface, and how it is audited
   (it is part native, so part of the trust ledger).
-- Clearing/renaming the legacy `compiler/epsilon/` folder so the name is free.
