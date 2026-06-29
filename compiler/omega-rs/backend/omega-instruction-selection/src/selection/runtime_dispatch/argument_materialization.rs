@@ -1385,6 +1385,65 @@ fn resolve_prior_local_initializers_in_table(
                 expressions.insert(ExpressionNode::Mutable(resolved))
             }
         }
+        ExpressionNode::Binary(binary) => {
+            // Same as the cast case below: a binary operand may be a prior let-local
+            // (`let s = x + 100`). Fold both sides so an inner local resolves rather
+            // than dangling into the target frame (mirrors the leaf path's Binary arm;
+            // the inner Name arm keeps its capture/block-fold protection, so a
+            // reassigned-field operand still copies its slot).
+            let left = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                binary.left,
+            );
+            let right = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                binary.right,
+            );
+            if left == binary.left && right == binary.right {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Binary(
+                    omega_checked_trees::expression::TableBinaryExpression {
+                        left,
+                        operator: binary.operator,
+                        right,
+                    },
+                ))
+            }
+        }
+        ExpressionNode::Cast(cast) => {
+            // A cast's inner value may be a prior let-local (`let bw = b8 as i32`).
+            // When the whole `let` is folded into a forwarded argument, the inner
+            // local must be resolved too -- otherwise the cast is re-materialized in
+            // the TARGET state where the source local has no slot and reads 0. Recurse
+            // into the cast value (mirrors the leaf path's `resolve_leaf_caller_local_
+            // initializer_names` Cast arm); the inner Name arm still applies its
+            // capture/block-fold protection.
+            let value = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                cast.value,
+            );
+            if value == cast.value {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Cast(
+                    omega_checked_trees::expression::TableCastExpression {
+                        value,
+                        target_type: cast.target_type,
+                        domain: cast.domain,
+                    },
+                ))
+            }
+        }
         _ => expression,
     }
 }
