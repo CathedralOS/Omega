@@ -63,6 +63,12 @@ sweep "a+(s b) = s(a+b)"        add-succ-right \
   "(if (eqn (plus $N2 (Su $N3)) (Su (plus $N2 $N3))) (eqn (plus $N3 (Su $N1)) (Su (plus $N3 $N1))) 0)"
 sweep "(a*b)*c = a*(b*c)"       mult-assoc \
   "(if (eqn (mult (mult $N2 $N3) $N2) (mult $N2 (mult $N3 $N2))) (eqn (mult (mult $N3 $N1) $N2) (mult $N3 (mult $N1 $N2))) 0)"
+sweep "a*b = b*a"               mult-comm \
+  "(if (eqn (mult $N2 $N3) (mult $N3 $N2)) (eqn (mult $N1 $N4) (mult $N4 $N1)) 0)"
+sweep "a*(b*c) = b*(a*c)"       mul-swap-mid \
+  "(if (eqn (mult $N2 (mult $N3 $N1)) (mult $N3 (mult $N2 $N1))) (eqn (mult $N1 (mult $N2 $N3)) (mult $N2 (mult $N1 $N3))) 0)"
+sweep "n*(n+1) is even"         consecutive-product-even \
+  "(if (even (mult $N2 (Su $N2))) (even (mult $N3 (Su $N3))) 0)"
 
 # --- List equational universals (structural list eq via leq, Nat eq via eqn) ---
 sweep "(a++b)++c = a++(b++c)"   append-assoc-user \
