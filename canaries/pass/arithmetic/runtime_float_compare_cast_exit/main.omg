@@ -1,0 +1,78 @@
+// Breadth guard for floating-point: comparisons with NEGATIVES (the `ucomisd` sets
+// UNSIGNED flags while F64.is_signed is true -- a wrong branch choice would flip
+// negative-float comparisons), f64 and f32 arithmetic, int<->float and f32<->f64
+// casts, and NESTED-field float arithmetic (a dot product). All values are
+// exactly representable so `==` checks are valid. The wrong branch exits 71; the
+// differential oracle also checks native==interpreter.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Vec2 {
+    x: f64;
+    y: f64;
+}
+
+data Main {
+    console: Console;
+    a: f64;
+    b: f64;
+    r: f64;
+    fa: f32;
+    fb: f32;
+    fr: f32;
+    i: i32 in Wrapping;
+    ri: i32 in Wrapping;
+    v: Vec2;
+}
+
+machine Main::main(&mut self) {
+    // f64 comparison with a negative operand.
+    self.a = -5.0;
+    self.b = 3.0;
+    transition self.a < self.b { true -> f64_arith() _ -> bad() }
+
+    state f64_arith(&mut self) {
+        self.a = 2.5;
+        self.b = 1.25;
+        self.r = self.a + self.b;
+        transition self.r == 3.75 { true -> f64_div() _ -> bad() }
+    }
+    state f64_div(&mut self) {
+        self.a = 10.0;
+        self.b = 4.0;
+        self.r = self.a / self.b;
+        transition self.r == 2.5 { true -> f32_mul() _ -> bad() }
+    }
+    state f32_mul(&mut self) {
+        self.fa = 2.5;
+        self.fb = 4.0;
+        self.fr = self.fa * self.fb;
+        transition self.fr == 10.0 { true -> int_to_float() _ -> bad() }
+    }
+    state int_to_float(&mut self) {
+        self.i = 7;
+        self.r = self.i as f64;
+        transition self.r == 7.0 { true -> float_to_int() _ -> bad() }
+    }
+    state float_to_int(&mut self) {
+        self.a = 3.75;
+        self.ri = self.a as i32 in Wrapping;
+        transition self.ri == 3 { true -> nested_dot() _ -> bad() }
+    }
+    state nested_dot(&mut self) {
+        // nested-field float arithmetic: a 3-4-5 dot product, x*x + y*y == 25.0.
+        self.v.x = 3.0;
+        self.v.y = 4.0;
+        self.r = self.v.x * self.v.x + self.v.y * self.v.y;
+        transition self.r == 25.0 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
