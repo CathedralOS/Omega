@@ -31,7 +31,7 @@ b ../gamma/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exi
 
 # gamma operational twins of the corpus functions (the same defs the other seam scripts
 # use): + * (Nat) with structural eq; append/reverse/sum/map (List) with structural eq.
-DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def eqn (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (eqn x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (eqn h i) (leq t u) 0)) (w 0))))) (def reverse (l) (match l (Lnil Lnil) ((Lcons h t) (append (reverse t) (Lcons h Lnil))))) (def suml (l) (match l (Lnil Ze) ((Lcons h t) (plus h (suml t))))) (def maps (l) (match l (Lnil Lnil) ((Lcons h t) (Lcons (Su h) (maps t))))) (def prod (l) (match l (Lnil (Su Ze)) ((Lcons h t) (mult h (prod t))))) (def nle (a b) (match a (Ze 1) ((Su x) (match b (Ze 0) ((Su y) (nle x y)))))) (def even (n) (match n (Ze 1) ((Su x) (match x (Ze 0) ((Su y) (even y)))))) (def odd (n) (match n (Ze 0) ((Su x) (match x (Ze 1) ((Su y) (odd y)))))) (def band (a b) (if a b 0)) (def bnot (a) (if a 0 1)) (def eqb (a b) (if a b (bnot b))) (def dvds (a b m) (if (nle (mult m a) b) (if (eqn (mult m a) b) 1 (dvds a b (Su m))) 0)) (def dvd (a b) (match a (Ze (eqn b Ze)) (w (dvds a b Ze)))) (def monus (a b) (match b (Ze a) ((Su y) (match a (Ze Ze) ((Su x) (monus x y)))))) (def nmodk (a m) (if (nle m a) (nmodk (monus a m) m) a)) (def nmod (a m) (match m (Ze a) (w (nmodk a m)))) (def modeq (a b m) (eqn (nmod a m) (nmod b m))) (def pow (b e) (match e (Ze (Su Ze)) ((Su k) (mult b (pow b k)))))'
+DEFS='(def plus (a b) (match a (Ze b) ((Su x) (Su (plus x b))))) (def mult (a b) (match a (Ze Ze) ((Su x) (plus b (mult x b))))) (def eqn (a b) (match a (Ze (match b (Ze 1) (w 0))) ((Su x) (match b ((Su y) (eqn x y)) (w 0))))) (def append (a b) (match a (Lnil b) ((Lcons h t) (Lcons h (append t b))))) (def length (l) (match l (Lnil Ze) ((Lcons h t) (Su (length t))))) (def leq (a b) (match a (Lnil (match b (Lnil 1) (w 0))) ((Lcons h t) (match b ((Lcons i u) (if (eqn h i) (leq t u) 0)) (w 0))))) (def reverse (l) (match l (Lnil Lnil) ((Lcons h t) (append (reverse t) (Lcons h Lnil))))) (def suml (l) (match l (Lnil Ze) ((Lcons h t) (plus h (suml t))))) (def maps (l) (match l (Lnil Lnil) ((Lcons h t) (Lcons (Su h) (maps t))))) (def prod (l) (match l (Lnil (Su Ze)) ((Lcons h t) (mult h (prod t))))) (def nle (a b) (match a (Ze 1) ((Su x) (match b (Ze 0) ((Su y) (nle x y)))))) (def even (n) (match n (Ze 1) ((Su x) (match x (Ze 0) ((Su y) (even y)))))) (def odd (n) (match n (Ze 0) ((Su x) (match x (Ze 1) ((Su y) (odd y)))))) (def band (a b) (if a b 0)) (def bnot (a) (if a 0 1)) (def eqb (a b) (if a b (bnot b))) (def dvds (a b m) (if (nle (mult m a) b) (if (eqn (mult m a) b) 1 (dvds a b (Su m))) 0)) (def dvd (a b) (match a (Ze (eqn b Ze)) (w (dvds a b Ze)))) (def monus (a b) (match b (Ze a) ((Su y) (match a (Ze Ze) ((Su x) (monus x y)))))) (def nmodk (a m) (if (nle m a) (nmodk (monus a m) m) a)) (def nmod (a m) (match m (Ze a) (w (nmodk a m)))) (def modeq (a b m) (eqn (nmod a m) (nmod b m))) (def pow (b e) (match e (Ze (Su Ze)) ((Su k) (mult b (pow b k))))) (def size (t) (match t (Leaf (Su Ze)) ((Node l r) (plus (size l) (size r))))) (def mirror (t) (match t (Leaf Leaf) ((Node l r) (Node (mirror r) (mirror l))))) (def teq (a b) (match a (Leaf (match b (Leaf 1) (w 0))) ((Node l r) (match b ((Node p q) (if (teq l p) (teq r q) 0)) (w 0))))) (def emirror (t) (match t ((ETip v) (ETip v)) ((EBranch l r) (EBranch (emirror r) (emirror l))))) (def eflatten (t) (match t ((ETip v) (Lcons v Lnil)) ((EBranch l r) (append (eflatten l) (eflatten r))))) (def ecount (t) (match t ((ETip v) (Su Ze)) ((EBranch l r) (plus (ecount l) (ecount r))))) (def enodes (t) (match t ((ETip v) Ze) ((EBranch l r) (Su (plus (enodes l) (enodes r))))))'
 # nle/even/odd are INDEPENDENT structural twins of the corpus predicates (le encoded as
 # (ex d. a+d=b); even as (ex k. n=k+k); odd as (ex k. n=s(k+k))) — so "even n xor odd n"
 # is a fact the interpreter computes, not a tautology of the defs. dvd decides the divides
@@ -46,6 +46,12 @@ LA='(Lcons Ze (Lcons (Su Ze) Lnil))'                 # [0,1]
 LB='(Lcons (Su (Su Ze)) Lnil)'                       # [2]
 LC='(Lcons (Su (Su (Su Ze))) (Lcons Ze Lnil))'       # [3,0]
 LD='(Lcons (Su (Su Ze)) (Lcons (Su (Su (Su Ze))) Lnil))'  # [2,3] (zero-free, for product theorems)
+# binary trees: TA/TB have valueless leaves (Leaf/Node, for size+mirror); E1/E2 are expression trees with
+# valued leaves (ETip v / EBranch l r, for flatten/count/nodes).
+TA='(Node Leaf (Node Leaf Leaf))'
+TB='(Node (Node Leaf Leaf) (Node (Node Leaf Leaf) Leaf))'
+E1='(EBranch (ETip (Su Ze)) (EBranch (ETip (Su (Su Ze))) (ETip (Su (Su (Su Ze))))))'
+E2='(EBranch (EBranch (ETip Ze) (ETip (Su Ze))) (ETip (Su (Su Ze))))'
 
 PASS=0; FAIL=0
 # sweep DESC  ELAB_BASENAME  OP_EXPR(closed gamma expr that must evaluate to 1)
@@ -201,6 +207,24 @@ sweep "a|b -> a^n | b^n"        divides-power \
   "(if (dvd $N2 $N4) (dvd (pow $N2 $N2) (pow $N4 $N2)) 0)"
 sweep "even a -> even a^(S k)"  even-power \
   "(if (even $N2) (even (pow $N2 (Su $N1))) 0)"
+
+# --- BINARY TREE family (a NEW ADT in the sweep) — twins: size/mirror/teq over Leaf|Node, and
+# emirror/eflatten/ecount/enodes over expression trees ETip|EBranch. Mirror is an involution that
+# preserves size/count/nodes and reverses the leaf sequence; a full tree has one more leaf than node. ---
+sweep "mirror(mirror t) = t"         tree-mirror-involution \
+  "(if (teq (mirror (mirror $TA)) $TA) (teq (mirror (mirror $TB)) $TB) 0)"
+sweep "size(mirror t) = size t"      tree-mirror-size \
+  "(if (eqn (size (mirror $TA)) (size $TA)) (eqn (size (mirror $TB)) (size $TB)) 0)"
+sweep "count e = len(flatten e)"     count-flatten-len \
+  "(if (eqn (ecount $E1) (length (eflatten $E1))) (eqn (ecount $E2) (length (eflatten $E2))) 0)"
+sweep "flatten(mirror e) = rev(flatten e)" flatten-mirror-rev \
+  "(if (leq (eflatten (emirror $E1)) (reverse (eflatten $E1))) (leq (eflatten (emirror $E2)) (reverse (eflatten $E2))) 0)"
+sweep "count(mirror e) = count e"    count-mirror-preserved \
+  "(if (eqn (ecount (emirror $E1)) (ecount $E1)) (eqn (ecount (emirror $E2)) (ecount $E2)) 0)"
+sweep "nodes(mirror e) = nodes e"    nodes-mirror-preserved \
+  "(if (eqn (enodes (emirror $E1)) (enodes $E1)) (eqn (enodes (emirror $E2)) (enodes $E2)) 0)"
+sweep "count e = s(nodes e)"         leaves-internal-plus-one \
+  "(if (eqn (ecount $E1) (Su (enodes $E1))) (eqn (ecount $E2) (Su (enodes $E2))) 0)"
 
 # --- List LENGTH structural universals (length, append, reverse, maps twins; Nat eq via eqn) ---
 sweep "length(a++b) = length a + length b"  len-append-user \
