@@ -66,6 +66,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-distinct.alp "$T/cdist" >/d
   || { echo "convergence FAIL — compiling certify-distinct"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sum.alp "$T/csum" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-sum"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-op.alp "$T/cop" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-op"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -153,6 +155,16 @@ csum() {
     FAIL=$((FAIL+1)); echo "  FAIL [sum($1,$2,$3)] : delta returned [$v], expected accept"; fi
 }
 csum 2 3 5; csum 1 1 1; csum 4 0 6; csum 10 20 30; csum 0 0 0
+
+# a SUM-TYPE-dispatched certifier: an `Op` enum (constructed from the op tag, then matched) picks
+# sum vs product; the program proves the chosen result. Exercises enum construct/match + a
+# value-returning self-call + a reassigned local -- the compiler's own machinery -- in the proof path.
+cop() {
+  v=$(printf '%s' "$1" | "$T/cop" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL op [$1] : delta returned [$v], expected accept"; fi
+}
+cop "0 2 3"; cop "1 2 3"; cop "0 7 5"; cop "1 4 6"; cop "0 0 0"; cop "1 1 1"
 
 # CORRECTNESS (not safety): the result meets its spec -- m is genuinely max(a,b):
 # a<=m & b<=m & (m=a or m=b). inl branch when a>=b, inr when a<b.
@@ -293,6 +305,10 @@ if [ "$badca" = reject ]; then PASS=$((PASS+1)); else
 badcs=$(printf 'd 7' | "$T/csaf" | sed 's/(s (s (s (s (s (s z))))))/(s (s (s (s (s z)))))/' | "$T/check.exe")
 if [ "$badcs" = reject ]; then PASS=$((PASS+1)); else
   FAIL=$((FAIL+1)); echo "  FAIL tamper-safety : delta returned [$badcs], expected reject"; fi
+# (g) the enum-dispatched certifier: claim 2*3 = 5 (shrink the product) -- must reject.
+badop=$(printf '1 2 3' | "$T/cop" | sed 's/(s (s (s (s (s (s z))))))/(s (s (s (s (s z)))))/g' | "$T/check.exe")
+if [ "$badop" = reject ]; then PASS=$((PASS+1)); else
+  FAIL=$((FAIL+1)); echo "  FAIL tamper-op : delta returned [$badop], expected reject"; fi
 
 echo "convergence (epsilon emits a delta proof; the trust anchor checks it): $PASS confirmed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

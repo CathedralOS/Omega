@@ -52,6 +52,7 @@ build_lm certify-max      cmax
 build_lm certify-sort2    cs2
 build_lm certify-gcd      cg
 build_lm certify-triangle ct
+build_lm certify-op       cop
 
 # the checker prints accept/reject but exits with the alpha VM's halt code, so judge by stdout.
 set +e
@@ -76,6 +77,10 @@ chk cmax  "5 3"     accept; chk cmax  "3 7"     accept                         #
 chk cs2   "5 3"     accept; chk cs2   "0 9"     accept                         # 2-element sort: ordered + permutation
 chk cg    "12 8"    accept; chk cg    "100 60"  accept                         # Euclid gcd divides both
 chk ct    "4"       accept; chk ct    "10"      accept                         # loop result = closed form (Gauss)
+# a SUM-TYPE-dispatched certifier: an `Op` enum (construct + match) picks sum vs product, then proves
+# the result -- exercising the self-hosted compiler's enum/value-call/local machinery in the proof path
+chk cop   "0 2 3"   accept; chk cop   "1 2 3"   accept                         # Op::Sum a+b ; Op::Prod a*b
+chk cop   "0 7 5"   accept; chk cop   "1 4 6"   accept
 
 # the dual must hold too: a FALSE refutation (x != x) must be REJECTED, even self-hosted-compiled
 chk cdist "4 4"     reject; chk cdist "0 0"     reject
