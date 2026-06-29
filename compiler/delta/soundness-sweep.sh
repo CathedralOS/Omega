@@ -87,6 +87,10 @@ sweep "sum(a++b) = sum a + sum b"  sum-append \
   "(if (eqn (suml (append $LA $LB)) (plus (suml $LA) (suml $LB))) (eqn (suml (append $LC $LA)) (plus (suml $LC) (suml $LA))) 0)"
 sweep "map(a++b) = map a ++ map b" map-append \
   "(leq (maps (append $LA $LB)) (append (maps $LA) (maps $LB)))"
+sweep "a ++ nil = a"                append-right-id-user \
+  "(if (leq (append $LA Lnil) $LA) (leq (append $LC Lnil) $LC) 0)"
+sweep "sum(map a) = sum a + length a" sum-map \
+  "(if (eqn (suml (maps $LA)) (plus (suml $LA) (length $LA))) (eqn (suml (maps $LC)) (plus (suml $LC) (length $LC))) 0)"
 # --- reverse structural family (reverse is an involution; commutes with map; preserves sum) ---
 sweep "reverse(reverse a) = a"          reverse-involution \
   "(if (leq (reverse (reverse $LA)) $LA) (leq (reverse (reverse $LC)) $LC) 0)"
@@ -159,6 +163,8 @@ sweep "a|b & c|d -> (a*c)|(b*d)" divides-products \
   "(if (band (dvd $N2 $N4) (dvd $N3 $N6)) (dvd (mult $N2 $N3) (mult $N4 $N6)) 0)"
 sweep "a<=b & c<=d -> a+c<=b+d" le-add-both \
   "(if (band (nle $N2 $N4) (nle $N3 $N5)) (nle (plus $N2 $N3) (plus $N4 $N5)) 0)"
+sweep "a <= a+b"                le-add-upper \
+  "(if (nle $N2 (plus $N2 $N3)) (nle $N3 (plus $N3 $N1)) 0)"
 sweep "a<b -> c+a < c+b"        lt-add-left \
   "(if (nle (Su $N2) $N5) (nle (Su (plus $N3 $N2)) (plus $N3 $N5)) 0)"
 
