@@ -15,22 +15,33 @@
 // skips it). States, mutation, calls, self-fields, and the other operators are follow-on slices.
 use crate::ast::{BinaryOp, Expr, Program, Statement};
 
-fn op(op: BinaryOp) -> Option<&'static str> {
-    match op {
-        BinaryOp::Add => Some("+"),
-        BinaryOp::Sub => Some("-"),
-        BinaryOp::Mul => Some("*"),
-        _ => None,
-    }
-}
-
 // Render an expression node as a gamma s-expression, or None if outside the integer subset.
+// interp.beta's primitives are exactly `+ - * / %` and the comparisons `eq`/`lt` (it has no
+// gt/le/ge/ne, nor bitwise/shift) -- so the other comparisons are encoded FAITHFULLY from lt/eq/+/-
+// over integers (no overflow-prone `+1` tricks): a>b == b<a; a<=b == (a<b)|(a==b) == (a<b)+(a==b)
+// (mutually exclusive, so the sum is 0/1); a>=b == (b<a)+(a==b); a!=b == 1-(a==b). The operands are
+// pure here (locals/arithmetic, no ReadByte), so duplicating a/b in those encodings is sound.
 fn gexpr(node: usize, program: &Program) -> Option<String> {
     match program.expressions[node] {
         Expr::Int(k) if k >= 0 => Some(k.to_string()),
         Expr::Local(i) => Some(format!("l{}", i)), // lowercase: gamma reserves uppercase for constructors
         Expr::Binary(o, l, r) => {
-            Some(format!("({} {} {})", op(o)?, gexpr(l, program)?, gexpr(r, program)?))
+            let a = gexpr(l, program)?;
+            let b = gexpr(r, program)?;
+            Some(match o {
+                BinaryOp::Add => format!("(+ {} {})", a, b),
+                BinaryOp::Sub => format!("(- {} {})", a, b),
+                BinaryOp::Mul => format!("(* {} {})", a, b),
+                BinaryOp::Div => format!("(/ {} {})", a, b),
+                BinaryOp::Rem => format!("(% {} {})", a, b),
+                BinaryOp::Lt => format!("(lt {} {})", a, b),
+                BinaryOp::EqEq => format!("(eq {} {})", a, b),
+                BinaryOp::Gt => format!("(lt {} {})", b, a),
+                BinaryOp::Le => format!("(+ (lt {a} {b}) (eq {a} {b}))", a = a, b = b),
+                BinaryOp::Ge => format!("(+ (lt {b} {a}) (eq {a} {b}))", a = a, b = b),
+                BinaryOp::Ne => format!("(- 1 (eq {} {}))", a, b),
+                _ => return None, // bitwise/shift have no interp.beta primitive (a later slice)
+            })
         }
         _ => None,
     }
