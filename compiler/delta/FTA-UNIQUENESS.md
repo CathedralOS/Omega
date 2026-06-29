@@ -79,13 +79,19 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    needs NO eliminator.** `perm-sym` and "Perm preserves product" would require induction on a Perm
    derivation, but the uniqueness proof never eliminates a Perm — it only ever *constructs* one in a
    conclusion. So Perm stays intro-only (like Mem/ProdIs), and `perm-sym` is dropped as off-path.
-5. **NEXT**: the **ProdIs-carrying surgery** — `Mem(p,L) & ProdIs(L,n) → ∃m L'. (n = p*m) & ProdIs(L',m)
-   & Perm(cons p L', L)` (and carry `allPrime(L')` too). Same list-induction shape as `perm-front` but
-   threading the product equation (prodconsinv + pcons + mult comm/assoc) and the membership facts
-   through, so the Perm and the ProdIs are built together — avoiding any "Perm preserves product"
-   (which WOULD need elimination). Then general FTA uniqueness by strong induction on n: nil/nil base
-   (product-one-list-nil); cons-p step uses prime-factor-in-list → Mem(p,L2) → this surgery → mult-cancel
-   → IH → permskip + permtrans.
+5. ✅ Arithmetic prelude for the surgery: `mult-comm.elab` (a*b=b*a for naturals — extracted standalone
+   from FTA's inline def 15, since no standalone existed) and `mul-swap-mid.elab` (`a*(b*c) = b*(a*c)`,
+   from comm + assoc + cong-left + trans). `mul-swap-mid` is exactly the rearrangement the surgery's
+   `Mem(p,t)` case needs: `n = h*m0 = h*(p*q) = p*(h*q)`. NOTE the witnesses must be SHARED, so the
+   surgery cannot be decomposed into separate Perm / ProdIs / allPrime lemmas — it is one combined lemma.
+6. **NEXT**: the **ProdIs-carrying surgery** — `Mem(p,L) & ProdIs(L,n) → ∃q L'. (n = p*q) & ProdIs(L',q)
+   & Perm(cons p L', L)` (carry `allPrime(L')` too). Same list-induction shape as `perm-front`, threading
+   the product equation (prodconsinv + pcons + `mul-swap-mid`) and membership through so Perm and ProdIs
+   are built together. Assembly note: this needs `mul-swap-mid`'s ~24-def prelude inlined PLUS perm-refl/
+   eq helpers — use the scripted-assembly approach (concatenate lemma files, remap `(use N)` by offset)
+   that built `mul-swap-mid`, not hand-numbering. Then general FTA uniqueness by strong induction on n
+   (nil/nil base = product-one-list-nil; cons-p step = prime-factor-in-list → Mem → surgery → mult-cancel
+   → IH → permskip + permtrans).
 
 ## Uniqueness proof plan (once `Perm` exists)
 
