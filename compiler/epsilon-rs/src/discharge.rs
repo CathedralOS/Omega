@@ -144,13 +144,22 @@ fn wrap_universal(param_count: usize, goal: &str, proof: &str) -> String {
 
 // For a machine whose contract is statically dischargeable -- exactly one postcondition and one
 // `return e`, in a supported shape -- return the obligation certificate. Otherwise None.
-pub fn discharge_machine(machine: &Machine, program: &Program) -> Option<String> {
-    let result_local = machine.result_local?;
-    if machine.postconditions.len() != 1 || machine.return_exprs.len() != 1 {
-        return None;
+// A machine may declare SEVERAL `ensures`; discharge each one independently and emit a separate
+// certificate per dischargeable postcondition. (The runtime path already desugars each to its own
+// assert; this gives the static half the same multiplicity.)
+pub fn discharge_machine(machine: &Machine, program: &Program) -> Vec<String> {
+    if machine.return_exprs.len() != 1 {
+        return Vec::new();
     }
+    (0..machine.postconditions.len())
+        .filter_map(|pc| discharge_postcondition(machine, program, pc))
+        .collect()
+}
+
+fn discharge_postcondition(machine: &Machine, program: &Program, pc: usize) -> Option<String> {
+    let result_local = machine.result_local?;
     let returned = machine.return_exprs[0];
-    let (op, lhs, rhs) = match program.expressions[machine.postconditions[0]] {
+    let (op, lhs, rhs) = match program.expressions[machine.postconditions[pc]] {
         Expr::Binary(op, l, r) => (op, l, r),
         _ => return None,
     };
@@ -429,7 +438,7 @@ pub fn emit_contracts(program: &Program) -> Vec<String> {
     let mut certs: Vec<String> = program
         .machines
         .iter()
-        .filter_map(|machine| discharge_machine(machine, program))
+        .flat_map(|machine| discharge_machine(machine, program))
         .collect();
     for caller_idx in 0..program.machines.len() {
         certs.extend(discharge_forwarding(caller_idx, program));
