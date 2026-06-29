@@ -133,8 +133,11 @@ The lattice's thesis — *trust by checking, not pedigree* — is now a working 
     (`member`=Mem, `product`=ProdIs), builtin arithmetic, AND user-defined-function
     reduction (`sum`). The capstone is `certify-factor`: it READS n, COMPUTES a factor list by
     trial division, and certifies `ProdIs(factors, n)` — the FTA's existence half, executed and
-    machine-checked (where `certify-product` only asserts a fixed list). A wrong computation
-    emits a certificate delta REJECTS.
+    machine-checked (where `certify-product` only asserts a fixed list). The suite has a NEGATIVE
+    CONTROL too — `certify-wrong` is a deliberately-buggy computation (claims `a+b = a+b+1`) whose
+    certificate the anchor must REJECT, so the thesis "the anchor checks the computation, not the
+    compiler" is a falsifiable test in every run (without it, all accept-tests would pass vacuously
+    if the checker ever degenerated to accept-everything).
 11. **Epsilon contracts — the verification-compiler, BUILT.** What the frontier once called
     "the open question" is now a working proof-carrying contract system (`src/discharge.rs`,
     `contracts.sh`, `discharge-soundness.sh`). Surface: `assert` (runtime trap),

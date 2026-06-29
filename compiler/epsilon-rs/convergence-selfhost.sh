@@ -51,6 +51,7 @@ build_lm certify-mod      cmod
 build_lm certify-member   cmem
 build_lm certify-product  cprod
 build_lm certify-factor   cfac
+build_lm certify-wrong    cwrong
 build_lm certify-distinct cdist
 build_lm certify-sum      csum
 build_lm certify-max      cmax
@@ -91,6 +92,7 @@ chk cmod  "17 5"    accept; chk cmod  "9 3"     accept                         #
 chk cmem  "5 5 6 7" accept; chk cmem  "9 4 7 9" accept                         # list membership (structural)
 chk cprod "2 3 5"   accept; chk cprod "4 2 3"   accept                         # ProdIs([a b c], a*b*c)
 chk cfac  "30"      accept; chk cfac  "12"      accept                         # COMPUTED factorization: ProdIs(factors, n)
+chk cwrong "2 3"    reject; chk cwrong "7 5"    reject                         # NEGATIVE CONTROL: buggy a+b+1 claim REJECTED
 chk cdist "3 5"     accept; chk cdist "0 4"     accept                         # x != y (refutation: sinj+disj)
 chk csum  "2 3 5"   accept; chk csum  "10 20 30" accept                        # sum over a user list (rec reduction)
 chk cmax  "5 3"     accept; chk cmax  "3 7"     accept                         # m = max(a,b), correctness spec
