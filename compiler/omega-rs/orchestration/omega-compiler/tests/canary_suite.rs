@@ -1356,6 +1356,36 @@ fn runtime_carrier_fnv_loop_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_mandelbrot_render_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_mandelbrot_render_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-mandelbrot-render-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mandelbrot render canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mandelbrot render canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the 40x18 Mandelbrot renderer (f64 escape-time over a 1D carrier framebuffer) to produce 140 in-set pixels and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_string_palindrome_exit_canary_runs() {
     let canary = pass_canary("text/runtime_string_palindrome_exit");
     let main_path = canary.join("main.omg");

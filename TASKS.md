@@ -37,6 +37,14 @@ multi-predecessor-join MEET, `62aba398`). A frame can be *computed* in memory no
 Two things gate getting it on screen and making it ergonomic.
 
 ### Tier 1 — animated CONSOLE renderer (no native-FFI gate; do this first)
+> **STATIC console rendering DONE (2026-06-28).** A real per-pixel Mandelbrot set
+> renders to the console in pure Omega with ZERO new compiler features —
+> `samples/mandelbrot` (64x28) + canary `text/runtime_mandelbrot_render_exit`
+> (self-checks 140 in-set pixels, in the differential oracle: native==interp). The
+> working renderer pattern: `[u8;W] in Utf8` carrier framebuffer + nested col/row
+> state-machine loops + per-pixel f64 escape-time + runtime-indexed carrier byte
+> writes + `write_line` per row (the multi-pred-join meet `62aba398` is load-bearing
+> at the convergence). The FIRST non-toy proof. Remaining for Tier-1 = ANIMATION:
 Render ASCII/ANSI frames to stdout in a timed loop. Needs only: (a) the **clock
 capability** — the `clock` build flag is reserved but INERT (no host op / binding
 / encoder). Wire Windows `GetTickCount64` (0-arg, returns u64 ms in rax — the
