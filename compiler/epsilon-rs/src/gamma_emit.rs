@@ -54,15 +54,68 @@ impl Env {
         self.array_cur[i] = name;
         Some(())
     }
-    // The full state vector (locals, fields, arrays, then the input stream), current bindings -- the
-    // args a state tail-call forwards.
+    // The full state vector (locals, fields, arrays, input, output), current bindings -- the args a
+    // state tail-call forwards.
     fn slots(&self) -> String {
         let mut v = self.locals.clone();
-        v.extend(self.field_cur.iter().cloned());
+        v.extend(self.self_slots());
+        v.join(" ")
+    }
+    // Just the SELF-STATE slots (fields, arrays, input, output) -- the part shared across a method
+    // call, threaded in and bundled back out. Canonical order matches the signature.
+    fn self_slots(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.field_cur.clone();
         v.extend(self.array_cur.iter().cloned());
         v.extend(self.input_cur.iter().cloned());
         v.extend(self.output_cur.iter().cloned());
-        v.join(" ")
+        v
+    }
+    // Rebind every self-state slot from `names` (same order/length as self_slots()).
+    fn set_self_slots(&mut self, names: &[String]) {
+        let nf = self.field_cur.len();
+        let na = self.array_cur.len();
+        self.field_cur = names[0..nf].to_vec();
+        self.array_cur = names[nf..nf + na].to_vec();
+        let mut k = nf + na;
+        if self.input_cur.is_some() {
+            self.input_cur = Some(names[k].clone());
+            k += 1;
+        }
+        if self.output_cur.is_some() {
+            self.output_cur = Some(names[k].clone());
+        }
+    }
+}
+
+// Bundle self-state values into a right-nested Pair tuple (the single value if there's one slot).
+// A method returns this so the caller can thread the mutated self back out.
+fn bundle(slots: &[String]) -> String {
+    let n = slots.len();
+    let mut acc = slots[n - 1].clone();
+    for s in slots[..n - 1].iter().rev() {
+        acc = format!("(Pair {} {})", s, acc);
+    }
+    acc
+}
+
+// Wrap `rest` so it runs with `nss` bound to the components of the method-call result tuple.
+fn unbundle(call: &str, nss: &[String], rest: &str, fresh: &mut usize) -> String {
+    if nss.len() == 1 {
+        return format!("(let {} {} {})", nss[0], call, rest);
+    }
+    let t = format!("t{}", *fresh);
+    *fresh += 1;
+    format!("(let {} {} {})", t, call, unbundle_matches(&t, nss, 0, rest, fresh))
+}
+
+fn unbundle_matches(src: &str, nss: &[String], from: usize, rest: &str, fresh: &mut usize) -> String {
+    if from == nss.len() - 2 {
+        format!("(match {} ((Pair {} {}) {}))", src, nss[from], nss[from + 1], rest)
+    } else {
+        let r = format!("t{}", *fresh);
+        *fresh += 1;
+        let inner = unbundle_matches(&r, nss, from + 1, rest, fresh);
+        format!("(match {} ((Pair {} {}) {}))", src, nss[from], r, inner)
     }
 }
 
@@ -200,6 +253,7 @@ enum Target {
 // stateful read as two functional `match`es over the threaded input list. Requires an input slot.
 fn read_byte_into(
     target: Target,
+    as_method: bool,
     mi: usize,
     stmts: &[Statement],
     idx: usize,
@@ -219,13 +273,15 @@ fn read_byte_into(
         Target::Field(off) => env.field_set(off, cnm.clone())?,
     }
     env.input_cur = Some(inm.clone());
-    let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
+    let rest = translate_seq(as_method, mi, stmts, idx + 1, program, env, fresh)?;
     Some(format!("(let {} {} (let {} {} {}))", cnm, head, inm, tail, rest))
 }
 
 // Translate a statement sequence (an entry or state body) from `idx`, threading the SSA Env. The
-// sequence must terminate in a transition / exit / return.
+// entry/states of the root must terminate in a transition / exit / return; a METHOD (as_method) may
+// also fall off the end, which returns its mutated self-state bundle to the caller.
 fn translate_seq(
+    as_method: bool,
     mi: usize,
     stmts: &[Statement],
     idx: usize,
@@ -233,7 +289,14 @@ fn translate_seq(
     env: &mut Env,
     fresh: &mut usize,
 ) -> Option<String> {
-    match stmts.get(idx)? {
+    let statement = match stmts.get(idx) {
+        Some(s) => s,
+        None => {
+            // fell off the end: a void method yields its self-state bundle; the root needs explicit exit
+            return if as_method { Some(method_return(env)) } else { None };
+        }
+    };
+    match statement {
         // a local write: l_i = e  (Let init or Assign reassignment)
         Statement::Let(i, e, _) | Statement::Assign(i, e) => {
             let (i, e) = (*i, *e);
@@ -241,26 +304,26 @@ fn translate_seq(
                 return None;
             }
             if matches!(program.expressions[e], Expr::ReadByte) {
-                return read_byte_into(Target::Local(i), mi, stmts, idx, program, env, fresh);
+                return read_byte_into(Target::Local(i), as_method, mi, stmts, idx, program, env, fresh);
             }
             let value = gexpr(e, program, env)?; // evaluated under pre-write bindings
             let nm = format!("t{}", *fresh);
             *fresh += 1;
             env.locals[i] = nm.clone();
-            let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
+            let rest = translate_seq(as_method, mi, stmts, idx + 1, program, env, fresh)?;
             Some(format!("(let {} {} {})", nm, value, rest))
         }
         // a self-field write: self.<offset> = e
         Statement::StoreSelfField(off, val, _domain) => {
             let (off, val) = (*off, *val);
             if matches!(program.expressions[val], Expr::ReadByte) {
-                return read_byte_into(Target::Field(off), mi, stmts, idx, program, env, fresh);
+                return read_byte_into(Target::Field(off), as_method, mi, stmts, idx, program, env, fresh);
             }
             let value = gexpr(val, program, env)?;
             let nm = format!("t{}", *fresh);
             *fresh += 1;
             env.field_set(off, nm.clone())?;
-            let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
+            let rest = translate_seq(as_method, mi, stmts, idx + 1, program, env, fresh)?;
             Some(format!("(let {} {} {})", nm, value, rest))
         }
         // a self-array write: self.<arr>[ix] = e  (functional update of the modeled list)
@@ -271,7 +334,7 @@ fn translate_seq(
             let nm = format!("t{}", *fresh);
             *fresh += 1;
             env.array_set(off, nm.clone())?;
-            let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
+            let rest = translate_seq(as_method, mi, stmts, idx + 1, program, env, fresh)?;
             Some(format!("(let {} {} {})", nm, update, rest))
         }
         // stdout writes: cons the byte(s) onto the reversed output accumulator (a later `rev` un-reverses)
@@ -281,7 +344,7 @@ fn translate_seq(
             let nm = format!("t{}", *fresh);
             *fresh += 1;
             env.output_cur = Some(nm.clone());
-            let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
+            let rest = translate_seq(as_method, mi, stmts, idx + 1, program, env, fresh)?;
             Some(format!("(let {} {} {})", nm, cons, rest))
         }
         Statement::WriteLine(sidx) => {
@@ -293,17 +356,66 @@ fn translate_seq(
             let nm = format!("t{}", *fresh);
             *fresh += 1;
             env.output_cur = Some(nm.clone());
-            let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
+            let rest = translate_seq(as_method, mi, stmts, idx + 1, program, env, fresh)?;
             Some(format!("(let {} {} {})", nm, cons, rest))
         }
-        // a terminating exit/return: in OUTPUT mode the program's value IS the produced stdout
-        // (un-reversed via rev); otherwise the exit-code expression.
-        Statement::Exit(e) | Statement::Return(e) => match &env.output_cur {
-            Some(out) => Some(format!("(rev {} Nil)", out)),
-            None => gexpr(*e, program, env),
-        },
+        // a terminating exit/return: a METHOD yields its self-state bundle; otherwise (the root) the
+        // produced stdout in OUTPUT mode (un-reversed via rev), else the exit-code expression.
+        Statement::Exit(e) | Statement::Return(e) => {
+            if as_method {
+                Some(method_return(env))
+            } else {
+                match &env.output_cur {
+                    Some(out) => Some(format!("(rev {} Nil)", out)),
+                    None => gexpr(*e, program, env),
+                }
+            }
+        }
         Statement::Transition(subject, arms) => translate_transition(mi, *subject, arms, program, env),
-        _ => None, // Eval/Assert/Block -> later slices
+        // a method call `self.m(args)` for effect: thread the whole self-state through the callee
+        Statement::Eval(node) => {
+            let (callee, start, count) = match program.expressions[*node] {
+                Expr::SelfCall(c, s, n) => (c, s, n),
+                _ => return None, // free-call for effect (discarded result) -> not modeled
+            };
+            let ss = env.self_slots();
+            if ss.is_empty() {
+                // nothing to thread -> the method is observably a no-op; skip it
+                return translate_seq(as_method, mi, stmts, idx + 1, program, env, fresh);
+            }
+            let cm = &program.machines[callee];
+            let mut parts = Vec::new();
+            for j in 0..count {
+                parts.push(gexpr(program.call_args[start + j], program, env)?);
+            }
+            for _ in cm.param_count..cm.local_count {
+                parts.push("0".to_string()); // method body locals beyond the params, zero-initialised
+            }
+            parts.extend(ss.iter().cloned()); // pass the caller's current self-state
+            let call = format!("(m{}_me {})", callee, parts.join(" "));
+            // fresh names for the updated self-state the method returns, then rebind and continue
+            let nss: Vec<String> = (0..ss.len())
+                .map(|_| {
+                    let n = format!("t{}", *fresh);
+                    *fresh += 1;
+                    n
+                })
+                .collect();
+            env.set_self_slots(&nss);
+            let rest = translate_seq(as_method, mi, stmts, idx + 1, program, env, fresh)?;
+            Some(unbundle(&call, &nss, &rest, fresh))
+        }
+        _ => None, // Assert/Block -> later slices
+    }
+}
+
+// A method's terminal value: its self-state bundled for the caller to thread back (or 0 if it has none).
+fn method_return(env: &Env) -> String {
+    let ss = env.self_slots();
+    if ss.is_empty() {
+        "0".to_string()
+    } else {
+        bundle(&ss)
     }
 }
 
@@ -423,40 +535,106 @@ fn machine_callees(mi: usize, program: &Program, out: &mut BTreeSet<usize>) {
                     collect_callees_expr(*val, program, out);
                 }
                 Statement::Transition(subj, _) => collect_callees_expr(*subj, program, out),
+                // a method call `self.m(args)` for effect -- m is reachable, and its args may call too
+                Statement::Eval(node) => {
+                    if let Expr::SelfCall(c, s, n) = program.expressions[*node] {
+                        out.insert(c);
+                        for j in 0..n {
+                            collect_callees_expr(program.call_args[s + j], program, out);
+                        }
+                    }
+                }
                 _ => {}
             }
         }
     }
 }
 
-// Emit machine `mi`'s defs (entry `m{mi}_me` plus each state `m{mi}_s{k}`) into `out`.
-fn machine_env(mi: usize, program: &Program) -> Env {
-    let machine = &program.machines[mi];
-    let field_off = collect_field_offsets(machine, program);
-    let arrays = collect_arrays(machine, program);
-    Env {
-        locals: (0..machine.local_count).map(|i| format!("l{}", i)).collect(),
-        field_cur: (0..field_off.len()).map(|i| format!("g{}", i)).collect(),
-        field_off,
-        array_cur: (0..arrays.len()).map(|i| format!("a{}", i)).collect(),
-        array_off: arrays.iter().map(|&(o, _)| o).collect(),
-        array_cnt: arrays.iter().map(|&(_, c)| c).collect(),
-        input_cur: if uses_read_byte(machine, program) { Some("inp".to_string()) } else { None },
-        output_cur: if uses_output(machine) { Some("out".to_string()) } else { None },
+// The program-wide UNIFIED self-state shared by every `&mut self` machine (they alias the same data
+// instance): the union of all scalar fields, arrays, and the stdin/stdout streams any of them touches.
+// Methods thread this whole bundle through a call, so the layout must be the SAME for caller and callee.
+struct SelfState {
+    field_off: Vec<i32>,
+    array_off: Vec<i32>,
+    array_cnt: Vec<i32>,
+    has_input: bool,
+    has_output: bool,
+}
+
+fn compute_self_state(reachable: &[usize], program: &Program) -> SelfState {
+    let mut fields = BTreeSet::new();
+    let mut arrays: std::collections::BTreeMap<i32, i32> = std::collections::BTreeMap::new();
+    let (mut has_input, mut has_output) = (false, false);
+    for &mi in reachable {
+        let machine = &program.machines[mi];
+        if !machine.has_self {
+            continue; // free callees alias no self
+        }
+        fields.extend(collect_field_offsets(machine, program));
+        for (off, count) in collect_arrays(machine, program) {
+            arrays.insert(off, count);
+        }
+        has_input |= uses_read_byte(machine, program);
+        has_output |= uses_output(machine);
+    }
+    SelfState {
+        field_off: fields.into_iter().collect(),
+        array_off: arrays.keys().copied().collect(),
+        array_cnt: arrays.values().copied().collect(),
+        has_input,
+        has_output,
     }
 }
 
-fn emit_machine_defs(mi: usize, program: &Program, fresh: &mut usize, out: &mut String) -> Option<()> {
+// Build a machine's Env: its own locals, plus -- for a `&mut self` machine -- the UNIFIED self-state
+// (so caller and callee agree on the bundle); a free callee gets locals only.
+fn machine_env(mi: usize, program: &Program, unified: &SelfState) -> Env {
     let machine = &program.machines[mi];
-    let base = machine_env(mi, program);
+    let locals: Vec<String> = (0..machine.local_count).map(|i| format!("l{}", i)).collect();
+    if !machine.has_self {
+        return Env {
+            locals,
+            field_off: Vec::new(),
+            field_cur: Vec::new(),
+            array_off: Vec::new(),
+            array_cnt: Vec::new(),
+            array_cur: Vec::new(),
+            input_cur: None,
+            output_cur: None,
+        };
+    }
+    Env {
+        locals,
+        field_cur: (0..unified.field_off.len()).map(|i| format!("g{}", i)).collect(),
+        field_off: unified.field_off.clone(),
+        array_cur: (0..unified.array_off.len()).map(|i| format!("a{}", i)).collect(),
+        array_off: unified.array_off.clone(),
+        array_cnt: unified.array_cnt.clone(),
+        input_cur: if unified.has_input { Some("inp".to_string()) } else { None },
+        output_cur: if unified.has_output { Some("out".to_string()) } else { None },
+    }
+}
+
+fn emit_machine_defs(
+    mi: usize,
+    entry: usize,
+    program: &Program,
+    unified: &SelfState,
+    fresh: &mut usize,
+    out: &mut String,
+) -> Option<()> {
+    let machine = &program.machines[mi];
+    let base = machine_env(mi, program, unified);
     let sig = base.slots();
+    // a non-entry `&mut self` machine is a METHOD: it terminates by returning its self-state bundle.
+    let as_method = mi != entry && machine.has_self;
 
     let mut env = base.clone();
-    let entry = translate_seq(mi, &machine.entry, 0, program, &mut env, fresh)?;
-    out.push_str(&format!("(def m{}_me ({}) {}) ", mi, sig, entry));
+    let body = translate_seq(as_method, mi, &machine.entry, 0, program, &mut env, fresh)?;
+    out.push_str(&format!("(def m{}_me ({}) {}) ", mi, sig, body));
     for (k, state) in machine.states.iter().enumerate() {
         let mut env = base.clone();
-        let body = translate_seq(mi, state, 0, program, &mut env, fresh)?;
+        let body = translate_seq(as_method, mi, state, 0, program, &mut env, fresh)?;
         out.push_str(&format!("(def m{}_s{} ({}) {}) ", mi, k, sig, body));
     }
     Some(())
@@ -481,16 +659,9 @@ pub fn emit_gamma(program: &Program, input: &[i32]) -> Option<String> {
             }
         }
     }
-    // only the entry machine does I/O in this slice (its streams aren't threaded into calls)
-    if reachable
-        .iter()
-        .skip(1)
-        .any(|&mi| uses_read_byte(&program.machines[mi], program) || uses_output(&program.machines[mi]))
-    {
-        return None;
-    }
-
-    let entry_env = machine_env(entry, program);
+    // the program-wide self-state shared by every `&mut self` machine (methods thread it through calls)
+    let unified = compute_self_state(&reachable, program);
+    let entry_env = machine_env(entry, program, &unified);
     let mut fresh = 0usize;
     let mut out = String::new();
 
@@ -506,7 +677,7 @@ pub fn emit_gamma(program: &Program, input: &[i32]) -> Option<String> {
     }
 
     for &mi in &reachable {
-        emit_machine_defs(mi, program, &mut fresh, &mut out)?;
+        emit_machine_defs(mi, entry, program, &unified, &mut fresh, &mut out)?;
     }
 
     // initial call: 0 for every local and scalar field, a zero-list per array, and (if the entry reads
