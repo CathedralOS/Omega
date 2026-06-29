@@ -19,7 +19,8 @@
            (Natind Type Term Term) (Eqelim Type Term Term) (Disj Term) (Sinj Term)
            (Listind Type Term Term) (Rec Spec Spec Type Term Term)
            (MemHead Nat Nat) (MemTail Nat Term) (MemCons Term) (MemNil Term)
-           (Pnil) (Pcons Nat Term) (Prodnilinv Term) (Prodconsinv Term))
+           (Pnil) (Pcons Nat Term) (Prodnilinv Term) (Prodconsinv Term)
+           (Permnil) (Permskip Nat Term) (Permswap Nat Nat Nat) (Permtrans Term Term))
 (data Ctx (Nil) (Cons Type Ctx))
 
 (def nth ((ctx Ctx) (n Int)) Type
@@ -259,6 +260,16 @@
     ((Prodconsinv pf) (match (infer pf ctx)
                         ((Rel id l n) (if (eq id 778)
                           (match l ((Lcons h t) (Exists (And (Eq (shiftt n 1 0) (Mu (shiftt h 1 0) (Iv 0))) (Rel 778 (shiftt t 1 0) (Iv 0))))) (z Bad)) Bad)) (z Bad)))
+    ; list permutation Perm(L1,L2) = (Rel 779 L1 L2): four sound intro-only rules. Mirrors check.beta.
+    ((Permnil) (Rel 779 Lnil Lnil))
+    ((Permskip x pf) (match (infer pf ctx)
+                       ((Rel id t1 t2) (if (eq id 779) (Rel 779 (Lcons x t1) (Lcons x t2)) Bad)) (z Bad)))
+    ((Permswap x y r) (Rel 779 (Lcons x (Lcons y r)) (Lcons y (Lcons x r))))
+    ((Permtrans p1 p2) (match (infer p1 ctx)
+                         ((Rel i1 a b1) (if (eq i1 779)
+                           (match (infer p2 ctx)
+                             ((Rel i2 b2 c) (if (eq i2 779) (if (conveq b1 b2) (Rel 779 a c) Bad) Bad)) (z Bad))
+                           Bad)) (z Bad)))
     (z Bad)))
 
 (def check ((tm Term) (goal Type)) Int (teq (infer tm Nil) goal))
