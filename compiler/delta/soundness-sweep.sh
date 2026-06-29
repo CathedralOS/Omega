@@ -86,6 +86,13 @@ sweep "sum(a++b) = sum a + sum b"  sum-append \
   "(if (eqn (suml (append $LA $LB)) (plus (suml $LA) (suml $LB))) (eqn (suml (append $LC $LA)) (plus (suml $LC) (suml $LA))) 0)"
 sweep "map(a++b) = map a ++ map b" map-append \
   "(leq (maps (append $LA $LB)) (append (maps $LA) (maps $LB)))"
+# --- reverse structural family (reverse is an involution; commutes with map; preserves sum) ---
+sweep "reverse(reverse a) = a"          reverse-involution \
+  "(if (leq (reverse (reverse $LA)) $LA) (leq (reverse (reverse $LC)) $LC) 0)"
+sweep "reverse(map a) = map(reverse a)" rev-map-commute \
+  "(if (leq (reverse (maps $LA)) (maps (reverse $LA))) (leq (reverse (maps $LC)) (maps (reverse $LC))) 0)"
+sweep "sum(reverse a) = sum a"          sum-reverse \
+  "(if (eqn (suml (reverse $LA)) (suml $LA)) (eqn (suml (reverse $LC)) (suml $LC)) 0)"
 
 # --- Relational / predicate universals (le = ex d. a+d=b ; parity via even/odd twins).
 # For implications, the instances are chosen to satisfy the hypotheses, and the
