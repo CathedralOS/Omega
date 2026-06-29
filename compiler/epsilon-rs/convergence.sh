@@ -58,6 +58,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-is-sorted.alp "$T/cis" >/de
   || { echo "convergence FAIL — compiling certify-is-sorted"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-member-any.alp "$T/cma" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-member-any"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-max-any.alp "$T/cxa" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-max-any"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-gcd.alp "$T/cg" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-gcd"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-triangle.alp "$T/ct" >/dev/null 2>&1 \
@@ -281,6 +283,15 @@ cma() {
     FAIL=$((FAIL+1)); echo "  FAIL member [$1] : delta returned [$v], expected accept"; fi
 }
 cma "3 3"; cma "2 1 2 3"; cma "5 9 4 5 1"; cma "0 7 3 0"; cma "6 2 4 6 8 10 12"
+
+# a COMPUTED RESULT certified correct over a variable-length input: max(list) is THE max -- it bounds every
+# element (a conjunction of order witnesses) AND occurs in the list (a Mem chain), composed in one proof.
+cxa() {
+  v=$(printf '%s' "$1" | "$T/cxa" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL max [$1] : delta returned [$v], expected accept"; fi
+}
+cxa "5"; cxa "3 7"; cxa "9 4 5 1"; cxa "2 8 8 1"; cxa "10 2 6 10 4"
 
 # a real ALGORITHM certified: Euclid's gcd output divides both inputs (g|a & g|b)
 cg() {
