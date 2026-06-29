@@ -657,6 +657,30 @@ fn unapproved_host_call_canary_is_rejected() {
 }
 
 #[test]
+fn indexed_write_from_indexed_read_canary_is_rejected() {
+    // `nums[i] = nums[j]` with both indices runtime silently copied the array base
+    // (exit 10 not 50). A blocker-level stopgap now refuses it; this pins that it
+    // errors rather than miscompiles. Sound workaround: a field temp.
+    let canary = fail_canary("collections/indexed_write_from_indexed_read_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected indexed-write-from-indexed-read canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("runtime-indexed element from a runtime-indexed read"),
+        "expected dual-runtime-indexed diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unary_negation_exit_canary_runs() {
     let canary = pass_canary("operators/unary_negation_exit");
     let main_path = canary.join("main.omg");
