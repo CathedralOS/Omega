@@ -183,6 +183,13 @@ a working proof-carrying contract system** (item 11). What remains:
   - `predicate-diamond-fuzz` — the INDUCTIVE PREDICATES (Mem / ProdIs / Perm — the FTA's foundation)
     across all three checkers.
 
+  And the three OPERATIONAL seams now bridge all three logic pillars to the reference interpreter
+  (kernel derivation vs an independent executable, not checker-vs-checker): `semantics-diamond`
+  (EQUALITY / conversion), `induction-soundness` (inductive UNIVERSALS), and `predicate-soundness`
+  (the inductive PREDICATES — for each accepted Mem/ProdIs/Perm proof the interpreter independently
+  DECIDES the predicate via `member`/`prod`/`isperm` and must agree; the perturbed goal is rejected
+  AND decided false).
+
 ## How to build & verify (repo root; Git Bash on Windows, plain `sh` on macOS; `cargo` needed for `beta-lang-rs`)
 
 The build scripts are **platform-aware** (`compiler/alpha/seed_env.sh` picks the
