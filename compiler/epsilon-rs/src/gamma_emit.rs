@@ -76,17 +76,39 @@ fn gexpr(node: usize, program: &Program, env: &Env) -> Option<String> {
                 _ => return None, // bitwise/shift have no interp.beta primitive (a later slice)
             })
         }
-        _ => None, // SelfIndex/ReadByte/Call -> later slices
+        // a free machine call B(args): call the callee's entry function, args filling its parameter
+        // locals and 0 for the rest of its frame (zero-init). The callee returns a value (Return ->
+        // gexpr) which is this expression's value. SELF/method callees are a later slice.
+        Expr::Call(callee, start, count) => {
+            let cm = &program.machines[callee];
+            if !collect_field_offsets(cm, program).is_empty() {
+                return None; // a callee touching self fields is a method-call slice
+            }
+            let mut parts = Vec::new();
+            for j in 0..count {
+                parts.push(gexpr(program.call_args[start + j], program, env)?);
+            }
+            for _ in cm.param_count..cm.local_count {
+                parts.push("0".to_string()); // body locals beyond the params, zero-initialised
+            }
+            Some(if parts.is_empty() {
+                format!("(m{}_me)", callee)
+            } else {
+                format!("(m{}_me {})", callee, parts.join(" "))
+            })
+        }
+        _ => None, // SelfIndex/ReadByte/SelfCall -> later slices
     }
 }
 
-// A call into state `target`, forwarding the full current state vector (parameterless states only).
-fn call_state(target: usize, env: &Env) -> String {
+// A tail-call into state `target` of machine `mi`, forwarding the full current state vector
+// (parameterless states only). State functions are named `m{mi}_s{target}`.
+fn call_state(mi: usize, target: usize, env: &Env) -> String {
     let slots = env.slots();
     if slots.is_empty() {
-        format!("(s{})", target)
+        format!("(m{}_s{})", mi, target)
     } else {
-        format!("(s{} {})", target, slots)
+        format!("(m{}_s{} {})", mi, target, slots)
     }
 }
 
@@ -94,6 +116,7 @@ fn call_state(target: usize, env: &Env) -> String {
 // is the final else (a `_` default, or the exhaustive false-branch of a bool transition). Non-last
 // arms must be integer patterns with no args (parameterless states); otherwise None.
 fn translate_transition(
+    mi: usize,
     subject: usize,
     arms: &[crate::ast::TransitionArm],
     program: &Program,
@@ -104,7 +127,7 @@ fn translate_transition(
     if !last.args.is_empty() {
         return None; // state parameters are a later slice
     }
-    let mut acc = call_state(last.target, env);
+    let mut acc = call_state(mi, last.target, env);
     for arm in rest.iter().rev() {
         if !arm.args.is_empty() {
             return None;
@@ -113,7 +136,7 @@ fn translate_transition(
             Pattern::Int(k) => k,
             Pattern::Wild => return None, // a non-terminal `_` would shadow the rest -> degenerate
         };
-        acc = format!("(if (eq {} {}) {} {})", subj, k, call_state(arm.target, env), acc);
+        acc = format!("(if (eq {} {}) {} {})", subj, k, call_state(mi, arm.target, env), acc);
     }
     Some(acc)
 }
@@ -121,6 +144,7 @@ fn translate_transition(
 // Translate a statement sequence (an entry or state body) from `idx`, threading the SSA Env. The
 // sequence must terminate in a transition / exit / return.
 fn translate_seq(
+    mi: usize,
     stmts: &[Statement],
     idx: usize,
     program: &Program,
@@ -138,7 +162,7 @@ fn translate_seq(
             let nm = format!("t{}", *fresh);
             *fresh += 1;
             env.locals[i] = nm.clone();
-            let rest = translate_seq(stmts, idx + 1, program, env, fresh)?;
+            let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
             Some(format!("(let {} {} {})", nm, value, rest))
         }
         // a self-field write: self.<offset> = e
@@ -148,11 +172,11 @@ fn translate_seq(
             let nm = format!("t{}", *fresh);
             *fresh += 1;
             env.field_set(off, nm.clone())?;
-            let rest = translate_seq(stmts, idx + 1, program, env, fresh)?;
+            let rest = translate_seq(mi, stmts, idx + 1, program, env, fresh)?;
             Some(format!("(let {} {} {})", nm, value, rest))
         }
         Statement::Exit(e) | Statement::Return(e) => gexpr(*e, program, env),
-        Statement::Transition(subject, arms) => translate_transition(*subject, arms, program, env),
+        Statement::Transition(subject, arms) => translate_transition(mi, *subject, arms, program, env),
         _ => None, // StoreSelfIndex/WriteByte/WriteLine/Eval/Assert/Block -> later slices
     }
 }
@@ -193,37 +217,96 @@ fn collect_field_offsets(machine: &Machine, program: &Program) -> Vec<i32> {
     set.into_iter().collect()
 }
 
-// Translate the entry machine to a gamma program: one `(def …)` per state plus the entry `me`, then
-// the initial call `(me 0 … 0)` over all locals+fields (zero-initialised). None if anything is
-// outside the supported subset.
-pub fn emit_gamma(program: &Program) -> Option<String> {
-    let machine = &program.machines[program.entry_machine];
-    let n = machine.local_count;
+// Collect machine indices reached by Call exprs in an expression tree.
+fn collect_callees_expr(node: usize, program: &Program, out: &mut BTreeSet<usize>) {
+    match program.expressions[node] {
+        Expr::Call(callee, start, count) => {
+            out.insert(callee);
+            for j in 0..count {
+                collect_callees_expr(program.call_args[start + j], program, out);
+            }
+        }
+        Expr::Binary(_, l, r) => {
+            collect_callees_expr(l, program, out);
+            collect_callees_expr(r, program, out);
+        }
+        _ => {}
+    }
+}
+
+// Machine indices directly called from machine `mi` (entry + states).
+fn machine_callees(mi: usize, program: &Program, out: &mut BTreeSet<usize>) {
+    let machine = &program.machines[mi];
+    let mut blocks: Vec<&[Statement]> = vec![&machine.entry];
+    blocks.extend(machine.states.iter().map(|s| s.as_slice()));
+    for block in blocks {
+        for statement in block {
+            match statement {
+                Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::Exit(e)
+                | Statement::Return(e) | Statement::StoreSelfField(_, e, _) => {
+                    collect_callees_expr(*e, program, out)
+                }
+                Statement::Transition(subj, _) => collect_callees_expr(*subj, program, out),
+                _ => {}
+            }
+        }
+    }
+}
+
+// Emit machine `mi`'s defs (entry `m{mi}_me` plus each state `m{mi}_s{k}`) into `out`.
+fn emit_machine_defs(mi: usize, program: &Program, fresh: &mut usize, out: &mut String) -> Option<()> {
+    let machine = &program.machines[mi];
     let field_off = collect_field_offsets(machine, program);
     let base = Env {
-        locals: (0..n).map(|i| format!("l{}", i)).collect(),
+        locals: (0..machine.local_count).map(|i| format!("l{}", i)).collect(),
         field_cur: (0..field_off.len()).map(|i| format!("g{}", i)).collect(),
         field_off,
     };
-    let sig = base.slots(); // canonical signature: l0..l_{n-1} g0..g_{m-1}
-    let mut fresh = 0usize;
-    let mut out = String::new();
+    let sig = base.slots();
 
     let mut env = base.clone();
-    let entry = translate_seq(&machine.entry, 0, program, &mut env, &mut fresh)?;
-    out.push_str(&format!("(def me ({}) {}) ", sig, entry));
-
+    let entry = translate_seq(mi, &machine.entry, 0, program, &mut env, fresh)?;
+    out.push_str(&format!("(def m{}_me ({}) {}) ", mi, sig, entry));
     for (k, state) in machine.states.iter().enumerate() {
         let mut env = base.clone();
-        let body = translate_seq(state, 0, program, &mut env, &mut fresh)?;
-        out.push_str(&format!("(def s{} ({}) {}) ", k, sig, body));
+        let body = translate_seq(mi, state, 0, program, &mut env, fresh)?;
+        out.push_str(&format!("(def m{}_s{} ({}) {}) ", mi, k, sig, body));
+    }
+    Some(())
+}
+
+// Translate the program to a gamma expression: every machine reachable from the entry via Call
+// becomes its own set of `m{idx}_*` defs; the program starts by calling the entry with all slots 0.
+// None if anything is outside the supported subset.
+pub fn emit_gamma(program: &Program) -> Option<String> {
+    let entry = program.entry_machine;
+    // reachable set: entry + transitive Call targets
+    let mut seen: BTreeSet<usize> = [entry].into_iter().collect();
+    let mut queue = vec![entry];
+    let mut reachable = vec![entry];
+    while let Some(mi) = queue.pop() {
+        let mut callees = BTreeSet::new();
+        machine_callees(mi, program, &mut callees);
+        for c in callees {
+            if seen.insert(c) {
+                reachable.push(c);
+                queue.push(c);
+            }
+        }
     }
 
-    let slot_count = n + base.field_off.len();
+    let mut fresh = 0usize;
+    let mut out = String::new();
+    for &mi in &reachable {
+        emit_machine_defs(mi, program, &mut fresh, &mut out)?;
+    }
+
+    let slot_count = program.machines[entry].local_count
+        + collect_field_offsets(&program.machines[entry], program).len();
     if slot_count == 0 {
-        out.push_str("(me)");
+        out.push_str(&format!("(m{}_me)", entry));
     } else {
-        out.push_str(&format!("(me {})", vec!["0"; slot_count].join(" ")));
+        out.push_str(&format!("(m{}_me {})", entry, vec!["0"; slot_count].join(" ")));
     }
     Some(out)
 }

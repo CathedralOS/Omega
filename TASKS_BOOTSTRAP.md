@@ -190,9 +190,12 @@ a working proof-carrying contract system** (item 11). What remains:
   mutation is threaded SSA (each write rebinds via a fresh `let`), and transitions are guarded tail-calls;
   loops/conditionals/`gcd`/`factorial` all agree; and **SELF DATA FIELDS** (zero-initialised, threaded
   through the same state vector as locals via a unified Env — `self.f = …` rebinds SSA like a local
-  write; field-based loops agree). 18 diamond cases. Widen toward the full language — next: cross-machine
-  CALLS, then `read_byte`/bitwise/self-arrays — until epsilon's meaning is fully a lattice program. (Slice
-  scopes to the entry machine, i32 locals + scalar fields, parameterless states.)
+  write; field-based loops agree); and **CROSS-MACHINE CALLS** (each machine reachable from the entry via
+  a `Call` becomes its own `m{idx}_*` gamma defs; a free-machine call returns a value, args filling the
+  callee's parameter locals and 0 for the rest — recursion and callees-with-states included: `fact(5)` via
+  a recursive helper agrees). 21 diamond cases. Widen toward the full language — next: `read_byte` (stdin
+  threading), bitwise/shift ops, self arrays, and method (`self.m()`) calls — until epsilon's meaning is
+  fully a lattice program. (Scopes to value-returning free callees; methods/`self`-callees still skipped.)
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR

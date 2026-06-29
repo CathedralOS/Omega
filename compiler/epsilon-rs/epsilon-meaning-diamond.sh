@@ -67,6 +67,10 @@ F='boundary trait Console { machine exit_process(return_code: i32); } data Main 
 dia "field write-read" "boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; acc: i32; } machine Main::main(&mut self) { self.acc = 5; self.acc = self.acc + 3; self.console.exit_process(self.acc); }" 8
 dia "field loop sum"   "$F machine Main::main(&mut self) { transition 0 { _ -> lp() } state lp() { transition self.i < 5 { true -> bd()  false -> dn() } } state bd() { self.i = self.i + 1; self.s = self.s + self.i; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(self.s); } }" 15
 dia "field+local mix"  "$F machine Main::main(&mut self) { let k: i32 = 3; transition 0 { _ -> lp() } state lp() { transition self.i < k { true -> bd()  false -> dn() } } state bd() { self.i = self.i + 1; self.s = self.s + self.i * k; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(self.s); } }" 18
+# CROSS-MACHINE CALLS — each reachable free machine becomes its own m{idx}_* defs; a call returns a value
+dia "call chain"     "$H machine addk(a: i32, b: i32) -> i32 { return a + b; } machine dbl(x: i32) -> i32 { return x + x; } machine Main::main(&mut self) { let r: i32 = dbl(addk(20, 22)); self.console.exit_process(r - 80); }" 4
+dia "recursive fact" "$H machine fact(n: i32) -> i32 { transition n < 2 { true -> one()  false -> rec() } state one() { return 1; } state rec() { return n * fact(n - 1); } } machine Main::main(&mut self) { self.console.exit_process(fact(5)); }" 120
+dia "call in loop"   "$H machine inc(x: i32) -> i32 { return x + 1; } machine Main::main(&mut self) { let i: i32 = 0; let s: i32 = 0; transition 0 { _ -> lp() } state lp() { transition i < 5 { true -> bd()  false -> dn() } } state bd() { i = inc(i); s = s + i; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(s); } }" 15
 
 echo "epsilon-meaning diamond (native execution vs gamma reference interpreter): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
