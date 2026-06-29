@@ -45,7 +45,22 @@ pub(super) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
     // (symbol assignment), so existing target spellings keep their meaning.
     let target_shaped = input.at_keyword(KeywordKind::SelfValue) || input.at_name_like();
     let (expression, rest) = if target_shaped {
-        parse_transition_target_expression_handle(syntax_trees, input)?
+        let (expr, rest) = parse_transition_target_expression_handle(syntax_trees, input)?;
+        // A struct/case literal arm VALUE (`-> Vec2 { dx: 1, dy: 2 }`) is name-like, so
+        // the target-expression parser reads only the leading path and leaves the `{`.
+        // A bare path immediately followed by `{` is a value, not a transition target
+        // -- re-parse the original input as a full expression (which DOES handle struct
+        // literals; the scrutinee position is the one that disallows them, not an arm).
+        if rest.at_punctuation(PunctuationKind::LeftBrace)
+            && matches!(
+                syntax_trees.expressions.expression(expr),
+                ExpressionNode::Name(_)
+            )
+        {
+            parse_expression_handle(syntax_trees, input)?
+        } else {
+            (expr, rest)
+        }
     } else {
         parse_expression_handle(syntax_trees, input)?
     };
