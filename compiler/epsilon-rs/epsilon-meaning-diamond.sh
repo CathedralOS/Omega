@@ -144,7 +144,7 @@ diao "method echos input" "$M machine Main::emit(&mut self, v: i32) { self.conso
 # emit_nat methods + write_line). The diamond reproduces their byte-exact output through the lattice.
 # (Small inputs only: a large certificate's unary numerals exhaust interp's arena.)
 diaf "certify-add (real)" certify-add.alp "50 32 51"   # '2 3' -> a+b certificate
-diaf "certify-mul (real)" certify-mul.alp "50 32 52"   # '2 4' -> a*b certificate
+diaf "certify-mul (real)" certify-mul.alp "50 32 52 32 53 32 54"   # '2 4 5 6' (a<B,b<C) -> overflow-linkage cert
 
 echo "epsilon-meaning diamond (native execution vs gamma reference interpreter): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
