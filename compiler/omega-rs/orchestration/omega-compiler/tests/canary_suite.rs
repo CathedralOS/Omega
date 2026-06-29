@@ -4950,6 +4950,35 @@ fn runtime_i64_divide_modulo_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_float_compare_cast_exit_canary_runs() {
+    // Float breadth: comparisons with negatives (the ucomisd unsigned-flag case),
+    // f64/f32 arithmetic, int<->float and f32<->f64 casts, and nested-field float
+    // arithmetic (a dot product). Self-checks to exit 70.
+    let canary = pass_canary("arithmetic/runtime_float_compare_cast_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-breadth-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float compare/cast canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float compare/cast canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected float comparisons/arith/casts/nested-field to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_float_operations_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_float_operations_exit");
     let build_dir =
