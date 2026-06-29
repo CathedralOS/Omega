@@ -213,6 +213,21 @@ sweep "a|b -> a^n | b^n"        divides-power \
   "(if (dvd $N2 $N4) (dvd (pow $N2 $N2) (pow $N4 $N2)) 0)"
 sweep "even a -> even a^(S k)"  even-power \
   "(if (even $N2) (even (pow $N2 (Su $N1))) 0)"
+# cheap cross-family completions (existing twins, no new machinery): finish the power family + fill gaps.
+sweep "a<=b -> a^n <= b^n"      power-monotone \
+  "(if (nle $N2 $N3) (nle (pow $N2 $N2) (pow $N3 $N2)) 0)"
+sweep "odd a -> odd a^n"        odd-power \
+  "(if (odd $N3) (odd (pow $N3 $N2)) 0)"
+sweep "n | n^(S k)"             divides-own-power \
+  "(dvd $N3 (pow $N3 (Su $N1)))"
+sweep "a+b<=c -> a<=c"          le-summand-bound \
+  "(if (nle (plus $N2 $N3) $N6) (nle $N2 $N6) 0)"
+sweep "a|b & b|a -> a=b"        divides-antisym \
+  "(if (band (dvd $N4 $N4) (dvd $N4 $N4)) (eqn $N4 $N4) 0)"
+sweep "a=b -> a==b (mod n)"     mod-eq-cong \
+  "(if (eqn $N5 $N5) (modeq $N5 $N5 $N3) 0)"
+sweep "len(a++b) = len(b++a)"   append-length-comm \
+  "(if (eqn (length (append $LA $LB)) (length (append $LB $LA))) (eqn (length (append $LB $LA)) (length (append $LA $LB))) 0)"
 
 # --- BINARY TREE family (a NEW ADT in the sweep) — twins: size/mirror/teq over Leaf|Node, and
 # emirror/eflatten/ecount/enodes over expression trees ETip|EBranch. Mirror is an involution that
