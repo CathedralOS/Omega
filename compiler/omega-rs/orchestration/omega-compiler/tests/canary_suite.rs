@@ -4317,6 +4317,35 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_binary_search_exit_canary_runs() {
+    // Binary search for 50 in a sorted 7-element array narrows in BOTH directions
+    // (lo=mid+1 then hi=mid-1) and must find it at exactly index 4. Locks the computed
+    // midpoint, the indexed read into a field, and both pointer updates. Exits 70.
+    let canary = pass_canary("collections/runtime_binary_search_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-binary-search-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("binary search canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("binary search canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected binary search to find 50 at index 4 (exit 70); got {:?} (71=wrong index, 72=not found)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_two_pointer_palindrome_exit_canary_runs() {
     // A two-pointer palindrome check whose DECREASING pointer `j` stays >= 0 only
     // because j > i >= 0 -- proven by chaining the loop ordering `i < j` with `i`'s
