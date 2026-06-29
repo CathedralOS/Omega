@@ -5,6 +5,7 @@
 // ball bounces left<->right. Pure compute + stdout + sleep; no new features beyond
 // the just-added Clock.sleep.
 // Expected exit: 0.
+// Expected output contains: O
 use omega::language::std::console;
 
 domain [u8]::Utf8 when valid_utf8(self) {}

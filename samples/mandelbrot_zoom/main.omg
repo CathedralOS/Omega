@@ -3,6 +3,7 @@
 // and paced by Clock.sleep. Combines the per-pixel f64 renderer, the carrier
 // framebuffer, in-place console redraw, and timed animation -- the full stack.
 // Expected exit: 0.
+// Expected output contains: #
 use omega::language::std::console;
 
 domain [u8]::Utf8 when valid_utf8(self) {}
