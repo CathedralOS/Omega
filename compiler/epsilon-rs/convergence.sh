@@ -66,6 +66,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-distinct.alp "$T/cdist" >/d
   || { echo "convergence FAIL — compiling certify-distinct"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sum.alp "$T/csum" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-sum"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-palindrome.alp "$T/cpal" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-palindrome"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-op.alp "$T/cop" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-op"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-shape.alp "$T/csh" >/dev/null 2>&1 \
@@ -161,6 +163,23 @@ csum() {
     FAIL=$((FAIL+1)); echo "  FAIL [sum($1,$2,$3)] : delta returned [$v], expected accept"; fi
 }
 csum 2 3 5; csum 1 1 1; csum 4 0 6; csum 10 20 30; csum 0 0 0
+
+# a verified PALINDROME: the checker reduces a recursive `reverse` -- which itself reduces a nested
+# recursive `append` -- over a user list and confirms reverse(L) = L, a real recursive algorithm with a
+# nested recursive call certifying a structural property of its input.
+cpal() {
+  v=$(printf '%s %s %s' "$1" "$2" "$3" | "$T/cpal" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL [palindrome($1,$2,$3)] : delta returned [$v], expected accept"; fi
+}
+cpal 2 3 2; cpal 1 1 1; cpal 5 0 5; cpal 7 7 7
+# and a NON-palindrome must be REJECTED -- reverse(L) differs from L, so the certificate is false:
+cpalno() {
+  v=$(printf '%s %s %s' "$1" "$2" "$3" | "$T/cpal" | "$T/check.exe")
+  if [ "$v" = reject ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  BREACH [non-palindrome($1,$2,$3) accepted] : delta returned [$v], expected reject"; fi
+}
+cpalno 2 3 1; cpalno 5 0 9
 
 # a SUM-TYPE-dispatched certifier: an `Op` enum (constructed from the op tag, then matched) picks
 # sum vs product; the program proves the chosen result. Exercises enum construct/match + a
