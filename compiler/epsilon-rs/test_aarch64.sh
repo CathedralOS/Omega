@@ -173,6 +173,13 @@ EOF
 trap_test "out-of-bounds index traps" "$T/oob.alp"
 # Slice 3 (partial): host output via libSystem write — write_line to stdout.
 out_test "hello (write_line to stdout)" samples/hello.alp "hello, alpha"
+
+# DOMAIN TYPES — `i32 in Wrapping` (Omega's arithmetic-safety model). Same overflowing add (2e9 + 2e9):
+# the Wrapping `let` omits the overflow trap and wraps to a negative value (reaches exit 42); without the
+# domain annotation, the default trapping arithmetic dies on the overflow (a trap, exit > 128).
+stdin_exit "i32 in Wrapping: overflowing add wraps, no trap" samples/wraptest.alp "" 42
+sed 's/ in Wrapping//' samples/wraptest.alp > "$T/wraptrap.alp"
+trap_test "default i32 overflow traps (no Wrapping domain)" "$T/wraptrap.alp"
 # Slice 3 complete: byte I/O — read_byte/write_byte filters over real stdin/stdout.
 filter_test "echo (read->write byte loop)" samples/echo.alp "hello, bytes!" "hello, bytes!"
 filter_test "buffer ([u8;N], reverse stdin)" samples/buffer.alp "abcde" "edcba"

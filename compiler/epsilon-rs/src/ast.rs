@@ -46,7 +46,7 @@ pub struct TransitionArm {
 }
 
 pub enum Statement {
-    Let(usize, usize),                     // local index, init expr node
+    Let(usize, usize, bool),               // local index, init expr node, wrapping domain (i32 in Wrapping: no overflow trap)
     Assign(usize, usize),                  // local index, value expr node (reassignment)
     StoreSelfField(i32, usize),            // self.<field at this byte offset> = value expr node
     StoreSelfIndex(i32, i32, i32, usize, usize), // self.<array>[index] = value; (offset, count, element_bytes, index, value)

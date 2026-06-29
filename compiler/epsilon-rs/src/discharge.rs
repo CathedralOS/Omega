@@ -418,7 +418,7 @@ fn order_prop(op: BinaryOp, c: i32, param_db: &str) -> Option<String> {
 fn collect_calls(statements: &[Statement], program: &Program, out: &mut Vec<(usize, Vec<usize>)>) {
     for statement in statements {
         let call_node = match statement {
-            Statement::Eval(e) | Statement::Let(_, e) | Statement::Return(e) => Some(*e),
+            Statement::Eval(e) | Statement::Let(_, e, _) | Statement::Return(e) => Some(*e),
             Statement::Block(inner) => {
                 collect_calls(inner, program, out);
                 None
@@ -587,7 +587,7 @@ fn collect_indices(node: usize, program: &Program, out: &mut Vec<(usize, i32)>) 
 fn collect_array_obligations(statements: &[Statement], program: &Program, out: &mut Vec<(usize, i32)>) {
     for s in statements {
         match s {
-            Statement::Let(_, e)
+            Statement::Let(_, e, _)
             | Statement::Assign(_, e)
             | Statement::StoreSelfField(_, e)
             | Statement::Eval(e)
