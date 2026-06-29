@@ -5666,7 +5666,15 @@ fn runtime_binary_operation_byte_size(
         // op handles the i32 dividend correctly -- signed via cdq, unsigned via the
         // resolver mapping Divide->DivideUnsigned. Add/sub/mul are modular and keep
         // the default 64-bit form. See [[guard-negative-i32-arithmetic]].
-        runtime_binary_compare_byte_size(operands, left, right)
+        //
+        // When BOTH operands are immediates (a constant/constant divide that did not
+        // fold) neither has a storage width, so fall back to the TARGET (declared)
+        // width -- NOT 4. An i64 constant divide must run 64-bit; a 32-bit core would
+        // truncate the dividend (e.g. -9_000_000_000) and the planned/emitted widths
+        // would disagree (`runtime_storage_binary_write_width` uses the target size).
+        runtime_value_operand_value_byte_size(operands, left)
+            .or_else(|| runtime_value_operand_value_byte_size(operands, right))
+            .unwrap_or(target_byte_size)
     } else {
         target_byte_size
     }
