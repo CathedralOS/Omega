@@ -1,0 +1,167 @@
+// RPN calculator: interpret an encoded postfix program with an operand stack -- a
+// real little bytecode VM. Each token is either a number (push it) or an operator
+// that pops two operands and pushes the result. Demonstrates TWO bounded mutable
+// indices cooperating: a program counter `pc` walking the program and a stack
+// pointer `sp` driving the operand stack, both `i32 in Trapping` with explicit
+// `0 <= idx < CAP` guards before every indexed access (Omega's proof model).
+//
+// Encoding: program[k] >= 0 pushes that value; negative codes are operators:
+//   -1 = add, -2 = multiply, -3 = subtract.
+//
+//   program = [3, 4, -1, 5, -2]   // 3 4 + 5 *  ==  (3 + 4) * 5
+// The program exits with the value it computed. Expected exit: 35.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    program: [i32; 16] in Trapping;
+    nprog: i32 in Trapping;
+    stack: [i32; 16] in Trapping;
+    sp: i32 in Trapping;
+    pc: i32 in Trapping;
+    tok: i32 in Trapping;
+    a: i32 in Trapping;
+    b: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.program[0] = 3;
+    self.program[1] = 4;
+    self.program[2] = 0 - 1;
+    self.program[3] = 5;
+    self.program[4] = 0 - 2;
+    self.nprog = 5;
+
+    self.sp = 0;
+    self.pc = 0;
+
+    transition {
+        _ -> loop()
+    }
+
+    // Loop while there are tokens left.
+    state loop(&mut self) {
+        transition self.pc < self.nprog {
+            true -> bound_check()
+            _ -> finish()
+        }
+    }
+
+    // Admit the program index only where it is provably in range.
+    state bound_check(&mut self) {
+        transition self.pc >= 0 && self.pc < 16 {
+            true -> load_token()
+            _ -> finish()
+        }
+    }
+
+    state load_token(&mut self) {
+        self.tok = self.program[self.pc];
+        transition self.tok >= 0 {
+            true -> push_bound()
+            _ -> op_bound()
+        }
+    }
+
+    // --- push a number ---
+    state push_bound(&mut self) {
+        transition self.sp >= 0 && self.sp < 16 {
+            true -> push_token()
+            _ -> finish()
+        }
+    }
+    state push_token(&mut self) {
+        self.stack[self.sp] = self.tok;
+        self.sp = self.sp + 1;
+        transition {
+            _ -> advance()
+        }
+    }
+
+    // --- apply a binary operator: pop b, pop a, push (a OP b) ---
+    state op_bound(&mut self) {
+        transition self.sp >= 2 && self.sp <= 16 {
+            true -> op_pop_b()
+            _ -> finish()
+        }
+    }
+    state op_pop_b(&mut self) {
+        self.sp = self.sp - 1;
+        transition self.sp >= 0 && self.sp < 16 { true -> op_read_b() _ -> finish() }
+    }
+    state op_read_b(&mut self) {
+        self.b = self.stack[self.sp];
+        transition self.sp >= 1 && self.sp <= 16 { true -> op_pop_a() _ -> finish() }
+    }
+    state op_pop_a(&mut self) {
+        self.sp = self.sp - 1;
+        transition self.sp >= 0 && self.sp < 16 { true -> op_read_a() _ -> finish() }
+    }
+    state op_read_a(&mut self) {
+        self.a = self.stack[self.sp];
+        transition {
+            _ -> op_dispatch()
+        }
+    }
+
+    // Decode the operator code and compute into `acc`.
+    state op_dispatch(&mut self) {
+        transition self.tok == 0 - 1 {
+            true -> op_add()
+            _ -> op_dispatch_mul()
+        }
+    }
+    state op_dispatch_mul(&mut self) {
+        transition self.tok == 0 - 2 {
+            true -> op_mul()
+            _ -> op_sub()
+        }
+    }
+    state op_add(&mut self) {
+        self.acc = self.a + self.b;
+        transition { _ -> op_push_bound() }
+    }
+    state op_mul(&mut self) {
+        self.acc = self.a * self.b;
+        transition { _ -> op_push_bound() }
+    }
+    state op_sub(&mut self) {
+        self.acc = self.a - self.b;
+        transition { _ -> op_push_bound() }
+    }
+
+    // Re-establish the stack-pointer bound before the push. `op_push` has three
+    // predecessors (add/mul/sub); a guard fact does not survive a multi-predecessor
+    // join, so the bound is proven afresh here, on the single edge into `op_push`.
+    state op_push_bound(&mut self) {
+        transition self.sp >= 0 && self.sp < 16 {
+            true -> op_push()
+            _ -> finish()
+        }
+    }
+
+    // Push the result back (sp points at the freed slot after the two pops).
+    state op_push(&mut self) {
+        self.stack[self.sp] = self.acc;
+        self.sp = self.sp + 1;
+        transition {
+            _ -> advance()
+        }
+    }
+
+    state advance(&mut self) {
+        self.pc = self.pc + 1;
+        transition {
+            _ -> loop()
+        }
+    }
+
+    state finish(&mut self) {
+        // The result is the bottom of the stack.
+        self.console.exit_process(self.stack[0]);
+    }
+}
