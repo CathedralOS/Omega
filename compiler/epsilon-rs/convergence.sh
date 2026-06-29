@@ -70,6 +70,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-member.alp "$T/cmem" >/dev/
   || { echo "convergence FAIL — compiling certify-member"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-product.alp "$T/cprod" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-product"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-factor.alp "$T/cfac" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-factor"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-distinct.alp "$T/cdist" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-distinct"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sum.alp "$T/csum" >/dev/null 2>&1 \
@@ -147,6 +149,15 @@ cprod() {
     FAIL=$((FAIL+1)); echo "  FAIL [prod($1,$2,$3)] : delta returned [$v], expected accept"; fi
 }
 cprod 2 3 5; cprod 1 1 7; cprod 4 2 3; cprod 2 2 2; cprod 1 6 1
+
+# COMPUTED factorization: read n, trial-divide into a factor list, certify ProdIs(factors, n).
+# Where cprod asserts a given list, cfac computes it from n -- the FTA's existence half, executed.
+cfac() {
+  v=$(printf '%s' "$1" | "$T/cfac" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL [factor($1)] : delta returned [$v], expected accept"; fi
+}
+cfac 30; cfac 12; cfac 7; cfac 16; cfac 1; cfac 2; cfac 18
 
 # a NEGATIVE fact (refutation): x != y, proved via sinj (injectivity) + disj (no-confusion)
 cdist() {
