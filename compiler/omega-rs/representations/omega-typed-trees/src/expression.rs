@@ -542,14 +542,22 @@ impl ExpressionTable {
         source: &ExpressionTable,
         fields: HandleSpan<TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
-        let mut copied = HandleSpan::empty();
+        // Reserve the span FIRST, then fill each slot. Copying a field VALUE
+        // (`copy_from`) can itself append struct-literal fields to THIS arena -- a
+        // NESTED struct literal `Line { start: Point { .. }, .. }` -- and an
+        // incremental `append_to_span` of the outer fields would then interleave
+        // those inner appends and break span contiguity (an arena panic). Reserve-
+        // then-set is interleave-safe, matching `copy_own_struct_literal_fields`.
+        let copied = self.reserve_struct_fields(fields.count());
 
-        for field in source.struct_fields(fields) {
+        for offset in 0..fields.count() {
+            let field = source.struct_field_at_offset(fields, offset).clone();
             let value = self.copy_from(source, field.value);
-            self.struct_fields.append_to_span(
-                &mut copied,
+            self.set_struct_field_at_offset(
+                copied,
+                offset,
                 TableStructLiteralField {
-                    name: field.name.clone(),
+                    name: field.name,
                     value,
                 },
             );
