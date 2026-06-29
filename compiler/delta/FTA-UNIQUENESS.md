@@ -92,13 +92,18 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    the tail product is `pcons h`, the permutation is `permtrans(permswap, permskip)`). Assembled by script
    (27 defs: mul-swap-mid's prelude + perm-refl + mul-cong-right) — note **elab source uses `*` for mul,
    not the raw checker's `m`**.
-7. **NEXT — the allPrime conjunct**: extend this surgery's induction to also output `allPrime(L)→allPrime(L')`
-   (4th conjunct, or a mem-preservation conjunct `∀x. Mem(x,L')→Mem(x,L)` from which allPrime derives).
-   Construction: `p=h` case = `memtail`; `Mem(p,t)` case = `memcons`+`memhead`/`memtail` on the IH — all
-   arithmetic-free, same two-case shape. (Can't be a separate lemma: the witness `L'` must be shared.)
-8. **THEN — general FTA uniqueness** by strong induction on n: `nil/nil` base = `product-one-list-nil`;
-   `cons-p` step = `prime-factor-in-list` → `Mem(p,L2)` → this surgery → `mult-cancel` (q = the L1 cofactor)
-   → IH (needs allPrime(L2'), hence step 7) → `permskip p` + `permtrans` with the surgery's `Perm`.
+7. ✅ The surgery now carries a **4th conjunct** `∀x. Mem(x,L') → Mem(x,L)` (membership preservation),
+   built arithmetic-free in the same two cases (`p=h`: `memtail`; `Mem(p,t)`: `memcons` + `memhead`/`memtail`
+   on the IH's 4th conjunct), over the same shared witness. FTA uniqueness derives `allPrime(L')` from this
+   plus `allPrime(L)`. `prodis-extract-member.elab` is now the full 4-conjunct lemma.
+8. **NEXT — general FTA uniqueness** (the capstone) by strong induction on n. There is NO strong-induction
+   helper lemma; it is done inline with a FUEL parameter + regular `natind` (see fundamental-theorem-
+   arithmetic.elab / prime-divisor-existence.elab for the pattern): prove `∀f n. (n ≤ f) → P(n)` by natind
+   on f, where `P(n) = ∀L1 L2. ProdIs(L1,n) & ProdIs(L2,n) & allPrime(L1) & allPrime(L2) → Perm(L1,L2)`.
+   `nil/nil` base = `product-one-list-nil`; `cons-p` step = `prime-factor-in-list` → `Mem(p,L2)` →
+   `prodis-extract-member` → `mult-cancel` (the surgery's q = L1's cofactor) → derive `allPrime(L2')` from
+   conjunct 4 → IH at the cofactor (which is < n ≤ f, so ≤ f-1) → `permskip p` + `permtrans` with the
+   surgery's `Perm`. This is a LARGE proof (fuel plumbing + the step); likely a full iteration.
 
 ## Uniqueness proof plan (once `Perm` exists)
 
