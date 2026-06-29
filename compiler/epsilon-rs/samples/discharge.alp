@@ -51,6 +51,9 @@ machine within10(a: i32) -> i32 ensures result <= a + 10 { return a; }
 // <= a+b`, the postcondition mirror of the call-site `a+k` slice; the entry assert of `requires b
 // >= 0` then makes the postcondition assert sound. Without the `requires`, no cert (still refused).
 machine within_b(a: i32, b: i32) -> i32 requires b >= 0 ensures result <= a + b { return a; }
+// The Ge twin: `result >= a` returning `a + b`, witness the parameter b -- the SWAP branch
+// (smaller=bound, larger=returned). Same conditional cert under `requires b >= 0`, sound the same way.
+machine atleast_b(a: i32, b: i32) -> i32 requires b >= 0 ensures result >= a { return a + b; }
 // REFLEXIVE bound: result <= a (and result >= a), returned verbatim. The gap is 0, but `(p a z)` does
 // not reduce (p recurses on the left, a is stuck), so refl can't prove `a <= a` -- the discharge cites
 // add-zero-right, exactly like `result == a` returned as `a + 0`. Two postconditions, both reflexive.
