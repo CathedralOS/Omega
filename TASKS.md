@@ -25,6 +25,82 @@ representation machinery behind a deliberate boundary.
 - Keep `pass`, `fail`, and `pending` canaries honest. Do not let compile-only
   success imply runtime or proof support.
 
+## North star: prove Omega non-toy via real software rendering (2026-06-28)
+
+Settled direction (Zach): land *serious* sample projects that actually do
+software rendering, to prove Omega is not a toy. A grounded multi-agent survey of
+the compiler vs. that goal (2026-06-28) found the **computational core already
+runs natively today** — 1D arrays as framebuffers, runtime-indexed read+write
+(the index-load OOB segfault is fixed, `2ccb39da`), per-pixel integer and f64/f32
+math, hand-written loops, the in-bounds proof model (now incl. the
+multi-predecessor-join MEET, `62aba398`). A frame can be *computed* in memory now.
+Two things gate getting it on screen and making it ergonomic.
+
+### Tier 1 — animated CONSOLE renderer (no native-FFI gate; do this first)
+Render ASCII/ANSI frames to stdout in a timed loop. Needs only: (a) the **clock
+capability** — the `clock` build flag is reserved but INERT (no host op / binding
+/ encoder). Wire Windows `GetTickCount64` (0-arg, returns u64 ms in rax — the
+simplest possible native call; exercises the full host-call return-value path),
+Linux `clock_gettime` as a follow-up. (b) existing stdout. Then a real sample
+(rotating cube / plasma / fire in the terminal). Proves "software rendering +
+animation" cheaply and de-risks host extensibility.
+
+### Tier 2 — windowed software renderer (the native-FFI ladder)
+The host layer is a CLOSED catalog of 4 hardcoded kernel32 ops (GetStdHandle,
+ReadFile, WriteFile, ExitProcess), each a bespoke x86_64 emitter. Reaching a
+window needs a general native-call capability. Prioritized (sizes from the
+survey):
+1. **[LARGE — the gate; NEEDS DESIGN: the `extern` call surface]** general Win64
+   native call — marshal an arbitrary arg list into rcx/rdx/r8/r9 then stack +
+   shadow space, return in rax. De-risk by re-expressing the existing 4 kernel32
+   ops through it (no behavior change).
+2. [MEDIUM] multi-DLL imports (user32/gdi32/winmm) — PE import table is hardcoded
+   to a single KERNEL32.dll descriptor (`omega-image-pe/src/imports.rs`).
+3. [MEDIUM] struct-by-pointer marshalling + C-layout struct declare/init
+   (BITMAPINFO / WNDCLASSEXW / MSG).
+4. [MEDIUM] raw framebuffer pointer usable as an LPVOID arg.
+5. [SMALL] clock op (shared with Tier 1) + `Sleep` for frame pacing.
+6. [SMALL] input — `GetAsyncKeyState` (1 arg).
+7. [SMALL] PE Subsystem GUI(2) toggle (hardcoded to console(3) in
+   `omega-image-pe/src/headers.rs`).
+8. [LARGE — AVOID] function-pointer type / machine-as-C-callback for a WndProc.
+   Dodge it: register the class with `DefWindowProcW` (imported symbol, no Omega
+   callback), poll with PeekMessageW/DispatchMessageW, blit with `StretchDIBits`
+   of a top-down `.bss` DIB each frame.
+The proof/effect system already RESERVES the authority (`clock_read`, `device_io`,
+`memory_map`, `dynamic_link` in `omega-effects`) — it does not block this. #1 is
+the gate; 2–7 are incremental after it.
+
+### Language ergonomics surfaced (mostly engineering; one research)
+- **[NEEDS DESIGN — Zach]** loop syntax (`for`/`while`) that desugars to the
+  existing proven state-machine loop pattern. Today every loop is a hand-written
+  multi-state machine (head + body + advance); `game_of_life` is fully manually
+  unrolled into 16 machines and does not iterate. The proof machinery exists —
+  this is front-end sugar, but the surface is a language-design call.
+- **[ENGINEERING]** `arr[i] = <binary>` (a computed value into a runtime-indexed
+  target) is unselectable; forces the `tmp = arr[i]+v; arr[i] = tmp` idiom.
+- **[ENGINEERING]** numeric intrinsics: sqrt / sin / cos / abs / min / max as
+  functions (no math library exists).
+- **[RESEARCH — sidesteppable]** nonlinear index `pixels[y*W+x]` is not provable
+  in-bounds (the interval/ordering prover has no product-bound fact). Route around
+  with a single linear `0..W*H` counter until/unless a `y<H && x<W => y*W+x<W*H`
+  axiom or an octagon domain is added.
+
+### Backend perf (deferred, post-1.0)
+The MVP backend (fixed-register, memory-to-memory per op, no regalloc/SSA/
+optimizer/SIMD) makes a *real-time* per-pixel renderer slow. Fine for small/simple
+demos; a fast renderer waits on the deferred "serious backend" layer (virtual-reg
+IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
+"provably correct native output," which it meets.
+
+### Smaller open items / latent bugs surfaced
+- `arr[i] = arr[j]` (both runtime indices) silent miscompile — latent, documented;
+  field-temp workaround. Stopgap-error first (#40 trap), then a dual-indexed copy.
+- u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
+  in a guard refused (clean error); a tail of value-call corner cases.
+- The four `samples/software_renderer_*` dirs are STALE husks (no `.omg` source,
+  only build artifacts) — delete or rebuild; they prove nothing and mislead.
+
 ## Outstanding (pick up next)
 
 Snapshot refreshed 2026-06-19. Decisions 8-17 implemented (stage 1+); harness
