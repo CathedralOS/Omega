@@ -28,14 +28,14 @@ data Main {
     coff: i32; dsize: i32; foffs: [i32; 256]; fcnt: [i32; 256]; feb: [i32; 256]; fdom: [i32; 256];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     vns: [i32; 32]; vne: [i32; 32]; vtag: [i32; 32]; nv: i32; vcc: i32;
-    spls: [i32; 2048]; skl: i32; eskl: i32;
+    spls: [i32; 3072]; skl: i32; eskl: i32;
     etn: [i32; 32]; etne: [i32; 32]; etsz: [i32; 32]; ne: i32; cei: i32; cdtns: i32; cdtne: i32; fc: i32;
     bns: [i32; 8]; bne: [i32; 8]; bndoff: [i32; 8]; nb: i32; subjoff: i32; payidx: i32; unegate: i32;
     apbase: i32; aix: i32; scc: i32;
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; hsf: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
     fns: [i32; 256]; fne: [i32; 256];
-    sns: [i32; 2048]; sne: [i32; 2048]; smi: [i32; 2048]; ssi: [i32; 2048];
+    sns: [i32; 3072]; sne: [i32; 3072]; smi: [i32; 3072]; ssi: [i32; 3072];
     qa: i32; qb: i32; qc: i32; qd: i32; qk: i32;
     dig: [i32; 16];
     buf: [u8; 131072];
