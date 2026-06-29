@@ -55,6 +55,7 @@ build_lm certify-triangle ct
 build_lm certify-op       cop
 build_lm certify-shape    csh
 build_lm certify-shapes   css
+build_lm certify-perm     cperm
 
 # the checker prints accept/reject but exits with the alpha VM's halt code, so judge by stdout.
 set +e
@@ -91,6 +92,9 @@ chk csh   "0 5"     accept; chk csh   "1 3 9"   accept
 # loop + per-element enum construct/match + binding + state args + mult + accumulation, all certified
 chk css   "2  1 6 7  0 4"     accept; chk css   "3  0 2  0 3  1 4 5"  accept    # 42+16=58 ; 4+9+20=33
 chk css   "1  1 5 5"          accept; chk css   "0"                  accept    # single Rect ; empty list (z=0)
+# the PERMUTATION predicate (Rel 779, the FTA inductive predicate) reached through the self-hosted compiler:
+# [a,b] is a permutation of [b,a] by the adjacent-transposition rule (permswap)
+chk cperm "3 7"     accept; chk cperm "5 2"     accept; chk cperm "0 9" accept
 
 # the dual must hold too: a FALSE refutation (x != x) must be REJECTED, even self-hosted-compiled
 chk cdist "4 4"     reject; chk cdist "0 0"     reject

@@ -72,6 +72,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-shape.alp "$T/csh" >/dev/nu
   || { echo "convergence FAIL — compiling certify-shape"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-shapes.alp "$T/css" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-shapes"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-perm.alp "$T/cperm" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-perm"; exit 1; }
 # proof library: bounds-2d as a referenceable def, regenerated from the banked theorem
 HAVE_LIB=0
 if command -v python3 >/dev/null 2>&1 && python3 ../delta/gen-lib2d.py > "$T/lib2d.delta" 2>/dev/null; then HAVE_LIB=1; fi
@@ -196,6 +198,19 @@ css "2  1 6 7  0 4"; css "3  0 2  0 3  1 4 5"; css "1  1 5 5"; css "0"; css "2  
 badcss=$(printf '2  1 6 7  0 4' | "$T/css" | sed 's/(s (s (s (s (s (s z))))))/(s (s (s (s (s z)))))/' | "$T/check.exe")
 if [ "$badcss" = reject ]; then PASS=$((PASS+1)); else
   FAIL=$((FAIL+1)); echo "  FAIL tamper-shapes : delta returned [$badcss], expected reject"; fi
+
+# the PERMUTATION predicate (Rel 779) -- the FTA inductive predicate, reached as a certifying computation:
+# [a,b] ~ [b,a] by the adjacent-transposition rule. Exercises the new Perm checker rules through convergence.
+cperm() {
+  v=$(printf '%s' "$1" | "$T/cperm" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL perm [$1] : delta returned [$v], expected accept"; fi
+}
+cperm "3 7"; cperm "5 2"; cperm "0 9"; cperm "11 4"
+# tamper: shrink the first list's head so the goal's list no longer matches the permswap proof's argument.
+badcp=$(printf '3 7' | "$T/cperm" | sed 's/(s (s (s z)))/(s (s z))/' | "$T/check.exe")
+if [ "$badcp" = reject ]; then PASS=$((PASS+1)); else
+  FAIL=$((FAIL+1)); echo "  FAIL tamper-perm : delta returned [$badcp], expected reject"; fi
 
 # CORRECTNESS (not safety): the result meets its spec -- m is genuinely max(a,b):
 # a<=m & b<=m & (m=a or m=b). inl branch when a>=b, inr when a<b.
