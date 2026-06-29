@@ -404,6 +404,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("slices/runtime_subslice_range_len_exit", 203),
     ("slices/runtime_subslice_range_pointer_exit", 205),
     ("structs/runtime_nested_struct_construction_exit", 70),
+    ("structs/runtime_enum_struct_payload_exit", 70),
     ("structs/runtime_struct_array_literal_exit", 70),
     ("storage/runtime_dispatch_helper_local_alias_add_exit", 181),
     (

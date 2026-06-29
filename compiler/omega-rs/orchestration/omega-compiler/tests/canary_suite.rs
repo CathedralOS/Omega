@@ -8631,6 +8631,40 @@ fn runtime_struct_array_literal_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_enum_struct_payload_exit_canary_runs() {
+    // An enum variant with a STRUCT-typed payload `Event::Click(at: Point, ..)`. The
+    // payload field's named type symbol was never resolved (the resolution pass
+    // skipped variant payload fields), so the layout builder errored. Now construct +
+    // match + read the struct payload's fields.
+    let canary = pass_canary("structs/runtime_enum_struct_payload_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-enum-struct-payload-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("enum struct-payload canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("enum struct-payload canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected enum variant with a struct payload to construct/match/extract (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_write_const_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_write_const_read_exit");
     let build_dir = std::env::temp_dir()

@@ -1,0 +1,55 @@
+// Regression: an enum (sum type) variant carrying a STRUCT-typed payload --
+// `Event::Click(at: Point, button: i32)`. The classic tagged-union with structured
+// data (`enum Event { Click(Point, .. ), .. }`).
+//
+// This failed to compile: the type-reference symbol-resolution pass walked only
+// `DataMember::Field`, skipping a variant's out-of-band PAYLOAD fields, so a payload
+// field's NAMED type (`Point`) never got a resolved symbol -- the layout builder then
+// errored "non-primitive type `Point` is missing a resolved symbol". Primitive/array
+// payloads resolved anyway (no named symbol needed). Fixed by also resolving payload
+// field type symbols.
+//
+// Constructs Event::Click with a Point payload and a scalar, matches it, and reads
+// the nested struct fields + the scalar. Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Point {
+    x: i32 in Trapping;
+    y: i32 in Trapping;
+}
+
+data Event {
+    case Click(at: Point, button: i32 in Trapping);
+    case Scroll(delta: i32 in Trapping);
+    case Quit;
+}
+
+data Main {
+    console: Console;
+    ev: Event;
+    r: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.ev = Event::Click { at: Point { x: 3, y: 4 }, button: 1 };
+
+    transition self.ev {
+        Event::Click { at, button } -> handle_click(at, button)
+        Event::Scroll { delta } -> bad()
+        Event::Quit -> bad()
+    }
+
+    state handle_click(&mut self, at: Point, button: i32 in Trapping) {
+        self.r = at.x * 100 + at.y * 10 + button;
+        transition self.r == 341 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
