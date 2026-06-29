@@ -329,7 +329,9 @@ fn collect_field_offsets(machine: &Machine, program: &Program) -> Vec<i32> {
     for block in blocks {
         for statement in block {
             match statement {
-                Statement::Let(_, e, _) | Statement::Assign(_, e) => collect_expr_offsets(*e, program, &mut set),
+                Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::WriteByte(e) => {
+                    collect_expr_offsets(*e, program, &mut set)
+                }
                 Statement::Exit(e) | Statement::Return(e) => collect_expr_offsets(*e, program, &mut set),
                 Statement::StoreSelfField(off, val, _) => {
                     set.insert(*off);
@@ -372,7 +374,7 @@ fn collect_arrays(machine: &Machine, program: &Program) -> Vec<(i32, i32)> {
         for statement in block {
             match statement {
                 Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::Exit(e)
-                | Statement::Return(e) | Statement::StoreSelfField(_, e, _) => {
+                | Statement::Return(e) | Statement::StoreSelfField(_, e, _) | Statement::WriteByte(e) => {
                     collect_arrays_expr(*e, program, &mut map)
                 }
                 Statement::StoreSelfIndex(off, count, _eb, ix, val) => {
@@ -414,8 +416,11 @@ fn machine_callees(mi: usize, program: &Program, out: &mut BTreeSet<usize>) {
         for statement in block {
             match statement {
                 Statement::Let(_, e, _) | Statement::Assign(_, e) | Statement::Exit(e)
-                | Statement::Return(e) | Statement::StoreSelfField(_, e, _) => {
-                    collect_callees_expr(*e, program, out)
+                | Statement::Return(e) | Statement::StoreSelfField(_, e, _)
+                | Statement::WriteByte(e) => collect_callees_expr(*e, program, out),
+                Statement::StoreSelfIndex(_, _, _, ix, val) => {
+                    collect_callees_expr(*ix, program, out);
+                    collect_callees_expr(*val, program, out);
                 }
                 Statement::Transition(subj, _) => collect_callees_expr(*subj, program, out),
                 _ => {}
