@@ -75,7 +75,7 @@ def prod_case():
 
 
 def perm_case():
-    shape = random.choice(("id", "swap", "skipswap", "transid"))
+    shape = random.choice(("id", "swap", "skipswap", "transid", "compose"))
     a, b, c = random.randint(0, 4), random.randint(0, 4), random.randint(0, 4)
     fresh = max(a, b, c) + 1  # not among the elements -> any target containing it is NOT a permutation
     if shape == "id":  # Perm(L, L) by a permskip chain over permnil
@@ -96,12 +96,19 @@ def perm_case():
             sw = "(%s %s %s %s)" % (T["permswap"], nat(a, T), nat(b, T), T["nil"])
             return "(%s %s %s)" % (T["permskip"], nat(c, T), sw)
         src, dst, bad = [c, a, b], [c, b, a], [c, b, fresh]
-    else:  # transid: permtrans of a swap and its inverse -> identity on [a,b]
+    elif shape == "transid":  # permtrans of a swap and its inverse -> identity on [a,b]
         def proof(T):
             sw1 = "(%s %s %s %s)" % (T["permswap"], nat(a, T), nat(b, T), T["nil"])
             sw2 = "(%s %s %s %s)" % (T["permswap"], nat(b, T), nat(a, T), T["nil"])
             return "(%s %s %s)" % (T["permtrans"], sw1, sw2)
         src, dst, bad = [a, b], [a, b], [a, fresh]
+    else:  # compose: a genuine 2-transposition rotation [a,b,c] -> [b,c,a] via permtrans of two REAL swaps
+        def proof(T):
+            sw1 = "(%s %s %s %s)" % (T["permswap"], nat(a, T), nat(b, T), lst([c], T))   # [a,b,c] ~ [b,a,c]
+            inner = "(%s %s %s %s)" % (T["permswap"], nat(a, T), nat(c, T), T["nil"])      # [a,c] ~ [c,a]
+            sw2 = "(%s %s %s)" % (T["permskip"], nat(b, T), inner)                         # [b,a,c] ~ [b,c,a]
+            return "(%s %s %s)" % (T["permtrans"], sw1, sw2)                               # [a,b,c] ~ [b,c,a]
+        src, dst, bad = [a, b, c], [b, c, a], [b, c, fresh]
     goal = lambda d, T: "(Rel 779 %s %s)" % (lst(src, T), lst(d, T))
     return goal(dst, B), goal(dst, G), proof(B), proof(G), goal(bad, B), goal(bad, G)
 
