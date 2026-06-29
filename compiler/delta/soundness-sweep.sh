@@ -69,6 +69,13 @@ sweep "a*(b*c) = b*(a*c)"       mul-swap-mid \
   "(if (eqn (mult $N2 (mult $N3 $N1)) (mult $N3 (mult $N2 $N1))) (eqn (mult $N1 (mult $N2 $N3)) (mult $N2 (mult $N1 $N3))) 0)"
 sweep "n*(n+1) is even"         consecutive-product-even \
   "(if (even (mult $N2 (Su $N2))) (even (mult $N3 (Su $N3))) 0)"
+# --- parity alternation (computed via the even/odd structural twins; tested where the antecedent holds) ---
+sweep "even n -> odd(s n)"      succ-of-even-is-odd \
+  "(if (odd (Su $N2)) (odd (Su $N4)) 0)"
+sweep "odd n -> even(s n)"      succ-of-odd-is-even \
+  "(if (even (Su $N3)) (even (Su $N5)) 0)"
+sweep "even n OR even(s n)"     consecutive-even \
+  "(if (if (even $N3) 1 (even (Su $N3))) (if (even $N4) 1 (even (Su $N4))) 0)"
 
 # --- List equational universals (structural list eq via leq, Nat eq via eqn) ---
 sweep "(a++b)++c = a++(b++c)"   append-assoc-user \
