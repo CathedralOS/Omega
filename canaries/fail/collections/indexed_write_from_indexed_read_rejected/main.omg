@@ -1,0 +1,26 @@
+// A runtime-indexed array write whose VALUE is a runtime-indexed read --
+// `nums[i] = nums[j]` with BOTH indices runtime -- MUST be rejected, not silently
+// miscompiled. The value `nums[j]` resolves to the array BASE, so without this guard the
+// statement silently copies `nums[0]` (exit 10 instead of 50) with no error. The sound
+// workaround is a field temp: `self.t = nums[j]; nums[i] = self.t`.
+//
+// (Const indices and a field-valued RHS lower correctly and are NOT rejected; only the
+// dual-runtime-indexed copy is.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 5] in Trapping;
+    i: i32 in Trapping;
+    j: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums = [10, 20, 30, 40, 50];
+    self.i = 0;
+    self.j = 4;
+    self.nums[self.i] = self.nums[self.j];
+    self.console.exit_process(self.nums[0]);
+}
