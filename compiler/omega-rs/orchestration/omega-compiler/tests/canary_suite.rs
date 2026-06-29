@@ -5083,6 +5083,35 @@ fn runtime_shift_signedness_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_mixed_width_sign_exit_canary_runs() {
+    // Mixed-width / mixed-sign arithmetic auto-promotes and extends the narrower
+    // operand correctly: sign-extension (i32(-5)+i64), zero-extension (u8+i32),
+    // narrower-signed (i16(-3)+i32), and a mixed-sign add (i32+u32).
+    let canary = pass_canary("arithmetic/runtime_mixed_width_sign_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-mixed-width-sign-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mixed-width-sign canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mixed-width-sign canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected mixed-width/sign arithmetic with correct sign/zero extension to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_integer_casts_exit_canary_runs() {
     // Integer width/sign casts (sign-extend / zero-extend / truncate / reinterpret),
     // with each cast result threaded through a transition PARAM. This last part also

@@ -30,6 +30,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_comparison_signedness_exit", 70),
     ("arithmetic/runtime_shift_signedness_exit", 70),
     ("arithmetic/runtime_integer_casts_exit", 70),
+    ("arithmetic/runtime_mixed_width_sign_exit", 70),
     ("arithmetic/runtime_domain_boundaries_exit", 70),
     ("arithmetic/runtime_float_compare_cast_exit", 70),
     ("arithmetic/runtime_i64_divide_modulo_exit", 70),
