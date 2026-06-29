@@ -330,6 +330,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/runtime_literal_source_cast_exit", 70),
     ("expressions/runtime_match_value_exit", 70),
     ("expressions/runtime_numeric_cast_exit", 70),
+    ("expressions/runtime_16bit_cast_exit", 70),
     ("operators/compound_assignment_exit", 70),
     ("operators/integer_literal_suffix_exit", 70),
     ("operators/runtime_shift_operators_exit", 70),
