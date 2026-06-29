@@ -95,5 +95,9 @@ machine call_pos() -> i32 { return needs_pos(5); }
 data Store { vals: [u8; 16]; }
 machine Store::first(&mut self) -> i32 { return self.vals[0]; }
 machine Store::get(&mut self, i: i32) -> i32 requires i < 16 { return self.vals[i]; }
+// WEAKENING: a TIGHTER precondition than the array size. `self.vals[i]` owes `i < 16`, but this
+// machine only promises `i < 8`. Since 8 <= 16, lt-le-trans composes i<8 with the ground bound 8<=16
+// to discharge i<16 -- the compiler proves the access safe from a stronger-than-needed contract.
+machine Store::tight(&mut self, i: i32) -> i32 requires i < 8 { return self.vals[i]; }
 
 machine Main::main(&mut self) { let r: i32 = adds(20, 22); self.console.exit_process(r) }
