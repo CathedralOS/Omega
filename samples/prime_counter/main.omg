@@ -1,0 +1,101 @@
+// Count the primes up to 20 by trial division -- a real nested-loop computation:
+// the OUTER loop walks n = 2..20; for each n the INNER loop tries divisors
+// d = 2..n-1 and clears an `is_prime` flag on the first divisor found; primes are
+// tallied. The inner loop's bound `d < n` is RELATIONAL (the outer counter is the
+// limit), and `n % d` exercises runtime modulo. No arrays -- pure control flow and
+// arithmetic over the Trapping domain.
+//
+//   primes <= 20: 2, 3, 5, 7, 11, 13, 17, 19  ->  8.
+// The program exits with the count it computed.
+// Expected exit: 8.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    n: i32 in Trapping;
+    d: i32 in Trapping;
+    count: i32 in Trapping;
+    is_prime: bool;
+}
+
+machine Main::main(&mut self) {
+    self.n = 2;
+    self.count = 0;
+
+    transition {
+        _ -> outer()
+    }
+
+    // Outer: walk candidate numbers n = 2..20.
+    state outer(&mut self) {
+        transition self.n < 21 {
+            true -> check_init()
+            _ -> done()
+        }
+    }
+
+    state check_init(&mut self) {
+        self.is_prime = true;
+        self.d = 2;
+        transition {
+            _ -> inner()
+        }
+    }
+
+    // Inner: try divisors d = 2..n-1 (bound is relational to the outer counter).
+    state inner(&mut self) {
+        transition self.d < self.n {
+            true -> test_divisor()
+            _ -> tally()
+        }
+    }
+
+    state test_divisor(&mut self) {
+        transition self.n % self.d == 0 {
+            true -> mark_composite()
+            _ -> next_divisor()
+        }
+    }
+
+    state mark_composite(&mut self) {
+        self.is_prime = false;
+        transition {
+            _ -> next_divisor()
+        }
+    }
+
+    state next_divisor(&mut self) {
+        self.d = self.d + 1;
+        transition {
+            _ -> inner()
+        }
+    }
+
+    state tally(&mut self) {
+        transition self.is_prime {
+            true -> increment()
+            _ -> outer_next()
+        }
+    }
+
+    state increment(&mut self) {
+        self.count = self.count + 1;
+        transition {
+            _ -> outer_next()
+        }
+    }
+
+    state outer_next(&mut self) {
+        self.n = self.n + 1;
+        transition {
+            _ -> outer()
+        }
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(self.count);
+    }
+}
