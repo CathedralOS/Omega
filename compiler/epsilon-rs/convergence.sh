@@ -56,6 +56,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sort3.alp "$T/cs3" >/dev/nu
   || { echo "convergence FAIL — compiling certify-sort3"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-is-sorted.alp "$T/cis" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-is-sorted"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-member-any.alp "$T/cma" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-member-any"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-gcd.alp "$T/cg" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-gcd"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-triangle.alp "$T/ct" >/dev/null 2>&1 \
@@ -270,6 +272,15 @@ cis() {
     FAIL=$((FAIL+1)); echo "  FAIL is_sorted [$1] : delta returned [$v], expected accept"; fi
 }
 cis "1 2"; cis "1 2 3"; cis "0 0 1 5"; cis "1 3 3 7 9"; cis "0 1 2 3 4 5"
+
+# a variable-length INDUCTIVE-PREDICATE certifier: reads x + a list of any length and certifies Mem(x, list)
+# by constructing a memtail-chain ending in a memhead -- the proof's length scales with x's position.
+cma() {
+  v=$(printf '%s' "$1" | "$T/cma" | "$T/check.exe")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL member [$1] : delta returned [$v], expected accept"; fi
+}
+cma "3 3"; cma "2 1 2 3"; cma "5 9 4 5 1"; cma "0 7 3 0"; cma "6 2 4 6 8 10 12"
 
 # a real ALGORITHM certified: Euclid's gcd output divides both inputs (g|a & g|b)
 cg() {
