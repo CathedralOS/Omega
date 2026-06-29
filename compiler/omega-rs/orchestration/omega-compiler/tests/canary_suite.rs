@@ -9956,6 +9956,40 @@ fn runtime_subslice_range_pointer_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_field_array_element_value_operand_exit_canary_runs() {
+    // A field array's indexed element as a VALUE OPERAND: passed to a value-call, and
+    // read into a let then forwarded as a transition arg. Works for FIELD arrays; the
+    // local-array form (`let arr = [..]; let e = arr[i]`) silently yields 0 -- a
+    // machine-indexed-value-operand gap tracked separately.
+    let canary = pass_canary("slices/runtime_field_array_element_value_operand_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-field-array-value-operand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("field-array value-operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("field-array value-operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a field-array element used as a value-call arg / let-then-transition-arg to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_subslice_dynamic_index_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_subslice_dynamic_index_exit");
     let build_dir = std::env::temp_dir().join(format!(
