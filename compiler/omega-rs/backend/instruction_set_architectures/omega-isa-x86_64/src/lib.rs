@@ -5694,6 +5694,18 @@ fn append_integer_divide_modulo_core(
     signed: bool,
 ) {
     if byte_size <= 4 {
+        // Narrow SIGNED operands may arrive ZERO-extended (e.g. the guard-subject
+        // load path; see append_saturating_trapping_multiply), so a 32-bit idiv would
+        // divide i8 -20 as 236. Sign-extend both to 32 bits first. Idempotent when
+        // they are already sign-extended (the storage-write path); unsigned div is
+        // correct zero-extended and skips this.
+        if signed && byte_size == 1 {
+            bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]); // movsx r10, r10b
+            bytes.extend([0x4d, 0x0f, 0xbe, 0xdb]); // movsx r11, r11b
+        } else if signed && byte_size == 2 {
+            bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]); // movsx r10, r10w
+            bytes.extend([0x4d, 0x0f, 0xbf, 0xdb]); // movsx r11, r11w
+        }
         bytes.extend([0x41, 0x8b, 0xc2]); // mov eax, r10d
         if signed {
             bytes.push(0x99); // cdq (sign-extend eax -> edx)
@@ -5976,8 +5988,11 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
         | StateGuardOperator::MaxUnsigned
         | StateGuardOperator::MinUnsigned => 7,
         // signed 32-bit: mov(3)+cdq(1)+idiv(3)+mov(3)=10; signed 64-bit: cqo(2)=11.
+        // Narrow signed (i8/i16) prepends two movsx (8) to sign-extend the operands
+        // to the 32-bit op width; see append_integer_divide_modulo_core.
         StateGuardOperator::Divide | StateGuardOperator::Modulo => {
-            if byte_size <= 4 { 10 } else { 11 }
+            let sign_extend = if byte_size <= 2 { 8 } else { 0 };
+            sign_extend + if byte_size <= 4 { 10 } else { 11 }
         }
         // unsigned: mov(3)+xor edx,edx(2)+div(3)+mov(3)=11 at either size.
         StateGuardOperator::DivideUnsigned | StateGuardOperator::ModuloUnsigned => 11,
