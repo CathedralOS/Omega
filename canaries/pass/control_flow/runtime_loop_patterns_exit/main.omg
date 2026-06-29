@@ -1,0 +1,73 @@
+// Loop patterns via self-transition (state recursion) -- the workhorse of serious
+// apps. Locks the two non-obvious properties:
+//   1. A LARGE counting loop (1..10000) stays ITERATIVE -- 10000 self-transitions
+//      without stack growth (a recursive lowering would overflow). sum == 50005000.
+//   2. NESTED loops -- an inner loop re-initialized each outer iteration; sum of i*j
+//      for i,j in 1..10 == (1+..+10)^2 == 55*55 == 3025.
+// Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    i: i32 in Wrapping;
+    j: i32 in Wrapping;
+    sum: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.i = 1;
+    self.sum = 0;
+    transition { _ -> sum_loop() }
+
+    // --- 1: large counting accumulation ---
+    state sum_loop(&mut self) {
+        transition self.i > 10000 { true -> check_sum() _ -> sum_body() }
+    }
+    state sum_body(&mut self) {
+        self.sum = self.sum + self.i;
+        self.i = self.i + 1;
+        transition { _ -> sum_loop() }
+    }
+    state check_sum(&mut self) {
+        transition self.sum == 50005000 { true -> nested_init() _ -> bad() }
+    }
+
+    // --- 2: nested loop ---
+    state nested_init(&mut self) {
+        self.i = 1;
+        self.sum = 0;
+        transition { _ -> outer() }
+    }
+    state outer(&mut self) {
+        transition self.i > 10 { true -> check_nested() _ -> inner_init() }
+    }
+    state inner_init(&mut self) {
+        self.j = 1;
+        transition { _ -> inner() }
+    }
+    state inner(&mut self) {
+        transition self.j > 10 { true -> next_i() _ -> inner_body() }
+    }
+    state inner_body(&mut self) {
+        self.sum = self.sum + self.i * self.j;
+        self.j = self.j + 1;
+        transition { _ -> inner() }
+    }
+    state next_i(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> outer() }
+    }
+    state check_nested(&mut self) {
+        transition self.sum == 3025 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
