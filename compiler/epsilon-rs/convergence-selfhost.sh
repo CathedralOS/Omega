@@ -61,6 +61,9 @@ build_lm certify-sort3    cs3
 build_lm certify-is-sorted cis
 build_lm certify-member-any cma
 build_lm certify-max-any   cxa
+build_lm certify-accesses  cacc
+build_lm certify-safety    csaf
+build_lm certify-source    csrc
 
 # the checker prints accept/reject but exits with the alpha VM's halt code, so judge by stdout.
 set +e
@@ -108,6 +111,18 @@ chk cperm "3 7"     accept; chk cperm "5 2"     accept; chk cperm "0 9" accept
 
 # the dual must hold too: a FALSE refutation (x != x) must be REJECTED, even self-hosted-compiled
 chk cdist "4 4"     reject; chk cdist "0 0"     reject
+
+# the certifying COMPILER + FRONTEND, self-hosted: a whole program's array accesses discharged as ONE
+# conjunction proof (cacc), mixed bounds+nonzero-divisor obligations (csaf), and a source-DSL frontend
+# that compiles arr/get/div programs to a delta-checked whole-program safety proof (csrc).
+chk cacc "2 5 3 4"           accept; chk cacc "0 1 0 1  2 5 3 4  1 3 0 2  5 6 2 9" accept
+chk csaf "d 5"               accept; chk csaf "b 2 5 3 4  d 7  b 1 3 0 2"          accept
+chk csrc "arr 4 5  get 2 3"  accept; chk csrc "arr 10 10  get 3 7  get 8 2  div 5" accept
+chk csrc "arr 4 5  band 4 0" accept   # a bounded loop unrolls to a range of VCs in one certificate
+# the self-hosted FRONTEND's OWN safety analysis: UNSAFE source (out-of-bounds / div-by-zero / loop
+# overrun) is refused -- it exits 1 and emits NO proof, rather than emitting one the anchor would reject.
+csrc_reject() { printf '%s' "$1" | "$T/csrc" >/dev/null 2>&1; if [ $? -eq 1 ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL unsafe-not-rejected [$1]"; fi; }
+csrc_reject "arr 4 5  get 3 7"; csrc_reject "arr 4 5  get 2 3  div 0"; csrc_reject "arr 5 5  get 5 0"; csrc_reject "arr 4 5  band 5 0"
 
 # the trust anchor still REJECTS tampered certificates from self-hosted-compiled programs -- delta
 # checks the computation, not the compiler that built it:
