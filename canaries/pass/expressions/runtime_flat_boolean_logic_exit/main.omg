@@ -1,0 +1,52 @@
+// Flat boolean logic in guards and value position. Locks:
+//   - a flat AND guard      (`a && b`)
+//   - a flat OR guard       (`a || b`)
+//   - a negation guard      (`!b`)
+//   - a three-term AND guard (`a && c && !b`)
+//   - a value-position bool  (`let r = a && !b`)
+// (The nested mix `(a || b) && c` is a documented separate gap; flat logic works.)
+// With a = true, b = false, c = true. Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: bool;
+    b: bool;
+    c: bool;
+}
+
+machine Main::main(&mut self) {
+    self.a = true;
+    self.b = false;
+    self.c = true;
+
+    // a && b == false -> takes the `_` arm
+    transition self.a && self.b { true -> bad() _ -> check_or() }
+
+    state check_or(&mut self) {
+        // a || b == true
+        transition self.a || self.b { true -> check_neg() _ -> bad() }
+    }
+    state check_neg(&mut self) {
+        // !b == true
+        transition !self.b { true -> check_three() _ -> bad() }
+    }
+    state check_three(&mut self) {
+        // a && c && !b == true
+        transition self.a && self.c && !self.b { true -> check_value() _ -> bad() }
+    }
+    state check_value(&mut self) {
+        let r: bool = self.a && !self.b; // true
+        transition r { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
