@@ -9956,6 +9956,41 @@ fn runtime_subslice_range_pointer_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_aggregate_into_let_exit_canary_runs() {
+    // A local ARRAY literal read by a subsequent `let` (`let arr = [..]; let e = arr[1]`)
+    // silently yielded 0: the liveness scan never inspected LocalData (`let`) values, so
+    // the read-only array was elided (no slot) and the indexed read resolved against a
+    // missing slot. Fixed by keeping the slot for an array-literal local referenced in a
+    // later let value (array-only -- borrow-carrying structs must stay folded).
+    let canary = pass_canary("slices/runtime_local_aggregate_into_let_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-local-aggregate-into-let-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("local-aggregate-into-let canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("local-aggregate-into-let canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a local array element read into a subsequent let (and used as a value) to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_field_array_element_value_operand_exit_canary_runs() {
     // A field array's indexed element as a VALUE OPERAND: passed to a value-call, and
     // read into a let then forwarded as a transition arg. Works for FIELD arrays; the

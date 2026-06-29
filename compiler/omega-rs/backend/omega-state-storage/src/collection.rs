@@ -358,6 +358,32 @@ fn local_data_requires_storage(
         return true;
     }
 
+    // `statement_references_local` (the final check below) inspects Expression /
+    // Assignment / Call / Transition statements but NOT a LocalData (`let`) VALUE.
+    // So an AGGREGATE local (array/struct literal -- which has no immediate form to
+    // fold into a later use) read only by a subsequent `let` -- e.g.
+    // `let arr = [..]; let e = arr[1]` -- is invisible to the liveness scan and its
+    // slot is elided; the indexed/field read then resolves against a missing slot and
+    // silently drops to 0 (a native miscompile; the interpreter, which keeps the
+    // value, is right). Keep the slot for exactly that combination. Gated on an
+    // aggregate-literal initializer so foldable scalars (correct without a slot) are
+    // untouched -- no slot-offset shift can regress them.
+    if initializer_is_array_literal(expressions, initial_value)
+        && statements
+            .iter()
+            .skip(local_statement_index + 1)
+            .any(|statement| {
+                local_data_value_references_symbol(
+                    expressions,
+                    statement,
+                    local_symbol,
+                    local_name,
+                )
+            })
+    {
+        return true;
+    }
+
     statements
         .iter()
         .skip(local_statement_index + 1)
@@ -371,6 +397,39 @@ fn local_data_requires_storage(
                 uses_runtime_flow,
             )
         })
+}
+
+/// Whether an initializer is an ARRAY literal (possibly wrapped in `Mutable`). An
+/// array element read (`arr[i]`) has no immediate form and is not folded back, so a
+/// later use needs the array's slot. Deliberately NOT struct literals: a
+/// borrow-carrying struct (`Msg { body: &cell }`) must stay FOLDED so the borrow
+/// substitutes into `msg.body` -- slotting it would store a stale pointer
+/// (regressed `borrow_carrying_data_field`). Value-struct field reads fold to the
+/// literal field and do not need a slot.
+fn initializer_is_array_literal(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::ArrayLiteral(_) => true,
+        ExpressionNode::Mutable(inner) => initializer_is_array_literal(expressions, *inner),
+        _ => false,
+    }
+}
+
+/// Whether a LocalData (`let`) statement's initializer VALUE references the
+/// symbol/name -- the position `statement_references_local` does not inspect.
+fn local_data_value_references_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    let StatementNode::LocalData(local) = statement else {
+        return false;
+    };
+    local.initial_value.is_valid()
+        && expression_references_symbol(expressions, local.initial_value, symbol, local_name)
 }
 
 /// Whether an initializer contains ANY call (a call result cannot be folded into

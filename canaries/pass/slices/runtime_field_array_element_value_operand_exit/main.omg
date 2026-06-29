@@ -3,12 +3,9 @@
 // "read a grid/buffer cell and compute with it" pattern, and it works for FIELD
 // arrays (`self.nums[i]`).
 //
-// CAVEAT (tracked separately, NOT fixed): the same with a LOCAL array literal
-// (`let arr = [..]; let e = arr[i]`) silently yields 0 -- the local-array indexed
-// read is not materialized as a value operand for a let/field write (a machine-
-// indexed-value-operand gap). Local-array STORAGE itself works (mutate+read, direct
-// `exit_process(arr[i])`); only the read-as-write-operand path breaks. Use a field
-// array (or use the element directly) until that path is filled in. Exits 70.
+// The same with a LOCAL array literal (`let arr = [..]; let e = arr[i]`) is now also
+// fixed (the read-only array was being elided without a frame slot; see
+// slices/runtime_local_aggregate_into_let_exit). Exits 70.
 
 boundary trait Console {
     machine exit_process(return_code: i32);
