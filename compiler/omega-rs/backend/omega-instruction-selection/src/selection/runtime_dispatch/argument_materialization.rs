@@ -1417,6 +1417,28 @@ fn resolve_prior_local_initializers_in_table(
                 ))
             }
         }
+        ExpressionNode::Unary(unary) => {
+            // Same root as the Cast/Binary arms: a unary operand may be a prior
+            // let-local (`let nb = !b`). Fold the operand so the inner local resolves
+            // rather than dangling into the target frame.
+            let operand = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                unary.operand,
+            );
+            if operand == unary.operand {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Unary(
+                    omega_checked_trees::expression::TableUnaryExpression {
+                        operator: unary.operator,
+                        operand,
+                    },
+                ))
+            }
+        }
         ExpressionNode::Cast(cast) => {
             // A cast's inner value may be a prior let-local (`let bw = b8 as i32`).
             // When the whole `let` is folded into a forwarded argument, the inner
