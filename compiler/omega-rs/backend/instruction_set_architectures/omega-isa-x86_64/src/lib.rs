@@ -716,12 +716,28 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             encode_file_operation(operation_key, operands)
         }
         (HostCapability::Process, HostOperation::ExitProcess) => encode_exit_process(operands),
+        (HostCapability::Clock, HostOperation::Sleep) => encode_sleep(operands),
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
             operation_key.capability_name(),
             operation_key.operation_name()
         ))),
     }
+}
+
+/// `Sleep(DWORD ms)` -- pause the thread `ms` milliseconds for frame pacing. Same
+/// call shape as `GetStdHandle`: shadow space, the u32 arg in ecx, a kernel32 call,
+/// no return (the result is void). Non-terminal -- execution continues after the
+/// call. First cut: an immediate `ms` argument (a runtime argument is a follow-up).
+fn encode_sleep<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
+    let milliseconds = immediate_i32(operands, 0, "Sleep milliseconds")?;
+    let mut bytes = Vec::with_capacity(18);
+    bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
+    bytes.push(0xb9); // mov ecx, imm32
+    bytes.extend(milliseconds.to_le_bytes());
+    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32
+    bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
+    Ok(bytes)
 }
 
 fn encode_get_std_handle<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
@@ -914,6 +930,15 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
                 kind: X86_64RelocationSiteKind::Relative32,
             });
             sites
+        }
+        (HostCapability::Clock, HostOperation::Sleep) => {
+            // Layout: sub rsp,40 (4) + mov ecx,imm32 (5) + call rel32 (opcode at 9).
+            vec![X86_64RelocationSite {
+                operand_index: None,
+                byte_offset: 10,
+                byte_width: 4,
+                kind: X86_64RelocationSiteKind::Relative32,
+            }]
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,

@@ -10470,6 +10470,39 @@ fn runtime_value_call_slice_len_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_sleep_exit_canary_runs() {
+    // Clock.sleep -- a kernel32 `Sleep(ms)` native call, the first host op beyond the
+    // original four. Reaching exit_process(70) after the call proves the Win64 ABI
+    // (shadow space, ecx arg, clean non-terminal return) is correct.
+    let canary = pass_canary("host/runtime_sleep_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-sleep-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sleep canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sleep canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `sleep(2)` to return cleanly and the program to reach exit_process(70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_exit_code_exit_canary_runs() {
     // `exit_process(self.v)` with a RUNTIME (non-constant) i32 must exit with the
     // computed value. Regression guard for the documented footgun where a runtime

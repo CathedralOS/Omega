@@ -28,6 +28,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         windows_import("Stderr", "write", "Kernel32.dll", "WriteFile"),
         windows_import("Stderr", "write_file", "Kernel32.dll", "WriteFile"),
         windows_import("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
+        windows_import("Clock", "sleep", "Kernel32.dll", "Sleep"),
     ]);
 
     insert_platform_lowering(
@@ -93,6 +94,16 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "*",
         "exit_process",
         [host_operation("Process", "exit_process")],
+        PlatformCallData::None,
+    );
+    // Frame pacing for timed loops: `Sleep(DWORD ms)` -- a single kernel32 call,
+    // one u32 arg in ecx, no return (non-terminal). Same call shape as
+    // `get_std_handle`/`exit_process`.
+    insert_platform_lowering(
+        plan,
+        "*",
+        "sleep",
+        [host_operation("Clock", "sleep")],
         PlatformCallData::None,
     );
 }
