@@ -46,7 +46,8 @@ def emb(name):
 ids['add-zero-right'] = emb('add zero on the right (a+z = a)')   # discharge.rs: ADD_ZERO_RIGHT
 ids['add-commutes']   = emb('+ commutative')                     # discharge.rs: ADD_COMMUTES (pulls deps into 1..4)
 ids['le-trans']       = emb('le trans')                          # discharge.rs: LE_TRANS (pulls deps into 6..8)
-assert ids['add-zero-right']==0 and ids['add-commutes']==5 and ids['le-trans']==9, \
-    "contract library def ids drifted: %r (discharge.rs pins add-zero-right=0, add-commutes=5, le-trans=9)"%ids
+ids['mult-commutes']  = emb('mult commutes')                     # discharge.rs: MULT_COMMUTES (pulls deps into 10..19)
+assert ids['add-zero-right']==0 and ids['add-commutes']==5 and ids['le-trans']==9 and ids['mult-commutes']==20, \
+    "contract library def ids drifted: %r (discharge.rs pins add-zero-right=0, add-commutes=5, le-trans=9, mult-commutes=20)"%ids
 full=elaborate(blk+" (= z z) (refl z)")
 sys.stdout.write(full.rsplit("(= z z) (refl z)",1)[0].rstrip())
