@@ -55,15 +55,25 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
 
 ## Checker-change checklist (this is a TRUST-ANCHOR edit — do it carefully, with full budget)
 
-1. **`check.beta`** — add four alloc tags (e.g. 44–47) mirroring the `memhead`/`memtail` pattern:
-   a parse state per rule (see `is_m → do_memhead`, alloc tag 42; `do_memtail`, tag 43; `is_pinv` for
-   ProdIs inversion), and a check rule per tag in the `d42`/`d43`/… dispatch that verifies the premise
-   sub-proofs and emits the `Rel <permId> a b` proposition.
-2. **`checker.gamma`** — mirror the same four rules. **The `checker-diamond.sh` gate requires
-   `check.beta` and `checker.gamma` to agree on every certificate**, so they must move together.
-3. **Re-verify** `elab-test.sh` (existing 205 proofs must still pass — `Perm` is new, so they are
-   unaffected), `checker-diamond.sh`, `semantics-diamond.sh`, and the full `verify-lattice.sh`.
-4. Add a first `Perm` lemma to exercise it (`perm-refl` via `perm-skip` list-induction, then `perm-sym`).
+1. **`check.beta`** — ✅ DONE. `Perm = Rel 779`, four intro rules at alloc tags 57–60 (`permnil`,
+   `permskip x pf`, `permswap x y r`, `permtrans pf1 pf2`). Parse: a `kc2=='e'` branch under `is_p`
+   (dispatched by `kc5`/`kc6` to nil/skip/swap/trans); check: `d57`–`d60` mirroring the `mem`/`prod`
+   rules (`permtrans` matches the shared middle term with `conv_eq`). Intro-only ⇒ sound, no inversion.
+   Gotcha banked: the list argument of `permswap` is an individual/list **term**, so it is parsed with
+   `parse_nat` (the misleadingly-named general term parser, handles `nil`/`cons`), NOT `parse_term`
+   (which is the proof parser and starts with `expect('(')`). Validated with 5 positive + 3 negative
+   raw certs; `elab.py` got the four matching keyword cases. `proofs/perm-refl.elab` lands (∀L. Perm(L,L)
+   by `listind`: nil→permnil, cons→permskip on the IH). elab-test now **206 ok**; full lattice VERIFIED.
+2. **`checker.gamma`** (+ `checker_typed.gamma`) — ⏳ NEXT (Stage 2). Mirror the four rules in the
+   pattern-match style (see the `MemHead`/`Pcons` arms ~line 358): `((Permnil) (Rel 779 Lnil Lnil))`,
+   `((Permskip x pf) …(Rel 779 (Lcons x t1) (Lcons x t2))…)`, `((Permswap x y r) (Rel 779 (Lcons x
+   (Lcons y r)) (Lcons y (Lcons x r))))`, `((Permtrans p1 p2) …conv_eq the middle…)`. Add ADT variants
+   in `checker_typed.gamma` (erase_types.py derives the untyped 3rd oracle). **`checker-diamond.sh`
+   requires all checkers to agree**, so add ~6 `dia()` cases (both syntaxes) when the mirror lands.
+   Until then Perm is check.beta-only: the existing 205 stay fully 3-checker-gated; perm proofs are
+   check.beta-gated (via elab-test) — a documented, temporary asymmetry.
+3. **Re-verify** `elab-test.sh`, `checker-diamond.sh`, `semantics-diamond.sh`, full `verify-lattice.sh`.
+4. Then `perm-sym` (skip/swap/trans induction) and the **member-to-front surgery** lemma below.
 
 ## Uniqueness proof plan (once `Perm` exists)
 
