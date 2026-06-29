@@ -179,6 +179,12 @@ def quant_schemas(p, q, atomq, T):  # quantifier/predicate tautologies (see chec
           ("lam", ("ex", P(V0)),
            ("unpack", ("hyp", 0),
             ("gen", ("lam", P(V0), ("app", ("inst", ("hyp", 2), V0), ("hyp", 0)))))))),
+        # NESTED quantifier props (a quantifier inside another quantifier's body) -- exercises de Bruijn
+        # across binder depth and inst/wit under an outer All.
+        ("forall-nest-elim", ("all", ("->", ("all", P(V0)), P(V0))),
+         ("gen", ("lam", ("all", P(V0)), ("inst", ("hyp", 0), V0)))),
+        ("forall-exists-intro", ("all", ("->", P(V0), ("ex", P(V0)))),
+         ("gen", ("lam", P(V0), ("wit", P(V0), V0, ("hyp", 0))))),
     ]
 
 
