@@ -1,0 +1,109 @@
+// Animated Mandelbrot zoom -- a real-time software-rendered fractal that zooms into
+// a seahorse-valley boundary point, redrawn in place via an ANSI cursor-home escape
+// and paced by Clock.sleep. Combines the per-pixel f64 renderer, the carrier
+// framebuffer, in-place console redraw, and timed animation -- the full stack.
+// Expected exit: 0.
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 48]::Utf8 when valid_utf8(self) {}
+domain [u8; 8]::Utf8 when valid_utf8(self) {}
+domain [u8; 3]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    row: [u8; 48] in Utf8;
+    palette: [u8; 8] in Utf8;
+    home: [u8; 3] in Utf8;
+    frame: i32 in Trapping;
+    span: f64;
+    x: i32 in Trapping;
+    y: i32 in Trapping;
+    cr: f64;
+    ci: f64;
+    zr: f64;
+    zi: f64;
+    zr2: f64;
+    zi2: f64;
+    mag: f64;
+    k: i32 in Trapping;
+    idx: i32 in Trapping;
+    ch: u8 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.palette = " .:-=+*#";
+    self.row = "................................................";
+    self.home = "XXX";
+    self.home[0] = 27;
+    self.home[1] = 91;
+    self.home[2] = 72;
+    self.span = 3.0;
+    self.frame = 0;
+    transition { _ -> frame_loop() }
+
+    state frame_loop(&mut self) {
+        transition self.frame < 12 { true -> frame_init() _ -> finish() }
+    }
+    state frame_init(&mut self) {
+        self.console.write(self.home);
+        self.y = 0;
+        transition { _ -> row_loop() }
+    }
+    state row_loop(&mut self) {
+        transition self.y < 22 { true -> col_init() _ -> frame_end() }
+    }
+    state col_init(&mut self) { self.x = 0; transition { _ -> col_loop() } }
+    state col_loop(&mut self) {
+        transition self.x >= 0 && self.x < 48 { true -> pixel_init() _ -> emit_row() }
+    }
+    state pixel_init(&mut self) {
+        self.cr = (self.x as f64 / 48.0 - 0.5) * self.span - 0.743644;
+        self.ci = (self.y as f64 / 22.0 - 0.5) * self.span * 0.5 + 0.131826;
+        self.zr = 0.0;
+        self.zi = 0.0;
+        self.k = 0;
+        transition { _ -> iter_loop() }
+    }
+    state iter_loop(&mut self) {
+        transition self.k < 40 { true -> iter_test() _ -> pixel_done() }
+    }
+    state iter_test(&mut self) {
+        self.zr2 = self.zr * self.zr;
+        self.zi2 = self.zi * self.zi;
+        self.mag = self.zr2 + self.zi2;
+        transition self.mag > 4.0 { true -> pixel_done() _ -> iter_step() }
+    }
+    state iter_step(&mut self) {
+        self.zi = 2.0 * self.zr * self.zi + self.ci;
+        self.zr = self.zr2 - self.zi2 + self.cr;
+        self.k = self.k + 1;
+        transition { _ -> iter_loop() }
+    }
+    state pixel_done(&mut self) {
+        self.idx = self.k * 7 / 40;
+        transition self.idx >= 0 && self.idx < 8 && self.x >= 0 && self.x < 48 {
+            true -> write_pixel()
+            _ -> bad()
+        }
+    }
+    state write_pixel(&mut self) {
+        self.ch = self.palette[self.idx] as u8 in Wrapping;
+        self.row[self.x] = self.ch;
+        self.x = self.x + 1;
+        transition { _ -> col_loop() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.row);
+        self.y = self.y + 1;
+        transition { _ -> row_loop() }
+    }
+    state frame_end(&mut self) {
+        self.console.sleep(70);
+        self.span = self.span * 0.62;
+        self.frame = self.frame + 1;
+        transition { _ -> frame_loop() }
+    }
+    state finish(&mut self) { self.console.exit_process(0); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}
