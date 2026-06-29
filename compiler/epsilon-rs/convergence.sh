@@ -72,6 +72,8 @@ EPS_ARCH=aarch64 ./target/debug/beta samples/certify-product.alp "$T/cprod" >/de
   || { echo "convergence FAIL — compiling certify-product"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-factor.alp "$T/cfac" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-factor"; exit 1; }
+EPS_ARCH=aarch64 ./target/debug/beta samples/certify-wrong.alp "$T/cwrong" >/dev/null 2>&1 \
+  || { echo "convergence FAIL — compiling certify-wrong"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-distinct.alp "$T/cdist" >/dev/null 2>&1 \
   || { echo "convergence FAIL — compiling certify-distinct"; exit 1; }
 EPS_ARCH=aarch64 ./target/debug/beta samples/certify-sum.alp "$T/csum" >/dev/null 2>&1 \
@@ -158,6 +160,16 @@ cfac() {
     FAIL=$((FAIL+1)); echo "  FAIL [factor($1)] : delta returned [$v], expected accept"; fi
 }
 cfac 30; cfac 12; cfac 7; cfac 16; cfac 1; cfac 2; cfac 18
+
+# THE NEGATIVE CONTROL: a deliberately-buggy computation (claims a+b = a+b+1) must be REJECTED.
+# Without this, every accept-test above would pass vacuously if the checker degenerated to
+# accept-everything -- this is the falsifiable form of "the anchor checks the computation".
+cwrong() {
+  v=$(printf '%s' "$1" | "$T/cwrong" | "$T/check.exe")
+  if [ "$v" = reject ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL [wrong($1)] : delta returned [$v], expected REJECT"; fi
+}
+cwrong "2 3"; cwrong "7 5"; cwrong "0 0"; cwrong "10 4"
 
 # a NEGATIVE fact (refutation): x != y, proved via sinj (injectivity) + disj (no-confusion)
 cdist() {
