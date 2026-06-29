@@ -32,9 +32,9 @@ honest edges) lives in
 | `compiler/beta-rs/` | Throwaway Rust on-ramp for the *assembler* (cold-start only). | parked |
 | `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | slices 1–6 done; self-check passed |
 | `compiler/beta-lang/` | The Beta compiler **written in Beta** (`bc.beta`) — slice 7. | **DONE — self-hosts** (byte-for-byte fixed point) |
-| `compiler/delta/` | **The certificate checker** (`check.beta`) — the trust anchor: full intuitionistic prop logic + equality/conversion + ∀∃ + induction + `Mem`/`ProdIs`/`Perm` (three list inductive predicates). Compiled by `bc`, run on the seed. Plus a 211-proof corpus (sqrt2-irrational, infinitude-of-primes, and **the Fundamental Theorem of Arithmetic — BOTH halves: existence AND uniqueness up to permutation**), a 43-case soundness battery (no false proof accepted), and a soundness sweep (proved by check.beta **and** computed-true in the interpreter). The `Perm` permutation relation that FTA uniqueness needs was added to all three checkers (`check.beta`, `checker.gamma`, `checker_typed.gamma`) and is diamond-cross-validated. | **WORKING** — also rewritten in gamma (`checker.gamma`, type-checked + diamond-tested); **no soundness bridge** to execution yet (the deep open problem) |
+| `compiler/delta/` | **The certificate checker** (`check.beta`) — the trust anchor: full intuitionistic prop logic + equality/conversion + ∀∃ + induction + `Mem`/`ProdIs`/`Perm` (three list inductive predicates). Compiled by `bc`, run on the seed. Plus a 212-proof corpus (sqrt2-irrational, infinitude-of-primes, and **the Fundamental Theorem of Arithmetic — BOTH halves: existence AND uniqueness up to permutation**), a soundness battery (no false proof accepted), a 43-theorem soundness sweep (proved by check.beta **and** computed-true in the interpreter), and **FOUR random fuzzers** that cross-check the trust anchor across *every* subsystem (`seam-fuzz` reducer, `checker-diamond-fuzz` conversion, `logic-diamond-fuzz` first-order logic, `predicate-diamond-fuzz` Mem/ProdIs/Perm). The `Perm` permutation relation that FTA uniqueness needs was added to all three checkers (`check.beta`, `checker.gamma`, `checker_typed.gamma`) and is diamond-cross-validated. | **WORKING** — also rewritten in gamma (`checker.gamma`, type-checked + diamond-tested); **no soundness-bridge THEOREM** to execution yet (the deep open problem) — but comprehensive fuzzed evidence for it |
 | `compiler/gamma/` | `gamma.alpha` = parked v13 imperative compiler. **`interp.beta`** = interpreter-first reference interpreter (functional, ADTs + pattern matching, fuel-bounded) + **`typeck.beta`** = a static type checker + **`checker.gamma`** = the Delta checker in gamma, all in Beta. | interpreter + type system done |
-| `compiler/epsilon-rs/` | The **Epsilon on-ramp** (throwaway Rust): compiles a machines / `data` / `transition` / `enum` systems language — Omega's executable surface — to x64 PE **and** arm64 Mach-O. Self-hosts (`lowermachine.alp` emits itself byte-identically). Hosts the **convergence** (`certify-*.alp` programs emit delta certificates — including over the `Perm` predicate) **and a proof-carrying contract system** (`assert`/`requires`/`ensures`, compiler-emitted static discharge, call-site composition). | **GATED** — slices 1–9 + operators/enums/state-params; 191 aarch64 tests; 132-cert convergence (arithmetic, structure, **permutation**); contract discharge (`contracts.sh` 15: equality + add/mult-commutativity citations + order witnesses + call-site forwarding/weakening, `discharge-soundness.sh`) |
+| `compiler/epsilon-rs/` | The **Epsilon on-ramp** (throwaway Rust): compiles a machines / `data` / `transition` / `enum` systems language — Omega's executable surface — to x64 PE **and** arm64 Mach-O. Self-hosts (`lowermachine.alp` emits itself byte-identically). Hosts the **convergence** (`certify-*.alp` programs emit delta certificates — including over the `Perm` predicate) **and a proof-carrying contract system** (`assert`/`requires`/`ensures`, compiler-emitted static discharge, call-site composition). | **GATED** — slices 1–9 + operators/enums/state-params; 191 aarch64 tests; 132-cert convergence (arithmetic, structure, **permutation**); contract discharge (`contracts.sh` 28 verified, `discharge-soundness.sh` 21 ok: the full arithmetic-rewrite equality family + the order family incl. same-base offset gaps + implicit array-bounds with weakening (via `lt-le-trans`) + call-site composition incl. expression args `B(a+k)` — 10 increments, the clean vein mined out) |
 | `compiler/epsilon/`, `compiler/alpha-rs` | Old/renamed experiment soup (a misfiled alpha-in-alpha attempt; not the live rung). | **IGNORE** |
 | `compiler/omega-rs/` | The real Omega compiler, in Rust. Separate concern: the *producer*, not the lattice. | (other workstream) |
 
@@ -153,20 +153,35 @@ The lattice's thesis — *trust by checking, not pedigree* — is now a working 
 The lattice is comprehensively built from the seed through a certifying systems language **with
 a working proof-carrying contract system** (item 11). What remains:
 
-- **Richer contract composition** — incremental, all on the proven mechanism (cite the right
-  banked lemma at the site, no new design). DONE: `<=` upper-bound weakening (call-site, via le-trans);
-  additive AND multiplicative commutativity citations (`result == b+a` / `result == b*a`, citing
-  add-commutes / mult-commutes); reflexive order bounds (`result <= X` / `>= X` via add-zero-right);
-  MULTIPLE postconditions per machine; and **IMPLICIT ARRAY-BOUNDS** — the compiler finds every
-  `self.arr[i]` and emits `i < len` (a literal index by a ground witness, a parameter index by
-  forwarding its `requires i < len`), conservative (an unjustifiable access emits no cert). REMAINING:
-  array-bounds weakening (`requires i < M`, M ≤ len) + an all-accesses-must-discharge policy; expression
-  arguments (`B(a+1)`, via the commutativity / monotonicity citation); overflow obligations; same-base
-  offset gaps (`result < a+6` from `a+5`, via add-assoc); and domain types (`i32 in Trapping/Wrapping`).
+- **Richer contract composition — ESSENTIALLY MINED OUT (10 increments landed).** All on the proven
+  mechanism (cite the right banked lemma at the site terms, no new design). DONE: `<=` upper-bound
+  weakening (call-site, via le-trans); additive AND multiplicative commutativity (`result == b+a` /
+  `b*a`) and associativity (`(a+b)+c == a+(b+c)`, `(a*b)*c == a*(b*c)`); reflexive order bounds
+  (`result <= X` / `>= X` via add-zero-right); MULTIPLE postconditions per machine; **IMPLICIT
+  ARRAY-BOUNDS** (every `self.arr[i]` emits `i < len` — literal index by a ground witness, parameter
+  index by forwarding `requires i < len`); **same-base offset gaps** (`result < a+5` from `a+2`, via
+  add-assoc — the inner ground sum reduces under the stuck `(p a _)`, so no congruence lemma needed);
+  **ARRAY-BOUNDS WEAKENING** (a tighter `requires i < M`, M ≤ len, discharges `i < len` via the banked
+  `lt-le-trans` lemma — memory safety from a stronger-than-needed contract); and **EXPRESSION
+  CALL ARGS** (`B(a+k)` against `requires param >= k`, discharged conditionally on the caller's own
+  `requires a >= 0` via add-commutes). `contracts.sh` 28 verified / `discharge-soundness.sh` 21 ok.
+  GENUINELY REMAINING (each blocked, not merely undone): overflow obligations (infeasible — i32 MAX is an
+  unrepresentable unary numeral in Delta); bare-parameter gaps (`result <= a+b`, signedness-unsound — a
+  negative `b` traps the runtime while a naturals proof "accepts", so discharge refuses them); domain
+  types (`i32 in Trapping/Wrapping`); an all-accesses-must-discharge policy.
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
-  research-grade step: the meta-theorem connecting the checker's logic to the reference
-  interpreter's semantics. Broad *bounded evidence* (the diamonds, the seam, the 30-theorem
-  sweep, discharge-soundness) but not the theorem.
+  research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
+  semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
+  deterministic random fuzzers cross-check the trust anchor across *every* checker subsystem, plus the
+  curated diamonds, the 43-theorem proved-and-computed sweep, and discharge-soundness:
+  - `seam-fuzz` — the REDUCER: definitional eq (`eq.beta`) vs operational eval (`interp.beta`), across
+    built-in arithmetic/lists AND user-function recursion over user-Nats and user-lists.
+  - `checker-diamond-fuzz` — equality CONVERSION across all three checkers (check.beta, checker.gamma,
+    type-erased checker_typed.gamma) on random Peano/List equations.
+  - `logic-diamond-fuzz` — PROPOSITIONAL + FIRST-ORDER logic (→/&/+/⊥ intro+elim and ∀/∃ over Pred via
+    gen/inst/wit/unpack) across all three checkers.
+  - `predicate-diamond-fuzz` — the INDUCTIVE PREDICATES (Mem / ProdIs / Perm — the FTA's foundation)
+    across all three checkers.
 
 ## How to build & verify (repo root; Git Bash on Windows, plain `sh` on macOS; `cargo` needed for `beta-lang-rs`)
 
