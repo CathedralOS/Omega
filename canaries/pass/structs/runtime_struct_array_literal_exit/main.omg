@@ -1,0 +1,48 @@
+// Composite LITERAL nesting (regression for the copy paths near the nested-struct
+// panic fix): a struct literal whose fields include BOTH an ARRAY literal (`nums`)
+// and an ARRAY OF STRUCT literals (`pts`). This exercises the expression-handle copy
+// (array elements) interleaved with the struct-field copy (the inner structs) -- the
+// arena paths that, mis-handled, panic on contiguity. Constructs it, reads back the
+// array element, the struct-array element's field, and a scalar field. Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Point {
+    x: i32 in Trapping;
+    y: i32 in Trapping;
+}
+
+data Bag {
+    count: i32 in Trapping;
+    nums: [i32 in Trapping; 3];
+    pts: [Point; 2];
+}
+
+data Main {
+    console: Console;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) {
+    self.bag = Bag {
+        count: 2,
+        nums: [10, 20, 30],
+        pts: [Point { x: 1, y: 2 }, Point { x: 3, y: 4 }],
+    };
+
+    transition self.bag.nums[2] == 30 { true -> check_pt() _ -> bad() }
+    state check_pt(&mut self) {
+        transition self.bag.pts[1].x == 3 { true -> check_count() _ -> bad() }
+    }
+    state check_count(&mut self) {
+        transition self.bag.count == 2 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
