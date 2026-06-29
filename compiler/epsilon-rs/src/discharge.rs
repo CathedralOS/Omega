@@ -48,6 +48,7 @@ const ADD_COMMUTES: usize = 5; // ∀x∀y. x + y = y + x  (def 5: pulls its dep
 const LE_TRANS: usize = 9; // ∀x∀y∀z. x<=y -> y<=z -> x<=z  (def 9: pulls its dep lemmas into 6..8)
 const MULT_COMMUTES: usize = 20; // ∀x∀y. x * y = y * x  (def 20: pulls its dep lemmas into 10..19)
 const ADD_ASSOC: usize = 21; // ∀v0∀v1∀v2. (v0+v2)+v1 = v0+(v2+v1)  (def 21; inst order is v2,v1,v0)
+const MULT_ASSOC: usize = 28; // ∀a∀b∀c. (a*b)*c = a*(b*c)  (def 28: pulls deps into 22..27; inst order a,b,c)
 
 // Translate an epsilon expression to a raw delta-checker term, each parameter rendered as the
 // de Bruijn variable `(v i+shift)`. Returns None outside the checkable arithmetic fragment
@@ -222,6 +223,35 @@ fn discharge_postcondition(machine: &Machine, program: &Program, pc: usize) -> O
                                 let proof = format!(
                                     "(inst (inst (inst (use {}) {}) {}) {})",
                                     ADD_ASSOC, mt, rt, lt
+                                );
+                                return Some(wrap_universal(p, &goal, &proof));
+                            }
+                        }
+                    }
+                }
+            }
+            // MULTIPLICATIVE ASSOCIATIVITY: `return (L * M) * R` vs `ensures result == L * (M * R)` ->
+            // cite mult-assoc (the * mirror of the add-assoc branch). `(m (m L M) R)` is stuck. The banked
+            // theorem is `(a*b)*c = a*(b*c)` in standard order, so the instantiation order is L, M, R.
+            if let Expr::Binary(BinaryOp::Mul, lm, r) = program.expressions[returned] {
+                if let Expr::Binary(BinaryOp::Mul, l, m) = program.expressions[lm] {
+                    if let Expr::Binary(BinaryOp::Mul, l2, mr) = program.expressions[rhs] {
+                        if let Expr::Binary(BinaryOp::Mul, m2, r2) = program.expressions[mr] {
+                            if expr_eq(l, l2, program)
+                                && expr_eq(m, m2, program)
+                                && expr_eq(r, r2, program)
+                            {
+                                let lhs_t = term(returned, program, p, 0)?; // (m (m L M) R)
+                                let rhs_t = term(rhs, program, p, 0)?; // (m L (m M R))
+                                let (lt, mt, rt) = (
+                                    term(l, program, p, 0)?,
+                                    term(m, program, p, 0)?,
+                                    term(r, program, p, 0)?,
+                                );
+                                let goal = format!("(= {} {})", lhs_t, rhs_t);
+                                let proof = format!(
+                                    "(inst (inst (inst (use {}) {}) {}) {})",
+                                    MULT_ASSOC, lt, mt, rt
                                 );
                                 return Some(wrap_universal(p, &goal, &proof));
                             }
