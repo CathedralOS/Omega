@@ -1,0 +1,68 @@
+// Delivering a value-call's STRUCT result to a target. Locks the working cases and the
+// sound workaround for a narrow gap:
+//   - a transition-body (dispatch) value-call returning a SCALAR -> a field  (works)
+//   - a BARE-body value-call returning a struct -> a field                   (works)
+//   - a transition-body (dispatch) value-call returning a struct -> a LOCAL,
+//     then the local -> a field                                              (works)
+//
+// GAP (tracked separately, NOT fixed): a transition-body (dispatch) value-call
+// returning a STRUCT assigned DIRECTLY to a field -- `self.vec = self.delta(d)` where
+// delta has a `transition d { .. -> Vec2 { .. } }` body -- silently stores 0. (Scalar
+// dispatch results to a field, bare-body struct results to a field, and dispatch struct
+// results to a LOCAL all work, so it's the dispatch+struct+field intersection in the
+// leaf result delivery.) Bind the call to a local first. Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Dir {
+    case N;
+    case E;
+}
+data Vec2 {
+    dx: i32 in Trapping;
+    dy: i32 in Trapping;
+}
+
+data Main {
+    console: Console;
+    code: i32 in Trapping;
+    bare: Vec2;
+    via_local: Vec2;
+}
+
+machine Main::pick(&self, b: bool) -> i32 in Trapping {
+    transition b { true -> 7 false -> 3 }
+}
+machine Main::mk_vec(&self) -> Vec2 {
+    Vec2 { dx: 5, dy: 6 }
+}
+machine Main::delta(&self, d: Dir) -> Vec2 {
+    transition d {
+        Dir::N -> Vec2 { dx: 0, dy: 7 }
+        Dir::E -> Vec2 { dx: 8, dy: 0 }
+    }
+}
+
+machine Main::main(&mut self) {
+    self.code = self.pick(true);    // dispatch scalar -> field
+    self.bare = self.mk_vec();      // bare-body struct -> field
+    let v: Vec2 = self.delta(Dir::E); // dispatch struct -> LOCAL (the workaround)
+    self.via_local = v;             // local -> field
+
+    transition self.code == 7 { true -> check_bare() _ -> bad() }
+
+    state check_bare(&mut self) {
+        transition self.bare.dx == 5 { true -> check_via_local() _ -> bad() }
+    }
+    state check_via_local(&mut self) {
+        transition self.via_local.dx == 8 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

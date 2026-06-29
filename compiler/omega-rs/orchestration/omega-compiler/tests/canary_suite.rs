@@ -10833,6 +10833,40 @@ fn runtime_value_call_return_types_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_call_struct_result_to_target_exit_canary_runs() {
+    // Delivering a value-call STRUCT result: dispatch scalar -> field, bare-body struct
+    // -> field, and dispatch struct -> local -> field all work. (A dispatch-body value-
+    // call returning a struct assigned DIRECTLY to a field silently stores 0 -- tracked
+    // separately; bind to a local first.)
+    let canary = pass_canary("calls/runtime_value_call_struct_result_to_target_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-struct-result-target-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call struct-result-to-target canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call struct-result-to-target canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected value-call struct-result delivery (working cases + the local workaround) to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_value_call_self_field_enum_match_exit_canary_runs() {
     // A value-call dispatching on an ENUM FIELD of self (`transition self.s { .. }`),
     // called twice with different field values to prove real dispatch. (A method on the
