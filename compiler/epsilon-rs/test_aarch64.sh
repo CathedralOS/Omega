@@ -483,6 +483,7 @@ selfhost_test "self-hosting: lowermachine compiles calc.alp; binary matches the 
 # assert.alp: the dynamic-contract feature (`assert <cond>;` traps on false). Needed the assert
 # statement path (ckas -> asrt0 -> mode 9 -> cbz w0, Ltrap). All asserts hold -> exit 42.
 selfhost_test "self-hosting: lowermachine compiles assert.alp; binary matches the reference" samples/assert.alp ""
+selfhost_test "self-hosting: lowermachine lowers `i32 in Wrapping` (no overflow trap); matches reference" samples/wraptest.alp ""
 # lowerexpr.alp: itself a COMPILER (emits arm64 asm). lowermachine compiling it exercises a
 # self-method-call statement with no trailing ';' as a block's last statement (state pu(){self.push()});
 # without the callsk '}'-stop the post-call skip ran past the next machine, breaking _main.

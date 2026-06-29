@@ -24,7 +24,7 @@ data Main {
     ps: i32; pe: i32; kind: i32; val: i32; cj: i32; tsi: i32; tmi: i32; found: i32; v: i32; di: i32; ek: i32;
     nf: i32; dp: i32; ind: i32; expf: i32; fs: i32; fe: i32; foff: i32; sval: i32; lsi: i32; opnd: i32; cc: i32; mode: i32; laoff: i32; ns: i32;
     aoff: i32; acnt: i32; aeb: i32; omode: i32; oopnd: i32; astore: i32; aidx: i32; rpos: i32; fv: i32; fhipart: i32; flopart: i32; aop: i32; nstr: i32; wlstart: i32; wllen: i32;
-    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; sacnt: i32; saeb: i32; saoff: i32; callmode: i32; ocmode: i32; ocopnd: i32; stoff: i32; stcnt: i32; steb: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
+    osp: i32; naop: i32; ncc: i32; nprec: i32; opret: i32; usesio: i32; lstri: i32; wrap: i32; sacnt: i32; saeb: i32; saoff: i32; callmode: i32; ocmode: i32; ocopnd: i32; stoff: i32; stcnt: i32; steb: i32; opaop: [i32; 16]; opcc: [i32; 16]; opprec: [i32; 16];
     coff: i32; dsize: i32; foffs: [i32; 256]; fcnt: [i32; 256]; feb: [i32; 256];
     lc: i32; frame: i32; sd: i32; nl: i32; lpend: i32; ldisp: i32; lstgt: i32; lns: [i32; 32]; lne: [i32; 32]; lmi: [i32; 32]; plidx: [i32; 32]; lcs: [i32; 64];
     vns: [i32; 32]; vne: [i32; 32]; vtag: [i32; 32]; nv: i32; vcc: i32;
@@ -635,7 +635,7 @@ machine Main::main(&mut self) {
     state store() { transition self.n < 512 * 256 { true -> store2()  false -> rd() } }
     state store2(){ self.buf[self.n] = self.c; self.n = self.n + 1; transition 0 { _ -> rd() } }
     state scan()  { self.pos = 0; transition 0 { _ -> sk() } }
-    state sk()    { transition self.pos < self.n { true -> ws()  false -> endph() } }
+    state sk()    { self.wrap = 0; transition self.pos < self.n { true -> ws()  false -> endph() } }
     state ws()    { transition self.buf[self.pos] <= 32 { true -> wadv()  false -> cm() } }
     state wadv()  { self.pos = self.pos + 1; transition 0 { _ -> sk() } }
     state cm()    { transition self.buf[self.pos] == 47 { true -> cm2()  false -> str0() } }
@@ -850,7 +850,9 @@ machine Main::main(&mut self) {
     state llkh()  { self.lstgt = 16 + 8 * (self.pcs[self.mi] + self.plidx[self.cj]); transition 0 { _ -> leteq() } }
     state llkn()  { self.cj = self.cj + 1; transition 0 { _ -> llk() } }
     state leteq() { transition self.buf[self.pos] == 61 { true -> leteq2()  false -> letadv() } }
-    state letadv(){ self.pos = self.pos + 1; transition 0 { _ -> leteq() } }
+    state letadv(){ transition self.buf[self.pos] == 87 { true -> letadvw()  false -> letadv2() } }  // 'W' of `in Wrapping` (unique in a let's type region)
+    state letadvw(){ self.wrap = 1; self.pos = self.pos + 1; transition 0 { _ -> leteq() } }
+    state letadv2(){ self.pos = self.pos + 1; transition 0 { _ -> leteq() } }
     state leteq2(){ self.pos = self.pos + 1; self.mode = 2; self.opnd = 0; transition 0 { _ -> subj0() } }
     state asgn0() { transition self.buf[self.pos] == 46 { true -> asgn1()  false -> sk() } }                  // '.' ? else not an assignment
     state asgn1() { self.pos = self.pos + 1; self.fs = self.pos; transition 0 { _ -> asgnr() } }              // past '.', capture LHS field
@@ -1185,9 +1187,15 @@ machine Main::main(&mut self) {
     state emitar7(){ transition self.aop == 7 { true -> abor()  false -> emitar8() } }
     state emitar8(){ transition self.aop == 8 { true -> abxor()  false -> emitar9() } }
     state emitar9(){ transition self.aop == 9 { true -> ashl()  false -> ashr() } }
-    state aadd()   { self.console.write_line("    adds w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); transition 0 { _ -> apush() } }
-    state asub()   { self.console.write_line("    subs w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); transition 0 { _ -> apush() } }
-    state amul()   { self.console.write_line("    smull x0, w0, w1"); self.console.write_line("    sxtw x2, w0"); self.console.write_line("    cmp x0, x2"); self.console.write_line("    b.ne Ltrap"); transition 0 { _ -> apush() } }
+    state aadd()   { transition self.wrap == 1 { true -> aaddw()  false -> aaddt() } }
+    state aaddw()  { self.console.write_line("    add w0, w0, w1"); transition 0 { _ -> apush() } }   // i32 in Wrapping: no overflow trap
+    state aaddt()  { self.console.write_line("    adds w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); transition 0 { _ -> apush() } }
+    state asub()   { transition self.wrap == 1 { true -> asubw()  false -> asubt() } }
+    state asubw()  { self.console.write_line("    sub w0, w0, w1"); transition 0 { _ -> apush() } }
+    state asubt()  { self.console.write_line("    subs w0, w0, w1"); self.console.write_line("    b.vs Ltrap"); transition 0 { _ -> apush() } }
+    state amul()   { transition self.wrap == 1 { true -> amulw()  false -> amult() } }
+    state amulw()  { self.console.write_line("    mul w0, w0, w1"); transition 0 { _ -> apush() } }
+    state amult()  { self.console.write_line("    smull x0, w0, w1"); self.console.write_line("    sxtw x2, w0"); self.console.write_line("    cmp x0, x2"); self.console.write_line("    b.ne Ltrap"); transition 0 { _ -> apush() } }
     state adiv()   { self.console.write_line("    cbz w1, Ltrap"); self.console.write_line("    sdiv w0, w0, w1"); transition 0 { _ -> apush() } }
     state arem()   { self.console.write_line("    cbz w1, Ltrap"); self.console.write_line("    sdiv w2, w0, w1"); self.console.write_line("    msub w0, w2, w1, w0"); transition 0 { _ -> apush() } }
     state aband()  { self.console.write_line("    and w0, w0, w1"); transition 0 { _ -> apush() } }
