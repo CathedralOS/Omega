@@ -96,14 +96,22 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    built arithmetic-free in the same two cases (`p=h`: `memtail`; `Mem(p,t)`: `memcons` + `memhead`/`memtail`
    on the IH's 4th conjunct), over the same shared witness. FTA uniqueness derives `allPrime(L')` from this
    plus `allPrime(L)`. `prodis-extract-member.elab` is now the full 4-conjunct lemma.
-8. **NEXT — general FTA uniqueness** (the capstone) by strong induction on n. There is NO strong-induction
-   helper lemma; it is done inline with a FUEL parameter + regular `natind` (see fundamental-theorem-
-   arithmetic.elab / prime-divisor-existence.elab for the pattern): prove `∀f n. (n ≤ f) → P(n)` by natind
-   on f, where `P(n) = ∀L1 L2. ProdIs(L1,n) & ProdIs(L2,n) & allPrime(L1) & allPrime(L2) → Perm(L1,L2)`.
-   `nil/nil` base = `product-one-list-nil`; `cons-p` step = `prime-factor-in-list` → `Mem(p,L2)` →
-   `prodis-extract-member` → `mult-cancel` (the surgery's q = L1's cofactor) → derive `allPrime(L2')` from
-   conjunct 4 → IH at the cofactor (which is < n ≤ f, so ≤ f-1) → `permskip p` + `permtrans` with the
-   surgery's `Perm`. This is a LARGE proof (fuel plumbing + the step); likely a full iteration.
+8. ✅ **GENERAL FTA UNIQUENESS — DONE** (`proofs/fta-uniqueness.elab`):
+   `∀L1 L2 n. ProdIs(L1,n) & ProdIs(L2,n) & allPrime(L1) & allPrime(L2) → Perm(L1,L2)`.
+   KEY SIMPLIFICATION over the plan above: **plain LIST induction on L1** works — the IH applies to the
+   tail `t1` (with the surgery's `L2'` and the shared cofactor `m1`), so NO fuel/strong induction is needed.
+   `nil`: `prodnilinv` gives n=1, `product-one-list-nil` gives L2=nil, `permnil`. `cons p t1`: `prodconsinv`
+   splits `n=p*m1`; `prime-factor-in-list` (built from prime(p) via `memhead`, `p|n` via `mult-comm`,
+   allPrime via `memtail`) gives `Mem(p,L2)`; `prodis-extract-member` removes p leaving L2' with `n=p*q`,
+   `ProdIs(L2',q)`, `Perm(cons p L2',L2)`, and membership-preservation; `mult-cancel` (p>0 from prime's ≥2
+   conjunct, reused up to conversion) gives `q=m1`; allPrime(L2') from conjunct 4 + allPrime(L2); the IH
+   gives `Perm(t1,L2')`; `permskip p` then `permtrans` with the surgery's Perm closes `Perm(cons p t1, L2)`.
+   Assembled by script: a 313-def prelude (mult-comm + product-one-list-nil + prime-factor-in-list +
+   mult-cancel + the surgery, each inlined whole with `(use N)` offset-remapping). The base case was
+   validated standalone first to confirm the allPrime/prime/divides encodings matched.
+
+**The Fundamental Theorem of Arithmetic — existence (already banked) AND uniqueness — is now complete in
+the seed-rooted trust anchor.** Every n>0 has a prime factorization, and it is unique up to order.
 
 ## Uniqueness proof plan (once `Perm` exists)
 
