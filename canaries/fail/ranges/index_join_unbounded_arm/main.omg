@@ -1,0 +1,50 @@
+// Adversarial: the predecessor MEET must stay SOUND. `merge` is a join reached from
+// `guarded` (which establishes `idx < 4`) AND `unguarded` (which does NOT). Because
+// the bound does not hold on EVERY incoming edge, the meet must NOT carry it, so the
+// runtime-indexed read `arr[idx]` at the join must be REJECTED.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 4] in Trapping;
+    idx: usize;
+    flag: bool;
+    r: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.arr[0] = 10;
+    self.arr[1] = 20;
+    self.arr[2] = 30;
+    self.arr[3] = 40;
+    self.idx = 2;
+    self.flag = true;
+
+    transition self.flag {
+        true -> guarded()
+        _ -> unguarded()
+    }
+
+    state guarded(&mut self) {
+        transition self.idx < 4 { true -> merge() _ -> bad() }
+    }
+    // No bound on idx -- the meet must drop `idx < 4` for the join.
+    state unguarded(&mut self) {
+        transition { _ -> merge() }
+    }
+
+    state merge(&mut self) {
+        self.r = self.arr[self.idx];   // must be rejected: idx unbounded on one path
+        transition self.r == 30 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

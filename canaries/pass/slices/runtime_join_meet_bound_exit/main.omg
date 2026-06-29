@@ -1,0 +1,61 @@
+// A runtime-indexed read at a MULTI-PREDECESSOR JOIN. `merge` is reached from both
+// `left` and `right`; the index bound `idx < 4` is established once (before the
+// branch) and carried to `merge` by the range checker's predecessor MEET -- a guard
+// holds at a join when EVERY incoming edge carries it and none rewrites the field.
+// Before the meet this required re-proving the bound in a guard state at the join.
+//
+// arr[2] == 30 -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 4] in Trapping;
+    idx: usize;
+    flag: bool;
+    r: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.arr[0] = 10;
+    self.arr[1] = 20;
+    self.arr[2] = 30;
+    self.arr[3] = 40;
+    self.idx = 2;
+    self.flag = true;
+
+    // Establish the bound once, before the branch.
+    transition self.idx < 4 {
+        true -> split()
+        _ -> bad()
+    }
+
+    state split(&mut self) {
+        transition self.flag {
+            true -> left()
+            _ -> right()
+        }
+    }
+    // Neither arm rewrites `idx`, so `idx < 4` survives both paths to `merge`.
+    state left(&mut self) {
+        transition { _ -> merge() }
+    }
+    state right(&mut self) {
+        transition { _ -> merge() }
+    }
+
+    // Multi-predecessor join: the meet carries `idx < 4` here without a re-guard.
+    state merge(&mut self) {
+        self.r = self.arr[self.idx];
+        transition self.r == 30 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
