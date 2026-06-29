@@ -4921,6 +4921,35 @@ fn runtime_comparison_signedness_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_shift_signedness_exit_canary_runs() {
+    // Shift signedness: a signed right shift must be arithmetic (sar), an unsigned
+    // one logical (shr). The canary builds the shift value at runtime (a loop) and
+    // self-checks a negative arithmetic >>, a high-bit unsigned >>, and a <<.
+    let canary = pass_canary("arithmetic/runtime_shift_signedness_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-shift-signedness-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shift-signedness canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shift-signedness canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed (arithmetic) vs unsigned (logical) shifts to compute correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_i64_divide_modulo_exit_canary_runs() {
     // i64 signed divide/modulo with both operands immediate (constant/constant): the
     // byte-size resolver must fall back to the i64 target width, not 4, or the encoder
