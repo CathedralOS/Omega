@@ -84,14 +84,21 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    from comm + assoc + cong-left + trans). `mul-swap-mid` is exactly the rearrangement the surgery's
    `Mem(p,t)` case needs: `n = h*m0 = h*(p*q) = p*(h*q)`. NOTE the witnesses must be SHARED, so the
    surgery cannot be decomposed into separate Perm / ProdIs / allPrime lemmas — it is one combined lemma.
-6. **NEXT**: the **ProdIs-carrying surgery** — `Mem(p,L) & ProdIs(L,n) → ∃q L'. (n = p*q) & ProdIs(L',q)
-   & Perm(cons p L', L)` (carry `allPrime(L')` too). Same list-induction shape as `perm-front`, threading
-   the product equation (prodconsinv + pcons + `mul-swap-mid`) and membership through so Perm and ProdIs
-   are built together. Assembly note: this needs `mul-swap-mid`'s ~24-def prelude inlined PLUS perm-refl/
-   eq helpers — use the scripted-assembly approach (concatenate lemma files, remap `(use N)` by offset)
-   that built `mul-swap-mid`, not hand-numbering. Then general FTA uniqueness by strong induction on n
-   (nil/nil base = product-one-list-nil; cons-p step = prime-factor-in-list → Mem → surgery → mult-cancel
-   → IH → permskip + permtrans).
+6. ✅ The **ProdIs-carrying surgery** (`proofs/prodis-extract-member.elab`):
+   `∀p L n. Mem(p,L) & ProdIs(L,n) → ∃q L'. (n = p*q) & ProdIs(L',q) & Perm(cons p L', L)`.
+   `perm-front`'s list induction threading the product: `prodconsinv` splits `ProdIs(cons h t,n)` into
+   `n=h*m0 ∧ ProdIs(t,m0)`; the `p=h` and `Mem(p,t)` cases rebuild `q` and `L'` so product and permutation
+   share ONE witness (the `Mem(p,t)` arithmetic `n = h*m0 = h*(p*q) = p*(h*q)` is exactly `mul-swap-mid`,
+   the tail product is `pcons h`, the permutation is `permtrans(permswap, permskip)`). Assembled by script
+   (27 defs: mul-swap-mid's prelude + perm-refl + mul-cong-right) — note **elab source uses `*` for mul,
+   not the raw checker's `m`**.
+7. **NEXT — the allPrime conjunct**: extend this surgery's induction to also output `allPrime(L)→allPrime(L')`
+   (4th conjunct, or a mem-preservation conjunct `∀x. Mem(x,L')→Mem(x,L)` from which allPrime derives).
+   Construction: `p=h` case = `memtail`; `Mem(p,t)` case = `memcons`+`memhead`/`memtail` on the IH — all
+   arithmetic-free, same two-case shape. (Can't be a separate lemma: the witness `L'` must be shared.)
+8. **THEN — general FTA uniqueness** by strong induction on n: `nil/nil` base = `product-one-list-nil`;
+   `cons-p` step = `prime-factor-in-list` → `Mem(p,L2)` → this surgery → `mult-cancel` (q = the L1 cofactor)
+   → IH (needs allPrime(L2'), hence step 7) → `permskip p` + `permtrans` with the surgery's `Perm`.
 
 ## Uniqueness proof plan (once `Perm` exists)
 
