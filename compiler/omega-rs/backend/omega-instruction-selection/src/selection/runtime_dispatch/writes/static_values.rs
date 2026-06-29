@@ -378,3 +378,20 @@ pub(super) fn invalidate_runtime_static_value_in_table(
 
     static_values.invalidate(&target);
 }
+
+/// If `target` is a runtime-indexed write `arr[i]` (non-constant index), void
+/// every folded constant for the whole collection `arr` -- the write can land on
+/// any element, so each sibling `arr[k]` constant is now stale. No-op for
+/// non-indexed and const-indexed targets (those keep precise per-place tracking
+/// via set/invalidate). Safe to call up front, before the value is resolved: at
+/// runtime the RHS read precedes the write, so a same-array read still sees the
+/// pre-write value from live storage. Calling it once at the mutation-write
+/// entry covers every indexed sub-path (frame/machine copy, indexed integer).
+pub(super) fn invalidate_runtime_static_collection_for_indexed_write(
+    static_values: &mut RuntimeStaticValues,
+    target: &Expression,
+) {
+    if let Some(collection) = runtime_indexed_write_collection(target) {
+        static_values.invalidate_prefix(&collection);
+    }
+}
