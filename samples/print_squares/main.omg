@@ -1,0 +1,66 @@
+// Print the squares 1..9 as DECIMAL TEXT, one per line -- the first sample to output
+// computed NUMBERS (not just text or an exit code). Each square k*k is rendered to a
+// 3-digit [u8;3] carrier by repeated divide/modulo (the itoa pattern) and printed.
+// Proves numeric output, a basic serious-app need. Pure compute + stdout.
+// Expected exit: 0.
+// Expected output contains: 081
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 3]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    out: [u8; 3] in Utf8;
+    k: u32 in Wrapping;
+    sq: u32 in Wrapping;
+    place: u32 in Wrapping;
+    d: u32 in Wrapping;
+    ch: u32 in Wrapping;
+    byte: u8 in Wrapping;
+    p: usize;
+}
+
+machine Main::main(&mut self) {
+    self.out = "XXX";
+    self.k = 1;
+    transition { _ -> outer() }
+
+    state outer(&mut self) {
+        transition self.k <= 9 { true -> compute_sq() _ -> finish() }
+    }
+    state compute_sq(&mut self) {
+        self.sq = self.k * self.k;
+        self.place = 100;
+        self.p = 0;
+        transition { _ -> itoa_loop() }
+    }
+    state itoa_loop(&mut self) {
+        transition self.p < 3 { true -> digit_div() _ -> print_row() }
+    }
+    state digit_div(&mut self) {
+        self.d = self.sq / self.place;
+        transition { _ -> digit_mod() }
+    }
+    state digit_mod(&mut self) {
+        self.d = self.d % 10;
+        transition { _ -> digit_write() }
+    }
+    state digit_write(&mut self) {
+        self.ch = self.d + 48;
+        self.byte = self.ch as u8 in Wrapping;
+        self.out[self.p] = self.byte;
+        self.place = self.place / 10;
+        self.p = self.p + 1;
+        transition { _ -> itoa_loop() }
+    }
+    state print_row(&mut self) {
+        self.console.write_line(self.out);
+        self.k = self.k + 1;
+        transition { _ -> outer() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+}
