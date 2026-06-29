@@ -1,0 +1,66 @@
+// Regression: a RUNTIME-indexed STRUCT-FIELD write `arr[i].field = v` (an array of
+// structs, the entity/particle pattern) must invalidate the whole array's folded
+// constants, so a later CONST-indexed read `arr[2].field` sees live storage.
+//
+// The bug (fixed): the runtime-indexed-write collection detector only matched a
+// top-level `Indexed` target (`arr[i]`), but `arr[i].field` is
+// `Member(Indexed(arr[i]), field)` -- a Member at the top -- so it was missed and
+// the static-value fold went stale. `entities[i].hp = 99` then `entities[2].hp`
+// silently returned the init value 12. The detector now walks through the member
+// path to the runtime index.
+//
+// Writes entities[2].hp and entities[2].x at a runtime index, then checks via const
+// reads (the written fields, an untouched field, and an untouched element). All
+// correct -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Entity {
+    hp: i32 in Trapping;
+    x: i32 in Trapping;
+}
+
+data Main {
+    console: Console;
+    entities: [Entity; 4];
+    idx: usize;
+}
+
+machine Main::main(&mut self) {
+    self.entities[0].hp = 10;
+    self.entities[0].x = 100;
+    self.entities[1].hp = 11;
+    self.entities[1].x = 101;
+    self.entities[2].hp = 12;
+    self.entities[2].x = 102;
+    self.entities[3].hp = 13;
+    self.entities[3].x = 103;
+
+    self.idx = 2;
+    self.entities[self.idx].hp = 99;     // runtime-indexed struct-field write
+    self.entities[self.idx].x = 55;
+
+    transition self.entities[2].hp == 99 {
+        true -> check_x()
+        _ -> bad()
+    }
+    state check_x(&mut self) {
+        transition self.entities[2].x == 55 { true -> check_untouched_field() _ -> bad() }
+    }
+    state check_untouched_field(&mut self) {
+        // entities[0] was never written at a runtime index.
+        transition self.entities[0].hp == 10 { true -> check_neighbor() _ -> bad() }
+    }
+    state check_neighbor(&mut self) {
+        transition self.entities[1].x == 101 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

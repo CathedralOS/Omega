@@ -8314,6 +8314,40 @@ fn runtime_array_indexed_read_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_struct_field_write_exit_canary_runs() {
+    // A runtime-indexed STRUCT-FIELD write `arr[i].field = v` (array of structs)
+    // must invalidate the whole array's folded constants so a later const read
+    // `arr[2].field` sees live storage. Regression for the stale-fold that the
+    // earlier `arr[i] = v` fix missed (the `Member(Indexed(..))` target shape).
+    let canary = pass_canary("slices/runtime_indexed_struct_field_write_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-indexed-struct-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime indexed struct-field write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime indexed struct-field write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `entities[i].field = v` then const read-backs to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_write_const_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_write_const_read_exit");
     let build_dir = std::env::temp_dir()
