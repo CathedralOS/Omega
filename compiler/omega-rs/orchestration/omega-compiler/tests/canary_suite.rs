@@ -8598,6 +8598,39 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_struct_value_semantics_exit_canary_runs() {
+    // Deep nesting + whole-struct value semantics: a 3-level nested field read AND
+    // write, a whole-struct copy by assignment, and copy independence (overwriting the
+    // source leaves the copy intact). The data backbone of serious apps.
+    let canary = pass_canary("structs/runtime_nested_struct_value_semantics_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-struct-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested struct value-semantics canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested struct value-semantics canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected 3-level nesting + whole-struct copy + copy independence to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_struct_array_literal_exit_canary_runs() {
     // Composite literal nesting: a struct literal with an array-literal field AND an
     // array-of-struct-literals field. Guards the expression-handle + struct-field copy
