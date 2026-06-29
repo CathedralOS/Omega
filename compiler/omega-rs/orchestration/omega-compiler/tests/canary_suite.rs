@@ -4317,6 +4317,37 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_rule90_automaton_exit_canary_runs() {
+    // A self-checking Rule 90 cellular automaton (the engine behind
+    // samples/cellular_automaton): a sliding 3-cell window, the value-position rule
+    // shift `(90 >> window) & 1`, plain-index array reads/writes, and a field-temp
+    // double buffer. The live-cell counts of the first four generations (1,2,2,4) sum
+    // to 9, so it exits 70 only when the computation is exactly right.
+    let canary = pass_canary("collections/runtime_rule90_automaton_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-rule90-automaton-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("rule90 automaton canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("rule90 automaton canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the Rule 90 automaton's first-four-generation live-cell sum to be 9 (exit 70); got {:?} (a non-70 code is the actual sum)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_fixed_array_field_guard_exit_canary_runs() {
     // Reading `self.cells[i].value` (fixed-array element field, constant index) in a
     // GUARD must apply the index: the guard-operand layout consumed the root field
