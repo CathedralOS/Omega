@@ -10494,7 +10494,39 @@ fn runtime_sleep_exit_canary_runs() {
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected `sleep(2)` to return cleanly and the program to reach exit_process(70); got {:?}\nstderr:\n{}",
+        "expected `sleep(2)` and `sleep(self.delay)` to return cleanly and the program to reach exit_process(70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_write_no_newline_exit_canary_runs() {
+    // `write` (Stdout, no trailing newline) vs `write_line`. The differential oracle
+    // checks the exact stdout ("ABC\n"); this run-test just confirms it exits 70.
+    let canary = pass_canary("host/runtime_write_no_newline_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-write-no-newline-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("write-no-newline canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("write-no-newline canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `write`+`write_line` to print 'ABC\\n' and exit 70; got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );

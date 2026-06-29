@@ -715,29 +715,14 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         (HostCapability::Stdin, HostOperation::ReadFile) => {
             encode_file_operation(operation_key, operands)
         }
-        (HostCapability::Process, HostOperation::ExitProcess) => encode_exit_process(operands),
-        (HostCapability::Clock, HostOperation::Sleep) => encode_sleep(operands),
+        (HostCapability::Process, HostOperation::ExitProcess)
+        | (HostCapability::Clock, HostOperation::Sleep) => encode_scalar_arg_call(operands),
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
             operation_key.capability_name(),
             operation_key.operation_name()
         ))),
     }
-}
-
-/// `Sleep(DWORD ms)` -- pause the thread `ms` milliseconds for frame pacing. Same
-/// call shape as `GetStdHandle`: shadow space, the u32 arg in ecx, a kernel32 call,
-/// no return (the result is void). Non-terminal -- execution continues after the
-/// call. First cut: an immediate `ms` argument (a runtime argument is a follow-up).
-fn encode_sleep<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
-    let milliseconds = immediate_i32(operands, 0, "Sleep milliseconds")?;
-    let mut bytes = Vec::with_capacity(18);
-    bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
-    bytes.push(0xb9); // mov ecx, imm32
-    bytes.extend(milliseconds.to_le_bytes());
-    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32
-    bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
-    Ok(bytes)
 }
 
 fn encode_get_std_handle<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
@@ -851,10 +836,10 @@ fn append_file_length_operand<T: InstructionOperandLike>(
     }
 }
 
-/// Marshalling width of the exit-code argument: a constant is `mov ecx, imm32` (5 bytes),
-/// a runtime-storage scalar is `mov r15, imm64=0` (10, relocated to the region base) +
-/// `mov rcx, [r15+disp32]` (7).
-fn exit_process_exit_code_width<T: InstructionOperandLike>(operands: &[T]) -> usize {
+/// Marshalling width of a single u32 first argument: a constant is `mov ecx, imm32`
+/// (5 bytes), a runtime-storage scalar is `mov r15, imm64=0` (10, relocated to the
+/// region base) + `mov rcx, [r15+disp32]` (7).
+fn scalar_arg_call_width<T: InstructionOperandLike>(operands: &[T]) -> usize {
     if operands
         .first()
         .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
@@ -865,26 +850,30 @@ fn exit_process_exit_code_width<T: InstructionOperandLike>(operands: &[T]) -> us
     }
 }
 
-fn encode_exit_process<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(13 + exit_process_exit_code_width(operands));
+/// A kernel32 call taking a single u32 first argument in ecx and no return:
+/// `ExitProcess(code)` and `Sleep(ms)` are the same shape. Shadow space, the arg
+/// marshalled from a constant or a runtime-storage scalar, the relocated call, then
+/// the shadow restore (no-op for ExitProcess, which never returns).
+fn encode_scalar_arg_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(13 + scalar_arg_call_width(operands));
     bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
     match operands.first() {
         Some(operand) if operand.runtime_scalar_integer().is_some() => {
             let (_, byte_offset, _) = operand.runtime_scalar_integer().unwrap();
-            // mov r15, imm64=0 (relocated to the exit code's storage-region base), then
-            // mov rcx, [r15 + byte_offset]. ExitProcess reads ecx (the low 32 bits).
+            // mov r15, imm64=0 (relocated to the argument's storage-region base), then
+            // mov rcx, [r15 + byte_offset]. The call reads ecx (the low 32 bits).
             append_mov_r15_imm64(&mut bytes, 0);
             append_load_rcx_from_r15(&mut bytes, byte_offset)?;
         }
         _ => {
-            let exit_code = immediate_i32(operands, 0, "ExitProcess exit code")?;
+            let argument = immediate_i32(operands, 0, "host call u32 argument")?;
             bytes.push(0xb9); // mov ecx, imm32
-            bytes.extend(exit_code.to_le_bytes());
+            bytes.extend(argument.to_le_bytes());
         }
     }
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32
     bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
-    debug_assert_eq!(bytes.len(), 13 + exit_process_exit_code_width(operands));
+    debug_assert_eq!(bytes.len(), 13 + scalar_arg_call_width(operands));
     Ok(bytes)
 }
 
@@ -904,16 +893,18 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
                 kind: X86_64RelocationSiteKind::Relative32,
             }]
         }
-        (HostCapability::Process, HostOperation::ExitProcess) => {
-            // Layout: sub rsp,40 (4) + exit-code marshalling + call rel32.
-            let exit_code_width = exit_process_exit_code_width(operands);
+        (HostCapability::Process, HostOperation::ExitProcess)
+        | (HostCapability::Clock, HostOperation::Sleep) => {
+            // Single-u32-arg kernel32 call (ExitProcess/Sleep). Layout: sub rsp,40 (4)
+            // + the argument marshalling + call rel32.
+            let arg_width = scalar_arg_call_width(operands);
             let mut sites = Vec::new();
             if operands
                 .first()
                 .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
             {
-                // The relocated region-base imm64 sits inside `mov r15, imm64` at
-                // (sub rsp = 4) + 2.
+                // A runtime-scalar argument: the relocated region-base imm64 sits
+                // inside `mov r15, imm64` at (sub rsp = 4) + 2.
                 sites.push(X86_64RelocationSite {
                     operand_index: Some(0),
                     byte_offset: 4 + 2,
@@ -921,24 +912,15 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
                     kind: X86_64RelocationSiteKind::Absolute64,
                 });
             }
-            // `call rel32`: skip sub rsp (4), the exit-code marshalling, and the call
+            // `call rel32`: skip sub rsp (4), the argument marshalling, and the call
             // opcode (1).
             sites.push(X86_64RelocationSite {
                 operand_index: None,
-                byte_offset: 4 + exit_code_width + 1,
+                byte_offset: 4 + arg_width + 1,
                 byte_width: 4,
                 kind: X86_64RelocationSiteKind::Relative32,
             });
             sites
-        }
-        (HostCapability::Clock, HostOperation::Sleep) => {
-            // Layout: sub rsp,40 (4) + mov ecx,imm32 (5) + call rel32 (opcode at 9).
-            vec![X86_64RelocationSite {
-                operand_index: None,
-                byte_offset: 10,
-                byte_width: 4,
-                kind: X86_64RelocationSiteKind::Relative32,
-            }]
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,
