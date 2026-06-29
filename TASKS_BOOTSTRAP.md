@@ -184,11 +184,14 @@ a working proof-carrying contract system** (item 11). What remains:
   epsilon's meaning is "Written in Delta/Gamma" — defined by the reference interpreter, not the native
   backend. The **epsilon-meaning diamond** is the seed: `EPS_EMIT=gamma` (`src/gamma_emit.rs`) translates
   the supported subset to a gamma expression `interp.beta` runs, and the exit code must match native
-  execution. DONE: straight-line integer `main` — `let` + the full operator set (`+ - * / %`, all six
-  comparisons faithfully encoded from `interp.beta`'s `lt`/`eq`) + exit (11 diamond cases). Widen toward
-  the full language — next: STATE MACHINES (model a state as a gamma function, the machine as
-  mutually-recursive defs, mutation as a threaded state record; transitions → guarded tail-calls), then
-  cross-machine calls — until epsilon's meaning is fully a lattice program.
+  execution. DONE: the full operator set (`+ - * / %`, all six comparisons faithfully encoded from
+  `interp.beta`'s `lt`/`eq`); and **STATE MACHINES** — a machine becomes mutually-recursive gamma `def`s
+  over its locals frame (`me` = entry, `s_k` = each state, all sharing the `l0..l_{n-1}` signature),
+  mutation is threaded SSA (each write rebinds via a fresh `let`), and transitions are guarded tail-calls;
+  loops/conditionals/`gcd`/`factorial` all agree (15 diamond cases). Widen toward the full language —
+  next: SELF DATA FIELDS (thread the field record alongside locals), then cross-machine CALLS, then
+  `read_byte`/bitwise — until epsilon's meaning is fully a lattice program. (First slice scopes to the
+  entry machine, i32 locals, parameterless states.)
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR

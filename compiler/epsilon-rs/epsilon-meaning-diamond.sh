@@ -3,7 +3,7 @@
 #
 # rungs/epsilon.md: epsilon's meaning is "Written in Delta/Gamma" -- defined by the reference
 # interpreter, not the native (Rust on-ramp) backend. This diamond pins that meaning for the
-# straight-line integer subset: an epsilon program is run TWO ways and the exit codes must match:
+# supported subset (straight-line integer code AND state machines): an epsilon program is run TWO ways and the exit codes must match:
 #   (1) NATIVE   -- compiled by the epsilon-rs aarch64 backend and executed
 #   (2) GAMMA    -- `EPS_EMIT=gamma` translates it to a gamma expression, which the Rust-FREE
 #                   reference interpreter (interp.beta, built by the alpha->beta->bc pipeline) runs
@@ -57,6 +57,11 @@ dia "gt false"     "$H machine Main::main(&mut self) { let c: i32 = 3 > 5; self.
 dia "eq/ne"        "$H machine Main::main(&mut self) { let a: i32 = 4 == 4; let b: i32 = 4 != 4; self.console.exit_process(a * 2 + b); }" 2
 dia "le boundary"  "$H machine Main::main(&mut self) { let a: i32 = 5 <= 5; let b: i32 = 6 <= 5; self.console.exit_process(a * 2 + b); }" 2
 dia "ge boundary"  "$H machine Main::main(&mut self) { let a: i32 = 5 >= 5; let b: i32 = 4 >= 5; self.console.exit_process(a * 2 + b); }" 2
+# STATE MACHINES — loops with mutation + guarded transitions, modeled as mutually-recursive gamma defs
+dia "sum 1..4"     "$H machine Main::main(&mut self) { let i: i32 = 0; let s: i32 = 0; transition 0 { _ -> lp() } state lp() { transition i < 4 { true -> bd()  false -> dn() } } state bd() { i = i + 1; s = s + i; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(s); } }" 10
+dia "sum 1..10"    "$H machine Main::main(&mut self) { let i: i32 = 0; let s: i32 = 0; transition 0 { _ -> lp() } state lp() { transition i < 10 { true -> bd()  false -> dn() } } state bd() { i = i + 1; s = s + i; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(s); } }" 55
+dia "factorial 5"  "$H machine Main::main(&mut self) { let i: i32 = 1; let a: i32 = 1; transition 0 { _ -> lp() } state lp() { transition i <= 5 { true -> bd()  false -> dn() } } state bd() { a = a * i; i = i + 1; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(a); } }" 120
+dia "gcd 48,36"    "$H machine Main::main(&mut self) { let a: i32 = 48; let b: i32 = 36; let t: i32 = 0; transition 0 { _ -> lp() } state lp() { transition b == 0 { true -> dn()  false -> st() } } state st() { t = a % b; a = b; b = t; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(a); } }" 12
 
-echo "epsilon-meaning diamond (native execution vs gamma reference interpreter, straight-line subset): $PASS agree, $FAIL disagree"
+echo "epsilon-meaning diamond (native execution vs gamma reference interpreter): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1
