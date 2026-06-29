@@ -74,6 +74,21 @@ diao() {
     FAIL=$((FAIL+1)); echo "  FAIL $1 : native=[$nout] gamma=[$gout] expect=[$4]"; fi
 }
 
+# diaf DESC FILE "in-bytes" : a REAL sample program from samples/. Checks native stdout == the gamma
+# route (no hardcoded expected output — the two meanings agreeing IS the check). Skips if gamma is empty
+# (an unsupported feature) or interp runs out of memory on a large certificate.
+diaf() {
+  EPS_ARCH=aarch64 ./target/debug/beta "samples/$2" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
+  chmod +x "$T/p"
+  raw=""; for b in $3; do raw="$raw$(printf '\\%03o' "$b")"; done
+  nout=$(printf "$raw" | "$T/p" | od -An -tu1 | tr ' ' '\n' | grep -vE '^$' | tr '\n' ' '); nout=${nout% }
+  g=$(EPS_GAMMA_INPUT="$3" EPS_EMIT=gamma ./target/debug/beta "samples/$2" 2>/dev/null)
+  if [ -z "$g" ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : gamma emitted nothing"; return; fi
+  gout=$(printf '%s\n' "$g" | "$T/interp.exe" 2>/dev/null | grep -oE '[0-9]+' | tr '\n' ' '); gout=${gout% }
+  if [ "$nout" = "$gout" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : native!=gamma"; fi
+}
+
 H='boundary trait Console { machine exit_process(return_code: i32); } data Main { console: Console; }'
 dia "const"        "$H machine Main::main(&mut self) { self.console.exit_process(42); }" 42
 dia "add"          "$H machine Main::main(&mut self) { let a: i32 = 2 + 3; self.console.exit_process(a); }" 5
@@ -124,6 +139,12 @@ diao "doubled filter" "$I machine inc2(x: i32) -> i32 { return x + x; } machine 
 M='boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; machine write_byte(b: i32); } data Main { console: Console; tmp: i32; }'
 diao "emit pair method" "$M machine Main::emitpair(&mut self, v: i32) { self.tmp = v; self.console.write_byte(self.tmp + 65); self.console.write_byte(self.tmp + 66); } machine Main::main(&mut self) { self.emitpair(0); self.emitpair(1); self.console.exit_process(0); }" "" "65 66 66 67"
 diao "method echos input" "$M machine Main::emit(&mut self, v: i32) { self.console.write_byte(v); } machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.tmp = read_byte(); transition self.tmp < 0 { true -> dn()  false -> ec() } } state ec() { self.emit(self.tmp + 1); transition 0 { _ -> rd() } } state dn() { self.console.exit_process(0); } }" "65 66 67" "66 67 68"
+
+# REAL PROGRAMS — actual certifiers from samples/ (read stdin, compute, emit a delta certificate via
+# emit_nat methods + write_line). The diamond reproduces their byte-exact output through the lattice.
+# (Small inputs only: a large certificate's unary numerals exhaust interp's arena.)
+diaf "certify-add (real)" certify-add.alp "50 32 51"   # '2 3' -> a+b certificate
+diaf "certify-mul (real)" certify-mul.alp "50 32 52"   # '2 4' -> a*b certificate
 
 echo "epsilon-meaning diamond (native execution vs gamma reference interpreter): $PASS agree, $FAIL disagree"
 [ "$FAIL" = 0 ] || exit 1

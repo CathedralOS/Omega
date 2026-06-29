@@ -208,8 +208,12 @@ a working proof-carrying contract system** (item 11). What remains:
   a read loop). This is the LAST language feature: epsilon's full effectful surface — arithmetic, state
   machines, locals/fields/arrays, calls + recursion, stdin/stdout, and methods — is now lattice-defined and
   cross-checked against native execution. Only bitwise/shift remain BLOCKED (absent from Beta and the frozen
-  21-opcode seed). Next: attempt validating a real `certify-*.alp`'s meaning through the diamond (watch interp
-  fuel / output length), then the strategic step — porting the translator itself off Rust.
+  21-opcode seed). **REAL PROGRAMS NOW VALIDATE**: `certify-add` and `certify-mul` (actual production
+  certifiers — they read stdin, parse decimals, compute, and emit a delta certificate via `emit_nat`
+  methods + `write_line`) reproduce their BYTE-EXACT certificate output through the gamma route (35 diamond
+  cases). The diamond can check an actual program's meaning against a Rust-free lattice semantics, not just
+  constructed tests. (Larger certifiers — `certify-lt`/`mod` — exhaust interp's arena on big unary numerals;
+  a fuel/arena limit, not a translation gap.) Next strategic step: port the translator itself off Rust.
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
