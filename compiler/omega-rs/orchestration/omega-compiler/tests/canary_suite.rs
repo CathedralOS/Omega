@@ -1170,6 +1170,39 @@ fn runtime_carrier_indexed_read_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_number_to_decimal_exit_canary_runs() {
+    // Numeric output (itoa): build n=12345 at runtime, render it to the decimal text
+    // "12345" via divide/modulo + computed carrier byte writes, and assert the
+    // carrier equals it. A round-trip proving printable numbers, a serious-app need.
+    let canary = pass_canary("text/runtime_number_to_decimal_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-number-to-decimal-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("number-to-decimal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("number-to-decimal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected integer->decimal-text round-trip to produce \"12345\" and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_carrier_indexed_write_exit_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_indexed_write_exit");
     let main_path = canary.join("main.omg");
