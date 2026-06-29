@@ -31,6 +31,7 @@ step "diamond — checkers agree (Beta, Gamma, type-erased typed)" delta  checke
 step "diamond — definitional eq vs operational eval"  delta       semantics-diamond.sh
 step "seam — inductive universals vs operational eval" delta      induction-soundness.sh
 step "seam — corpus theorems: proved AND operationally true" delta soundness-sweep.sh
+step "seam — FUZZ: random +/* defeq vs operational eval" delta     seam-fuzz.sh
 step "epsilon — on-ramp compiles + RUNS its corpus"   epsilon-rs  test_aarch64.sh
 step "convergence — epsilon emits a proof; delta checks it" epsilon-rs convergence.sh
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by delta" epsilon-rs convergence-selfhost.sh
