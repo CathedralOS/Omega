@@ -1,0 +1,71 @@
+// A bouncing ball animated in place on one console line -- the first demo of timed
+// animation, paced by the Clock.sleep host op. Each frame clears a 40-wide line,
+// draws the ball 'O' at its position, prints a carriage return (cursor to column 0)
+// + the line WITHOUT a newline (so the next frame overwrites it), then sleeps. The
+// ball bounces left<->right. Pure compute + stdout + sleep; no new features beyond
+// the just-added Clock.sleep.
+// Expected exit: 0.
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 40]::Utf8 when valid_utf8(self) {}
+domain [u8; 1]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    line: [u8; 40] in Utf8;
+    cr: [u8; 1] in Utf8;
+    p: i32 in Trapping;
+    dir: i32 in Trapping;
+    frame: i32 in Trapping;
+    x: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.line = "                                        ";
+    self.cr = "X";
+    self.cr[0] = 13;
+    self.p = 0;
+    self.dir = 1;
+    self.frame = 0;
+    transition { _ -> frame_loop() }
+
+    state frame_loop(&mut self) {
+        transition self.frame < 50 { true -> clear_init() _ -> finish() }
+    }
+    state clear_init(&mut self) { self.x = 0; transition { _ -> clear_loop() } }
+    state clear_loop(&mut self) {
+        transition self.x >= 0 && self.x < 40 { true -> clear_cell() _ -> place() }
+    }
+    state clear_cell(&mut self) {
+        self.line[self.x] = 32;
+        self.x = self.x + 1;
+        transition { _ -> clear_loop() }
+    }
+    state place(&mut self) {
+        transition self.p >= 0 && self.p < 40 { true -> set_ball() _ -> bad() }
+    }
+    state set_ball(&mut self) {
+        self.line[self.p] = 79;
+        transition { _ -> emit() }
+    }
+    state emit(&mut self) {
+        self.console.write(self.cr);
+        self.console.write(self.line);
+        self.console.sleep(25);
+        self.frame = self.frame + 1;
+        self.p = self.p + self.dir;
+        transition { _ -> bounce_hi() }
+    }
+    state bounce_hi(&mut self) {
+        transition self.p >= 39 { true -> flip_down() _ -> bounce_lo() }
+    }
+    state flip_down(&mut self) { self.dir = 0 - 1; transition { _ -> frame_loop() } }
+    state bounce_lo(&mut self) {
+        transition self.p <= 0 { true -> flip_up() _ -> frame_loop() }
+    }
+    state flip_up(&mut self) { self.dir = 1; transition { _ -> frame_loop() } }
+
+    state finish(&mut self) { self.console.exit_process(0); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

@@ -44,8 +44,18 @@ Two things gate getting it on screen and making it ergonomic.
 > working renderer pattern: `[u8;W] in Utf8` carrier framebuffer + nested col/row
 > state-machine loops + per-pixel f64 escape-time + runtime-indexed carrier byte
 > writes + `write_line` per row (the multi-pred-join meet `62aba398` is load-bearing
-> at the convergence). The FIRST non-toy proof. Remaining for Tier-1 = ANIMATION:
-Render ASCII/ANSI frames to stdout in a timed loop. Needs only: (a) the **clock
+> at the convergence). The FIRST non-toy proof.
+>
+> **ANIMATION DONE (2026-06-28).** `Clock.sleep` (kernel32 `Sleep`) landed
+> (`5e3072cc`) — the first new host op / FFI-ladder rung — plus `write` (no-newline)
+> + `sleep` on the stdlib `Console`. `samples/bouncing_console` animates a ball in
+> place on one line (clear/draw/`write(CR)`+`write(line)`/`sleep`, 50 frames,
+> bounces off the wall), paced by real native sleeps (verified ~484ms for
+> `sleep(400)`). So Tier-1 (static + animated console rendering) is COMPLETE. Next
+> FFI rungs: Linux `clock_nanosleep` (timespec buffer), and a value-returning op
+> (`GetTickCount64` -- the return-to-storage path) for elapsed-time animation.
+
+(historical, now done) Render ASCII/ANSI frames to stdout in a timed loop. Needs only: (a) the **clock
 capability** — the `clock` build flag is reserved but INERT (no host op / binding
 / encoder). Wire Windows `GetTickCount64` (0-arg, returns u64 ms in rax — the
 simplest possible native call; exercises the full host-call return-value path),
