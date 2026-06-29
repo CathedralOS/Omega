@@ -48,7 +48,7 @@ pub struct TransitionArm {
 pub enum Statement {
     Let(usize, usize, u8),                 // local index, init expr node, arithmetic domain: 0 Trapping (default), 1 Wrapping (no trap), 2 Saturating (clamp to i32 MIN/MAX)
     Assign(usize, usize),                  // local index, value expr node (reassignment)
-    StoreSelfField(i32, usize),            // self.<field at this byte offset> = value expr node
+    StoreSelfField(i32, usize, u8),        // self.<field at this byte offset> = value expr node; u8 = field arithmetic domain (0 trap, 1 wrap, 2 saturate)
     StoreSelfIndex(i32, i32, i32, usize, usize), // self.<array>[index] = value; (offset, count, element_bytes, index, value)
     Eval(usize),                           // evaluate an expr (a call) for effect, discard the result
     Return(usize),                         // return value expr node (yields to the caller)

@@ -27,6 +27,19 @@ struct DataFieldInfo {
     offset: i32, // byte offset within the struct
     kind: FieldKind,
     enum_index: Option<usize>, // Some(idx) if this scalar slot holds a tag-only enum's tag
+    domain: u8,                // arithmetic domain of a scalar field: 0 Trapping, 1 Wrapping, 2 Saturating
+}
+
+// The field's domain, if `self.<field>` names a scalar field (else 0 = default Trapping).
+impl Parser<'_> {
+    fn self_field_domain(&self, field: &[u8]) -> u8 {
+        if let Some(data_type) = self.self_data_type {
+            if let Some(info) = self.data_field_maps[data_type].iter().find(|f| f.name.as_slice() == field) {
+                return info.domain;
+            }
+        }
+        0
+    }
 }
 
 fn is_scalar_type(type_name: &[u8]) -> bool {
@@ -339,7 +352,21 @@ impl<'a> Parser<'a> {
                 };
                 (kind, size, enum_index)
             };
-            fields.push(DataFieldInfo { name: field_name, offset, kind, enum_index });
+            // optional arithmetic domain `in Wrapping`/`in Saturating` on a scalar field
+            let mut domain: u8 = 0;
+            if self.current_kind() == TokenKind::Ident && self.current_text() == b"in" {
+                self.bump(); // in
+                if self.current_kind() == TokenKind::Ident {
+                    if self.current_text() == b"Wrapping" {
+                        domain = 1;
+                        self.bump();
+                    } else if self.current_text() == b"Saturating" {
+                        domain = 2;
+                        self.bump();
+                    }
+                }
+            }
+            fields.push(DataFieldInfo { name: field_name, offset, kind, enum_index, domain });
             offset += size;
             // skip any remaining type tokens (e.g. `in Utf8`) up to the separator
             while self.current_kind() != TokenKind::Semi
@@ -451,9 +478,9 @@ impl<'a> Parser<'a> {
         let field_offset = self.self_field_offset(field)?;
         let tag_node = self.add_expression(Expr::Int(tag));
         // tag at field+0, payloads at field+8, +16, ...
-        let mut stmts = vec![Statement::StoreSelfField(field_offset, tag_node)];
+        let mut stmts = vec![Statement::StoreSelfField(field_offset, tag_node, 0)];
         for (index, arg) in args.into_iter().enumerate() {
-            stmts.push(Statement::StoreSelfField(field_offset + 8 + (index as i32) * 8, arg));
+            stmts.push(Statement::StoreSelfField(field_offset + 8 + (index as i32) * 8, arg, 0));
         }
         Ok(Some(Statement::Block(stmts)))
     }
@@ -1151,7 +1178,8 @@ impl<'a> Parser<'a> {
                     return Err("alpha-onramp: only `self.<field> = ...` is supported (slice 7a)".into());
                 }
                 let offset = self.self_field_offset(&segments[1])?;
-                return Ok(Statement::StoreSelfField(offset, value));
+                let domain = self.self_field_domain(&segments[1]);
+                return Ok(Statement::StoreSelfField(offset, value, domain));
             }
             if segments.len() != 1 {
                 return Err("alpha-onramp: local field assignment is unsupported (slice 7a)".into());

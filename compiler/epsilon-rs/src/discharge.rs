@@ -589,7 +589,7 @@ fn collect_array_obligations(statements: &[Statement], program: &Program, out: &
         match s {
             Statement::Let(_, e, _)
             | Statement::Assign(_, e)
-            | Statement::StoreSelfField(_, e)
+            | Statement::StoreSelfField(_, e, _)
             | Statement::Eval(e)
             | Statement::Return(e)
             | Statement::Exit(e)
