@@ -128,13 +128,18 @@ pub(super) fn select_host_operation_operands(
         (
             HostCapability::Process,
             HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess,
-        ) => match exit_code_operand(input, host_call, dispatch_index) {
-            // A resolvable constant or runtime scalar lowers to a marshallable operand.
-            // An unresolvable runtime argument lowers to NO operand, so the architecture
-            // encoder hard-errors ("missing exit code") instead of silently exiting `0`.
-            Some(kind) => operands.insert_many([operand(kind)]),
-            None => HandleSpan::empty(),
-        },
+        )
+        | (HostCapability::Clock, HostOperation::Sleep) => {
+            // Both take a single scalar first argument (exit code / sleep
+            // milliseconds). A resolvable constant or runtime scalar lowers to a
+            // marshallable operand; an unresolvable runtime argument lowers to NO
+            // operand, so the architecture encoder hard-errors instead of silently
+            // exiting `0` / sleeping `0`.
+            match first_scalar_argument_operand(input, host_call, dispatch_index) {
+                Some(kind) => operands.insert_many([operand(kind)]),
+                None => HandleSpan::empty(),
+            }
+        }
         _ => HandleSpan::empty(),
     }
 }
@@ -217,17 +222,18 @@ pub(super) fn data_object_handle(
         .unwrap_or_else(Handle::invalid)
 }
 
-/// Resolve the operand for an `exit_process`/`exit_group` exit code.
+/// Resolve the operand for a host call's single scalar first argument (an
+/// `exit_process`/`exit_group` exit code, or a `sleep` millisecond count).
 ///
-/// A compile-time-constant argument (`exit_process(70)`) lowers to an `ImmediateInteger`.
-/// A runtime argument (`exit_process(self.v)`, a field/local resolvable to a runtime-storage
-/// scalar slot) lowers to a `RuntimeScalarInteger`, which the encoders load from the relocated
-/// region into the exit-code register — previously these silently became `0`.
+/// A compile-time-constant argument (`exit_process(70)`, `sleep(33)`) lowers to an
+/// `ImmediateInteger`. A runtime argument (`exit_process(self.v)`, a field/local
+/// resolvable to a runtime-storage scalar slot) lowers to a `RuntimeScalarInteger`,
+/// which the encoders load from the relocated region into the argument register.
 ///
-/// Returns `None` for a runtime argument we cannot resolve to a marshallable scalar slot; the
-/// caller then emits no operand at all, so the architecture encoder hard-errors with a
-/// Diagnostic rather than silently exiting `0`.
-fn exit_code_operand(
+/// Returns `None` for a runtime argument we cannot resolve to a marshallable scalar
+/// slot; the caller then emits no operand at all, so the architecture encoder
+/// hard-errors with a Diagnostic rather than silently exiting/sleeping `0`.
+fn first_scalar_argument_operand(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     dispatch_index: Option<u32>,

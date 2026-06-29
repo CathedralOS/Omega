@@ -44,6 +44,7 @@ pub enum HostCapability {
     Stdin,
     Stdout,
     Stderr,
+    Clock,
 }
 
 impl HostCapability {
@@ -53,6 +54,7 @@ impl HostCapability {
             "Stdin" => Self::Stdin,
             "Stdout" => Self::Stdout,
             "Stderr" => Self::Stderr,
+            "Clock" => Self::Clock,
             _ => Self::Unknown,
         }
     }
@@ -64,6 +66,7 @@ impl HostCapability {
             Self::Stdin => "Stdin",
             Self::Stdout => "Stdout",
             Self::Stderr => "Stderr",
+            Self::Clock => "Clock",
         }
     }
 }
@@ -80,6 +83,7 @@ pub enum HostOperation {
     ReadFile,
     Write,
     WriteFile,
+    Sleep,
 }
 
 impl HostOperation {
@@ -93,6 +97,7 @@ impl HostOperation {
             "read_file" => Self::ReadFile,
             "write" => Self::Write,
             "write_file" => Self::WriteFile,
+            "sleep" => Self::Sleep,
             _ => Self::Unknown,
         }
     }
@@ -108,6 +113,7 @@ impl HostOperation {
             Self::ReadFile => "read_file",
             Self::Write => "write",
             Self::WriteFile => "write_file",
+            Self::Sleep => "sleep",
         }
     }
 }

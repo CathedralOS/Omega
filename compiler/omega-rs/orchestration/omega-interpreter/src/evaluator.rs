@@ -1828,6 +1828,12 @@ impl<'program> Evaluator<'program> {
                 }
                 Ok(Some(Value::Bool(!line.is_empty())))
             }
+            "sleep" => {
+                // Frame pacing: a no-op for the interpreter. Real-time delay has no
+                // effect on the deterministic state the differential oracle compares
+                // (exit code + stdout), so native and interpreter still agree.
+                Ok(Some(Value::Unit))
+            }
             other => unsupported(format!("host boundary call `{other}` not yet supported")),
         }
     }

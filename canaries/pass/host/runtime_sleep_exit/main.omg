@@ -1,0 +1,14 @@
+// Clock.sleep host op: a kernel32 `Sleep(DWORD ms)` native call -- the first host
+// operation beyond the original four, and the first rung of the native-FFI ladder.
+// Pauses 2 ms then exits 70; the program reaching `exit_process(70)` proves the
+// call obeyed the Win64 ABI (shadow space, ecx arg, clean return) and continued.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine sleep(milliseconds: u32);
+}
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.sleep(2);
+    transition { _ -> done() }
+    state done(&mut self) { self.console.exit_process(70); }
+}
