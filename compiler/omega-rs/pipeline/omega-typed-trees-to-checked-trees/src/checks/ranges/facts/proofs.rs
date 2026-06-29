@@ -152,6 +152,24 @@ impl RangeFacts<'_> {
             .any(|(_, upper)| self.index_upper_bound_is_proven(upper, length))
     }
 
+    /// Proves `index >= 0` by chaining an ordering with non-negativity: if `x <= index`
+    /// (an `at_most` fact, e.g. from a two-pointer guard `x < index`) and `x` is proven
+    /// non-negative, then `index >= x >= 0`. The symmetric counterpart of
+    /// `index_upper_bound_is_proven_via_ordering` -- it carries the DECREASING pointer's
+    /// lower bound from the INCREASING pointer that sits below it (the palindrome /
+    /// two-pointer case where `j` runs down but stays `> i >= 0`). Sound because
+    /// `at_most` is seeded from `<`/`<=` guards and dropped on reassignment, so it
+    /// reflects a relation live at the access.
+    pub(in crate::checks::ranges) fn non_negative_is_proven_via_ordering(
+        &self,
+        index: &str,
+    ) -> bool {
+        self.proven_orderings
+            .iter()
+            .filter(|(_, upper)| upper == index)
+            .any(|(lower, _)| self.non_negative_is_proven(lower))
+    }
+
     /// Drops every ordering naming `name` -- STALE once `name` is reassigned (the
     /// `i <= j` relation no longer holds for the new value). A `<`/`<=` guard
     /// re-establishes it where it still holds.
