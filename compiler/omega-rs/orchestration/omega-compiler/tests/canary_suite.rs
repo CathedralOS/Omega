@@ -8374,6 +8374,36 @@ fn runtime_indexed_write_adjacent_field_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_join_meet_bound_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_join_meet_bound_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-join-meet-bound-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("join-meet-bound canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("join-meet-bound canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the predecessor meet to carry an index bound to a multi-predecessor join (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_array_indexed_loop_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_array_indexed_loop_exit");
     let main_path = canary.join("main.omg");
@@ -14328,6 +14358,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "ranges/loop_increment_index_unbounded",
     "ranges/loop_body_resets_index",
     "ranges/loop_init_exceeds_capacity",
+    "ranges/index_join_unbounded_arm",
     "ranges/index_read_after_increment_oob",
     "ranges/index_read_after_decrement_negative",
     "ranges/index_signed_guard_below_zero",

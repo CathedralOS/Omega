@@ -12,6 +12,7 @@ use super::guards::{seed_guard_facts, seed_negated_guard_facts};
 /// A guard that provably holds at a state's entry: walking back from the state
 /// along single-predecessor edges reaches this guarded arm, and no field the
 /// guard names is rewritten between that arm and the state's entry.
+#[derive(Clone)]
 pub(super) struct IncomingGuard {
     state: SymbolHandle,
     guard: ExpressionHandle,
@@ -146,7 +147,80 @@ pub(super) fn collect_incoming_guard_facts(
             current = edge.source;
         }
     }
+
+    // Multi-predecessor MEET. A JOIN state gets no facts from the single-edge walk
+    // above (`single_incoming_edge` bails on >1 predecessor). But a guard provably
+    // holds at a join's entry when EVERY incoming edge carries it: each edge
+    // `P -> J` carries P's own entry guards that survive P's writes, plus the
+    // edge's own guard (evaluated after P's statements run, so it holds at J's
+    // entry directly). A guard in the INTERSECTION over all incoming edges holds
+    // on every path into J. This is purely additive -- joins had nothing before --
+    // and stays sound at loop headers: a back edge carries only its body source's
+    // (small) walk facts, so the intersection drops the loop bound there (the
+    // loop-invariant pass supplies it instead). The intersection is by exact guard
+    // expression + polarity, so it captures a single bound flowing to all
+    // predecessors from a common ancestor (e.g. an inner-loop `i < n`) -- the case
+    // that matters -- and conservatively misses semantically-equal-but-distinct
+    // guards.
+    let walk_facts = result.clone();
+    for state in program.machine_states(machine) {
+        let incoming: Vec<&Edge> = edges
+            .iter()
+            .filter(|edge| edge.target == state.symbol)
+            .collect();
+        if incoming.len() < 2 {
+            continue; // entry state (0) or single-predecessor (the walk handled it)
+        }
+        let per_edge: Vec<Vec<(ExpressionHandle, bool)>> = incoming
+            .iter()
+            .map(|edge| edge_carried_facts(program, &walk_facts, &writes, edge))
+            .collect();
+        let Some((first, rest)) = per_edge.split_first() else {
+            continue;
+        };
+        for (guard, negated) in first {
+            let on_every_edge = rest
+                .iter()
+                .all(|facts| facts.iter().any(|(g, n)| g == guard && n == negated));
+            if on_every_edge {
+                result.push(IncomingGuard {
+                    state: state.symbol,
+                    guard: *guard,
+                    negated: *negated,
+                });
+            }
+        }
+    }
+
     result
+}
+
+/// The guard facts an edge `P -> J` carries to J's entry: P's own entry guards
+/// (from the single-predecessor walk) that survive P's writes, plus the edge's
+/// own guard (evaluated after P's statements, so it holds at J's entry without a
+/// survives check). Used by the multi-predecessor meet.
+fn edge_carried_facts(
+    program: &omega_typed_trees::TypedTrees,
+    walk_facts: &[IncomingGuard],
+    writes: &[(SymbolHandle, StateWrites)],
+    edge: &Edge,
+) -> Vec<(ExpressionHandle, bool)> {
+    let (written, written_any): (Vec<SymbolHandle>, bool) =
+        match state_field_writes(writes, edge.source) {
+            Some(StateWrites::Fields(fields)) => (fields.clone(), false),
+            // Not found, or a call/expression state that may clobber any field.
+            _ => (Vec::new(), true),
+        };
+    let mut carried: Vec<(ExpressionHandle, bool)> = walk_facts
+        .iter()
+        .filter(|fact| fact.state == edge.source)
+        .filter(|fact| guard_survives(program, fact.guard, &written, written_any))
+        .map(|fact| (fact.guard, fact.negated))
+        .collect();
+    if let Some((guard, negated)) = edge.guard {
+        carried.push((guard, negated));
+    }
+    carried
 }
 
 /// The single incoming edge of `target`, or `None` when it has zero (an entry

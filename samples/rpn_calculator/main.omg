@@ -123,28 +123,22 @@ machine Main::main(&mut self) {
     }
     state op_add(&mut self) {
         self.acc = self.a + self.b;
-        transition { _ -> op_push_bound() }
+        transition { _ -> op_push() }
     }
     state op_mul(&mut self) {
         self.acc = self.a * self.b;
-        transition { _ -> op_push_bound() }
+        transition { _ -> op_push() }
     }
     state op_sub(&mut self) {
         self.acc = self.a - self.b;
-        transition { _ -> op_push_bound() }
+        transition { _ -> op_push() }
     }
 
-    // Re-establish the stack-pointer bound before the push. `op_push` has three
-    // predecessors (add/mul/sub); a guard fact does not survive a multi-predecessor
-    // join, so the bound is proven afresh here, on the single edge into `op_push`.
-    state op_push_bound(&mut self) {
-        transition self.sp >= 0 && self.sp < 16 {
-            true -> op_push()
-            _ -> finish()
-        }
-    }
-
-    // Push the result back (sp points at the freed slot after the two pops).
+    // Push the result back (sp points at the freed slot after the two pops). This
+    // is a multi-predecessor join (reached from add/mul/sub), and the range checker
+    // carries `sp >= 0 && sp < 16` here via the predecessor MEET -- every incoming
+    // arm establishes it (from the `op_pop_a` bound check above) and none rewrites
+    // `sp` -- so no extra guard state is needed.
     state op_push(&mut self) {
         self.stack[self.sp] = self.acc;
         self.sp = self.sp + 1;
