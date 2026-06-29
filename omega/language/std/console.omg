@@ -5,5 +5,7 @@
 
 platform Console {
     entry write_line(text: String);
+    entry write(text: String);
     entry exit_process(return_code: i32);
+    entry sleep(milliseconds: u32);
 }
