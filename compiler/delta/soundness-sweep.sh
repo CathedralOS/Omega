@@ -161,12 +161,20 @@ sweep "odd a & odd b -> odd a*b" odd-mult \
   "(if (band (odd $N3) (odd $N5)) (odd (mult $N3 $N5)) 0)"
 sweep "a|b & c|d -> (a*c)|(b*d)" divides-products \
   "(if (band (dvd $N2 $N4) (dvd $N3 $N6)) (dvd (mult $N2 $N3) (mult $N4 $N6)) 0)"
+sweep "d|(x+y) & d|x -> d|y"     divides-sub \
+  "(if (band (dvd $N2 (plus $N4 $N6)) (dvd $N2 $N4)) (dvd $N2 $N6) 0)"
+sweep "ProdIs(L,n) & Mem(x,L) & 0<n -> x<=n" element-le-product \
+  "(if (nle $N2 (prod $LD)) (nle $N3 (prod $LD)) 0)"
 sweep "a<=b & c<=d -> a+c<=b+d" le-add-both \
   "(if (band (nle $N2 $N4) (nle $N3 $N5)) (nle (plus $N2 $N3) (plus $N4 $N5)) 0)"
 sweep "a <= a+b"                le-add-upper \
   "(if (nle $N2 (plus $N2 $N3)) (nle $N3 (plus $N3 $N1)) 0)"
 sweep "a<b -> c+a < c+b"        lt-add-left \
   "(if (nle (Su $N2) $N5) (nle (Su (plus $N3 $N2)) (plus $N3 $N5)) 0)"
+sweep "a<=B & b<=C -> a*b<=B*C" mult-bound \
+  "(if (band (nle $N2 $N3) (nle $N2 $N4)) (nle (mult $N2 $N2) (mult $N3 $N4)) 0)"
+sweep "0<c & a<b -> c*a < c*b"  lt-mult-mono-left \
+  "(if (band (nle $N1 $N2) (nle (Su $N1) $N3)) (nle (Su (mult $N2 $N1)) (mult $N2 $N3)) 0)"
 
 # --- More divisibility / congruence / parity (dvd, modeq, even twins) ---
 sweep "a | 0"                   divides-zero \
