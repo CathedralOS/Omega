@@ -56,6 +56,8 @@ build_lm certify-op       cop
 build_lm certify-shape    csh
 build_lm certify-shapes   css
 build_lm certify-perm     cperm
+build_lm certify-palindrome cpal
+build_lm certify-sort3    cs3
 
 # the checker prints accept/reject but exits with the alpha VM's halt code, so judge by stdout.
 set +e
@@ -78,6 +80,8 @@ chk cdist "3 5"     accept; chk cdist "0 4"     accept                         #
 chk csum  "2 3 5"   accept; chk csum  "10 20 30" accept                        # sum over a user list (rec reduction)
 chk cmax  "5 3"     accept; chk cmax  "3 7"     accept                         # m = max(a,b), correctness spec
 chk cs2   "5 3"     accept; chk cs2   "0 9"     accept                         # 2-element sort: ordered + permutation
+chk cs3   "3 1 2"   accept; chk cs3   "3 2 1"   accept; chk cs3 "1 2 3" accept # 3-element sort: ordered + Perm
+chk cpal  "2 3 2"   accept; chk cpal  "5 0 5"   accept; chk cpal "2 3 1" reject # palindrome: reverse(L)=L
 chk cg    "12 8"    accept; chk cg    "100 60"  accept                         # Euclid gcd divides both
 chk ct    "4"       accept; chk ct    "10"      accept                         # loop result = closed form (Gauss)
 # a SUM-TYPE-dispatched certifier: an `Op` enum (construct + match) picks sum vs product, then proves
