@@ -443,8 +443,113 @@ fn same_order(a: BinaryOp, b: BinaryOp) -> bool {
     matches!((a, b), (Ge, Ge) | (Gt, Gt) | (Le, Le) | (Lt, Lt))
 }
 
+// ---- Implicit ARRAY-BOUNDS obligations (compiler-emitted from context) --------------------
+//
+// Every `self.arr[i]` read or write owes a proof that `i < count`, where `count` is the array's
+// declared length -- carried right in the access node, so the obligation needs no length lookup.
+// Unlike `ensures`/`requires` this obligation is IMPLICIT (the programmer never wrote it); the
+// compiler finds the accesses and discharges what it can: a literal index in range by a ground
+// witness, a parameter index by forwarding the machine's matching `requires i < count`.
+
+// Walk an expression subtree, pushing (index node, count) for each `self.arr[index]` READ.
+fn collect_indices(node: usize, program: &Program, out: &mut Vec<(usize, i32)>) {
+    match program.expressions[node] {
+        Expr::SelfIndex(_, count, _, idx) => {
+            out.push((idx, count));
+            collect_indices(idx, program, out);
+        }
+        Expr::Binary(_, l, r) => {
+            collect_indices(l, program, out);
+            collect_indices(r, program, out);
+        }
+        Expr::Call(_, start, cnt) | Expr::SelfCall(_, start, cnt) => {
+            for k in 0..cnt {
+                collect_indices(program.call_args[start + k], program, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+// Walk a machine's statements, collecting every array-access bounds obligation (index, count) --
+// reads nested in any expression, writes (`StoreSelfIndex`), recursing into blocks/transitions.
+fn collect_array_obligations(statements: &[Statement], program: &Program, out: &mut Vec<(usize, i32)>) {
+    for s in statements {
+        match s {
+            Statement::Let(_, e)
+            | Statement::Assign(_, e)
+            | Statement::StoreSelfField(_, e)
+            | Statement::Eval(e)
+            | Statement::Return(e)
+            | Statement::Exit(e)
+            | Statement::WriteByte(e)
+            | Statement::Assert(e) => collect_indices(*e, program, out),
+            Statement::StoreSelfIndex(_, count, _, idx, val) => {
+                out.push((*idx, *count));
+                collect_indices(*idx, program, out);
+                collect_indices(*val, program, out);
+            }
+            Statement::Transition(subj, arms) => {
+                collect_indices(*subj, program, out);
+                for arm in arms {
+                    for &a in &arm.args {
+                        collect_indices(a, program, out);
+                    }
+                }
+            }
+            Statement::Block(inner) => collect_array_obligations(inner, program, out),
+            _ => {}
+        }
+    }
+}
+
+fn discharge_array_bounds(machine_idx: usize, program: &Program) -> Vec<String> {
+    let machine = &program.machines[machine_idx];
+    let mut obligations = Vec::new();
+    collect_array_obligations(&machine.entry, program, &mut obligations);
+    for block in &machine.states {
+        collect_array_obligations(block, program, &mut obligations);
+    }
+    let p = machine.param_count;
+    let mut certs = Vec::new();
+    for (idx_node, count) in obligations {
+        match program.expressions[idx_node] {
+            // LITERAL index k in [0, count): a closed proof of `k < count` (witness count-k-1).
+            // Conservative: an out-of-range literal (k >= count) emits NO cert -- never a false one.
+            Expr::Int(k) if k >= 0 && k < count => {
+                let body = format!("(= (p {} (s (v 0))) {})", unary(k), unary(count));
+                certs.push(format!(
+                    "(Exists {0}) (wit {0} {1} (refl {2}))",
+                    body,
+                    unary(count - k - 1),
+                    unary(count)
+                ));
+            }
+            // PARAMETER index i with a declared `requires i < count`: the bounds obligation IS the
+            // precondition, so it is discharged by forwarding it (assume i < count, hand it back) --
+            // the modular memory-safety statement: the access is in bounds under the contract.
+            Expr::Local(i) => {
+                let has_req = machine.preconditions.iter().any(|&pc| {
+                    matches!(param_order(pc, program), Some((pi, BinaryOp::Lt, c)) if pi == i && c == count)
+                });
+                if has_req {
+                    if let Some(prop) = order_prop(BinaryOp::Lt, count, &format!("(v {})", i + 1)) {
+                        certs.push(wrap_universal(
+                            p,
+                            &format!("(-> {0} {0})", prop),
+                            &format!("(lam {0} (hyp 0))", prop),
+                        ));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    certs
+}
+
 // One certificate per statically-dischargeable machine (postconditions), plus one per
-// dischargeable call site (forwarded preconditions).
+// dischargeable call site (forwarded preconditions) and per dischargeable array access.
 pub fn emit_contracts(program: &Program) -> Vec<String> {
     let mut certs: Vec<String> = program
         .machines
@@ -453,6 +558,7 @@ pub fn emit_contracts(program: &Program) -> Vec<String> {
         .collect();
     for caller_idx in 0..program.machines.len() {
         certs.extend(discharge_forwarding(caller_idx, program));
+        certs.extend(discharge_array_bounds(caller_idx, program));
     }
     certs
 }

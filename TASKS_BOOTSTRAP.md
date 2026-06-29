@@ -154,12 +154,15 @@ The lattice is comprehensively built from the seed through a certifying systems 
 a working proof-carrying contract system** (item 11). What remains:
 
 - **Richer contract composition** — incremental, all on the proven mechanism (cite the right
-  banked lemma at the site, no new design). DONE: `<=` upper-bound weakening (call-site, via le-trans),
+  banked lemma at the site, no new design). DONE: `<=` upper-bound weakening (call-site, via le-trans);
   additive AND multiplicative commutativity citations (`result == b+a` / `result == b*a`, citing
-  add-commutes / mult-commutes). REMAINING: expression arguments (`B(a+1)`, via the commutativity /
-  monotonicity citation), implicit obligations (array-bounds / overflow discharged from context, like
-  the convergence's `certify-bounds` but compiler-emitted), multiple postconditions per machine, and
-  domain types (`i32 in Trapping/Wrapping`).
+  add-commutes / mult-commutes); reflexive order bounds (`result <= X` / `>= X` via add-zero-right);
+  MULTIPLE postconditions per machine; and **IMPLICIT ARRAY-BOUNDS** — the compiler finds every
+  `self.arr[i]` and emits `i < len` (a literal index by a ground witness, a parameter index by
+  forwarding its `requires i < len`), conservative (an unjustifiable access emits no cert). REMAINING:
+  array-bounds weakening (`requires i < M`, M ≤ len) + an all-accesses-must-discharge policy; expression
+  arguments (`B(a+1)`, via the commutativity / monotonicity citation); overflow obligations; same-base
+  offset gaps (`result < a+6` from `a+5`, via add-assoc); and domain types (`i32 in Trapping/Wrapping`).
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference
   interpreter's semantics. Broad *bounded evidence* (the diamonds, the seam, the 30-theorem

@@ -70,4 +70,13 @@ machine weaken(a: i32) -> i32 requires a >= 3 { return needs_pos(a); }
 machine bounded(x: i32) -> i32 requires x <= 5 { return x; }
 machine tighten(a: i32) -> i32 requires a <= 2 { return bounded(a); }
 
+// IMPLICIT ARRAY-BOUNDS (compiler-emitted memory safety): every `self.vals[i]` owes `i < 16` (the
+// declared length). The programmer never wrote that obligation -- the compiler finds the access and
+// discharges it. `first` indexes a literal 0, proved in range by a ground witness (0 < 16). `get`
+// indexes a parameter, discharged by forwarding its `requires i < 16` (the access is safe under the
+// contract). An access the compiler can't justify simply emits no certificate (conservative).
+data Store { vals: [u8; 16]; }
+machine Store::first(&mut self) -> i32 { return self.vals[0]; }
+machine Store::get(&mut self, i: i32) -> i32 requires i < 16 { return self.vals[i]; }
+
 machine Main::main(&mut self) { let r: i32 = adds(20, 22); self.console.exit_process(r) }
