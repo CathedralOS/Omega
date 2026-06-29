@@ -5912,6 +5912,39 @@ fn runtime_match_value_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_enum_match_breadth_exit_canary_runs() {
+    // Enum matching breadth + the SOUND pattern for a runtime-indexed enum element
+    // (bind to a local first). grid[2]=Goal (non-first variant) and a field-name
+    // collision (Potion.power vs Weapon.power) self-check to exit 70.
+    let canary = pass_canary("expressions/runtime_enum_match_breadth_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-enum-match-breadth-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("enum match breadth canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("enum match breadth canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected indexed-via-local enum match + payload extraction to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_conformance_item_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_conformance_item_exit");
     let main_path = canary.join("main.omg");

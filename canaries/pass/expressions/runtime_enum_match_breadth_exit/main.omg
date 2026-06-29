@@ -1,0 +1,76 @@
+// Breadth guard for enum (sum-type) matching, and the SOUND pattern for matching a
+// runtime-indexed array element (the tile/grid case). A direct
+// `transition grid[i] { .. }` silently drops the runtime index and takes the first
+// arm (a known, separately-tracked miscompile); the sound workaround is to bind the
+// element to a LOCAL first. This canary uses that workaround and also exercises
+// payload extraction with a field-name collision across variants.
+//
+// grid[2] is Goal (the 3rd variant, NOT the first) -- so a first-arm regression would
+// fail the Goal check. Then a Potion (whose `power` field name collides with Weapon's)
+// is matched and its payload extracted. All correct -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    case Empty;
+    case Wall;
+    case Goal;
+}
+
+data Item {
+    case Weapon(power: i32 in Trapping, weight: i32 in Trapping);
+    case Potion(power: i32 in Trapping);
+}
+
+data Main {
+    console: Console;
+    grid: [Cell; 4];
+    idx: usize;
+    item: Item;
+    tag: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.grid[0] = Cell::Empty;
+    self.grid[1] = Cell::Wall;
+    self.grid[2] = Cell::Goal;
+    self.grid[3] = Cell::Empty;
+    self.idx = 2;
+
+    // SOUND workaround for a runtime-indexed enum subject: bind to a local first.
+    let current: Cell = self.grid[self.idx];
+    transition current {
+        Cell::Empty -> classified(0)
+        Cell::Wall -> classified(1)
+        Cell::Goal -> classified(2)
+    }
+
+    state classified(&mut self, tag: i32 in Trapping) {
+        self.tag = tag;
+        transition self.tag == 2 { true -> payload_check() _ -> bad() }
+    }
+    state payload_check(&mut self) {
+        // `power` is a field on BOTH Weapon and Potion (a name collision); the match
+        // must extract Potion's power, not Weapon's.
+        self.item = Item::Potion { power: 42 };
+        transition self.item {
+            Item::Weapon { power, weight } -> bad_weapon(power, weight)
+            Item::Potion { power } -> potion(power)
+        }
+    }
+    state potion(&mut self, power: i32 in Trapping) {
+        transition power == 42 { true -> good() _ -> bad() }
+    }
+    state bad_weapon(&mut self, power: i32 in Trapping, weight: i32 in Trapping) {
+        self.console.exit_process(72);
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
