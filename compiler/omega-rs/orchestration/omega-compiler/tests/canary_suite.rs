@@ -9257,6 +9257,36 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_entity_component_exit_canary_runs() {
+    // An array of entities each holding a nested component struct (the entity-component
+    // pattern): runtime-indexed access through a member path (`self.ents[i].pos.x`) read in
+    // a loop and temp-RMW written back. Three entities pos.x = 1,2,3: sum 6, doubled to
+    // 2,4,6 -> exit 70.
+    let canary = pass_canary("structs/runtime_entity_component_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-entity-component-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("entity component canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("entity component canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the entity-component array (sum 6, doubled nested fields) to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_nested_struct_state_machine_exit_canary_runs() {
     // A state machine whose state lives in nested structs: a nested-vs-nested guard
     // subject, nested-field RMW, a cross-struct write, and a two-way nested verify. The
