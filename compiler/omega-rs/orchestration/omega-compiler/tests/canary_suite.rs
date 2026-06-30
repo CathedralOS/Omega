@@ -5283,6 +5283,33 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_enum_grid_scan_exit_canary_runs() {
+    // Scan an array of enums (tile grid) by runtime index via the bind-to-local workaround: read
+    // grid[i] into self.c, then match. grid=[Wall,Door,Floor,Door,Wall] -> 2 Doors -> exit 70.
+    let canary = pass_canary("collections/runtime_enum_grid_scan_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-enum-grid-scan-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("enum grid scan canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("enum grid scan canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected enum-grid scan to count 2 Doors (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_two_indexed_reads_binary_exit_canary_runs() {
     // Two runtime-indexed reads at DISTINCT indices as operands of one binary: s = nums[i] + nums[j].
     // nums=[30,99,40], i=0, j=2 -> 30+40 = 70 (the 99 decoy catches a dropped index).
