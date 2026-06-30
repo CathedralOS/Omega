@@ -1,0 +1,84 @@
+// A 2D particle system over an ARRAY OF STRUCTS -- the entity/simulation pattern. Each
+// particle has a position (x, y) and a velocity (vx, vy); every step integrates
+// pos += vel for all particles. Exercises runtime-indexed struct-field READS
+// (ps[i].x), struct-field WRITES (ps[i].x = ..), and the per-element update loop. The
+// position update reads the fields into temps and writes the sum back (a direct
+// ps[i].x += ps[i].vx RMW is a separate gap). After 3 steps:
+//   p0: (0,0)+3*(2,1) = (6,3)   p1: (10,20)+3*(-1,-2) = (7,14)
+// Self-checks three of those cells -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Particle {
+    x: i32 in Wrapping;
+    y: i32 in Wrapping;
+    vx: i32 in Wrapping;
+    vy: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    ps: [Particle; 2] in Wrapping;
+    step: i32 in Wrapping;
+    i: i32 in Wrapping;
+    a: i32 in Wrapping; // scratch: current component
+    b: i32 in Wrapping; // scratch: its velocity
+    c: i32 in Wrapping; // scratch: the integrated value
+}
+
+machine Main::main(&mut self) {
+    self.ps[0].x = 0;
+    self.ps[0].y = 0;
+    self.ps[0].vx = 2;
+    self.ps[0].vy = 1;
+    self.ps[1].x = 10;
+    self.ps[1].y = 20;
+    self.ps[1].vx = 0 - 1;
+    self.ps[1].vy = 0 - 2;
+    self.step = 0;
+    transition { _ -> step_loop() }
+
+    state step_loop(&mut self) {
+        transition self.step < 3 { true -> update_init() _ -> verify() }
+    }
+    state update_init(&mut self) {
+        self.i = 0;
+        transition { _ -> update_loop() }
+    }
+    state update_loop(&mut self) {
+        transition self.i >= 0 && self.i < 2 { true -> integrate_x() _ -> step_next() }
+    }
+    state integrate_x(&mut self) {
+        self.a = self.ps[self.i].x;
+        self.b = self.ps[self.i].vx;
+        self.c = self.a + self.b;
+        self.ps[self.i].x = self.c;
+        transition { _ -> integrate_y() }
+    }
+    state integrate_y(&mut self) {
+        self.a = self.ps[self.i].y;
+        self.b = self.ps[self.i].vy;
+        self.c = self.a + self.b;
+        self.ps[self.i].y = self.c;
+        self.i = self.i + 1;
+        transition { _ -> update_loop() }
+    }
+    state step_next(&mut self) {
+        self.step = self.step + 1;
+        transition { _ -> step_loop() }
+    }
+
+    state verify(&mut self) {
+        transition self.ps[0].x == 6 && self.ps[0].y == 3 && self.ps[1].x == 7 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+}
