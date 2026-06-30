@@ -1,0 +1,99 @@
+// A 9x9 multiplication table -- the first sample that produces FORMATTED NUMERIC OUTPUT.
+// Every other sample renders glyphs or animation frames; this one converts computed
+// numbers to text (itoa: a two-digit field, space-padded) and lays them out in an aligned
+// grid. Combines a nested i/j loop, per-cell `i*j`, digit extraction (tens = p/10, ones =
+// p%10, + '0'), a computed column offset `(j-1)*3` formed into a field (a computed index
+// is refused in a subscript), and carrier byte writes. Each row is cleared to spaces, the
+// two digit chars written per cell, then printed. Pure compute + stdout, no new features.
+// Expected exit: 0.
+// Expected output contains: 81
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 28]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    line: [u8; 28] in Utf8;
+    i: i32 in Wrapping;   // row factor 1..9
+    j: i32 in Wrapping;   // column factor 1..9
+    k: i32 in Wrapping;   // clear index
+    p: i32 in Wrapping;   // product i*j
+    tens: i32 in Wrapping;
+    ones: i32 in Wrapping;
+    o0: i32 in Wrapping;  // column byte offset (j-1)*3
+    o1: i32 in Wrapping;  // o0 + 1
+    tc: u8;               // tens char (or space)
+    oc: u8;               // ones char
+}
+
+machine Main::main(&mut self) {
+    self.line = "                            ";
+    self.i = 1;
+    transition { _ -> row_loop() }
+
+    state row_loop(&mut self) {
+        transition self.i >= 1 && self.i <= 9 { true -> clear_init() _ -> finish() }
+    }
+    // clear the row buffer to spaces
+    state clear_init(&mut self) {
+        self.k = 0;
+        transition { _ -> clear() }
+    }
+    state clear(&mut self) {
+        transition self.k >= 0 && self.k < 28 { true -> clear_cell() _ -> col_init() }
+    }
+    state clear_cell(&mut self) {
+        self.line[self.k] = 32; // ' '
+        self.k = self.k + 1;
+        transition { _ -> clear() }
+    }
+    state col_init(&mut self) {
+        self.j = 1;
+        transition { _ -> col_loop() }
+    }
+    state col_loop(&mut self) {
+        transition self.j >= 1 && self.j <= 9 { true -> cell() _ -> emit_row() }
+    }
+    state cell(&mut self) {
+        self.p = self.i * self.j;
+        self.tens = self.p / 10;
+        self.ones = self.p % 10;
+        self.oc = (self.ones + 48) as u8;
+        transition self.tens > 0 { true -> cell_tens() _ -> cell_space() }
+    }
+    state cell_tens(&mut self) {
+        self.tc = (self.tens + 48) as u8;
+        transition { _ -> cell_write() }
+    }
+    state cell_space(&mut self) {
+        self.tc = 32; // leading space for single-digit products
+        transition { _ -> cell_write() }
+    }
+    state cell_write(&mut self) {
+        self.o0 = (self.j - 1) * 3;
+        self.o1 = self.o0 + 1;
+        transition self.o0 >= 0 && self.o0 < 28 && self.o1 >= 0 && self.o1 < 28 {
+            true -> cell_store()
+            _ -> bad()
+        }
+    }
+    state cell_store(&mut self) {
+        self.line[self.o0] = self.tc;
+        self.line[self.o1] = self.oc;
+        self.j = self.j + 1;
+        transition { _ -> col_loop() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        self.i = self.i + 1;
+        transition { _ -> row_loop() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
