@@ -242,8 +242,9 @@ a working proof-carrying contract system** (item 11). What remains:
   (0 = s _) ⊢ ⊥, then ex falso), so 2=3 ⊢ ⊥ collapses via sinj;sinj;disj. And PEANO INDUCTION: when gen fails
   on (All P), the `natind` rule synthesises base P(0) + step ∀n.(P(n)→P(s n)) and proves each (the step closed
   by the IH after goal-normalisation exposes the reduced successor), emitting a kernel-checked natind cert --
-  so x+0=x, x+(s y)=s(x+y), symbolic x≤x, and x+y=y+x (commutativity, nested induction) all discharge.
-  First-order needed a
+  so x+0=x, x+(s y)=s(x+y), symbolic x≤x, x≤s x ("x<x+1"), x<s x, and x+y=y+x (commutativity, nested
+  induction) all discharge. (Multi-lemma goals — y≤x+y, mult recursion, ≤-transitivity — still need a def/use
+  LEMMA LIBRARY rather than re-deriving inline; that is the next increment.) First-order needed a
   uniform EIGENVARIABLE scheme — gen/unpack mint a fresh opaque individual, substitute it for the bound var,
   and recover de Bruijn from the eigenvar stack at emit time (so nested quantifiers index correctly and an
   outer individual never collides with a prop's own inner binder). unpack runs as an invertible left rule
@@ -252,7 +253,7 @@ a working proof-carrying contract system** (item 11). What remains:
   MEMOISED on (context proposition-set, goal) and polynomial; a depth cap + node budget backstop the
   (now-infinite, eigenvar-rich) first-order space (sound-but-incomplete: too-deep yields "unprovable", never a
   crash, never a false proof). SOUND BY CONSTRUCTION (every rule is a valid kernel typing rule, so check.beta
-  accepts every proof emitted). `prover-test.sh` (680 ok): propositional tautologies (or-comm, distribution,
+  accepts every proof emitted). `prover-test.sh` (682 ok): propositional tautologies (or-comm, distribution,
   or-elim-to-common, ex-falso); first-order (forall-id, forall-elim, exists-intro, forall→exists, nested gen,
   unpack tautologies incl. ∃x.P,∀x.(P→Q) ⊢ ∃x.Q); equality (1+1=2, 2*2=4, symbolic 0+x=x, conversion axiom
   P(1+1)⊢P(2)), rewriting (symmetry, transitivity, congruence, transport across predicates/relations), AND
