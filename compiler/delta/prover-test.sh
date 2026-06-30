@@ -42,11 +42,21 @@ ok "(-> (-> (& P Q) R) (-> P (-> Q R)))"
 ok "(-> (& (-> P Q) (-> Q R)) (-> P R))"
 ok "(-> P (-> (-> P Q) Q))"
 ok "(-> (& P (& Q R)) (& (& P Q) R))"
+# disjunction (inl/inr/case) and falsity (absurd) -- the full intuitionistic propositional fragment
+ok "(-> P (+ P Q))"
+ok "(-> (+ P Q) (+ Q P))"
+ok "(-> (+ P P) P)"
+ok "(-> (bot) P)"
+ok "(-> (& P (+ Q R)) (+ (& P Q) (& P R)))"
+ok "(-> (& (+ P Q) (-> P R)) (+ R Q))"
+ok "(-> (& (-> P R) (-> Q R)) (-> (+ P Q) R))"
 # non-tautologies: provability must fail (soundness of the front line)
 no "(-> P Q)"
 no "(& P P)"
 no "(-> (-> P Q) P)"
 no "(-> (-> P Q) Q)"
+no "(+ P Q)"
+no "(-> (+ P Q) P)"
 
 # random fuzz: for every goal the prover proves, the kernel must accept the certificate. A single
 # `--batch` process generates+proves all goals and prints "<goal>\t<cert>" lines for the provable ones,
