@@ -103,6 +103,10 @@ ok "(All (Lt (v 0) (s (v 0))))"                                    # forall x. x
 ok "(All (All (Le (v 0) (p (v 1) (v 0)))))"                        # forall x y. y <= x + y    (needs add-comm)
 ok "(All (All (= (p (v 0) (v 1)) (p (v 1) (v 0)))))"               # forall x y. y + x = x + y  (lemma reuse)
 ok "(All (All (Le (p (v 1) (v 0)) (p (v 0) (v 1)))))"             # forall x y. x + y <= y + x
+# more induction reach: multiplication-by-zero (both sides) and 3-variable associativity, all via natind
+ok "(All (= (m (v 0) z) z))"                                       # forall x. x * 0 = 0
+ok "(All (= (m z (v 0)) z))"                                       # forall x. 0 * x = 0
+ok "(All (All (All (= (p (p (v 2) (v 1)) (v 0)) (p (v 2) (p (v 1) (v 0)))))))"  # (x+y)+z = x+(y+z)  associativity
 # non-tautologies: provability must fail (soundness of the front line)
 no "(Exists (Pred 0 (v 0)))"                            # no witness available -> unprovable
 no "(-> (Exists (Pred 0 (v 0))) (Pred 0 (s z)))"        # eigenvariable must NOT escape the unpack
