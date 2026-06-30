@@ -75,6 +75,14 @@ ok "(-> (& (Pred 0 (s z)) (= (s z) (s (s z)))) (Pred 0 (s (s z))))"        # tra
 ok "(-> (& (Pred 0 (s (s z))) (= (s z) (s (s z)))) (Pred 0 (s z)))"        # transport, reverse orientation
 ok "(-> (& (Rel 0 (s z) z) (= (s z) (s (s z)))) (Rel 0 (s (s z)) z))"      # rewrite one relation argument
 ok "(-> (& (= (s z) z) (Pred 0 (p (s z) (s (s z))))) (Pred 0 (p z (s (s z)))))"  # rewrite a subterm of a p-term
+# inequality, encoded with no kernel `<`:  a<=b := exists k. a+k=b ;  a<b := exists k. a+(s k)=b
+ok "(Lt (s z) (s (s (s z))))"                          # 1 < 3
+ok "(Le (s (s z)) (s (s z)))"                          # 2 <= 2
+ok "(Lt z (s (s (s (s (s z))))))"                      # 0 < 5
+ok "(-> (Lt (v 0) (v 1)) (Le (v 0) (v 1)))"            # weakening x<y |- x<=y (FREE vars under binders)
+# free individual variables, closed to eigenvars, emitted under wit/unpack binders (regression for the fix)
+ok "(-> (Pred 0 (v 0)) (Exists (Pred 0 (v 0))))"                                  # exists-intro, free witness
+ok "(-> (Exists (& (Pred 0 (v 0)) (Rel 0 (v 0) (v 1)))) (Exists (Pred 0 (v 0))))" # unpack with a free var
 # non-tautologies: provability must fail (soundness of the front line)
 no "(Exists (Pred 0 (v 0)))"                            # no witness available -> unprovable
 no "(-> (Exists (Pred 0 (v 0))) (Pred 0 (s z)))"        # eigenvariable must NOT escape the unpack
@@ -83,6 +91,9 @@ no "(= (s z) z)"                                        # 1 != 0    (refl must N
 no "(= (p (s z) (s z)) (s z))"                          # 1+1 != 1
 no "(-> (Pred 0 (s z)) (Pred 0 (s (s z))))"             # P(1) does NOT give P(2)
 no "(-> (= (s z) (s (s z))) (= z (s z)))"               # rewriting 1=2 does NOT yield 0=1 (and terminates)
+no "(Lt (s (s (s z))) (s (s z)))"                       # 3 < 2  -> no
+no "(Le (s (s (s z))) (s (s z)))"                       # 3 <= 2 -> no
+no "(Lt (s (s z)) (s (s z)))"                           # 2 < 2  -> no
 no "(-> P Q)"
 no "(& P P)"
 no "(-> (-> P Q) P)"

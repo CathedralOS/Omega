@@ -66,6 +66,13 @@ def parse(tokens):
             b = parse_term(tokens)
             assert tokens.pop(0) == ")"
             return ("=", a, b)
+        if head in ("Le", "Lt"):  # inequality SUGAR, desugared to a Peano existential (no kernel `<` needed):
+            tokens.pop(0)         #   a <= b  :=  exists k. a + k     = b      (k >= 0)
+            a = parse_term(tokens)  # a <  b  :=  exists k. a + (s k) = b      (b is at least a+1)
+            b = parse_term(tokens)  # a,b move under the new binder, so shift their free vars up by one.
+            assert tokens.pop(0) == ")"
+            rhs = ("s", ("v", 0)) if head == "Lt" else ("v", 0)
+            return ("ex", ("=", ("p", _shift(a, 1), rhs), _shift(b, 1)))
         if head in ("All", "Exists"):
             tokens.pop(0)
             body = parse(tokens)
@@ -186,6 +193,61 @@ def _gt(t, out):  # a term is a candidate only if it is ground (contains no free
     out.add(t)
     if t[0] == "s":
         _gt(t[1], out)
+
+
+# ---- A goal may carry FREE individual vars (e.g. x,y in x<y), implicitly universally quantified. We close
+# them into fresh eigenvariables before search: every individual then becomes an eigenvar (opaque parameter)
+# or a prop-internal bound var, so the eigenvar/de-Bruijn emission machinery (which shifts correctly under
+# gen/unpack binders) handles them uniformly. Without this a free var emitted under an eigenvar binder is not
+# shifted -> a malformed (kernel-rejected) certificate. ----
+def _max_free_term(t, d):  # 1 + highest free-var LEVEL (index - binder depth) in a term; 0 if none free
+    if t[0] == "v":
+        return t[1] - d + 1 if t[1] >= d else 0
+    if t[0] == "s":
+        return _max_free_term(t[1], d)
+    if t[0] in ("p", "m"):
+        return max(_max_free_term(t[1], d), _max_free_term(t[2], d))
+    return 0
+
+
+def _max_free(p, d=0):
+    h = p[0]
+    if h == "pred":
+        return _max_free_term(p[2], d)
+    if h == "rel":
+        return max(_max_free_term(p[2], d), _max_free_term(p[3], d))
+    if h == "=":
+        return max(_max_free_term(p[1], d), _max_free_term(p[2], d))
+    if h in ("all", "ex"):
+        return _max_free(p[1], d + 1)
+    if h in ("->", "&", "+"):
+        return max(_max_free(p[1], d), _max_free(p[2], d))
+    return 0
+
+
+def _close_term(t, eigs, d):  # replace each free var (level i-d) with eigs[i-d]
+    if t[0] == "v":
+        return ("eig", eigs[t[1] - d]) if t[1] >= d else t
+    if t[0] == "s":
+        return ("s", _close_term(t[1], eigs, d))
+    if t[0] in ("p", "m"):
+        return (t[0], _close_term(t[1], eigs, d), _close_term(t[2], eigs, d))
+    return t
+
+
+def _close_free(p, eigs, d=0):
+    h = p[0]
+    if h == "pred":
+        return ("pred", p[1], _close_term(p[2], eigs, d))
+    if h == "rel":
+        return ("rel", p[1], _close_term(p[2], eigs, d), _close_term(p[3], eigs, d))
+    if h == "=":
+        return ("=", _close_term(p[1], eigs, d), _close_term(p[2], eigs, d))
+    if h in ("all", "ex"):
+        return (h, _close_free(p[1], eigs, d + 1))
+    if h in ("->", "&", "+"):
+        return (h, _close_free(p[1], eigs, d), _close_free(p[2], eigs, d))
+    return p
 
 
 def _ground(t):  # True if the term has no free de Bruijn var (eigenvariables count as ground atoms)
@@ -371,6 +433,7 @@ _DEPTH_CAP = 250  # each logical level is ~3 Python frames, so this stays well u
 _candidates = []  # ground witness/instantiation terms for the quantifier rules, gathered per solve
 _eigctr = [0]     # fresh-eigenvariable counter (reset per solve, so certs are deterministic)
 _eigs = []        # active eigenvar ids (one per enclosing gen / unpack), innermost last
+_base_ib = []     # eigenvars standing in for the goal's FREE individual vars (the implicit outermost binders)
 _opened = []      # existential PROPOSITIONS already opened on this branch (never re-open one -- a parent
 # conjunction would otherwise regenerate it through saturation and unpack would loop with fresh eigenvars)
 
@@ -383,8 +446,11 @@ def fresh_eig():
 def cand_terms():  # witness/instantiation candidates: in-scope eigenvariables FIRST, then goal ground terms.
     # Eigenvars-first matters: once an existential is opened to P(e), the witness/instance we want is almost
     # always that very e, so trying it first finds the proof shallow instead of exploring doomed ground-term
-    # chains to (near) the depth cap.
-    return [("eig", k) for k in reversed(_eigs)] + _candidates
+    # chains to (near) the depth cap. We also offer the SUCCESSOR of each eigenvar: weakening a strict bound
+    # (a<b -> a<=b) opens `a + s k = b` and needs witness `s k` for the `a + k' = b` goal -- a tiny, bounded
+    # enrichment (one per in-scope eigenvar) that the bare-term candidate set can't synthesise.
+    eigs = [("eig", k) for k in reversed(_eigs)]
+    return eigs + [("s", e) for e in eigs] + _candidates
 
 
 def solve(goal, _fuel=None):
@@ -393,8 +459,15 @@ def solve(goal, _fuel=None):
     _depth[0] = 0
     _memo.clear()
     _eigctr[0] = 0
-    _eigs[:] = []
     _opened[:] = []
+    # close the goal's free individual vars into eigenvars (level j -> a fresh eig). The base eigenvar stack
+    # lists them innermost-last so free-var level j renders back as (v j) at the top of the certificate.
+    nfree = _max_free(goal)
+    free_eigs = [fresh_eig() for _ in range(nfree)]
+    base = list(reversed(free_eigs))
+    _eigs[:] = base
+    _base_ib[:] = base
+    goal = _close_free(goal, free_eigs)
     cands = {("z",)}  # z is always available as a default witness
     ground_terms(goal, cands)
     _candidates[:] = list(cands)
@@ -580,8 +653,10 @@ def to_db(term, binders, ib=()):  # convert the named proof term to check.beta's
         return "(gen %s)" % to_db(body, binders, tuple(ib) + (e,))
     if h == "inst":  # universal elimination: a proof applied to a TERM
         return "(inst %s %s)" % (to_db(term[1], binders, ib), beta_term(term[2], ib))
-    if h == "wit":  # existential introduction: body-prop, witness TERM, proof of the instance
-        return "(wit %s %s %s)" % (beta_prop(term[1], ib), beta_term(term[2], ib), to_db(term[3], binders, ib))
+    if h == "wit":  # existential introduction: body-prop, witness TERM, proof of the instance. The body has
+        # an IMPLICIT binder (the existential slot at v0), so its free vars sit one level up -> emit at depth 1
+        # (unpack needs no such bump: its slot is an eigenvar already carried in `ib`).
+        return "(wit %s %s %s)" % (beta_prop(term[1], ib, 1), beta_term(term[2], ib), to_db(term[3], binders, ib))
     if h == "unpack":  # existential elimination: the handler is `(gen (lam body C))` -- one individual
         _, exterm, body, e, nm, pf = term   # binder (the witness) + one hypothesis binder (the body)
         ib2 = tuple(ib) + (e,)
@@ -623,7 +698,7 @@ def batch(n, seed, fuel):
         goal = random_prop(rng.randint(1, 4), rng)
         proof = solve(goal, fuel)
         if proof is not None:
-            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [])))
+            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [], tuple(_base_ib))))
 
 
 # ---- FIRST-ORDER fuzz: stress the eigenvariable / de Bruijn emission in gen/inst/wit/unpack. Random
@@ -686,7 +761,7 @@ def fobatch(n, seed):
         goal = random_foprop(rng)
         proof = solve(goal)
         if proof is not None:
-            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [])))
+            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [], tuple(_base_ib))))
 
 
 # ---- ARITHMETIC fuzz: validates that nf() matches check.beta's `normalize` EXACTLY. Build a random closed
@@ -723,7 +798,7 @@ def arithbatch(n, seed):
         goal = ("=", t, _numeral(v))
         proof = solve(goal)
         if proof is not None:
-            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [])))
+            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [], tuple(_base_ib))))
 
 
 def main():
@@ -744,7 +819,7 @@ def main():
     if proof is None:
         print("unprovable")
     else:
-        print("%s %s" % (beta_prop(goal), to_db(proof, [])))
+        print("%s %s" % (beta_prop(goal), to_db(proof, [], tuple(_base_ib))))
 
 
 if __name__ == "__main__":
