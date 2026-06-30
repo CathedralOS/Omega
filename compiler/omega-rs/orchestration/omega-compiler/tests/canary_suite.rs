@@ -4369,6 +4369,34 @@ fn runtime_float_negative_ops_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_monte_carlo_pi_exit_canary_runs() {
+    // Monte Carlo pi estimation driven by the xorshift32 PRNG: 64 random points, count
+    // those inside the quarter circle (px*px+py*py < 100*100). Deterministic from seed 1:
+    // 53 inside, scaled estimate 400*53/64 = 331 (pi ~= 3.31) -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_monte_carlo_pi_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-monte-carlo-pi-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("monte carlo pi canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("monte carlo pi canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Monte Carlo pi (seed 1, 64 points) to count 53 inside / estimate 331 (exit 70); got {:?} -- the count on regression\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_gcd_euclid_exit_canary_runs() {
     // The iterative Euclidean GCD: `(a,b) = (b, a%b)` until b==0. gcd(1071,462)=21.
     // A two-variable loop with a runtime modulo; self-checks the result -> exit 70.
