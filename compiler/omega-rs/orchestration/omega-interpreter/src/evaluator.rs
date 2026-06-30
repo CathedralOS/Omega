@@ -1445,29 +1445,40 @@ impl<'program> Evaluator<'program> {
                     bytes.extend_from_slice(&text);
                 }
                 WireInterpField::ByteSlice => {
-                    // Length varint (byte count) then the raw bytes, read from
-                    // the field's element array -- the same framing as Text.
-                    let elements = match &*raw.borrow() {
-                        Value::Array(elements) => elements.clone(),
-                        _ => {
-                            return Err(Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` field `{field_name}` is not a byte-slice value"
-                            )));
-                        }
+                    // Length varint (byte count) then the raw bytes, framed like Text. A `&[u8]`
+                    // field is text BYTES (`Value::Str`, after the text=bytes model) OR a fixed
+                    // array of byte cells; both yield the raw content.
+                    let str_bytes = if let Value::Str(text) = &*raw.borrow() {
+                        Some(text.borrow().clone())
+                    } else {
+                        None
                     };
-                    let mut content = Vec::with_capacity(elements.len());
-                    for element in &elements {
-                        let byte = self
-                            .deref_cell(Rc::clone(element))
-                            .borrow()
-                            .as_int()
-                            .ok_or_else(|| {
-                                Halt::Trap(format!(
-                                    "`{schema_name}::encode_wire` byte-slice field `{field_name}` element is not a byte"
-                                ))
-                            })?;
-                        content.push(byte as u8);
-                    }
+                    let content: Vec<u8> = if let Some(content) = str_bytes {
+                        content
+                    } else {
+                        let elements = match &*raw.borrow() {
+                            Value::Array(elements) => elements.clone(),
+                            _ => {
+                                return Err(Halt::Trap(format!(
+                                    "`{schema_name}::encode_wire` field `{field_name}` is not a byte-slice value"
+                                )));
+                            }
+                        };
+                        let mut content = Vec::with_capacity(elements.len());
+                        for element in &elements {
+                            let byte = self
+                                .deref_cell(Rc::clone(element))
+                                .borrow()
+                                .as_int()
+                                .ok_or_else(|| {
+                                    Halt::Trap(format!(
+                                        "`{schema_name}::encode_wire` byte-slice field `{field_name}` element is not a byte"
+                                    ))
+                                })?;
+                            content.push(byte as u8);
+                        }
+                        content
+                    };
                     bytes.extend(wire_varint_bytes(content.len() as u64));
                     bytes.extend(content);
                 }
