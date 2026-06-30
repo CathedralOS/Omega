@@ -1,0 +1,55 @@
+// Float operations with NEGATIVE values -- the subtle, rendering-critical cases. Float
+// comparisons compile to `ucomisd` + an UNSIGNED setcc (the flags are unsigned even
+// though f64 is signed), so a negative operand is the case most likely to mis-lower; this
+// guards it directly. Covers `<`, `<=`, `>` against negatives, a float->int cast of a
+// negative (truncation toward zero: -2.7 -> -2), and negative float multiply
+// (-2.0 * 3.0 == -6.0). Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    f: f64; // -2.0
+    g: f64; // -1.0
+    h: f64; // scratch
+    ri: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.f = 0.0 - 2.0;
+    self.g = 0.0 - 1.0;
+    transition self.f < 0.0 { true -> lt_neg() _ -> bad() } // -2 < 0 : true
+
+    state lt_neg(&mut self) {
+        transition self.f < self.g { true -> not_gt() _ -> bad() } // -2 < -1 : true
+    }
+    state not_gt(&mut self) {
+        transition self.g < self.f { true -> bad() _ -> le_eq() } // -1 < -2 : false
+    }
+    state le_eq(&mut self) {
+        transition self.f <= self.f { true -> gt_neg() _ -> bad() } // -2 <= -2 : true
+    }
+    state gt_neg(&mut self) {
+        transition self.g > self.f { true -> cast_neg() _ -> bad() } // -1 > -2 : true
+    }
+    state cast_neg(&mut self) {
+        self.h = 0.0 - 2.7;
+        self.ri = self.h as i32 in Wrapping; // truncates toward zero -> -2
+        transition self.ri == 0 - 2 { true -> mul_neg() _ -> bad() }
+    }
+    state mul_neg(&mut self) {
+        self.h = self.f * 3.0; // -2.0 * 3.0 = -6.0
+        // A CONSTANT float-arith guard RHS (`0.0 - 6.0`) is const-folded to a static
+        // comparison value, matching the integer case -- locks the fold added in the
+        // guard-operand resolver. (A place operand in the RHS keeps the runtime path.)
+        transition self.h == 0.0 - 6.0 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
