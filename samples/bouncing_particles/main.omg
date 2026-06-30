@@ -1,0 +1,213 @@
+// A multi-particle bouncing simulation: four particles, each an entry in an ARRAY OF
+// STRUCTS (position + velocity), bounce around a 20x10 box, animated in place. Distinct
+// from bouncing_ball_2d (a single ball under float gravity) -- this is an ENTITY SYSTEM,
+// the array-of-structs pattern a real game/sim is built from, with integer velocities.
+//
+// Each frame: clear the grid, plot every particle (grid[y*W + x] = 1), render the grid in
+// place via an ANSI cursor-home, then integrate pos += vel for every particle and reverse
+// a velocity component at the walls. 2D indexing uses the linear-counter sidestep (the
+// flat index computed into a field, then a plain index); the per-particle update reads the
+// struct fields into temps and writes them back (a direct ps[i].x += ps[i].vx is a gap).
+// Pure compute + stdout + Clock.sleep; no new compiler features.
+// Expected exit: 0.
+// Expected output contains: *
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 20]::Utf8 when valid_utf8(self) {}
+domain [u8; 3]::Utf8 when valid_utf8(self) {}
+domain [u8; 2]::Utf8 when valid_utf8(self) {}
+
+data Particle {
+    x: i32 in Wrapping;
+    y: i32 in Wrapping;
+    vx: i32 in Wrapping;
+    vy: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    ps: [Particle; 4] in Wrapping;
+    grid: [i32; 200] in Wrapping; // 20 x 10
+    line: [u8; 20] in Utf8;
+    chars: [u8; 2] in Utf8;       // " *"  empty / particle
+    home: [u8; 3] in Utf8;
+    gen: i32 in Wrapping;
+    pi: i32 in Wrapping;   // particle index
+    k: i32 in Wrapping;    // grid clear index
+    flat: i32 in Wrapping; // computed flat grid index
+    ry: i32 in Wrapping;   // render row
+    cx: i32 in Wrapping;   // render col
+    a: i32 in Wrapping;    // scratch: a component
+    b: i32 in Wrapping;    // scratch: its velocity
+    n: i32 in Wrapping;    // scratch: integrated component
+    glyph: u8;
+}
+
+machine Main::main(&mut self) {
+    self.ps[0].x = 2;  self.ps[0].y = 2;  self.ps[0].vx = 1;  self.ps[0].vy = 1;
+    self.ps[1].x = 17; self.ps[1].y = 3;  self.ps[1].vx = 0 - 1; self.ps[1].vy = 1;
+    self.ps[2].x = 8;  self.ps[2].y = 8;  self.ps[2].vx = 1;  self.ps[2].vy = 0 - 1;
+    self.ps[3].x = 13; self.ps[3].y = 5;  self.ps[3].vx = 0 - 1; self.ps[3].vy = 0 - 1;
+    self.chars = " *";
+    self.home = "XXX";
+    self.home[0] = 27;
+    self.home[1] = 91;
+    self.home[2] = 72;
+    self.line = "                    ";
+    self.gen = 0;
+    transition { _ -> frame_loop() }
+
+    state frame_loop(&mut self) {
+        transition self.gen < 60 { true -> clear_init() _ -> finish() }
+    }
+
+    // --- clear the grid ---
+    state clear_init(&mut self) {
+        self.k = 0;
+        transition { _ -> clear_loop() }
+    }
+    state clear_loop(&mut self) {
+        transition self.k >= 0 && self.k < 200 { true -> clear_cell() _ -> plot_init() }
+    }
+    state clear_cell(&mut self) {
+        self.grid[self.k] = 0;
+        self.k = self.k + 1;
+        transition { _ -> clear_loop() }
+    }
+
+    // --- plot every particle ---
+    state plot_init(&mut self) {
+        self.pi = 0;
+        transition { _ -> plot_loop() }
+    }
+    state plot_loop(&mut self) {
+        transition self.pi >= 0 && self.pi < 4 { true -> plot_cell() _ -> render_init() }
+    }
+    state plot_cell(&mut self) {
+        self.a = self.ps[self.pi].x;
+        self.b = self.ps[self.pi].y;
+        self.flat = self.b * 20 + self.a;
+        transition self.flat >= 0 && self.flat < 200 { true -> plot_set() _ -> bad() }
+    }
+    state plot_set(&mut self) {
+        self.grid[self.flat] = 1;
+        self.pi = self.pi + 1;
+        transition { _ -> plot_loop() }
+    }
+
+    // --- render the grid in place ---
+    state render_init(&mut self) {
+        self.console.write(self.home);
+        self.ry = 0;
+        transition { _ -> render_row() }
+    }
+    state render_row(&mut self) {
+        transition self.ry >= 0 && self.ry < 10 { true -> render_col_init() _ -> after_render() }
+    }
+    state render_col_init(&mut self) {
+        self.cx = 0;
+        transition { _ -> render_col() }
+    }
+    state render_col(&mut self) {
+        transition self.cx >= 0 && self.cx < 20 { true -> render_cell() _ -> emit_row() }
+    }
+    state render_cell(&mut self) {
+        self.flat = self.ry * 20 + self.cx;
+        transition self.flat >= 0 && self.flat < 200 { true -> render_read() _ -> bad() }
+    }
+    state render_read(&mut self) {
+        self.a = self.grid[self.flat];
+        transition self.a >= 0 && self.a < 2 { true -> render_put() _ -> bad() }
+    }
+    state render_put(&mut self) {
+        self.glyph = self.chars[self.a];
+        self.line[self.cx] = self.glyph;
+        self.cx = self.cx + 1;
+        transition { _ -> render_col() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        self.ry = self.ry + 1;
+        transition { _ -> render_row() }
+    }
+    state after_render(&mut self) {
+        self.console.sleep(70);
+        transition { _ -> update_init() }
+    }
+
+    // --- integrate pos += vel for every particle, bouncing off the walls ---
+    state update_init(&mut self) {
+        self.pi = 0;
+        transition { _ -> update_loop() }
+    }
+    state update_loop(&mut self) {
+        transition self.pi >= 0 && self.pi < 4 { true -> integ_x() _ -> frame_next() }
+    }
+    state integ_x(&mut self) {
+        self.a = self.ps[self.pi].x;
+        self.b = self.ps[self.pi].vx;
+        self.n = self.a + self.b;
+        transition self.n < 0 { true -> x_lo() _ -> x_hi_check() }
+    }
+    state x_lo(&mut self) {
+        self.n = 0;
+        self.b = 0 - self.b;
+        transition { _ -> store_x() }
+    }
+    state x_hi_check(&mut self) {
+        transition self.n > 19 { true -> x_hi() _ -> store_x() }
+    }
+    state x_hi(&mut self) {
+        self.n = 19;
+        self.b = 0 - self.b;
+        transition { _ -> store_x() }
+    }
+    state store_x(&mut self) {
+        transition self.pi >= 0 && self.pi < 4 { true -> do_store_x() _ -> bad() }
+    }
+    state do_store_x(&mut self) {
+        self.ps[self.pi].x = self.n;
+        self.ps[self.pi].vx = self.b;
+        transition { _ -> integ_y() }
+    }
+    state integ_y(&mut self) {
+        self.a = self.ps[self.pi].y;
+        self.b = self.ps[self.pi].vy;
+        self.n = self.a + self.b;
+        transition self.n < 0 { true -> y_lo() _ -> y_hi_check() }
+    }
+    state y_lo(&mut self) {
+        self.n = 0;
+        self.b = 0 - self.b;
+        transition { _ -> store_y() }
+    }
+    state y_hi_check(&mut self) {
+        transition self.n > 9 { true -> y_hi() _ -> store_y() }
+    }
+    state y_hi(&mut self) {
+        self.n = 9;
+        self.b = 0 - self.b;
+        transition { _ -> store_y() }
+    }
+    state store_y(&mut self) {
+        transition self.pi >= 0 && self.pi < 4 { true -> do_store_y() _ -> bad() }
+    }
+    state do_store_y(&mut self) {
+        self.ps[self.pi].y = self.n;
+        self.ps[self.pi].vy = self.b;
+        self.pi = self.pi + 1;
+        transition { _ -> update_loop() }
+    }
+    state frame_next(&mut self) {
+        self.gen = self.gen + 1;
+        transition { _ -> frame_loop() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
