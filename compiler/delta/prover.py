@@ -545,7 +545,13 @@ LEMMA_PROPS = [
     ("all", ("=", ("p", ("v", 0), ("z",)), ("v", 0))),                                    # 0: x + 0 = x
     ("all", ("all", ("=", ("p", ("v", 1), ("s", ("v", 0))), ("s", ("p", ("v", 1), ("v", 0)))))),  # 1: x+(s y)=s(x+y)
     ("all", ("all", ("=", ("p", ("v", 1), ("v", 0)), ("p", ("v", 0), ("v", 1))))),        # 2: x + y = y + x
+    ("all", ("all", ("all", ("=", ("p", ("p", ("v", 2), ("v", 1)), ("v", 0)),
+                                   ("p", ("v", 2), ("p", ("v", 1), ("v", 0))))))),         # 3: (x+y)+z = x+(y+z)
 ]
+_ASSOC = 3  # add-assoc's index in LEMMA_PROPS -- used by the directed sum-chain (transitivity) rule
+_both_orient = [False]  # when set, the lemma-rewrite matches a lemma's RHS too (needed to use add-assoc as
+# a+(i+j) -> (a+i)+j). Kept OFF in the general search (it bloats it) and turned ON only for the directed rule's
+# small focused sub-proof, so the general phase-2 search is unchanged.
 _lemma_cache = [None]   # built once: [(prop, proof_term), ...]
 _used_lemmas = [[]]     # the lemmas seeded into the LAST solve's certificate (emitted as the def-prelude)
 _active_lemmas = []     # peeled equality lemmas in scope: (arity, lhs, rhs, use_index) -- used by DIRECTED
@@ -752,6 +758,30 @@ def _rules(sat, goal):
             _eigs.pop()
             if pf is not None:
                 return ("unpack", term, prop[1], e, nm, pf)
+    # directed SUM-CHAIN (≤-transitivity): goal ∃k.(= (p A k) C), with chaining facts (= (p A I) M) and
+    # (= (p M J) C) already in context (the two ≤ premises, auto-unpacked). Witness k = I+J; the body
+    # (= (p A (p I J)) C) is discharged in a FOCUSED sub-proof with add-assoc both-orientation enabled
+    # (a+(i+j) -> (a+i)+j, then the two facts rewrite to C). Pattern-gated, so the general search is untouched.
+    if (goal[0] == "ex" and _active_lemmas and goal[1][0] == "=" and goal[1][1][0] == "p"
+            and goal[1][1][2] == ("v", 0)):
+        body, A, C = goal[1], goal[1][1][1], goal[1][2]
+        for p1, _ in sat:
+            if not (p1[0] == "=" and p1[1][0] == "p" and p1[1][1] == A):
+                continue
+            I, M = p1[1][2], p1[2]                                  # fact1 : (= (p A I) M)
+            for p2, _ in sat:
+                if not (p2[0] == "=" and p2[1] == ("p", M, p2[1][2]) and p2[2] == C):
+                    continue
+                J = p2[1][2]                                        # fact2 : (= (p M J) C)
+                w = ("p", I, J)
+                saved, sbo = list(_active_lemmas), _both_orient[0]
+                _active_lemmas[:] = [l for l in _active_lemmas if l[3] == _ASSOC]
+                _both_orient[0] = True
+                pf = prove(sat, subst0(body, w))
+                _active_lemmas[:] = saved
+                _both_orient[0] = sbo
+                if pf is not None:
+                    return ("wit", body, w, pf)
     # R-exists (wit): supply a witness term (a ground term or an in-scope eigenvar) and prove the instance
     if goal[0] == "ex":
         for t in cand_terms():
@@ -849,26 +879,32 @@ def _rules(sat, goal):
                 if sub != goal:
                     syme = ("eqelim", ("=", ("v", 0), x), term, ("refl", x))
                     rewrites.append((prop_size(sub), mot, sub, syme))
-        # library-lemma rewrites: match a lemma's LHS against a goal subterm -> a directed rewrite Lσ -> Rσ,
-        # the equation proved by citing the lemma (use idx) instantiated at σ. Folding these into the same
-        # shrink-first list (instead of adding context facts) keeps the search bounded -- no fact explosion.
+        # library-lemma rewrites: match a lemma's LHS (and, when _both_orient, its RHS) against a goal subterm
+        # -> a directed rewrite, the equation proved by citing the lemma (use idx) instantiated at σ. Folded
+        # into the shrink-first list (not as context facts) so the search stays bounded. Both-orientation is
+        # gated: OFF in the general search (it bloats it), ON only in the directed sum-chain rule's sub-proof.
         for arity, lhs, rhs, idx in _active_lemmas:
-            for sub_t in _prop_subterms(goal):
-                s = _match_term(lhs, sub_t, {})
-                if s is None or len(s) != arity:
-                    continue
-                ls, rs = _fill(lhs, s), _fill(rhs, s)
-                if ls == rs:
-                    continue
-                mot = abstract_prop(goal, ls)         # the goal contains Lσ; rewrite it to Rσ
-                sub = subst0(mot, rs)
-                if sub == goal:
-                    continue
-                pe = ("use", idx)
-                for j in range(arity - 1, -1, -1):  # instantiate the outermost binder first -> pe : (= Lσ Rσ)
-                    pe = ("inst", pe, s[j])
-                pe = ("eqelim", ("=", ("v", 0), ls), pe, ("refl", ls))  # sym(pe) : (= Rσ Lσ), the reading
-                rewrites.append((prop_size(sub), mot, sub, pe))         # eqelim needs to land mot[Lσ]=goal
+            dirs = ((lhs, rhs, True), (rhs, lhs, False)) if _both_orient[0] else ((lhs, rhs, True),)
+            for pat, other, flip in dirs:
+                for sub_t in _prop_subterms(goal):
+                    s = _match_term(pat, sub_t, {})
+                    if s is None or len(s) != arity:
+                        continue
+                    frm, to = _fill(pat, s), _fill(other, s)
+                    if frm == to:
+                        continue
+                    mot = abstract_prop(goal, frm)    # the goal contains `frm`; rewrite it to `to`
+                    sub = subst0(mot, to)
+                    if sub == goal:
+                        continue
+                    pe = ("use", idx)
+                    for j in range(arity - 1, -1, -1):  # instantiate outermost binder first -> pe : (= Lσ Rσ)
+                        pe = ("inst", pe, s[j])
+                    # eqelim needs pf_eq : (= to frm). Matching the LHS gives pe : (= frm to) -> wrap in sym;
+                    # matching the RHS gives pe : (= to frm) already.
+                    if flip:
+                        pe = ("eqelim", ("=", ("v", 0), frm), pe, ("refl", frm))
+                    rewrites.append((prop_size(sub), mot, sub, pe))
         rewrites.sort(key=lambda r: r[0])
         for sz, mot, sub, pe in rewrites:
             if sz <= _rw_cap[0]:
