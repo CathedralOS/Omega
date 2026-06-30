@@ -9722,6 +9722,34 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_call_to_array_element_exit_canary_runs() {
+    // A single value-call result materializes correctly when written to a const-indexed array
+    // element: triple(14)=42 lands at arr[2] with neighbours untouched -> exit 70. The working
+    // write-side contrast to the value-call dispatch-position drop and the multi-call shared slot.
+    let canary = pass_canary("calls/runtime_value_call_to_array_element_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-vc-array-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call to array element canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call to array element canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected triple(14)=42 written to arr[2] with neighbours 0 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_computed_transition_args_exit_canary_runs() {
     // Computed values (an addition, a subtraction, a cast) passed directly as transition
     // arguments materialize correctly. chk(7+3, 7-3, 300 as u8) sees sum=10, diff=4, byte=44
