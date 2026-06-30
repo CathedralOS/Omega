@@ -1,0 +1,97 @@
+// Sieve of Eratosthenes -> the primes below 50, printed as a formatted row. A "compute,
+// then report" tool: it runs a real algorithm (cross out every multiple of each prime it
+// finds) and then renders the results as NUMERIC TEXT (building on multiplication_table's
+// itoa output). Sieve and collection share one pass: when index i is still unmarked it is
+// prime, so we mark its multiples (j = i*i, +i, ... -- a computed index formed into a
+// field) AND append i to the output line at a running offset. The `marked[i]` test reads
+// the slot into a field first (a runtime-indexed array can't be a guard subject directly).
+// `marked` relies on zero-init; `line` is explicitly spaced. Pure compute + stdout.
+// Expected exit: 0.
+// Expected output contains: 47
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 48]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    marked: [i32; 50] in Wrapping; // 0 = prime candidate, 1 = composite (zero-init)
+    line: [u8; 48] in Utf8;
+    i: i32 in Wrapping;
+    j: i32 in Wrapping;
+    pos: i32 in Wrapping;  // running write offset into line
+    mi: i32 in Wrapping;   // marked[i] read into a field
+    tens: i32 in Wrapping;
+    ones: i32 in Wrapping;
+    p1: i32 in Wrapping;   // pos + 1 (a computed index must be a field, not inline)
+    tc: u8;
+    oc: u8;
+}
+
+machine Main::main(&mut self) {
+    self.line = "                                                ";
+    self.pos = 0;
+    self.i = 2;
+    transition { _ -> outer() }
+
+    state outer(&mut self) {
+        transition self.i >= 2 && self.i < 50 { true -> read_marked() _ -> write_out() }
+    }
+    state read_marked(&mut self) {
+        self.mi = self.marked[self.i];
+        transition self.mi == 0 { true -> mark_init() _ -> next_i() }
+    }
+    // i is prime: cross out its multiples starting at i*i
+    state mark_init(&mut self) {
+        self.j = self.i * self.i;
+        transition { _ -> mark_loop() }
+    }
+    state mark_loop(&mut self) {
+        transition self.j >= 0 && self.j < 50 { true -> mark_set() _ -> append() }
+    }
+    state mark_set(&mut self) {
+        self.marked[self.j] = 1;
+        self.j = self.j + self.i;
+        transition { _ -> mark_loop() }
+    }
+    // append the prime i to the output line as two space-padded digit chars
+    state append(&mut self) {
+        self.tens = self.i / 10;
+        self.ones = self.i % 10;
+        self.oc = (self.ones + 48) as u8;
+        transition self.tens > 0 { true -> append_tens() _ -> append_space() }
+    }
+    state append_tens(&mut self) {
+        self.tc = (self.tens + 48) as u8;
+        transition { _ -> append_write() }
+    }
+    state append_space(&mut self) {
+        self.tc = 32;
+        transition { _ -> append_write() }
+    }
+    state append_write(&mut self) {
+        self.p1 = self.pos + 1;
+        transition self.pos >= 0 && self.pos < 48 && self.p1 >= 0 && self.p1 < 48 {
+            true -> append_store()
+            _ -> next_i()
+        }
+    }
+    state append_store(&mut self) {
+        self.line[self.pos] = self.tc;
+        self.line[self.p1] = self.oc;
+        self.pos = self.pos + 3;
+        transition { _ -> next_i() }
+    }
+    state next_i(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> outer() }
+    }
+
+    state write_out(&mut self) {
+        self.console.write_line(self.line);
+        transition { _ -> finish() }
+    }
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+}
