@@ -1,0 +1,92 @@
+// Naive substring search: find the index of the first occurrence of `pat` in `text`, or -1 if
+// absent. For "abracadabra" / "cad" the match is at index 4. Two nested scans over carriers: an
+// outer position `i`, and an inner pattern index `j` with a running text index `k` (kept
+// incrementally as i + j, so no computed index is needed). An explicit `k < text.len` guard keeps
+// the per-byte read in bounds and treats running off the end as a mismatch. Demonstrates nested
+// carrier loops with match/mismatch backtracking -- text search, a serious-app primitive.
+// Expected exit: 4.
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 16]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    text: [u8; 16] in Utf8;
+    pat: [u8; 8] in Utf8;
+    i: u32 in Wrapping;
+    j: u32 in Wrapping;
+    k: u32 in Wrapping;
+    tb: u8 in Wrapping;
+    pb: u8 in Wrapping;
+    found: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.text = "abracadabra";
+    self.pat = "cad";
+    self.i = 0;
+    self.found = 0 - 1;
+    transition { _ -> outer() }
+
+    state outer(&mut self) {
+        transition self.found < 0 {
+            true -> outer_pos()
+            false -> done()
+        }
+    }
+    state outer_pos(&mut self) {
+        transition self.i < self.text.len {
+            true -> start_inner()
+            false -> done()
+        }
+    }
+    state start_inner(&mut self) {
+        self.j = 0;
+        self.k = self.i;
+        transition { _ -> inner() }
+    }
+    state inner(&mut self) {
+        transition self.j < self.pat.len {
+            true -> check_bound()
+            false -> matched()
+        }
+    }
+    state check_bound(&mut self) {
+        transition self.k < self.text.len {
+            true -> compare()
+            false -> mismatch()
+        }
+    }
+    state compare(&mut self) {
+        self.tb = self.text[self.k];
+        self.pb = self.pat[self.j];
+        transition self.tb == self.pb {
+            true -> adv_inner()
+            false -> mismatch()
+        }
+    }
+    state adv_inner(&mut self) {
+        self.k = self.k + 1;
+        self.j = self.j + 1;
+        transition { _ -> inner() }
+    }
+    state matched(&mut self) {
+        self.found = self.i as i32;
+        transition { _ -> done() }
+    }
+    state mismatch(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> outer() }
+    }
+    state done(&mut self) {
+        self.console.exit_process(self.found);
+    }
+}
