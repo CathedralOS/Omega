@@ -1,5 +1,5 @@
 use omega_checked_trees::CheckedTrees;
-use omega_checked_trees::expression::{ExpressionNode, ExpressionTable};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::name::Identifier;
 use omega_checked_trees::statement::{StatementNode, TableAssignment, TableCall};
 use omega_state_graph::{OperationExpressionRefs, OperationKind, StateGraph};
@@ -83,7 +83,35 @@ fn statement_call_receiver_name(program: &CheckedTrees, call: &TableCall) -> Ide
         .unwrap_or_else(|| Identifier::generated_static("self"))
 }
 
+/// A nested runtime-COLUMN indexed target -- `grid[anything][i]` where the outer/column index `i`
+/// is a runtime value and the collection is itself an indexed place. The static-assignment and
+/// constant-integer fast paths cannot lower this shape: they would silently NO-OP (the element
+/// never updates). Refusing the fast-path classification lets it fall to a regular `Assignment`,
+/// which is recorded as a runtime-storage write and reported cleanly by the storage blocker rather
+/// than vanishing. A const column (`grid[i][0]`) resolves to a fixed offset and IS lowerable, and a
+/// single index (`arr[i]`, `self.field[i]`) has a non-indexed collection, so neither is refused.
+fn target_is_nested_runtime_indexed(table: &ExpressionTable, target: ExpressionHandle) -> bool {
+    let ExpressionNode::Indexed(indexed) = table.expression(target) else {
+        return false;
+    };
+    let mut index = indexed.index;
+    while let ExpressionNode::Mutable(inner) = table.expression(index) {
+        index = *inner;
+    }
+    if matches!(table.expression(index), ExpressionNode::Integer(_)) {
+        return false;
+    }
+    let mut collection = indexed.collection;
+    while let ExpressionNode::Mutable(inner) = table.expression(collection) {
+        collection = *inner;
+    }
+    matches!(table.expression(collection), ExpressionNode::Indexed(_))
+}
+
 fn is_static_assignment(program: &CheckedTrees, assignment: TableAssignment) -> bool {
+    if target_is_nested_runtime_indexed(&program.expression_table, assignment.target) {
+        return false;
+    }
     let target_is_place = matches!(
         program.expression_table.expression(assignment.target),
         ExpressionNode::Name(_) | ExpressionNode::Indexed(_)
