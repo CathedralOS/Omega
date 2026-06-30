@@ -237,7 +237,9 @@ a working proof-carrying contract system** (item 11). What remains:
   `<`: a≤b := ∃k. a+k=b, a<b := ∃k. a+(s k)=b), so concrete bounds (1<3, 0<5) and the direct weakening x<y ⊢
   x≤y discharge through the existing ∃ + equality machinery. (Inequality goals carry FREE individual vars,
   which forced a de-Bruijn fix: solve() now closes free vars into eigenvars so they shift correctly under
-  gen/unpack binders, and `wit` bodies emit at depth 1 for their implicit slot binder.) First-order needed a
+  gen/unpack binders, and `wit` bodies emit at depth 1 for their implicit slot binder.) Plus Peano CONSTRUCTOR
+  DISCRIMINATION: `sinj` (successor injectivity -- (s a = s b) ⊢ (a = b)) and `disj` (zero/successor clash --
+  (0 = s _) ⊢ ⊥, then ex falso), so 2=3 ⊢ ⊥ collapses via sinj;sinj;disj. First-order needed a
   uniform EIGENVARIABLE scheme — gen/unpack mint a fresh opaque individual, substitute it for the bound var,
   and recover de Bruijn from the eigenvar stack at emit time (so nested quantifiers index correctly and an
   outer individual never collides with a prop's own inner binder). unpack runs as an invertible left rule
@@ -246,13 +248,14 @@ a working proof-carrying contract system** (item 11). What remains:
   MEMOISED on (context proposition-set, goal) and polynomial; a depth cap + node budget backstop the
   (now-infinite, eigenvar-rich) first-order space (sound-but-incomplete: too-deep yields "unprovable", never a
   crash, never a false proof). SOUND BY CONSTRUCTION (every rule is a valid kernel typing rule, so check.beta
-  accepts every proof emitted). `prover-test.sh` (669 ok): propositional tautologies (or-comm, distribution,
+  accepts every proof emitted). `prover-test.sh` (675 ok): propositional tautologies (or-comm, distribution,
   or-elim-to-common, ex-falso); first-order (forall-id, forall-elim, exists-intro, forall→exists, nested gen,
   unpack tautologies incl. ∃x.P,∀x.(P→Q) ⊢ ∃x.Q); equality (1+1=2, 2*2=4, symbolic 0+x=x, conversion axiom
   P(1+1)⊢P(2)), rewriting (symmetry, transitivity, congruence, transport across predicates/relations), AND
-  inequality (1<3, 0<5, weakening x<y⊢x≤y) — all proved + kernel-accepted; non-tautologies correctly unprovable
-  incl. eigenvariable-escape (⊬ ∃x.P→P(sz)), false arithmetic (⊬ 1=0, ⊬ 1+1=1), false bounds (⊬ 3<2, ⊬ 2<2),
-  and a non-rewritable goal (⊬ 1=2→0=1, which also must terminate); THREE randomized fuzzes — propositional,
+  inequality (1<3, 0<5, weakening x<y⊢x≤y), and constructor discrimination (sinj: s x=s y⊢x=y; disj: 0=1⊢⊥;
+  the 2=3⊢⊥ chain) — all proved + kernel-accepted; non-tautologies correctly unprovable incl.
+  eigenvariable-escape (⊬ ∃x.P→P(sz)), false arithmetic (⊬ 1=0, ⊬ 1+1=1), false bounds (⊬ 3<2, ⊬ 2<2), and a
+  non-clash disequality (⊬ x=s x→⊥, which needs induction); THREE randomized fuzzes — propositional,
   first-order (provable schemas, hardens eigenvar emission), and arithmetic (closed z/s/p/m equalities,
   validates nf vs the kernel's normalize) — where every proof found is kernel-accepted. The "cleverness on the
   untrusted side, authority in the kernel" split. Widen next: ARITHMETIC LEMMAS via natind induction (x+0=x,
