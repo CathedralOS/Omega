@@ -223,18 +223,26 @@ a working proof-carrying contract system** (item 11). What remains:
   checker validates** ("automation discharges the easy 95% with zero hand-proving, a tiny kernel checks
   the hard 5%"). The lattice already had the kernel (`check.beta`), the certificate format, and
   certificate-*emitting computation* (the convergence) — now it has the first genuine proof AUTOMATION:
-  `delta/prover.py`, an untrusted proof-SEARCH front line for the FULL intuitionistic propositional fragment
-  (`->`, `&`, `+`, `(bot)`). Given a goal it searches a sound natural-deduction calculus (intro + elimination
-  for every connective: lam/app, pair/fst/snd, inl/inr/case, absurd) and EMITS a `check.beta` certificate the
-  kernel re-checks. The search is MEMOISED on (context proposition-set, goal) — the rules only add subformulas,
-  so it terminates without a depth bound and is polynomial in the subformula state space (e.g. an or-elim goal
-  that cost 100k+ nodes naïvely now takes ~36). SOUND BY CONSTRUCTION (every rule is a valid kernel typing
-  rule, so check.beta accepts every proof emitted); a node budget is a hard backstop. `prover-test.sh` (33 ok):
-  curated tautologies incl. disjunction/falsity (or-comm, distribution, or-elim-to-common, ex-falso) proved +
-  kernel-accepted; non-tautologies correctly unprovable (never fabricates authority); a random fuzz where every
-  proof found is kernel-accepted. Exactly the "cleverness on the untrusted side, authority in the kernel" split.
-  Widen next: quantifiers (∀/∃ — needs term/witness search), then arithmetic; the long arc is SMT-class
-  procedures emitting kernel-checkable certificates (the proof-engine north star).
+  `delta/prover.py`, an untrusted proof-SEARCH front line that now covers the FULL intuitionistic
+  propositional fragment (`->`, `&`, `+`, `(bot)`) AND the FIRST-ORDER fragment (predicates/relations over
+  terms, ∀/∃ with intro AND elim). Given a goal it searches a sound natural-deduction calculus and EMITS a
+  `check.beta` certificate the kernel re-checks. Propositional rules: lam/app, pair/fst/snd, inl/inr/case,
+  absurd. Quantifier rules: gen (∀-intro), inst (∀-elim), wit (∃-intro), unpack (∃-elim). First-order needed a
+  uniform EIGENVARIABLE scheme — gen/unpack mint a fresh opaque individual, substitute it for the bound var,
+  and recover de Bruijn from the eigenvar stack at emit time (so nested quantifiers index correctly and an
+  outer individual never collides with a prop's own inner binder). unpack runs as an invertible left rule
+  before the non-invertible wit, witnesses try in-scope eigenvars first, and a per-branch `_opened` guard
+  stops a parent conjunction from regenerating an already-opened existential. The propositional search is
+  MEMOISED on (context proposition-set, goal) and polynomial; a depth cap + node budget backstop the
+  (now-infinite, eigenvar-rich) first-order space (sound-but-incomplete: too-deep yields "unprovable", never a
+  crash, never a false proof). SOUND BY CONSTRUCTION (every rule is a valid kernel typing rule, so check.beta
+  accepts every proof emitted). `prover-test.sh` (44 ok): propositional tautologies (or-comm, distribution,
+  or-elim-to-common, ex-falso) + first-order (forall-id, forall-elim, exists-intro, forall→exists, nested gen,
+  and unpack tautologies incl. ∃x.P,∀x.(P→Q) ⊢ ∃x.Q) all proved + kernel-accepted; non-tautologies correctly
+  unprovable incl. eigenvariable-escape (⊬ ∃x.P→P(sz), ⊬ ∃x.P→∀x.P); a random fuzz where every proof found is
+  kernel-accepted. Exactly the "cleverness on the untrusted side, authority in the kernel" split.
+  Widen next: equality/arithmetic reasoning (refl + congruence, toward the contract-discharge goals), then the
+  long arc — SMT-class procedures emitting kernel-checkable certificates (the proof-engine north star).
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
