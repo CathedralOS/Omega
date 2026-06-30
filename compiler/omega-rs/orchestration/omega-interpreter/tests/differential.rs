@@ -206,6 +206,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_transition_unsigned_guard_exit", 70),
     ("collections/runtime_fixed_vec_round_trip_exit", 70),
     ("collections/runtime_rule90_automaton_exit", 70),
+    ("collections/runtime_whole_array_value_copy_exit", 70),
     ("collections/runtime_binary_search_exit", 70),
     ("collections/runtime_2d_transpose_exit", 70),
     ("collections/runtime_bubble_sort_exit", 70),

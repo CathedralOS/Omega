@@ -5090,6 +5090,34 @@ fn runtime_two_pointer_palindrome_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_whole_array_value_copy_exit_canary_runs() {
+    // Whole-array value copy: `self.b = self.a` copies contents, so mutating self.b[0] leaves
+    // self.a untouched. Discriminates both ways: a keeps (5,6,7), b becomes (99,6,7) -> exit 70.
+    let canary = pass_canary("collections/runtime_whole_array_value_copy_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-whole-array-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("whole-array value copy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("whole-array value copy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected whole-array copy to be independent (a unchanged, exit 70); got {:?} (aliased source value on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_rule90_automaton_exit_canary_runs() {
     // A self-checking Rule 90 cellular automaton (the engine behind
     // samples/cellular_automaton): a sliding 3-cell window, the value-position rule
