@@ -2040,6 +2040,29 @@ impl<'program> Evaluator<'program> {
                 {
                     return self.eval_subslice(indexed.collection, &range, frame);
                 }
+                // A scalar index into a string VIEW (`Value::Str`) reads the i-th BYTE as an Int
+                // -- this is how the oracle cross-checks byte-string canaries (hashing,
+                // comparison, byte walks) instead of skipping them as "cannot index Str". A
+                // carrier `[u8; N]` is a `Value::Array` and takes the element path below. READ
+                // ONLY: a write `s[i] = x` still traps via element_cell (string views are
+                // immutable), so there is no silent no-op.
+                if let Ok(collection_cell) = self.resolve_place(indexed.collection, frame) {
+                    let collection_cell = self.deref_cell(collection_cell);
+                    let indexes_str = matches!(&*collection_cell.borrow(), Value::Str(_));
+                    if indexes_str {
+                        let index = self.eval_index(indexed.index, frame)?;
+                        if let Value::Str(text) = &*collection_cell.borrow() {
+                            return text
+                                .borrow()
+                                .as_bytes()
+                                .get(index)
+                                .map(|byte| Value::Int(i64::from(*byte)))
+                                .ok_or_else(|| {
+                                    Halt::Trap(format!("string index {index} out of bounds"))
+                                });
+                        }
+                    }
+                }
                 let cell = self.resolve_place(handle, frame)?;
                 let value = self.deref_cell(cell).borrow().clone();
                 Ok(value)
