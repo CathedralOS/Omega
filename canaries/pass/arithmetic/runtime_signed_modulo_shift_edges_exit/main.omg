@@ -1,0 +1,55 @@
+// Sign-sensitive integer codegen -- the classic miscompile spots, guarded directly:
+//   - signed modulo with negatives: -7 % 3 == -1 and 7 % -3 == 1 (truncated; sign follows dividend)
+//   - arithmetic (sign-extending) right shift: -16 >> 2 == -4 (SAR), vs unsigned 16 >> 2 == 4 (SHR)
+//   - runtime shift amount: 1 << n with n == 5 a runtime value == 32 (count from CL, not an imm)
+// Each is discriminated; exits 70 iff all hold.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    r1: i32 in Wrapping;
+    r2: i32 in Wrapping;
+    s: i32 in Wrapping;
+    u: u32 in Wrapping;
+    rs: i32 in Wrapping;
+    ru: u32 in Wrapping;
+    base: i32 in Wrapping;
+    n: i32 in Wrapping;
+    shv: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 0 - 7;
+    self.b = 3;
+    self.r1 = self.a % self.b;
+    self.a = 7;
+    self.b = 0 - 3;
+    self.r2 = self.a % self.b;
+    transition self.r1 == 0 - 1 { true -> mod2() _ -> bad() }
+
+    state mod2(&mut self) {
+        transition self.r2 == 1 { true -> shifts() _ -> bad() }
+    }
+    state shifts(&mut self) {
+        self.s = 0 - 16;
+        self.rs = self.s >> 2;
+        self.u = 16;
+        self.ru = self.u >> 2;
+        transition self.rs == 0 - 4 { true -> ushift() _ -> bad() }
+    }
+    state ushift(&mut self) {
+        transition self.ru == 4 { true -> runtime_shift() _ -> bad() }
+    }
+    state runtime_shift(&mut self) {
+        self.base = 1;
+        self.n = 5;
+        self.shv = self.base << self.n;
+        transition self.shv == 32 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

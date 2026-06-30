@@ -4664,6 +4664,35 @@ fn runtime_float32_array_conversion_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_signed_modulo_shift_edges_exit_canary_runs() {
+    // Sign-sensitive integer codegen: truncated signed modulo with negatives (-7%3==-1, 7%-3==1),
+    // arithmetic vs logical right shift (-16>>2==-4 SAR, 16u32>>2==4 SHR), and a runtime shift
+    // amount (1<<5==32). Exits 70.
+    let canary = pass_canary("arithmetic/runtime_signed_modulo_shift_edges_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-signed-mod-shift-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("signed modulo/shift edges canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("signed modulo/shift edges canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed modulo + arithmetic/logical/runtime shifts correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_newton_sqrt_exit_canary_runs() {
     // Newton's method for a square root (an iterative numerical algorithm): x <- (x + S/x)/2
     // over f64, six iterations from 1.0 on S=2.0 -> sqrt(2) ~= 1.41421; checks
