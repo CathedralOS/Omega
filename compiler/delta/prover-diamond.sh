@@ -81,6 +81,7 @@ dia "(All (Le (v 0) (s (v 0))))"                                 # x <= s x
 dia "(All (All (Le (v 0) (p (v 1) (v 0)))))"                      # y <= x+y      (lemma reuse: add-comm)
 dia "(-> (& (Le (v 0) (v 1)) (Le (v 1) (v 2))) (Le (v 0) (v 2)))" # transitivity  (inlined add-assoc)
 dia "(-> (Le (p (v 0) (v 1)) (v 2)) (Le (v 0) (v 2)))"            # drop-addend
+dia "(All (All (All (-> (Le (v 2) (v 1)) (-> (Le (v 1) (v 0)) (Le (v 2) (v 0)))))))"  # le-trans (discharge.rs id 9)
 
 echo "prover diamond (every prover cert accepted by BOTH check.beta AND checker.gamma): $PASS ok, $SKIP skipped (interp arena), $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
