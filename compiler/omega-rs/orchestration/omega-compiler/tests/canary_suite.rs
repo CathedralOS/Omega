@@ -5609,6 +5609,35 @@ fn runtime_guard_divide_modulo_signedness_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_loop_grid_sum_exit_canary_runs() {
+    // A nested loop (outer over i, inner over j, each its own self-transition state) summing
+    // i*3+j over a 3x3 grid -> 36. Exercises nested control flow + per-outer inner-counter reset.
+    // Exit 70 iff sum == 36.
+    let canary = pass_canary("control_flow/runtime_nested_loop_grid_sum_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-loop-grid-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested loop grid canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested loop grid canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nested 3x3 grid sum (i*3+j) == 36 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_multi_field_payload_arith_exit_canary_runs() {
     // A two-field sum-case payload `case Rect(w, h)`: both fields bind in the match arm and drive
     // a computed transition arg (w * h + 58), discriminating arm selection AND both field binds
