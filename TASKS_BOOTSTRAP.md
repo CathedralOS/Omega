@@ -258,7 +258,7 @@ a working proof-carrying contract system** (item 11). What remains:
   MEMOISED on (context proposition-set, goal) and polynomial; a depth cap + node budget backstop the
   (now-infinite, eigenvar-rich) first-order space (sound-but-incomplete: too-deep yields "unprovable", never a
   crash, never a false proof). SOUND BY CONSTRUCTION (every rule is a valid kernel typing rule, so check.beta
-  accepts every proof emitted). `prover-test.sh` (803 ok): propositional tautologies (or-comm, distribution,
+  accepts every proof emitted). `prover-test.sh` (807 ok): propositional tautologies (or-comm, distribution,
   or-elim-to-common, ex-falso); first-order (forall-id, forall-elim, exists-intro, forall→exists, nested gen,
   unpack tautologies incl. ∃x.P,∀x.(P→Q) ⊢ ∃x.Q); equality (1+1=2, 2*2=4, symbolic 0+x=x, conversion axiom
   P(1+1)⊢P(2)), rewriting (symmetry, transitivity, congruence, transport across predicates/relations), AND
