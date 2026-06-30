@@ -1033,6 +1033,19 @@ stay visible, not because they're next):**
   const-parameter instantiation/substitution, layout for symbolic lengths.
   Decision-13 bounds are checked on type-reference instantiations; extend
   the check to machine-call monomorphization arguments when those land.
+  RUNTIME GAP (audited 2026-06-29 -- ALL CLEAN errors, no silent miscompile,
+  so the #40 trap is satisfied and this is safe to defer): generics are
+  TYPE-CHECK-ONLY today. A generic DATA instance's field access fails in the
+  backend ("needs runtime storage write lowering") -- and not just the T-typed
+  field: a CONCRETE sibling field of a generic instance fails too, while the
+  non-generic equivalent lowers fine. A generic VALUE-call (`id<T>(x: T) -> T`)
+  fails likewise. But a generic MACHINE whose body touches only CONCRETE storage
+  DOES lower and run (`run<T>(&self, x: &T) { exit_process(70) }` exits 70). So
+  the unbuilt piece is the backend monomorphization path: threading substituted
+  (T -> concrete) layouts through layout planning -> storage places ->
+  instruction selection, so a monomorphized instance gets real storage. The
+  front-end type system already substitutes correctly; the lowering does not
+  consume it.
 - [ ] **Allocator story.** `Vec` has no runtime; `alloc` is an effect name
   only. Decide explicit allocator/arena capabilities vs ambient heap BEFORE
   implementing Vec lowering.
