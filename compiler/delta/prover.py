@@ -1105,6 +1105,40 @@ def arithbatch(n, seed):
             print("%s\t%s" % (beta_prop(goal), emit_cert(goal, proof)))
 
 
+# ---- INEQUALITY fuzz: provable-by-construction CONTRACT-DISCHARGE bound goals (transitivity, drop-addend,
+# weakenings) with random successor-nested fillings -- hardens the directed sum-witness + lemma + eqelim-chain
+# emission (the riskiest recent de Bruijn). Every emitted cert must kernel-accept; a slip surfaces as a REJECT.
+def _ineq_term(rng, base):  # "(v base)" wrapped in 0-2 successors
+    t = "(v %d)" % base
+    for _ in range(rng.randrange(3)):
+        t = "(s %s)" % t
+    return t
+
+
+def random_ineq_str(rng):
+    a, b, c = _ineq_term(rng, 0), _ineq_term(rng, 1), _ineq_term(rng, 2)
+    s = rng.randrange(5)
+    if s == 0:                                                        # a<=b & b<=c -> a<=c  (transitivity)
+        return "(-> (& (Le %s %s) (Le %s %s)) (Le %s %s))" % (a, b, b, c, a, c)
+    if s == 1:                                                        # i+k<=n -> i<=n        (drop-addend)
+        return "(-> (Le (p %s %s) %s) (Le %s %s))" % (a, b, c, a, c)
+    if s == 2:                                                        # x<y -> x<=y           (weakening)
+        return "(-> (Lt %s %s) (Le %s %s))" % (a, b, a, b)
+    if s == 3:                                                        # x<y -> x+1<=y
+        return "(-> (Lt %s %s) (Le (s %s) %s))" % (a, b, a, b)
+    return "(-> (Le %s %s) (Le %s (s %s)))" % (a, b, a, b)            # x<=y -> x<=y+1
+
+
+def ineqbatch(n, seed):
+    import random
+    rng = random.Random(seed)
+    for _ in range(n):
+        goal = parse(tokenize(random_ineq_str(rng)))
+        proof = solve(goal)
+        if proof is not None:
+            print("%s\t%s" % (beta_prop(goal), emit_cert(goal, proof)))
+
+
 def main():
     if sys.argv[1] == "--gen":
         gen(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
@@ -1117,6 +1151,9 @@ def main():
         return
     if sys.argv[1] == "--arithbatch":  # closed-arithmetic equality fuzz (validates nf vs the kernel)
         arithbatch(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
+        return
+    if sys.argv[1] == "--ineqbatch":  # contract-discharge bound fuzz (directed sum-witness + lemma emission)
+        ineqbatch(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
         return
     goal = parse(tokenize(sys.argv[1]))
     proof = solve(goal, int(sys.argv[2]) if len(sys.argv) > 2 else 16)
