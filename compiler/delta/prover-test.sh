@@ -108,6 +108,10 @@ ok "(All (= (m (v 0) z) z))"                                       # forall x. x
 ok "(All (= (m z (v 0)) z))"                                       # forall x. 0 * x = 0
 ok "(All (All (All (= (p (p (v 2) (v 1)) (v 0)) (p (v 2) (p (v 1) (v 0)))))))"  # (x+y)+z = x+(y+z)  associativity
 ok "(All (All (= (m (v 1) (v 0)) (m (v 0) (v 1)))))"               # forall x y. x * y = y * x   (mult-commutes)
+ok "(All (All (All (= (m (p (v 2) (v 1)) (v 0)) (p (m (v 2) (v 0)) (m (v 1) (v 0)))))))"  # (x+y)*a = x*a + y*a  (right-distributivity)
+# NB: mult-assoc ((a*b)*c=a*(b*c), discharge.rs id 28 -- the 7th banked lemma) stays OUT of reach: it needs a
+# deep mult induction, and a probe confirmed adding mult lemmas to the library does NOT unlock it (and dilutes
+# the directed-matching search enough to break other builds). It needs a stronger search, not more lemmas.
 # CONTRACT-DISCHARGE bound shapes (the realistic array-index / loop obligations, i=v0 len=v1)
 ok "(-> (Lt (v 0) (v 1)) (Le (s (v 0)) (v 1)))"        # i<len  =>  i+1<=len   (the core array-bounds step)
 ok "(-> (Le (s (v 0)) (v 1)) (Lt (v 0) (v 1)))"        # i+1<=len =>  i<len     (its inverse)
