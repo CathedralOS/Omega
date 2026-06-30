@@ -353,6 +353,63 @@ def prop_size(p):  # total term-node count in a proposition -- the rewrite size 
     return 0  # at, bot
 
 
+def _match_term(pat, t, subst):  # first-order MATCH: bind pattern holes (v i) to ground subterms of t; the
+    if pat[0] == "v":            # pattern's de Bruijn vars are the lemma's universally-bound variables
+        i = pat[1]
+        if i in subst:
+            return subst if subst[i] == t else None
+        s = dict(subst)
+        s[i] = t
+        return s
+    if pat[0] != t[0]:
+        return None
+    if pat[0] in ("z", "eig"):
+        return subst if pat == t else None
+    if pat[0] == "s":
+        return _match_term(pat[1], t[1], subst)
+    if pat[0] in ("p", "m"):
+        s = _match_term(pat[1], t[1], subst)
+        return _match_term(pat[2], t[2], s) if s is not None else None
+    return None
+
+
+def _fill(pat, subst):  # apply a hole substitution to a pattern term
+    if pat[0] == "v":
+        return subst[pat[1]]
+    if pat[0] == "s":
+        return ("s", _fill(pat[1], subst))
+    if pat[0] in ("p", "m"):
+        return (pat[0], _fill(pat[1], subst), _fill(pat[2], subst))
+    return pat
+
+
+def _subterms(t, out):  # every compound subterm of a term (candidates to match a lemma's LHS against)
+    out.append(t)
+    if t[0] == "s":
+        _subterms(t[1], out)
+    elif t[0] in ("p", "m"):
+        _subterms(t[1], out)
+        _subterms(t[2], out)
+
+
+def _prop_subterms(p):  # every term-subterm appearing in a proposition
+    out = []
+    h = p[0]
+    if h == "pred":
+        _subterms(p[2], out)
+    elif h == "rel":
+        _subterms(p[2], out)
+        _subterms(p[3], out)
+    elif h == "=":
+        _subterms(p[1], out)
+        _subterms(p[2], out)
+    elif h in ("all", "ex"):
+        out += _prop_subterms(p[1])
+    elif h in ("->", "&", "+"):
+        out += _prop_subterms(p[1]) + _prop_subterms(p[2])
+    return out
+
+
 def occurs_term(t, b):
     if t == b:
         return True
@@ -480,7 +537,47 @@ def cand_terms():  # witness/instantiation candidates: in-scope eigenvariables F
     return eigs + [("s", e) for e in eigs] + _candidates
 
 
-def solve(goal, _fuel=None):
+# ---- arithmetic LEMMA LIBRARY: a few universal facts (proved once by the prover itself, via natind) that a
+# goal can REUSE instead of re-deriving inline. Emitted as a `(def N prop proof)` prelude and cited by
+# `(use N)`. Two-phase solve: try WITHOUT lemmas first (so simple/closed goals stay lean), and only retry WITH
+# the library seeded as hypotheses when an arithmetic goal fails -- the multi-lemma case (y<=x+y, etc.). ----
+LEMMA_PROPS = [
+    ("all", ("=", ("p", ("v", 0), ("z",)), ("v", 0))),                                    # 0: x + 0 = x
+    ("all", ("all", ("=", ("p", ("v", 1), ("s", ("v", 0))), ("s", ("p", ("v", 1), ("v", 0)))))),  # 1: x+(s y)=s(x+y)
+    ("all", ("all", ("=", ("p", ("v", 1), ("v", 0)), ("p", ("v", 0), ("v", 1))))),        # 2: x + y = y + x
+]
+_lemma_cache = [None]   # built once: [(prop, proof_term), ...]
+_used_lemmas = [[]]     # the lemmas seeded into the LAST solve's certificate (emitted as the def-prelude)
+_active_lemmas = []     # peeled equality lemmas in scope: (arity, lhs, rhs, use_index) -- used by DIRECTED
+# matching (instantiate a lemma only where its LHS matches a goal subterm), never blind inst (which explodes)
+_induction_on = [False]  # natind only runs in phase 2 -- a DOOMED induction is expensive, and phase 1 should
+# fail fast so the (arithmetic) goal reaches phase 2; every induction-needing goal is arithmetic, so none is lost
+
+
+def _term_has_pm(t):
+    if t[0] in ("p", "m"):
+        return True
+    if t[0] == "s":
+        return _term_has_pm(t[1])
+    return False
+
+
+def _has_arith(p):  # does the proposition mention a plus/mult term? (then the lemma library may help)
+    h = p[0]
+    if h == "pred":
+        return _term_has_pm(p[2])
+    if h == "rel":
+        return _term_has_pm(p[2]) or _term_has_pm(p[3])
+    if h == "=":
+        return _term_has_pm(p[1]) or _term_has_pm(p[2])
+    if h in ("all", "ex"):
+        return _has_arith(p[1])
+    if h in ("->", "&", "+"):
+        return _has_arith(p[1]) or _has_arith(p[2])
+    return False
+
+
+def _setup(goal):  # reset per-solve state, close the goal's free vars to eigenvars, seed candidates
     _budget[0] = 30000   # real proofs are shallow; a smaller budget makes doomed searches give up fast (the
     #                      equality rewrite + conversion axiom raised the per-node cost) -- sound, just less complete
     _depth[0] = 0
@@ -488,19 +585,63 @@ def solve(goal, _fuel=None):
     _eigctr[0] = 0
     _opened[:] = []
     _ind_depth[0] = 0
-    # close the goal's free individual vars into eigenvars (level j -> a fresh eig). The base eigenvar stack
-    # lists them innermost-last so free-var level j renders back as (v j) at the top of the certificate.
     nfree = _max_free(goal)
     free_eigs = [fresh_eig() for _ in range(nfree)]
     base = list(reversed(free_eigs))
     _eigs[:] = base
     _base_ib[:] = base
-    goal = _close_free(goal, free_eigs)
-    _rw_cap[0] = prop_size(goal) + 30  # rewrites may grow a bit (transitivity through a larger term) but not unboundedly
+    cgoal = _close_free(goal, free_eigs)
+    _rw_cap[0] = prop_size(cgoal) + 30  # rewrites may grow a bit (transitivity through a larger term) but not unboundedly
     cands = {("z",)}  # z is always available as a default witness
-    ground_terms(goal, cands)
+    ground_terms(cgoal, cands)
     _candidates[:] = list(cands)
-    return prove([], goal)
+    return cgoal
+
+
+def _peel(prop):  # peel a universal-equality lemma to (arity, lhs, rhs) -- the bound vars become v0..v(arity-1)
+    arity = 0
+    while prop[0] == "all":
+        arity += 1
+        prop = prop[1]
+    return (arity, prop[1], prop[2]) if prop[0] == "=" else None
+
+
+def build_lemmas():  # prove each library lemma ONCE standalone (they are self-contained via natind), cache it
+    if _lemma_cache[0] is not None:
+        return _lemma_cache[0]
+    lemmas = []
+    _induction_on[0] = True   # the lemmas themselves are proved by induction
+    for prop in LEMMA_PROPS:
+        cg = _setup(prop)  # each lemma is closed; proved standalone (NOT with the others as inst-hyps, which
+        pf = prove([], cg)  # would explode the search before natind finishes)
+        if pf is not None:  # only keep lemmas the prover (hence the kernel) actually proves -- stays sound
+            lemmas.append((prop, pf))
+    _induction_on[0] = False
+    _lemma_cache[0] = lemmas
+    return lemmas
+
+
+def solve(goal, _fuel=None):
+    _active_lemmas[:] = []
+    _induction_on[0] = False         # phase 1: no induction (a doomed induction is slow) and no lemmas
+    cgoal = _setup(goal)
+    pf = prove([], cgoal)
+    if pf is not None:
+        _used_lemmas[0] = []
+        return pf
+    if _has_arith(cgoal):            # phase 2: retry with INDUCTION + the lemma library (directed matching)
+        lemmas = build_lemmas()
+        cgoal = _setup(goal)         # re-close (fresh eigenvars) now that the library is built
+        _active_lemmas[:] = [_peel(p) + (i,) for i, (p, _) in enumerate(lemmas) if _peel(p)]
+        _induction_on[0] = True
+        pf = prove([], cgoal)
+        _active_lemmas[:] = []
+        _induction_on[0] = False
+        if pf is not None:
+            _used_lemmas[0] = lemmas
+            return pf
+    _used_lemmas[0] = []
+    return None
 
 
 def prove(ctx, goal):
@@ -573,7 +714,7 @@ def _rules(sat, goal):
     # where the body needs the induction hypothesis. base : P(0); step : (All (P(n) -> P(s n))) [proved by gen
     # + the IH, usually after goal-normalisation exposes the reduced successor]. Nesting is capped so the
     # step's own universal can't trigger unbounded re-induction.
-    if goal[0] == "all" and _ind_depth[0] < _IND_CAP:
+    if goal[0] == "all" and _induction_on[0] and _ind_depth[0] < _IND_CAP:
         motive = goal[1]
         base_goal = subst0(motive, ("z",))
         step_goal = ("all", ("->", motive, subst0_keep(motive, ("s", ("v", 0)))))
@@ -708,6 +849,26 @@ def _rules(sat, goal):
                 if sub != goal:
                     syme = ("eqelim", ("=", ("v", 0), x), term, ("refl", x))
                     rewrites.append((prop_size(sub), mot, sub, syme))
+        # library-lemma rewrites: match a lemma's LHS against a goal subterm -> a directed rewrite Lσ -> Rσ,
+        # the equation proved by citing the lemma (use idx) instantiated at σ. Folding these into the same
+        # shrink-first list (instead of adding context facts) keeps the search bounded -- no fact explosion.
+        for arity, lhs, rhs, idx in _active_lemmas:
+            for sub_t in _prop_subterms(goal):
+                s = _match_term(lhs, sub_t, {})
+                if s is None or len(s) != arity:
+                    continue
+                ls, rs = _fill(lhs, s), _fill(rhs, s)
+                if ls == rs:
+                    continue
+                mot = abstract_prop(goal, ls)         # the goal contains Lσ; rewrite it to Rσ
+                sub = subst0(mot, rs)
+                if sub == goal:
+                    continue
+                pe = ("use", idx)
+                for j in range(arity - 1, -1, -1):  # instantiate the outermost binder first -> pe : (= Lσ Rσ)
+                    pe = ("inst", pe, s[j])
+                pe = ("eqelim", ("=", ("v", 0), ls), pe, ("refl", ls))  # sym(pe) : (= Rσ Lσ), the reading
+                rewrites.append((prop_size(sub), mot, sub, pe))         # eqelim needs to land mot[Lσ]=goal
         rewrites.sort(key=lambda r: r[0])
         for sz, mot, sub, pe in rewrites:
             if sz <= _rw_cap[0]:
@@ -721,6 +882,8 @@ def to_db(term, binders, ib=()):  # convert the named proof term to check.beta's
     h = term[0]                    # `binders` = hypothesis names; `ib` = eigenvar ids (individual binders)
     if h == "hyp":
         return "(hyp %d)" % (len(binders) - 1 - binders.index(term[1]))
+    if h == "use":  # cite a library lemma proved in the certificate's def-prelude
+        return "(use %d)" % term[1]
     if h == "lam":
         _, nm, prop, body = term
         return "(lam %s %s)" % (beta_prop(prop, ib), to_db(body, binders + [nm], ib))
@@ -759,6 +922,12 @@ def to_db(term, binders, ib=()):  # convert the named proof term to check.beta's
     return "(%s %s %s)" % (h, to_db(term[1], binders, ib), to_db(term[2], binders, ib))  # pair / app
 
 
+def emit_cert(goal, proof):  # the full certificate: the lemma def-prelude (if any), then the goal + its proof
+    prelude = "".join("(def %d %s %s) " % (i, beta_prop(p), to_db(lpf, [], ()))
+                      for i, (p, lpf) in enumerate(_used_lemmas[0]))
+    return "%s%s %s" % (prelude, beta_prop(goal), to_db(proof, [], tuple(_base_ib)))
+
+
 def gen(n, seed):  # print n random {->,&} propositions over P..U -- the prover's fuzz feed
     import random
     random.seed(seed)
@@ -792,7 +961,7 @@ def batch(n, seed, fuel):
         goal = random_prop(rng.randint(1, 4), rng)
         proof = solve(goal, fuel)
         if proof is not None:
-            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [], tuple(_base_ib))))
+            print("%s\t%s" % (beta_prop(goal), emit_cert(goal, proof)))
 
 
 # ---- FIRST-ORDER fuzz: stress the eigenvariable / de Bruijn emission in gen/inst/wit/unpack. Random
@@ -855,7 +1024,7 @@ def fobatch(n, seed):
         goal = random_foprop(rng)
         proof = solve(goal)
         if proof is not None:
-            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [], tuple(_base_ib))))
+            print("%s\t%s" % (beta_prop(goal), emit_cert(goal, proof)))
 
 
 # ---- ARITHMETIC fuzz: validates that nf() matches check.beta's `normalize` EXACTLY. Build a random closed
@@ -892,7 +1061,7 @@ def arithbatch(n, seed):
         goal = ("=", t, _numeral(v))
         proof = solve(goal)
         if proof is not None:
-            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [], tuple(_base_ib))))
+            print("%s\t%s" % (beta_prop(goal), emit_cert(goal, proof)))
 
 
 def main():
@@ -913,7 +1082,7 @@ def main():
     if proof is None:
         print("unprovable")
     else:
-        print("%s %s" % (beta_prop(goal), to_db(proof, [], tuple(_base_ib))))
+        print(emit_cert(goal, proof))
 
 
 if __name__ == "__main__":
