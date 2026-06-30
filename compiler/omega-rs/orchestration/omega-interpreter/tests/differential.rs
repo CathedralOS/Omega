@@ -214,6 +214,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_whole_array_value_copy_exit", 70),
     ("collections/runtime_nested_array_const_index_exit", 70),
     ("collections/runtime_row_const_column_write_exit", 70),
+    ("collections/runtime_indexed_read_then_guard_exit", 70),
     ("collections/runtime_nested_struct_array_field_exit", 70),
     ("collections/runtime_binary_search_exit", 70),
     ("collections/runtime_2d_transpose_exit", 70),

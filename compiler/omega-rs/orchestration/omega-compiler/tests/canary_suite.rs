@@ -5255,6 +5255,35 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_read_then_guard_exit_canary_runs() {
+    // The sound pattern for guarding a runtime-indexed array element: read it into a place first,
+    // then compare that place (a direct `transition nums[i] > 5` silently takes the first arm).
+    // nums[2]=9 -> v=9 -> 9>5 true -> exit 70; a dropped index would read nums[0]=1 -> 71.
+    let canary = pass_canary("collections/runtime_indexed_read_then_guard_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-indexed-read-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-read-then-guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-read-then-guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected runtime-indexed read into a place then guard (nums[2]=9>5) to exit 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_row_const_column_write_exit_canary_runs() {
     // The working side of the 2D-write boundary: a runtime ROW index with a CONST column
     // (`grid[r][0]`, `grid[r][1]`) lowers correctly. Fill both columns of both rows by runtime row,
