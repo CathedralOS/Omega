@@ -194,6 +194,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_ring_buffer_queue_exit", 70),
     ("collections/runtime_matrix_multiply_exit", 70),
     ("collections/runtime_hash_table_exit", 70),
+    ("collections/runtime_bfs_traversal_exit", 70),
     ("collections/runtime_indexed_through_guard_chain_exit", 70),
     ("collections/runtime_two_pointer_palindrome_exit", 70),
     ("comptime/runtime_const_array_length_exit", 70),

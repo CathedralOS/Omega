@@ -4564,6 +4564,34 @@ fn runtime_rpn_evaluator_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_bfs_traversal_exit_canary_runs() {
+    // Breadth-first search over a 4-node graph (adjacency matrix + FIFO queue + visited
+    // set): from node 0 the frontier expands level by level, visit order 0,1,2,3, all four
+    // reached -> exit 70.
+    let canary = pass_canary("collections/runtime_bfs_traversal_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-bfs-traversal-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bfs traversal canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bfs traversal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected BFS to visit 0,1,2,3 in order and reach all 4 nodes (exit 70); got {:?} (the visit count on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_hash_table_exit_canary_runs() {
     // An open-addressing hash table with linear probing (the associative map): parallel
     // keys/vals/used arrays, hash k%8, probe forward with wrap past occupied slots, look
