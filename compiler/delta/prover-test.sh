@@ -67,6 +67,14 @@ ok "(= (m (s (s z)) (s (s z))) (s (s (s (s z)))))"      # 2*2=4
 ok "(All (= (p z (v 0)) (v 0)))"                        # forall x. 0+x = x   (symbolic: p z b => b)
 ok "(-> (Pred 0 (p (s z) (s z))) (Pred 0 (s (s z))))"   # conversion axiom: P(1+1) |- P(2)
 ok "(-> (= (p (s z) (s z)) (v 0)) (= (s (s z)) (v 0)))" # conversion inside an equality hypothesis
+# equality REWRITING (eqelim / Leibniz transport): sym, trans, congruence, transport -- all one rule
+ok "(-> (= (s z) (s (s z))) (= (s (s z)) (s z)))"                          # symmetry
+ok "(-> (& (= (s z) (s (s z))) (= (s (s z)) z)) (= (s z) z))"              # transitivity
+ok "(-> (= (s z) (s (s z))) (= (s (s z)) (s (s (s z)))))"                  # congruence under s
+ok "(-> (& (Pred 0 (s z)) (= (s z) (s (s z)))) (Pred 0 (s (s z))))"        # transport: P(a), a=b |- P(b)
+ok "(-> (& (Pred 0 (s (s z))) (= (s z) (s (s z)))) (Pred 0 (s z)))"        # transport, reverse orientation
+ok "(-> (& (Rel 0 (s z) z) (= (s z) (s (s z)))) (Rel 0 (s (s z)) z))"      # rewrite one relation argument
+ok "(-> (& (= (s z) z) (Pred 0 (p (s z) (s (s z))))) (Pred 0 (p z (s (s z)))))"  # rewrite a subterm of a p-term
 # non-tautologies: provability must fail (soundness of the front line)
 no "(Exists (Pred 0 (v 0)))"                            # no witness available -> unprovable
 no "(-> (Exists (Pred 0 (v 0))) (Pred 0 (s z)))"        # eigenvariable must NOT escape the unpack
@@ -74,6 +82,7 @@ no "(-> (Exists (Pred 0 (v 0))) (All (Pred 0 (v 0))))"  # exists does NOT give f
 no "(= (s z) z)"                                        # 1 != 0    (refl must NOT fire)
 no "(= (p (s z) (s z)) (s z))"                          # 1+1 != 1
 no "(-> (Pred 0 (s z)) (Pred 0 (s (s z))))"             # P(1) does NOT give P(2)
+no "(-> (= (s z) (s (s z))) (= z (s z)))"               # rewriting 1=2 does NOT yield 0=1 (and terminates)
 no "(-> P Q)"
 no "(& P P)"
 no "(-> (-> P Q) P)"
