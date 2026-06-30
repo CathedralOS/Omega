@@ -50,6 +50,7 @@ if command -v python3 >/dev/null 2>&1; then
   step "tool — proof elaborator (named binders -> check.beta)" delta elab-test.sh
   step "tool — elaborator/de-elaborator round-trip on the corpus" delta delab-roundtrip.sh
   step "tool — proof-search front line (prover discharges; check.beta validates)" delta prover-test.sh
+  step "tool — prover diamond (prover certs accepted by check.beta AND checker.gamma)" delta prover-diamond.sh
 fi
 
 echo ""
