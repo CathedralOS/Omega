@@ -997,6 +997,95 @@ def emit_cert(goal, proof):  # the full certificate: the lemma def-prelude (if a
     return "%s%s %s" % (prelude, beta_prop(goal), to_db(proof, [], tuple(_base_ib)))
 
 
+# ---- A SECOND emission target: checker.gamma's input syntax (algebraic-data constructors, run on the gamma
+# reference interpreter). The PROVER DIAMOND runs each emitted cert through BOTH check.beta and checker.gamma
+# -- two independently-written checkers at different rungs -- so the prover's actual cert shapes (not just
+# random fuzzed proofs) must pass both. A syntactic mirror of beta_term/beta_prop/to_db; same de Bruijn, only
+# the constructor names differ (and propositional atoms become integers). The lemma `(def N)/(use N)` prelude
+# has no gamma analogue, so lemma-using certs are reported "unsupported" and skipped by the diamond. ----
+def _atom_id(name, atoms):
+    if name not in atoms:
+        atoms[name] = len(atoms)
+    return atoms[name]
+
+
+def gamma_term(t, ib=(), depth=0):
+    if t[0] == "z":
+        return "Ze"
+    if t[0] == "s":
+        return "(Su %s)" % gamma_term(t[1], ib, depth)
+    if t[0] in ("p", "m"):
+        return "(%s %s %s)" % ("Pl" if t[0] == "p" else "Mu", gamma_term(t[1], ib, depth), gamma_term(t[2], ib, depth))
+    if t[0] == "eig":
+        return "(Iv %d)" % (depth + len(ib) - 1 - list(ib).index(t[1]))
+    return "(Iv %d)" % t[1]
+
+
+def gamma_prop(p, atoms, ib=(), depth=0):
+    h = p[0]
+    if h == "at":
+        return "(Atom %d)" % _atom_id(p[1], atoms)
+    if h == "bot":
+        return "Bot"
+    if h == "pred":
+        return "(Pred %d %s)" % (p[1], gamma_term(p[2], ib, depth))
+    if h == "rel":
+        return "(Rel %d %s %s)" % (p[1], gamma_term(p[2], ib, depth), gamma_term(p[3], ib, depth))
+    if h == "=":
+        return "(Eq %s %s)" % (gamma_term(p[1], ib, depth), gamma_term(p[2], ib, depth))
+    if h in ("all", "ex"):
+        return "(%s %s)" % ("All" if h == "all" else "Exists", gamma_prop(p[1], atoms, ib, depth + 1))
+    return "(%s %s %s)" % ({"->": "Arrow", "&": "And", "+": "Or"}[h],
+                           gamma_prop(p[1], atoms, ib, depth), gamma_prop(p[2], atoms, ib, depth))
+
+
+def to_gamma(term, binders, atoms, ib=()):
+    h = term[0]
+    if h == "hyp":
+        return "(Hyp %d)" % (len(binders) - 1 - binders.index(term[1]))
+    if h == "lam":
+        _, nm, prop, body = term
+        return "(Lam %s %s)" % (gamma_prop(prop, atoms, ib), to_gamma(body, binders + [nm], atoms, ib))
+    if h in ("fst", "snd"):
+        return "(%s %s)" % (h.capitalize(), to_gamma(term[1], binders, atoms, ib))
+    if h in ("inl", "inr"):
+        return "(%s %s %s)" % (h.capitalize(), gamma_prop(term[1], atoms, ib), to_gamma(term[2], binders, atoms, ib))
+    if h == "absurd":
+        return "(Absurd %s %s)" % (gamma_prop(term[1], atoms, ib), to_gamma(term[2], binders, atoms, ib))
+    if h == "case":
+        return "(Case %s %s %s)" % (to_gamma(term[1], binders, atoms, ib), to_gamma(term[2], binders, atoms, ib), to_gamma(term[3], binders, atoms, ib))
+    if h == "refl":
+        return "(Refl %s)" % gamma_term(term[1], ib)
+    if h in ("disj", "sinj"):
+        return "(%s %s)" % (h.capitalize(), to_gamma(term[1], binders, atoms, ib))
+    if h == "gen":
+        _, e, body = term
+        return "(Gen %s)" % to_gamma(body, binders, atoms, tuple(ib) + (e,))
+    if h == "inst":
+        return "(Inst %s %s)" % (to_gamma(term[1], binders, atoms, ib), gamma_term(term[2], ib))
+    if h == "wit":
+        return "(Wit %s %s %s)" % (gamma_prop(term[1], atoms, ib, 1), gamma_term(term[2], ib), to_gamma(term[3], binders, atoms, ib))
+    if h == "eqelim":
+        _, mot, pe, pa = term
+        return "(Eqelim %s %s %s)" % (gamma_prop(mot, atoms, ib, 1), to_gamma(pe, binders, atoms, ib), to_gamma(pa, binders, atoms, ib))
+    if h == "unpack":
+        _, exterm, body, e, nm, pf = term
+        ib2 = tuple(ib) + (e,)
+        return "(Unpack %s (Gen (Lam %s %s)))" % (to_gamma(exterm, binders, atoms, ib), gamma_prop(body, atoms, ib2), to_gamma(pf, binders + [nm], atoms, ib2))
+    if h == "use":
+        raise ValueError("lemma `use` has no gamma-checker analogue")
+    return "(%s %s %s)" % ({"pair": "Pair", "app": "App"}[h], to_gamma(term[1], binders, atoms, ib), to_gamma(term[2], binders, atoms, ib))
+
+
+def emit_gamma(goal, proof):  # `(check PROOF GOAL)` for checker.gamma; None if the cert cites a library lemma
+    if _used_lemmas[0]:
+        return None
+    atoms = {}
+    g = gamma_prop(goal, atoms)                  # goal first, so its atoms get stable ids
+    p = to_gamma(proof, [], atoms, tuple(_base_ib))
+    return "(check %s %s)" % (p, g)
+
+
 def gen(n, seed):  # print n random {->,&} propositions over P..U -- the prover's fuzz feed
     import random
     random.seed(seed)
@@ -1182,6 +1271,15 @@ def main():
         return
     if sys.argv[1] == "--ineqbatch":  # contract-discharge bound fuzz (directed sum-witness + lemma emission)
         ineqbatch(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
+        return
+    if sys.argv[1] == "--gamma":  # emit the cert in checker.gamma syntax (for the prover diamond)
+        goal = parse(tokenize(sys.argv[2]))
+        proof = solve(goal)
+        if proof is None:
+            print("unprovable")
+        else:
+            g = emit_gamma(goal, proof)
+            print(g if g is not None else "unsupported")  # lemma-using cert: no gamma analogue
         return
     goal = parse(tokenize(sys.argv[1]))
     proof = solve(goal, int(sys.argv[2]) if len(sys.argv) > 2 else 16)
