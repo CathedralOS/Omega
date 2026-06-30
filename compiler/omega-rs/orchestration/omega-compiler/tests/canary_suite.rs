@@ -4340,6 +4340,35 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_float_negative_ops_exit_canary_runs() {
+    // Float operations with negatives -- comparisons (the ucomisd unsigned-flags case),
+    // a negative float->int cast (truncation toward zero), and a negative multiply.
+    // Exits 70.
+    let canary = pass_canary("arithmetic/runtime_float_negative_ops_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-negative-ops-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float negative ops canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float negative ops canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected float compares/cast/multiply with negatives to be correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_gcd_euclid_exit_canary_runs() {
     // The iterative Euclidean GCD: `(a,b) = (b, a%b)` until b==0. gcd(1071,462)=21.
     // A two-variable loop with a runtime modulo; self-checks the result -> exit 70.
