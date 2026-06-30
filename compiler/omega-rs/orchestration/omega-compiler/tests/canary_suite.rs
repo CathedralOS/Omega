@@ -9229,6 +9229,36 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_struct_state_machine_exit_canary_runs() {
+    // A state machine whose state lives in nested structs: a nested-vs-nested guard
+    // subject, nested-field RMW, a cross-struct write, and a two-way nested verify. The
+    // runtime-indexed-ARRAY guard bug does NOT extend to member paths -- these resolve the
+    // correct field. Sums 1..5 = 15 -> exit 70.
+    let canary = pass_canary("structs/runtime_nested_struct_state_machine_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-struct-sm-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested struct state machine canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested struct state machine canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the nested-struct state machine to sum 1..5 = 15 (exit 70); got {:?} (a non-70 code is the bad sum)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_nested_struct_value_semantics_exit_canary_runs() {
     // Deep nesting + whole-struct value semantics: a 3-level nested field read AND
     // write, a whole-struct copy by assignment, and copy independence (overwriting the

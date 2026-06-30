@@ -1,0 +1,55 @@
+// A state machine whose STATE lives in nested structs -- the hierarchical-state pattern a
+// real entity/agent is built from. Exercises every nested-member operation the codegen
+// must get right (the runtime-indexed-ARRAY guard bug does NOT extend to member paths --
+// these all resolve the correct field): a nested-vs-nested GUARD subject
+// (`self.acc.n < self.rng.hi`), nested-field RMW (`self.acc.n = self.acc.n + 1`,
+// `self.acc.sum = self.acc.sum + self.acc.n`), a CROSS-struct write (`self.rng.lo =
+// self.acc.sum`), and a two-way nested verify. Sums 1..5 = 15 -> exit 70. Wrapping so it
+// stays valid regardless of the (design-gated) nested-field exact-arith decision.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Acc {
+    sum: i32 in Wrapping;
+    n: i32 in Wrapping;
+}
+
+data Range {
+    lo: i32 in Wrapping;
+    hi: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    acc: Acc;
+    rng: Range;
+}
+
+machine Main::main(&mut self) {
+    self.acc = Acc { sum: 0, n: 0 };
+    self.rng = Range { lo: 1, hi: 5 };
+    transition { _ -> loop() }
+
+    // nested-vs-nested guard subject
+    state loop(&mut self) {
+        transition self.acc.n < self.rng.hi { true -> step() _ -> finish() }
+    }
+    // nested-field RMW (two)
+    state step(&mut self) {
+        self.acc.n = self.acc.n + 1;
+        self.acc.sum = self.acc.sum + self.acc.n;
+        transition { _ -> loop() }
+    }
+    state finish(&mut self) {
+        // cross-struct write: stash the accumulated sum in the other struct
+        self.rng.lo = self.acc.sum;
+        transition self.rng.lo == 15 && self.acc.n == 5 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.acc.sum); // surface the bad sum on regression
+    }
+}
