@@ -1,0 +1,23 @@
+// FAIL canary (#40 boundary guard): a shift operator (<< or >>) used directly in a GUARD
+// SUBJECT is not yet lowerable, and the dispatch-guard blocker rejects it CLEANLY rather
+// than silently miscompiling. Value-position shifts work fully -- the sound workaround is to
+// bind the shifted value to a local first: `self.r = self.x >> 2; transition self.r == 2`.
+// This canary pins the #40 boundary: if shift-in-guard ever COMPILES (a silent miscompile),
+// this test -- which expects rejection -- fails, surfacing the regression. (Remove or
+// repurpose when shifts in guard subjects are supported -- the operand-signedness threading
+// fix; see memory bitwise-operators.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    x: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.x = 8;
+    transition self.x >> 2 == 2 { true -> g() _ -> b() }
+    state g(&mut self) { self.console.exit_process(70); }
+    state b(&mut self) { self.console.exit_process(71); }
+}
