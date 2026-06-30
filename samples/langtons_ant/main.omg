@@ -1,0 +1,195 @@
+// Langton's Ant -- a famous (Turing-complete!) cellular automaton in which a single agent
+// following a trivial local rule produces emergent structure. The ant sits on a cell of a
+// two-color grid: on a WHITE cell it turns right, paints the cell black, and steps forward;
+// on a BLACK cell it turns left, paints it white, and steps forward. From an empty grid
+// this builds a chaotic-but-symmetric blob (and, after ~10k steps, a self-organizing
+// "highway"). DETERMINISTIC -- no PRNG -- so the harness sees stable output. The toroidal
+// grid wraps at the edges. Demonstrates Omega running a real agent simulation: a flat grid
+// as mutable state, a direction dispatch, in-place cell mutation, and animated rendering
+// ('#' = black cell, '@' = ant). Pure compute + stdout + Clock.sleep; no new features.
+// Expected exit: 0.
+// Expected output contains: @
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 24]::Utf8 when valid_utf8(self) {}
+domain [u8; 3]::Utf8 when valid_utf8(self) {}
+domain [u8; 2]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    grid: [i32; 336] in Wrapping; // 24 x 14 cell colors (0=white, 1=black)
+    home: [u8; 3] in Utf8;
+    line: [u8; 24] in Utf8;
+    chars: [u8; 2] in Utf8;       // " #" white / black
+    ax: i32 in Wrapping;          // ant column
+    ay: i32 in Wrapping;          // ant row
+    ad: i32 in Wrapping;          // ant direction 0=up 1=right 2=down 3=left
+    flat: i32 in Wrapping;
+    c: i32 in Wrapping;           // current cell color
+    k: i32 in Wrapping;
+    gen: i32 in Wrapping;
+    ry: i32 in Wrapping;
+    cx: i32 in Wrapping;
+    v: i32 in Wrapping;
+    glyph: u8;
+}
+
+machine Main::main(&mut self) {
+    self.ax = 12;
+    self.ay = 7;
+    self.ad = 0;
+    self.chars = " #";
+    self.home = "XXX";
+    self.home[0] = 27;
+    self.home[1] = 91;
+    self.home[2] = 72;
+    self.line = "                        ";
+    self.k = 0;
+    self.gen = 0;
+    transition { _ -> clear() }
+
+    state clear(&mut self) {
+        transition self.k >= 0 && self.k < 336 { true -> clear_cell() _ -> show() }
+    }
+    state clear_cell(&mut self) {
+        self.grid[self.k] = 0;
+        self.k = self.k + 1;
+        transition { _ -> clear() }
+    }
+
+    // --- render grid + ant in place ---
+    state show(&mut self) {
+        self.console.write(self.home);
+        self.ry = 0;
+        transition { _ -> show_row() }
+    }
+    state show_row(&mut self) {
+        transition self.ry >= 0 && self.ry < 14 { true -> show_col_init() _ -> show_done() }
+    }
+    state show_col_init(&mut self) {
+        self.cx = 0;
+        transition { _ -> show_col() }
+    }
+    state show_col(&mut self) {
+        transition self.cx >= 0 && self.cx < 24 { true -> show_cell() _ -> emit_row() }
+    }
+    state show_cell(&mut self) {
+        transition self.ry == self.ay && self.cx == self.ax { true -> put_ant() _ -> put_cell() }
+    }
+    state put_ant(&mut self) {
+        self.line[self.cx] = 64; // '@'
+        self.cx = self.cx + 1;
+        transition { _ -> show_col() }
+    }
+    state put_cell(&mut self) {
+        self.flat = self.ry * 24 + self.cx;
+        transition self.flat >= 0 && self.flat < 336 { true -> put_cell_r() _ -> bad() }
+    }
+    state put_cell_r(&mut self) {
+        self.v = self.grid[self.flat];
+        transition self.v >= 0 && self.v < 2 { true -> put_cell_g() _ -> bad() }
+    }
+    state put_cell_g(&mut self) {
+        self.glyph = self.chars[self.v];
+        self.line[self.cx] = self.glyph;
+        self.cx = self.cx + 1;
+        transition { _ -> show_col() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        self.ry = self.ry + 1;
+        transition { _ -> show_row() }
+    }
+    state show_done(&mut self) {
+        self.console.sleep(45);
+        transition { _ -> step() }
+    }
+
+    // --- one ant step: read cell, turn + flip, move forward (toroidal) ---
+    state step(&mut self) {
+        transition self.gen < 120 { true -> rule() _ -> finish() }
+    }
+    state rule(&mut self) {
+        self.flat = self.ay * 24 + self.ax;
+        transition self.flat >= 0 && self.flat < 336 { true -> rule_read() _ -> bad() }
+    }
+    state rule_read(&mut self) {
+        self.c = self.grid[self.flat];
+        transition self.c == 0 { true -> on_white() _ -> on_black() }
+    }
+    // white cell: paint black, turn right (ad + 1)
+    state on_white(&mut self) {
+        self.grid[self.flat] = 1;
+        self.ad = self.ad + 1;
+        transition self.ad > 3 { true -> wrap_r() _ -> move_ant() }
+    }
+    state wrap_r(&mut self) {
+        self.ad = 0;
+        transition { _ -> move_ant() }
+    }
+    // black cell: paint white, turn left (ad - 1)
+    state on_black(&mut self) {
+        self.grid[self.flat] = 0;
+        self.ad = self.ad - 1;
+        transition self.ad < 0 { true -> wrap_l() _ -> move_ant() }
+    }
+    state wrap_l(&mut self) {
+        self.ad = 3;
+        transition { _ -> move_ant() }
+    }
+
+    // move forward by ad, wrapping toroidally
+    state move_ant(&mut self) {
+        transition self.ad == 0 { true -> go_up() _ -> move1() }
+    }
+    state move1(&mut self) {
+        transition self.ad == 1 { true -> go_right() _ -> move2() }
+    }
+    state move2(&mut self) {
+        transition self.ad == 2 { true -> go_down() _ -> go_left() }
+    }
+    state go_up(&mut self) {
+        self.ay = self.ay - 1;
+        transition self.ay < 0 { true -> wrap_ay_hi() _ -> advance() }
+    }
+    state wrap_ay_hi(&mut self) {
+        self.ay = 13;
+        transition { _ -> advance() }
+    }
+    state go_down(&mut self) {
+        self.ay = self.ay + 1;
+        transition self.ay > 13 { true -> wrap_ay_lo() _ -> advance() }
+    }
+    state wrap_ay_lo(&mut self) {
+        self.ay = 0;
+        transition { _ -> advance() }
+    }
+    state go_left(&mut self) {
+        self.ax = self.ax - 1;
+        transition self.ax < 0 { true -> wrap_ax_hi() _ -> advance() }
+    }
+    state wrap_ax_hi(&mut self) {
+        self.ax = 23;
+        transition { _ -> advance() }
+    }
+    state go_right(&mut self) {
+        self.ax = self.ax + 1;
+        transition self.ax > 23 { true -> wrap_ax_lo() _ -> advance() }
+    }
+    state wrap_ax_lo(&mut self) {
+        self.ax = 0;
+        transition { _ -> advance() }
+    }
+    state advance(&mut self) {
+        self.gen = self.gen + 1;
+        transition { _ -> show() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
