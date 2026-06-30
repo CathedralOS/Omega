@@ -1,0 +1,61 @@
+// A bitset: a set of small integers stored as bits of a single u32 (bit k set <=> k is in the set).
+// Insert is `bits |= 1 << k`; membership is `(bits >> k) & 1`. We insert {3, 5, 7} (one mask built
+// by a runtime shift of a value read by runtime index), giving bits = 8|32|128 = 168, then check
+// membership: 5 present, 4 absent, 7 present. A real data structure over the bitwise ops -- the same
+// primitives a flag set or a Bloom-filter word uses. Exits 70 iff all three checks pass.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    vals: [u32 in Wrapping; 3];
+    bits: u32 in Wrapping;
+    i: u32 in Wrapping;
+    mask: u32 in Wrapping;
+    test: u32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.vals[0] = 3;
+    self.vals[1] = 5;
+    self.vals[2] = 7;
+    self.bits = 0;
+    self.i = 0;
+    transition { _ -> ins_step() }
+
+    // Insert each value: bits |= 1 << vals[i].
+    state ins_step(&mut self) {
+        transition self.i < 3 {
+            true -> insert()
+            _ -> check5()
+        }
+    }
+    state insert(&mut self) {
+        self.mask = 1;
+        self.mask = self.mask << self.vals[self.i];
+        self.bits = self.bits | self.mask;
+        self.i = self.i + 1;
+        transition { _ -> ins_step() }
+    }
+
+    // Membership: (bits >> k) & 1.
+    state check5(&mut self) {
+        self.test = self.bits >> 5;
+        self.test = self.test & 1;
+        transition self.test == 1 { true -> check4() _ -> bad() }
+    }
+    state check4(&mut self) {
+        self.test = self.bits >> 4;
+        self.test = self.test & 1;
+        transition self.test == 0 { true -> check7() _ -> bad() }
+    }
+    state check7(&mut self) {
+        self.test = self.bits >> 7;
+        self.test = self.test & 1;
+        transition self.test == 1 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
