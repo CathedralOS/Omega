@@ -1,0 +1,105 @@
+// A dice-roll frequency chart -- a data-analytics output: roll 60 dice from the xorshift32
+// PRNG, tally how often each face 1..6 comes up, and render the distribution as a labeled
+// bar chart. Distinct from samples/histogram (which only counts and exits a number) and
+// from sort_visualizer (which bars array values): this RENDERS a frequency distribution of
+// random data, the kind of chart a real analytics tool emits. Composes the PRNG, the
+// temp-field indexed read-modify-write tally (counts[v] = counts[v] + 1 via a field), and
+// the bar-drawing render. Deterministic from the seed: the faces tally to 8,13,6,11,11,11.
+// Pure compute + stdout, no new features.
+// Expected exit: 0.
+// Expected output contains: #
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 24]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    counts: [i32; 6] in Wrapping;
+    line: [u8; 24] in Utf8;
+    st: u32 in Wrapping;   // xorshift state
+    sc: u32 in Wrapping;
+    n: i32 in Wrapping;    // roll index
+    v: i32 in Wrapping;    // face 0..5
+    cv: i32 in Wrapping;   // counts[v]
+    nc: i32 in Wrapping;   // cv + 1
+    // render
+    val: i32 in Wrapping;  // face 0..5 being drawn
+    cnt: i32 in Wrapping;
+    k: i32 in Wrapping;
+    bo: i32 in Wrapping;   // bar offset
+    lab: u8;
+}
+
+machine Main::main(&mut self) {
+    self.counts = [0, 0, 0, 0, 0, 0];
+    self.line = "                        ";
+    self.st = 1;
+    self.n = 0;
+    transition { _ -> roll_loop() }
+
+    // --- roll 60 dice, tally each face ---
+    state roll_loop(&mut self) {
+        transition self.n >= 0 && self.n < 60 { true -> roll() _ -> draw_init() }
+    }
+    state roll(&mut self) {
+        self.sc = self.st << 13;
+        self.st = self.st ^ self.sc;
+        self.sc = self.st >> 17;
+        self.st = self.st ^ self.sc;
+        self.sc = self.st << 5;
+        self.st = self.st ^ self.sc;
+        self.v = self.st % 6;
+        transition self.v >= 0 && self.v < 6 { true -> tally() _ -> bad() }
+    }
+    state tally(&mut self) {
+        self.cv = self.counts[self.v];
+        self.nc = self.cv + 1;
+        self.counts[self.v] = self.nc;
+        self.n = self.n + 1;
+        transition { _ -> roll_loop() }
+    }
+
+    // --- render the bar chart, one row per face ---
+    state draw_init(&mut self) {
+        self.val = 0;
+        transition { _ -> draw_loop() }
+    }
+    state draw_loop(&mut self) {
+        transition self.val >= 0 && self.val < 6 { true -> draw_row() _ -> finish() }
+    }
+    state draw_row(&mut self) {
+        // clear, then label "v: " at the start
+        self.lab = (self.val + 49) as u8; // '1'..'6'
+        self.line = "                        ";
+        self.line[0] = self.lab;
+        self.line[1] = 58; // ':'
+        self.cnt = self.counts[self.val];
+        self.k = 0;
+        transition { _ -> bar_loop() }
+    }
+    state bar_loop(&mut self) {
+        transition self.k >= 0 && self.k < self.cnt { true -> bar_cell() _ -> emit_row() }
+    }
+    state bar_cell(&mut self) {
+        self.bo = self.k + 3;
+        transition self.bo >= 0 && self.bo < 24 { true -> bar_write() _ -> emit_row() }
+    }
+    state bar_write(&mut self) {
+        self.line[self.bo] = 35; // '#'
+        self.k = self.k + 1;
+        transition { _ -> bar_loop() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        self.val = self.val + 1;
+        transition { _ -> draw_loop() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
