@@ -1,0 +1,125 @@
+// A bubble-sort VISUALIZER: eight values drawn as horizontal bars (a row of '#' whose
+// length is the value), re-rendered in place after every pass so you watch the array
+// settle from jumbled into an ascending staircase. The first ALGORITHM-in-motion sample
+// that mutates a data array on screen (binary_search_viz only narrows a range; this
+// actually reorders storage). Sort logic is the proven bubble_sort canary: the adjacent
+// index `j+1` computed into a field `jp` (a computed index is refused in a subscript),
+// the two elements read into fields and compared (a direct `arr[j] > arr[j+1]` guard is
+// the two-runtime-operand gap), the swap writing the read values back. Pure compute +
+// stdout + Clock.sleep; no new compiler features.
+// Expected exit: 0.
+// Expected output contains: #
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 8]::Utf8 when valid_utf8(self) {}
+domain [u8; 3]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    arr: [i32; 8] in Trapping;
+    home: [u8; 3] in Utf8;
+    line: [u8; 8] in Utf8;
+    i: i32 in Trapping;    // outer pass
+    j: i32 in Trapping;    // inner index
+    lim: i32 in Trapping;  // inner bound (shrinks each pass)
+    jp: i32 in Trapping;   // j + 1
+    vj: i32 in Trapping;   // arr[j]
+    vk: i32 in Trapping;   // arr[jp]
+    ry: i32 in Trapping;   // render row
+    cx: i32 in Trapping;   // render column
+    val: i32 in Trapping;  // bar length for the current row
+}
+
+machine Main::main(&mut self) {
+    self.arr = [5, 2, 8, 1, 7, 3, 6, 4];
+    self.home = "XXX";
+    self.home[0] = 27;
+    self.home[1] = 91;
+    self.home[2] = 72;
+    self.line = "        ";
+    self.i = 0;
+    transition { _ -> show() }
+
+    // --- render the array as bars, in place ---
+    state show(&mut self) {
+        self.console.write(self.home);
+        self.ry = 0;
+        transition { _ -> show_row() }
+    }
+    state show_row(&mut self) {
+        transition self.ry >= 0 && self.ry < 8 { true -> show_col_init() _ -> show_done() }
+    }
+    state show_col_init(&mut self) {
+        self.val = self.arr[self.ry];
+        self.cx = 0;
+        transition { _ -> show_col() }
+    }
+    state show_col(&mut self) {
+        transition self.cx >= 0 && self.cx < 8 { true -> show_cell() _ -> emit_row() }
+    }
+    state show_cell(&mut self) {
+        transition self.cx < self.val { true -> cell_bar() _ -> cell_gap() }
+    }
+    state cell_bar(&mut self) {
+        self.line[self.cx] = 35; // '#'
+        self.cx = self.cx + 1;
+        transition { _ -> show_col() }
+    }
+    state cell_gap(&mut self) {
+        self.line[self.cx] = 32; // ' '
+        self.cx = self.cx + 1;
+        transition { _ -> show_col() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        self.ry = self.ry + 1;
+        transition { _ -> show_row() }
+    }
+    state show_done(&mut self) {
+        self.console.sleep(180);
+        transition { _ -> step() }
+    }
+
+    // --- one bubble-sort pass, then loop back to re-render ---
+    state step(&mut self) {
+        transition self.i < 7 { true -> inner_init() _ -> finish() }
+    }
+    state inner_init(&mut self) {
+        self.lim = 7 - self.i;
+        self.j = 0;
+        transition { _ -> inner() }
+    }
+    state inner(&mut self) {
+        transition self.j >= 0 && self.j < self.lim { true -> compare() _ -> outer_next() }
+    }
+    state compare(&mut self) {
+        self.jp = self.j + 1;
+        transition self.j >= 0 && self.j < 8 && self.jp >= 0 && self.jp < 8 {
+            true -> read()
+            _ -> finish()
+        }
+    }
+    state read(&mut self) {
+        self.vj = self.arr[self.j];
+        self.vk = self.arr[self.jp];
+        transition self.vj > self.vk { true -> swap() _ -> inner_next() }
+    }
+    state swap(&mut self) {
+        self.arr[self.j] = self.vk;
+        self.arr[self.jp] = self.vj;
+        transition { _ -> inner_next() }
+    }
+    state inner_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> inner() }
+    }
+    state outer_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> show() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+}
