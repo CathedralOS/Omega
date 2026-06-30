@@ -90,6 +90,12 @@ ok "(-> (Lt (v 0) (v 1)) (Le (v 0) (v 1)))"            # weakening x<y |- x<=y (
 # free individual variables, closed to eigenvars, emitted under wit/unpack binders (regression for the fix)
 ok "(-> (Pred 0 (v 0)) (Exists (Pred 0 (v 0))))"                                  # exists-intro, free witness
 ok "(-> (Exists (& (Pred 0 (v 0)) (Rel 0 (v 0) (v 1)))) (Exists (Pred 0 (v 0))))" # unpack with a free var
+# arithmetic LEMMAS via Peano induction (natind): base P(0) + step P(n)->P(s n), the step closed by the IH
+# after goal-normalisation exposes the reduced successor. The whole multi-step cert is kernel-checked.
+ok "(All (= (p (v 0) z) (v 0)))"                                    # forall x. x + 0 = x
+ok "(All (All (= (p (v 1) (s (v 0))) (s (p (v 1) (v 0))))))"        # forall x y. x + (s y) = s(x + y)
+ok "(All (Le (v 0) (v 0)))"                                         # forall x. x <= x  (symbolic, was blocked)
+ok "(All (All (= (p (v 1) (v 0)) (p (v 0) (v 1)))))"               # forall x y. x + y = y + x (commutativity)
 # non-tautologies: provability must fail (soundness of the front line)
 no "(Exists (Pred 0 (v 0)))"                            # no witness available -> unprovable
 no "(-> (Exists (Pred 0 (v 0))) (Pred 0 (s z)))"        # eigenvariable must NOT escape the unpack
@@ -98,6 +104,7 @@ no "(= (s z) z)"                                        # 1 != 0    (refl must N
 no "(= (p (s z) (s z)) (s z))"                          # 1+1 != 1
 no "(-> (Pred 0 (s z)) (Pred 0 (s (s z))))"             # P(1) does NOT give P(2)
 no "(-> (= (v 0) (s (v 0))) (bot))"                     # x = s x is NOT a literal clash -> needs induction
+no "(All (= (p (v 0) z) (s (v 0))))"                    # forall x. x+0 = s x is FALSE: induction's base fails
 no "(Lt (s (s (s z))) (s (s z)))"                       # 3 < 2  -> no
 no "(Le (s (s (s z))) (s (s z)))"                       # 3 <= 2 -> no
 no "(Lt (s (s z)) (s (s z)))"                           # 2 < 2  -> no
