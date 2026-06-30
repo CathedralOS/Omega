@@ -415,12 +415,78 @@ def batch(n, seed, fuel):
             print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [])))
 
 
+# ---- FIRST-ORDER fuzz: stress the eigenvariable / de Bruijn emission in gen/inst/wit/unpack. Random
+# first-order goals are almost never tautologies (so almost no certs would be emitted to check), so instead
+# we sample from PROVABLE SCHEMAS with random predicate/term fillings -- each is valid by construction, so
+# the prover should discharge it and, crucially, the kernel must ACCEPT the emitted certificate. A de Bruijn
+# slip in eigenvar emission would surface as a kernel REJECT here. ----
+def _rterm(rng, depth, nvars):  # a term valid under `nvars` enclosing quantifier binders
+    r = rng.random()
+    if nvars > 0 and r < 0.5:
+        return ("v", rng.randrange(nvars))
+    if depth > 0 and r < 0.75:
+        return ("s", _rterm(rng, depth - 1, nvars))
+    return ("z",)
+
+
+def _ratom(rng, nvars):  # an atomic predicate/relation over terms valid under nvars binders
+    if rng.random() < 0.6:
+        return ("pred", rng.randrange(3), _rterm(rng, 2, nvars))
+    return ("rel", rng.randrange(2), _rterm(rng, 2, nvars), _rterm(rng, 2, nvars))
+
+
+def _rbody(rng, d, nvars):  # a propositional body (no quantifiers) over atoms valid under nvars binders
+    if d <= 0 or rng.random() < 0.5:
+        return _ratom(rng, nvars)
+    return (rng.choice(("&", "->", "+")), _rbody(rng, d - 1, nvars), _rbody(rng, d - 1, nvars))
+
+
+def random_foprop(rng):  # a first-order goal that is PROVABLE by construction (random-filled schema)
+    s = rng.randrange(6)
+    if s == 0:                                            # ∀x. (B -> B)            -- gen + ->-intro
+        b = _rbody(rng, 2, 1)
+        return ("all", ("->", b, b))
+    if s == 1:                                            # ∀x.∀y. (B -> B)         -- nested gen
+        b = _rbody(rng, 2, 2)
+        return ("all", ("all", ("->", b, b)))
+    if s == 2:                                            # B[g] -> ∃x.B            -- wit
+        b = _rbody(rng, 2, 1)
+        g = _rterm(rng, 2, 0)
+        return ("->", subst0(b, g), ("ex", b))
+    if s == 3:                                            # (∀x.B) -> B[g]          -- inst
+        b = _rbody(rng, 2, 1)
+        g = _rterm(rng, 2, 0)
+        return ("->", ("all", b), subst0(b, g))
+    if s == 4:                                            # (∃x.(B&C)) -> ∃x.B      -- unpack + fst + wit
+        b = _rbody(rng, 1, 1)
+        c = _rbody(rng, 1, 1)
+        return ("->", ("ex", ("&", b, c)), ("ex", b))
+    # (∃x.B & ∀x.(B->C)) -> ∃x.C                          -- unpack + inst + MP + wit (existential instantiation)
+    b = _rbody(rng, 1, 1)
+    c = _rbody(rng, 1, 1)
+    return ("->", ("&", ("ex", b), ("all", ("->", b, c))), ("ex", c))
+
+
+def fobatch(n, seed):
+    # n provable-by-construction first-order goals; for every cert the prover emits, print it for check.beta.
+    import random
+    rng = random.Random(seed)
+    for _ in range(n):
+        goal = random_foprop(rng)
+        proof = solve(goal)
+        if proof is not None:
+            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [])))
+
+
 def main():
     if sys.argv[1] == "--gen":
         gen(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
         return
     if sys.argv[1] == "--batch":
         batch(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1, 16)
+        return
+    if sys.argv[1] == "--fobatch":  # first-order provable-schema fuzz (exercises eigenvar emission)
+        fobatch(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
         return
     goal = parse(tokenize(sys.argv[1]))
     proof = solve(goal, int(sys.argv[2]) if len(sys.argv) > 2 else 16)
