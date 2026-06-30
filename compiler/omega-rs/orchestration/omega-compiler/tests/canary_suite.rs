@@ -4340,6 +4340,33 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_gcd_euclid_exit_canary_runs() {
+    // The iterative Euclidean GCD: `(a,b) = (b, a%b)` until b==0. gcd(1071,462)=21.
+    // A two-variable loop with a runtime modulo; self-checks the result -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_gcd_euclid_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gcd-euclid-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("gcd euclid canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("gcd euclid canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the Euclidean GCD to reduce 1071,462 to 21 (exit 70); got {:?} (a non-70 code is the wrong gcd)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_bubble_sort_exit_canary_runs() {
     // Bubble sort with nested loops, the adjacent index `j+1` via a field, a field-bound
     // compare, and a value-swap. Sorts [5,2,8,1,9,3] and self-checks four cells -> 70.
