@@ -50,7 +50,13 @@ ok "(-> (bot) P)"
 ok "(-> (& P (+ Q R)) (+ (& P Q) (& P R)))"
 ok "(-> (& (+ P Q) (-> P R)) (+ R Q))"
 ok "(-> (& (-> P R) (-> Q R)) (-> (+ P Q) R))"
+# first-order: quantifier introduction/elimination (gen / inst / wit) over predicates
+ok "(All (-> (Pred 0 (v 0)) (Pred 0 (v 0))))"           # forall-id   (gen + ->-intro)
+ok "(-> (All (Pred 0 (v 0))) (Pred 0 (s z)))"           # forall-elim (inst at a ground term)
+ok "(-> (Pred 0 (s z)) (Exists (Pred 0 (v 0))))"        # exists-intro (wit at the supplied term)
+ok "(-> (All (Pred 0 (v 0))) (Exists (Pred 0 (v 0))))"  # forall -> exists (inst then wit, witness z)
 # non-tautologies: provability must fail (soundness of the front line)
+no "(Exists (Pred 0 (v 0)))"                            # no witness available -> unprovable
 no "(-> P Q)"
 no "(& P P)"
 no "(-> (-> P Q) P)"
