@@ -9594,6 +9594,34 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_struct_by_value_param_exit_canary_runs() {
+    // Passing a struct BY VALUE into a value-machine and reading all its fields in distinct
+    // positional weights. decode(Coeffs{1,2,3}) = 1*100 + 2*10 + 3 = 123 -> exit 70. Pins
+    // the working envelope around task #15 (scalar fields of a by-value struct param resolve).
+    let canary = pass_canary("calls/runtime_struct_by_value_param_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-struct-by-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct by-value param canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct by-value param canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected by-value struct param decode to yield 123 (exit 70); got {:?} (the decoded value on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_value_call_composition_exit_canary_runs() {
     // Function composition: chaining value-machine calls so each result feeds the next.
     // add_ten(5)=15, double(15)=30, minus_five(30)=25 -> exit 70. (Sequential binding; the
