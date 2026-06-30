@@ -432,6 +432,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("slices/runtime_local_aggregate_into_let_exit", 70),
     ("structs/runtime_nested_struct_construction_exit", 70),
     ("structs/runtime_nested_struct_state_machine_exit", 70),
+    ("structs/runtime_entity_component_exit", 70),
     ("structs/runtime_particle_system_exit", 70),
     ("structs/runtime_nested_struct_value_semantics_exit", 70),
     ("structs/runtime_enum_struct_payload_exit", 70),
