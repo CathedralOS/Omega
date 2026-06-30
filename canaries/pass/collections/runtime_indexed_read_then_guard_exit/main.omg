@@ -1,0 +1,37 @@
+// The sound pattern for guarding on a runtime-indexed array element: read the element into a
+// separate place FIRST, then compare that place. A DIRECT `transition self.nums[self.i] > 5` with a
+// runtime index silently takes the first arm (the guard layout drops the runtime index -- see memory
+// indexed-guard-match-subject-miscompile); reading into a field/local first resolves correctly.
+//
+// nums[2] = 9, so after the read v = 9 and 9 > 5 is true -> exit 70. A dropped index would read
+// nums[0] = 1 -> 1 > 5 false -> 71, so this discriminates the correct runtime-indexed read. The
+// u32 index gives the non-negative lower bound; the `i < 3` guard gives the upper bound.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 3] in Wrapping;
+    i: u32 in Wrapping;
+    v: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums = [1, 1, 9];
+    self.i = 2;
+    transition self.i < 3 {
+        true -> read()
+        _ -> bad()
+    }
+    state read(&mut self) {
+        self.v = self.nums[self.i];
+        transition self.v > 5 {
+            true -> big()
+            false -> small()
+        }
+    }
+    state big(&mut self) { self.console.exit_process(70); }
+    state small(&mut self) { self.console.exit_process(71); }
+    state bad(&mut self) { self.console.exit_process(99); }
+}
