@@ -9594,6 +9594,34 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_struct_value_call_exit_canary_runs() {
+    // A value-machine that computes and RETURNS a struct (product type), completing the
+    // value-call return-type map alongside scalars and sum-type returns. stats(7,3) returns
+    // a record whose two independently-computed fields are 10 and 4 -> exit 70.
+    let canary = pass_canary("calls/runtime_struct_value_call_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-struct-value-call-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct value call canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct value call canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected value-call to return a record with sum 10 and diff 4 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_option_value_call_exit_canary_runs() {
     // A value-machine that RETURNS an Option (Some/None), called in a loop with each result
     // matched -- the idiomatic functional shape for find/lookup/parse. classify(x) over

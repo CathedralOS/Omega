@@ -1,0 +1,38 @@
+// A value-machine that COMPUTES and RETURNS a struct (a product type), completing the
+// value-call return-type map alongside scalars and the sum-type returns in
+// runtime_option_value_call_exit: a function can return a record. The callee binds its
+// intermediate results with `let`, then its terminal arm constructs the struct from those
+// locals (`Stats { sum: s, diff: d }`); the caller binds the returned struct with `let` and
+// reads its fields. The two fields are independent computations (a+b and a-b) so a swapped
+// or dropped field is caught: stats(7, 3) yields sum 10 and diff 4 -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Stats {
+    sum: i32 in Wrapping;
+    diff: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+}
+
+// a function that returns a freshly computed record
+machine Main::stats(&self, a: i32 in Wrapping, b: i32 in Wrapping) -> Stats {
+    let s: i32 in Wrapping = a + b;
+    let d: i32 in Wrapping = a - b;
+    transition { _ -> Stats { sum: s, diff: d } }
+}
+
+machine Main::main(&mut self) {
+    let r: Stats = self.stats(7, 3);
+    transition r.sum == 10 && r.diff == 4 { true -> good() _ -> wrong() }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+}
