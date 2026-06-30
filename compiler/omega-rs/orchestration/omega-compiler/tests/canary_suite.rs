@@ -9054,6 +9054,34 @@ fn runtime_indexed_struct_field_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_particle_system_exit_canary_runs() {
+    // A 2D particle system over an array of structs: runtime-indexed struct-field reads
+    // and writes, integrating pos += vel each step. Self-checks three cells -> exit 70.
+    let canary = pass_canary("structs/runtime_particle_system_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-particle-system-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("particle system canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("particle system canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the particle system to integrate pos += vel correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_nested_struct_construction_exit_canary_runs() {
     // Nested struct construction `Rect { top_left: Point { .. }, .. }` PANICKED the
     // compiler (an arena span-contiguity assert: the field-value copy appended the
