@@ -77,6 +77,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_struct_by_value_param_exit", 70),
     ("calls/runtime_computed_transition_args_exit", 70),
     ("calls/runtime_value_call_to_array_element_exit", 70),
+    ("calls/runtime_cross_machine_substate_name_exit", 70),
     (
         "calls/runtime_alias_indexed_read_through_transition_exit",
         70,

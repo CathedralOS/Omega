@@ -9805,6 +9805,36 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_cross_machine_substate_name_exit_canary_runs() {
+    // Two machines each have a `try1` sub-state (Picker::pick, Main::read_at). A named transition
+    // target must resolve to a SIBLING state of the CURRENT machine, not collide on the shared
+    // name and run the other machine's body. read_at(4) must return table[4]=60 even after
+    // pick(2) (whose try1 yields a literal) runs -> exit 70. (Was an interp miscompile.)
+    let canary = pass_canary("calls/runtime_cross_machine_substate_name_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-cross-machine-substate-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cross-machine substate-name canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cross-machine substate-name canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected read_at(4)=60 despite pick's shared `try1` (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_value_call_to_array_element_exit_canary_runs() {
     // A single value-call result materializes correctly when written to a const-indexed array
     // element: triple(14)=42 lands at arr[2] with neighbours untouched -> exit 70. The working

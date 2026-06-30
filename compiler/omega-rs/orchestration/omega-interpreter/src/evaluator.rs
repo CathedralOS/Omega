@@ -900,6 +900,16 @@ impl<'program> Evaluator<'program> {
     /// its sub-states all live in the same machine group; a named transition stays within
     /// the current machine.
     fn machine_of_state_named(&self, state_name: &str, frame: &Frame) -> Option<Machine> {
+        // A named transition target is a SIBLING state of the machine currently executing, so
+        // resolve within the CURRENT machine FIRST. Otherwise a state name shared across machines
+        // -- e.g. `Picker::pick` and `Main::read_at` BOTH having a `try1` sub-state -- collides on
+        // the type/global fallbacks below and runs the WRONG machine's body (the read_at `try1`
+        // transition would run pick's `try1`, returning pick's value).
+        if let Some(machine) = self.current_machine(frame) {
+            if self.find_state(machine, state_name).is_some() {
+                return Some(machine.clone());
+            }
+        }
         let type_symbol = match &*frame.self_cell.borrow() {
             Value::Struct { type_symbol, .. } => *type_symbol,
             _ => SymbolHandle::invalid(),
