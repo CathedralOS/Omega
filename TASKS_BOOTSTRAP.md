@@ -231,9 +231,13 @@ a working proof-carrying contract system** (item 11). What remains:
   (∃-intro), unpack (∃-elim). Equality: refl (an equality goal whose two sides share a normal form -- a local
   `nf` mirrors check.beta's own term `normalize` for z/s/p/m EXACTLY, so every refl emitted is accepted), a
   conversion-aware axiom (a hypothesis equal to the goal up to term conversion discharges it -- e.g. P(1+1) ⊢
-  P(2)), AND equality REWRITING via eqelim/transport -- one rule (abstract a side into a motive, prove the
+  P(2)), equality REWRITING via eqelim/transport -- one rule (abstract a side into a motive, prove the
   motive on the other side, both orientations through a derived symmetric proof) yields symmetry, transitivity,
-  congruence and transport. First-order needed a
+  congruence and transport -- AND INEQUALITY (`Lt`/`Le` desugared at parse to a Peano existential, no kernel
+  `<`: a≤b := ∃k. a+k=b, a<b := ∃k. a+(s k)=b), so concrete bounds (1<3, 0<5) and the direct weakening x<y ⊢
+  x≤y discharge through the existing ∃ + equality machinery. (Inequality goals carry FREE individual vars,
+  which forced a de-Bruijn fix: solve() now closes free vars into eigenvars so they shift correctly under
+  gen/unpack binders, and `wit` bodies emit at depth 1 for their implicit slot binder.) First-order needed a
   uniform EIGENVARIABLE scheme — gen/unpack mint a fresh opaque individual, substitute it for the bound var,
   and recover de Bruijn from the eigenvar stack at emit time (so nested quantifiers index correctly and an
   outer individual never collides with a prop's own inner binder). unpack runs as an invertible left rule
@@ -242,17 +246,20 @@ a working proof-carrying contract system** (item 11). What remains:
   MEMOISED on (context proposition-set, goal) and polynomial; a depth cap + node budget backstop the
   (now-infinite, eigenvar-rich) first-order space (sound-but-incomplete: too-deep yields "unprovable", never a
   crash, never a false proof). SOUND BY CONSTRUCTION (every rule is a valid kernel typing rule, so check.beta
-  accepts every proof emitted). `prover-test.sh` (660 ok): propositional tautologies (or-comm, distribution,
+  accepts every proof emitted). `prover-test.sh` (669 ok): propositional tautologies (or-comm, distribution,
   or-elim-to-common, ex-falso); first-order (forall-id, forall-elim, exists-intro, forall→exists, nested gen,
   unpack tautologies incl. ∃x.P,∀x.(P→Q) ⊢ ∃x.Q); equality (1+1=2, 2*2=4, symbolic 0+x=x, conversion axiom
-  P(1+1)⊢P(2)) AND rewriting (symmetry, transitivity, congruence, transport across predicates/relations) — all
-  proved + kernel-accepted; non-tautologies correctly unprovable incl. eigenvariable-escape (⊬ ∃x.P→P(sz)),
-  false arithmetic (⊬ 1=0, ⊬ 1+1=1), and a non-rewritable goal (⊬ 1=2→0=1, which also must terminate); THREE
-  randomized fuzzes — propositional, first-order (provable schemas, hardens eigenvar emission), and arithmetic
-  (closed z/s/p/m equalities, validates nf vs the kernel's normalize) — where every proof found is kernel-
-  accepted. The "cleverness on the untrusted side, authority in the kernel" split. Widen next: inequality `<`
-  (a `Lt` predicate + its lemmas) toward the epsilon contract-discharge obligations (a<B, b<C, overflow); the
-  long arc is SMT-class procedures emitting kernel-checkable certificates (the proof-engine north star).
+  P(1+1)⊢P(2)), rewriting (symmetry, transitivity, congruence, transport across predicates/relations), AND
+  inequality (1<3, 0<5, weakening x<y⊢x≤y) — all proved + kernel-accepted; non-tautologies correctly unprovable
+  incl. eigenvariable-escape (⊬ ∃x.P→P(sz)), false arithmetic (⊬ 1=0, ⊬ 1+1=1), false bounds (⊬ 3<2, ⊬ 2<2),
+  and a non-rewritable goal (⊬ 1=2→0=1, which also must terminate); THREE randomized fuzzes — propositional,
+  first-order (provable schemas, hardens eigenvar emission), and arithmetic (closed z/s/p/m equalities,
+  validates nf vs the kernel's normalize) — where every proof found is kernel-accepted. The "cleverness on the
+  untrusted side, authority in the kernel" split. Widen next: ARITHMETIC LEMMAS via natind induction (x+0=x,
+  x+s y=s(x+y), commutativity) — the boundary that blocks symbolic inequality (x≤y⊢x≤y+1) and symbolic
+  equalities; the kernel already has `natind`/`sinj`/`disj`, so the kernel side is ready. Long arc: SMT-class
+  procedures emitting kernel-checkable certificates (the proof-engine north star), toward the epsilon
+  contract-discharge obligations (a<B, b<C, overflow).
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
