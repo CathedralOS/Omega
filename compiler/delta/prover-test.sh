@@ -50,13 +50,20 @@ ok "(-> (bot) P)"
 ok "(-> (& P (+ Q R)) (+ (& P Q) (& P R)))"
 ok "(-> (& (+ P Q) (-> P R)) (+ R Q))"
 ok "(-> (& (-> P R) (-> Q R)) (-> (+ P Q) R))"
-# first-order: quantifier introduction/elimination (gen / inst / wit) over predicates
+# first-order: quantifier introduction/elimination (gen / inst / wit / unpack) over predicates
 ok "(All (-> (Pred 0 (v 0)) (Pred 0 (v 0))))"           # forall-id   (gen + ->-intro)
 ok "(-> (All (Pred 0 (v 0))) (Pred 0 (s z)))"           # forall-elim (inst at a ground term)
 ok "(-> (Pred 0 (s z)) (Exists (Pred 0 (v 0))))"        # exists-intro (wit at the supplied term)
 ok "(-> (All (Pred 0 (v 0))) (Exists (Pred 0 (v 0))))"  # forall -> exists (inst then wit, witness z)
+ok "(All (All (-> (Rel 0 (v 1) (v 0)) (Rel 0 (v 1) (v 0)))))"          # nested gen (de Bruijn order)
+# existential elimination (unpack): the eigenvariable opens an existential hypothesis
+ok "(-> (Exists (& (Pred 0 (v 0)) (Pred 1 (v 0)))) (Exists (Pred 0 (v 0))))"        # drop a conjunct under exists
+ok "(-> (Exists (& (Pred 0 (v 0)) (Pred 1 (v 0)))) (Exists (& (Pred 1 (v 0)) (Pred 0 (v 0)))))"  # exists-commute
+ok "(-> (& (Exists (Pred 0 (v 0))) (All (-> (Pred 0 (v 0)) (Pred 1 (v 0))))) (Exists (Pred 1 (v 0))))"  # E.I. of forall
 # non-tautologies: provability must fail (soundness of the front line)
 no "(Exists (Pred 0 (v 0)))"                            # no witness available -> unprovable
+no "(-> (Exists (Pred 0 (v 0))) (Pred 0 (s z)))"        # eigenvariable must NOT escape the unpack
+no "(-> (Exists (Pred 0 (v 0))) (All (Pred 0 (v 0))))"  # exists does NOT give forall
 no "(-> P Q)"
 no "(& P P)"
 no "(-> (-> P Q) P)"
