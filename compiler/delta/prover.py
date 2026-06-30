@@ -758,30 +758,35 @@ def _rules(sat, goal):
             _eigs.pop()
             if pf is not None:
                 return ("unpack", term, prop[1], e, nm, pf)
-    # directed SUM-CHAIN (≤-transitivity): goal ∃k.(= (p A k) C), with chaining facts (= (p A I) M) and
-    # (= (p M J) C) already in context (the two ≤ premises, auto-unpacked). Witness k = I+J; the body
-    # (= (p A (p I J)) C) is discharged in a FOCUSED sub-proof with add-assoc both-orientation enabled
-    # (a+(i+j) -> (a+i)+j, then the two facts rewrite to C). Pattern-gated, so the general search is untouched.
+    # directed SUM-WITNESS (≤-chaining): goal ∃k.(= (p A k) C). Synthesise a COMPOUND witness from the
+    # context's `+`-equality facts, then discharge the body in a FOCUSED sub-proof (only add-assoc, both
+    # orientations) -- add-assoc re-associates so the facts rewrite A's sum to C. Two patterns, both real
+    # contract obligations; pattern-gated, so the general search is untouched:
+    #   transitivity  a≤b ∧ b≤c ⊢ a≤c : facts (p A I)=M, (p M J)=C   -> witness I+J
+    #   drop-addend   i+k≤n   ⊢ i≤n   : fact  (p (p A K) M)=C        -> witness K+M
     if (goal[0] == "ex" and _active_lemmas and goal[1][0] == "=" and goal[1][1][0] == "p"
             and goal[1][1][2] == ("v", 0)):
         body, A, C = goal[1], goal[1][1][1], goal[1][2]
+        wits = []
         for p1, _ in sat:
-            if not (p1[0] == "=" and p1[1][0] == "p" and p1[1][1] == A):
+            if p1[0] != "=" or p1[1][0] != "p":
                 continue
-            I, M = p1[1][2], p1[2]                                  # fact1 : (= (p A I) M)
-            for p2, _ in sat:
-                if not (p2[0] == "=" and p2[1] == ("p", M, p2[1][2]) and p2[2] == C):
-                    continue
-                J = p2[1][2]                                        # fact2 : (= (p M J) C)
-                w = ("p", I, J)
-                saved, sbo = list(_active_lemmas), _both_orient[0]
-                _active_lemmas[:] = [l for l in _active_lemmas if l[3] == _ASSOC]
-                _both_orient[0] = True
-                pf = prove(sat, subst0(body, w))
-                _active_lemmas[:] = saved
-                _both_orient[0] = sbo
-                if pf is not None:
-                    return ("wit", body, w, pf)
+            L1, R1 = p1[1], p1[2]
+            if L1[1] == A:                                          # fact (p A I)=M -> look for (p M J)=C
+                for p2, _ in sat:
+                    if p2[0] == "=" and p2[1][0] == "p" and p2[1][1] == R1 and p2[2] == C:
+                        wits.append(("p", L1[2], p2[1][2]))         # witness I+J
+            if L1[1][0] == "p" and L1[1][1] == A and R1 == C:       # fact (p (p A K) M)=C
+                wits.append(("p", L1[1][2], L1[2]))                 # witness K+M
+        for w in wits:
+            saved, sbo = list(_active_lemmas), _both_orient[0]
+            _active_lemmas[:] = [l for l in _active_lemmas if l[3] == _ASSOC]
+            _both_orient[0] = True
+            pf = prove(sat, subst0(body, w))
+            _active_lemmas[:] = saved
+            _both_orient[0] = sbo
+            if pf is not None:
+                return ("wit", body, w, pf)
     # R-exists (wit): supply a witness term (a ground term or an in-scope eigenvar) and prove the instance
     if goal[0] == "ex":
         for t in cand_terms():
