@@ -657,6 +657,31 @@ fn unapproved_host_call_canary_is_rejected() {
 }
 
 #[test]
+fn u64_literal_above_i64_max_canary_is_rejected() {
+    // A u64 literal above i64::MAX (the literal value is carried as i64 through the IR) is
+    // rejected with a CLEAR "exceeds the i64 range" diagnostic that names the real
+    // limitation, not the misleading "invalid integer literal". Remove this test when
+    // full-width u64 literals land (the i128 literal-widening fix).
+    let canary = fail_canary("arithmetic/u64_literal_above_i64_max");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected u64-literal-too-large canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("exceeds the i64 range"),
+        "expected a clear i64-range-overflow diagnostic (not 'invalid integer literal'), got:\n{combined}"
+    );
+}
+
+#[test]
 fn computed_index_operand_canary_is_rejected() {
     // `arr[k + 1]` as a value operand silently read 0 (computed index not lowerable);
     // even with `k + 1`'s bound explicitly guarded it must be refused, not miscompiled.
