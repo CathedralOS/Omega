@@ -4636,6 +4636,34 @@ fn runtime_float_negative_ops_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_float32_array_conversion_exit_canary_runs() {
+    // f32 ARRAY (the separate f32 codegen path: mulss/addss/ucomiss) plus an int<->f64 round-trip
+    // cast. f32 sum 1.5+2.5+2.25 = 6.25, then 7 as f64 * 2.0 truncated to i32 = 14. Exits 70.
+    let canary = pass_canary("arithmetic/runtime_float32_array_conversion_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float32-array-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 array + conversion canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 array + conversion canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32-array sum 6.25 + int<->f64 round-trip == 14 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_newton_sqrt_exit_canary_runs() {
     // Newton's method for a square root (an iterative numerical algorithm): x <- (x + S/x)/2
     // over f64, six iterations from 1.0 on S=2.0 -> sqrt(2) ~= 1.41421; checks
