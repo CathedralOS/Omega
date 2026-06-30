@@ -642,7 +642,17 @@ impl<'program> Evaluator<'program> {
         self.tick()?;
         match statement {
             StatementNode::Assignment(assignment) => {
+                // A STRUCT assignment is a VALUE copy: deep-clone so mutating the destination
+                // later does not alias the source (`self.f = self.arr[1]; self.f.x = 50` must
+                // not touch arr[1]). Gated to `Value::Struct` ONLY: a subslice is a `Value::Array`
+                // that intentionally SHARES the backing array's element cells (writes through the
+                // slice alias the array), so deep-cloning arrays/slices would sever aliasing the
+                // oracle depends on. `Ref` is likewise left shared for `&mut` write-through.
                 let value = self.eval_expression(assignment.value, frame)?;
+                let value = match value {
+                    Value::Struct { .. } => value.deep_clone(),
+                    other => other,
+                };
                 // Apply the target field's declared width AND arithmetic domain
                 // (decision 17), matching the native store: Exact/Wrapping truncate
                 // to the field's low bytes (a u16 field assigned 70000 reads back
@@ -676,8 +686,16 @@ impl<'program> Evaluator<'program> {
                 Ok(())
             }
             StatementNode::LocalData(local) => {
+                // A `let v = <struct>` is a VALUE copy: deep-clone so a later mutation of `v`'s
+                // fields does not alias the initializer's source. Gated to `Value::Struct` only
+                // (a slice `let s = arr[1..3]` is a `Value::Array` that must keep sharing the
+                // array's cells; a `Ref` must keep aliasing the referent).
                 let value = if local.initial_value.is_valid() {
-                    self.eval_expression(local.initial_value, frame)?
+                    let value = self.eval_expression(local.initial_value, frame)?;
+                    match value {
+                        Value::Struct { .. } => value.deep_clone(),
+                        other => other,
+                    }
                 } else {
                     self.default_value_for_type(local.type_reference)?
                 };
@@ -2607,9 +2625,7 @@ impl<'program> Evaluator<'program> {
             // Utf8` parameter (the encoding-domain text model, #66): the literal's
             // `&[u8]` view length is its UTF-8 BYTE count, which is exactly the
             // Rust `String::len`. Matches the native fold of `<literal>.len`.
-            Value::Str(text) if field == "len" => {
-                Ok(Value::Int(text.borrow().len() as i64).cell())
-            }
+            Value::Str(text) if field == "len" => Ok(Value::Int(text.borrow().len() as i64).cell()),
             other => trap(format!("cannot read field `{field}` of {other:?}")),
         }
     }
@@ -2995,7 +3011,11 @@ fn integer_bounds(ty: PrimitiveType) -> Option<(i64, i64)> {
 /// mirroring the native backend so the differential oracle agrees:
 /// Exact/Wrapping truncate to width; Saturating clamps to [min, max]; Trapping
 /// halts (overflow trap) when the value is out of range.
-fn apply_arithmetic_domain(raw: i64, ty: PrimitiveType, domain: ArithmeticDomain) -> EvalResult<i64> {
+fn apply_arithmetic_domain(
+    raw: i64,
+    ty: PrimitiveType,
+    domain: ArithmeticDomain,
+) -> EvalResult<i64> {
     match domain {
         ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => Ok(wrap_to_width(raw, ty)),
         ArithmeticDomain::Saturating => match integer_bounds(ty) {

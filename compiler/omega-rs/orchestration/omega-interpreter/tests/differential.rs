@@ -54,7 +54,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_provable_field_construction_exit", 70),
     ("arithmetic/runtime_signed_division_exit", 70),
     ("arithmetic/runtime_struct_field_range_narrowing_exit", 70),
-    ("arithmetic/runtime_transition_arg_false_arm_narrowing_exit", 70),
+    (
+        "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
+        70,
+    ),
     ("arithmetic/runtime_transition_arg_guard_narrowing_exit", 70),
     ("arithmetic/runtime_transition_arg_saturating_exit", 70),
     ("arithmetic/runtime_unsigned_division_exit", 70),
@@ -100,10 +103,19 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/transition_arg_local_from_embedded_call_exit", 70),
     ("calls/value_call_embedded_in_binary_exit", 70),
     ("calls/runtime_value_call_slice_view_element_arg_exit", 70),
-    ("control_flow/no_payload_case_variant_after_payload_dispatch_exit", 70),
+    (
+        "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
+        70,
+    ),
     ("control_flow/case_payload_shared_field_name_exit", 70),
-    ("control_flow/runtime_captured_local_remutated_field_exit", 70),
-    ("control_flow/runtime_composite_initializer_local_arg_exit", 70),
+    (
+        "control_flow/runtime_captured_local_remutated_field_exit",
+        70,
+    ),
+    (
+        "control_flow/runtime_composite_initializer_local_arg_exit",
+        70,
+    ),
     ("control_flow/runtime_loop_patterns_exit", 70),
     ("calls/runtime_called_machine_loop_search_exit", 70),
     ("calls/runtime_dispatch_binary_call_argument_exit", 70),
@@ -355,18 +367,33 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/arithmetic_domain_saturating_div_mod_exit", 70),
     ("expressions/runtime_guard_divide_modulo_exit", 70),
     ("expressions/runtime_guard_negative_arithmetic_exit", 70),
-    ("expressions/runtime_guard_divide_modulo_signedness_exit", 70),
+    (
+        "expressions/runtime_guard_divide_modulo_signedness_exit",
+        70,
+    ),
     ("expressions/arithmetic_domain_saturating_mul_exit", 70),
-    ("expressions/arithmetic_domain_saturating_const_fold_exit", 70),
-    ("expressions/arithmetic_domain_return_range_proven_exact_exit", 70),
-    ("expressions/arithmetic_domain_saturating_mul_signed_exit", 70),
+    (
+        "expressions/arithmetic_domain_saturating_const_fold_exit",
+        70,
+    ),
+    (
+        "expressions/arithmetic_domain_return_range_proven_exact_exit",
+        70,
+    ),
+    (
+        "expressions/arithmetic_domain_saturating_mul_signed_exit",
+        70,
+    ),
     ("expressions/arithmetic_domain_trapping_mul_exit", 70),
     ("expressions/arithmetic_domain_trapping_div_exit", 70),
     ("expressions/arithmetic_domain_saturating_signed_exit", 70),
     ("expressions/arithmetic_domain_trapping_exit", 70),
     ("expressions/arithmetic_domain_cast_exit", 70),
     ("expressions/arithmetic_domain_range_proven_exact_exit", 70),
-    ("expressions/arithmetic_domain_requires_proven_exact_exit", 70),
+    (
+        "expressions/arithmetic_domain_requires_proven_exact_exit",
+        70,
+    ),
     ("expressions/f32_field_binary_to_local_cast", 70),
     ("expressions/f32_deep_chain_binary", 70),
     ("expressions/f32_to_f64_local_cast", 70),
@@ -449,6 +476,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("structs/runtime_entity_component_exit", 70),
     ("structs/runtime_particle_system_exit", 70),
     ("structs/runtime_nested_struct_value_semantics_exit", 70),
+    ("structs/runtime_array_element_struct_copy_exit", 70),
     ("structs/runtime_enum_struct_payload_exit", 70),
     ("errors/runtime_result_match_exit", 70),
     ("structs/runtime_struct_array_literal_exit", 70),
@@ -948,7 +976,10 @@ fn interpreter_matches_native_on_cli_mvp_sample() {
 /// checksum, so it pins interpreter==native agreement on a deep dispatch tree.
 #[test]
 fn interpreter_matches_native_on_game_of_life_sample() {
-    let main_path = repo_root().join("samples").join("game_of_life").join("main.omg");
+    let main_path = repo_root()
+        .join("samples")
+        .join("game_of_life")
+        .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "game_of_life compile failed:\n{}",
@@ -970,7 +1001,10 @@ fn interpreter_matches_native_on_game_of_life_sample() {
         "game_of_life exit code: interp {} != native {native_code}",
         outcome.exit_code
     );
-    assert_eq!(native_code, 70, "game_of_life should exit 70 (block is a still-life)");
+    assert_eq!(
+        native_code, 70,
+        "game_of_life should exit 70 (block is a still-life)"
+    );
 }
 
 /// Bouncing ball: 1D integer-position ball in [0,9], starting at pos=0 vel=3, 8 steps.

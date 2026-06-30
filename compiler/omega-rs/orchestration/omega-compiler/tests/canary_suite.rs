@@ -9979,6 +9979,34 @@ fn runtime_nested_struct_state_machine_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_array_element_struct_copy_exit_canary_runs() {
+    // Value semantics through an array-element struct copy: `self.f = self.arr[1]` produces an
+    // independent copy, so mutating f leaves arr[1] untouched. Discriminates both ways: arr[1]
+    // keeps (5,6), f holds the mutated (50,60) -> exit 70.
+    let canary = pass_canary("structs/runtime_array_element_struct_copy_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-arr-elem-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("array-element struct copy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("array-element struct copy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected array-element struct copy to be independent (arr[1] unchanged, exit 70); got {:?} (the aliased value on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_nested_struct_value_semantics_exit_canary_runs() {
     // Deep nesting + whole-struct value semantics: a 3-level nested field read AND
     // write, a whole-struct copy by assignment, and copy independence (overwriting the

@@ -80,6 +80,54 @@ impl Value {
         }
     }
 
+    /// Clone with VALUE SEMANTICS: a `Struct`/`Enum`/`Array` gets FRESH element cells (a deep
+    /// copy), so mutating a field of the copy does NOT alias the original. A `Ref` is preserved
+    /// (it shares the referent cell -- a reference aliases by design), and scalars/strings use
+    /// the ordinary derived clone. The derived `Clone` is SHALLOW (it `Rc::clone`s the field
+    /// cells, sharing them), which is correct for `&mut` aliasing but WRONG for a value-semantic
+    /// copy like `self.f = self.arr[1]; self.f.x = 50` -- that must not touch `arr[1]`. Used by
+    /// the evaluator at every value-semantic copy site (assignment, `let` initializer).
+    pub fn deep_clone(&self) -> Value {
+        match self {
+            Value::Struct {
+                type_symbol,
+                type_name,
+                fields,
+            } => Value::Struct {
+                type_symbol: *type_symbol,
+                type_name: type_name.clone(),
+                fields: fields
+                    .iter()
+                    .map(|(name, cell)| (name.clone(), cell.borrow().deep_clone().cell()))
+                    .collect(),
+            },
+            Value::Enum {
+                variant_name,
+                payload,
+            } => Value::Enum {
+                variant_name: variant_name.clone(),
+                payload: payload
+                    .iter()
+                    .map(|(name, cell)| (name.clone(), cell.borrow().deep_clone().cell()))
+                    .collect(),
+            },
+            Value::Array(elements) => Value::Array(
+                elements
+                    .iter()
+                    .map(|cell| cell.borrow().deep_clone().cell())
+                    .collect(),
+            ),
+            // Scalars keep their value; a `Str` keeps its shared buffer (status quo -- not the
+            // subject of this fix); a `Ref` MUST keep sharing the referent cell.
+            Value::Unit
+            | Value::Int(_)
+            | Value::Bool(_)
+            | Value::Float(_)
+            | Value::Str(_)
+            | Value::Ref(_) => self.clone(),
+        }
+    }
+
     /// Follow a `Ref` to the underlying cell, returning a clone of the same `Rc` so the
     /// aliasing is preserved. Non-references return `None`.
     pub fn as_ref_cell(&self) -> Option<Cell> {
