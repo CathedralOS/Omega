@@ -335,6 +335,20 @@ impl<'program> Evaluator<'program> {
         type_reference: omega_typed_trees::types::TypeReferenceHandle,
     ) -> EvalResult<Value> {
         if type_reference.is_valid() {
+            // See THROUGH a domain constraint (`[i32; N] in Wrapping`, `i32 in Saturating`):
+            // the default of a constrained type is the default of its base type (zero in every
+            // arithmetic domain). Without this, a domain-constrained ARRAY field falls past the
+            // FixedArray case below and defaults to `Unit`, so a later `self.arr[i]` raised
+            // "cannot index Unit" and the whole canary was SKIPPED by the differential oracle.
+            if let omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } = self
+                .program
+                .type_reference_table
+                .type_reference(type_reference)
+            {
+                let base_type = *base_type;
+                return self.default_value_for_type(base_type);
+            }
+
             // Fixed array `[T; N]` -> N default-initialized element cells.
             if let omega_typed_trees::types::TypeReferenceNode::FixedArray {
                 element_type,
