@@ -9594,6 +9594,35 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_option_value_call_exit_canary_runs() {
+    // A value-machine that RETURNS an Option (Some/None), called in a loop with each result
+    // matched -- the idiomatic functional shape for find/lookup/parse. classify(x) over
+    // [5,-3,7] yields two present values and one absent; the present values sum to 12 and
+    // one absent is counted -> exit 70.
+    let canary = pass_canary("calls/runtime_option_value_call_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-option-value-call-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("option value call canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("option value call canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Option-returning value-call to sum Somes=12 and count 1 None (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_result_match_exit_canary_runs() {
     // Result-style error handling at runtime: a two-case enum (Ok/Err) produced
     // conditionally, then matched and handled in a loop. Safe-dividing 10/2, 7/0, 20/4

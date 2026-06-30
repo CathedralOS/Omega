@@ -67,6 +67,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         "borrow/runtime_view_linked_input_unrelated_ref_write_exit",
         70,
     ),
+    ("calls/runtime_option_value_call_exit", 70),
     (
         "calls/runtime_alias_indexed_read_through_transition_exit",
         70,
