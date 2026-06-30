@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 # A PROOF-SEARCH FRONT LINE -- the Omega pattern in miniature (rungs/omega.md): untrusted automation
-# discharges a goal and EMITS A CERTIFICATE the tiny trusted kernel (check.beta) validates. Given an
-# intuitionistic propositional goal over the FULL connective set (`->`, `&`, `+`, `(bot)`), this searches
-# a sound natural-deduction calculus (intro + elimination for each connective: lam/app, pair/fst/snd,
-# inl/inr/case, absurd) and prints the check.beta certificate `<goal> <proof>`; the kernel checks it. The
-# prover is UNTRUSTED: it is SOUND by construction (every rule it applies is a valid kernel typing rule,
-# so check.beta accepts every proof it emits) -- exactly the "cleverness on the untrusted side, authority
-# in the kernel" split. The search is memoised on (context proposition-set, goal), so it terminates
-# without a depth bound and is polynomial in the subformula state space. Prints "unprovable" otherwise.
+# discharges a goal and EMITS A CERTIFICATE the tiny trusted kernel (check.beta) validates. It covers the
+# FULL intuitionistic propositional fragment (`->`, `&`, `+`, `(bot)`: lam/app, pair/fst/snd, inl/inr/case,
+# absurd), the FIRST-ORDER fragment (predicates/relations over terms, ∀/∃ with intro AND elim --
+# gen/inst/wit/unpack over a uniform eigenvariable scheme), and EQUALITY (`(= a b)` over Peano terms
+# z/s/p/m: reflexivity up to the kernel's own term conversion, plus a conversion-aware axiom). It searches a
+# sound natural-deduction calculus and prints the check.beta certificate `<goal> <proof>`; the kernel checks
+# it. The prover is UNTRUSTED: SOUND by construction (every rule it applies is a valid kernel typing rule, so
+# check.beta accepts every proof it emits) -- the "cleverness on the untrusted side, authority in the kernel"
+# split. The propositional search is memoised on (context proposition-set, goal) and polynomial; a depth cap
+# + node budget backstop the (eigenvar-rich) first-order space. Prints "unprovable" otherwise.
 #
 # Usage: prover.py "(-> (& P Q) P)"   ->   (-> (& P Q) P) (lam (& P Q) (fst (hyp 0)))
 import sys
 
-# ---- parse a goal into a tuple tree. Props: uppercase atoms, `->`/`&`/`+`/`(bot)`, and the first-order
-# forms `(All P)` `(Exists P)` `(Pred n term)` `(Rel n term term)`. Terms: `z`, `(s term)`, `(v i)`. ----
+# ---- parse a goal into a tuple tree. Props: uppercase atoms, `->`/`&`/`+`/`(bot)`, the first-order forms
+# `(All P)` `(Exists P)` `(Pred n term)` `(Rel n term term)`, and equality `(= term term)`. Terms: `z`,
+# `(s term)`, `(p term term)` (plus), `(m term term)` (mult), `(v i)` (de Bruijn individual var). ----
 def tokenize(s):
     return s.replace("(", " ( ").replace(")", " ) ").split()
 
@@ -26,6 +29,11 @@ def parse_term(tk):
             x = parse_term(tk)
             assert tk.pop(0) == ")"
             return ("s", x)
+        if h in ("p", "m"):  # p = Peano plus, m = Peano mult (binary)
+            a = parse_term(tk)
+            b = parse_term(tk)
+            assert tk.pop(0) == ")"
+            return (h, a, b)
         if h == "v":
             i = int(tk.pop(0))
             assert tk.pop(0) == ")"
@@ -50,6 +58,12 @@ def parse(tokens):
             tokens.pop(0)
             assert tokens.pop(0) == ")"
             return ("bot",)
+        if head == "=":
+            tokens.pop(0)
+            a = parse_term(tokens)
+            b = parse_term(tokens)
+            assert tokens.pop(0) == ")"
+            return ("=", a, b)
         if head in ("All", "Exists"):
             tokens.pop(0)
             body = parse(tokens)
@@ -83,6 +97,8 @@ def beta_term(t, ib=(), depth=0):
         return "z"
     if t[0] == "s":
         return "(s %s)" % beta_term(t[1], ib, depth)
+    if t[0] in ("p", "m"):  # Peano plus / mult
+        return "(%s %s %s)" % (t[0], beta_term(t[1], ib, depth), beta_term(t[2], ib, depth))
     if t[0] == "eig":
         return "(v %d)" % (depth + len(ib) - 1 - list(ib).index(t[1]))
     return "(v %d)" % t[1]
@@ -98,6 +114,8 @@ def beta_prop(p, ib=(), depth=0):
         return "(Pred %d %s)" % (p[1], beta_term(p[2], ib, depth))
     if h == "rel":
         return "(Rel %d %s %s)" % (p[1], beta_term(p[2], ib, depth), beta_term(p[3], ib, depth))
+    if h == "=":
+        return "(= %s %s)" % (beta_term(p[1], ib, depth), beta_term(p[2], ib, depth))
     if h in ("all", "ex"):
         return "(%s %s)" % ("All" if h == "all" else "Exists", beta_prop(p[1], ib, depth + 1))
     return "(%s %s %s)" % (h, beta_prop(p[1], ib, depth), beta_prop(p[2], ib, depth))
@@ -110,7 +128,9 @@ def _subt(term, t, d):  # substitute the de Bruijn term-var `d` with `t` (shifte
         return ("v", term[1] - 1) if term[1] > d else term
     if term[0] == "s":
         return ("s", _subt(term[1], t, d))
-    return term  # z
+    if term[0] in ("p", "m"):
+        return (term[0], _subt(term[1], t, d), _subt(term[2], t, d))
+    return term  # z, eig (an eigenvariable is opaque -- no de Bruijn var inside it)
 
 
 def _shift(t, d):
@@ -118,6 +138,8 @@ def _shift(t, d):
         return ("v", t[1] + d)
     if t[0] == "s":
         return ("s", _shift(t[1], d))
+    if t[0] in ("p", "m"):
+        return (t[0], _shift(t[1], d), _shift(t[2], d))
     return t
 
 
@@ -127,6 +149,8 @@ def subst0(p, t, d=0):  # substitute the outermost bound var (v0) of a body with
         return ("pred", p[1], _subt(p[2], t, d))
     if h == "rel":
         return ("rel", p[1], _subt(p[2], t, d), _subt(p[3], t, d))
+    if h == "=":
+        return ("=", _subt(p[1], t, d), _subt(p[2], t, d))
     if h in ("all", "ex"):
         return (h, subst0(p[1], t, d + 1))
     if h in ("->", "&", "+"):
@@ -138,9 +162,9 @@ def ground_terms(p, out):  # collect ground (var-free) candidate witness terms i
     h = p[0]
     if h == "pred":
         _gt(p[2], out)
-    elif h == "rel":
-        _gt(p[2], out)
-        _gt(p[3], out)
+    elif h in ("rel", "="):
+        _gt(p[1 if h == "=" else 2], out)
+        _gt(p[2 if h == "=" else 3], out)
     elif h in ("all", "ex"):
         ground_terms(p[1], out)
     elif h in ("->", "&", "+"):
@@ -148,12 +172,67 @@ def ground_terms(p, out):  # collect ground (var-free) candidate witness terms i
         ground_terms(p[2], out)
 
 
-def _gt(t, out):
+def _gt(t, out):  # a term is a candidate only if it is ground (contains no free de Bruijn var)
     if t[0] == "v":
-        return  # not ground
+        return
+    if t[0] in ("p", "m"):
+        _gt(t[1], out)
+        _gt(t[2], out)
+        if _ground(t):
+            out.add(t)
+        return
     out.add(t)
     if t[0] == "s":
         _gt(t[1], out)
+
+
+def _ground(t):  # True if the term has no free de Bruijn var (eigenvariables count as ground atoms)
+    if t[0] == "v":
+        return False
+    if t[0] == "s":
+        return _ground(t[1])
+    if t[0] in ("p", "m"):
+        return _ground(t[1]) and _ground(t[2])
+    return True  # z, eig
+
+
+def nf(t):  # normal form, mirroring check.beta's `normalize` for the z/s/p/m term fragment EXACTLY. Every
+    # rewrite used is a kernel rule, so nf(a)==nf(b) ==> the kernel's conversion equates a and b -> (refl a)
+    # is ACCEPTED for goal (= a b). Matching the kernel's weak-head stuck forms avoids spurious rejects.
+    h = t[0]
+    if h == "s":
+        return ("s", nf(t[1]))
+    if h == "p":                       # p z b => b ; p (s x) b => s (p x b) ; else stuck (both args normal)
+        a = nf(t[1])
+        b = nf(t[2])
+        if a[0] == "z":
+            return b
+        if a[0] == "s":
+            return ("s", nf(("p", a[1], b)))
+        return ("p", a, b)
+    if h == "m":                       # m z y => z ; m (s x) y => p y (m x y) ; else stuck (2nd arg RAW)
+        a = nf(t[1])
+        if a[0] == "z":
+            return ("z",)
+        if a[0] == "s":
+            return nf(("p", t[2], ("m", a[1], t[2])))
+        return ("m", a, t[2])
+    return t                           # z, v, eig -- already normal
+
+
+def nf_prop(p):  # normalize every term inside a proposition (the kernel's type_eq compares props up to this)
+    h = p[0]
+    if h == "pred":
+        return ("pred", p[1], nf(p[2]))
+    if h == "rel":
+        return ("rel", p[1], nf(p[2]), nf(p[3]))
+    if h == "=":
+        return ("=", nf(p[1]), nf(p[2]))
+    if h in ("all", "ex"):
+        return (h, nf_prop(p[1]))
+    if h in ("->", "&", "+"):
+        return (h, nf_prop(p[1]), nf_prop(p[2]))
+    return p  # at, bot
 
 
 # ---- proof search over {-> , &}. Context entries are (prop, term) where `term` is a NAMED proof of
@@ -258,6 +337,20 @@ def _rules(sat, goal):
     direct = has(sat, goal)
     if direct is not None:
         return direct
+    # refl: an equality goal whose two sides share a normal form (under the kernel's own term reduction).
+    # (refl a) : (= a a), and the kernel's conversion equates a with b exactly when nf(a)==nf(b), so it
+    # accepts (refl a) : (= a b). This discharges definitional arithmetic -- e.g. (= (p (s z) (s z)) (s (s z))).
+    if goal[0] == "=" and nf(goal[1]) == nf(goal[2]):
+        return ("refl", goal[1])
+    # conversion axiom: a hypothesis EQUAL TO THE GOAL up to the kernel's term conversion. type_eq normalizes,
+    # so (hyp i) : H is accepted for goal G when nf_prop(H)==nf_prop(G) -- e.g. a hyp P(1+1) discharges goal
+    # P(2). Only fires when the structural axiom missed (an exact match already returned above) and the goal
+    # actually carries terms (it differs from structural equality only for pred/rel/= -bearing props).
+    if goal[0] in ("pred", "rel", "=", "->", "&", "+", "all", "ex"):
+        ng = nf_prop(goal)
+        for prop, term in sat:
+            if prop != goal and nf_prop(prop) == ng:
+                return term
     # R&: prove each conjunct
     if goal[0] == "&":
         la = prove(sat, goal[1])
@@ -364,6 +457,8 @@ def to_db(term, binders, ib=()):  # convert the named proof term to check.beta's
         return "(%s %s %s)" % (h, beta_prop(term[1], ib), to_db(term[2], binders, ib))
     if h == "case":  # scrutinee + two lam branches
         return "(case %s %s %s)" % (to_db(term[1], binders, ib), to_db(term[2], binders, ib), to_db(term[3], binders, ib))
+    if h == "refl":  # reflexivity of equality: (refl t) : (= t t), accepted up to the kernel's conversion
+        return "(refl %s)" % beta_term(term[1], ib)
     if h == "gen":  # universal introduction: push the eigenvar -> a new innermost individual binder
         _, e, body = term
         return "(gen %s)" % to_db(body, binders, tuple(ib) + (e,))
@@ -478,6 +573,43 @@ def fobatch(n, seed):
             print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [])))
 
 
+# ---- ARITHMETIC fuzz: validates that nf() matches check.beta's `normalize` EXACTLY. Build a random closed
+# term over z/s/p/m, compute its value in Python, and assert (= term <numeral>). It is true by construction,
+# so the prover must discharge it via refl AND the kernel must accept -- which holds iff nf agrees with the
+# kernel's reduction. A divergence (a botched plus/mult rule, an off-by-one) surfaces as a kernel REJECT. ----
+def _numeral(n):
+    t = ("z",)
+    for _ in range(n):
+        t = ("s", t)
+    return t
+
+
+def _rarith(rng, depth):  # a random closed arithmetic term paired with its integer value
+    if depth <= 0 or rng.random() < 0.45:
+        n = rng.randrange(4)
+        return _numeral(n), n
+    op = rng.choice(("s", "p", "m"))
+    if op == "s":
+        a, va = _rarith(rng, depth - 1)
+        return ("s", a), va + 1
+    a, va = _rarith(rng, depth - 1)
+    b, vb = _rarith(rng, depth - 1)
+    if op == "p":
+        return ("p", a, b), va + vb
+    return ("m", a, b), va * vb
+
+
+def arithbatch(n, seed):
+    import random
+    rng = random.Random(seed)
+    for _ in range(n):
+        t, v = _rarith(rng, rng.randint(1, 3))
+        goal = ("=", t, _numeral(v))
+        proof = solve(goal)
+        if proof is not None:
+            print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [])))
+
+
 def main():
     if sys.argv[1] == "--gen":
         gen(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
@@ -487,6 +619,9 @@ def main():
         return
     if sys.argv[1] == "--fobatch":  # first-order provable-schema fuzz (exercises eigenvar emission)
         fobatch(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
+        return
+    if sys.argv[1] == "--arithbatch":  # closed-arithmetic equality fuzz (validates nf vs the kernel)
+        arithbatch(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
         return
     goal = parse(tokenize(sys.argv[1]))
     proof = solve(goal, int(sys.argv[2]) if len(sys.argv) > 2 else 16)
