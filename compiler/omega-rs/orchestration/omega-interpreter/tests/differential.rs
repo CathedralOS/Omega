@@ -484,6 +484,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("text/runtime_substring_search_exit", 70),
     ("text/runtime_binary_format_exit", 70),
     ("text/runtime_run_length_encode_exit", 70),
+    ("text/runtime_base64_encode_exit", 70),
     ("text/runtime_string_palindrome_exit", 70),
     ("text/runtime_bounded_carrier_byte_write_exit", 70),
     ("text/runtime_bounded_carrier_concat_exit", 70),
