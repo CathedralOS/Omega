@@ -1,0 +1,44 @@
+// A DUAL runtime-indexed copy inside a loop -- `a[i] = b[i]` where both the target and the value
+// are runtime-indexed -- MUST be rejected, not silently miscompiled. The static-assignment fast
+// path resolves the runtime-indexed value `b[i]` to the array BASE, so without the classifier guard
+// the write silently NO-OPS (a stays all-zero; the sum is 0 with no error). The top-level form is
+// caught by the dual-runtime-indexed mutation blocker; this in-loop form previously had no write
+// record at all and slipped through. Sound workaround: a field temp -- `t = b[i]; a[i] = t`.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: [i32; 3] in Wrapping;
+    b: [i32; 3] in Wrapping;
+    i: i32 in Wrapping;
+    s: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.b = [10, 20, 40];
+    self.a = [0, 0, 0];
+    self.i = 0;
+    transition {
+        _ -> step()
+    }
+    state step(&mut self) {
+        transition self.i < 3 {
+            true -> copy()
+            _ -> done()
+        }
+    }
+    state copy(&mut self) {
+        self.a[self.i] = self.b[self.i];
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+    state done(&mut self) {
+        self.s = self.a[0] + self.a[1];
+        self.s = self.s + self.a[2];
+        self.console.exit_process(self.s);
+    }
+}

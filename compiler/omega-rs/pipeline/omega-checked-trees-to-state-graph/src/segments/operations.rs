@@ -83,6 +83,21 @@ fn statement_call_receiver_name(program: &CheckedTrees, call: &TableCall) -> Ide
         .unwrap_or_else(|| Identifier::generated_static("self"))
 }
 
+/// An `Indexed` place whose index is a RUNTIME value (not a constant integer), unwrapping any
+/// `Mutable` wrapper around the index. The static-assignment fast path resolves a runtime index by
+/// taking the collection BASE, so an indexed write that is runtime-indexed on both sides, or nested,
+/// silently no-ops through it.
+fn expression_is_runtime_indexed(table: &ExpressionTable, handle: ExpressionHandle) -> bool {
+    let ExpressionNode::Indexed(indexed) = table.expression(handle) else {
+        return false;
+    };
+    let mut index = indexed.index;
+    while let ExpressionNode::Mutable(inner) = table.expression(index) {
+        index = *inner;
+    }
+    !matches!(table.expression(index), ExpressionNode::Integer(_))
+}
+
 /// A nested runtime-COLUMN indexed target -- `grid[anything][i]` where the outer/column index `i`
 /// is a runtime value and the collection is itself an indexed place. The static-assignment and
 /// constant-integer fast paths cannot lower this shape: they would silently NO-OP (the element
@@ -91,16 +106,12 @@ fn statement_call_receiver_name(program: &CheckedTrees, call: &TableCall) -> Ide
 /// than vanishing. A const column (`grid[i][0]`) resolves to a fixed offset and IS lowerable, and a
 /// single index (`arr[i]`, `self.field[i]`) has a non-indexed collection, so neither is refused.
 fn target_is_nested_runtime_indexed(table: &ExpressionTable, target: ExpressionHandle) -> bool {
+    if !expression_is_runtime_indexed(table, target) {
+        return false;
+    }
     let ExpressionNode::Indexed(indexed) = table.expression(target) else {
         return false;
     };
-    let mut index = indexed.index;
-    while let ExpressionNode::Mutable(inner) = table.expression(index) {
-        index = *inner;
-    }
-    if matches!(table.expression(index), ExpressionNode::Integer(_)) {
-        return false;
-    }
     let mut collection = indexed.collection;
     while let ExpressionNode::Mutable(inner) = table.expression(collection) {
         collection = *inner;
@@ -109,7 +120,17 @@ fn target_is_nested_runtime_indexed(table: &ExpressionTable, target: ExpressionH
 }
 
 fn is_static_assignment(program: &CheckedTrees, assignment: TableAssignment) -> bool {
-    if target_is_nested_runtime_indexed(&program.expression_table, assignment.target) {
+    let table = &program.expression_table;
+    // The static-assignment fast path cannot lower an indexed write that resolves a runtime index to
+    // the collection base: a nested runtime column (`grid[i][j]`) or a DUAL runtime-indexed copy
+    // (`a[i] = b[j]`, both sides runtime-indexed) would silently NO-OP. Refuse the fast path so they
+    // fall to a regular `Assignment`, get recorded, and are reported cleanly by the storage blocker.
+    // (The top-level dual case is also caught by the dual-runtime-indexed mutation blocker; this
+    // additionally fences the IN-LOOP dual copy, which otherwise had no write record at all.)
+    if target_is_nested_runtime_indexed(table, assignment.target)
+        || (expression_is_runtime_indexed(table, assignment.target)
+            && expression_is_runtime_indexed(table, assignment.value))
+    {
         return false;
     }
     let target_is_place = matches!(
