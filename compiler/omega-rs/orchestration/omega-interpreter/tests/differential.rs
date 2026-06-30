@@ -108,6 +108,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     ("control_flow/case_payload_shared_field_name_exit", 70),
+    ("control_flow/runtime_multi_field_payload_arith_exit", 70),
     (
         "control_flow/runtime_captured_local_remutated_field_exit",
         70,

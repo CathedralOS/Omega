@@ -5583,6 +5583,35 @@ fn runtime_guard_divide_modulo_signedness_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_multi_field_payload_arith_exit_canary_runs() {
+    // A two-field sum-case payload `case Rect(w, h)`: both fields bind in the match arm and drive
+    // a computed transition arg (w * h + 58), discriminating arm selection AND both field binds
+    // (Circle computes r * 7). Rect{3,4} -> 70.
+    let canary = pass_canary("control_flow/runtime_multi_field_payload_arith_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-multi-field-payload-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("multi-field payload canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("multi-field payload canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Rect{{3,4}} -> 3*4+58 = 70 (both payload fields bound); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn case_payload_shared_field_name_exit_canary_runs() {
     // Regression: destructuring `Tx::Transfer { to, amount }` must read Transfer's
     // `amount` (40), not a same-named field in an earlier variant (would read to=3).

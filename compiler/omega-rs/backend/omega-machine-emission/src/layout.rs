@@ -100,8 +100,10 @@ fn machine_instruction_width(
         // lands at that offset and crashes the binary at runtime.
         if width == 0 {
             return Err(Diagnostic::error(format!(
-                "host operation {}.{} has no encodable call sequence (an argument \
-                 did not marshal to an operand); refusing to emit a zero-byte host call",
+                "host operation {}.{} has no encodable call sequence: a host-call argument \
+                 must be a simple value (a local, field, parameter, or literal). Bind a computed \
+                 argument -- arithmetic, a cast, or a value-call result -- to a local or field \
+                 first, then pass that. (refusing to emit a zero-byte host call)",
                 host_operation.operation_key.capability_name(),
                 host_operation.operation_key.operation_name(),
             )));
