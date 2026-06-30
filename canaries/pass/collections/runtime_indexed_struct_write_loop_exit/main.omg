@@ -1,0 +1,55 @@
+// A whole-STRUCT write to a runtime-indexed array-of-structs element, in a loop:
+// `self.arr[self.i] = Pt { x: .., y: .. }` with `i` a runtime loop counter. This is the
+// entity-array population pattern (fill an array of records by index). The static-assignment path
+// lowers a struct-literal value into a runtime-indexed slot correctly (native==interp).
+//
+// (Contrast: a runtime-COLUMN nested write and a dual-runtime-indexed copy are clean errors -- see
+// the nested_runtime_indexed_write_rejected / runtime_dual_indexed_copy_in_loop_rejected canaries.
+// A struct-literal value is a fixed payload, so it lowers fine.)
+//
+// Fill all three elements with Pt{10,15}, then sum arr[0].x + arr[1].y + arr[2].x = 10+15+10 = 35.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Pt {
+    x: i32 in Wrapping;
+    y: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    arr: [Pt; 3];
+    i: u32 in Wrapping;
+    s: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.i = 0;
+    transition {
+        _ -> step()
+    }
+    state step(&mut self) {
+        transition self.i < 3 {
+            true -> wr()
+            _ -> sum()
+        }
+    }
+    state wr(&mut self) {
+        self.arr[self.i] = Pt { x: 10, y: 15 };
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+    state sum(&mut self) {
+        self.s = self.arr[0].x + self.arr[1].y;
+        self.s = self.s + self.arr[2].x;
+        transition self.s == 35 {
+            true -> ok()
+            _ -> bad()
+        }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(self.s); }
+}

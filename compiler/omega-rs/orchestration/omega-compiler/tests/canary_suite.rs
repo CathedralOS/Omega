@@ -5255,6 +5255,34 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_struct_write_loop_exit_canary_runs() {
+    // A whole-struct write to a runtime-indexed array-of-structs element in a loop (entity-array
+    // population): `self.arr[self.i] = Pt{..}`. Fill 3 elements, sum 10+15+10 = 35 -> exit 70.
+    let canary = pass_canary("collections/runtime_indexed_struct_write_loop_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-indexed-struct-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed struct-write loop canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed struct-write loop canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected runtime-indexed whole-struct writes summing to 35 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn std_option_runtime_match_exit_canary_runs() {
     // The std `Option<T>` works at runtime for presence/absence: construct Some + None and
     // discriminate them. a=Some -> check b; b=None -> exit 70. (Some carries no payload yet --
