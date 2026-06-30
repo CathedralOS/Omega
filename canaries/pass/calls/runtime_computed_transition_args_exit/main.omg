@@ -1,0 +1,39 @@
+// Computed VALUES passed directly as transition arguments materialize correctly: an addition,
+// a subtraction (negative-capable), and a cast are each evaluated and delivered to the target
+// state's parameters. The check discriminates -- all three params must hold their exact
+// expected values, so a dropped or garbled argument is caught: chk(7+3, 7-3, 300 as u8)
+// must see sum=10, diff=4, byte=44 -> exit 70.
+//
+// This is the WORKING contrast to a known silent miscompile: a value-CALL result used directly
+// as a transition argument is NOT materialized (the param reads 0) -- see memory
+// value-call-in-guard-always-true (the dispatch-position generalization). Arithmetic and casts
+// as args work; only a direct value-call arg drops (its sound workaround is to bind the call
+// result to a local/field first). Pinning the working shapes guards them against regressing
+// into that same failure mode.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    big: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 7;
+    self.b = 3;
+    self.big = 300;
+    transition { _ -> chk(self.a + self.b, self.a - self.b, self.big as u8 in Wrapping) }
+
+    state chk(&mut self, sum: i32 in Wrapping, diff: i32 in Wrapping, byte: u8 in Wrapping) {
+        transition sum == 10 && diff == 4 && byte == 44 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
