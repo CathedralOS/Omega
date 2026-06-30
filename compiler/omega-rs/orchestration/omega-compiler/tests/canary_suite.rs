@@ -4718,6 +4718,33 @@ fn runtime_float32_array_conversion_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_bitwise_high_ops_exit_canary_runs() {
+    // Bitwise ops on u32 above i32::MAX: a=0xF0F0F0F0, b=0x0F0F0F0F. XOR/AND/OR, a shift+mask
+    // nibble extract, and NOT-via-XOR all chained -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_bitwise_high_ops_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-bitwise-high-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bitwise high ops canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bitwise high ops canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected u32 bitwise ops at high values to be correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_unsigned_high_comparison_exit_canary_runs() {
     // Unsigned comparison above i32::MAX (a = u32::MAX, b = 1): a signed setcc would invert every
     // ordered result. All six operators chained give the unsigned answer -> exit 70.
