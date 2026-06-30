@@ -63,7 +63,11 @@ pub(super) fn runtime_dispatch_loop_blocker(input: &EmissionPlanningInput<'_>) -
         return blocker(
             "runtime dispatch",
             &format!(
-                "dispatch loop planned with {} case(s), {} edge(s), and {} cycle(s); {} guard lowering {guard_lowering:?} needs runtime state comparison byte emission{}",
+                "transition guard in state {3} could not be lowered to a native comparison: a \
+                 guard subject must be a comparison of simple values. Bind a complex \
+                 subexpression -- a shift, a cast, or a value-call result -- to a field or \
+                 local first, then compare that local. (guard lowering {guard_lowering:?}; \
+                 dispatch loop {0} case(s), {1} edge(s), {2} cycle(s)){4}",
                 input.runtime_dispatch_loop.cases.len(),
                 input.runtime_dispatch_loop.edges.len(),
                 input.runtime_flow.cycles.len(),
