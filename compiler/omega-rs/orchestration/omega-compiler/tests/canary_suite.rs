@@ -4317,6 +4317,36 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_through_guard_chain_exit_canary_runs() {
+    // An index bound carried across a CHAIN of convergent-arm guards (`d<0 {true->t
+    // _->t}`) that neither name nor rewrite x. Before convergent arms were treated as
+    // a single unconditional predecessor, each guard split dropped the bound. Compiling
+    // + reading arr[3]=70 -> exit 70 confirms the bound survives the chain.
+    let canary = pass_canary("collections/runtime_indexed_through_guard_chain_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-guard-chain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-through-guard-chain canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-through-guard-chain canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the index bound to survive the convergent-guard chain (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_binary_search_exit_canary_runs() {
     // Binary search for 50 in a sorted 7-element array narrows in BOTH directions
     // (lo=mid+1 then hi=mid-1) and must find it at exactly index 4. Locks the computed
