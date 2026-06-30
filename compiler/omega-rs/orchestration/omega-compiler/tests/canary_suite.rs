@@ -657,6 +657,31 @@ fn unapproved_host_call_canary_is_rejected() {
 }
 
 #[test]
+fn cast_in_guard_rejected_canary_is_rejected() {
+    // A cast in a guard subject is not yet lowerable; the dispatch-guard blocker rejects it
+    // cleanly rather than silently miscompiling (#40). Workaround: cast into a field first,
+    // then guard the field. Sibling of shift_in_guard_rejected; guards against the value-call
+    // -in-guard silent-miscompile failure mode reaching casts. Remove when casts-in-guards land.
+    let canary = fail_canary("arithmetic/cast_in_guard_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected cast-in-guard canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("guard"),
+        "expected a guard-lowering rejection diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn shift_in_guard_rejected_canary_is_rejected() {
     // A shift (<< / >>) directly in a guard subject is not yet lowerable; the dispatch-guard
     // blocker rejects it cleanly rather than silently miscompiling (#40). Value-position
