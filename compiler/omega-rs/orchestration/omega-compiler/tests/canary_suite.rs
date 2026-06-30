@@ -657,6 +657,31 @@ fn unapproved_host_call_canary_is_rejected() {
 }
 
 #[test]
+fn shift_in_guard_rejected_canary_is_rejected() {
+    // A shift (<< / >>) directly in a guard subject is not yet lowerable; the dispatch-guard
+    // blocker rejects it cleanly rather than silently miscompiling (#40). Value-position
+    // shifts work (bind the shifted value to a local first). This guards the #40 boundary:
+    // if shift-in-guard ever compiles, the canary fails. Remove when shifts-in-guards land.
+    let canary = fail_canary("arithmetic/shift_in_guard_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected shift-in-guard canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("guard"),
+        "expected a guard-lowering rejection diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn u64_literal_above_i64_max_canary_is_rejected() {
     // A u64 literal above i64::MAX (the literal value is carried as i64 through the IR) is
     // rejected with a CLEAR "exceeds the i64 range" diagnostic that names the real
