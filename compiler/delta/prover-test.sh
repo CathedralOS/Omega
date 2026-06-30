@@ -175,5 +175,17 @@ while IFS="$(printf '\t')" read -r goal cert; do
   if [ "$v" = accept ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL arith-fuzz $goal : kernel rejected [$v]"; fi
 done < "$T/arcerts"
 
-echo "proof-automation front line (prover discharges; check.beta validates): $PASS ok ($nproved prop-fuzz, $fonproved fo-fuzz, $arnproved arith-fuzz), $FAIL failed"
+# INEQUALITY fuzz: provable-by-construction contract-discharge bound goals (transitivity, drop-addend,
+# weakenings) with random successor-nested fillings. Hardens the directed sum-witness + lemma + eqelim-chain
+# emission (the riskiest recent de Bruijn) -- every emitted certificate must kernel-accept. Two seeds.
+iqnproved=0
+python3 prover.py --ineqbatch 50 7 > "$T/iqcerts"
+python3 prover.py --ineqbatch 50 3 >> "$T/iqcerts"
+while IFS="$(printf '\t')" read -r goal cert; do
+  iqnproved=$((iqnproved+1))
+  v=$(printf '%s' "$cert" | "$CHECK")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL ineq-fuzz $goal : kernel rejected [$v]"; fi
+done < "$T/iqcerts"
+
+echo "proof-automation front line (prover discharges; check.beta validates): $PASS ok ($nproved prop-fuzz, $fonproved fo-fuzz, $arnproved arith-fuzz, $iqnproved ineq-fuzz), $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
