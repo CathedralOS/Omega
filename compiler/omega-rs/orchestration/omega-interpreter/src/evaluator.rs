@@ -2996,7 +2996,13 @@ impl<'program> Evaluator<'program> {
 fn is_canonical_host_method(name: &str) -> bool {
     matches!(
         name,
-        "write" | "write_line" | "write_error" | "write_error_line" | "read_line" | "exit_process"
+        "write"
+            | "write_line"
+            | "write_error"
+            | "write_error_line"
+            | "read_line"
+            | "exit_process"
+            | "sleep"
     )
 }
 
