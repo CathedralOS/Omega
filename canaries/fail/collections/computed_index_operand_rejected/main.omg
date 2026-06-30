@@ -1,0 +1,30 @@
+// A runtime COMPUTED index `arr[k + 1]` used as a value operand silently read 0 -- the
+// backend cannot lower a computed index as an operand (and a computed-index WRITE no-ops).
+// Even when the bound on `k + 1` is explicitly guarded -- which gets it past the bounds
+// proof -- it must be REJECTED, not silently miscompiled (#40). The sound workaround is to
+// compute the index into a field first: `self.m = self.k + 1; self.arr[self.m]`.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5] in Trapping;
+    k: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.arr = [1, 20, 30, 40, 50];
+    self.k = self.arr[0];
+    self.acc = 0;
+    transition self.k + 1 >= 0 && self.k + 1 < 5 { true -> read() _ -> done() }
+
+    state read(&mut self) {
+        self.acc = self.acc + self.arr[self.k + 1];
+        transition { _ -> done() }
+    }
+    state done(&mut self) {
+        self.console.exit_process(self.acc);
+    }
+}

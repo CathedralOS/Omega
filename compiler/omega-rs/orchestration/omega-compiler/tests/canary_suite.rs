@@ -657,6 +657,29 @@ fn unapproved_host_call_canary_is_rejected() {
 }
 
 #[test]
+fn computed_index_operand_canary_is_rejected() {
+    // `arr[k + 1]` as a value operand silently read 0 (computed index not lowerable);
+    // even with `k + 1`'s bound explicitly guarded it must be refused, not miscompiled.
+    let canary = fail_canary("collections/computed_index_operand_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected computed-index canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("is a computed expression"),
+        "expected computed-index diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn indexed_write_from_indexed_read_canary_is_rejected() {
     // `nums[i] = nums[j]` with both indices runtime silently copied the array base
     // (exit 10 not 50). A blocker-level stopgap now refuses it; this pins that it
