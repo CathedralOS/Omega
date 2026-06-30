@@ -5228,6 +5228,35 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_row_const_column_write_exit_canary_runs() {
+    // The working side of the 2D-write boundary: a runtime ROW index with a CONST column
+    // (`grid[r][0]`, `grid[r][1]`) lowers correctly. Fill both columns of both rows by runtime row,
+    // sum 10+15+20+25 = 70. (The runtime-COLUMN case is rejected; see the fail canary.)
+    let canary = pass_canary("collections/runtime_row_const_column_write_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-row-const-col-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime-row const-column write canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime-row const-column write canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected runtime-row const-column 2D writes to sum 10+15+20+25 == 70 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_nested_array_const_index_exit_canary_runs() {
     // A 2D array [[i32;2];2]: const-indexed reads and writes work. Fill all four cells, sum =
     // 1+2+3+4 = 10 -> exit 70. (Runtime-column 2D indexing is a separate known gap.)
