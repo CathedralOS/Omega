@@ -4423,6 +4423,35 @@ fn runtime_rpn_evaluator_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_ring_buffer_queue_exit_canary_runs() {
+    // A FIFO ring-buffer queue: a fixed [i32;4] with head/tail advancing modulo the
+    // capacity (explicit wrap) and a count guard. Interleaved enqueue/dequeue forces both
+    // pointers to wrap; each dequeue is checked against a running counter so FIFO order is
+    // pinned. All of 1..6 dequeued in order -> exit 70.
+    let canary = pass_canary("collections/runtime_ring_buffer_queue_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-ring-buffer-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("ring buffer queue canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("ring buffer queue canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the ring buffer to preserve FIFO order 1..6 (exit 70); got {:?} (a non-70 code is where order broke)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_bubble_sort_exit_canary_runs() {
     // Bubble sort with nested loops, the adjacent index `j+1` via a field, a field-bound
     // compare, and a value-swap. Sorts [5,2,8,1,9,3] and self-checks four cells -> 70.
