@@ -1,0 +1,19 @@
+// FAIL canary: a u64 literal above i64::MAX is rejected with a CLEAR diagnostic that names
+// the real limitation, not the misleading "invalid integer literal". The literal value is
+// carried as i64 through the IR (ExpressionNode::Integer(i64)), so u64::MAX =
+// 18446744073709551615 -- well-formed digits, valid for the u64 target -- is not yet
+// representable. The diagnostic must distinguish this magnitude overflow from genuinely
+// invalid digits. (Remove this canary when full-width u64 literals are supported: the i128
+// literal-widening fix -- see memory u64-literal-above-i64-max-gap. u64 ARITHMETIC already
+// works; only the LITERAL is the gap.)
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    mask: u64 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.mask = 18446744073709551615; // u64::MAX -- above i64::MAX, rejected
+    self.console.exit_process(0);
+}
