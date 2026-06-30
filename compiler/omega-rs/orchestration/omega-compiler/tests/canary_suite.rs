@@ -4564,6 +4564,34 @@ fn runtime_rpn_evaluator_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_activity_selection_greedy_exit_canary_runs() {
+    // Greedy activity selection: given activities sorted by finish, take each that starts
+    // no earlier than the last chosen finish. Six activities yield 3 non-overlapping ->
+    // exit 70.
+    let canary = pass_canary("collections/runtime_activity_selection_greedy_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-activity-greedy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("activity selection canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("activity selection canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected greedy activity selection to pick 3 non-overlapping (exit 70); got {:?} (the count on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_maze_pathfind_exit_canary_runs() {
     // Shortest-path BFS on a 5x5 grid maze (implicit grid neighbours + walls, distinct from
     // the adjacency-matrix BFS). The shortest distance from cell 0 to cell 24 through the
