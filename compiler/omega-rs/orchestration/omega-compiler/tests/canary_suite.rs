@@ -9594,6 +9594,34 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_result_match_exit_canary_runs() {
+    // Result-style error handling at runtime: a two-case enum (Ok/Err) produced
+    // conditionally, then matched and handled in a loop. Safe-dividing 10/2, 7/0, 20/4
+    // sums the Ok values to 10 and counts 1 Err -> exit 70.
+    let canary = pass_canary("errors/runtime_result_match_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-result-match-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("result match canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("result match canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Ok/Err handling to sum Oks=10 and count 1 Err (exit 70); got {:?} (the sum on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_entity_component_exit_canary_runs() {
     // An array of entities each holding a nested component struct (the entity-component
     // pattern): runtime-indexed access through a member path (`self.ents[i].pos.x`) read in
