@@ -1,0 +1,28 @@
+// Unsigned comparison above i32::MAX -- the case a signed compare would get exactly backwards.
+// With a = 4294967295 (u32::MAX) and b = 1, the high bit of `a` is set, so if the comparison
+// emitted a SIGNED setcc (treating a as -1) every ordered result would invert. All six operators
+// are chained and must give the UNSIGNED answer: a>b true, a<b false, a>=b true, a<=b false,
+// a==b false, a!=b true. Exits 70 iff all hold. (Both the leaf-guard and dispatch-loop paths were
+// verified; this locks the leaf-guard form, which uses the same unsigned setcc selection.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: u32 in Wrapping;
+    b: u32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 4294967295;
+    self.b = 1;
+    transition self.a > self.b { true -> lt() _ -> bad() }
+    state lt(&mut self) { transition self.a < self.b { true -> bad() _ -> ge() } }
+    state ge(&mut self) { transition self.a >= self.b { true -> le() _ -> bad() } }
+    state le(&mut self) { transition self.a <= self.b { true -> bad() _ -> eq() } }
+    state eq(&mut self) { transition self.a == self.b { true -> bad() _ -> ne() } }
+    state ne(&mut self) { transition self.a != self.b { true -> ok() _ -> bad() } }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

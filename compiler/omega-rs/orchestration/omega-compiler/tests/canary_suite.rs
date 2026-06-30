@@ -4718,6 +4718,34 @@ fn runtime_float32_array_conversion_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_unsigned_high_comparison_exit_canary_runs() {
+    // Unsigned comparison above i32::MAX (a = u32::MAX, b = 1): a signed setcc would invert every
+    // ordered result. All six operators chained give the unsigned answer -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_unsigned_high_comparison_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-unsigned-high-cmp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsigned high comparison canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsigned high comparison canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected unsigned comparisons of u32::MAX vs 1 to be correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_signed_modulo_shift_edges_exit_canary_runs() {
     // Sign-sensitive integer codegen: truncated signed modulo with negatives (-7%3==-1, 7%-3==1),
     // arithmetic vs logical right shift (-16>>2==-4 SAR, 16u32>>2==4 SHR), and a runtime shift

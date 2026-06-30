@@ -64,6 +64,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_float_negative_ops_exit", 70),
     ("arithmetic/runtime_float32_array_conversion_exit", 70),
     ("arithmetic/runtime_signed_modulo_shift_edges_exit", 70),
+    ("arithmetic/runtime_unsigned_high_comparison_exit", 70),
     ("arithmetic/runtime_gcd_euclid_exit", 70),
     ("arithmetic/runtime_monte_carlo_pi_exit", 70),
     ("arithmetic/runtime_newton_sqrt_exit", 70),
