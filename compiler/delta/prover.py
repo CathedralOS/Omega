@@ -575,13 +575,20 @@ def _rules(sat, goal):
     # step's own universal can't trigger unbounded re-induction.
     if goal[0] == "all" and _ind_depth[0] < _IND_CAP:
         motive = goal[1]
+        base_goal = subst0(motive, ("z",))
+        step_goal = ("all", ("->", motive, subst0_keep(motive, ("s", ("v", 0)))))
+        # base/step introduce NEW ground terms (e.g. the base's (s z) witness) absent from the original goal's
+        # candidate set -- gather them so the existential-witness search can find them.
+        saved = list(_candidates)
+        extra = set(_candidates)
+        ground_terms(base_goal, extra)
+        ground_terms(step_goal, extra)
+        _candidates[:] = list(extra)
         _ind_depth[0] += 1
-        base = prove(sat, subst0(motive, ("z",)))
-        step = None
-        if base is not None:
-            step_goal = ("all", ("->", motive, subst0_keep(motive, ("s", ("v", 0)))))
-            step = prove(sat, step_goal)
+        base = prove(sat, base_goal)
+        step = prove(sat, step_goal) if base is not None else None
         _ind_depth[0] -= 1
+        _candidates[:] = saved
         if base is not None and step is not None:
             return ("natind", motive, base, step)
     # L-exists (unpack): OPEN an existential hypothesis with a fresh eigenvariable e, add body[e], and

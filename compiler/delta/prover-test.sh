@@ -96,6 +96,8 @@ ok "(All (= (p (v 0) z) (v 0)))"                                    # forall x. 
 ok "(All (All (= (p (v 1) (s (v 0))) (s (p (v 1) (v 0))))))"        # forall x y. x + (s y) = s(x + y)
 ok "(All (Le (v 0) (v 0)))"                                         # forall x. x <= x  (symbolic, was blocked)
 ok "(All (All (= (p (v 1) (v 0)) (p (v 0) (v 1)))))"               # forall x y. x + y = y + x (commutativity)
+ok "(All (Le (v 0) (s (v 0))))"                                    # forall x. x <= s x  (the "x < x+1" bound)
+ok "(All (Lt (v 0) (s (v 0))))"                                    # forall x. x < s x   (strict, via induction)
 # non-tautologies: provability must fail (soundness of the front line)
 no "(Exists (Pred 0 (v 0)))"                            # no witness available -> unprovable
 no "(-> (Exists (Pred 0 (v 0))) (Pred 0 (s z)))"        # eigenvariable must NOT escape the unpack
