@@ -12,9 +12,28 @@
 # Usage: prover.py "(-> (& P Q) P)"   ->   (-> (& P Q) P) (lam (& P Q) (fst (hyp 0)))
 import sys
 
-# ---- parse a propositional goal (uppercase atoms, `->`, `&`, parenthesised) into a tuple tree ----
+# ---- parse a goal into a tuple tree. Props: uppercase atoms, `->`/`&`/`+`/`(bot)`, and the first-order
+# forms `(All P)` `(Exists P)` `(Pred n term)` `(Rel n term term)`. Terms: `z`, `(s term)`, `(v i)`. ----
 def tokenize(s):
     return s.replace("(", " ( ").replace(")", " ) ").split()
+
+
+def parse_term(tk):
+    t = tk.pop(0)
+    if t == "(":
+        h = tk.pop(0)
+        if h == "s":
+            x = parse_term(tk)
+            assert tk.pop(0) == ")"
+            return ("s", x)
+        if h == "v":
+            i = int(tk.pop(0))
+            assert tk.pop(0) == ")"
+            return ("v", i)
+        raise ValueError("bad term head: %s" % h)
+    if t == "z":
+        return ("z",)
+    raise ValueError("bad term: %s" % t)
 
 
 def parse(tokens):
@@ -31,16 +50,102 @@ def parse(tokens):
             tokens.pop(0)
             assert tokens.pop(0) == ")"
             return ("bot",)
+        if head in ("All", "Exists"):
+            tokens.pop(0)
+            body = parse(tokens)
+            assert tokens.pop(0) == ")"
+            return ("all" if head == "All" else "ex", body)
+        if head == "Pred":
+            tokens.pop(0)
+            n = int(tokens.pop(0))
+            term = parse_term(tokens)
+            assert tokens.pop(0) == ")"
+            return ("pred", n, term)
+        if head == "Rel":
+            tokens.pop(0)
+            n = int(tokens.pop(0))
+            a = parse_term(tokens)
+            b = parse_term(tokens)
+            assert tokens.pop(0) == ")"
+            return ("rel", n, a, b)
         raise ValueError("bad prop head: %s" % head)
     return ("at", t)  # an atom name (a bare uppercase ident)
 
 
+def beta_term(t):
+    if t[0] == "z":
+        return "z"
+    if t[0] == "s":
+        return "(s %s)" % beta_term(t[1])
+    return "(v %d)" % t[1]
+
+
 def beta_prop(p):
-    if p[0] == "at":
+    h = p[0]
+    if h == "at":
         return p[1]
-    if p[0] == "bot":
+    if h == "bot":
         return "(bot)"
-    return "(%s %s %s)" % (p[0], beta_prop(p[1]), beta_prop(p[2]))
+    if h == "pred":
+        return "(Pred %d %s)" % (p[1], beta_term(p[2]))
+    if h == "rel":
+        return "(Rel %d %s %s)" % (p[1], beta_term(p[2]), beta_term(p[3]))
+    if h in ("all", "ex"):
+        return "(%s %s)" % ("All" if h == "all" else "Exists", beta_prop(p[1]))
+    return "(%s %s %s)" % (h, beta_prop(p[1]), beta_prop(p[2]))
+
+
+def _subt(term, t, d):  # substitute the de Bruijn term-var `d` with `t` (shifted into d binders)
+    if term[0] == "v":
+        if term[1] == d:
+            return _shift(t, d)
+        return ("v", term[1] - 1) if term[1] > d else term
+    if term[0] == "s":
+        return ("s", _subt(term[1], t, d))
+    return term  # z
+
+
+def _shift(t, d):
+    if t[0] == "v":
+        return ("v", t[1] + d)
+    if t[0] == "s":
+        return ("s", _shift(t[1], d))
+    return t
+
+
+def subst0(p, t, d=0):  # substitute the outermost bound var (v0) of a body with term t
+    h = p[0]
+    if h == "pred":
+        return ("pred", p[1], _subt(p[2], t, d))
+    if h == "rel":
+        return ("rel", p[1], _subt(p[2], t, d), _subt(p[3], t, d))
+    if h in ("all", "ex"):
+        return (h, subst0(p[1], t, d + 1))
+    if h in ("->", "&", "+"):
+        return (h, subst0(p[1], t, d), subst0(p[2], t, d))
+    return p  # at, bot
+
+
+def ground_terms(p, out):  # collect ground (var-free) candidate witness terms in a prop
+    h = p[0]
+    if h == "pred":
+        _gt(p[2], out)
+    elif h == "rel":
+        _gt(p[2], out)
+        _gt(p[3], out)
+    elif h in ("all", "ex"):
+        ground_terms(p[1], out)
+    elif h in ("->", "&", "+"):
+        ground_terms(p[1], out)
+        ground_terms(p[2], out)
+
+
+def _gt(t, out):
+    if t[0] == "v":
+        return  # not ground
+    out.add(t)
+    if t[0] == "s":
+        _gt(t[1], out)
 
 
 # ---- proof search over {-> , &}. Context entries are (prop, term) where `term` is a NAMED proof of
@@ -87,9 +192,15 @@ _budget = [0]
 _memo = {}
 
 
+_candidates = []  # ground witness/instantiation terms for the quantifier rules, gathered per solve
+
+
 def solve(goal, _fuel=None):
     _budget[0] = 200000
     _memo.clear()
+    cands = {("z",)}  # z is always available as a default witness
+    ground_terms(goal, cands)
+    _candidates[:] = list(cands)
     return prove([], goal)
 
 
@@ -133,10 +244,31 @@ def _rules(sat, goal):
         rb = prove(sat, goal[2])
         if rb is not None:
             return ("inr", goal[1], rb)
+    # R-forall (gen): prove the body with the bound variable held as a fresh parameter (its predicates
+    # are atomic in the sub-proof). Single-level only -- the context here carries no outer-bound vars.
+    if goal[0] == "all":
+        body = prove(sat, goal[1])
+        if body is not None:
+            return ("gen", body)
+    # R-exists (wit): supply a witness term and prove the instantiated body
+    if goal[0] == "ex":
+        for t in _candidates:
+            pf = prove(sat, subst0(goal[1], t))
+            if pf is not None:
+                return ("wit", goal[1], t, pf)
     # absurd: a falsity in context proves anything (ex falso quodlibet)
     bot = has(sat, ("bot",))
     if bot is not None and goal != ("bot",):
         return ("absurd", goal, bot)
+    # L-forall (inst): instantiate a universal hypothesis with a candidate term (a NEW fact)
+    for prop, term in sat:
+        if prop[0] == "all":
+            for t in _candidates:
+                sub = subst0(prop[1], t)
+                if has(sat, sub) is None:
+                    body = prove(sat + [(sub, ("inst", term, t))], goal)
+                    if body is not None:
+                        return body
     # L+: case-split on a disjunction hypothesis -- prove the goal under each disjunct
     for prop, term in sat:
         if prop[0] == "+":
@@ -174,6 +306,12 @@ def to_db(term, binders):  # convert named-hyp proof term to check.beta's de Bru
         return "(%s %s %s)" % (h, beta_prop(term[1]), to_db(term[2], binders))
     if h == "case":  # scrutinee + two lam branches
         return "(case %s %s %s)" % (to_db(term[1], binders), to_db(term[2], binders), to_db(term[3], binders))
+    if h == "gen":  # universal introduction
+        return "(gen %s)" % to_db(term[1], binders)
+    if h == "inst":  # universal elimination: a proof applied to a TERM
+        return "(inst %s %s)" % (to_db(term[1], binders), beta_term(term[2]))
+    if h == "wit":  # existential introduction: body-prop, witness TERM, proof of the instance
+        return "(wit %s %s %s)" % (beta_prop(term[1]), beta_term(term[2]), to_db(term[3], binders))
     return "(%s %s %s)" % (h, to_db(term[1], binders), to_db(term[2], binders))  # pair / app
 
 
