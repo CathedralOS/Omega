@@ -1,0 +1,107 @@
+// A month calendar -- the kind of formatted, laid-out output a real application produces.
+// Renders a 30-day month that starts on a Wednesday: a weekday header, then the dates in a
+// 7-column grid, the first week indented past the leading blank days. Each date is a
+// space-padded two-digit field (itoa) written at column*3; when a row fills (7 columns) it
+// is printed and the line cleared for the next week; the final partial week is flushed at
+// the end. Builds on multiplication_table's grid/itoa output with a running weekday column
+// and week wrapping. Pure compute + stdout, no new features.
+// Expected exit: 0.
+// Expected output contains: 30
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 21]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    header: [u8; 21] in Utf8;
+    line: [u8; 21] in Utf8;
+    col: i32 in Wrapping;  // 0=Sun .. 6=Sat
+    d: i32 in Wrapping;    // date 1..30
+    o: i32 in Wrapping;    // col * 3
+    o1: i32 in Wrapping;   // o + 1
+    tens: i32 in Wrapping;
+    ones: i32 in Wrapping;
+    k: i32 in Wrapping;    // clear index
+    tc: u8;
+    oc: u8;
+}
+
+machine Main::main(&mut self) {
+    self.header = "Su Mo Tu We Th Fr Sa ";
+    self.line = "                     ";
+    self.col = 3; // the month starts on Wednesday
+    self.d = 1;
+    self.console.write_line(self.header);
+    transition { _ -> day_loop() }
+
+    state day_loop(&mut self) {
+        transition self.d >= 1 && self.d <= 30 { true -> place() _ -> flush() }
+    }
+    state place(&mut self) {
+        self.o = self.col * 3;
+        self.o1 = self.o + 1;
+        self.tens = self.d / 10;
+        self.ones = self.d % 10;
+        self.oc = (self.ones + 48) as u8;
+        transition self.tens > 0 { true -> place_tens() _ -> place_space() }
+    }
+    state place_tens(&mut self) {
+        self.tc = (self.tens + 48) as u8;
+        transition { _ -> place_guard() }
+    }
+    state place_space(&mut self) {
+        self.tc = 32;
+        transition { _ -> place_guard() }
+    }
+    state place_guard(&mut self) {
+        transition self.o >= 0 && self.o < 21 && self.o1 >= 0 && self.o1 < 21 {
+            true -> place_write()
+            _ -> bad()
+        }
+    }
+    state place_write(&mut self) {
+        self.line[self.o] = self.tc;
+        self.line[self.o1] = self.oc;
+        self.col = self.col + 1;
+        transition { _ -> advance() }
+    }
+    state advance(&mut self) {
+        transition self.col >= 7 { true -> emit_week() _ -> next_d() }
+    }
+    state emit_week(&mut self) {
+        self.console.write_line(self.line);
+        self.k = 0;
+        transition { _ -> clear_loop() }
+    }
+    state clear_loop(&mut self) {
+        transition self.k >= 0 && self.k < 21 { true -> clear_cell() _ -> reset_col() }
+    }
+    state clear_cell(&mut self) {
+        self.line[self.k] = 32;
+        self.k = self.k + 1;
+        transition { _ -> clear_loop() }
+    }
+    state reset_col(&mut self) {
+        self.col = 0;
+        transition { _ -> next_d() }
+    }
+    state next_d(&mut self) {
+        self.d = self.d + 1;
+        transition { _ -> day_loop() }
+    }
+
+    state flush(&mut self) {
+        transition self.col > 0 { true -> emit_partial() _ -> finish() }
+    }
+    state emit_partial(&mut self) {
+        self.console.write_line(self.line);
+        transition { _ -> finish() }
+    }
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
