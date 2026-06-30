@@ -6,6 +6,7 @@
 // in the shared place resolver. The `Saturating` domain means an over-long message
 // yields 0 padding instead of underflowing. 16 - 10 = 6.
 // Expected exit: 6.
+// Expected output contains: ALERT temp
 
 domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 32]::Utf8 when valid_utf8(self) {}

@@ -12,6 +12,7 @@
 // program self-checks out[0] == 'K' (75) and exits 0.
 //
 // Expected exit: 0.
+// Expected output contains: KHOOR
 
 use omega::language::std::console;
 

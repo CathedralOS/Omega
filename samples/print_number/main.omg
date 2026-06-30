@@ -9,6 +9,7 @@
 // Building the output string overwrites a 3-char carrier's bytes with computed
 // digit chars (constant-index carrier writes) and prints the carrier. Exits 0.
 // Expected exit: 0.
+// Expected output contains: 150
 
 use omega::language::std::console;
 

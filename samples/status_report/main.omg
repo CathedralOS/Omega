@@ -9,6 +9,7 @@
 // carrier's `.len` also marshals as a value/host-call operand now -- see the
 // runtime_bounded_carrier_length_exit canary.)
 // Expected exit: 70.
+// Expected output contains: ALERT temp
 
 domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 8]::Utf8 when valid_utf8(self) {}
