@@ -1,0 +1,66 @@
+// Scanning an array of enums (a tile grid) by runtime index, the sound way: read each cell into a
+// local/field FIRST, then match the local. A DIRECT `transition self.grid[self.i] { ... }` with a
+// runtime index silently takes the first arm (the parked indexed-guard miscompile); reading into
+// `self.c` and matching that resolves correctly. This is the grid-cell / cellular-automaton
+// iteration pattern.
+//
+// grid = [Wall, Door, Floor, Door, Wall] -> 2 Doors. Exits 70 iff the scan counts 2.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Cell {
+    case Wall;
+    case Floor;
+    case Door;
+}
+
+data Main {
+    console: Console;
+    grid: [Cell; 5];
+    i: u32 in Wrapping;
+    doors: i32 in Wrapping;
+    c: Cell;
+}
+
+machine Main::main(&mut self) {
+    self.grid[0] = Cell::Wall;
+    self.grid[1] = Cell::Door;
+    self.grid[2] = Cell::Floor;
+    self.grid[3] = Cell::Door;
+    self.grid[4] = Cell::Wall;
+    self.i = 0;
+    self.doors = 0;
+    transition { _ -> step() }
+
+    state step(&mut self) {
+        transition self.i < 5 {
+            true -> read()
+            _ -> check()
+        }
+    }
+    state read(&mut self) {
+        self.c = self.grid[self.i];
+        transition self.c {
+            Cell::Door -> count()
+            Cell::Wall -> next()
+            Cell::Floor -> next()
+        }
+    }
+    state count(&mut self) {
+        self.doors = self.doors + 1;
+        transition { _ -> next() }
+    }
+    state next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> step() }
+    }
+    state check(&mut self) {
+        transition self.doors == 2 {
+            true -> ok()
+            _ -> bad()
+        }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(self.doors); }
+}
