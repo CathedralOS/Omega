@@ -60,10 +60,20 @@ ok "(All (All (-> (Rel 0 (v 1) (v 0)) (Rel 0 (v 1) (v 0)))))"          # nested 
 ok "(-> (Exists (& (Pred 0 (v 0)) (Pred 1 (v 0)))) (Exists (Pred 0 (v 0))))"        # drop a conjunct under exists
 ok "(-> (Exists (& (Pred 0 (v 0)) (Pred 1 (v 0)))) (Exists (& (Pred 1 (v 0)) (Pred 0 (v 0)))))"  # exists-commute
 ok "(-> (& (Exists (Pred 0 (v 0))) (All (-> (Pred 0 (v 0)) (Pred 1 (v 0))))) (Exists (Pred 1 (v 0))))"  # E.I. of forall
+# equality: refl up to the kernel's term conversion (Peano plus `p` / mult `m`), and the conversion axiom
+ok "(= (s z) (s z))"                                    # syntactic reflexivity
+ok "(= (p (s z) (s z)) (s (s z)))"                      # 1+1=2     (refl up to normalisation)
+ok "(= (m (s (s z)) (s (s z))) (s (s (s (s z)))))"      # 2*2=4
+ok "(All (= (p z (v 0)) (v 0)))"                        # forall x. 0+x = x   (symbolic: p z b => b)
+ok "(-> (Pred 0 (p (s z) (s z))) (Pred 0 (s (s z))))"   # conversion axiom: P(1+1) |- P(2)
+ok "(-> (= (p (s z) (s z)) (v 0)) (= (s (s z)) (v 0)))" # conversion inside an equality hypothesis
 # non-tautologies: provability must fail (soundness of the front line)
 no "(Exists (Pred 0 (v 0)))"                            # no witness available -> unprovable
 no "(-> (Exists (Pred 0 (v 0))) (Pred 0 (s z)))"        # eigenvariable must NOT escape the unpack
 no "(-> (Exists (Pred 0 (v 0))) (All (Pred 0 (v 0))))"  # exists does NOT give forall
+no "(= (s z) z)"                                        # 1 != 0    (refl must NOT fire)
+no "(= (p (s z) (s z)) (s z))"                          # 1+1 != 1
+no "(-> (Pred 0 (s z)) (Pred 0 (s (s z))))"             # P(1) does NOT give P(2)
 no "(-> P Q)"
 no "(& P P)"
 no "(-> (-> P Q) P)"
@@ -94,5 +104,17 @@ while IFS="$(printf '\t')" read -r goal cert; do
   if [ "$v" = accept ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL fo-fuzz $goal : kernel rejected [$v]"; fi
 done < "$T/focerts"
 
-echo "proof-automation front line (prover discharges; check.beta validates): $PASS ok ($nproved prop-fuzz, $fonproved fo-fuzz), $FAIL failed"
+# ARITHMETIC fuzz: random closed terms over z/s/p/m, asserted equal to their computed numeral. Each is true
+# by construction, so the prover discharges it via refl and the kernel MUST accept -- which validates that the
+# prover's normal form agrees with check.beta's `normalize` (a divergence surfaces as a REJECT). Two seeds.
+arnproved=0
+python3 prover.py --arithbatch 150 7 > "$T/arcerts"
+python3 prover.py --arithbatch 150 5 >> "$T/arcerts"
+while IFS="$(printf '\t')" read -r goal cert; do
+  arnproved=$((arnproved+1))
+  v=$(printf '%s' "$cert" | "$CHECK")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL arith-fuzz $goal : kernel rejected [$v]"; fi
+done < "$T/arcerts"
+
+echo "proof-automation front line (prover discharges; check.beta validates): $PASS ok ($nproved prop-fuzz, $fonproved fo-fuzz, $arnproved arith-fuzz), $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
