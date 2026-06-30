@@ -1,0 +1,25 @@
+// A nested runtime-COLUMN indexed write -- `grid[row][col] = v` where the COLUMN index is a runtime
+// value applied to an already-indexed place -- MUST be rejected, not silently miscompiled. The
+// static-assignment fast path cannot lower this shape, so without this guard the write silently
+// NO-OPS (the element never updates; exit shows the pre-write value with no error).
+//
+// (A const column `grid[i][0]` resolves to a fixed offset and DOES lower; all-const indices lower;
+// a single index `arr[i]` has a non-indexed collection. None of those are rejected -- only a
+// runtime column on a nested place is. Workaround: a flat array indexed by a computed field.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    grid: [[i32; 2]; 2] in Wrapping;
+    i: i32 in Wrapping;
+    j: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.i = 1;
+    self.j = 1;
+    self.grid[self.i][self.j] = 70;
+    self.console.exit_process(self.grid[1][1]);
+}

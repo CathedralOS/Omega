@@ -830,6 +830,33 @@ fn indexed_write_from_indexed_read_canary_is_rejected() {
 }
 
 #[test]
+fn nested_runtime_indexed_write_rejected_canary_is_rejected() {
+    // A nested runtime-COLUMN indexed write `grid[row][col] = v` (a runtime column index applied to
+    // an already-indexed place) cannot be lowered by the static-assignment fast path -- it would
+    // silently NO-OP. The classifier guard (target_is_nested_runtime_indexed) keeps it out of the
+    // AlreadyLowered fast path so it is recorded as a mutation and rejected cleanly here. A const
+    // column (`grid[i][0]`) and a single index (`arr[i]`) still lower and are not rejected.
+    let canary = fail_canary("collections/nested_runtime_indexed_write_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected nested-runtime-indexed-write canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("needs mutation lowering")
+            || combined.contains("needs runtime storage write lowering"),
+        "expected a mutation-lowering rejection for the nested runtime-indexed write, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unary_negation_exit_canary_runs() {
     let canary = pass_canary("operators/unary_negation_exit");
     let main_path = canary.join("main.omg");
