@@ -4,6 +4,7 @@
 // sample. Annotated so the samples harness value-asserts it (runs + checks the
 // exit), not just compiles it.
 // Expected exit: 0.
+// Expected output contains: Hello, Omega.
 
 use omega::language::std::console;
 
