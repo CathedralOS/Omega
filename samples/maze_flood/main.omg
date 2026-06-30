@@ -1,0 +1,198 @@
+// A maze BFS "flood map": run breadth-first search from the top-left of a 5x5 maze, then
+// render every cell's shortest distance from the start as a two-digit field (walls shown
+// as ##). Composes the grid-pathfinding algorithm (locked by
+// runtime_maze_pathfind_exit) with the numeric-grid rendering idiom (multiplication_table /
+// calendar): the algorithm is no longer just self-checked but VISIBLE, the distances
+// radiating outward through the corridor. The shortest distance to the far corner is 16.
+// Pure compute + stdout, no new features.
+// Expected exit: 0.
+// Expected output contains: 16
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 16]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    wall: [i32; 25] in Wrapping;
+    dist: [i32; 25] in Wrapping;
+    queue: [i32; 32] in Wrapping;
+    dr: [i32; 4] in Wrapping;
+    dc: [i32; 4] in Wrapping;
+    line: [u8; 16] in Utf8;
+    head: i32 in Wrapping;
+    tail: i32 in Wrapping;
+    count: i32 in Wrapping;
+    c: i32 in Wrapping;
+    row: i32 in Wrapping;
+    col: i32 in Wrapping;
+    d: i32 in Wrapping;
+    ddr: i32 in Wrapping;
+    ddc: i32 in Wrapping;
+    nr: i32 in Wrapping;
+    nc: i32 in Wrapping;
+    ncell: i32 in Wrapping;
+    w: i32 in Wrapping;
+    dn: i32 in Wrapping;
+    cd: i32 in Wrapping;
+    nd: i32 in Wrapping;
+    // render
+    ry: i32 in Wrapping;
+    cx: i32 in Wrapping;
+    cell: i32 in Wrapping;
+    o0: i32 in Wrapping;
+    o1: i32 in Wrapping;
+    val: i32 in Wrapping;
+    tens: i32 in Wrapping;
+    ones: i32 in Wrapping;
+    tc: u8;
+    oc: u8;
+}
+
+machine Main::main(&mut self) {
+    self.wall = [0, 0, 0, 0, 0,  1, 1, 1, 1, 0,  0, 0, 0, 0, 0,  0, 1, 1, 1, 1,  0, 0, 0, 0, 0];
+    self.dist = [0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
+                 0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
+                 0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1];
+    self.queue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    self.dr = [0 - 1, 1, 0, 0];
+    self.dc = [0, 0, 0 - 1, 1];
+    self.line = "                ";
+    self.dist[0] = 0;
+    self.queue[0] = 0;
+    self.head = 0;
+    self.tail = 1;
+    self.count = 1;
+    transition { _ -> bfs_loop() }
+
+    // --- BFS (grid pathfinding) ---
+    state bfs_loop(&mut self) {
+        transition self.count > 0 { true -> deq() _ -> render_init() }
+    }
+    state deq(&mut self) {
+        transition self.head >= 0 && self.head < 32 { true -> deq_read() _ -> bad() }
+    }
+    state deq_read(&mut self) {
+        self.c = self.queue[self.head];
+        self.head = self.head + 1;
+        self.count = self.count - 1;
+        self.row = self.c / 5;
+        self.col = self.c % 5;
+        self.d = 0;
+        transition { _ -> dir_loop() }
+    }
+    state dir_loop(&mut self) {
+        transition self.d >= 0 && self.d < 4 { true -> dir_read() _ -> bfs_loop() }
+    }
+    state dir_read(&mut self) {
+        self.ddr = self.dr[self.d];
+        self.ddc = self.dc[self.d];
+        self.nr = self.row + self.ddr;
+        self.nc = self.col + self.ddc;
+        transition self.nr >= 0 && self.nr < 5 && self.nc >= 0 && self.nc < 5 {
+            true -> nbr_cell()
+            _ -> next_d()
+        }
+    }
+    state nbr_cell(&mut self) {
+        self.ncell = self.nr * 5 + self.nc;
+        transition self.ncell >= 0 && self.ncell < 25 { true -> nbr_wall() _ -> bad() }
+    }
+    state nbr_wall(&mut self) {
+        self.w = self.wall[self.ncell];
+        transition self.w == 0 { true -> nbr_vis() _ -> next_d() }
+    }
+    state nbr_vis(&mut self) {
+        self.dn = self.dist[self.ncell];
+        transition self.dn < 0 { true -> visit_guard() _ -> next_d() }
+    }
+    state visit_guard(&mut self) {
+        transition self.c >= 0 && self.c < 25 && self.ncell >= 0 && self.ncell < 25
+            && self.tail >= 0 && self.tail < 32 {
+            true -> do_visit()
+            _ -> bad()
+        }
+    }
+    state do_visit(&mut self) {
+        self.cd = self.dist[self.c];
+        self.nd = self.cd + 1;
+        self.dist[self.ncell] = self.nd;
+        self.queue[self.tail] = self.ncell;
+        self.tail = self.tail + 1;
+        self.count = self.count + 1;
+        transition { _ -> next_d() }
+    }
+    state next_d(&mut self) {
+        self.d = self.d + 1;
+        transition { _ -> dir_loop() }
+    }
+
+    // --- render the distance grid (## for walls, two-digit distance otherwise) ---
+    state render_init(&mut self) {
+        self.ry = 0;
+        transition { _ -> render_row() }
+    }
+    state render_row(&mut self) {
+        transition self.ry >= 0 && self.ry < 5 { true -> render_col_init() _ -> finish() }
+    }
+    state render_col_init(&mut self) {
+        self.cx = 0;
+        transition { _ -> render_col() }
+    }
+    state render_col(&mut self) {
+        transition self.cx >= 0 && self.cx < 5 { true -> render_cell() _ -> emit_row() }
+    }
+    state render_cell(&mut self) {
+        self.cell = self.ry * 5 + self.cx;
+        self.o0 = self.cx * 3;
+        self.o1 = self.o0 + 1;
+        transition self.cell >= 0 && self.cell < 25 && self.o0 >= 0 && self.o0 < 16 && self.o1 >= 0 && self.o1 < 16 {
+            true -> render_read()
+            _ -> bad()
+        }
+    }
+    state render_read(&mut self) {
+        self.w = self.wall[self.cell];
+        transition self.w == 1 { true -> render_wall() _ -> render_num() }
+    }
+    state render_wall(&mut self) {
+        self.line[self.o0] = 35; // '#'
+        self.line[self.o1] = 35;
+        self.cx = self.cx + 1;
+        transition { _ -> render_col() }
+    }
+    state render_num(&mut self) {
+        self.val = self.dist[self.cell];
+        self.tens = self.val / 10;
+        self.ones = self.val % 10;
+        self.oc = (self.ones + 48) as u8;
+        transition self.tens > 0 { true -> num_tens() _ -> num_space() }
+    }
+    state num_tens(&mut self) {
+        self.tc = (self.tens + 48) as u8;
+        transition { _ -> num_write() }
+    }
+    state num_space(&mut self) {
+        self.tc = 32;
+        transition { _ -> num_write() }
+    }
+    state num_write(&mut self) {
+        self.line[self.o0] = self.tc;
+        self.line[self.o1] = self.oc;
+        self.cx = self.cx + 1;
+        transition { _ -> render_col() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        self.ry = self.ry + 1;
+        transition { _ -> render_row() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
