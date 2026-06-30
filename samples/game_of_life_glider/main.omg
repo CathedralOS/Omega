@@ -1,0 +1,228 @@
+// Conway's Game of Life, animated in place: a single GLIDER seeded near the top-left
+// glides diagonally down-right across a 24x12 field as the generations tick. Each cell
+// lives or dies by its eight neighbours -- a live cell with 2-3 survives, a dead cell with
+// exactly 3 is born, all else die -- the simplest rules from which a moving structure
+// emerges. (A self-checking 4x4 still-life version lives in samples/game_of_life; this is
+// the visual one.)
+//
+// The grid is a FLAT [u8; 26*14] with a one-cell DEAD BORDER, so every real cell's eight
+// neighbours are always in range -- no per-neighbour boundary test. 2D indexing uses the
+// linear-counter sidestep: the (row, col) and each neighbour's flat index are computed
+// into FIELDS, then used as plain indices (a computed expression directly in a subscript
+// is refused). The next generation is double-buffered and copied back through a field temp
+// (a direct grid[c] = next[c] is a dual-indexed gap). Pure compute + stdout + Clock.sleep.
+// Expected exit: 0.
+// Expected output contains: #
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 24]::Utf8 when valid_utf8(self) {}
+domain [u8; 3]::Utf8 when valid_utf8(self) {}
+domain [u8; 2]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    grid: [i32; 364] in Trapping; // 26 x 14, padded; real cells rows 1..12, cols 1..24
+    next: [i32; 364] in Trapping;
+    line: [u8; 24] in Utf8;       // one rendered row (visible width)
+    chars: [u8; 2] in Utf8;       // " #"  dead / alive
+    home: [u8; 3] in Utf8;        // ESC [ H
+    gen: i32 in Trapping;
+    c: i32 in Trapping;     // cell flat index
+    y: i32 in Trapping;     // cell row
+    x: i32 in Trapping;     // cell col
+    noff: i32 in Trapping;  // neighbour offset 0..9
+    nf: i32 in Trapping;    // neighbour flat index
+    count: i32 in Trapping; // live neighbour count
+    v: i32 in Trapping;     // a read cell value
+    alive: i32 in Trapping; // self cell value
+    nv: i32 in Trapping;    // next cell value
+    ry: i32 in Trapping;    // render row
+    vx: i32 in Trapping;    // render visible col 0..24
+    rf: i32 in Trapping;    // render flat index
+    glyph: u8;
+}
+
+machine Main::main(&mut self) {
+    self.chars = " #";
+    self.home = "XXX";
+    self.home[0] = 27;
+    self.home[1] = 91;
+    self.home[2] = 72;
+    self.line = "                        ";
+    self.c = 0;
+    transition { _ -> zero_loop() }
+
+    // --- clear the padded grid, then seed a glider ---
+    state zero_loop(&mut self) {
+        transition self.c >= 0 && self.c < 364 { true -> zero_cell() _ -> seed() }
+    }
+    state zero_cell(&mut self) {
+        self.grid[self.c] = 0;
+        self.c = self.c + 1;
+        transition { _ -> zero_loop() }
+    }
+    state seed(&mut self) {
+        // glider:  .#.  /  ..#  /  ###   at real rows 1..3, cols 1..3 (padded width 26)
+        self.grid[28] = 1;  // (1,2)
+        self.grid[55] = 1;  // (2,3)
+        self.grid[79] = 1;  // (3,1)
+        self.grid[80] = 1;  // (3,2)
+        self.grid[81] = 1;  // (3,3)
+        self.gen = 0;
+        transition { _ -> gen_loop() }
+    }
+
+    state gen_loop(&mut self) {
+        transition self.gen < 40 { true -> render_start() _ -> finish() }
+    }
+
+    // --- render the visible 24x12 window in place ---
+    state render_start(&mut self) {
+        self.console.write(self.home);
+        self.ry = 1;
+        transition { _ -> render_row() }
+    }
+    state render_row(&mut self) {
+        transition self.ry >= 1 && self.ry <= 12 { true -> render_col_init() _ -> after_render() }
+    }
+    state render_col_init(&mut self) {
+        self.vx = 0;
+        transition { _ -> render_col() }
+    }
+    state render_col(&mut self) {
+        transition self.vx >= 0 && self.vx < 24 { true -> render_cell() _ -> emit_row() }
+    }
+    state render_cell(&mut self) {
+        self.rf = self.ry * 26 + (self.vx + 1); // skip the left border column
+        transition self.rf >= 0 && self.rf < 364 { true -> render_read() _ -> bad() }
+    }
+    state render_read(&mut self) {
+        self.v = self.grid[self.rf];
+        transition self.v >= 0 && self.v < 2 { true -> render_put() _ -> bad() }
+    }
+    state render_put(&mut self) {
+        self.glyph = self.chars[self.v];
+        self.line[self.vx] = self.glyph;
+        self.vx = self.vx + 1;
+        transition { _ -> render_col() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        self.ry = self.ry + 1;
+        transition { _ -> render_row() }
+    }
+    state after_render(&mut self) {
+        self.console.sleep(90);
+        transition { _ -> compute_start() }
+    }
+
+    // --- compute the next generation ---
+    state compute_start(&mut self) {
+        self.c = 0;
+        transition { _ -> cell_loop() }
+    }
+    state cell_loop(&mut self) {
+        transition self.c >= 0 && self.c < 364 { true -> cell_xy() _ -> copy_start() }
+    }
+    state cell_xy(&mut self) {
+        self.y = self.c / 26;
+        self.x = self.c % 26;
+        transition self.y >= 1 && self.y <= 12 && self.x >= 1 && self.x <= 24 {
+            true -> count_init()
+            _ -> border_cell()
+        }
+    }
+    state border_cell(&mut self) {
+        self.next[self.c] = 0;
+        self.c = self.c + 1;
+        transition { _ -> cell_loop() }
+    }
+
+    // count the eight neighbours
+    state count_init(&mut self) {
+        self.count = 0;
+        self.noff = 0;
+        transition { _ -> nb_loop() }
+    }
+    state nb_loop(&mut self) {
+        transition self.noff >= 0 && self.noff < 9 { true -> nb_center() _ -> apply_rules() }
+    }
+    state nb_center(&mut self) {
+        transition self.noff == 4 { true -> nb_advance() _ -> nb_compute() }
+    }
+    state nb_compute(&mut self) {
+        self.nf = (self.y + (self.noff / 3 - 1)) * 26 + (self.x + (self.noff % 3 - 1));
+        transition self.nf >= 0 && self.nf < 364 { true -> nb_read() _ -> nb_advance() }
+    }
+    state nb_read(&mut self) {
+        self.v = self.grid[self.nf];
+        transition self.v == 1 { true -> nb_inc() _ -> nb_advance() }
+    }
+    state nb_inc(&mut self) {
+        self.count = self.count + 1;
+        transition { _ -> nb_advance() }
+    }
+    state nb_advance(&mut self) {
+        self.noff = self.noff + 1;
+        transition { _ -> nb_loop() }
+    }
+
+    // apply the rules to cell c (re-guard c: the neighbour loop's join blocks the
+    // cell_loop bound from carrying here)
+    state apply_rules(&mut self) {
+        transition self.c >= 0 && self.c < 364 { true -> apply_read() _ -> bad() }
+    }
+    state apply_read(&mut self) {
+        self.alive = self.grid[self.c];
+        transition self.alive == 1 { true -> live_rule() _ -> dead_rule() }
+    }
+    state live_rule(&mut self) {
+        transition self.count == 2 || self.count == 3 { true -> born() _ -> dies() }
+    }
+    state dead_rule(&mut self) {
+        transition self.count == 3 { true -> born() _ -> dies() }
+    }
+    state born(&mut self) {
+        self.nv = 1;
+        transition { _ -> write_next() }
+    }
+    state dies(&mut self) {
+        self.nv = 0;
+        transition { _ -> write_next() }
+    }
+    state write_next(&mut self) {
+        transition self.c >= 0 && self.c < 364 { true -> do_write_next() _ -> bad() }
+    }
+    state do_write_next(&mut self) {
+        self.next[self.c] = self.nv;
+        self.c = self.c + 1;
+        transition { _ -> cell_loop() }
+    }
+
+    // --- copy next -> grid via a field temp ---
+    state copy_start(&mut self) {
+        self.c = 0;
+        transition { _ -> copy_loop() }
+    }
+    state copy_loop(&mut self) {
+        transition self.c >= 0 && self.c < 364 { true -> copy_cell() _ -> gen_next() }
+    }
+    state copy_cell(&mut self) {
+        self.v = self.next[self.c];
+        self.grid[self.c] = self.v;
+        self.c = self.c + 1;
+        transition { _ -> copy_loop() }
+    }
+    state gen_next(&mut self) {
+        self.gen = self.gen + 1;
+        transition { _ -> gen_loop() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
