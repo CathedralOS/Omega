@@ -1,0 +1,184 @@
+// A procedurally-generated random walk: a walker (shown '@') wanders a 24x12 grid, each
+// step picking a random direction from the xorshift32 PRNG (state % 4) and leaving a trail
+// ('*'), re-rendered in place. The first PROCEDURAL sample -- every other animation is a
+// fixed algorithm; this one is driven by pseudo-randomness (deterministic from the seed,
+// so the harness sees a stable output, but structurally unpredictable). Demonstrates the
+// PRNG (locked by operators/runtime_xorshift_prng_exit, applied numerically in
+// runtime_monte_carlo_pi_exit) as a usable game/simulation building block. At an edge the
+// walker simply stays put that step. Pure compute + stdout + Clock.sleep; no new features.
+// Expected exit: 0.
+// Expected output contains: @
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 24]::Utf8 when valid_utf8(self) {}
+domain [u8; 3]::Utf8 when valid_utf8(self) {}
+domain [u8; 2]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    grid: [i32; 288] in Wrapping; // 24 x 12 visited trail
+    home: [u8; 3] in Utf8;
+    line: [u8; 24] in Utf8;
+    chars: [u8; 2] in Utf8;       // " *" empty / trail
+    st: u32 in Wrapping;          // xorshift state
+    sc: u32 in Wrapping;          // shift scratch
+    dir: u32 in Wrapping;         // 0=up 1=down 2=left 3=right
+    px: i32 in Wrapping;
+    py: i32 in Wrapping;
+    flat: i32 in Wrapping;
+    k: i32 in Wrapping;
+    gen: i32 in Wrapping;
+    ry: i32 in Wrapping;
+    cx: i32 in Wrapping;
+    v: i32 in Wrapping;
+    glyph: u8;
+}
+
+machine Main::main(&mut self) {
+    self.px = 12;
+    self.py = 6;
+    self.st = 2463534242; // a well-mixed xorshift seed
+    self.chars = " *";
+    self.home = "XXX";
+    self.home[0] = 27;
+    self.home[1] = 91;
+    self.home[2] = 72;
+    self.line = "                        ";
+    self.k = 0;
+    transition { _ -> clear() }
+
+    state clear(&mut self) {
+        transition self.k >= 0 && self.k < 288 { true -> clear_cell() _ -> begin() }
+    }
+    state clear_cell(&mut self) {
+        self.grid[self.k] = 0;
+        self.k = self.k + 1;
+        transition { _ -> clear() }
+    }
+    state begin(&mut self) {
+        self.flat = self.py * 24 + self.px;
+        self.gen = 0;
+        transition self.flat >= 0 && self.flat < 288 { true -> begin_mark() _ -> bad() }
+    }
+    state begin_mark(&mut self) {
+        self.grid[self.flat] = 1;
+        transition { _ -> show() }
+    }
+
+    // --- render trail + walker in place ---
+    state show(&mut self) {
+        self.console.write(self.home);
+        self.ry = 0;
+        transition { _ -> show_row() }
+    }
+    state show_row(&mut self) {
+        transition self.ry >= 0 && self.ry < 12 { true -> show_col_init() _ -> show_done() }
+    }
+    state show_col_init(&mut self) {
+        self.cx = 0;
+        transition { _ -> show_col() }
+    }
+    state show_col(&mut self) {
+        transition self.cx >= 0 && self.cx < 24 { true -> show_cell() _ -> emit_row() }
+    }
+    state show_cell(&mut self) {
+        transition self.ry == self.py && self.cx == self.px { true -> put_at() _ -> put_trail() }
+    }
+    state put_at(&mut self) {
+        self.line[self.cx] = 64; // '@'
+        self.cx = self.cx + 1;
+        transition { _ -> show_col() }
+    }
+    state put_trail(&mut self) {
+        self.flat = self.ry * 24 + self.cx;
+        transition self.flat >= 0 && self.flat < 288 { true -> put_trail_w() _ -> bad() }
+    }
+    state put_trail_w(&mut self) {
+        self.v = self.grid[self.flat];
+        transition self.v >= 0 && self.v < 2 { true -> put_trail_g() _ -> bad() }
+    }
+    state put_trail_g(&mut self) {
+        self.glyph = self.chars[self.v];
+        self.line[self.cx] = self.glyph;
+        self.cx = self.cx + 1;
+        transition { _ -> show_col() }
+    }
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        self.ry = self.ry + 1;
+        transition { _ -> show_row() }
+    }
+    state show_done(&mut self) {
+        self.console.sleep(90);
+        transition { _ -> step() }
+    }
+
+    // --- advance the walk one random step ---
+    state step(&mut self) {
+        transition self.gen < 70 { true -> advance() _ -> finish() }
+    }
+    state advance(&mut self) {
+        self.sc = self.st << 13;
+        self.st = self.st ^ self.sc;
+        self.sc = self.st >> 17;
+        self.st = self.st ^ self.sc;
+        self.sc = self.st << 5;
+        self.st = self.st ^ self.sc;
+        self.dir = self.st % 4;
+        transition { _ -> move() }
+    }
+    state move(&mut self) {
+        transition self.dir == 0 { true -> go_up() _ -> move1() }
+    }
+    state move1(&mut self) {
+        transition self.dir == 1 { true -> go_down() _ -> move2() }
+    }
+    state move2(&mut self) {
+        transition self.dir == 2 { true -> go_left() _ -> go_right() }
+    }
+    state go_up(&mut self) {
+        transition self.py > 0 { true -> up_w() _ -> mark() }
+    }
+    state up_w(&mut self) {
+        self.py = self.py - 1;
+        transition { _ -> mark() }
+    }
+    state go_down(&mut self) {
+        transition self.py < 11 { true -> down_w() _ -> mark() }
+    }
+    state down_w(&mut self) {
+        self.py = self.py + 1;
+        transition { _ -> mark() }
+    }
+    state go_left(&mut self) {
+        transition self.px > 0 { true -> left_w() _ -> mark() }
+    }
+    state left_w(&mut self) {
+        self.px = self.px - 1;
+        transition { _ -> mark() }
+    }
+    state go_right(&mut self) {
+        transition self.px < 23 { true -> right_w() _ -> mark() }
+    }
+    state right_w(&mut self) {
+        self.px = self.px + 1;
+        transition { _ -> mark() }
+    }
+    state mark(&mut self) {
+        self.flat = self.py * 24 + self.px;
+        self.gen = self.gen + 1;
+        transition self.flat >= 0 && self.flat < 288 { true -> mark_w() _ -> bad() }
+    }
+    state mark_w(&mut self) {
+        self.grid[self.flat] = 1;
+        transition { _ -> show() }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
