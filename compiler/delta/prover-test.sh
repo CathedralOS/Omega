@@ -135,6 +135,13 @@ ok "(-> (& (& (Le (v 0) (v 1)) (Le (v 1) (v 2))) (Le (v 2) (v 3))) (Le (v 0) (v 
 ok "(-> (& (Lt (v 0) (v 1)) (Lt (v 1) (v 2))) (Lt (v 0) (v 2)))"   # a<b & b<c   => a<c   (strict transitivity)
 ok "(-> (& (Lt (v 0) (v 1)) (Le (v 1) (v 2))) (Lt (v 0) (v 2)))"   # a<b & b<=c  => a<c   (mixed, first strict)
 no "(-> (Lt (v 0) (v 1)) (Lt (v 0) (v 2)))"            # a<b alone does NOT give a<c
+# MONOTONICITY (the next contract-obligation class: bounds preserved under +/* -- e.g. scaling a loop index).
+# Additive monotonicity rides the existing sum-witness machinery; mult-mono uses the new mult-SCALING witness
+# source (witness K*c, discharged by the banked right-distributivity: a*c + K*c = (a+K)*c = b*c).
+ok "(All (All (All (-> (Le (v 2) (v 1)) (Le (p (v 2) (v 0)) (p (v 1) (v 0)))))))"   # a<=b => a+c <= b+c
+ok "(All (All (All (-> (Le (v 2) (v 1)) (Le (p (v 0) (v 2)) (p (v 0) (v 1)))))))"   # a<=b => c+a <= c+b
+ok "(All (All (All (-> (Le (v 2) (v 1)) (Le (m (v 2) (v 0)) (m (v 1) (v 0)))))))"   # a<=b => a*c <= b*c  (mult-mono)
+no "(All (All (All (-> (Le (m (v 2) (v 0)) (m (v 1) (v 0))) (Le (v 2) (v 1))))))"   # a*c<=b*c does NOT give a<=b (c=0)
 # THE BRIDGE: the lattice's real contract compiler (epsilon-rs/src/discharge.rs) cites a lemma base banked by
 # HAND-WRITTEN .elab proofs (gen-contract-lib.py). The prover now proves ALL 7 banked lemmas AUTOMATICALLY, by
 # search -- add-zero-right (id 0), add-commutes (id 5), le-trans (id 9 -- here), mult-commutes (id 20),

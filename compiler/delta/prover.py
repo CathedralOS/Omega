@@ -900,6 +900,8 @@ def _rules(sat, goal):
     #   drop-addend            i+k≤n     ⊢ i≤n : fact (p (p A K) M)=C               -> witness K+M
     #   strict <-chaining      i<m≤c     ⊢ i<c : a path whose FIRST edge is STRICT (slack (s D)) -> peel that
     #                                            `s` for the witness; add-succ-left bridges the (s k) goal slot
+    #   mult-scaling           a≤b ⊢ a*c≤b*c : goal ∃j.(p (m X c) j)=(m Y c) + fact (p X K)=Y -> witness K*c,
+    #                                            proved by right-distributivity (a*c + K*c = (a+K)*c = b*c)
     if (goal[0] == "ex" and _active_lemmas and goal[1][0] == "=" and goal[1][1][0] == "p"):
         body, A, C, slot = goal[1], goal[1][1][1], goal[1][2], goal[1][1][2]
         if slot == ("v", 0):                                       # ≤ goal: ∃k. A+k = C
@@ -911,6 +913,10 @@ def _rules(sat, goal):
                 if (p1[0] == "=" and p1[1][0] == "p" and p1[1][1][0] == "p"
                         and p1[1][1][1] == A and p1[2] == C):       # fact (p (p A K) M)=C
                     wits.append((("p", p1[1][1][2], p1[1][2]), (_ASSOC,)))
+            if A[0] == "m" and C[0] == "m" and A[2] == C[2]:        # A=(m X c), C=(m Y c) -- same scale factor c
+                for p1, _ in sat:
+                    if (p1[0] == "=" and p1[1][0] == "p" and p1[1][1] == A[1] and p1[2] == C[1]):  # fact (p X K)=Y
+                        wits.append((("m", p1[1][2], A[2]), (_RDIST,)))
         elif slot == ("s", ("v", 0)):                              # < goal: ∃k. A+(s k) = C
             wits = []
             path = _slack_path(sat, A, C)
