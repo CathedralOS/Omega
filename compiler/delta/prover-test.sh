@@ -82,5 +82,17 @@ while IFS="$(printf '\t')" read -r goal cert; do
   if [ "$v" = accept ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL fuzz $goal : kernel rejected [$v]"; fi
 done < "$T/certs"
 
-echo "proof-automation front line (prover discharges; check.beta validates): $PASS ok ($nproved fuzz-proved), $FAIL failed"
+# FIRST-ORDER fuzz: provable-by-construction quantifier goals (random predicate/term fillings of the gen /
+# inst / wit / unpack schemas) -- every emitted certificate must kernel-accept. This is the soundness net
+# for the eigenvariable / de Bruijn emission: a slip there surfaces as a REJECT. Two seeds for breadth.
+fonproved=0
+python3 prover.py --fobatch 150 7 > "$T/focerts"
+python3 prover.py --fobatch 150 3 >> "$T/focerts"
+while IFS="$(printf '\t')" read -r goal cert; do
+  fonproved=$((fonproved+1))
+  v=$(printf '%s' "$cert" | "$CHECK")
+  if [ "$v" = accept ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL fo-fuzz $goal : kernel rejected [$v]"; fi
+done < "$T/focerts"
+
+echo "proof-automation front line (prover discharges; check.beta validates): $PASS ok ($nproved prop-fuzz, $fonproved fo-fuzz), $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
