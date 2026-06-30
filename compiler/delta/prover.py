@@ -578,8 +578,10 @@ LEMMA_PROPS = [
     ("all", ("all", ("=", ("p", ("v", 1), ("v", 0)), ("p", ("v", 0), ("v", 1))))),        # 2: x + y = y + x
     ("all", ("all", ("all", ("=", ("p", ("p", ("v", 2), ("v", 1)), ("v", 0)),
                                    ("p", ("v", 2), ("p", ("v", 1), ("v", 0))))))),         # 3: (x+y)+z = x+(y+z)
+    ("all", ("all", ("=", ("p", ("s", ("v", 1)), ("v", 0)), ("s", ("p", ("v", 1), ("v", 0)))))),  # 4: (s x)+y = s(x+y)
 ]
 _ASSOC = 3  # add-assoc's index in LEMMA_PROPS -- used by the directed sum-chain (transitivity) rule
+_SUCCL = 4  # add-succ-left ((s x)+y = s(x+y), refl-provable) -- lets the STRICT (<) chain peel the `s` slot
 _both_orient = [False]  # when set, the lemma-rewrite matches a lemma's RHS too (needed to use add-assoc as
 # a+(i+j) -> (a+i)+j). Kept OFF in the general search (it bloats it) and turned ON only for the directed rule's
 # small focused sub-proof, so the general phase-2 search is unchanged.
@@ -792,23 +794,34 @@ def _rules(sat, goal):
     # directed SUM-WITNESS (≤-chaining): goal ∃k.(= (p A k) C). Synthesise a COMPOUND witness from the
     # context's `+`-equality facts, then discharge the body in a FOCUSED sub-proof (only add-assoc, both
     # orientations) -- add-assoc re-associates so the facts rewrite A's sum to C. Pattern-gated, so the
-    # general search is untouched. Two witness sources, both real contract obligations:
-    #   N-step transitivity  a≤b≤c…≤z ⊢ a≤z : a path A->…->C in the +slack graph -> witness = sum of slacks
-    #   drop-addend          i+k≤n     ⊢ i≤n : fact (p (p A K) M)=C               -> witness K+M
-    if (goal[0] == "ex" and _active_lemmas and goal[1][0] == "=" and goal[1][1][0] == "p"
-            and goal[1][1][2] == ("v", 0)):
-        body, A, C = goal[1], goal[1][1][1], goal[1][2]
-        wits = []
-        path = _slack_path(sat, A, C)
-        if path is not None:
-            wits.append(_sum_right(path))
-        for p1, _ in sat:
-            if (p1[0] == "=" and p1[1][0] == "p" and p1[1][1][0] == "p"
-                    and p1[1][1][1] == A and p1[2] == C):           # fact (p (p A K) M)=C
-                wits.append(("p", p1[1][1][2], p1[1][2]))           # witness K+M
-        for w in wits:
+    # general search is untouched. Three witness sources, all real contract obligations:
+    #   N-step ≤-transitivity  a≤b≤c…≤z ⊢ a≤z : a path A->…->C in the +slack graph -> witness = sum of slacks
+    #   drop-addend            i+k≤n     ⊢ i≤n : fact (p (p A K) M)=C               -> witness K+M
+    #   strict <-chaining      i<m≤c     ⊢ i<c : a path whose FIRST edge is STRICT (slack (s D)) -> peel that
+    #                                            `s` for the witness; add-succ-left bridges the (s k) goal slot
+    if (goal[0] == "ex" and _active_lemmas and goal[1][0] == "=" and goal[1][1][0] == "p"):
+        body, A, C, slot = goal[1], goal[1][1][1], goal[1][2], goal[1][1][2]
+        if slot == ("v", 0):                                       # ≤ goal: ∃k. A+k = C
+            wits = []
+            path = _slack_path(sat, A, C)
+            if path is not None:
+                wits.append((_sum_right(path), (_ASSOC,)))
+            for p1, _ in sat:
+                if (p1[0] == "=" and p1[1][0] == "p" and p1[1][1][0] == "p"
+                        and p1[1][1][1] == A and p1[2] == C):       # fact (p (p A K) M)=C
+                    wits.append((("p", p1[1][1][2], p1[1][2]), (_ASSOC,)))
+        elif slot == ("s", ("v", 0)):                              # < goal: ∃k. A+(s k) = C
+            wits = []
+            path = _slack_path(sat, A, C)
+            if path is not None and path[0][0] == "s":             # first edge strict -> total is strict
+                rest = path[1:]
+                w = ("p", path[0][1], _sum_right(rest)) if rest else path[0][1]
+                wits.append((w, (_ASSOC, _SUCCL)))
+        else:
+            wits = []
+        for w, lemma_ids in wits:
             saved, sbo = list(_active_lemmas), _both_orient[0]
-            _active_lemmas[:] = [l for l in _active_lemmas if l[3] == _ASSOC]
+            _active_lemmas[:] = [l for l in _active_lemmas if l[3] in lemma_ids]
             _both_orient[0] = True
             pf = prove(sat, subst0(body, w))
             _active_lemmas[:] = saved
