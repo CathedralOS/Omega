@@ -167,6 +167,31 @@ def subst0(p, t, d=0):  # substitute the outermost bound var (v0) of a body with
     return p  # at, bot
 
 
+def _subt_keep(term, t, d):  # substitute de Bruijn var d with t, but KEEP the binder (no decrement)
+    if term[0] == "v":
+        return _shift(t, d) if term[1] == d else term
+    if term[0] == "s":
+        return ("s", _subt_keep(term[1], t, d))
+    if term[0] in ("p", "m"):
+        return (term[0], _subt_keep(term[1], t, d), _subt_keep(term[2], t, d))
+    return term
+
+
+def subst0_keep(p, t, d=0):  # P[v0 := t] keeping the binder -- builds P(s n) for natind's step from motive P
+    h = p[0]
+    if h == "pred":
+        return ("pred", p[1], _subt_keep(p[2], t, d))
+    if h == "rel":
+        return ("rel", p[1], _subt_keep(p[2], t, d), _subt_keep(p[3], t, d))
+    if h == "=":
+        return ("=", _subt_keep(p[1], t, d), _subt_keep(p[2], t, d))
+    if h in ("all", "ex"):
+        return (h, subst0_keep(p[1], t, d + 1))
+    if h in ("->", "&", "+"):
+        return (h, subst0_keep(p[1], t, d), subst0_keep(p[2], t, d))
+    return p
+
+
 def ground_terms(p, out):  # collect ground (var-free) candidate witness terms in a prop
     h = p[0]
     if h == "pred":
@@ -423,8 +448,7 @@ def has(ctx, goal):
 _budget = [0]
 _depth = [0]      # current recursion depth; a cap keeps a pathological search from overrunning the C stack
 _memo = {}
-_REWRITE_GROWTH = 24  # an equality rewrite may enlarge the goal by at most this many term-nodes, so the
-# search can't chase an unbounded a->(big)->bigger... rewrite chain (which also blows nf's structural depth)
+_IND_CAP = 2          # max natind nesting depth (most arithmetic needs single induction; 2 covers a little more)
 _DEPTH_CAP = 250  # each logical level is ~3 Python frames, so this stays well under the default ~1000-frame
 # limit; the prover is sound-but-incomplete, so a
 # search that would run deeper just yields "unprovable" (never a crash, never a false proof)
@@ -436,6 +460,9 @@ _eigs = []        # active eigenvar ids (one per enclosing gen / unpack), innerm
 _base_ib = []     # eigenvars standing in for the goal's FREE individual vars (the implicit outermost binders)
 _opened = []      # existential PROPOSITIONS already opened on this branch (never re-open one -- a parent
 # conjunction would otherwise regenerate it through saturation and unpack would loop with fresh eigenvars)
+_ind_depth = [0]  # current natind nesting; capped so induction can't recurse without bound
+_rw_cap = [0]     # ABSOLUTE size ceiling for an equality-rewrite subgoal (set per solve from the goal size),
+# so a growing-direction rewrite can't ratchet without bound (the relative guard alone lets it spiral)
 
 
 def fresh_eig():
@@ -460,6 +487,7 @@ def solve(goal, _fuel=None):
     _memo.clear()
     _eigctr[0] = 0
     _opened[:] = []
+    _ind_depth[0] = 0
     # close the goal's free individual vars into eigenvars (level j -> a fresh eig). The base eigenvar stack
     # lists them innermost-last so free-var level j renders back as (v j) at the top of the certificate.
     nfree = _max_free(goal)
@@ -468,6 +496,7 @@ def solve(goal, _fuel=None):
     _eigs[:] = base
     _base_ib[:] = base
     goal = _close_free(goal, free_eigs)
+    _rw_cap[0] = prop_size(goal) + 30  # rewrites may grow a bit (transitivity through a larger term) but not unboundedly
     cands = {("z",)}  # z is always available as a default witness
     ground_terms(goal, cands)
     _candidates[:] = list(cands)
@@ -540,6 +569,21 @@ def _rules(sat, goal):
         _eigs.pop()
         if body is not None:
             return ("gen", e, body)
+    # natind: prove (All P) by Peano INDUCTION when the parametric proof (gen) failed -- the arithmetic case,
+    # where the body needs the induction hypothesis. base : P(0); step : (All (P(n) -> P(s n))) [proved by gen
+    # + the IH, usually after goal-normalisation exposes the reduced successor]. Nesting is capped so the
+    # step's own universal can't trigger unbounded re-induction.
+    if goal[0] == "all" and _ind_depth[0] < _IND_CAP:
+        motive = goal[1]
+        _ind_depth[0] += 1
+        base = prove(sat, subst0(motive, ("z",)))
+        step = None
+        if base is not None:
+            step_goal = ("all", ("->", motive, subst0_keep(motive, ("s", ("v", 0)))))
+            step = prove(sat, step_goal)
+        _ind_depth[0] -= 1
+        if base is not None and step is not None:
+            return ("natind", motive, base, step)
     # L-exists (unpack): OPEN an existential hypothesis with a fresh eigenvariable e, add body[e], and
     # continue. This is an INVERTIBLE (always-safe) left rule -- opening loses nothing, since body[e] is
     # strictly stronger than the existential -- so it runs BEFORE the non-invertible witness rule, which
@@ -620,6 +664,16 @@ def _rules(sat, goal):
                 body = prove(sat + [(prop[2], ("app", term, arg))], goal)
                 if body is not None:
                     return body
+    # goal-normalisation: if the goal reduces, prove its normal form (definitionally equal, so a proof of
+    # nf_prop(goal) is accepted for goal by the kernel's conversion -- returned as-is). This runs BEFORE the
+    # rewrite rule so a reducible successor like (p (s n) z) is first exposed as (s (p n z)); otherwise the
+    # rewrite rule fires on the raw goal in the GROWING direction and spirals. This is the key that closes the
+    # natind step (the IH then rewrites (p n z) -> n on the normalised goal).
+    ng = nf_prop(goal)
+    if ng != goal:
+        pf = prove(sat, ng)
+        if pf is not None:
+            return pf
     # L-eqrewrite: rewrite the goal with an equality hypothesis e:(= x y), via eqelim (Leibniz transport),
     # in BOTH orientations -- so symmetry, transitivity, congruence and transport all reduce to this one rule.
     # Orientation 1 rewrites y->x directly; orientation 2 rewrites x->y through the derived symmetric proof
@@ -627,7 +681,11 @@ def _rules(sat, goal):
     # subgoal differs from the goal -> progress), and only on GROUND sides (no binder capture). The memo on
     # the goal cuts the a<->b ping-pong, so it terminates.
     if goal[0] in ("pred", "rel", "=", "->", "&", "+", "all", "ex"):
-        cap = prop_size(goal) + _REWRITE_GROWTH  # never chase a rewrite that grows the goal without bound
+        # Collect every applicable rewrite, then try the ones that SHRINK the goal first. Preferring the
+        # smaller result keeps the search on the productive (toward-refl) direction -- the growing direction
+        # (e.g. n -> (p n z)) otherwise spirals before the shrinking one is ever reached. The absolute cap
+        # bounds the rare case where a rewrite must grow (transitivity through a larger middle term).
+        rewrites = []
         for prop, term in sat:
             if prop[0] != "=":
                 continue
@@ -635,18 +693,20 @@ def _rules(sat, goal):
             if _ground(y) and occurs_prop(goal, y):       # orient 1: e:(= x y) rewrites y -> x
                 mot = abstract_prop(goal, y)
                 sub = subst0(mot, x)
-                if sub != goal and prop_size(sub) <= cap:
-                    pf = prove(sat, sub)
-                    if pf is not None:
-                        return ("eqelim", mot, term, pf)
+                if sub != goal:
+                    rewrites.append((prop_size(sub), mot, sub, term))
             if _ground(x) and occurs_prop(goal, x):       # orient 2: sym(e):(= y x) rewrites x -> y
                 mot = abstract_prop(goal, x)
                 sub = subst0(mot, y)
-                if sub != goal and prop_size(sub) <= cap:
-                    pf = prove(sat, sub)
-                    if pf is not None:
-                        syme = ("eqelim", ("=", ("v", 0), x), term, ("refl", x))
-                        return ("eqelim", mot, syme, pf)
+                if sub != goal:
+                    syme = ("eqelim", ("=", ("v", 0), x), term, ("refl", x))
+                    rewrites.append((prop_size(sub), mot, sub, syme))
+        rewrites.sort(key=lambda r: r[0])
+        for sz, mot, sub, pe in rewrites:
+            if sz <= _rw_cap[0]:
+                pf = prove(sat, sub)
+                if pf is not None:
+                    return ("eqelim", mot, pe, pf)
     return None
 
 
@@ -669,12 +729,15 @@ def to_db(term, binders, ib=()):  # convert the named proof term to check.beta's
         return "(disj %s)" % to_db(term[1], binders, ib)
     if h == "sinj":  # successor injectivity: (sinj pf_eq) : (= a b), from (= (s a) (s b))
         return "(sinj %s)" % to_db(term[1], binders, ib)
-    if h == "eqelim":  # Leibniz transport: (eqelim motive pf_eq pf_pa) -- motive carries the de Bruijn-0 hole
-        _, mot, pe, pa = term
-        return "(eqelim %s %s %s)" % (beta_prop(mot, ib), to_db(pe, binders, ib), to_db(pa, binders, ib))
+    if h == "eqelim":  # Leibniz transport: (eqelim motive pf_eq pf_pa) -- the motive's rewrite-hole is an
+        _, mot, pe, pa = term  # IMPLICIT de Bruijn-0 binder, so its free terms (e.g. an eigenvar) emit at depth 1
+        return "(eqelim %s %s %s)" % (beta_prop(mot, ib, 1), to_db(pe, binders, ib), to_db(pa, binders, ib))
     if h == "gen":  # universal introduction: push the eigenvar -> a new innermost individual binder
         _, e, body = term
         return "(gen %s)" % to_db(body, binders, tuple(ib) + (e,))
+    if h == "natind":  # Peano induction: motive (implicit binder -> depth 1), base : P(0), step : P(n)->P(s n)
+        _, motive, base, step = term
+        return "(natind %s %s %s)" % (beta_prop(motive, ib, 1), to_db(base, binders, ib), to_db(step, binders, ib))
     if h == "inst":  # universal elimination: a proof applied to a TERM
         return "(inst %s %s)" % (to_db(term[1], binders, ib), beta_term(term[2], ib))
     if h == "wit":  # existential introduction: body-prop, witness TERM, proof of the instance. The body has
