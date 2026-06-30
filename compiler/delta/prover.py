@@ -69,9 +69,21 @@ def has(ctx, goal):
     return None
 
 
+# a TOTAL-work budget (search nodes), reset per top-level call: guarantees the search terminates fast
+# regardless of the goal -- the backward-chaining L-> rule branches, so depth-fuel alone is not enough.
+# Exceeding it just makes the front line give up (sound: it never emits a wrong proof, only fewer).
+_budget = [0]
+
+
+def solve(goal, fuel=16):
+    _budget[0] = 12000
+    return prove([], goal, fuel)
+
+
 def prove(ctx, goal, fuel):
-    if fuel <= 0:
+    if fuel <= 0 or _budget[0] <= 0:
         return None
+    _budget[0] -= 1
     sat = saturate(ctx)
     # axiom: the goal is already in (the saturation of) the context
     direct = has(sat, goal)
@@ -142,7 +154,7 @@ def batch(n, seed, fuel):
     rng = random.Random(seed)
     for _ in range(n):
         goal = random_prop(rng.randint(1, 4), rng)
-        proof = prove([], goal, fuel)
+        proof = solve(goal, fuel)
         if proof is not None:
             print("%s\t%s %s" % (beta_prop(goal), beta_prop(goal), to_db(proof, [])))
 
@@ -152,10 +164,10 @@ def main():
         gen(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1)
         return
     if sys.argv[1] == "--batch":
-        batch(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1, 40)
+        batch(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 1, 16)
         return
     goal = parse(tokenize(sys.argv[1]))
-    proof = prove([], goal, int(sys.argv[2]) if len(sys.argv) > 2 else 40)
+    proof = solve(goal, int(sys.argv[2]) if len(sys.argv) > 2 else 16)
     if proof is None:
         print("unprovable")
     else:
