@@ -170,6 +170,24 @@ fn with_attribution(message: String, attribution: Option<&str>) -> String {
     }
 }
 
+/// True if `index` is a runtime COMPUTED expression (`k + 1`, `2 * i`, `-k`, or a cast of
+/// one) rather than a place (`k`, `self.k`) or a constant. Only checked on the non-const
+/// path -- constant folding has already reduced `arr[2 + 3]` to `arr[5]`, so a Binary that
+/// reaches here is genuinely runtime. The backend cannot lower a computed index as a value
+/// operand (it silently reads 0 as an arithmetic operand, or no-ops as a write target), so
+/// the checker refuses it here -- a #40 soundness stopgap -- until it is hoisted to a field.
+fn index_is_computed(program: &omega_typed_trees::TypedTrees, index: ExpressionHandle) -> bool {
+    let mut node = index;
+    loop {
+        match program.expression_table.expression(node) {
+            ExpressionNode::Mutable(inner) => node = *inner,
+            ExpressionNode::Cast(cast) => node = cast.value,
+            ExpressionNode::Binary(_) | ExpressionNode::Unary(_) => return true,
+            _ => return false,
+        }
+    }
+}
+
 fn check_known_length_index(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,
@@ -196,6 +214,21 @@ fn check_known_length_index(
             let Some(index_value) = expression_integer_value(program, facts, index) else {
                 let collection_label = program.expression_table.display_name(collection);
                 let index_label = program.expression_table.display_name(index);
+                // #40 stopgap: a runtime COMPUTED index (`arr[k + 1]`) cannot be lowered
+                // as a value operand -- it silently reads 0 / no-ops -- so refuse it even
+                // when its bound is provable, until it is hoisted to a field.
+                if index_is_computed(program, index) {
+                    diagnostics.push(Diagnostic::error(with_attribution(
+                        format!(
+                            "index `{}` is a computed expression, not yet supported as an \
+                             indexed operand (it would silently read 0 or no-op); compute \
+                             it into a field first, then index by that field",
+                            index_label
+                        ),
+                        attribution,
+                    )));
+                    return;
+                }
                 // A non-constant index needs BOTH `index < length` (upper) and
                 // `0 <= index` (lower). The upper half is the proofs below. The
                 // lower half is FREE for an unsigned index type (non-negative by
