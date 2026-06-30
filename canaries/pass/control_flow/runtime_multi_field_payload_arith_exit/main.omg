@@ -1,0 +1,33 @@
+// A multi-field sum-case payload: `case Rect(w, h)` binds BOTH fields in the match arm, and
+// both drive a computed transition argument (w * h + 58). The check discriminates three ways:
+// the Rect arm must be selected over Circle, AND both payload fields must bind to the right
+// values -- the Circle arm computes r * 7, so a wrong arm or a swapped/mis-bound field changes
+// the exit. Rect{3,4} -> 3 * 4 + 58 = 70. (Computing in the transition arg, not the host-call
+// arg, is deliberate: a host-call argument must be a simple value, see
+// fail/calls/value_call_as_host_arg_rejected.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Shape {
+    case Circle(r: i32 in Wrapping);
+    case Rect(w: i32 in Wrapping, h: i32 in Wrapping);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::run(&mut self, s: Shape) {
+    transition s {
+        Shape::Circle { r } -> emit(r * 7)
+        Shape::Rect { w, h } -> emit(w * h + 58)
+    }
+    state emit(&mut self, v: i32 in Wrapping) {
+        self.console.exit_process(v);
+    }
+}
+
+machine Main::main(&mut self) {
+    self.run(Shape::Rect { w: 3, h: 4 });
+}
