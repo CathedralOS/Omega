@@ -19,7 +19,13 @@ pub enum Value {
     Int(i64),
     Bool(bool),
     Float(f64),
-    Str(Rc<RefCell<String>>),
+    /// Text: a `&[u8]` view, a string literal, OR an owned `[u8; N]` carrier. Stored as raw
+    /// BYTES (not a Rust `String`) because Omega text is `&[u8]` -- bytes that need only be
+    /// valid Utf8 at domain boundaries, not at every intermediate step. Bytes (vs a UTF-8
+    /// String) let a carrier be byte-indexed and byte-WRITTEN (`out[i] = ch`) directly. The
+    /// runtime length is the vec length; a carrier's static capacity `N` is a compile-time
+    /// bound the native side enforces and the interpreter does not need to track.
+    Str(Rc<RefCell<Vec<u8>>>),
     /// A struct / data record / machine instance. Fields are addressed by name so the
     /// interpreter can resolve `self.field` without depending on backend layout. Each
     /// field is its own cell (so `&mut self.field` aliases correctly).
@@ -53,6 +59,12 @@ impl Value {
     }
 
     pub fn str(value: impl Into<String>) -> Value {
+        Value::Str(Rc::new(RefCell::new(value.into().into_bytes())))
+    }
+
+    /// Construct text directly from raw bytes (carrier byte content that need not be valid
+    /// UTF-8 mid-computation).
+    pub fn bytes(value: impl Into<Vec<u8>>) -> Value {
         Value::Str(Rc::new(RefCell::new(value.into())))
     }
 

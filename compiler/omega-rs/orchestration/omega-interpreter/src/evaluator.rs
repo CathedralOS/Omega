@@ -698,6 +698,42 @@ impl<'program> Evaluator<'program> {
                 } else {
                     value
                 };
+                // Carrier byte WRITE: `out[i] = ch` where `out` is text (`Value::Str`, packed
+                // BYTES). The byte has no per-element cell, so write it straight into the vec
+                // rather than resolving an element place (element_cell only handles Array). The
+                // value is the byte (an Int); a range index is not a scalar write.
+                if let ExpressionNode::Indexed(indexed) = self
+                    .program
+                    .expression_table
+                    .expression(assignment.target)
+                    .clone()
+                    && !matches!(
+                        self.program.expression_table.expression(indexed.index),
+                        ExpressionNode::Range(_)
+                    )
+                    && let Ok(collection_cell) = self.resolve_place(indexed.collection, frame)
+                {
+                    let collection_cell = self.deref_cell(collection_cell);
+                    if matches!(&*collection_cell.borrow(), Value::Str(_)) {
+                        let index = self.eval_index(indexed.index, frame)?;
+                        let byte = value.as_int().ok_or_else(|| {
+                            Halt::Trap("carrier byte write value is not an integer".to_owned())
+                        })? as u8;
+                        if let Value::Str(text) = &*collection_cell.borrow() {
+                            let mut bytes = text.borrow_mut();
+                            match bytes.get_mut(index) {
+                                Some(slot) => *slot = byte,
+                                None => {
+                                    return Err(Halt::Trap(format!(
+                                        "carrier byte write index {index} out of bounds (len {})",
+                                        bytes.len()
+                                    )));
+                                }
+                            }
+                        }
+                        return Ok(());
+                    }
+                }
                 let target = self.resolve_place(assignment.target, frame)?;
                 // Assigning to a `&mut` place writes THROUGH the reference into the aliased
                 // cell (so `out_line = ...` on an `out_line: &mut String` param mutates the
@@ -1406,7 +1442,7 @@ impl<'program> Evaluator<'program> {
                         }
                     };
                     bytes.extend(wire_varint_bytes(text.len() as u64));
-                    bytes.extend(text.as_bytes());
+                    bytes.extend_from_slice(&text);
                 }
                 WireInterpField::ByteSlice => {
                     // Length varint (byte count) then the raw bytes, read from
@@ -1834,7 +1870,7 @@ impl<'program> Evaluator<'program> {
                 let bytes = if let Some(first) = arguments.first() {
                     let value = self.eval_expression(*first, frame)?;
                     match value {
-                        Value::Str(text) => text.borrow().as_bytes().to_vec(),
+                        Value::Str(text) => text.borrow().clone(),
                         other => {
                             return unsupported(format!(
                                 "host write of non-string value {other:?}"
@@ -1864,7 +1900,7 @@ impl<'program> Evaluator<'program> {
                     if let Ok(cell) = self.resolve_place(*first, frame) {
                         let cell = self.deref_cell(cell);
                         if let Value::Str(text) = &*cell.borrow() {
-                            *text.borrow_mut() = line.clone();
+                            *text.borrow_mut() = line.clone().into_bytes();
                         } else {
                             *cell.borrow_mut() = Value::str(line.clone());
                         }
@@ -2054,7 +2090,6 @@ impl<'program> Evaluator<'program> {
                         if let Value::Str(text) = &*collection_cell.borrow() {
                             return text
                                 .borrow()
-                                .as_bytes()
                                 .get(index)
                                 .map(|byte| Value::Int(i64::from(*byte)))
                                 .ok_or_else(|| {
@@ -2796,8 +2831,8 @@ impl<'program> Evaluator<'program> {
         if let (Value::Str(a), Value::Str(b)) = (&left, &right) {
             if operator == Add {
                 let mut joined = a.borrow().clone();
-                joined.push_str(&b.borrow());
-                return Ok(Value::str(joined));
+                joined.extend_from_slice(&b.borrow());
+                return Ok(Value::bytes(joined));
             }
         }
 
