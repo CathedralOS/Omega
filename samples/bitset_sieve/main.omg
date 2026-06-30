@@ -1,0 +1,80 @@
+// Sieve of Eratosthenes over a bitset: bit k of a u32 means "k is composite". Starting empty (all
+// bits 0 = all candidates prime), walk k = 2..30; if k is unmarked it is prime, so mark every
+// multiple 2k, 3k, ... by setting its bit (`bits |= 1 << multiple`). Then count the still-unmarked
+// numbers in 2..30 -- the primes. There are 10 (2,3,5,7,11,13,17,19,23,29), so it exits 70 iff the
+// count is 10. A real algorithm over the bitset, using OR / shift / AND with runtime shift amounts
+// across nested loops, with no array indexing.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    bits: u32 in Wrapping;
+    i: u32 in Wrapping;
+    j: u32 in Wrapping;
+    m: u32 in Wrapping;
+    k: u32 in Wrapping;
+    count: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.bits = 0;
+    self.i = 2;
+    transition { _ -> outer() }
+
+    state outer(&mut self) {
+        transition self.i <= 30 { true -> check_prime() _ -> count_init() }
+    }
+    state check_prime(&mut self) {
+        self.m = self.bits >> self.i;
+        self.m = self.m & 1;
+        transition self.m == 0 { true -> mark_init() _ -> outer_next() }
+    }
+    state mark_init(&mut self) {
+        self.j = self.i + self.i;
+        transition { _ -> mark() }
+    }
+    state mark(&mut self) {
+        transition self.j <= 30 { true -> set_bit() _ -> outer_next() }
+    }
+    state set_bit(&mut self) {
+        self.m = 1;
+        self.m = self.m << self.j;
+        self.bits = self.bits | self.m;
+        self.j = self.j + self.i;
+        transition { _ -> mark() }
+    }
+    state outer_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> outer() }
+    }
+
+    state count_init(&mut self) {
+        self.count = 0;
+        self.k = 2;
+        transition { _ -> count_loop() }
+    }
+    state count_loop(&mut self) {
+        transition self.k <= 30 { true -> count_test() _ -> done() }
+    }
+    state count_test(&mut self) {
+        self.m = self.bits >> self.k;
+        self.m = self.m & 1;
+        transition self.m == 0 { true -> inc() _ -> count_next() }
+    }
+    state inc(&mut self) {
+        self.count = self.count + 1;
+        transition { _ -> count_next() }
+    }
+    state count_next(&mut self) {
+        self.k = self.k + 1;
+        transition { _ -> count_loop() }
+    }
+    state done(&mut self) {
+        transition self.count == 10 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(self.count); }
+}
