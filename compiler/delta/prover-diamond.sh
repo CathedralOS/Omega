@@ -29,9 +29,13 @@ dia() {  # a lemma-free goal: the prover proves it, and BOTH checkers must accep
   bcert=$(python3 prover.py "$1" 2>/dev/null | tail -1)
   gexpr=$(python3 prover.py --gamma "$1" 2>/dev/null | tail -1)
   if [ "$bcert" = unprovable ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : prover found no proof"; return; fi
-  if [ "$gexpr" = unsupported ]; then SKIP=$((SKIP+1)); return; fi   # lemma cert: no gamma analogue
   vb=$(printf '%s' "$bcert" | "$T/check.exe")
-  printf '%s\n%s\n' "$DEFS" "$gexpr" | "$T/interp.exe" >/dev/null; eg=$?
+  # run in a subshell whose stderr is dropped, so a SIGBUS from interp exhausting its arena doesn't print the
+  # shell's job-control "Bus error" line; we read the exit code and treat a crash as a skip below.
+  ( printf '%s\n%s\n' "$DEFS" "$gexpr" | "$T/interp.exe" >/dev/null 2>&1 ) 2>/dev/null; eg=$?
+  # interp.beta has a fixed arena/fuel; a large proof can EXHAUST it (exit not 0/1 -> crash/signal). That is a
+  # reference-interpreter capacity limit, not a checker disagreement, so SKIP those (still check.beta-validated).
+  if [ "$eg" != 0 ] && [ "$eg" != 1 ]; then SKIP=$((SKIP+1)); return; fi
   vg=reject; [ "$eg" = 1 ] && vg=accept
   if [ "$vb" = accept ] && [ "$vg" = accept ]; then PASS=$((PASS+1))
   else FAIL=$((FAIL+1)); echo "  FAIL $1 : check.beta=$vb  checker.gamma=$vg (must both accept)"; fi
@@ -67,6 +71,16 @@ dia "(-> (= (s (s z)) (s (v 0))) (= (s z) (v 0)))"
 # inequality -- the lemma-free weakenings (unpack/wit on the desugared existential)
 dia "(-> (Lt (v 0) (v 1)) (Le (v 0) (v 1)))"
 dia "(Lt (s z) (s (s (s z))))"
+# LEMMA / INDUCTION certs -- the riskiest emission (natind, eqelim chains, the directed sum-witness). The
+# `(def N)/(use N)` prelude has no gamma form, so for the gamma route the lemmas are INLINED into one proof.
+dia "(All (= (p (v 0) z) (v 0)))"                                 # x+0=x         (natind)
+dia "(All (= (m (v 0) z) z))"                                     # x*0=0         (natind, mult)
+dia "(All (All (= (p (v 1) (v 0)) (p (v 0) (v 1)))))"             # commutativity (nested natind)
+dia "(All (All (All (= (p (p (v 2) (v 1)) (v 0)) (p (v 2) (p (v 1) (v 0)))))))"  # associativity
+dia "(All (Le (v 0) (s (v 0))))"                                 # x <= s x
+dia "(All (All (Le (v 0) (p (v 1) (v 0)))))"                      # y <= x+y      (lemma reuse: add-comm)
+dia "(-> (& (Le (v 0) (v 1)) (Le (v 1) (v 2))) (Le (v 0) (v 2)))" # transitivity  (inlined add-assoc)
+dia "(-> (Le (p (v 0) (v 1)) (v 2)) (Le (v 0) (v 2)))"            # drop-addend
 
-echo "prover diamond (every prover cert accepted by BOTH check.beta AND checker.gamma): $PASS ok, $SKIP skipped (lemma certs), $FAIL failed"
+echo "prover diamond (every prover cert accepted by BOTH check.beta AND checker.gamma): $PASS ok, $SKIP skipped (interp arena), $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

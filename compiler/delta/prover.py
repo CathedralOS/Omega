@@ -1061,6 +1061,9 @@ def to_gamma(term, binders, atoms, ib=()):
     if h == "gen":
         _, e, body = term
         return "(Gen %s)" % to_gamma(body, binders, atoms, tuple(ib) + (e,))
+    if h == "natind":  # Peano induction: motive carries an implicit binder -> depth 1, like the eqelim motive
+        _, motive, base, step = term
+        return "(Natind %s %s %s)" % (gamma_prop(motive, atoms, ib, 1), to_gamma(base, binders, atoms, ib), to_gamma(step, binders, atoms, ib))
     if h == "inst":
         return "(Inst %s %s)" % (to_gamma(term[1], binders, atoms, ib), gamma_term(term[2], ib))
     if h == "wit":
@@ -1077,9 +1080,19 @@ def to_gamma(term, binders, atoms, ib=()):
     return "(%s %s %s)" % ({"pair": "Pair", "app": "App"}[h], to_gamma(term[1], binders, atoms, ib), to_gamma(term[2], binders, atoms, ib))
 
 
-def emit_gamma(goal, proof):  # `(check PROOF GOAL)` for checker.gamma; None if the cert cites a library lemma
+def _inline_uses(t, lemma_proofs):  # splice each (use i) with lemma i's (closed) proof, recursively
+    if not isinstance(t, tuple):
+        return t
+    if t and t[0] == "use":
+        return _inline_uses(lemma_proofs[t[1]], lemma_proofs)
+    return tuple(_inline_uses(x, lemma_proofs) for x in t)
+
+
+def emit_gamma(goal, proof):  # `(check PROOF GOAL)` for checker.gamma -- a single proof (no def/use prelude,
+    # which gamma lacks). Lemma citations are INLINED: (use i) -> lemma i's proof. Sound because each lemma
+    # proof is CLOSED (references only its own binders), so splicing it anywhere keeps the de Bruijn correct.
     if _used_lemmas[0]:
-        return None
+        proof = _inline_uses(proof, [pf for _, pf in _used_lemmas[0]])
     atoms = {}
     g = gamma_prop(goal, atoms)                  # goal first, so its atoms get stable ids
     p = to_gamma(proof, [], atoms, tuple(_base_ib))
@@ -1275,11 +1288,7 @@ def main():
     if sys.argv[1] == "--gamma":  # emit the cert in checker.gamma syntax (for the prover diamond)
         goal = parse(tokenize(sys.argv[2]))
         proof = solve(goal)
-        if proof is None:
-            print("unprovable")
-        else:
-            g = emit_gamma(goal, proof)
-            print(g if g is not None else "unsupported")  # lemma-using cert: no gamma analogue
+        print("unprovable" if proof is None else emit_gamma(goal, proof))
         return
     goal = parse(tokenize(sys.argv[1]))
     proof = solve(goal, int(sys.argv[2]) if len(sys.argv) > 2 else 16)
