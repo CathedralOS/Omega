@@ -198,6 +198,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_coin_change_dp_exit", 70),
     ("collections/runtime_nqueens_backtracking_exit", 70),
     ("collections/runtime_maze_pathfind_exit", 70),
+    ("collections/runtime_activity_selection_greedy_exit", 70),
     ("collections/runtime_indexed_through_guard_chain_exit", 70),
     ("collections/runtime_two_pointer_palindrome_exit", 70),
     ("comptime/runtime_const_array_length_exit", 70),
