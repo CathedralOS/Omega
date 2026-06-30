@@ -1,0 +1,63 @@
+// Fibonacci numbers and the golden ratio. Compute consecutive Fibonacci terms (a, b) by the
+// classic iterative loop -- tmp = a + b; a = b; b = tmp -- then the ratio b / a as a float, which
+// converges to the golden ratio phi ~= 1.618. After 13 steps a = fib(14) = 377 and b = fib(15) =
+// 610; 610 / 377 = 1.6180..., and (ratio * 100) truncated to an integer is 161.
+//
+// Showcases an integer accumulation loop (a self-transition over a counter field) feeding an
+// int -> float -> int computation: the consecutive terms are widened to f64, divided, scaled, and
+// truncated back. The swap goes through a `tmp` FIELD (read from its slot) rather than a `let`
+// local, the same idiom euclid_gcd documents. Expected exit: 161.
+
+use omega::language::std::console;
+
+data Fib [copy, zero_init] {
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    tmp: i32 in Wrapping;
+    i: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    fib: Fib;
+    fa: f64;
+    fb: f64;
+    ratio: f64;
+    result: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.fib.a = 1;
+    self.fib.b = 1;
+    self.fib.i = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.fib.i == 13 {
+            true -> ratio_calc()
+            _ -> advance()
+        }
+    }
+
+    state advance(&mut self) {
+        self.fib.tmp = self.fib.a + self.fib.b;
+        self.fib.a = self.fib.b;
+        self.fib.b = self.fib.tmp;
+        self.fib.i = self.fib.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state ratio_calc(&mut self) {
+        self.fa = self.fib.a as f64;
+        self.fb = self.fib.b as f64;
+        self.ratio = self.fb / self.fa;
+        self.ratio = self.ratio * 100.0;
+        self.result = self.ratio as i32 in Wrapping;
+        self.console.exit_process(self.result);
+    }
+}
