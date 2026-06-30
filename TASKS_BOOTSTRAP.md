@@ -218,6 +218,19 @@ a working proof-carrying contract system** (item 11). What remains:
   cases). The diamond can check an actual program's meaning against a Rust-free lattice semantics, not just
   constructed tests. (Larger certifiers — `certify-lt`/`mod` — exhaust interp's arena on big unary numerals;
   a fuel/arena limit, not a translation gap.) Next strategic step: port the translator itself off Rust.
+- **Toward Omega's proof surface — STARTED.** rungs/omega.md: Omega = the lower rungs PLUS contracts +
+  refinement types + **proof automation as an untrusted front line that emits certificates the Delta
+  checker validates** ("automation discharges the easy 95% with zero hand-proving, a tiny kernel checks
+  the hard 5%"). The lattice already had the kernel (`check.beta`), the certificate format, and
+  certificate-*emitting computation* (the convergence) — now it has the first genuine proof AUTOMATION:
+  `delta/prover.py`, an untrusted proof-SEARCH front line for the intuitionistic `{-> , &}` propositional
+  fragment. Given a goal it searches a sound natural-deduction calculus (conjunction saturation + R&/R→
+  intro + modus-ponens backward chaining, fuel-bounded) and EMITS a `check.beta` certificate the kernel
+  re-checks (`prover-test.sh`: curated tautologies proved + kernel-accepted; non-tautologies correctly
+  unprovable; a random `{-> , &}` fuzz where every proof the prover finds is kernel-accepted). Sound by
+  construction, complete only up to its fuel — exactly the "cleverness on the untrusted side, authority in
+  the kernel" split. Widen: `∨`/`⊥` (case/absurd), then quantifiers; the long arc is SMT-class procedures
+  emitting kernel-checkable certificates (the proof-engine north star).
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
