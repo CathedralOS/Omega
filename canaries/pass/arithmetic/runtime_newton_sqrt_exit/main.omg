@@ -1,0 +1,45 @@
+// Newton's method for a square root -- an iterative NUMERICAL algorithm, distinct from the
+// arithmetic-focused float canaries (which test the operators in isolation; this one runs
+// a method to convergence). The recurrence x <- (x + S/x) / 2 halves the error each step;
+// from x = 1.0, six iterations on S = 2.0 converge to sqrt(2) ~= 1.41421356. Exercises f64
+// DIVISION (S/x and t/2.0) inside a loop and a two-sided float comparison against literals.
+// Checks 1.414 < x < 1.415 -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    sv: f64; // the value whose root we want
+    x: f64;  // current estimate
+    q: f64;  // S / x
+    t: f64;  // x + q
+    k: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.sv = 2.0;
+    self.x = 1.0;
+    self.k = 0;
+    transition { _ -> loop() }
+
+    state loop(&mut self) {
+        transition self.k < 6 { true -> iterate() _ -> verify() }
+    }
+    state iterate(&mut self) {
+        self.q = self.sv / self.x;     // S / x
+        self.t = self.x + self.q;      // x + S/x
+        self.x = self.t / 2.0;         // (x + S/x) / 2
+        self.k = self.k + 1;
+        transition { _ -> loop() }
+    }
+    state verify(&mut self) {
+        transition self.x > 1.414 && self.x < 1.415 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -4454,6 +4454,34 @@ fn runtime_float_negative_ops_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_newton_sqrt_exit_canary_runs() {
+    // Newton's method for a square root (an iterative numerical algorithm): x <- (x + S/x)/2
+    // over f64, six iterations from 1.0 on S=2.0 -> sqrt(2) ~= 1.41421; checks
+    // 1.414 < x < 1.415 -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_newton_sqrt_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-newton-sqrt-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("newton sqrt canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("newton sqrt canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Newton's method to converge to sqrt(2) in (1.414, 1.415) (exit 70); got {:?} -- a float div/compare regression\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_monte_carlo_pi_exit_canary_runs() {
     // Monte Carlo pi estimation driven by the xorshift32 PRNG: 64 random points, count
     // those inside the quarter circle (px*px+py*py < 100*100). Deterministic from seed 1:
