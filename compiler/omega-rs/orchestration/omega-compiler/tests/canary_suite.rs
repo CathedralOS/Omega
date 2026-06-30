@@ -5255,6 +5255,34 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
 }
 
 #[test]
+fn std_option_runtime_match_exit_canary_runs() {
+    // The std `Option<T>` works at runtime for presence/absence: construct Some + None and
+    // discriminate them. a=Some -> check b; b=None -> exit 70. (Some carries no payload yet --
+    // a useful Option<T>::Some(value) is blocked on generic monomorphization at the layout stage.)
+    let canary = pass_canary("collections/std_option_runtime_match_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-std-option-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("std option runtime match canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("std option runtime match canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected std Option Some/None construct + match to exit 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_read_then_guard_exit_canary_runs() {
     // The sound pattern for guarding a runtime-indexed array element: read it into a place first,
     // then compare that place (a direct `transition nums[i] > 5` silently takes the first arm).
