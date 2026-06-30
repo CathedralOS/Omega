@@ -4340,6 +4340,35 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_2d_transpose_exit_canary_runs() {
+    // A 2D matrix transpose over a flat array via the linear-counter sidestep: the
+    // (row,col) and transposed output index are computed into fields, then used as plain
+    // indices. Self-checks four transposed cells -> exit 70. Proves 2D/matrix data.
+    let canary = pass_canary("collections/runtime_2d_transpose_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-2d-transpose-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("2d transpose canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("2d transpose canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the 2D transpose to place cells correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_through_guard_chain_exit_canary_runs() {
     // An index bound carried across a CHAIN of convergent-arm guards (`d<0 {true->t
     // _->t}`) that neither name nor rewrite x. Before convergent arms were treated as
