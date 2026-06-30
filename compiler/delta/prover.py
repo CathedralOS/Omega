@@ -410,6 +410,37 @@ def _prop_subterms(p):  # every term-subterm appearing in a proposition
     return out
 
 
+def _slack_path(sat, A, C, maxlen=4):
+    # The context's `+`-equality facts form a graph: a fact (= (p X D) Y) is an edge X --slack D--> Y.
+    # BFS for a path A -> ... -> C and return its slacks in order (so A ≤ C with witness = their sum). This
+    # generalises 2-step transitivity to arbitrary-length bound chains (a≤b≤c≤d ⊢ a≤d).
+    edges = {}
+    for p, _ in sat:
+        if p[0] == "=" and p[1][0] == "p":
+            edges.setdefault(p[1][1], []).append((p[1][2], p[2]))
+    queue = [(A, [])]
+    seen = {A}
+    while queue:
+        node, slacks = queue.pop(0)
+        if len(slacks) >= maxlen:
+            continue
+        for d, y in edges.get(node, []):
+            ns = slacks + [d]
+            if y == C:
+                return ns
+            if y not in seen:
+                seen.add(y)
+                queue.append((y, ns))
+    return None
+
+
+def _sum_right(slacks):  # right-associated sum d1+(d2+(...+dn)) -- the witness for an ≤-chain's path
+    w = slacks[-1]
+    for d in reversed(slacks[:-1]):
+        w = ("p", d, w)
+    return w
+
+
 def occurs_term(t, b):
     if t == b:
         return True
@@ -760,24 +791,21 @@ def _rules(sat, goal):
                 return ("unpack", term, prop[1], e, nm, pf)
     # directed SUM-WITNESS (≤-chaining): goal ∃k.(= (p A k) C). Synthesise a COMPOUND witness from the
     # context's `+`-equality facts, then discharge the body in a FOCUSED sub-proof (only add-assoc, both
-    # orientations) -- add-assoc re-associates so the facts rewrite A's sum to C. Two patterns, both real
-    # contract obligations; pattern-gated, so the general search is untouched:
-    #   transitivity  a≤b ∧ b≤c ⊢ a≤c : facts (p A I)=M, (p M J)=C   -> witness I+J
-    #   drop-addend   i+k≤n   ⊢ i≤n   : fact  (p (p A K) M)=C        -> witness K+M
+    # orientations) -- add-assoc re-associates so the facts rewrite A's sum to C. Pattern-gated, so the
+    # general search is untouched. Two witness sources, both real contract obligations:
+    #   N-step transitivity  a≤b≤c…≤z ⊢ a≤z : a path A->…->C in the +slack graph -> witness = sum of slacks
+    #   drop-addend          i+k≤n     ⊢ i≤n : fact (p (p A K) M)=C               -> witness K+M
     if (goal[0] == "ex" and _active_lemmas and goal[1][0] == "=" and goal[1][1][0] == "p"
             and goal[1][1][2] == ("v", 0)):
         body, A, C = goal[1], goal[1][1][1], goal[1][2]
         wits = []
+        path = _slack_path(sat, A, C)
+        if path is not None:
+            wits.append(_sum_right(path))
         for p1, _ in sat:
-            if p1[0] != "=" or p1[1][0] != "p":
-                continue
-            L1, R1 = p1[1], p1[2]
-            if L1[1] == A:                                          # fact (p A I)=M -> look for (p M J)=C
-                for p2, _ in sat:
-                    if p2[0] == "=" and p2[1][0] == "p" and p2[1][1] == R1 and p2[2] == C:
-                        wits.append(("p", L1[2], p2[1][2]))         # witness I+J
-            if L1[1][0] == "p" and L1[1][1] == A and R1 == C:       # fact (p (p A K) M)=C
-                wits.append(("p", L1[1][2], L1[2]))                 # witness K+M
+            if (p1[0] == "=" and p1[1][0] == "p" and p1[1][1][0] == "p"
+                    and p1[1][1][1] == A and p1[2] == C):           # fact (p (p A K) M)=C
+                wits.append(("p", p1[1][1][2], p1[1][2]))           # witness K+M
         for w in wits:
             saved, sbo = list(_active_lemmas), _both_orient[0]
             _active_lemmas[:] = [l for l in _active_lemmas if l[3] == _ASSOC]

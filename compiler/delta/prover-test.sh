@@ -121,6 +121,8 @@ ok "(-> (& (Le (v 0) (v 1)) (Le (v 1) (v 2))) (Le (v 0) (v 2)))"   # a<=b & b<=c
 no "(-> (Le (v 0) (v 1)) (Le (v 0) (v 2)))"            # a<=b alone does NOT give a<=c (no chain to c)
 ok "(-> (Le (p (v 0) (v 1)) (v 2)) (Le (v 0) (v 2)))"  # i+k<=n  =>  i<=n   (DROP-ADDEND: offset array index)
 no "(-> (Le (p (v 0) (v 1)) (v 2)) (Le (v 2) (v 0)))"  # i+k<=n does NOT give n<=i
+# N-step transitivity: an arbitrary-length bound chain via a path search over the +slack graph
+ok "(-> (& (& (Le (v 0) (v 1)) (Le (v 1) (v 2))) (Le (v 2) (v 3))) (Le (v 0) (v 3)))"  # a<=b<=c<=d => a<=d
 # non-tautologies: provability must fail (soundness of the front line)
 no "(Exists (Pred 0 (v 0)))"                            # no witness available -> unprovable
 no "(-> (Exists (Pred 0 (v 0))) (Pred 0 (s z)))"        # eigenvariable must NOT escape the unpack
