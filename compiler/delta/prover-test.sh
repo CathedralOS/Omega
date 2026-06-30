@@ -75,6 +75,13 @@ ok "(-> (& (Pred 0 (s z)) (= (s z) (s (s z)))) (Pred 0 (s (s z))))"        # tra
 ok "(-> (& (Pred 0 (s (s z))) (= (s z) (s (s z)))) (Pred 0 (s z)))"        # transport, reverse orientation
 ok "(-> (& (Rel 0 (s z) z) (= (s z) (s (s z)))) (Rel 0 (s (s z)) z))"      # rewrite one relation argument
 ok "(-> (& (= (s z) z) (Pred 0 (p (s z) (s (s z))))) (Pred 0 (p z (s (s z)))))"  # rewrite a subterm of a p-term
+# Peano constructor discrimination: successor injectivity (sinj) + zero/successor clash (disj)
+ok "(-> (= z (s z)) (bot))"                             # 0 = 1  ->  bot       (disj: zero != succ)
+ok "(-> (= z (s z)) P)"                                 # a clashing hypothesis proves anything (ex falso)
+ok "(-> (= (s (s z)) (s (v 0))) (= (s z) (v 0)))"       # s(s 0) = s x  ->  s 0 = x   (sinj)
+ok "(-> (= (s (v 0)) (s (v 1))) (= (v 0) (v 1)))"       # s x = s y  ->  x = y        (sinj, free vars)
+ok "(-> (= (s (s z)) (s (s (s z)))) (bot))"             # 2 = 3  ->  bot   (sinj; sinj; disj chain)
+ok "(-> (= (s z) (s (s z))) (= z (s z)))"               # 1 = 2  ->  0 = 1 (sinj; a TRUE vacuous implication)
 # inequality, encoded with no kernel `<`:  a<=b := exists k. a+k=b ;  a<b := exists k. a+(s k)=b
 ok "(Lt (s z) (s (s (s z))))"                          # 1 < 3
 ok "(Le (s (s z)) (s (s z)))"                          # 2 <= 2
@@ -90,7 +97,7 @@ no "(-> (Exists (Pred 0 (v 0))) (All (Pred 0 (v 0))))"  # exists does NOT give f
 no "(= (s z) z)"                                        # 1 != 0    (refl must NOT fire)
 no "(= (p (s z) (s z)) (s z))"                          # 1+1 != 1
 no "(-> (Pred 0 (s z)) (Pred 0 (s (s z))))"             # P(1) does NOT give P(2)
-no "(-> (= (s z) (s (s z))) (= z (s z)))"               # rewriting 1=2 does NOT yield 0=1 (and terminates)
+no "(-> (= (v 0) (s (v 0))) (bot))"                     # x = s x is NOT a literal clash -> needs induction
 no "(Lt (s (s (s z))) (s (s z)))"                       # 3 < 2  -> no
 no "(Le (s (s (s z))) (s (s z)))"                       # 3 <= 2 -> no
 no "(Lt (s (s z)) (s (s z)))"                           # 2 < 2  -> no

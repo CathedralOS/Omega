@@ -570,6 +570,26 @@ def _rules(sat, goal):
     bot = has(sat, ("bot",))
     if bot is not None and goal != ("bot",):
         return ("absurd", goal, bot)
+    # disj: an equality hypothesis whose sides reduce to CLASHING constructors (0 vs s _) is absurd -- Peano's
+    # zero != successor. (disj e) : bot, then ex falso for any goal. The kernel normalises both sides, so we
+    # match on nf too (e.g. (= (p z z) (s z)) clashes).
+    for prop, term in sat:
+        if prop[0] == "=":
+            a, b = nf(prop[1]), nf(prop[2])
+            if (a[0] == "z" and b[0] == "s") or (a[0] == "s" and b[0] == "z"):
+                return ("disj", term) if goal == ("bot",) else ("absurd", goal, ("disj", term))
+    # sinj: successor injectivity -- a hypothesis (s a = s b) yields the NEW fact (a = b). The children are
+    # the normal forms' successors' arguments (what the kernel's sinj returns). Decreasing successor depth +
+    # the new-fact guard terminate the chain (so 2=3 collapses 2=3 -> 1=2 -> 0=1 -> disj -> bot).
+    for prop, term in sat:
+        if prop[0] == "=":
+            a, b = nf(prop[1]), nf(prop[2])
+            if a[0] == "s" and b[0] == "s":
+                fact = ("=", a[1], b[1])
+                if has(sat, fact) is None:
+                    body = prove(sat + [(fact, ("sinj", term))], goal)
+                    if body is not None:
+                        return body
     # L-forall (inst): instantiate a universal hypothesis with a candidate term (a NEW fact)
     for prop, term in sat:
         if prop[0] == "all":
@@ -645,6 +665,10 @@ def to_db(term, binders, ib=()):  # convert the named proof term to check.beta's
         return "(case %s %s %s)" % (to_db(term[1], binders, ib), to_db(term[2], binders, ib), to_db(term[3], binders, ib))
     if h == "refl":  # reflexivity of equality: (refl t) : (= t t), accepted up to the kernel's conversion
         return "(refl %s)" % beta_term(term[1], ib)
+    if h == "disj":  # zero != successor: (disj pf_eq) : bot, from a clashing equality proof
+        return "(disj %s)" % to_db(term[1], binders, ib)
+    if h == "sinj":  # successor injectivity: (sinj pf_eq) : (= a b), from (= (s a) (s b))
+        return "(sinj %s)" % to_db(term[1], binders, ib)
     if h == "eqelim":  # Leibniz transport: (eqelim motive pf_eq pf_pa) -- motive carries the de Bruijn-0 hole
         _, mot, pe, pa = term
         return "(eqelim %s %s %s)" % (beta_prop(mot, ib), to_db(pe, binders, ib), to_db(pa, binders, ib))
