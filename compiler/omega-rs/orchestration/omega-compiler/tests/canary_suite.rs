@@ -1499,6 +1499,34 @@ fn runtime_mandelbrot_render_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_binary_format_exit_canary_runs() {
+    // Format a number as an 8-bit binary string: `(n >> (7-i)) & 1` per bit (runtime shift
+    // amount + bitwise AND in value position), written to a carrier. 42 -> "00101010",
+    // all eight bytes checked -> exit 70.
+    let canary = pass_canary("text/runtime_binary_format_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-binary-format-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("binary format canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("binary format canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected 42 to format as binary \"00101010\" (exit 70); got {:?} -- a shift/bitwise regression\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_substring_search_exit_canary_runs() {
     // Naive substring search (find a needle in a haystack): nested loop, carrier byte
     // comparison, the index guarded against `.len` directly. "world" in "hello world"

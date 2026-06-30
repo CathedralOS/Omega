@@ -1,0 +1,69 @@
+// Format a number as an 8-bit BINARY string -- a number->text conversion distinct from
+// decimal itoa, and the one that exercises the SHIFT + bitwise codegen in a real algorithm:
+// for each bit position i (MSB first), `(n >> (7 - i)) & 1` is the bit, turned into '0'/'1'
+// and written to a carrier. The shift AMOUNT is a runtime value (7 - i), and the result
+// feeds a bitwise AND -- both in value position. 42 = 0b00101010, so the output bytes are
+// exactly "00101010". All eight checked -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 8]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    n: u32 in Wrapping;
+    out: [u8; 8] in Utf8;
+    i: i32 in Wrapping;
+    shift: i32 in Wrapping; // 7 - i (runtime shift amount)
+    sh: u32 in Wrapping;    // n >> shift
+    bit: u32 in Wrapping;   // sh & 1
+    ch: u8;
+}
+
+machine Main::main(&mut self) {
+    self.n = 42;
+    self.out = "00000000";
+    self.i = 0;
+    transition { _ -> loop() }
+
+    state loop(&mut self) {
+        transition self.i >= 0 && self.i < 8 { true -> bit_extract() _ -> verify() }
+    }
+    state bit_extract(&mut self) {
+        self.shift = 7 - self.i;
+        self.sh = self.n >> self.shift;
+        self.bit = self.sh & 1;
+        self.ch = (self.bit + 48) as u8; // '0' or '1'
+        transition self.i >= 0 && self.i < 8 { true -> store() _ -> bad() }
+    }
+    state store(&mut self) {
+        self.out[self.i] = self.ch;
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+    state verify(&mut self) {
+        // "00101010" = 48,48,49,48,49,48,49,48
+        transition self.out[0] == 48
+            && self.out[1] == 48
+            && self.out[2] == 49
+            && self.out[3] == 48
+            && self.out[4] == 49
+            && self.out[5] == 48
+            && self.out[6] == 49
+            && self.out[7] == 48 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
