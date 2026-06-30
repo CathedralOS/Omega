@@ -69,6 +69,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ),
     ("calls/runtime_option_value_call_exit", 70),
     ("calls/runtime_struct_value_call_exit", 70),
+    ("calls/runtime_value_call_composition_exit", 70),
     (
         "calls/runtime_alias_indexed_read_through_transition_exit",
         70,

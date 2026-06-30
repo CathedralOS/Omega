@@ -1,0 +1,45 @@
+// Function composition -- chaining value-machine calls so each result feeds the next, the
+// backbone of any pipeline (parse -> validate -> transform, etc.). Each stage is a value-
+// machine returning a scalar; the caller binds each result with `let` and passes it to the
+// next stage. add_ten(5)=15, double(15)=30, minus_five(30)=25, so the three-stage pipeline
+// yields 25 -> exit 70.
+//
+// Composition is expressed SEQUENTIALLY (bind each call to a local, then pass the local on).
+// The nested form `f(g(x))` -- a value-call used directly as another value-call's argument --
+// is a CLEAN ERROR today ("local `r` needs stack/local storage lowering": the inner callee's
+// frame locals can't be lowered inside the outer call's argument context), not a silent
+// miscompile. The sequential form below is the idiom and is fully sound.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::add_ten(&self, x: i32 in Wrapping) -> i32 {
+    let r: i32 in Wrapping = x + 10;
+    transition { _ -> r }
+}
+machine Main::double(&self, y: i32 in Wrapping) -> i32 {
+    let r: i32 in Wrapping = y * 2;
+    transition { _ -> r }
+}
+machine Main::minus_five(&self, z: i32 in Wrapping) -> i32 {
+    let r: i32 in Wrapping = z - 5;
+    transition { _ -> r }
+}
+
+machine Main::main(&mut self) {
+    let a: i32 in Wrapping = self.add_ten(5);     // 15
+    let b: i32 in Wrapping = self.double(a);      // 30
+    let c: i32 in Wrapping = self.minus_five(b);  // 25
+    transition c == 25 { true -> good() _ -> wrong() }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(c); // surface the pipeline output on regression
+    }
+}
