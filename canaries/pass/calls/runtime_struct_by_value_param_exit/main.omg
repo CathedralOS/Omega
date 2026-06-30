@@ -1,0 +1,46 @@
+// Passing a struct BY VALUE into a value-machine and reading its fields -- the argument-side
+// counterpart to the value-call return canaries (functions that TAKE records). The callee
+// reads all three fields of its by-value param in distinct positional weights
+// (a*100 + b*10 + c), so a misresolved or swapped field changes a specific decimal digit:
+// decode(Coeffs{1,2,3}) is 123 -> exit 70. The struct is built by the caller and passed by
+// value; the callee computes through several `let` bindings before returning.
+//
+// This pins the working envelope around task #15: a by-value struct param's scalar fields
+// resolve correctly here (named local OR inline-constructed arg); the known remaining bug is
+// narrower -- forwarding an ELEMENT of a by-value struct param whose field is itself an array
+// (got(container.items[0])) to a nested value-call.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Coeffs {
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    c: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+}
+
+// takes a record by value and reads every field
+machine Main::decode(&self, k: Coeffs) -> i32 {
+    let t1: i32 in Wrapping = k.a * 100;
+    let t2: i32 in Wrapping = k.b * 10;
+    let s: i32 in Wrapping = t1 + t2;
+    let s2: i32 in Wrapping = s + k.c;
+    transition { _ -> s2 }
+}
+
+machine Main::main(&mut self) {
+    let kk: Coeffs = Coeffs { a: 1, b: 2, c: 3 };
+    let r: i32 in Wrapping = self.decode(kk);
+    transition r == 123 { true -> good() _ -> wrong() }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(r); // surface the decoded value on regression
+    }
+}
