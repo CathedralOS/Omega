@@ -107,6 +107,15 @@ ok "(All (All (Le (p (v 1) (v 0)) (p (v 0) (v 1)))))"             # forall x y. 
 ok "(All (= (m (v 0) z) z))"                                       # forall x. x * 0 = 0
 ok "(All (= (m z (v 0)) z))"                                       # forall x. 0 * x = 0
 ok "(All (All (All (= (p (p (v 2) (v 1)) (v 0)) (p (v 2) (p (v 1) (v 0)))))))"  # (x+y)+z = x+(y+z)  associativity
+# CONTRACT-DISCHARGE bound shapes (the realistic array-index / loop obligations, i=v0 len=v1)
+ok "(-> (Lt (v 0) (v 1)) (Le (s (v 0)) (v 1)))"        # i<len  =>  i+1<=len   (the core array-bounds step)
+ok "(-> (Le (s (v 0)) (v 1)) (Lt (v 0) (v 1)))"        # i+1<=len =>  i<len     (its inverse)
+ok "(-> (Le (v 0) (v 1)) (Le (v 0) (s (v 1))))"        # i<=len =>  i<=len+1    (widen the bound)
+ok "(-> (Lt (v 0) (v 1)) (Lt (v 0) (s (v 1))))"        # i<len  =>  i<len+1
+ok "(All (Le z (v 0)))"                                # forall x. 0 <= x       (naturals are non-negative)
+no "(-> (Le (v 0) (v 1)) (Lt (v 0) (v 1)))"            # i<=len does NOT give i<len  (i=len)
+no "(All (Lt z (v 0)))"                                # 0 < x is FALSE (x=0)
+no "(All (Le (v 0) z))"                                # x <= 0 is FALSE
 # non-tautologies: provability must fail (soundness of the front line)
 no "(Exists (Pred 0 (v 0)))"                            # no witness available -> unprovable
 no "(-> (Exists (Pred 0 (v 0))) (Pred 0 (s z)))"        # eigenvariable must NOT escape the unpack
