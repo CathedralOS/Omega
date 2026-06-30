@@ -682,6 +682,32 @@ fn value_call_as_host_arg_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn computed_host_arg_rejected_canary_is_rejected() {
+    // A computed expression (arithmetic) used directly as a host-call argument is not yet
+    // encodable; the selector rejects it cleanly (#40) rather than silently exiting 0. The
+    // message is actionable (names the rule + the let-bind fix). Workaround: bind to a local
+    // first. Sibling of value_call_as_host_arg_rejected (a value-call arg). Remove when host-arg
+    // expression materialization lands (memory host-arg-expression-materialization).
+    let canary = fail_canary("calls/computed_host_arg_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected computed-host-arg canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("encodable") && combined.contains("simple value"),
+        "expected an actionable 'no encodable call / must be a simple value' rejection, got:\n{combined}"
+    );
+}
+
+#[test]
 fn cast_in_guard_rejected_canary_is_rejected() {
     // A cast in a guard subject is not yet lowerable; the dispatch-guard blocker rejects it
     // cleanly rather than silently miscompiling (#40). Workaround: cast into a field first,
