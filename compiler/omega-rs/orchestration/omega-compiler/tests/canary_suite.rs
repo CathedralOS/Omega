@@ -5255,6 +5255,35 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_struct_field_temp_arith_exit_canary_runs() {
+    // The sound workaround for arithmetic on a runtime-indexed array-of-structs field: read the
+    // field into a scalar `self.t` first, then compute. arr[1]={30,40}; t1+t2 = 70. (A direct
+    // `arr[i].x + 5` is refused -- no machine-indexed struct-field value operand yet.)
+    let canary = pass_canary("collections/runtime_struct_field_temp_arith_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-field-temp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-field-temp arithmetic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct-field-temp arithmetic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected field-temp read of arr[1].x + arr[1].y == 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_struct_write_loop_exit_canary_runs() {
     // A whole-struct write to a runtime-indexed array-of-structs element in a loop (entity-array
     // population): `self.arr[self.i] = Pt{..}`. Fill 3 elements, sum 10+15+10 = 35 -> exit 70.
