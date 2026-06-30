@@ -218,6 +218,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/std_option_runtime_match_exit", 70),
     ("collections/runtime_indexed_struct_write_loop_exit", 70),
     ("collections/runtime_struct_field_temp_arith_exit", 70),
+    ("collections/runtime_two_indexed_reads_binary_exit", 70),
     ("collections/runtime_nested_struct_array_field_exit", 70),
     ("collections/runtime_binary_search_exit", 70),
     ("collections/runtime_2d_transpose_exit", 70),

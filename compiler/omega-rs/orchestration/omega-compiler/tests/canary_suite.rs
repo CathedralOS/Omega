@@ -5255,6 +5255,34 @@ fn runtime_nested_struct_array_field_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_two_indexed_reads_binary_exit_canary_runs() {
+    // Two runtime-indexed reads at DISTINCT indices as operands of one binary: s = nums[i] + nums[j].
+    // nums=[30,99,40], i=0, j=2 -> 30+40 = 70 (the 99 decoy catches a dropped index).
+    let canary = pass_canary("collections/runtime_two_indexed_reads_binary_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-two-indexed-reads-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("two-indexed-reads binary canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("two-indexed-reads binary canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nums[0]+nums[2] = 30+40 = 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_struct_field_temp_arith_exit_canary_runs() {
     // The sound workaround for arithmetic on a runtime-indexed array-of-structs field: read the
     // field into a scalar `self.t` first, then compute. arr[1]={30,40}; t1+t2 = 70. (A direct
