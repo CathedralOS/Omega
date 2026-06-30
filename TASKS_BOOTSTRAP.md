@@ -258,7 +258,7 @@ a working proof-carrying contract system** (item 11). What remains:
   MEMOISED on (context proposition-set, goal) and polynomial; a depth cap + node budget backstop the
   (now-infinite, eigenvar-rich) first-order space (sound-but-incomplete: too-deep yields "unprovable", never a
   crash, never a false proof). SOUND BY CONSTRUCTION (every rule is a valid kernel typing rule, so check.beta
-  accepts every proof emitted). `prover-test.sh` (810 ok): propositional tautologies (or-comm, distribution,
+  accepts every proof emitted). `prover-test.sh` (814 ok): propositional tautologies (or-comm, distribution,
   or-elim-to-common, ex-falso); first-order (forall-id, forall-elim, exists-intro, forall→exists, nested gen,
   unpack tautologies incl. ∃x.P,∀x.(P→Q) ⊢ ∃x.Q); equality (1+1=2, 2*2=4, symbolic 0+x=x, conversion axiom
   P(1+1)⊢P(2)), rewriting (symmetry, transitivity, congruence, transport across predicates/relations), AND
@@ -277,9 +277,11 @@ a working proof-carrying contract system** (item 11). What remains:
   CONTRACT-DISCHARGE obligations directly. **The prover now AUTO-PROVES ALL 7 of the lattice's banked contract
   lemmas** (discharge.rs's hand-written `.elab` base: add-zero-right, add-commutes, le-trans, mult-commutes,
   add-assoc, mult-assoc, lt-le-trans) — so that hand base is fully reproducible by the Rust-free proof search.
-  Widen next: wire prover.py in as the discharge backend (replace `gen-contract-lib.py`'s hand proofs), and grow
-  monotonicity / cancellation laws. Long arc: SMT-class procedures emitting kernel-checkable certificates (the
-  proof-engine north star).
+  It also discharges MONOTONICITY (the next contract-obligation class): a≤b ⊢ a+c≤b+c / c+a≤c+b ride the
+  sum-witness machinery, and a≤b ⊢ a*c≤b*c (MULT-MONO) is a new mult-scaling witness source factoring through the
+  banked right-distributivity. Widen next: wire prover.py in as the discharge backend (replace
+  `gen-contract-lib.py`'s hand proofs), and grow cancellation / strict-monotonicity laws. Long arc: SMT-class
+  procedures emitting kernel-checkable certificates (the proof-engine north star).
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
