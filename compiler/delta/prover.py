@@ -72,27 +72,35 @@ def parse(tokens):
     return ("at", t)  # an atom name (a bare uppercase ident)
 
 
-def beta_term(t):
+# Emission maps the search's NAMED individuals (eigenvariables, ("eig", k)) to check.beta's de Bruijn
+# `(v i)`. `ib` lists the active eigenvar ids innermost-last (one per enclosing gen / unpack-handler binder);
+# `depth` counts the prop's OWN internal quantifier binders we've descended under. An eigenvar that sits
+# under `depth` internal binders renders at index depth + (its distance from the innermost outer binder),
+# so an outer individual and an inner bound var never collide. A literal `(v i)` is always an internal
+# binder reference (every free individual is an eigenvar in this representation), emitted as-is.
+def beta_term(t, ib=(), depth=0):
     if t[0] == "z":
         return "z"
     if t[0] == "s":
-        return "(s %s)" % beta_term(t[1])
+        return "(s %s)" % beta_term(t[1], ib, depth)
+    if t[0] == "eig":
+        return "(v %d)" % (depth + len(ib) - 1 - list(ib).index(t[1]))
     return "(v %d)" % t[1]
 
 
-def beta_prop(p):
+def beta_prop(p, ib=(), depth=0):
     h = p[0]
     if h == "at":
         return p[1]
     if h == "bot":
         return "(bot)"
     if h == "pred":
-        return "(Pred %d %s)" % (p[1], beta_term(p[2]))
+        return "(Pred %d %s)" % (p[1], beta_term(p[2], ib, depth))
     if h == "rel":
-        return "(Rel %d %s %s)" % (p[1], beta_term(p[2]), beta_term(p[3]))
+        return "(Rel %d %s %s)" % (p[1], beta_term(p[2], ib, depth), beta_term(p[3], ib, depth))
     if h in ("all", "ex"):
-        return "(%s %s)" % ("All" if h == "all" else "Exists", beta_prop(p[1]))
-    return "(%s %s %s)" % (h, beta_prop(p[1]), beta_prop(p[2]))
+        return "(%s %s)" % ("All" if h == "all" else "Exists", beta_prop(p[1], ib, depth + 1))
+    return "(%s %s %s)" % (h, beta_prop(p[1], ib, depth), beta_prop(p[2], ib, depth))
 
 
 def _subt(term, t, d):  # substitute the de Bruijn term-var `d` with `t` (shifted into d binders)
@@ -189,15 +197,39 @@ def has(ctx, goal):
 # key re-entered = a cycle = no new proof). This turns an exponential re-exploration into a polynomial one.
 # A node budget remains as a hard backstop so a pathological goal can never wedge the whole lattice run.
 _budget = [0]
+_depth = [0]      # current recursion depth; a cap keeps a pathological search from overrunning the C stack
 _memo = {}
+_DEPTH_CAP = 250  # each logical level is ~3 Python frames, so this stays well under the default ~1000-frame
+# limit; the prover is sound-but-incomplete, so a
+# search that would run deeper just yields "unprovable" (never a crash, never a false proof)
 
 
 _candidates = []  # ground witness/instantiation terms for the quantifier rules, gathered per solve
+_eigctr = [0]     # fresh-eigenvariable counter (reset per solve, so certs are deterministic)
+_eigs = []        # active eigenvar ids (one per enclosing gen / unpack), innermost last
+_opened = []      # existential PROPOSITIONS already opened on this branch (never re-open one -- a parent
+# conjunction would otherwise regenerate it through saturation and unpack would loop with fresh eigenvars)
+
+
+def fresh_eig():
+    _eigctr[0] += 1
+    return _eigctr[0]
+
+
+def cand_terms():  # witness/instantiation candidates: in-scope eigenvariables FIRST, then goal ground terms.
+    # Eigenvars-first matters: once an existential is opened to P(e), the witness/instance we want is almost
+    # always that very e, so trying it first finds the proof shallow instead of exploring doomed ground-term
+    # chains to (near) the depth cap.
+    return [("eig", k) for k in reversed(_eigs)] + _candidates
 
 
 def solve(goal, _fuel=None):
     _budget[0] = 200000
+    _depth[0] = 0
     _memo.clear()
+    _eigctr[0] = 0
+    _eigs[:] = []
+    _opened[:] = []
     cands = {("z",)}  # z is always available as a default witness
     ground_terms(goal, cands)
     _candidates[:] = list(cands)
@@ -205,15 +237,17 @@ def solve(goal, _fuel=None):
 
 
 def prove(ctx, goal):
-    if _budget[0] <= 0:
+    if _budget[0] <= 0 or _depth[0] >= _DEPTH_CAP:
         return None
     _budget[0] -= 1
     sat = saturate(ctx)
-    key = (frozenset(p for p, _ in sat), goal)
+    key = (frozenset(p for p, _ in sat), goal, tuple(_eigs), frozenset(_opened))
     if key in _memo:  # already failed, or in progress (a cycle): no proof to be found this way
         return None
     _memo[key] = None  # tentatively mark unprovable (loop-break); cleared on success below
+    _depth[0] += 1
     proof = _rules(sat, goal)
+    _depth[0] -= 1
     if proof is not None:
         del _memo[key]
     return proof
@@ -244,15 +278,39 @@ def _rules(sat, goal):
         rb = prove(sat, goal[2])
         if rb is not None:
             return ("inr", goal[1], rb)
-    # R-forall (gen): prove the body with the bound variable held as a fresh parameter (its predicates
-    # are atomic in the sub-proof). Single-level only -- the context here carries no outer-bound vars.
+    # R-forall (gen): introduce a FRESH eigenvariable for the bound var and prove the instantiated body.
+    # The eigenvar is opaque (no rule can inspect its structure), so a proof of body[e] is parametric in
+    # e -- exactly the universal. de Bruijn for nested binders is recovered at emit time from the eig stack.
     if goal[0] == "all":
-        body = prove(sat, goal[1])
+        e = fresh_eig()
+        _eigs.append(e)
+        body = prove(sat, subst0(goal[1], ("eig", e)))
+        _eigs.pop()
         if body is not None:
-            return ("gen", body)
-    # R-exists (wit): supply a witness term and prove the instantiated body
+            return ("gen", e, body)
+    # L-exists (unpack): OPEN an existential hypothesis with a fresh eigenvariable e, add body[e], and
+    # continue. This is an INVERTIBLE (always-safe) left rule -- opening loses nothing, since body[e] is
+    # strictly stronger than the existential -- so it runs BEFORE the non-invertible witness rule, which
+    # keeps the productive proof shallow (otherwise the search explores doomed witness chains first and
+    # recurses too deep). The eigenvariable condition (the conclusion must not mention e) holds
+    # automatically: the goal predates e. We DROP the opened existential (never re-open it).
+    for prop, term in sat:
+        if prop[0] == "ex" and prop not in _opened:
+            e = fresh_eig()
+            nm = fresh()
+            body_e = subst0(prop[1], ("eig", e))
+            if has(sat, body_e) is not None:
+                continue
+            _eigs.append(e)
+            _opened.append(prop)
+            pf = prove(sat + [(body_e, ("hyp", nm))], goal)
+            _opened.pop()
+            _eigs.pop()
+            if pf is not None:
+                return ("unpack", term, prop[1], e, nm, pf)
+    # R-exists (wit): supply a witness term (a ground term or an in-scope eigenvar) and prove the instance
     if goal[0] == "ex":
-        for t in _candidates:
+        for t in cand_terms():
             pf = prove(sat, subst0(goal[1], t))
             if pf is not None:
                 return ("wit", goal[1], t, pf)
@@ -263,7 +321,7 @@ def _rules(sat, goal):
     # L-forall (inst): instantiate a universal hypothesis with a candidate term (a NEW fact)
     for prop, term in sat:
         if prop[0] == "all":
-            for t in _candidates:
+            for t in cand_terms():
                 sub = subst0(prop[1], t)
                 if has(sat, sub) is None:
                     body = prove(sat + [(sub, ("inst", term, t))], goal)
@@ -293,26 +351,32 @@ def _rules(sat, goal):
     return None
 
 
-def to_db(term, binders):  # convert named-hyp proof term to check.beta's de Bruijn `(hyp i)` syntax
-    h = term[0]
+def to_db(term, binders, ib=()):  # convert the named proof term to check.beta's de Bruijn syntax
+    h = term[0]                    # `binders` = hypothesis names; `ib` = eigenvar ids (individual binders)
     if h == "hyp":
         return "(hyp %d)" % (len(binders) - 1 - binders.index(term[1]))
     if h == "lam":
         _, nm, prop, body = term
-        return "(lam %s %s)" % (beta_prop(prop), to_db(body, binders + [nm]))
+        return "(lam %s %s)" % (beta_prop(prop, ib), to_db(body, binders + [nm], ib))
     if h in ("fst", "snd"):
-        return "(%s %s)" % (h, to_db(term[1], binders))
+        return "(%s %s)" % (h, to_db(term[1], binders, ib))
     if h in ("inl", "inr", "absurd"):  # carry a PROP annotation, then a proof
-        return "(%s %s %s)" % (h, beta_prop(term[1]), to_db(term[2], binders))
+        return "(%s %s %s)" % (h, beta_prop(term[1], ib), to_db(term[2], binders, ib))
     if h == "case":  # scrutinee + two lam branches
-        return "(case %s %s %s)" % (to_db(term[1], binders), to_db(term[2], binders), to_db(term[3], binders))
-    if h == "gen":  # universal introduction
-        return "(gen %s)" % to_db(term[1], binders)
+        return "(case %s %s %s)" % (to_db(term[1], binders, ib), to_db(term[2], binders, ib), to_db(term[3], binders, ib))
+    if h == "gen":  # universal introduction: push the eigenvar -> a new innermost individual binder
+        _, e, body = term
+        return "(gen %s)" % to_db(body, binders, tuple(ib) + (e,))
     if h == "inst":  # universal elimination: a proof applied to a TERM
-        return "(inst %s %s)" % (to_db(term[1], binders), beta_term(term[2]))
+        return "(inst %s %s)" % (to_db(term[1], binders, ib), beta_term(term[2], ib))
     if h == "wit":  # existential introduction: body-prop, witness TERM, proof of the instance
-        return "(wit %s %s %s)" % (beta_prop(term[1]), beta_term(term[2]), to_db(term[3], binders))
-    return "(%s %s %s)" % (h, to_db(term[1], binders), to_db(term[2], binders))  # pair / app
+        return "(wit %s %s %s)" % (beta_prop(term[1], ib), beta_term(term[2], ib), to_db(term[3], binders, ib))
+    if h == "unpack":  # existential elimination: the handler is `(gen (lam body C))` -- one individual
+        _, exterm, body, e, nm, pf = term   # binder (the witness) + one hypothesis binder (the body)
+        ib2 = tuple(ib) + (e,)
+        handler = "(gen (lam %s %s))" % (beta_prop(body, ib2), to_db(pf, binders + [nm], ib2))
+        return "(unpack %s %s)" % (to_db(exterm, binders, ib), handler)
+    return "(%s %s %s)" % (h, to_db(term[1], binders, ib), to_db(term[2], binders, ib))  # pair / app
 
 
 def gen(n, seed):  # print n random {->,&} propositions over P..U -- the prover's fuzz feed
