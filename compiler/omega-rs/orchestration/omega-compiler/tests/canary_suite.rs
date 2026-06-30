@@ -1499,6 +1499,34 @@ fn runtime_mandelbrot_render_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_run_length_encode_exit_canary_runs() {
+    // Run-length encoding (compression): scan counting consecutive equal bytes, emit
+    // byte+count at each run boundary and at the end (shared emit dispatched by a mode
+    // field). "aaabbbbcc" -> "a3b4c2", six output bytes checked -> exit 70.
+    let canary = pass_canary("text/runtime_run_length_encode_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-rle-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("run-length encode canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("run-length encode canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected RLE of \"aaabbbbcc\" to be \"a3b4c2\" (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_binary_format_exit_canary_runs() {
     // Format a number as an 8-bit binary string: `(n >> (7-i)) & 1` per bit (runtime shift
     // amount + bitwise AND in value position), written to a carrier. 42 -> "00101010",
