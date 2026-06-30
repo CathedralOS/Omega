@@ -14,6 +14,8 @@
 # Usage: prover.py "(-> (& P Q) P)"   ->   (-> (& P Q) P) (lam (& P Q) (fst (hyp 0)))
 import sys
 
+sys.setrecursionlimit(8000)  # headroom; the depth cap + rewrite size guard keep us far below this in practice
+
 # ---- parse a goal into a tuple tree. Props: uppercase atoms, `->`/`&`/`+`/`(bot)`, the first-order forms
 # `(All P)` `(Exists P)` `(Pred n term)` `(Rel n term term)`, and equality `(= term term)`. Terms: `z`,
 # `(s term)`, `(p term term)` (plus), `(m term term)` (mult), `(v i)` (de Bruijn individual var). ----
@@ -235,6 +237,87 @@ def nf_prop(p):  # normalize every term inside a proposition (the kernel's type_
     return p  # at, bot
 
 
+# ---- equality REWRITING via the kernel's eqelim (Leibniz transport). To prove goal G using e:(= X Y),
+# ABSTRACT the occurrences of one side as a motive M (M has the rewrite-hole at de Bruijn 0), then prove the
+# motive applied to the other side. eqelim takes pf_eq:(= X Y) and pf_pa:M[X] and yields M[Y]; so to land on
+# G = M[Y] we discharge the subgoal M[X]. Both orientations (and so sym/trans/congruence/transport) fall out
+# of this single rule. The rewritten term must be GROUND (no free de Bruijn var) so G's binders can't capture
+# it. ----
+def term_size(t):
+    if t[0] in ("z", "v", "eig"):
+        return 1
+    if t[0] == "s":
+        return 1 + term_size(t[1])
+    return 1 + term_size(t[1]) + term_size(t[2])  # p, m
+
+
+def prop_size(p):  # total term-node count in a proposition -- the rewrite size guard's metric
+    h = p[0]
+    if h == "pred":
+        return term_size(p[2])
+    if h == "rel":
+        return term_size(p[2]) + term_size(p[3])
+    if h == "=":
+        return term_size(p[1]) + term_size(p[2])
+    if h in ("all", "ex"):
+        return prop_size(p[1])
+    if h in ("->", "&", "+"):
+        return prop_size(p[1]) + prop_size(p[2])
+    return 0  # at, bot
+
+
+def occurs_term(t, b):
+    if t == b:
+        return True
+    if t[0] == "s":
+        return occurs_term(t[1], b)
+    if t[0] in ("p", "m"):
+        return occurs_term(t[1], b) or occurs_term(t[2], b)
+    return False
+
+
+def occurs_prop(p, b):
+    h = p[0]
+    if h == "pred":
+        return occurs_term(p[2], b)
+    if h == "rel":
+        return occurs_term(p[2], b) or occurs_term(p[3], b)
+    if h == "=":
+        return occurs_term(p[1], b) or occurs_term(p[2], b)
+    if h in ("all", "ex"):
+        return occurs_prop(p[1], b)
+    if h in ("->", "&", "+"):
+        return occurs_prop(p[1], b) or occurs_prop(p[2], b)
+    return False
+
+
+def abstract_term(t, b, d):  # replace ground term `b` with the hole (v d); shift free vars up past the hole
+    if t == b:
+        return ("v", d)
+    if t[0] == "v":
+        return ("v", t[1] + 1) if t[1] >= d else t
+    if t[0] == "s":
+        return ("s", abstract_term(t[1], b, d))
+    if t[0] in ("p", "m"):
+        return (t[0], abstract_term(t[1], b, d), abstract_term(t[2], b, d))
+    return t  # z, eig
+
+
+def abstract_prop(p, b, d=0):  # the motive: G with `b`-occurrences turned into the de Bruijn-0 hole
+    h = p[0]
+    if h == "pred":
+        return ("pred", p[1], abstract_term(p[2], b, d))
+    if h == "rel":
+        return ("rel", p[1], abstract_term(p[2], b, d), abstract_term(p[3], b, d))
+    if h == "=":
+        return ("=", abstract_term(p[1], b, d), abstract_term(p[2], b, d))
+    if h in ("all", "ex"):
+        return (h, abstract_prop(p[1], b, d + 1))
+    if h in ("->", "&", "+"):
+        return (h, abstract_prop(p[1], b, d), abstract_prop(p[2], b, d))
+    return p  # at, bot
+
+
 # ---- proof search over {-> , &}. Context entries are (prop, term) where `term` is a NAMED proof of
 # `prop`; lam binders carry unique names, converted to de Bruijn indices at emit time. ----
 _fresh = [0]
@@ -278,6 +361,8 @@ def has(ctx, goal):
 _budget = [0]
 _depth = [0]      # current recursion depth; a cap keeps a pathological search from overrunning the C stack
 _memo = {}
+_REWRITE_GROWTH = 24  # an equality rewrite may enlarge the goal by at most this many term-nodes, so the
+# search can't chase an unbounded a->(big)->bigger... rewrite chain (which also blows nf's structural depth)
 _DEPTH_CAP = 250  # each logical level is ~3 Python frames, so this stays well under the default ~1000-frame
 # limit; the prover is sound-but-incomplete, so a
 # search that would run deeper just yields "unprovable" (never a crash, never a false proof)
@@ -303,7 +388,8 @@ def cand_terms():  # witness/instantiation candidates: in-scope eigenvariables F
 
 
 def solve(goal, _fuel=None):
-    _budget[0] = 200000
+    _budget[0] = 30000   # real proofs are shallow; a smaller budget makes doomed searches give up fast (the
+    #                      equality rewrite + conversion axiom raised the per-node cost) -- sound, just less complete
     _depth[0] = 0
     _memo.clear()
     _eigctr[0] = 0
@@ -441,6 +527,33 @@ def _rules(sat, goal):
                 body = prove(sat + [(prop[2], ("app", term, arg))], goal)
                 if body is not None:
                     return body
+    # L-eqrewrite: rewrite the goal with an equality hypothesis e:(= x y), via eqelim (Leibniz transport),
+    # in BOTH orientations -- so symmetry, transitivity, congruence and transport all reduce to this one rule.
+    # Orientation 1 rewrites y->x directly; orientation 2 rewrites x->y through the derived symmetric proof
+    # sym(e) = (eqelim (= (v0) x) e (refl x)) : (= y x). Each only fires when the side actually occurs (so the
+    # subgoal differs from the goal -> progress), and only on GROUND sides (no binder capture). The memo on
+    # the goal cuts the a<->b ping-pong, so it terminates.
+    if goal[0] in ("pred", "rel", "=", "->", "&", "+", "all", "ex"):
+        cap = prop_size(goal) + _REWRITE_GROWTH  # never chase a rewrite that grows the goal without bound
+        for prop, term in sat:
+            if prop[0] != "=":
+                continue
+            x, y = prop[1], prop[2]
+            if _ground(y) and occurs_prop(goal, y):       # orient 1: e:(= x y) rewrites y -> x
+                mot = abstract_prop(goal, y)
+                sub = subst0(mot, x)
+                if sub != goal and prop_size(sub) <= cap:
+                    pf = prove(sat, sub)
+                    if pf is not None:
+                        return ("eqelim", mot, term, pf)
+            if _ground(x) and occurs_prop(goal, x):       # orient 2: sym(e):(= y x) rewrites x -> y
+                mot = abstract_prop(goal, x)
+                sub = subst0(mot, y)
+                if sub != goal and prop_size(sub) <= cap:
+                    pf = prove(sat, sub)
+                    if pf is not None:
+                        syme = ("eqelim", ("=", ("v", 0), x), term, ("refl", x))
+                        return ("eqelim", mot, syme, pf)
     return None
 
 
@@ -459,6 +572,9 @@ def to_db(term, binders, ib=()):  # convert the named proof term to check.beta's
         return "(case %s %s %s)" % (to_db(term[1], binders, ib), to_db(term[2], binders, ib), to_db(term[3], binders, ib))
     if h == "refl":  # reflexivity of equality: (refl t) : (= t t), accepted up to the kernel's conversion
         return "(refl %s)" % beta_term(term[1], ib)
+    if h == "eqelim":  # Leibniz transport: (eqelim motive pf_eq pf_pa) -- motive carries the de Bruijn-0 hole
+        _, mot, pe, pa = term
+        return "(eqelim %s %s %s)" % (beta_prop(mot, ib), to_db(pe, binders, ib), to_db(pa, binders, ib))
     if h == "gen":  # universal introduction: push the eigenvar -> a new innermost individual binder
         _, e, body = term
         return "(gen %s)" % to_db(body, binders, tuple(ib) + (e,))
