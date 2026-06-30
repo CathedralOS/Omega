@@ -4564,6 +4564,34 @@ fn runtime_rpn_evaluator_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_maze_pathfind_exit_canary_runs() {
+    // Shortest-path BFS on a 5x5 grid maze (implicit grid neighbours + walls, distinct from
+    // the adjacency-matrix BFS). The shortest distance from cell 0 to cell 24 through the
+    // snaking corridor is 16 -> exit 70.
+    let canary = pass_canary("collections/runtime_maze_pathfind_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-maze-pathfind-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("maze pathfind canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("maze pathfind canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected grid-BFS shortest distance 0->24 to be 16 (exit 70); got {:?} (the distance on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_nqueens_backtracking_exit_canary_runs() {
     // N-queens count by backtracking (try/prune/undo): cols[r] is the column tried for row
     // r and doubles as the state stack; conflicts are column or diagonal. N=4 has exactly 2
