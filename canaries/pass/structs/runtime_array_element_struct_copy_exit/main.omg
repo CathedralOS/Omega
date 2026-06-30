@@ -1,0 +1,41 @@
+// Value semantics through an ARRAY-ELEMENT struct copy: reading a struct out of an array
+// element (`self.f = self.arr[1]`) produces an INDEPENDENT copy, so mutating the copy must not
+// touch the array element it came from. This is the array-of-structs counterpart to the
+// field-to-field copy in runtime_nested_struct_value_semantics (a common entity/component
+// pattern: pull an element out, work on it, leave the array untouched). The check
+// discriminates both ways: the array element keeps its original (5, 6) AND the copy holds the
+// mutated values (50, 60). Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Point {
+    x: i32 in Wrapping;
+    y: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    arr: [Point; 3];
+    f: Point;
+}
+
+machine Main::main(&mut self) {
+    self.arr[1] = Point { x: 5, y: 6 };
+    self.f = self.arr[1]; // copy the struct OUT of the array element
+    self.f.x = 50;        // mutate the copy
+    self.f.y = 60;
+    transition self.arr[1].x == 5
+            && self.arr[1].y == 6
+            && self.f.x == 50
+            && self.f.y == 60 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(self.arr[1].x); // surface the aliased value on regression
+    }
+}
