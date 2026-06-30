@@ -9722,6 +9722,34 @@ fn runtime_nested_struct_construction_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_computed_transition_args_exit_canary_runs() {
+    // Computed values (an addition, a subtraction, a cast) passed directly as transition
+    // arguments materialize correctly. chk(7+3, 7-3, 300 as u8) sees sum=10, diff=4, byte=44
+    // -> exit 70. The working contrast to the value-call-as-transition-arg silent drop.
+    let canary = pass_canary("calls/runtime_computed_transition_args_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-computed-args-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("computed transition args canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("computed transition args canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected computed transition args (sum 10, diff 4, byte 44) to materialize (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_struct_by_value_param_exit_canary_runs() {
     // Passing a struct BY VALUE into a value-machine and reading all its fields in distinct
     // positional weights. decode(Coeffs{1,2,3}) = 1*100 + 2*10 + 3 = 123 -> exit 70. Pins
