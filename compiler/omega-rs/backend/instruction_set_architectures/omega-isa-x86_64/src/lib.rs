@@ -6553,27 +6553,6 @@ fn append_store_rax_to_r15(
     Ok(())
 }
 
-fn append_store_r10_to_r15(
-    bytes: &mut Vec<u8>,
-    byte_offset: usize,
-    byte_size: usize,
-) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    match byte_size {
-        1 => bytes.extend([0x45, 0x88, 0x97]),
-        2 => bytes.extend([0x66, 0x45, 0x89, 0x97]),
-        4 => bytes.extend([0x45, 0x89, 0x97]),
-        8 => bytes.extend([0x4d, 0x89, 0x97]),
-        _ => {
-            return Err(Diagnostic::error(format!(
-                "X86_64 MVP encoder cannot store {byte_size}-byte runtime values yet"
-            )));
-        }
-    }
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
 fn append_store_r14_to_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x4d, 0x89, 0xb7]);

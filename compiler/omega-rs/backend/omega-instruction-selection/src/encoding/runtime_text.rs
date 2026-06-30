@@ -355,9 +355,3 @@ fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
         "X86_64 runtime text encoding is not implemented",
     ))
 }
-
-fn unsupported_x86_64_runtime_text_storage_compare_encoding() -> Result<[u8; 84], Diagnostic> {
-    Err(Diagnostic::error(
-        "X86_64 runtime text encoding is not implemented",
-    ))
-}

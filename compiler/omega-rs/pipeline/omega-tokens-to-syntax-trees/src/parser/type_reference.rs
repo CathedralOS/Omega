@@ -1,4 +1,3 @@
-use crate::parse_error::ParseError;
 use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult};
 use omega_core::arena::{Handle, HandleSpan};
