@@ -1,0 +1,59 @@
+// A 2D matrix transpose (2x3 -> 3x2) over a FLAT array via the linear-counter sidestep
+// for 2D indexing: one counter walks the flat input, and the (row, col) plus the
+// transposed output index are computed into FIELDS, then used as plain indices. (A
+// computed expression directly in a subscript -- `out[i*2 + j]` -- is refused; compute it
+// into a field first.) [[1,2,3],[4,5,6]] transposes to [[1,4],[2,5],[3,6]] = [1,4,2,5,3,6].
+// Self-checks four transposed cells -> exit 70. Proves Omega handles 2D/matrix data.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    inp: [i32; 6] in Trapping;
+    out: [i32; 6] in Trapping;
+    idx: i32 in Trapping;
+    ci: i32 in Trapping;   // input column (0..3)
+    cj: i32 in Trapping;   // input row (0..2)
+    oidx: i32 in Trapping; // transposed flat index
+    v: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.inp = [1, 2, 3, 4, 5, 6];
+    self.out = [0, 0, 0, 0, 0, 0];
+    self.idx = 0;
+    transition { _ -> walk() }
+
+    state walk(&mut self) {
+        transition self.idx >= 0 && self.idx < 6 { true -> step() _ -> check() }
+    }
+    state step(&mut self) {
+        self.cj = self.idx / 3;            // input row    (input width = 3)
+        self.ci = self.idx % 3;            // input column
+        self.oidx = self.ci * 2 + self.cj; // transposed flat index (output width = 2)
+        self.v = self.inp[self.idx];
+        transition self.oidx >= 0 && self.oidx < 6 { true -> place() _ -> bad() }
+    }
+    state place(&mut self) {
+        self.out[self.oidx] = self.v;
+        self.idx = self.idx + 1;
+        transition { _ -> walk() }
+    }
+    state check(&mut self) {
+        transition self.out[1] == 4 && self.out[2] == 2 && self.out[3] == 5 && self.out[4] == 3 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

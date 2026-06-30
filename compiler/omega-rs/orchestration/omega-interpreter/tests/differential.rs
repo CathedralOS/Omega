@@ -184,6 +184,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_fixed_vec_round_trip_exit", 70),
     ("collections/runtime_rule90_automaton_exit", 70),
     ("collections/runtime_binary_search_exit", 70),
+    ("collections/runtime_2d_transpose_exit", 70),
     ("collections/runtime_indexed_through_guard_chain_exit", 70),
     ("collections/runtime_two_pointer_palindrome_exit", 70),
     ("comptime/runtime_const_array_length_exit", 70),
