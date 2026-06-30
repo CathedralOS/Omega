@@ -224,12 +224,29 @@ fn edge_carried_facts(
 }
 
 /// The single incoming edge of `target`, or `None` when it has zero (an entry
-/// state) or several (a join we cannot soundly narrow without a meet).
-fn single_incoming_edge(edges: &[Edge], target: SymbolHandle) -> Option<&Edge> {
-    let mut incoming = edges.iter().filter(|edge| edge.target == target);
-    match (incoming.next(), incoming.next()) {
-        (Some(edge), None) => Some(edge),
-        _ => None,
+/// state) or several FROM DIFFERENT SOURCES (a real join the meet must handle).
+///
+/// Multiple incoming edges that ALL share one source are a guard whose arms
+/// CONVERGE on `target` (`d < 0 { true -> t _ -> t }`): `target` is then reached
+/// UNCONDITIONALLY from that source, i.e. effectively a single predecessor. We
+/// return a synthesized UNGUARDED edge to that source -- the arm taken is
+/// ambiguous so the convergent guard is not a fact here, but the source's own
+/// carried facts (e.g. an outer `x < len`) still flow through, and the walk can
+/// continue up a CHAIN of such convergent states (which the per-join meet cannot,
+/// since each chained join's source has no single-walk facts of its own).
+fn single_incoming_edge(edges: &[Edge], target: SymbolHandle) -> Option<Edge> {
+    let incoming: Vec<&Edge> = edges.iter().filter(|edge| edge.target == target).collect();
+    match incoming.as_slice() {
+        [] => None,
+        [edge] => Some((*edge).clone()),
+        many => {
+            let source = many[0].source;
+            many.iter().all(|edge| edge.source == source).then(|| Edge {
+                source,
+                target,
+                guard: None,
+            })
+        }
     }
 }
 
