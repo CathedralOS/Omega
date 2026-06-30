@@ -1,0 +1,29 @@
+// FAIL canary (#40 boundary guard): a value-call result -- and more generally any non-trivial
+// computed value (e.g. an arithmetic expression) -- used DIRECTLY as a host-call argument is
+// not yet encodable. The instruction selector rejects it CLEANLY ("no encodable call
+// selection") rather than silently miscompiling. The sound workaround is to bind the value to
+// a field/local first, then pass the place: `self.r = self.dbl(35);
+// self.console.exit_process(self.r)` (verified to exit 70).
+//
+// This is a #40 boundary guard: a SIBLING value-call position -- a scalar/bool value-call in a
+// guard subject -- DOES slip past its blocker and silently always takes the true arm (see
+// memory value-call-in-guard-always-true). So locking the value-call positions that ARE
+// cleanly rejected guards against any regressing into that silent-miscompile failure mode: if
+// a value-call as a direct host arg ever compiles, this test fails. Remove/repurpose when
+// direct computed host-call arguments are supported.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::dbl(&self, x: i32 in Wrapping) -> i32 {
+    let r: i32 in Wrapping = x * 2;
+    transition { _ -> r }
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(self.dbl(35)); // value-call result as a direct host arg
+}

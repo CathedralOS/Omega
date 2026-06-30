@@ -657,6 +657,31 @@ fn unapproved_host_call_canary_is_rejected() {
 }
 
 #[test]
+fn value_call_as_host_arg_rejected_canary_is_rejected() {
+    // A value-call result (or any non-trivial computed value) used directly as a host-call
+    // argument is not yet encodable; the selector rejects it cleanly rather than silently
+    // miscompiling (#40). Workaround: bind to a field first. Guards the value-call positions
+    // that ARE cleanly rejected against the value-call-in-guard silent-miscompile failure mode.
+    let canary = fail_canary("calls/value_call_as_host_arg_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected value-call-as-host-arg canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("encodable"),
+        "expected a 'no encodable call selection' rejection diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn cast_in_guard_rejected_canary_is_rejected() {
     // A cast in a guard subject is not yet lowerable; the dispatch-guard blocker rejects it
     // cleanly rather than silently miscompiling (#40). Workaround: cast into a field first,
