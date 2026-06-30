@@ -579,9 +579,12 @@ LEMMA_PROPS = [
     ("all", ("all", ("all", ("=", ("p", ("p", ("v", 2), ("v", 1)), ("v", 0)),
                                    ("p", ("v", 2), ("p", ("v", 1), ("v", 0))))))),         # 3: (x+y)+z = x+(y+z)
     ("all", ("all", ("=", ("p", ("s", ("v", 1)), ("v", 0)), ("s", ("p", ("v", 1), ("v", 0)))))),  # 4: (s x)+y = s(x+y)
+    ("all", ("all", ("all", ("=", ("m", ("p", ("v", 2), ("v", 1)), ("v", 0)),
+                                   ("p", ("m", ("v", 2), ("v", 0)), ("m", ("v", 1), ("v", 0))))))),  # 5: (x+y)*a = x*a+y*a
 ]
 _ASSOC = 3  # add-assoc's index in LEMMA_PROPS -- used by the directed sum-chain (transitivity) rule
 _SUCCL = 4  # add-succ-left ((s x)+y = s(x+y), refl-provable) -- lets the STRICT (<) chain peel the `s` slot
+_RDIST = 5  # right-distributivity ((x+y)*a = x*a+y*a) -- the mult lemma that closes the mult-assoc natind step
 _both_orient = [False]  # when set, the lemma-rewrite matches a lemma's RHS too (needed to use add-assoc as
 # a+(i+j) -> (a+i)+j). Kept OFF in the general search (it bloats it) and turned ON only for the directed rule's
 # small focused sub-proof, so the general phase-2 search is unchanged.
@@ -616,6 +619,79 @@ def _has_arith(p):  # does the proposition mention a plus/mult term? (then the l
     return False
 
 
+def _term_drives(t, d):  # does (v d) sit in a RECURSION-DRIVING position of term t? Peano `p`/`m` reduce by
+    if t[0] == "s":       # destructing ONLY their FIRST argument (p (s x) b => s(p x b), m (s x) y => p y (m x y)),
+        return _term_drives(t[1], d)   # so induction on a var makes progress only if that var lies on the first-argument
+    if t[0] in ("p", "m"):             # SPINE -- never inside a second argument (which a stuck outer redex won't reduce).
+        return t[1] == ("v", d) or _term_drives(t[1], d)   # Descending only into arg 1 is what prunes the doomed search:
+    return False                       # inducting on `y`/`x` in a*(x+y) is futile while `m` is stuck on the opaque `a`.
+
+
+def _drives(p, d=0):  # is the motive's induction variable (v d, shifting under inner binders) in a driving
+    h = p[0]           # position anywhere in p? If NOT, natind on it cannot reduce the goal -- so skip it (the
+    if h == "pred":    # explosive doomed case: e.g. inducting on `y` in a*(x+y) where `m` recurses on `a`, not y).
+        return _term_drives(p[2], d)
+    if h == "rel":
+        return _term_drives(p[2], d) or _term_drives(p[3], d)
+    if h == "=":
+        return _term_drives(p[1], d) or _term_drives(p[2], d)
+    if h in ("all", "ex"):
+        return _drives(p[1], d + 1)
+    if h in ("->", "&", "+"):
+        return _drives(p[1], d) or _drives(p[2], d)
+    return False
+
+
+def _term_has_m(t):  # does term t mention a mult?
+    if t[0] == "m":
+        return True
+    if t[0] == "s":
+        return _term_has_m(t[1])
+    if t[0] == "p":
+        return _term_has_m(t[1]) or _term_has_m(t[2])
+    return False
+
+
+def _prop_has_m(p):  # does proposition p mention a mult term anywhere?
+    h = p[0]
+    if h == "pred":
+        return _term_has_m(p[2])
+    if h == "rel":
+        return _term_has_m(p[2]) or _term_has_m(p[3])
+    if h == "=":
+        return _term_has_m(p[1]) or _term_has_m(p[2])
+    if h in ("all", "ex"):
+        return _prop_has_m(p[1])
+    if h in ("->", "&", "+"):
+        return _prop_has_m(p[1]) or _prop_has_m(p[2])
+    return False
+
+
+def _term_drives_mult(t, d, seen_m=False):  # is (v d) on a first-argument spine that passes through a MULT?
+    if t == ("v", d):                        # `m` is the costly recursion: gen-freezing the var atop a stuck mult
+        return seen_m                         # is what explodes the parametric search, so it's the natind-FIRST trigger.
+    if t[0] == "s" or t[0] == "p":
+        return _term_drives_mult(t[1], d, seen_m)
+    if t[0] == "m":
+        return _term_drives_mult(t[1], d, True)
+    return False
+
+
+def _drives_mult(p, d=0):  # like _drives but only counts a variable that drives a MULT recursion (the doomed-gen
+    h = p[0]               # case worth inducting on FIRST). Pure-`+` goals (interchange, comm, assoc) stay gen-first.
+    if h == "pred":
+        return _term_drives_mult(p[2], d)
+    if h == "rel":
+        return _term_drives_mult(p[2], d) or _term_drives_mult(p[3], d)
+    if h == "=":
+        return _term_drives_mult(p[1], d) or _term_drives_mult(p[2], d)
+    if h in ("all", "ex"):
+        return _drives_mult(p[1], d + 1)
+    if h in ("->", "&", "+"):
+        return _drives_mult(p[1], d) or _drives_mult(p[2], d)
+    return False
+
+
 def _setup(goal):  # reset per-solve state, close the goal's free vars to eigenvars, seed candidates
     _budget[0] = 30000   # real proofs are shallow; a smaller budget makes doomed searches give up fast (the
     #                      equality rewrite + conversion axiom raised the per-node cost) -- sound, just less complete
@@ -645,16 +721,22 @@ def _peel(prop):  # peel a universal-equality lemma to (arity, lhs, rhs) -- the 
     return (arity, prop[1], prop[2]) if prop[0] == "=" else None
 
 
-def build_lemmas():  # prove each library lemma ONCE standalone (they are self-contained via natind), cache it
-    if _lemma_cache[0] is not None:
-        return _lemma_cache[0]
-    lemmas = []
+def build_lemmas():  # prove each library lemma ONCE via natind, cache it. Built INCREMENTALLY: when proving
+    if _lemma_cache[0] is not None:   # lemma i, the already-built lemmas 0..i-1 are available as DIRECTED rewrites
+        return _lemma_cache[0]        # (not blind inst-hyps, which explode) -- so a later lemma may cite an earlier
+    lemmas = []                       # one. right-distributivity (5), e.g., needs add-assoc (3) in its natind step.
     _induction_on[0] = True   # the lemmas themselves are proved by induction
     for prop in LEMMA_PROPS:
-        cg = _setup(prop)  # each lemma is closed; proved standalone (NOT with the others as inst-hyps, which
-        pf = prove([], cg)  # would explode the search before natind finishes)
+        cg = _setup(prop)
+        _active_lemmas[:] = []          # FIRST try standalone -- the additive lemmas are self-contained, and
+        pf = prove([], cg)              # seeding the library here would only DILUTE their directed-matching search.
+        if pf is None:                  # only if standalone fails, RETRY with the already-built lemmas available
+            cg = _setup(prop)           # as directed rewrites (right-distributivity needs add-assoc in its step).
+            _active_lemmas[:] = [_peel(p) + (j,) for j, (p, _) in enumerate(lemmas) if _peel(p)]
+            pf = prove([], cg)
         if pf is not None:  # only keep lemmas the prover (hence the kernel) actually proves -- stays sound
             lemmas.append((prop, pf))
+    _active_lemmas[:] = []
     _induction_on[0] = False
     _lemma_cache[0] = lemmas
     return lemmas
@@ -700,6 +782,27 @@ def prove(ctx, goal):
     return proof
 
 
+def _try_natind(sat, goal):  # prove (All P) by Peano INDUCTION: base P(0) + step (All P(n)->P(s n)). The step
+    motive = goal[1]          # is closed by gen + the induction hypothesis (a local universal-equation hyp now
+    base_goal = subst0(motive, ("z",))                          # usable as a directed rewrite -- see L-eqrewrite).
+    step_goal = ("all", ("->", motive, subst0_keep(motive, ("s", ("v", 0)))))
+    # base/step introduce NEW ground terms (e.g. the base's (s z) witness) absent from the original goal's
+    # candidate set -- gather them so the existential-witness search can find them.
+    saved = list(_candidates)
+    extra = set(_candidates)
+    ground_terms(base_goal, extra)
+    ground_terms(step_goal, extra)
+    _candidates[:] = list(extra)
+    _ind_depth[0] += 1
+    base = prove(sat, base_goal)
+    step = prove(sat, step_goal) if base is not None else None
+    _ind_depth[0] -= 1
+    _candidates[:] = saved
+    if base is not None and step is not None:
+        return ("natind", motive, base, step)
+    return None
+
+
 def _rules(sat, goal):
     # axiom: the goal is already in (the saturation of) the context
     direct = has(sat, goal)
@@ -739,6 +842,15 @@ def _rules(sat, goal):
         rb = prove(sat, goal[2])
         if rb is not None:
             return ("inr", goal[1], rb)
+    # natind FIRST on a TOP-LEVEL (depth 0) arithmetic goal whose OUTER variable drives the recursion. For
+    # such a goal `gen` is doomed -- it freezes the recursion variable into an opaque eigenvar, leaving a stuck
+    # redex (m e …) that no INNER induction can unstick, so the parametric search explodes into unbounded
+    # doomed nested induction before failing. Inducting on the driving variable up front avoids that whole
+    # subtree (both distributivity directions, hence mult-assoc, need this). Inner goals keep gen-first.
+    if goal[0] == "all" and _induction_on[0] and _ind_depth[0] == 0 and _drives_mult(goal[1]):
+        ind = _try_natind(sat, goal)
+        if ind is not None:
+            return ind
     # R-forall (gen): introduce a FRESH eigenvariable for the bound var and prove the instantiated body.
     # The eigenvar is opaque (no rule can inspect its structure), so a proof of body[e] is parametric in
     # e -- exactly the universal. de Bruijn for nested binders is recovered at emit time from the eig stack.
@@ -749,28 +861,17 @@ def _rules(sat, goal):
         _eigs.pop()
         if body is not None:
             return ("gen", e, body)
-    # natind: prove (All P) by Peano INDUCTION when the parametric proof (gen) failed -- the arithmetic case,
-    # where the body needs the induction hypothesis. base : P(0); step : (All (P(n) -> P(s n))) [proved by gen
-    # + the IH, usually after goal-normalisation exposes the reduced successor]. Nesting is capped so the
-    # step's own universal can't trigger unbounded re-induction.
-    if goal[0] == "all" and _induction_on[0] and _ind_depth[0] < _IND_CAP:
-        motive = goal[1]
-        base_goal = subst0(motive, ("z",))
-        step_goal = ("all", ("->", motive, subst0_keep(motive, ("s", ("v", 0)))))
-        # base/step introduce NEW ground terms (e.g. the base's (s z) witness) absent from the original goal's
-        # candidate set -- gather them so the existential-witness search can find them.
-        saved = list(_candidates)
-        extra = set(_candidates)
-        ground_terms(base_goal, extra)
-        ground_terms(step_goal, extra)
-        _candidates[:] = list(extra)
-        _ind_depth[0] += 1
-        base = prove(sat, base_goal)
-        step = prove(sat, step_goal) if base is not None else None
-        _ind_depth[0] -= 1
-        _candidates[:] = saved
-        if base is not None and step is not None:
-            return ("natind", motive, base, step)
+    # natind (fallback): prove (All P) by Peano INDUCTION when the parametric proof (gen) failed -- the
+    # arithmetic case, where the body needs the induction hypothesis. Nesting is capped so the step's own
+    # universal can't trigger unbounded re-induction. The `_drives` recursion-position restriction is applied
+    # ONLY to MULT-involving goals (where the doomed-induction explosion happens); pure-`+` goals keep the
+    # original unrestricted natind, so the additive-lemma proofs are byte-identical (the prover diamond depends
+    # on stable lemma shapes -- a `+`-only proof's gamma emission must not drift).
+    if (goal[0] == "all" and _induction_on[0] and _ind_depth[0] < _IND_CAP
+            and (not _prop_has_m(goal[1]) or _drives(goal[1]))):
+        ind = _try_natind(sat, goal)
+        if ind is not None:
+            return ind
     # L-exists (unpack): OPEN an existential hypothesis with a fresh eigenvariable e, add body[e], and
     # continue. This is an INVERTIBLE (always-safe) left rule -- opening loses nothing, since body[e] is
     # strictly stronger than the existential -- so it runs BEFORE the non-invertible witness rule, which
@@ -951,6 +1052,39 @@ def _rules(sat, goal):
                     if flip:
                         pe = ("eqelim", ("=", ("v", 0), frm), pe, ("refl", frm))
                     rewrites.append((prop_size(sub), mot, sub, pe))
+        # local UNIVERSAL-EQUATION hypotheses as directed rewrites -- the same mechanism as the library
+        # lemmas, but the cited proof is `inst…(the hypothesis)` rather than `(use idx)`. The INDUCTION
+        # HYPOTHESIS is exactly such a hypothesis: a natind step over (All x… (= L R)) adds the IH
+        # (All x… (= L R))[n] to context, and to close the step the IH must REWRITE the step goal (e.g.
+        # left-distributivity's IH a*(x+y)=a*x+a*y rewrites (s a)*(x+y)'s reduct into the interchange the
+        # library then closes -- the precise unlock for mult-assoc). The ground-`=` hypothesis rewrite
+        # above never fires here (the IH's top is `all`, not `=`). Gated to phase 2 (induction active),
+        # like the library, so the general search is untouched.
+        if _induction_on[0]:
+            for prop, hyp in sat:
+                peeled = _peel(prop)
+                if peeled is None or peeled[0] == 0:
+                    continue
+                arity, lhs, rhs = peeled
+                dirs = ((lhs, rhs, True), (rhs, lhs, False)) if _both_orient[0] else ((lhs, rhs, True),)
+                for pat, other, flip in dirs:
+                    for sub_t in _prop_subterms(goal):
+                        s = _match_term(pat, sub_t, {})
+                        if s is None or len(s) != arity:
+                            continue
+                        frm, to = _fill(pat, s), _fill(other, s)
+                        if frm == to:
+                            continue
+                        mot = abstract_prop(goal, frm)
+                        sub = subst0(mot, to)
+                        if sub == goal:
+                            continue
+                        pe = hyp
+                        for j in range(arity - 1, -1, -1):  # instantiate outermost binder first
+                            pe = ("inst", pe, s[j])
+                        if flip:
+                            pe = ("eqelim", ("=", ("v", 0), frm), pe, ("refl", frm))
+                        rewrites.append((prop_size(sub), mot, sub, pe))
         rewrites.sort(key=lambda r: r[0])
         for sz, mot, sub, pe in rewrites:
             if sz <= _rw_cap[0]:
