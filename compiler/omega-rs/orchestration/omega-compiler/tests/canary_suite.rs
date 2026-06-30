@@ -1499,6 +1499,35 @@ fn runtime_mandelbrot_render_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_substring_search_exit_canary_runs() {
+    // Naive substring search (find a needle in a haystack): nested loop, carrier byte
+    // comparison, the index guarded against `.len` directly. "world" in "hello world"
+    // rejects i=0..5 and matches at i=6 -> exit 70.
+    let canary = pass_canary("text/runtime_substring_search_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-substring-search-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("substring search canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("substring search canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected substring search to find \"world\" at position 6 (exit 70); got {:?} (a non-70 code is the wrong position)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_string_palindrome_exit_canary_runs() {
     let canary = pass_canary("text/runtime_string_palindrome_exit");
     let main_path = canary.join("main.omg");
