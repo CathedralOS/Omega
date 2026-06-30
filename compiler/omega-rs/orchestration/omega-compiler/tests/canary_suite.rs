@@ -4564,6 +4564,34 @@ fn runtime_rpn_evaluator_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_coin_change_dp_exit_canary_runs() {
+    // Coin-change minimisation by dynamic programming: dp[a] = fewest coins for amount a,
+    // relaxing dp[a] toward 1 + dp[a-c] over a computed subproblem index. Coins {1,3,4},
+    // amount 6 -> 2 coins (3+3) -> exit 70.
+    let canary = pass_canary("collections/runtime_coin_change_dp_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-coin-change-dp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("coin change dp canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("coin change dp canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected DP min coins for 6 with {{1,3,4}} to be 2 (exit 70); got {:?} (dp[6] on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_bfs_traversal_exit_canary_runs() {
     // Breadth-first search over a 4-node graph (adjacency matrix + FIFO queue + visited
     // set): from node 0 the frontier expands level by level, visit order 0,1,2,3, all four
