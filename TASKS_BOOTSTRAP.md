@@ -223,14 +223,18 @@ a working proof-carrying contract system** (item 11). What remains:
   checker validates** ("automation discharges the easy 95% with zero hand-proving, a tiny kernel checks
   the hard 5%"). The lattice already had the kernel (`check.beta`), the certificate format, and
   certificate-*emitting computation* (the convergence) — now it has the first genuine proof AUTOMATION:
-  `delta/prover.py`, an untrusted proof-SEARCH front line for the intuitionistic `{-> , &}` propositional
-  fragment. Given a goal it searches a sound natural-deduction calculus (conjunction saturation + R&/R→
-  intro + modus-ponens backward chaining, fuel-bounded) and EMITS a `check.beta` certificate the kernel
-  re-checks (`prover-test.sh`: curated tautologies proved + kernel-accepted; non-tautologies correctly
-  unprovable; a random `{-> , &}` fuzz where every proof the prover finds is kernel-accepted). Sound by
-  construction, complete only up to its fuel — exactly the "cleverness on the untrusted side, authority in
-  the kernel" split. Widen: `∨`/`⊥` (case/absurd), then quantifiers; the long arc is SMT-class procedures
-  emitting kernel-checkable certificates (the proof-engine north star).
+  `delta/prover.py`, an untrusted proof-SEARCH front line for the FULL intuitionistic propositional fragment
+  (`->`, `&`, `+`, `(bot)`). Given a goal it searches a sound natural-deduction calculus (intro + elimination
+  for every connective: lam/app, pair/fst/snd, inl/inr/case, absurd) and EMITS a `check.beta` certificate the
+  kernel re-checks. The search is MEMOISED on (context proposition-set, goal) — the rules only add subformulas,
+  so it terminates without a depth bound and is polynomial in the subformula state space (e.g. an or-elim goal
+  that cost 100k+ nodes naïvely now takes ~36). SOUND BY CONSTRUCTION (every rule is a valid kernel typing
+  rule, so check.beta accepts every proof emitted); a node budget is a hard backstop. `prover-test.sh` (33 ok):
+  curated tautologies incl. disjunction/falsity (or-comm, distribution, or-elim-to-common, ex-falso) proved +
+  kernel-accepted; non-tautologies correctly unprovable (never fabricates authority); a random fuzz where every
+  proof found is kernel-accepted. Exactly the "cleverness on the untrusted side, authority in the kernel" split.
+  Widen next: quantifiers (∀/∃ — needs term/witness search), then arithmetic; the long arc is SMT-class
+  procedures emitting kernel-checkable certificates (the proof-engine north star).
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
