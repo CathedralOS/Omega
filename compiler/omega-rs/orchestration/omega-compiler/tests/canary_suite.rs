@@ -5836,6 +5836,34 @@ fn runtime_shift_signedness_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_narrow_signed_wrap_boundaries_exit_canary_runs() {
+    // Signed two's-complement wrap-around at narrow boundaries (i8: 127->-128, -128->127;
+    // i16 analogues), both ends, in-Wrapping. Complements the saturating narrow canaries.
+    // All four corners must hold -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_narrow_signed_wrap_boundaries_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-narrow-wrap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("narrow signed wrap canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("narrow signed wrap canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i8/i16 signed Wrapping wrap-around at both boundaries (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_narrow_signed_guard_ops_exit_canary_runs() {
     // Narrow (i8) signed compare/sub/mul with negative values as guard subjects -- the
     // working siblings of the narrow-signed-divide-guard fix; guards the area.
