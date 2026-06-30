@@ -857,6 +857,33 @@ fn nested_runtime_indexed_write_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn runtime_dual_indexed_copy_in_loop_rejected_canary_is_rejected() {
+    // `a[i] = b[i]` (both sides runtime-indexed) inside a loop cannot be lowered by the
+    // static-assignment fast path -- it would silently NO-OP (the value resolves to the array base).
+    // The classifier guard keeps it out of the AlreadyLowered fast path so it is recorded as a write
+    // and rejected cleanly. The top-level form is covered by indexed_write_from_indexed_read_rejected;
+    // this fences the in-loop form, which previously had no write record at all.
+    let canary = fail_canary("collections/runtime_dual_indexed_copy_in_loop_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected in-loop dual-indexed copy canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("needs runtime storage write lowering")
+            || combined.contains("needs mutation lowering"),
+        "expected a write-lowering rejection for the in-loop dual-indexed copy, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unary_negation_exit_canary_runs() {
     let canary = pass_canary("operators/unary_negation_exit");
     let main_path = canary.join("main.omg");
