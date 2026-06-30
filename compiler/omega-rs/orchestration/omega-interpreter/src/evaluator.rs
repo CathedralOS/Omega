@@ -656,16 +656,23 @@ impl<'program> Evaluator<'program> {
         self.tick()?;
         match statement {
             StatementNode::Assignment(assignment) => {
-                // A STRUCT assignment is a VALUE copy: deep-clone so mutating the destination
-                // later does not alias the source (`self.f = self.arr[1]; self.f.x = 50` must
-                // not touch arr[1]). Gated to `Value::Struct` ONLY: a subslice is a `Value::Array`
-                // that intentionally SHARES the backing array's element cells (writes through the
-                // slice alias the array), so deep-cloning arrays/slices would sever aliasing the
-                // oracle depends on. `Ref` is likewise left shared for `&mut` write-through.
+                // A STRUCT, or a whole owned ARRAY, assignment is a VALUE copy: deep-clone so
+                // mutating the destination later does not alias the source (`self.f =
+                // self.arr[1]; self.f.x = 50` must not touch arr[1]; `self.b = self.a;
+                // self.b[0] = 9` must not touch a). A `Value::Array` is deep-cloned ONLY when the
+                // TARGET's declared type is an owned `[T; N]` (FixedArray) -- a slice `&[T]`
+                // target is a shared view whose writes MUST alias the backing array, so it stays
+                // shared. `Ref` is likewise left shared for `&mut` write-through.
                 let value = self.eval_expression(assignment.value, frame)?;
-                let value = match value {
-                    Value::Struct { .. } => value.deep_clone(),
-                    other => other,
+                let copy_array = matches!(value, Value::Array(_))
+                    && self
+                        .assignment_target_type_reference(assignment.target, frame)
+                        .map(|target| self.declared_type_is_fixed_array(target))
+                        .unwrap_or(false);
+                let value = if matches!(value, Value::Struct { .. }) || copy_array {
+                    value.deep_clone()
+                } else {
+                    value
                 };
                 // Apply the target field's declared width AND arithmetic domain
                 // (decision 17), matching the native store: Exact/Wrapping truncate
@@ -700,15 +707,20 @@ impl<'program> Evaluator<'program> {
                 Ok(())
             }
             StatementNode::LocalData(local) => {
-                // A `let v = <struct>` is a VALUE copy: deep-clone so a later mutation of `v`'s
-                // fields does not alias the initializer's source. Gated to `Value::Struct` only
-                // (a slice `let s = arr[1..3]` is a `Value::Array` that must keep sharing the
-                // array's cells; a `Ref` must keep aliasing the referent).
+                // A `let v = <struct>` or `let v = <owned array>` is a VALUE copy: deep-clone so
+                // a later mutation of `v` does not alias the initializer's source. A
+                // `Value::Array` is deep-cloned ONLY when the local's declared type is an owned
+                // `[T; N]` (FixedArray); a slice `let s = arr[1..3]` (a `&[T]` local) is a shared
+                // view and must keep sharing the array's cells. A `Ref` keeps aliasing the
+                // referent.
                 let value = if local.initial_value.is_valid() {
                     let value = self.eval_expression(local.initial_value, frame)?;
-                    match value {
-                        Value::Struct { .. } => value.deep_clone(),
-                        other => other,
+                    let copy_array = matches!(value, Value::Array(_))
+                        && self.declared_type_is_fixed_array(local.type_reference);
+                    if matches!(value, Value::Struct { .. }) || copy_array {
+                        value.deep_clone()
+                    } else {
+                        value
                     }
                 } else {
                     self.default_value_for_type(local.type_reference)?
@@ -2303,6 +2315,30 @@ impl<'program> Evaluator<'program> {
             cell = self.field_cell(&cell, member)?;
         }
         Ok(cell)
+    }
+
+    /// True when a declared type is an owned fixed array `[T; N]` -- seeing THROUGH a domain
+    /// `Constrained` wrapper (`[i32; N] in Wrapping`) -- as opposed to a slice `&[T]`. Drives
+    /// the value-copy gate: a whole-array assignment/`let` into a FixedArray place is a deep
+    /// copy, while a slice is a shared view that must NOT be deep-cloned.
+    fn declared_type_is_fixed_array(
+        &self,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> bool {
+        if !type_reference.is_valid() {
+            return false;
+        }
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            omega_typed_trees::types::TypeReferenceNode::FixedArray { .. } => true,
+            omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                self.declared_type_is_fixed_array(*base_type)
+            }
+            _ => false,
+        }
     }
 
     /// Declared integer primitive of an assignment target, when it is a FIELD whose
