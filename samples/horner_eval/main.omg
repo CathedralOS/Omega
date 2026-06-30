@@ -1,0 +1,66 @@
+// Evaluate a polynomial with Horner's method: p(x) = a_n x^n + ... + a_1 x + a_0, computed as
+// (((a_n) x + a_{n-1}) x + ... ) x + a_0 -- the standard, numerically-stable evaluation that
+// needs only n multiply-adds and no powers. A single indexed-array loop carries the running
+// result through a multiply-add recurrence (`r = r * x + coeffs[i]`).
+//
+// For coefficients [1, 2, 3, 4, 5] (the polynomial x^4 + 2x^3 + 3x^2 + 4x + 5) at x = 2:
+//   r = 1
+//   r = 1*2 + 2  = 4
+//   r = 4*2 + 3  = 11
+//   r = 11*2 + 4 = 26
+//   r = 26*2 + 5 = 57
+// which is 16 + 16 + 12 + 8 + 5 = 57. The result is checked against 57; exit 70 on success.
+// Expected exit: 70.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    coeffs: [i32; 5] in Wrapping;
+    i: i32 in Wrapping;
+    x: i32 in Wrapping;
+    r: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.coeffs[0] = 1;
+    self.coeffs[1] = 2;
+    self.coeffs[2] = 3;
+    self.coeffs[3] = 4;
+    self.coeffs[4] = 5;
+    self.x = 2;
+
+    // Seed the recurrence with the leading coefficient, then fold in the rest.
+    self.r = self.coeffs[0];
+    self.i = 1;
+
+    transition {
+        _ -> eval()
+    }
+    state eval(&mut self) {
+        transition self.i < 5 {
+            true -> step()
+            _ -> done()
+        }
+    }
+    state step(&mut self) {
+        self.r = self.r * self.x;
+        self.r = self.r + self.coeffs[self.i];
+        self.i = self.i + 1;
+        transition {
+            _ -> eval()
+        }
+    }
+    state done(&mut self) {
+        transition self.r == 57 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(self.r);
+    }
+}
