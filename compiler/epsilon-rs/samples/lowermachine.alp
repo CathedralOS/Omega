@@ -31,7 +31,7 @@ data Main {
     spls: [i32; 3072]; skl: i32; eskl: i32;
     etn: [i32; 32]; etne: [i32; 32]; etsz: [i32; 32]; ne: i32; cei: i32; cdtns: i32; cdtne: i32; fc: i32;
     bns: [i32; 8]; bne: [i32; 8]; bndoff: [i32; 8]; nb: i32; subjoff: i32; payidx: i32; unegate: i32;
-    apbase: i32; aix: i32; scc: i32;
+    apbase: i32; aix: i32; scc: i32; mmk: i32;
     mn: i32; mdecl: i32; cmi: i32; emi: i32; lastws: i32; lastwe: i32; argc: i32; insig: i32; cp: i32; np: i32; pcs: [i32; 64]; hsf: [i32; 64]; mns: [i32; 64]; mne: [i32; 64];
     pns: [i32; 64]; pne: [i32; 64]; pmi: [i32; 64]; ppidx: [i32; 64];
     fns: [i32; 256]; fne: [i32; 256];
@@ -299,6 +299,17 @@ machine Main::is_rbyte(&mut self, s: i32, e: i32) -> i32 {    // "read_byte"
     state rz8() { transition self.buf[s + 8] == 101 { true -> rzy()  false -> rzn() } }
     state rzy()  { return 1; }
     state rzn()  { return 0; }
+}
+machine Main::is_minmax(&mut self, s: i32, e: i32) -> i32 {    // "min" -> 1, "max" -> 2, else 0
+    transition e - s == 3 { true -> mmz0()  false -> mmzn() }
+    state mmz0() { transition self.buf[s] == 109 { true -> mmz1()  false -> mmzn() } }        // 'm'
+    state mmz1() { transition self.buf[s + 1] == 105 { true -> mmzi()  false -> mmza() } }    // 'i' -> min, else check 'a'
+    state mmzi() { transition self.buf[s + 2] == 110 { true -> mmymin()  false -> mmzn() } }  // 'n'
+    state mmza() { transition self.buf[s + 1] == 97 { true -> mmza2()  false -> mmzn() } }    // 'a'
+    state mmza2(){ transition self.buf[s + 2] == 120 { true -> mmymax()  false -> mmzn() } }  // 'x'
+    state mmymin(){ return 1; }
+    state mmymax(){ return 2; }
+    state mmzn()  { return 0; }
 }
 machine Main::is_exitp(&mut self, s: i32, e: i32) -> i32 {    // "exit_process"
     transition e - s == 12 { true -> ez0()  false -> ezn() }
@@ -989,7 +1000,13 @@ machine Main::main(&mut self) {
     state idr()   { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> ida()  false -> ide() } }
     state ida()   { self.pos = self.pos + 1; transition 0 { _ -> idr() } }
     state ide()   { self.w = self.is_self(self.start, self.pos); transition self.w == 1 { true -> fldname()  false -> ck_rb() } }
-    state ck_rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> rbemit()  false -> ckcolon() } }
+    state ck_rb() { self.w = self.is_rbyte(self.start, self.pos); transition self.w == 1 { true -> rbemit()  false -> ck_mm() } }
+    // min(a,b)/max(a,b): handled via the OPERAND STACK (not the call machinery). Push a sentinel (prec -4 min /
+    // -5 max, below the -3 paren sentinel), lower arg1; the ',' drains arg1's ops to the sentinel (mmcomma) then
+    // lowers arg2; the ')' pops the sentinel and emits cmp+csel (mmclose). Nests correctly (the op stack is a stack).
+    state ck_mm() { self.mmk = self.is_minmax(self.start, self.pos); transition self.mmk > 0 { true -> mmopen()  false -> ckcolon() } }
+    state mmopen(){ transition self.buf[self.pos] == 40 { true -> mmopen2()  false -> ckcolon() } }   // a call `min(` else a plain ident
+    state mmopen2(){ self.opaop[self.osp] = 0; self.opcc[self.osp] = 0; self.opprec[self.osp] = 0 - 3 - self.mmk; self.osp = self.osp + 1; self.pos = self.pos + 1; transition 0 { _ -> subj0() } }   // push -4/-5 sentinel, skip '(', lower arg1
     state ckcolon(){ transition self.buf[self.pos] == 58 { true -> cvar0()  false -> ckfcall() } }   // 'Type::Variant' enum-tag literal (else a bare ident -> call/local)
     state cvar0() { self.pos = self.pos + 2; self.qa = self.pos; transition 0 { _ -> cvarr() } }     // skip '::', mark variant name
     state cvarr() { self.w = self.is_word(self.buf[self.pos]); transition self.w == 1 { true -> cvara()  false -> cvare() } }
@@ -1172,7 +1189,13 @@ machine Main::main(&mut self) {
     // ')' : pop+emit stacked ops until the precedence -1 sentinel; if one is found it's a paren close (discard + continue), else it's the context end (arg/subject)
     state pclose(){ transition self.osp > 0 { true -> pclose2()  false -> subjend() } }
     state pclose2(){ transition self.opprec[self.osp - 1] == 0 - 3 { true -> pdiscard()  false -> pclose3() } }
-    state pclose3(){ transition self.opprec[self.osp - 1] == 0 - 2 { true -> cadiscard()  false -> pcpop() } }
+    state pclose3(){ transition self.opprec[self.osp - 1] == 0 - 2 { true -> cadiscard()  false -> pclose4() } }
+    state pclose4(){ transition self.opprec[self.osp - 1] <= 0 - 4 { true -> mmclose()  false -> pcpop() } }   // -4/-5 = min/max close -> pop sentinel, emit cmp+csel
+    state mmclose(){ self.mmk = self.opprec[self.osp - 1]; self.osp = self.osp - 1; self.pos = self.pos + 1; transition 0 { _ -> mmemit() } }   // save kind (-4 min/-5 max), pop sentinel, skip ')'
+    state mmemit(){ self.console.write_line("    ldr x1, [sp], #16"); self.console.write_line("    ldr x0, [sp], #16"); self.console.write_line("    cmp w0, w1"); transition self.mmk == 0 - 4 { true -> mmemin()  false -> mmemax() } }
+    state mmemin(){ self.console.write_line("    csel w0, w0, w1, lt"); transition 0 { _ -> mmepush() } }   // min: keep the smaller
+    state mmemax(){ self.console.write_line("    csel w0, w0, w1, gt"); transition 0 { _ -> mmepush() } }   // max: keep the larger
+    state mmepush(){ self.console.write_line("    str x0, [sp, #-16]!"); transition 0 { _ -> opdisp() } }
     state pcpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 2; transition 0 { _ -> emitop() } }
     state pdiscard(){ self.osp = self.osp - 1; self.pos = self.pos + 1; transition 0 { _ -> opdisp() } }   // drop sentinel, skip ')', the paren value is now an operand
     state aclose(){ transition self.osp > 0 { true -> aclose2()  false -> subjend() } }
@@ -1180,7 +1203,9 @@ machine Main::main(&mut self) {
     state acpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 3; transition 0 { _ -> emitop() } }
     state adiscard(){ self.osp = self.osp - 1; transition 0 { _ -> subjend() } }
     state caclose(){ transition self.osp > 0 { true -> caclose2()  false -> subjend() } }
-    state caclose2(){ transition self.opprec[self.osp - 1] == 0 - 2 { true -> cadiscard()  false -> cacpop() } }
+    state caclose2(){ transition self.opprec[self.osp - 1] == 0 - 2 { true -> cadiscard()  false -> caclose3() } }
+    state caclose3(){ transition self.opprec[self.osp - 1] <= 0 - 4 { true -> mmcomma()  false -> cacpop() } }   // -4/-5 = min/max: arg1 done (stays pushed under the sentinel), lower arg2
+    state mmcomma(){ self.pos = self.pos + 1; transition 0 { _ -> subj0() } }   // skip ',', lower arg2
     state cacpop(){ self.aop = self.opaop[self.osp - 1]; self.cc = self.opcc[self.osp - 1]; self.osp = self.osp - 1; self.opret = 4; transition 0 { _ -> emitop() } }
     state cadiscard(){ self.osp = self.osp - 1; transition 0 { _ -> subjend() } }
     state emitop(){ self.console.write_line("    ldr x1, [sp], #16"); self.console.write_line("    ldr x0, [sp], #16"); transition self.aop == 0 { true -> emitcmp()  false -> emitar() } }
