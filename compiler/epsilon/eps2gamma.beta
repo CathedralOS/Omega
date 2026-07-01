@@ -16,6 +16,11 @@
 ; Self-arrays thread as gamma LIST slots a{i} (after locals+fields), zero-init `(Cons 0 .. Nil)` of the
 ; length in `data Main { arr: [i32; N]; }`; reads -> `(nth a{i} ix)`, writes -> `(setl a{i} ix v)`; the
 ; nth/setl helper defs are prepended when the entry uses arrays.
+; read_byte: stdin threads as a LAST list slot `inp` (present iff the entry reads); `x = read_byte()` ->
+; two lets: x=head `(match inp (Nil (- 0 1)) ((Cons h t) h))`, inp=tail `(match inp (Nil Nil) ((Cons h t) t))`.
+; The stream's INITIAL value in the entry call is a `STDIN` placeholder (eps2gamma is a pure stdin->stdout
+; filter with no env access); the runner/diamond substitutes the `(Cons b0 .. Nil)` byte list — the direct
+; analog of the Rust route's EPS_GAMMA_INPUT.
 ;
 ; Emission (matching gamma_emit.rs slices 3-5): EVERY machine becomes mutually-recursive gamma defs
 ; `(def m{mi}_me (SIG) <entry>) (def m{mi}_s{k} (SIG) <state k>) ...`, SIG = its locals l0.. (++ the
@@ -431,6 +436,21 @@ proc is_return() {
     state yes { return 1 }
 }
 
+proc is_read_byte() {                  ; the boundary call `read_byte` (9 chars)
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'r')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'e')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'a')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 'd')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == '_')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == 'b')  return 0 }
+    state c7 { to c8 when (byte[2097152 + o + 6] == 'y')  return 0 }
+    state c8 { to c9 when (byte[2097152 + o + 7] == 't')  return 0 }
+    state c9 { to c10 when (byte[2097152 + o + 8] == 'e')  return 0 }
+    state c10 { to yes when (is_idchar(byte[2097152 + o + 9]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
 ; ---- printing ----
 
 proc emit_dec(n) {
@@ -457,6 +477,13 @@ proc print_acurname(a) {
     state k { to isA when (word[6440000 + a * 8] == 0)  to isT }
     state isA { write_byte('a')  emit_dec(a)  return 0 }
     state isT { write_byte('t')  emit_dec(word[6450000 + a * 8])  return 0 }
+}
+
+; the input stream slot's current gamma name: `inp` (the param) until a read rebinds it to t{val}.
+proc print_inpname() {
+    state k { to isI when (word[6460000] == 0)  to isT }         ; INP_KIND
+    state isI { emit("inp")  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6470000])  return 0 }   ; INP_VAL
 }
 
 proc emit_zeros(n) {
@@ -556,11 +583,17 @@ proc emit_call_state(tgt) {
     }
     state arrs { let ai = 0  to aloop }
     state aloop {
-        to done when (ai == word[6000040])                 ; ARRAY_CNT
+        to inpslot when (ai == word[6000040])              ; ARRAY_CNT
         write_byte(' ')
         print_acurname(ai)
         ai = ai + 1
         to aloop
+    }
+    state inpslot {
+        to done when (word[6000048] == 0)                  ; HAS_INPUT
+        write_byte(' ')
+        print_inpname()
+        to done
     }
     state done { write_byte(')')  return 0 }
 }
@@ -590,22 +623,24 @@ proc reset_curname(mi) {
     }
     state arrs { let ai = 0  to aloop }
     state aloop {
-        to done when (ai == word[6000040])
+        to inp when (ai == word[6000040])
         word[6440000 + ai * 8] = 0
         word[6450000 + ai * 8] = ai
         ai = ai + 1
         to aloop
     }
-    state done { return 0 }
+    state inp { word[6460000] = 0  return 0 }              ; INP_KIND = param `inp`
 }
 
 ; emit `(let t{fresh} <rhs-under-current-names> ` and rebind slot idx (in the kind/val arrays at kindb/
 ; valb) to t{fresh}. Leaves the let open; the block closes it after the terminal. CUR is before the '='.
+; returns the number of `let`s opened (1 normally, 2 for a read_byte, which also rebinds the input slot).
 proc do_write_slot(kindb, valb, idx) {
     state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
     state eat {
         adv()
         skip_ws()
+        to rbyte when (is_read_byte() == 1)
         let node = parse_cmp()
         emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
         print_expr(node)
@@ -615,8 +650,23 @@ proc do_write_slot(kindb, valb, idx) {
         word[6000016] = word[6000016] + 1
         to tosemi
     }
+    state rbyte {                      ; x = read_byte()  ->  bind x to the head, rebind input to the tail
+        skip_ident()  skip_ws()  adv()  skip_ws()  adv()   ; consume `read_byte` `(` `)`
+        let f0 = word[6000016]
+        let f1 = word[6000016] + 1
+        word[6000016] = word[6000016] + 2
+        emit("(let t")  emit_dec(f0)  emit(" (match ")  print_inpname()  emit(" (Nil (- 0 1)) ((Cons h t) h)) ")
+        emit("(let t")  emit_dec(f1)  emit(" (match ")  print_inpname()  emit(" (Nil Nil) ((Cons h t) t)) ")
+        word[kindb + idx * 8] = 1      ; target = t{f0} (the byte, or -1 at EOF)
+        word[valb + idx * 8] = f0
+        word[6460000] = 1              ; INP_KIND = t
+        word[6470000] = f1             ; input = t{f1} (the tail)
+        to rbsemi
+    }
+    state rbsemi { to rbeat when (cbyte() == ';')  adv()  to rbsemi }
+    state rbeat { adv()  return 2 }
     state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
-    state esemi { adv()  return 0 }
+    state esemi { adv()  return 1 }
 }
 
 proc do_let() {
@@ -624,15 +674,13 @@ proc do_let() {
     skip_ws()
     let off = word[2097144]
     skip_ident()
-    do_write_slot(6400000, 6410000, lookup_local(off))
-    return 0
+    return do_write_slot(6400000, 6410000, lookup_local(off))
 }
 
 proc do_assign() {
     let off = word[2097144]
     skip_ident()
-    do_write_slot(6400000, 6410000, lookup_local(off))
-    return 0
+    return do_write_slot(6400000, 6410000, lookup_local(off))
 }
 
 proc parse_arm_pat() {
@@ -724,11 +772,10 @@ proc translate_block(mi, off) {
         to t_trans when (is_transition() == 1)
         to t_return when (is_return() == 1)
         to t_self when (is_self() == 1)
-        do_assign()
-        depth = depth + 1
+        depth = depth + do_assign()
         to loop
     }
-    state t_let { do_let()  depth = depth + 1  to loop }
+    state t_let { depth = depth + do_let()  to loop }
     state t_trans { emit_transition()  to close }
     state t_return {                   ; free machine: `return <expr>;` -> the value
         skip_ident()                   ; past "return"
@@ -749,7 +796,7 @@ proc translate_block(mi, off) {
         to close
     }
     state t_awrite { do_array_write(array_lookup(foff))  depth = depth + 1  to loop }
-    state t_fstore { do_write_slot(6420000, 6430000, field_lookup(foff))  depth = depth + 1  to loop }
+    state t_fstore { depth = depth + do_write_slot(6420000, 6430000, field_lookup(foff))  to loop }
     state close { let j = 0  to closed }
     state closed { to fin when (j == depth)  write_byte(')')  j = j + 1  to closed }
     state fin { return 0 }
@@ -1014,6 +1061,23 @@ proc do_array_write(arr) {
     state esemi { adv()  return 0 }
 }
 
+; does the entry read stdin? scan its body for a `read_byte` token -> HAS_INPUT.
+proc collect_input() {
+    word[6000048] = 0                  ; HAS_INPUT
+    word[2097144] = word[6010400 + word[6000008] * 8]   ; CUR = M_BODY[ENTRY_IDX]
+    state loop {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to found when (is_read_byte() == 1)
+        to skip when (is_idchar(cbyte()) == 1)
+        adv()
+        to loop
+    }
+    state skip { skip_ident()  to loop }
+    state found { word[6000048] = 1  return 0 }
+    state done { return 0 }
+}
+
 proc add_field(off) {
     let g = 0
     state loop {
@@ -1035,12 +1099,13 @@ proc emit_sig(mi) {
     let nl = word[6010800 + mi * 8]
     let nf = 0
     let na = 0
+    let ni = 0
     state chkf {
         to withf when (mi == word[6000008])
         to go
     }
-    state withf { nf = word[6000024]  na = word[6000040]  to go }
-    state go { let tot = nl + nf + na  let x = 0  to loop }
+    state withf { nf = word[6000024]  na = word[6000040]  ni = word[6000048]  to go }   ; ni = HAS_INPUT
+    state go { let tot = nl + nf + na + ni  let x = 0  to loop }
     state loop {
         to done when (x == tot)
         to sep when (x > 0)
@@ -1055,7 +1120,11 @@ proc emit_sig(mi) {
         to arr when (x >= nl + nf)
         write_byte('g')  emit_dec(x - nl)  to next
     }
-    state arr { write_byte('a')  emit_dec(x - nl - nf)  to next }
+    state arr {
+        to inp when (x >= nl + nf + na)
+        write_byte('a')  emit_dec(x - nl - nf)  to next
+    }
+    state inp { emit("inp")  to next }     ; the last slot (present iff HAS_INPUT) is the stdin stream
     state next { x = x + 1  to loop }
     state done { return 0 }
 }
@@ -1119,7 +1188,12 @@ proc render() {
         ai = ai + 1
         to ainit
     }
-    state adone { write_byte(')')  write_byte(10)  return 0 }
+    state adone {
+        to inpinit when (word[6000048] == 1)            ; HAS_INPUT -> the runner injects the stream here
+        to fin
+    }
+    state inpinit { emit(" STDIN")  to fin }            ; placeholder; the diamond harness substitutes the bytes
+    state fin { write_byte(')')  write_byte(10)  return 0 }
 }
 
 proc main() {
@@ -1137,6 +1211,7 @@ proc main() {
     state pdone {
         collect_fields()
         collect_arrays()
+        collect_input()
         render()
         return 0
     }

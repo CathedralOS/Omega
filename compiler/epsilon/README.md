@@ -56,7 +56,13 @@ Rust-free translator one at a time).
   `(Cons 0 … Nil)` of its declared length (read from `data Main { arr: [i32; N]; }`). Reads lower to
   `(nth a{i} <ix>)`, writes to `(setl a{i} <ix> <val>)`; the two list helpers `nth`/`setl` are
   prepended once when the entry uses arrays.
-- **Next** — read_byte (stdin).
+- **Slice 6** — **read_byte** (stdin): `x = read_byte()` lowers to two `(let …)`s — bind `x` to the head
+  `(match inp (Nil (- 0 1)) ((Cons h t) h))` (the byte, or −1 at EOF) and rebind the threaded input slot
+  `inp` to the tail. The input is the last slot (present iff the entry reads). Since `eps2gamma` is a pure
+  stdin→stdout filter, it emits a `STDIN` placeholder for the stream's initial value (the genuine external
+  input, exactly like the Rust route's `EPS_GAMMA_INPUT`); the diamond substitutes the `(Cons … Nil)` byte
+  list, feeding the *same* bytes to native stdin.
+- **Next** — stdout (`write_byte`/`write_line`) + self-method calls (the certifier capstone).
 
 ## The long game
 
