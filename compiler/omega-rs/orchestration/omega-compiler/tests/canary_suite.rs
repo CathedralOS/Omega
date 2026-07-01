@@ -11017,6 +11017,36 @@ fn runtime_join_meet_bound_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_loop_counter_init_hoisted_exit_canary_runs() {
+    // The loop counter is initialized one state BEFORE the loop head (a `setup` state that does
+    // not touch the counter sits between). The loop-invariant pass walks back through the
+    // counter-untouched state to find the constant init, so the fill loop's index bound proves.
+    // Fills [0..4], sums to 10, self-checks -> exit 70.
+    let canary = pass_canary("collections/runtime_loop_counter_init_hoisted_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-init-hoisted-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("init-hoisted loop canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("init-hoisted loop canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a loop counter initialized a state before the head to still prove its bound (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_write_first_loop_index_exit_canary_runs() {
     // Write-first loop `arr[i]=..; i=i+1; transition i<N { true -> loop }`: the bound guard is on
     // the back edge, so the head is a join with no dominating guard. The loop-invariant pass now
@@ -16955,6 +16985,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/std_option_surface",
     "collections/runtime_fixed_vec_round_trip_exit",
     "collections/runtime_write_first_loop_index_exit",
+    "collections/runtime_loop_counter_init_hoisted_exit",
     "core/array_core_surface",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",
