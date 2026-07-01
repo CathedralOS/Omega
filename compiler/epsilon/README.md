@@ -51,7 +51,12 @@ Rust-free translator one at a time).
   { … }` alongside the entry. Every machine becomes its own `m{idx}_*` defs; a call `f(a, b)` ⇒
   `(m{f}_me <a> <b> <zeros for f's non-param locals>)`. `return <expr>;` is the free-machine terminal.
   Nesting, recursion, and calls in loops all fall out (interp registers all defs before eval).
-- **Next** — self arrays, read_byte.
+- **Slice 5** — **self arrays**: `self.arr[i]` reads and `self.arr[i] = <expr>;` writes. Each array
+  becomes a threaded gamma **list** slot `a{i}` (after locals + fields), zero-initialised to
+  `(Cons 0 … Nil)` of its declared length (read from `data Main { arr: [i32; N]; }`). Reads lower to
+  `(nth a{i} <ix>)`, writes to `(setl a{i} <ix> <val>)`; the two list helpers `nth`/`setl` are
+  prepended once when the entry uses arrays.
+- **Next** — read_byte (stdin).
 
 ## The long game
 

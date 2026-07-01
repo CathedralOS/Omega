@@ -69,6 +69,11 @@ diac() {
   printf 'boundary trait Console { machine exit_process(return_code: i32); }\ndata Main { console: Console; }\n%s\n' "$2" > "$T/p.alp"
   _check "$1" "$3"
 }
+# diaa DESC BODY EXPECT : like diaf but Main also has a self-array field `buf: [i32; 5]` (self-array slice).
+diaa() {
+  printf 'boundary trait Console { machine exit_process(return_code: i32); }\ndata Main { console: Console; i: i32; s: i32; buf: [i32; 5]; }\nmachine Main::main(&mut self) {\n%s\n}\n' "$2" > "$T/p.alp"
+  _check "$1" "$3"
+}
 
 dia "literal"            '    self.console.exit_process(42)' 42
 dia "add"                '    self.console.exit_process(40 + 2)' 42
@@ -162,6 +167,19 @@ diac "call inside a loop" 'machine inc(x: i32) -> i32 { return x + 1; }
 machine Main::main(&mut self) { let i: i32 = 0; let s: i32 = 0; transition 0 { _ -> lp() } state lp() { transition i < 5 { true -> bd()  false -> dn() } } state bd() { i = inc(i); s = s + i; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(s + 27); } }' 42
 diac "two-arg helper twice" 'machine amax(a: i32, b: i32) -> i32 { transition a < b { true -> hb()  false -> ha() } state ha() { return a; } state hb() { return b; } }
 machine Main::main(&mut self) { let x: i32 = amax(10, 40); let y: i32 = amax(x, 2); self.console.exit_process(y + 2); }' 42
+
+# slice 5 — self arrays (threaded as gamma lists with nth/setl; entry-only, zero-initialised).
+diaa "array sum-of-squares" '    transition 0 { _ -> fl() }
+    state fl() { transition self.i < 5 { true -> wr()  false -> rs() } }
+    state wr() { self.buf[self.i] = self.i * self.i; self.i = self.i + 1; transition 0 { _ -> fl() } }
+    state rs() { self.i = 0; transition 0 { _ -> sl() } }
+    state sl() { transition self.i < 5 { true -> ad()  false -> dn() } }
+    state ad() { self.s = self.s + self.buf[self.i]; self.i = self.i + 1; transition 0 { _ -> sl() } }
+    state dn() { self.console.exit_process(self.s + 12); }' 42
+diaa "array index pick" '    transition 0 { _ -> fl() }
+    state fl() { transition self.i < 4 { true -> wr()  false -> dn() } }
+    state wr() { self.buf[self.i] = self.i + 1; self.i = self.i + 1; transition 0 { _ -> fl() } }
+    state dn() { self.console.exit_process(self.buf[0] * 10 + self.buf[3] + 28); }' 42
 
 echo "eps2gamma diamond (native == Rust-free eps2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
