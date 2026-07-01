@@ -102,6 +102,10 @@ dia "gt false"     "$H machine Main::main(&mut self) { let c: i32 = 3 > 5; self.
 dia "eq/ne"        "$H machine Main::main(&mut self) { let a: i32 = 4 == 4; let b: i32 = 4 != 4; self.console.exit_process(a * 2 + b); }" 2
 dia "le boundary"  "$H machine Main::main(&mut self) { let a: i32 = 5 <= 5; let b: i32 = 6 <= 5; self.console.exit_process(a * 2 + b); }" 2
 dia "ge boundary"  "$H machine Main::main(&mut self) { let a: i32 = 5 >= 5; let b: i32 = 4 >= 5; self.console.exit_process(a * 2 + b); }" 2
+# min/max builtins — the `(if (lt a b) ..)` select; both routes agree, incl. the nested clamp idiom.
+dia "min pick"     "$H machine Main::main(&mut self) { self.console.exit_process(min(9, 4)); }" 4
+dia "max pick"     "$H machine Main::main(&mut self) { self.console.exit_process(max(9, 4)); }" 9
+dia "clamp idiom"  "$H machine Main::main(&mut self) { let a: i32 = max(0, min(80, 60)); let b: i32 = max(0, min(50, 60)); self.console.exit_process(a + b); }" 110
 # STATE MACHINES — loops with mutation + guarded transitions, modeled as mutually-recursive gamma defs
 dia "sum 1..4"     "$H machine Main::main(&mut self) { let i: i32 = 0; let s: i32 = 0; transition 0 { _ -> lp() } state lp() { transition i < 4 { true -> bd()  false -> dn() } } state bd() { i = i + 1; s = s + i; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(s); } }" 10
 dia "sum 1..10"    "$H machine Main::main(&mut self) { let i: i32 = 0; let s: i32 = 0; transition 0 { _ -> lp() } state lp() { transition i < 10 { true -> bd()  false -> dn() } } state bd() { i = i + 1; s = s + i; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(s); } }" 55

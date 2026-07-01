@@ -303,6 +303,17 @@ fn lower_expression(
             }
             code.push(0x50); // push rax
         }
+        Expr::Min(lhs, rhs) | Expr::Max(lhs, rhs) => {
+            lower_expression(lhs, context, code, relocations, call_fixups);
+            lower_expression(rhs, context, code, relocations, call_fixups);
+            code.push(0x59); // pop rcx (rhs = b)
+            code.push(0x58); // pop rax (lhs = a)
+            code.extend_from_slice(&[0x39, 0xC8]); // cmp eax, ecx
+            // min: keep the smaller — if a>b move b in (cmovg); max: keep the larger — if a<b move b in (cmovl).
+            let cmov = if matches!(context.program.expressions[node], Expr::Min(..)) { 0x4F } else { 0x4C };
+            code.extend_from_slice(&[0x0F, cmov, 0xC1]); // cmovg/cmovl eax, ecx
+            code.push(0x50); // push rax
+        }
     }
 }
 

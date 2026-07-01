@@ -159,6 +159,17 @@ fn gexpr(node: usize, program: &Program, env: &Env) -> Option<String> {
             let arr = env.array_name(off)?.to_string();
             Some(format!("(nth {} {})", arr, gexpr(idx, program, env)?))
         }
+        // min(a,b)/max(a,b): the `(if (lt a b) ..)` select over interp's existing lt primitive.
+        Expr::Min(l, r) => {
+            let a = gexpr(l, program, env)?;
+            let b = gexpr(r, program, env)?;
+            Some(format!("(if (lt {a} {b}) {a} {b})", a = a, b = b))
+        }
+        Expr::Max(l, r) => {
+            let a = gexpr(l, program, env)?;
+            let b = gexpr(r, program, env)?;
+            Some(format!("(if (lt {a} {b}) {b} {a})", a = a, b = b))
+        }
         Expr::Binary(o, l, r) => {
             let a = gexpr(l, program, env)?;
             let b = gexpr(r, program, env)?;
