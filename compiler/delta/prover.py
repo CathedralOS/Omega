@@ -815,6 +815,7 @@ def _try_natind(sat, goal):  # prove (All P) by Peano INDUCTION: base P(0) + ste
 _IRREFL = parse(tokenize("(All (-> (Lt (v 0) (v 0)) (bot)))"))
 _CANCEL0 = parse(tokenize("(All (All (-> (= (p (v 1) (v 0)) (v 1)) (= (v 0) z))))"))   # a+m=a -> m=0
 _POSIT  = parse(tokenize("(All (All (-> (= (p (v 1) (v 0)) z) (= (v 1) z))))"))          # a+b=0 -> a=0 (positivity)
+_ACR = parse(tokenize("(All (All (All (-> (= (p (v 2) (v 0)) (p (v 1) (v 0))) (= (v 2) (v 1))))))"))  # a+c=b+c -> a=b
 
 
 def _add_base(p):  # an additive-equality fact `(= (p A K) B)` -> (A, K, B); else None
@@ -1069,6 +1070,25 @@ def _rules(sat, goal):
                     body = prove(sat + [(("=", K, ("z",)), k0)], goal)
                     if body is not None:
                         return body
+    # le-CANCEL-RIGHT: goal a<=b = ∃m.a+m=b, context has (a+c)+k=b+c (a+c<=b+c). Witness m=k; prove the body
+    #   a+k=b by rearranging (a+k)+c = (a+c)+k = b+c [general AC search + the fact] then cancelling c
+    #   (add-cancel-right). A witness source the directed sum-witness can't reach (its fact's RHS is b+c, not b).
+    #   Placed AFTER the sum-witness, so it fires only when that misses AND the specific (A+C)+K=B+C fact exists.
+    if (goal[0] == "ex" and goal[1][0] == "=" and goal[1][1][0] == "p"
+            and goal[1][1][2] == ("v", 0)):
+        A, B = goal[1][1][1], goal[1][2]
+        for f, _ in sat:
+            if (f[0] == "=" and f[1][0] == "p" and f[1][1][0] == "p" and f[1][1][1] == A
+                    and f[2][0] == "p" and f[2][1] == B and f[1][1][2] == f[2][2]):   # (A+C)+K = B+C
+                C, K = f[1][1][2], f[1][2]
+                comb = prove(sat, ("=", ("p", ("p", A, K), C), ("p", B, C)))   # (a+k)+c = b+c
+                if comb is None:
+                    continue
+                acr = prove([], _ACR)
+                if acr is None:
+                    continue
+                bpf = ("app", ("inst", ("inst", ("inst", acr, ("p", A, K)), B), C), comb)  # a+k=b
+                return ("wit", goal[1], K, bpf)
     # sinj: successor injectivity -- a hypothesis (s a = s b) yields the NEW fact (a = b). The children are
     # the normal forms' successors' arguments (what the kernel's sinj returns). Decreasing successor depth +
     # the new-fact guard terminate the chain (so 2=3 collapses 2=3 -> 1=2 -> 0=1 -> disj -> bot).
