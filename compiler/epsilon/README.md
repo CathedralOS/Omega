@@ -47,7 +47,11 @@ Rust-free translator one at a time).
   field becomes a threaded slot `g{i}`, appended to every def signature after the locals and
   zero-initialised in the entry call — the same SSA machinery as locals. `self.console.exit_process`
   stays the boundary terminal (distinguished from a field store by the trailing `.method`).
-- **Next** — cross-machine calls, arrays, read_byte.
+- **Slice 4** — **cross-machine calls**: value-returning free machines `machine name(p: i32, …) -> i32
+  { … }` alongside the entry. Every machine becomes its own `m{idx}_*` defs; a call `f(a, b)` ⇒
+  `(m{f}_me <a> <b> <zeros for f's non-param locals>)`. `return <expr>;` is the free-machine terminal.
+  Nesting, recursion, and calls in loops all fall out (interp registers all defs before eval).
+- **Next** — self arrays, read_byte.
 
 ## The long game
 
