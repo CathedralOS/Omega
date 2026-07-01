@@ -28,6 +28,7 @@ struct DataFieldInfo {
     kind: FieldKind,
     enum_index: Option<usize>, // Some(idx) if this scalar slot holds a tag-only enum's tag
     domain: u8,                // arithmetic domain of a scalar field: 0 Trapping, 1 Wrapping, 2 Saturating
+    range: Option<(i32, i32)>, // range refinement `i32 in lo..hi`: every store owes value in [lo, hi)
 }
 
 // The field's domain, if `self.<field>` names a scalar field (else 0 = default Trapping).
@@ -39,6 +40,14 @@ impl Parser<'_> {
             }
         }
         0
+    }
+    // The range refinement of `self.<field>`, if it has one (`i32 in lo..hi`): every store owes value in [lo,hi).
+    fn self_field_range(&self, field: &[u8]) -> Option<(i32, i32)> {
+        let data_type = self.self_data_type?;
+        self.data_field_maps[data_type]
+            .iter()
+            .find(|f| f.name.as_slice() == field)
+            .and_then(|info| info.range)
     }
 }
 
@@ -76,6 +85,9 @@ pub struct Parser<'a> {
     self_data_type: Option<usize>,    // data type of `self` in the machine being parsed
     current_machine_makes_call: bool, // set while parsing a machine that calls out
     uses_host_io: bool,               // any machine uses a host op => program needs the import table
+    // Bounded-STORE obligations for the machine being parsed: each `self.<range field> = value` records
+    // (value node, lo, hi) so static discharge can prove `value in [lo, hi)`. See discharge_field_stores.
+    store_obligations: Vec<(usize, i32, i32)>,
 }
 
 impl<'a> Parser<'a> {
@@ -106,6 +118,7 @@ impl<'a> Parser<'a> {
             self_data_type: None,
             current_machine_makes_call: false,
             uses_host_io: false,
+            store_obligations: Vec::new(),
         }
     }
 
@@ -411,11 +424,21 @@ impl<'a> Parser<'a> {
                 };
                 (kind, size, enum_index)
             };
-            // optional arithmetic domain `in Wrapping`/`in Saturating` on a scalar field
+            // optional `in <refinement>` on a scalar field. Two forms, distinguished by the token after `in`:
+            //   `in Wrapping`/`in Saturating` (Ident) -> arithmetic domain (changes codegen);
+            //   `in lo..hi`      (Int)   -> RANGE refinement (Omega's bounded type): every store to this field
+            //                               owes `value in [lo, hi)`, discharged statically like an array bound.
             let mut domain: u8 = 0;
+            let mut range: Option<(i32, i32)> = None;
             if self.current_kind() == TokenKind::Ident && self.current_text() == b"in" {
                 self.bump(); // in
-                if self.current_kind() == TokenKind::Ident {
+                if self.current_kind() == TokenKind::Int {
+                    let lo = self.parse_int_token()?;
+                    self.expect(TokenKind::Dot)?;
+                    self.expect(TokenKind::Dot)?; // ..
+                    let hi = self.parse_int_token()?;
+                    range = Some((lo, hi));
+                } else if self.current_kind() == TokenKind::Ident {
                     if self.current_text() == b"Wrapping" {
                         domain = 1;
                         self.bump();
@@ -425,7 +448,7 @@ impl<'a> Parser<'a> {
                     }
                 }
             }
-            fields.push(DataFieldInfo { name: field_name, offset, kind, enum_index, domain });
+            fields.push(DataFieldInfo { name: field_name, offset, kind, enum_index, domain, range });
             offset += size;
             // skip any remaining type tokens (e.g. `in Utf8`) up to the separator
             while self.current_kind() != TokenKind::Semi
@@ -619,6 +642,7 @@ impl<'a> Parser<'a> {
         self.state_arg_base = 0;
         self.self_data_type = None;
         self.current_machine_makes_call = false;
+        self.store_obligations = Vec::new();
         self.bump(); // "machine"
 
         // name path: the first segment is the receiver type for a method (`Foo::m`);
@@ -778,6 +802,7 @@ impl<'a> Parser<'a> {
             has_self,
             entry,
             states,
+            store_obligations: std::mem::take(&mut self.store_obligations),
         })
     }
 
@@ -1269,6 +1294,13 @@ impl<'a> Parser<'a> {
                 } else {
                     self.self_field_path(&segments[1..])?
                 };
+                // Range-refined field (`f: i32 in lo..hi`): record the BOUNDED-STORE obligation that the
+                // stored value lies in [lo, hi) (Omega's BoundedAssignment obligation), for static discharge.
+                if segments.len() == 2 {
+                    if let Some((lo, hi)) = self.self_field_range(&segments[1]) {
+                        self.store_obligations.push((value, lo, hi));
+                    }
+                }
                 return Ok(Statement::StoreSelfField(offset, value, domain));
             }
             if segments.len() != 1 {
