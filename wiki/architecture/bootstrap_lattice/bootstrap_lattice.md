@@ -326,6 +326,11 @@ The places this architecture glides over real cost. Build with eyes open.
 
 ## Open questions
 
+> Several of these are now resolved into standing calls in
+> [decisions.md](decisions.md) — Rust-exit order, meaning-by-elaboration, the
+> proof-carrying chain, the soundness-seam policy, and the diversity gaps. This
+> section keeps the questions; that document keeps the answers.
+
 - **Where does meaning start?** The smallest end-to-end slice is (a) a reference
   interpreter for one tiny language that *defines* its meaning, and (b) one
   checkable property about a program in it, with the checker run down the
