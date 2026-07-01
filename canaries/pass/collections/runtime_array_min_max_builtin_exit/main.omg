@@ -1,0 +1,40 @@
+// Find the min AND max of an array in one pass using the `min`/`max` BUILTINS in a reduction --
+// `self.mx = max(self.mx, self.v)` / `self.mn = min(self.mn, self.v)`. The existing min/max
+// canaries cover clamping and signedness; this locks the reduction-over-array pattern, the way a
+// real statistics/rendering pass uses them: seed mn high / mx low, then fold each element in. The
+// element is read from a runtime index into a field (`self.v = self.arr[self.i]`), then combined.
+// arr = [30,50,70,20,60,10] -> mx 70, mn 10; both self-checked. Differential (native==interp).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    arr: [i32 in Wrapping; 6];
+    i: i32 in Wrapping;
+    v: i32 in Wrapping;
+    mn: i32 in Wrapping;
+    mx: i32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.arr[0] = 30; self.arr[1] = 50; self.arr[2] = 70; self.arr[3] = 20; self.arr[4] = 60; self.arr[5] = 10;
+    self.mn = 999;
+    self.mx = 0;
+    self.i = 0;
+    transition { _ -> loop() }
+    state loop(&mut self) {
+        transition self.i < 6 { true -> body() _ -> check() }
+    }
+    state body(&mut self) {
+        self.v = self.arr[self.i];
+        self.mx = max(self.mx, self.v);
+        self.mn = min(self.mn, self.v);
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+    state check(&mut self) {
+        transition self.mx == 70 { true -> check_min() _ -> bad() }
+    }
+    state check_min(&mut self) {
+        transition self.mn == 10 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

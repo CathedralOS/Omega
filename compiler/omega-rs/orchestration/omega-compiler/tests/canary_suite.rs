@@ -11075,6 +11075,34 @@ fn runtime_join_meet_bound_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_array_min_max_builtin_exit_canary_runs() {
+    // The min/max builtins used in a reduction over an array: `self.mx = max(self.mx, self.v)` /
+    // `self.mn = min(self.mn, self.v)`, folding each element read from a runtime index. arr =
+    // [30,50,70,20,60,10] -> mx 70, mn 10, both self-checked -> exit 70.
+    let canary = pass_canary("collections/runtime_array_min_max_builtin_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-minmax-red-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("min/max reduction canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("min/max reduction canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected min/max reduction over an array to compute both extremes (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_guard_subject_exit_canary_runs() {
     // A DIRECT runtime-indexed read as a transition guard subject (`transition self.arr[self.i] > 5`,
     // no local bind) -- the form that used to silently read element 0. Fixed by the frontend
@@ -17253,6 +17281,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_indexed_reduction_loop_exit",
     "collections/runtime_array_max_and_sum_exit",
     "collections/runtime_indexed_guard_subject_exit",
+    "collections/runtime_array_min_max_builtin_exit",
     "core/array_core_surface",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",
