@@ -113,6 +113,13 @@ machine Store::rget(&mut self, i: i32 in 0..16) -> i32 { return self.vals[i]; }
 // The range may be TIGHTER than the array size (0..8 into a 16-slot array): the type's `i < 8` composes
 // with the ground bound 8 <= 16 through lt-le-trans, exactly like the `requires i < 8` weakening above.
 machine Store::rtight(&mut self, i: i32 in 0..8) -> i32 { return self.vals[i]; }
+// BOUNDED-STORE obligation (Omega's BoundedAssignment): a RANGE-refined FIELD `slot: i32 in 0..100` makes
+// every `self.slot = v` owe `v < 100` (the store's value in range), discharged statically. `slit` stores a
+// literal (proved in range by a ground witness); `sparam` stores a range-typed parameter (p: i32 in 0..50),
+// whose type's `p < 50` weakens to `p < 100` via lt-le-trans -- the range PARAM and range FIELD compose.
+data Cell { slot: i32 in 0..100; }
+machine Cell::slit(&mut self) { self.slot = 42; }
+machine Cell::sparam(&mut self, p: i32 in 0..50) { self.slot = p; }
 
 // EXPRESSION CALL ARGUMENT (a + k via commutativity): fwd_off promises `a >= 0` and calls
 // needs3(a + 3), where needs3 requires its argument >= 3. The obligation `(a+3) >= 3` is not ground

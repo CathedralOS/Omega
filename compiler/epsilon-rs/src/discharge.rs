@@ -634,6 +634,54 @@ fn collect_array_obligations(statements: &[Statement], program: &Program, out: &
     }
 }
 
+// Prove an upper-bound obligation `node < bound` for a machine, if statically dischargeable. Shared by
+// array-index bounds (`idx < count`) and range-field STORE bounds (`value < hi`) -- the same proposition
+// shape, so the same witness constructions apply. Returns the cert string, or None (conservative: an
+// undischargeable obligation emits NOTHING, never a false cert).
+fn prove_lt_bound(node: usize, bound: i32, machine: &Machine, program: &Program) -> Option<String> {
+    let p = machine.param_count;
+    match program.expressions[node] {
+        // LITERAL k in [0, bound): a closed ground proof of `k < bound` (witness bound-k-1).
+        Expr::Int(k) if k >= 0 && k < bound => {
+            let body = format!("(= (p {} (s (v 0))) {})", unary(k), unary(bound));
+            Some(format!("(Exists {0}) (wit {0} {1} (refl {2}))", body, unary(bound - k - 1), unary(bound)))
+        }
+        // PARAMETER i with a declared/typed upper bound `i < M` (from a `requires` or a range type).
+        Expr::Local(i) => {
+            let req = machine.preconditions.iter().find_map(|&pc| match param_order(pc, program) {
+                Some((pi, BinaryOp::Lt, m)) if pi == i => Some(m),
+                _ => None,
+            });
+            let idx = format!("(v {})", i + 1); // the index inside the order Exists (gen + Exists)
+            match req {
+                // EXACT (M == bound): forward the precondition (assume i<bound, hand it back).
+                Some(m) if m == bound => order_prop(BinaryOp::Lt, bound, &idx).map(|prop| {
+                    wrap_universal(p, &format!("(-> {0} {0})", prop), &format!("(lam {0} (hyp 0))", prop))
+                }),
+                // WEAKENING (M < bound): compose i<M with the ground M<=bound through lt-le-trans.
+                Some(m) if m >= 0 && m < bound => {
+                    match (order_prop(BinaryOp::Lt, m, &idx), order_prop(BinaryOp::Lt, bound, &idx)) {
+                        (Some(ant), Some(cons)) => {
+                            let ground = format!(
+                                "(wit (= (p {0} (v 0)) {1}) {2} (refl {1}))",
+                                unary(m), unary(bound), unary(bound - m)
+                            );
+                            let proof = format!(
+                                "(lam {ant} (app (app (inst (inst (inst (use {llt}) (v {bd})) {mu}) {cu}) (hyp 0)) {ground}))",
+                                ant = ant, llt = LT_LE_TRANS, bd = i, mu = unary(m), cu = unary(bound), ground = ground
+                            );
+                            Some(wrap_universal(p, &format!("(-> {} {})", ant, cons), &proof))
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 fn discharge_array_bounds(machine_idx: usize, program: &Program) -> Vec<String> {
     let machine = &program.machines[machine_idx];
     let mut obligations = Vec::new();
@@ -641,70 +689,22 @@ fn discharge_array_bounds(machine_idx: usize, program: &Program) -> Vec<String> 
     for block in &machine.states {
         collect_array_obligations(block, program, &mut obligations);
     }
-    let p = machine.param_count;
-    let mut certs = Vec::new();
-    for (idx_node, count) in obligations {
-        match program.expressions[idx_node] {
-            // LITERAL index k in [0, count): a closed proof of `k < count` (witness count-k-1).
-            // Conservative: an out-of-range literal (k >= count) emits NO cert -- never a false one.
-            Expr::Int(k) if k >= 0 && k < count => {
-                let body = format!("(= (p {} (s (v 0))) {})", unary(k), unary(count));
-                certs.push(format!(
-                    "(Exists {0}) (wit {0} {1} (refl {2}))",
-                    body,
-                    unary(count - k - 1),
-                    unary(count)
-                ));
-            }
-            // PARAMETER index i with a declared `requires i < count`: the bounds obligation IS the
-            // precondition, so it is discharged by forwarding it (assume i < count, hand it back) --
-            // the modular memory-safety statement: the access is in bounds under the contract.
-            Expr::Local(i) => {
-                // The tightest declared `requires i < M` upper bound on this index parameter.
-                let req = machine.preconditions.iter().find_map(|&pc| match param_order(pc, program) {
-                    Some((pi, BinaryOp::Lt, m)) if pi == i => Some(m),
-                    _ => None,
-                });
-                let idx = format!("(v {})", i + 1); // the index inside the order Exists (gen + Exists)
-                match req {
-                    // EXACT: the bounds obligation IS the precondition -> forward it (assume i<count,
-                    // hand it back) -- the access is in bounds under the contract.
-                    Some(m) if m == count => {
-                        if let Some(prop) = order_prop(BinaryOp::Lt, count, &idx) {
-                            certs.push(wrap_universal(
-                                p,
-                                &format!("(-> {0} {0})", prop),
-                                &format!("(lam {0} (hyp 0))", prop),
-                            ));
-                        }
-                    }
-                    // WEAKENING: a TIGHTER precondition i<M (M<count) composes with the ground bound
-                    // M<=count through lt-le-trans to discharge the real obligation i<count. Sound: the
-                    // runtime enforces i<M at entry, and M<=count is a literal fact. (m>count can't
-                    // discharge -- i<m allows i in [count,m) -- so it conservatively emits no cert.)
-                    Some(m) if m >= 0 && m < count => {
-                        if let (Some(ant), Some(cons)) = (
-                            order_prop(BinaryOp::Lt, m, &idx),
-                            order_prop(BinaryOp::Lt, count, &idx),
-                        ) {
-                            let ground = format!(
-                                "(wit (= (p {0} (v 0)) {1}) {2} (refl {1}))",
-                                unary(m), unary(count), unary(count - m)
-                            );
-                            let proof = format!(
-                                "(lam {ant} (app (app (inst (inst (inst (use {llt}) (v {bd})) {mu}) {cu}) (hyp 0)) {ground}))",
-                                ant = ant, llt = LT_LE_TRANS, bd = i, mu = unary(m), cu = unary(count), ground = ground
-                            );
-                            certs.push(wrap_universal(p, &format!("(-> {} {})", ant, cons), &proof));
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            _ => {}
-        }
-    }
-    certs
+    obligations
+        .into_iter()
+        .filter_map(|(idx_node, count)| prove_lt_bound(idx_node, count, machine, program))
+        .collect()
+}
+
+// Bounded-STORE obligations (Omega's BoundedAssignment): each `self.f = v` where `f: i32 in lo..hi` owes
+// `v in [lo, hi)`. We discharge the UPPER bound `v < hi` (the memory-safety-shaped half, exactly like an
+// array index) -- for a `0..hi` field this is the whole obligation (the lower bound 0<=v is trivial over the
+// naturals). A range-typed parameter stored into a range field composes: its type's `i < M` weakens to `i < hi`.
+fn discharge_field_stores(machine: &Machine, program: &Program) -> Vec<String> {
+    machine
+        .store_obligations
+        .iter()
+        .filter_map(|&(value_node, _lo, hi)| prove_lt_bound(value_node, hi, machine, program))
+        .collect()
 }
 
 // ---- Constant call arguments (the constant slice of expression-argument obligations) ----------
@@ -829,6 +829,9 @@ pub fn emit_contracts(program: &Program) -> Vec<String> {
         .iter()
         .flat_map(|machine| discharge_machine(machine, program))
         .collect();
+    for machine in &program.machines {
+        certs.extend(discharge_field_stores(machine, program));
+    }
     for caller_idx in 0..program.machines.len() {
         certs.extend(discharge_forwarding(caller_idx, program));
         certs.extend(discharge_const_call_args(caller_idx, program));

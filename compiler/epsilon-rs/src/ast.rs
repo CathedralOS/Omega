@@ -81,6 +81,9 @@ pub struct Machine {
     // machine, the caller must prove these hold for the actual arguments. Each is a raw cond
     // expr node over this machine's parameters (locals 0..param_count). See discharge.rs.
     pub preconditions: Vec<usize>,
+    // Bounded-STORE obligations from range-refined fields (`self.f = v` where `f: i32 in lo..hi`):
+    // each (value node, lo, hi) owes `value in [lo, hi)`, discharged statically. See discharge.rs.
+    pub store_obligations: Vec<(usize, i32, i32)>,
 }
 
 pub struct Program {
