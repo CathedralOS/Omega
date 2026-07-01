@@ -25,6 +25,13 @@ translator — `epsilon-rs/src/gamma_emit.rs` — is **Rust**, so Rust still sat
   It also cross-checks that the Rust-free route agrees with the existing Rust `gamma_emit.rs` route
   (`EPS_EMIT=gamma`) — the two translators converge. Wired into `verify-lattice.sh`.
 
+- **`convergence-reference.sh`** — the payoff: the proof-carrying loop with **no Rust anywhere**. A real
+  certifier (`certify-add`, `certify-product`, `certify-member`, `certify-divides`) is translated by
+  `eps2gamma.beta`, *run* by `interp.beta` to emit a delta certificate, and that certificate is *checked*
+  by `check.beta` — all three in the alpha→beta→bc lineage. A buggy certifier's cert is rejected (the
+  negative control). Needs no cargo/clang (the Rust-free route never compiles native code). Wired into
+  `verify-lattice.sh`.
+
 ## Supported subset (grows slice by slice)
 
 Straight-line integer `main` — a run of `let x: i32 = <expr>;` bindings and a final

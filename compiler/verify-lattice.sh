@@ -44,6 +44,7 @@ step "epsilon meaning (RUST-FREE) — native vs eps2gamma.beta->interp.beta (dia
 step "convergence — epsilon emits a proof; delta checks it" epsilon-rs convergence.sh
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by delta" epsilon-rs convergence-selfhost.sh
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" epsilon-rs convergence-reference.sh
+step "convergence (reference route, RUST-FREE) — eps2gamma.beta->interp.beta; cert checked by check.beta" epsilon convergence-reference.sh
 step "contracts — compiler discharges ensures; delta checks at build" epsilon-rs contracts.sh
 step "contracts — static discharge and runtime asserts agree (soundness)" epsilon-rs discharge-soundness.sh
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
