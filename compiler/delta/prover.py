@@ -677,6 +677,12 @@ def _term_drives_mult(t, d, seen_m=False):  # is (v d) on a first-argument spine
     return False
 
 
+def _is_ueq(p):  # is p a bare UNIVERSAL EQUATION (∀…∀. lhs = rhs)? -- the shape natind-first targets (an
+    while p[0] == "all":  # implication/contract goal is proved by gen + hypothesis discharge, not induction).
+        p = p[1]
+    return p[0] == "="
+
+
 def _drives_mult(p, d=0):  # like _drives but only counts a variable that drives a MULT recursion (the doomed-gen
     h = p[0]               # case worth inducting on FIRST). Pure-`+` goals (interchange, comm, assoc) stay gen-first.
     if h == "pred":
@@ -842,12 +848,16 @@ def _rules(sat, goal):
         rb = prove(sat, goal[2])
         if rb is not None:
             return ("inr", goal[1], rb)
-    # natind FIRST on a TOP-LEVEL (depth 0) arithmetic goal whose OUTER variable drives the recursion. For
-    # such a goal `gen` is doomed -- it freezes the recursion variable into an opaque eigenvar, leaving a stuck
-    # redex (m e …) that no INNER induction can unstick, so the parametric search explodes into unbounded
+    # natind FIRST on a TOP-LEVEL (depth 0) universal-EQUATION goal whose OUTER variable drives the recursion.
+    # For such a goal `gen` is doomed -- it freezes the recursion variable into an opaque eigenvar, leaving a
+    # stuck redex (m e …) that no INNER induction can unstick, so the parametric search explodes into unbounded
     # doomed nested induction before failing. Inducting on the driving variable up front avoids that whole
-    # subtree (both distributivity directions, hence mult-assoc, need this). Inner goals keep gen-first.
-    if goal[0] == "all" and _induction_on[0] and _ind_depth[0] == 0 and _drives_mult(goal[1]):
+    # subtree (both distributivity directions, hence mult-assoc, need this). Restricted to a bare universal
+    # EQUATION (`_is_ueq`): an IMPLICATION goal (a contract like 0<c & a<b ⊢ a*c<b*c) is NOT proved by induction
+    # on its var but by gen + discharging the hypotheses (the directed sum-witness rule) -- inducting there is
+    # doomed and would burn the budget before the real proof runs. Inner goals keep gen-first.
+    if (goal[0] == "all" and _induction_on[0] and _ind_depth[0] == 0
+            and _is_ueq(goal) and _drives_mult(goal[1])):
         ind = _try_natind(sat, goal)
         if ind is not None:
             return ind
@@ -924,6 +934,15 @@ def _rules(sat, goal):
                 rest = path[1:]
                 w = ("p", path[0][1], _sum_right(rest)) if rest else path[0][1]
                 wits.append((w, (_ASSOC, _SUCCL)))
+            if A[0] == "m" and C[0] == "m" and A[2] == C[2]:       # STRICT mult-scaling  0<c & X<Y ⊢ X*c<Y*c :
+                X2, c2, Y2 = A[1], A[2], C[1]                      # goal ∃w.(m X c)+(s w)=(m Y c). From X<Y (fact
+                Ks = [f[1][2][1] for f, _ in sat                  # (p X (s K))=Y) and 0<c (fact (p z (s P))=c),
+                      if f[0] == "=" and f[1][0] == "p" and f[1][1] == X2 and f[2] == Y2 and f[1][2][0] == "s"]
+                Ps = [f[1][2][1] for f, _ in sat                  # witness w = P + K*c, proved by right-distrib:
+                      if f[0] == "=" and f[1][0] == "p" and f[1][1] == ("z",) and f[2] == c2 and f[1][2][0] == "s"]
+                for K in Ks:                                      # Y*c = (X+(s K))*c = X*c + (s K)*c, and (s K)*c
+                    for P in Ps:                                  # = c + K*c = (s P) + K*c = s(P + K*c) since c=s P.
+                        wits.append((("p", P, ("m", K, c2)), (_RDIST,)))
         else:
             wits = []
         for w, lemma_ids in wits:
