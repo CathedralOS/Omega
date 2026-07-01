@@ -1233,6 +1233,18 @@ def to_gamma(term, binders, atoms, ib=()):
     return "(%s %s %s)" % ({"pair": "Pair", "app": "App"}[h], to_gamma(term[1], binders, atoms, ib), to_gamma(term[2], binders, atoms, ib))
 
 
+def _rename_eigs(t, off):  # shift every eigenvariable id in a proof term (and its embedded props/terms) by
+    if not isinstance(t, tuple):   # `off`. Eigenvar ids appear as ("eig", e) terms and as the BARE id in
+        return t                    # (gen e body) and (unpack exterm body e nm pf); atom ids / hyp names are
+    if t[0] == "eig":               # left alone. de Bruijn is recovered from the eig STACK at emit time, so a
+        return ("eig", t[1] + off)  # SHIFT preserves the proof's meaning while making its eigenvars disjoint.
+    if t[0] == "gen":
+        return ("gen", t[1] + off, _rename_eigs(t[2], off))
+    if t[0] == "unpack":
+        return ("unpack", _rename_eigs(t[1], off), _rename_eigs(t[2], off), t[3] + off, t[4], _rename_eigs(t[5], off))
+    return tuple(_rename_eigs(x, off) for x in t)
+
+
 def _inline_uses(t, lemma_proofs):  # splice each (use i) with lemma i's (closed) proof, recursively
     if not isinstance(t, tuple):
         return t
@@ -1241,11 +1253,31 @@ def _inline_uses(t, lemma_proofs):  # splice each (use i) with lemma i's (closed
     return tuple(_inline_uses(x, lemma_proofs) for x in t)
 
 
+_EIG_OFF = 100000  # per-lemma eigenvar offset for inlining: lemma i's eigenvars shift to (i+1)*_EIG_OFF so they
+# can't COLLIDE with the goal proof's (which start at 0 every solve, since _setup resets the counter) or with
+# each other. Without this, splicing a lemma whose eigenvar id matches a goal eigenvar mis-resolves de Bruijn.
+
+
+def _inline_offset(proof):  # inline the def-prelude into `proof`, first making each lemma's eigenvars disjoint
+    if not _used_lemmas[0]:
+        return proof
+    lemmas = [_rename_eigs(pf, (i + 1) * _EIG_OFF) for i, (_, pf) in enumerate(_used_lemmas[0])]
+    return _inline_uses(proof, lemmas)
+
+
+def emit_inline(goal, proof):  # a SELF-CONTAINED check.beta proof: each (use i) is inlined with lemma i's
+    # CLOSED proof, so the proof needs NO def-prelude and can stand alone as one `(def N prop proof)` at a
+    # STABLE id. Same splice as emit_gamma (sound: lemma proofs are closed -> de Bruijn stays correct), but
+    # emitted in check.beta syntax. Lets the prover GENERATE the contract lemma library (one inlined def per
+    # lemma) that discharge.rs cites -- the hand-written .elab base becomes automation output, kernel-checked.
+    proof = _inline_offset(proof)
+    return "%s\t%s" % (beta_prop(goal), to_db(proof, [], tuple(_base_ib)))
+
+
 def emit_gamma(goal, proof):  # `(check PROOF GOAL)` for checker.gamma -- a single proof (no def/use prelude,
     # which gamma lacks). Lemma citations are INLINED: (use i) -> lemma i's proof. Sound because each lemma
     # proof is CLOSED (references only its own binders), so splicing it anywhere keeps the de Bruijn correct.
-    if _used_lemmas[0]:
-        proof = _inline_uses(proof, [pf for _, pf in _used_lemmas[0]])
+    proof = _inline_offset(proof)
     atoms = {}
     g = gamma_prop(goal, atoms)                  # goal first, so its atoms get stable ids
     p = to_gamma(proof, [], atoms, tuple(_base_ib))
@@ -1442,6 +1474,11 @@ def main():
         goal = parse(tokenize(sys.argv[2]))
         proof = solve(goal)
         print("unprovable" if proof is None else emit_gamma(goal, proof))
+        return
+    if sys.argv[1] == "--inline":  # emit a self-contained beta proof (uses inlined): "<prop>\t<proof>". For
+        goal = parse(tokenize(sys.argv[2]))   # GENERATING a contract lemma library (one inlined def per lemma).
+        proof = solve(goal)
+        print("unprovable" if proof is None else emit_inline(goal, proof))
         return
     goal = parse(tokenize(sys.argv[1]))
     proof = solve(goal, int(sys.argv[2]) if len(sys.argv) > 2 else 16)
