@@ -688,10 +688,11 @@ fn prove_lt_bound(node: usize, bound: i32, machine: &Machine, program: &Program)
             }
         }
         // COMPUTED index/value `i + j` (value-domain propagation for `+`): if i, j are parameters with typed
-        // upper bounds `i < A`, `j < B` and A+B == bound, the banked additive-comp lemma (∀A∀B∀x∀y. x<A -> y<B
-        // -> x+y<A+B) discharges `i+j < bound`. So `self.arr[i+j]` with i: 0..A, j: 0..B and len == A+B is
-        // proven in bounds from the operand types -- memory safety for a COMPUTED index. (A+B < bound would
-        // weaken through lt-le-trans; not emitted yet -- conservative, so no false cert.)
+        // upper bounds `i < A`, `j < B` and A+B <= bound, the banked additive-comp lemma (∀A∀B∀x∀y. x<A -> y<B
+        // -> x+y<A+B) discharges `i+j < A+B`. When the array is sized EXACTLY (A+B == len) that IS the goal;
+        // when it has SLACK (A+B < len, the common case) we weaken `i+j < A+B` up to `i+j < len` through the
+        // banked lt-le-trans and a ground `A+B <= len` fact. So `self.arr[i+j]` with i: 0..A, j: 0..B and any
+        // len >= A+B is proven in bounds from the operand types -- memory safety for a COMPUTED index.
         Expr::Binary(BinaryOp::Add, xn, yn) => {
             let pi = match program.expressions[xn] { Expr::Local(i) if i < p => i, _ => return None };
             let pj = match program.expressions[yn] { Expr::Local(j) if j < p => j, _ => return None };
@@ -702,8 +703,8 @@ fn prove_lt_bound(node: usize, bound: i32, machine: &Machine, program: &Program)
                 })
             };
             let (a, b) = (bound_of(pi)?, bound_of(pj)?);
-            if a < 0 || b < 0 || a + b != bound {
-                return None; // EXACT case only for now (A+B == len)
+            if a < 0 || b < 0 || a + b > bound {
+                return None; // the sum's max A+B must FIT the array: A+B <= len
             }
             // param k renders as (v {p-k}) INSIDE the order Exists, (v {p-1-k}) at the proof body (see the
             // param cases above). This cert was verified empirically against the banked lemma before writing.
@@ -711,11 +712,29 @@ fn prove_lt_bound(node: usize, bound: i32, machine: &Machine, program: &Program)
             let idx_j = format!("(v {})", p - pj);
             let (ant_a, ant_b) = (order_prop(BinaryOp::Lt, a, &idx_i)?, order_prop(BinaryOp::Lt, b, &idx_j)?);
             let concl = format!("(Exists (= (p (p {} {}) (s (v 0))) {}))", idx_i, idx_j, unary(bound));
+            // ADD_BOUND instantiated + both antecedents applied: proves `i+j < A+B` (strict, exact operand sum).
             let inst = format!(
                 "(inst (inst (inst (inst (use {}) {}) {}) (v {})) (v {}))",
                 ADD_BOUND, unary(a), unary(b), p - 1 - pi, p - 1 - pj
             );
-            let proof = format!("(lam {} (lam {} (app (app {} (hyp 1)) (hyp 0))))", ant_a, ant_b, inst);
+            let add_proof = format!("(app (app {} (hyp 1)) (hyp 0))", inst);
+            let inner = if a + b == bound {
+                add_proof // EXACT: `i+j < A+B` already IS `i+j < len`.
+            } else {
+                // WEAKENING (A+B < len): lt-le-trans (∀i∀m∀c. i<m -> m<=c -> i<c) with i := i+j, m := A+B,
+                // c := len. First antecedent = add_proof (`i+j < A+B`); second = ground `A+B <= len`.
+                let subj = format!("(p (v {}) (v {}))", p - 1 - pi, p - 1 - pj);
+                let ground = format!(
+                    "(wit (= (p {0} (v 0)) {1}) {2} (refl {1}))",
+                    unary(a + b), unary(bound), unary(bound - (a + b))
+                );
+                format!(
+                    "(app (app (inst (inst (inst (use {llt}) {subj}) {mu}) {cu}) {ap}) {ground})",
+                    llt = LT_LE_TRANS, subj = subj, mu = unary(a + b), cu = unary(bound), ap = add_proof,
+                    ground = ground
+                )
+            };
+            let proof = format!("(lam {} (lam {} {}))", ant_a, ant_b, inner);
             Some(wrap_universal(p, &format!("(-> {} (-> {} {}))", ant_a, ant_b, concl), &proof))
         }
         _ => None,

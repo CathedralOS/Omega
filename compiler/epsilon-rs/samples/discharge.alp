@@ -136,6 +136,12 @@ machine Buf::atidx(&mut self, i: i32 in 0..16) -> i32 { let x: i32 in 0..16 = i;
 data Grid { cells: [u8; 5]; }
 machine Grid::at(&mut self, i: i32 in 0..2, j: i32 in 0..3) -> i32 { return self.cells[i + j]; }
 
+// INTERVAL WEAKENING (A+B < len, the common slack-sized case): same operand bounds (i: 0..2, j: 0..3, so
+// i+j < 5) but a LARGER 8-cell array. `i+j < 8` is proven by weakening `i+j < 5` up through the banked
+// lt-le-trans and a ground `5 <= 8` fact -- arrays needn't be sized to the exact operand-bound sum.
+data Pad { cells: [u8; 8]; }
+machine Pad::at(&mut self, i: i32 in 0..2, j: i32 in 0..3) -> i32 { return self.cells[i + j]; }
+
 // EXPRESSION CALL ARGUMENT (a + k via commutativity): fwd_off promises `a >= 0` and calls
 // needs3(a + 3), where needs3 requires its argument >= 3. The obligation `(a+3) >= 3` is not ground
 // (a is a parameter) but holds whenever a >= 0 -- so it discharges CONDITIONALLY on fwd_off's own
