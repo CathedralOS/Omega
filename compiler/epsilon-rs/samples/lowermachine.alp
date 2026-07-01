@@ -38,7 +38,7 @@ data Main {
     sns: [i32; 3072]; sne: [i32; 3072]; smi: [i32; 3072]; ssi: [i32; 3072];
     qa: i32; qb: i32; qc: i32; qd: i32; qk: i32;
     dig: [i32; 16];
-    buf: [u8; 131072];
+    buf: [u8; 262144];
 }
 machine Main::is_word(&mut self, c: i32) -> i32 {
     transition c == 95 { true -> yes()  false -> w1() }
@@ -632,7 +632,7 @@ machine Main::main(&mut self) {
     self.n = 0; self.phase = 0; self.depth = 0; self.mi = 0 - 1; self.si = 0; self.pend = 0; self.nf = 0; self.dp = 0; self.ind = 0; self.expf = 0; self.nl = 0; self.lpend = 0; self.ns = 0; self.mn = 0; self.mdecl = 0; self.insig = 0; self.np = 0; self.emi = 0; self.nstr = 0; self.osp = 0; self.usesio = 0; self.skl = 0; self.ne = 0;
     transition 0 { _ -> rd() }
     state rd()    { self.c = read_byte(); transition self.c < 0 { true -> scan()  false -> store() } }
-    state store() { transition self.n < 512 * 256 { true -> store2()  false -> rd() } }
+    state store() { transition self.n < 1024 * 256 { true -> store2()  false -> rd() } }   // read cap MUST match buf's size (262144); a smaller cap silently TRUNCATES the source tail past that many bytes -> drops trailing states (e.g. the string-section emitter) -> broken self-compile
     state store2(){ self.buf[self.n] = self.c; self.n = self.n + 1; transition 0 { _ -> rd() } }
     state scan()  { self.pos = 0; transition 0 { _ -> sk() } }
     state sk()    { self.wrap = 0; transition self.pos < self.n { true -> ws()  false -> endph() } }
