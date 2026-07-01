@@ -1,0 +1,343 @@
+; eps2gamma.beta — the epsilon->gamma MEANING translator, written in Beta (Rust-FREE).
+;
+; This is the Rust-free counterpart to epsilon-rs/src/gamma_emit.rs. rungs/epsilon.md says
+; epsilon's meaning is "Written in Delta/Gamma" — defined by the reference interpreter, not the
+; native backend. gamma_emit.rs already pins that meaning, but it is RUST, so the meaning route
+; still had Rust on it. This program removes it: it reads epsilon SOURCE on stdin and PRINTS a
+; gamma s-expression on stdout, which the Rust-free reference interpreter (gamma/interp.beta,
+; built alpha->beta->bc) then runs. Both halves of epsilon's meaning route are now in the
+; Rust-free lineage.
+;
+; SLICE 0 — straight-line integer `main`:
+;   machine Main::main(&mut self) {
+;       let a: i32 = <expr>;                 ; zero or more integer lets
+;       ...
+;       self.console.exit_process(<expr>)    ; terminal: the exit value
+;   }
+; <expr> := integer arithmetic over `+ - * / %`, parens, integer literals, and previously-bound
+; locals. Locals render as gamma `l{index}` (indices, not names — gamma reserves Uppercase-leading
+; idents for constructors). The straight-line body becomes right-nested gamma lets:
+;   (let l0 <e0> (let l1 <e1> ... <terminal>))
+; Comparisons, min/max, states, calls, fields are LATER slices (this grows exactly like the
+; gamma_emit.rs diamond did, slice by slice).
+;
+; Memory (mirrors interp.beta):  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR (arena@3145728)
+; Scratch:  6000000 LCNT  6000008 TERMINAL-node  6000016 NAMES[k]=SRC-offset  6200000 LETS[k]=node
+; AST nodes are 4 words [tag,f0,f1,f2] (32-byte stride):  0 INT(v)  1 LOCAL(idx)  2 BIN(opchar,a,b)
+
+proc slurp() {
+    let n = 0
+    let c = read_byte()
+    state loop { to body when (c >= 0)  to done }
+    state body {
+        byte[2097152 + n] = c
+        n = n + 1
+        c = read_byte()
+        to loop
+    }
+    state done {
+        word[2097136] = n         ; LEN
+        word[2097144] = 0         ; CUR
+        word[2097128] = 3145728   ; APTR (arena base)
+        word[6000000] = 0         ; LCNT
+    }
+}
+
+proc cbyte() {
+    let i = word[2097144]
+    state chk { to hit when (i < word[2097136])  return 0 }
+    state hit { return byte[2097152 + i] }
+}
+
+proc adv() { word[2097144] = word[2097144] + 1 }
+
+proc alloc(tag, f0, f1, f2) {
+    let p = word[2097128]
+    word[p] = tag
+    word[p + 8] = f0
+    word[p + 16] = f1
+    word[p + 24] = f2
+    word[2097128] = p + 32
+    return p
+}
+
+proc is_space(c) {
+    state c1 { to yes when (c == ' ')  to c2 }
+    state c2 { to yes when (c == 9)    to c3 }
+    state c3 { to yes when (c == 10)   to c4 }
+    state c4 { to yes when (c == 13)   return 0 }
+    state yes { return 1 }
+}
+
+proc is_digit(c) {
+    state c1 { to no when (c < '0')  to c2 }
+    state c2 { to no when (c > '9')  return 1 }
+    state no { return 0 }
+}
+
+; an identifier character: [a-zA-Z0-9_]
+proc is_idchar(c) {
+    state a1 { to a2 when (c < 'a')  to yes when (c <= 'z')  to a2 }
+    state a2 { to a3 when (c < 'A')  to yes when (c <= 'Z')  to a3 }
+    state a3 { to a4 when (c < '0')  to yes when (c <= '9')  to a4 }
+    state a4 { to yes when (c == '_')  return 0 }
+    state yes { return 1 }
+}
+
+; skip whitespace and `//` line comments (epsilon uses // not ;). A lone '/' is the divide op.
+proc skip_ws() {
+    state loop {
+        let c = cbyte()
+        to sp when (is_space(c) == 1)
+        to slash when (c == '/')
+        return 0
+    }
+    state sp { adv()  to loop }
+    state slash {
+        to cmt when (byte[2097152 + word[2097144] + 1] == '/')
+        return 0                       ; not `//` -> it's the divide operator
+    }
+    state cmt {
+        to loop when (cbyte() == 10)   ; newline ends the comment (loop eats the \n)
+        to ceof when (cbyte() == 0)
+        adv()
+        to cmt
+    }
+    state ceof { return 0 }
+}
+
+proc skip_ident() {
+    state loop {
+        to body when (is_idchar(cbyte()) == 1)
+        return 0
+    }
+    state body { adv()  to loop }
+}
+
+proc parse_number() {
+    let v = 0
+    state loop {
+        to body when (is_digit(cbyte()) == 1)
+        return v
+    }
+    state body {
+        v = v * 10 + (cbyte() - '0')
+        adv()
+        to loop
+    }
+}
+
+; do the identifiers at SRC offsets o1 and o2 (each ending at a non-idchar) match?
+proc name_eq2(o1, o2) {
+    let i = 0
+    state loop {
+        let c1 = byte[2097152 + o1 + i]
+        let c2 = byte[2097152 + o2 + i]
+        to c1end when (is_idchar(c1) == 0)
+        to mism when (is_idchar(c2) == 0)   ; c1 continues, c2 ended -> mismatch
+        to mism when (c1 != c2)
+        i = i + 1
+        to loop
+    }
+    state c1end { to mism when (is_idchar(c2) == 1)  return 1 }   ; both ended here -> equal
+    state mism { return 0 }
+}
+
+; map an identifier at offset `off` to its local index (its LETS/NAMES slot). -> 0 if unknown.
+proc lookup_local(off) {
+    let k = 0
+    state loop {
+        to nomatch when (k == word[6000000])
+        to hit when (name_eq2(off, word[6000016 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state nomatch { return 0 }
+}
+
+; ---- expression parser: precedence-climbing, builds a left-associative AST ----
+
+proc parse_term() {
+    skip_ws()
+    let c = cbyte()
+    state disp {
+        to paren when (c == '(')
+        to lit when (is_digit(c) == 1)
+        to ident
+    }
+    state ident {                      ; an identifier -> a local reference
+        let off = word[2097144]
+        skip_ident()
+        return alloc(1, lookup_local(off), 0, 0)
+    }
+    state paren {
+        adv()                          ; consume '('
+        let e = parse_sum()
+        skip_ws()
+        adv()                          ; consume ')'
+        return e
+    }
+    state lit { return alloc(0, parse_number(), 0, 0) }
+}
+
+proc parse_product() {
+    let a = parse_term()
+    state loop {
+        skip_ws()
+        let c = cbyte()
+        to mul when (c == '*')
+        to divd when (c == '/')
+        to modo when (c == '%')
+        return a
+    }
+    ; NB each state uses a DISTINCT temp name (bm/bd/bo): bc keys locals by name proc-wide, so
+    ; reusing one name across sibling states collides their slots (mirrors interp's a2/b2, a3/b3).
+    state mul  { adv()  let bm = parse_term()  a = alloc(2, '*', a, bm)  to loop }
+    state divd { adv()  let bd = parse_term()  a = alloc(2, '/', a, bd)  to loop }
+    state modo { adv()  let bo = parse_term()  a = alloc(2, '%', a, bo)  to loop }
+}
+
+proc parse_sum() {
+    let a = parse_product()
+    state loop {
+        skip_ws()
+        let c = cbyte()
+        to add when (c == '+')
+        to sub when (c == '-')
+        return a
+    }
+    state add { adv()  let bp = parse_product()  a = alloc(2, '+', a, bp)  to loop }
+    state sub { adv()  let bs = parse_product()  a = alloc(2, '-', a, bs)  to loop }
+}
+
+; ---- statement/body parser ----
+
+; is the token at CUR the keyword `let`?
+proc is_let() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'l')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'e')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 't')  return 0 }
+    state c4 { to yes when (is_idchar(byte[2097152 + o + 3]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc parse_let() {
+    adv()  adv()  adv()                ; past "let"
+    skip_ws()
+    word[6000016 + word[6000000] * 8] = word[2097144]   ; NAMES[LCNT] = name offset
+    skip_ident()
+    state toeq { to eqfound when (cbyte() == '=')  adv()  to toeq }
+    state eqfound {
+        adv()                          ; past '='
+        skip_ws()
+        let node = parse_sum()
+        word[6200000 + word[6000000] * 8] = node         ; LETS[LCNT] = node
+        word[6000000] = word[6000000] + 1                ; LCNT++
+        to tosemi
+    }
+    state tosemi { to eat when (cbyte() == ';')  adv()  to tosemi }
+    state eat { adv()  return 0 }      ; consume the ';'
+}
+
+; the terminal is `self.console.exit_process(<expr>)` — skip to its '(' then parse the expr.
+proc parse_terminal() {
+    state toopen { to open when (cbyte() == '(')  adv()  to toopen }
+    state open { adv()  word[6000008] = parse_sum()  return 0 }
+}
+
+proc parse_body() {
+    state loop {
+        skip_ws()
+        to done when (cbyte() == '}')
+        to islet when (is_let() == 1)
+        to term
+    }
+    state term { parse_terminal()  return 0 }
+    state islet { parse_let()  to loop }
+    state done { return 0 }
+}
+
+; is the token at CUR the (lowercase) method name `main`?
+proc is_main_here() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'm')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'a')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 'n')  return 0 }
+    state c5 { to yes when (is_idchar(byte[2097152 + o + 4]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+; advance CUR to just past the '{' opening main's body
+proc find_main() {
+    state scan {
+        to hit when (is_main_here() == 1)
+        adv()
+        to scan
+    }
+    state hit { skip_ident()  to brace }
+    state brace { to inside when (cbyte() == '{')  adv()  to brace }
+    state inside { adv()  return 0 }
+}
+
+; ---- printing the gamma s-expr ----
+
+proc emit_dec(n) {
+    state neg { to do_neg when (n < 0)  to big }
+    state do_neg { write_byte('-')  emit_dec(0 - n)  return 0 }
+    state big { to rec when (n >= 10)  to digit }
+    state rec { emit_dec(n / 10)  to digit }
+    state digit { write_byte(n % 10 + '0')  return 0 }
+}
+
+proc print_expr(node) {
+    state s { to isint when (word[node] == 0)  to islocal when (word[node] == 1)  to isbin }
+    state isint { emit_dec(word[node + 8])  return 0 }
+    state islocal { write_byte('l')  emit_dec(word[node + 8])  return 0 }
+    state isbin {
+        write_byte('(')
+        write_byte(word[node + 8])     ; the operator char (gamma prefix op)
+        write_byte(' ')
+        print_expr(word[node + 16])
+        write_byte(' ')
+        print_expr(word[node + 24])
+        write_byte(')')
+        return 0
+    }
+}
+
+proc render() {
+    let k = 0
+    state loop {
+        to done when (k == word[6000000])
+        emit("(let l")                 ; `emit(...)` is a Beta string-literal intrinsic
+        emit_dec(k)
+        write_byte(' ')
+        print_expr(word[6200000 + k * 8])
+        write_byte(' ')
+        k = k + 1
+        to loop
+    }
+    state done {
+        print_expr(word[6000008])      ; TERMINAL
+        let j = 0
+        to close
+    }
+    state close {
+        to fin when (j == word[6000000])
+        write_byte(')')
+        j = j + 1
+        to close
+    }
+    state fin { write_byte(10)  return 0 }
+}
+
+proc main() {
+    slurp()
+    find_main()
+    parse_body()
+    render()
+    return 0
+}
