@@ -238,5 +238,10 @@ I='boundary trait Console { machine exit_process(return_code: i32); machine read
 diao "reverse filter (in+out+array)" "$I machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.c = read_byte(); transition self.c < 0 { true -> su()  false -> st() } } state st() { self.buf[self.n] = self.c; self.n = self.n + 1; transition 0 { _ -> rd() } } state su() { self.i = self.n - 1; transition 0 { _ -> em() } } state em() { transition self.i < 0 { true -> dn()  false -> wr() } } state wr() { self.console.write_byte(self.buf[self.i]); self.i = self.i - 1; transition 0 { _ -> em() } } state dn() { self.console.exit_process(0); } }" "65 66 67 68" "68 67 66 65"
 diao "doubled filter (out+call)" "$I machine inc2(x: i32) -> i32 { return x + x; } machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.c = read_byte(); transition self.c < 0 { true -> dn()  false -> ed() } } state ed() { self.console.write_byte(inc2(self.c)); transition 0 { _ -> rd() } } state dn() { self.console.exit_process(0); } }" "10 20 30" "20 40 60"
 
+# slice 8 (capstone) — SELF-METHODS: `self.m(args)` shares & mutates `self`, threading the unified self-state.
+M='boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; machine write_byte(b: i32); } data Main { console: Console; tmp: i32; }'
+diao "self-method emits pair" "$M machine Main::emitpair(&mut self, v: i32) { self.tmp = v; self.console.write_byte(self.tmp + 65); self.console.write_byte(self.tmp + 66); } machine Main::main(&mut self) { self.emitpair(0); self.emitpair(1); self.console.exit_process(0); }" "" "65 66 66 67"
+diao "self-method echos input" "$M machine Main::emit(&mut self, v: i32) { self.console.write_byte(v); } machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.tmp = read_byte(); transition self.tmp < 0 { true -> dn()  false -> ec() } } state ec() { self.emit(self.tmp + 1); transition 0 { _ -> rd() } } state dn() { self.console.exit_process(0); } }" "65 66 67" "66 67 68"
+
 echo "eps2gamma diamond (native == Rust-free eps2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

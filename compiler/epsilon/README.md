@@ -67,7 +67,16 @@ Rust-free translator one at a time).
   returns `(rev out Nil)` (the accumulated stdout) instead of the exit code — interp already prints the
   list, so the diamond compares native stdout bytes to the printed ints. The `rev` helper is prepended
   when the entry writes.
-- **Next** — self-method calls (`self.m(args)` threading unified self-state) — the certifier capstone.
+- **Slice 8 (capstone)** — **self-method calls**: `machine Main::m(&mut self, params) { … }` shares the
+  caller's `self`. The self-state `{fields, arrays, inp, out}` is *unified* (the union over the entry and
+  every method) and threaded as extra params. A void method returns its self-state **bundle** (`0` / the
+  sole slot / right-nested `Pair`s); a call `self.m(a);` becomes `(let nss <call> rest)` (1 slot) or
+  `(match <call> ((Pair a0 r0) … rest))` (N slots), rebinding the self-slots to fresh names.
+
+**With slice 8, epsilon's meaning is fully Rust-free** — every language feature (arithmetic, comparisons,
+state machines, self fields/arrays, cross-machine calls + recursion, stdin, stdout, self-methods) is
+translated by `eps2gamma.beta` and run by `interp.beta`, both in the alpha→beta→bc lineage. `gamma_emit.rs`
+is now retired from epsilon's *meaning* (it remains only as the diamond's Rust cross-check).
 
 ## The long game
 
