@@ -173,6 +173,10 @@ ok "(All (-> (Lt (v 0) z) (bot)))"                             # a < 0 -> bot   
 ok "(All (-> (Le (v 0) z) (= (v 0) z)))"                       # a <= 0 -> a=0  (0 is the order-minimum)
 ok "(All (All (-> (= (p (v 1) (v 0)) z) (= (v 1) z))))"        # a+b=0 -> a=0   (additive positivity, left)
 ok "(All (All (-> (= (p (v 1) (v 0)) z) (= (v 0) z))))"        # a+b=0 -> b=0   (additive positivity, right)
+ok "(All (-> (= (s (v 0)) z) (bot)))"                          # s a = 0 -> bot (Peano's 3rd axiom, explicit)
+ok "(All (Lt z (s (v 0))))"                                   # 0 < s a        (every successor is positive)
+ok "(All (-> (Lt (s (v 0)) (v 0)) (bot)))"                    # s a < a -> bot (nothing is below its predecessor)
+ok "(All (All (-> (Le (v 1) (v 0)) (Le (s (v 1)) (s (v 0))))))" # a<=b -> s a <= s b (successor MONOTONE; forward dual of succ-<=-cancel)
 no "(All (-> (Lt z (v 0)) (bot)))"                            # 0 < a -> bot is FALSE (a=1)
 no "(All (-> (Le (v 0) z) (Lt (v 0) z)))"                     # a<=0 does NOT give a<0 (a=0)
 # STRICT mult-mono needs a POSITIVITY guard (a<b => a*c<b*c is FALSE at c=0). With 0<c it discharges via the
