@@ -9,6 +9,7 @@ use crate::descriptor_argument_blockers::collect_descriptor_argument_blockers;
 use crate::required_emission_verification::verify_required_items_emitted;
 use crate::runtime_text_blockers::collect_state_value_blockers;
 use crate::semantic_scope::{proof_scope_suffix, state_name};
+use crate::shared_value_call_slot_blockers::collect_shared_value_call_slot_blockers;
 use crate::state_call_blockers::collect_state_call_blockers;
 use crate::state_codegen_blockers::collect_state_codegen_blockers;
 use crate::state_guard_blockers::collect_state_guard_blockers;
@@ -77,6 +78,11 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
         needs_runtime_dispatch,
         &mut blockers,
     );
+    if !needs_runtime_dispatch {
+        // Native inline emission shares a pure computing machine's result slot across multiple
+        // value-calls in one state; block that shape until per-call-site slots exist.
+        collect_shared_value_call_slot_blockers(input, &mut blockers);
+    }
     collect_state_storage_blockers(input, needs_runtime_dispatch, &mut blockers);
     if needs_runtime_dispatch {
         collect_state_guard_blockers(input, &mut blockers);
