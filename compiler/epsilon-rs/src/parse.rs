@@ -1579,6 +1579,17 @@ impl<'a> Parser<'a> {
                     self.current_machine_makes_call = true;
                     return Ok(self.add_expression(Expr::ReadByte));
                 }
+                // min(a, b) / max(a, b) builtins — Omega's clamping idiom `max(lo, min(v, hi))`. Two-argument
+                // intrinsics (not machines), lowered to a branchless cmp+csel; no overflow, so no domain/trap.
+                if (name == b"min" || name == b"max") && self.current_kind() == TokenKind::LParen {
+                    self.bump(); // (
+                    let a = self.parse_expression()?;
+                    self.expect(TokenKind::Comma)?;
+                    let b = self.parse_expression()?;
+                    self.expect(TokenKind::RParen)?;
+                    let node = if name == b"min" { Expr::Min(a, b) } else { Expr::Max(a, b) };
+                    return Ok(self.add_expression(node));
+                }
                 if self.current_kind() == TokenKind::ColonColon {
                     if let Some(enum_index) = self.find_enum(&name) {
                         self.bump(); // ::

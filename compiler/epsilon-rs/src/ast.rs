@@ -28,6 +28,8 @@ pub enum Expr {
     SelfField(i32),                 // read self.<field> (scalar at this byte offset)
     SelfIndex(i32, i32, i32, usize), // read self.<array>[index]; (byte offset, count, element_bytes, index node)
     ReadByte,                       // next byte from stdin, or -1 at EOF
+    Min(usize, usize),              // min(a, b) builtin: the smaller of two i32s (signed); a, b node indices
+    Max(usize, usize),              // max(a, b) builtin: the larger of two i32s (signed)
     Binary(BinaryOp, usize, usize), // op, lhs node, rhs node (indices into `expressions`)
     Call(usize, usize, usize),      // free call: machine index, args_start (into call_args), arg_count
     SelfCall(usize, usize, usize),  // method call self.m(args): passes self in rcx + args; same triple

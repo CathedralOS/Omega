@@ -140,6 +140,7 @@ run "locals (a=10; b=a-3; b*2)" samples/locals.alp 14
 run "modulo (% operator + precedence)" samples/modulo.alp 222
 run "bitwise (& | ^ + precedence)" samples/bitops.alp 125
 run "shifts (<< >> + field-build idiom)" samples/shifts.alp 129
+run "min/max (clamp idiom max(0,min(v,60)))" samples/minmax.alp 200
 run "unary minus (-x, negative literals)" samples/negate.alp 36
 run "tag-only enum (decl + ::variant + exhaustive match)" samples/enum.alp 7
 run "state params (loop carries i,acc -> 16)" samples/stateparams.alp 16

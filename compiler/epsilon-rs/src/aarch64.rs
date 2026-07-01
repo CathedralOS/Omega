@@ -419,6 +419,17 @@ fn lower_expression(node: usize, program: &Program, self_disp: i32, asm: &mut St
             }
             asm.push_str("    str x0, [sp, #-16]!\n"); // push result
         }
+        Expr::Min(lhs, rhs) | Expr::Max(lhs, rhs) => {
+            lower_expression(lhs, program, self_disp, asm);
+            lower_expression(rhs, program, self_disp, asm);
+            asm.push_str("    ldr x1, [sp], #16\n"); // pop rhs (b)
+            asm.push_str("    ldr x0, [sp], #16\n"); // pop lhs (a)
+            asm.push_str("    cmp w0, w1\n");
+            // min: a if a<b else b (lt); max: a if a>b else b (gt) — signed, branchless csel.
+            let cond = if matches!(program.expressions[node], Expr::Min(..)) { "lt" } else { "gt" };
+            asm.push_str(&format!("    csel w0, w0, w1, {}\n", cond));
+            asm.push_str("    str x0, [sp, #-16]!\n"); // push result
+        }
         Expr::ReadByte => {
             // read(0, &_iobyte, 1); result = (count >= 1) ? _iobyte : -1 (branchless).
             asm.push_str("    mov x0, #0\n"); // fd = stdin
