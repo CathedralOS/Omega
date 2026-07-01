@@ -524,6 +524,34 @@ pub fn runtime_frame_base_indexed_binary_write_width(
         + runtime_result_write_width(0, byte_size)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_machine_indexed_binary_write_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    _index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    // aarch64 does not emit this instruction (the encoder returns a clean
+    // error); reuse the frame-base layout as a conservative total width.
+    runtime_frame_base_indexed_binary_write_width(
+        runtime_value_operands,
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+    )
+}
+
 pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
 }

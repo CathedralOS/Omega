@@ -474,6 +474,22 @@ pub enum AbstractOperationKind {
         operator: StateGuardOperator,
         right: AbstractValueOperandHandle,
     },
+    /// Write a computed binary value into a MACHINE-owned runtime-indexed array
+    /// element (`self.arr[self.i] = a OP b`). The machine-region sibling of
+    /// `WriteRuntimeFrameBaseIndexedBinary`: the base relocates against the
+    /// machine-storage symbol (not the frame), and `index_region` names where the
+    /// index operand lives (mirrors `WriteRuntimeMachineIndexedInteger`).
+    WriteRuntimeMachineIndexedBinary {
+        base_byte_offset: usize,
+        index_region: RuntimeStorageRegion,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        left: AbstractValueOperandHandle,
+        operator: StateGuardOperator,
+        right: AbstractValueOperandHandle,
+    },
     WriteRuntimeMachineString {
         byte_offset: usize,
         data: AbstractDataObjectHandle,

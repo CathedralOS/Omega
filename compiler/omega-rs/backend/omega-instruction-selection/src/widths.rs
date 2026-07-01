@@ -776,6 +776,47 @@ pub fn runtime_frame_base_indexed_binary_write_width(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_machine_indexed_binary_write_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_machine_indexed_binary_write_width(
+            runtime_value_operands,
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+        Architecture::X86_64 => {
+            let _ = (base_byte_offset, index_offset, element_byte_size, field_byte_offset);
+            x86_64::runtime_machine_indexed_binary_write_width(
+                runtime_value_operands,
+                index_region,
+                byte_size,
+                left,
+                operator,
+                right,
+            )
+        }
+    }
+}
+
 /// Byte offset of the left value operand within a frame-base-indexed binary
 /// write (i.e. the length of the target-address-computation prefix).
 pub fn runtime_frame_base_indexed_binary_left_operand_offset(

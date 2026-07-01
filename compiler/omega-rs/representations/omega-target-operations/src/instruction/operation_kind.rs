@@ -382,6 +382,22 @@ pub enum TargetOperationKind {
         operator: StateGuardOperator,
         right: TargetValueOperandHandle,
     },
+    /// Machine-region sibling of `WriteRuntimeFrameBaseIndexedBinary`: writes a
+    /// computed binary value into a MACHINE-owned runtime-indexed array element
+    /// (`self.arr[self.i] = a OP b`). Base relocates against the machine-storage
+    /// symbol; `index_region` names where the index operand lives (mirrors
+    /// `WriteRuntimeMachineIndexedInteger`).
+    WriteRuntimeMachineIndexedBinary {
+        base_byte_offset: usize,
+        index_region: RuntimeStorageRegion,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        left: TargetValueOperandHandle,
+        operator: StateGuardOperator,
+        right: TargetValueOperandHandle,
+    },
     WriteRuntimeMachineString {
         byte_offset: usize,
         data: TargetDataObjectHandle,

@@ -1385,6 +1385,24 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     Ok(bytes)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_indexed_binary_write(
+    _runtime_value_operands: &impl RuntimeValueOperandSource,
+    _base_byte_offset: usize,
+    _index_region: omega_target_operations::RuntimeStorageRegion,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+    _left: RuntimeValueOperandHandle,
+    _operator: StateGuardOperator,
+    _right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "aarch64 encoder does not yet support a machine-indexed binary write".to_string(),
+    ))
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     source_offset: usize,
     descriptor_offset: usize,

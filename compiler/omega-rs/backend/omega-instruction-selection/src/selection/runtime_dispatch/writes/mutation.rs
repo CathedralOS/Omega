@@ -1887,6 +1887,29 @@ fn select_runtime_binary_mutation_write(
         );
     }
 
+    // Machine-owned runtime-indexed array element: `self.arr[self.i] = a OP b`.
+    // Sibling of the frame-base branch above, targeting the MACHINE region (like
+    // `WriteRuntimeMachineIndexedInteger`). Placed after the frame-base branch and
+    // before the pointee branch.
+    if let Some(indexed_target) = resolve_runtime_machine_indexed_target(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
+            base_byte_offset: indexed_target.base_byte_offset,
+            index_region: indexed_target.index_region,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            left,
+            operator,
+            right,
+        });
+    }
+
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
         input,
         dispatch_index,

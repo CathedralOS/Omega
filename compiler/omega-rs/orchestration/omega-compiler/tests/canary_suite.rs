@@ -11075,6 +11075,36 @@ fn runtime_join_meet_bound_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_computed_indexed_write_exit_canary_runs() {
+    // A computed value written straight into a runtime-indexed machine array element
+    // (`self.arr[self.j] = self.j * 10`, no field temp). A non-zero `marker` field sits right
+    // after the index field, guarding the 32-bit zero-extending index load (a 64-bit load would
+    // pull `marker` into the index's high dword and store out of bounds). Fills [0..40] -> sum
+    // 100 and marker survives -> exit 70.
+    let canary = pass_canary("collections/runtime_computed_indexed_write_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-computed-indexed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("computed indexed-write canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("computed indexed-write canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a computed value stored straight into a runtime-indexed element to fill correctly and not corrupt the neighbouring field (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
     // The sound pattern for filling an array with computed values in a write-first loop: a computed
     // value goes to a field, then the field (a machine-resident source) is copied to the runtime-
@@ -17105,6 +17135,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_loop_counter_init_hoisted_exit",
     "collections/runtime_nested_loop_fill_exit",
     "collections/runtime_computed_array_fill_via_temp_exit",
+    "collections/runtime_computed_indexed_write_exit",
     "core/array_core_surface",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",
