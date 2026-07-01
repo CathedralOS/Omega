@@ -17283,6 +17283,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/subtraction_spelling_retired",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/terminal_return_type_mismatch_rejected",
+    "calls/shared_value_call_slot_rejected",
     "capabilities/duplicate_provider_declaration",
     "capabilities/effect_ceiling_exceeded",
     "capabilities/effect_outside_trait_requirement",
