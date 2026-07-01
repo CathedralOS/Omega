@@ -821,6 +821,25 @@ def _strict_base(p):  # if p is a strict-Lt fact `(= (p A (s K)) B)` (what unpac
     return None
 
 
+def _cancel0_shape(goal):  # a CANCEL0-like goal: ∀…∀. (eq -> … -> eq) where the OUTERMOST bound var is a BARE
+    n = 0; p = goal            # side of some ANTECEDENT equation (e.g. a+m=a, RHS bare `a`). Inducting on that var
+    while p[0] == "all":       # UP FRONT (natind-first) avoids the doomed gen-first budget burn that otherwise
+        n += 1; p = p[1]       # starves the real natind-on-that-var. Distinguishes CANCEL0 (outer var bare in an
+    if n == 0 or p[0] != "->": # antecedent) from add-cancel-right (outer var only inside `p`, so its right
+        return False           # induction var is the INNER common addend, correctly reached by gen+fallback).
+    iv = ("v", n - 1)
+    while p[0] == "->":
+        if p[1][0] == "=" and (p[1][1] == iv or p[1][2] == iv):
+            q = goal
+            while q[0] == "all": q = q[1]
+            while q[0] == "->":          # and every antecedent + the conclusion must be an equation (so Lt/Le=ex
+                if q[1][0] != "=": return False   # contract goals, proved by gen+sum-witness, are excluded)
+                q = q[2]
+            return q[0] == "="
+        p = p[2]
+    return False
+
+
 def _rules(sat, goal):
     # axiom: the goal is already in (the saturation of) the context
     direct = has(sat, goal)
@@ -869,7 +888,7 @@ def _rules(sat, goal):
     # on its var but by gen + discharging the hypotheses (the directed sum-witness rule) -- inducting there is
     # doomed and would burn the budget before the real proof runs. Inner goals keep gen-first.
     if (goal[0] == "all" and _induction_on[0] and _ind_depth[0] == 0
-            and _is_ueq(goal) and _drives_mult(goal[1])):
+            and ((_is_ueq(goal) and _drives_mult(goal[1])) or _cancel0_shape(goal))):
         ind = _try_natind(sat, goal)
         if ind is not None:
             return ind
