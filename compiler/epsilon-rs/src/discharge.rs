@@ -53,6 +53,8 @@ const MULT_COMMUTES: usize = 3; // ∀x∀y. x * y = y * x
 const ADD_ASSOC: usize = 4; // ∀v0∀v1∀v2. (v0+v2)+v1 = v0+(v2+v1)  (inst order is v2,v1,v0)
 const MULT_ASSOC: usize = 5; // ∀a∀b∀c. (a*b)*c = a*(b*c)  (inst order a,b,c)
 const LT_LE_TRANS: usize = 6; // ∀i∀m∀c. i<m -> m<=c -> i<c
+const ADD_BOUND: usize = 13; // ∀A∀B∀x∀y. x<A -> y<B -> x+y<A+B  (banked as a def/use BLOCK, ids 7..13, since
+// its proof reuses add-comm 270+× and inlining explodes past the checker's working set; prover-contract-lib.py)
 
 // Translate an epsilon expression to a raw delta-checker term, each parameter rendered as the
 // de Bruijn variable `(v i+shift)`. Returns None outside the checkable arithmetic fragment
@@ -684,6 +686,37 @@ fn prove_lt_bound(node: usize, bound: i32, machine: &Machine, program: &Program)
                 }
                 _ => None,
             }
+        }
+        // COMPUTED index/value `i + j` (value-domain propagation for `+`): if i, j are parameters with typed
+        // upper bounds `i < A`, `j < B` and A+B == bound, the banked additive-comp lemma (∀A∀B∀x∀y. x<A -> y<B
+        // -> x+y<A+B) discharges `i+j < bound`. So `self.arr[i+j]` with i: 0..A, j: 0..B and len == A+B is
+        // proven in bounds from the operand types -- memory safety for a COMPUTED index. (A+B < bound would
+        // weaken through lt-le-trans; not emitted yet -- conservative, so no false cert.)
+        Expr::Binary(BinaryOp::Add, xn, yn) => {
+            let pi = match program.expressions[xn] { Expr::Local(i) if i < p => i, _ => return None };
+            let pj = match program.expressions[yn] { Expr::Local(j) if j < p => j, _ => return None };
+            let bound_of = |param: usize| {
+                machine.preconditions.iter().find_map(|&pc| match param_order(pc, program) {
+                    Some((k, BinaryOp::Lt, m)) if k == param => Some(m),
+                    _ => None,
+                })
+            };
+            let (a, b) = (bound_of(pi)?, bound_of(pj)?);
+            if a < 0 || b < 0 || a + b != bound {
+                return None; // EXACT case only for now (A+B == len)
+            }
+            // param k renders as (v {p-k}) INSIDE the order Exists, (v {p-1-k}) at the proof body (see the
+            // param cases above). This cert was verified empirically against the banked lemma before writing.
+            let idx_i = format!("(v {})", p - pi);
+            let idx_j = format!("(v {})", p - pj);
+            let (ant_a, ant_b) = (order_prop(BinaryOp::Lt, a, &idx_i)?, order_prop(BinaryOp::Lt, b, &idx_j)?);
+            let concl = format!("(Exists (= (p (p {} {}) (s (v 0))) {}))", idx_i, idx_j, unary(bound));
+            let inst = format!(
+                "(inst (inst (inst (inst (use {}) {}) {}) (v {})) (v {}))",
+                ADD_BOUND, unary(a), unary(b), p - 1 - pi, p - 1 - pj
+            );
+            let proof = format!("(lam {} (lam {} (app (app {} (hyp 1)) (hyp 0))))", ant_a, ant_b, inst);
+            Some(wrap_universal(p, &format!("(-> {} (-> {} {}))", ant_a, ant_b, concl), &proof))
         }
         _ => None,
     }

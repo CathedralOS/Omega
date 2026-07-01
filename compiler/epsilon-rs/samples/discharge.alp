@@ -130,6 +130,11 @@ machine rparam(p: i32 in 0..50) -> i32 in 0..100 { return p; }
 // computed index carries its domain. (The let's own initializer obligation `i < 16` is discharged too.)
 data Buf { data: [u8; 16]; }
 machine Buf::atidx(&mut self, i: i32 in 0..16) -> i32 { let x: i32 in 0..16 = i; return self.data[x]; }
+// VALUE-DOMAIN PROPAGATION for `+` (Omega's interval reasoning): a COMPUTED index `self.cells[i+j]` with
+// i: 0..2, j: 0..3 into a 5-cell array proves `i+j < 5` from the operand types, via the banked additive-comp
+// lemma (x<A & y<B => x+y<A+B). Memory safety for a computed index -- the sum of two bounded values is bounded.
+data Grid { cells: [u8; 5]; }
+machine Grid::at(&mut self, i: i32 in 0..2, j: i32 in 0..3) -> i32 { return self.cells[i + j]; }
 
 // EXPRESSION CALL ARGUMENT (a + k via commutativity): fwd_off promises `a >= 0` and calls
 // needs3(a + 3), where needs3 requires its argument >= 3. The obligation `(a+3) >= 3` is not ground
