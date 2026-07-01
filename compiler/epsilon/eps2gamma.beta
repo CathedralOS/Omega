@@ -5,14 +5,17 @@
 ; removes it — reads epsilon SOURCE on stdin, prints a gamma s-expr on stdout, which the Rust-free
 ; reference interpreter (gamma/interp.beta) runs. Both halves of the meaning route are now Rust-free.
 ;
-; SUPPORTED SUBSET — an entry machine `Main::main(&mut self)` (i32 locals + scalar i32 self-fields) plus
-; zero or more value-returning FREE machines `machine name(p: i32, ...) -> i32 { ... }` it may CALL (no
-; self / arrays / read_byte in a callee yet):
-;   <expr> := int arithmetic + - * / %, parens, ints, locals, `self.f` field reads, comparisons
-;             < > <= >= == != (via interp's eq/lt), and calls `name(<expr>, ...)`.
-;   <stmt> := `x = <expr>;` local assign  |  `self.f = <expr>;` field write.
+; SUPPORTED SUBSET — an entry machine `Main::main(&mut self)` (i32 locals, scalar i32 self-fields, i32
+; self-arrays) plus zero or more value-returning FREE machines `machine name(p: i32, ...) -> i32 { ... }`
+; it may CALL (a callee has no self / read_byte yet):
+;   <expr> := int arithmetic + - * / %, parens, ints, locals, `self.f` field reads, `self.arr[<expr>]`
+;             array reads, comparisons < > <= >= == != (via interp's eq/lt), and calls `name(<expr>, ...)`.
+;   <stmt> := `x = <expr>;` local assign  |  `self.f = <expr>;` field write  |  `self.arr[<expr>] = <expr>;`.
 ;   <terminal> := `transition <subj> { <pat> -> <state>() ... }` (pat = int|true|false|_, last=default)
 ;              |  `self.console.exit_process(<expr>)` (entry)  |  `return <expr>;` (free machine).
+; Self-arrays thread as gamma LIST slots a{i} (after locals+fields), zero-init `(Cons 0 .. Nil)` of the
+; length in `data Main { arr: [i32; N]; }`; reads -> `(nth a{i} ix)`, writes -> `(setl a{i} ix v)`; the
+; nth/setl helper defs are prepended when the entry uses arrays.
 ;
 ; Emission (matching gamma_emit.rs slices 3-5): EVERY machine becomes mutually-recursive gamma defs
 ; `(def m{mi}_me (SIG) <entry>) (def m{mi}_s{k} (SIG) <state k>) ...`, SIG = its locals l0.. (++ the
@@ -198,6 +201,18 @@ proc lookup_machine(off) {
     state nomatch { return 0 }
 }
 
+proc array_lookup(off) {
+    let k = 0
+    state loop {
+        to nomatch when (k == word[6000040])                ; ARRAY_CNT
+        to hit when (name_eq2(off, word[6820000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state nomatch { return 0 }
+}
+
 ; ---- expression parser: precedence-climbing, builds a left-associative AST ----
 
 ; call arguments -> a chain of ARG(expr, next) nodes (0 if none). Preserves order.
@@ -237,12 +252,21 @@ proc parse_term() {
         adv()                          ; consume ')'
         return alloc(4, lookup_machine(off), ch, 0)
     }
-    state selffield {                  ; self.NAME -> a field read
+    state selffield {                  ; self.NAME -> a field read, or self.arr[ix] -> an array read
         skip_ident()                   ; past "self"
         adv()                          ; past '.'
         let foff = word[2097144]
         skip_ident()
+        skip_ws()
+        to arrread when (cbyte() == '[')
         return alloc(3, field_lookup(foff), 0, 0)
+    }
+    state arrread {
+        adv()                          ; consume '['
+        let ix = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ']'
+        return alloc(6, array_lookup(foff), ix, 0)
     }
     state paren {
         adv()
@@ -429,6 +453,12 @@ proc print_fcurname(g) {
     state isT { write_byte('t')  emit_dec(word[6430000 + g * 8])  return 0 }
 }
 
+proc print_acurname(a) {
+    state k { to isA when (word[6440000 + a * 8] == 0)  to isT }
+    state isA { write_byte('a')  emit_dec(a)  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6450000 + a * 8])  return 0 }
+}
+
 proc emit_zeros(n) {
     let k = 0
     state loop { to done when (k == n)  emit(" 0")  k = k + 1  to loop }
@@ -452,11 +482,13 @@ proc print_expr(node) {
         to islocal when (word[node] == 1)
         to isfield when (word[node] == 3)
         to iscall when (word[node] == 4)
+        to isaread when (word[node] == 6)
         to isbin
     }
     state isint { emit_dec(word[node + 8])  return 0 }
     state islocal { print_curname(word[node + 8])  return 0 }
     state isfield { print_fcurname(word[node + 8])  return 0 }
+    state isaread { emit("(nth ")  print_acurname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
     state iscall {                     ; (m{callee}_me <args> <zeros for non-param locals>)
         let callee = word[node + 8]
         emit("(m")  emit_dec(callee)  emit("_me")
@@ -511,16 +543,24 @@ proc emit_call_state(tgt) {
         to lloop
     }
     state fields {
-        to dofields when (mi == word[6000008])             ; entry -> append fields
+        to dofields when (mi == word[6000008])             ; entry -> append fields + arrays
         to done
     }
     state dofields { let g = 0  to floop }
     state floop {
-        to done when (g == word[6000024])                  ; FIELD_CNT
+        to arrs when (g == word[6000024])                  ; FIELD_CNT
         write_byte(' ')
         print_fcurname(g)
         g = g + 1
         to floop
+    }
+    state arrs { let ai = 0  to aloop }
+    state aloop {
+        to done when (ai == word[6000040])                 ; ARRAY_CNT
+        write_byte(' ')
+        print_acurname(ai)
+        ai = ai + 1
+        to aloop
     }
     state done { write_byte(')')  return 0 }
 }
@@ -542,11 +582,19 @@ proc reset_curname(mi) {
     }
     state dofields { let g = 0  to floop }
     state floop {
-        to done when (g == word[6000024])
+        to arrs when (g == word[6000024])
         word[6420000 + g * 8] = 0
         word[6430000 + g * 8] = g
         g = g + 1
         to floop
+    }
+    state arrs { let ai = 0  to aloop }
+    state aloop {
+        to done when (ai == word[6000040])
+        word[6440000 + ai * 8] = 0
+        word[6450000 + ai * 8] = ai
+        ai = ai + 1
+        to aloop
     }
     state done { return 0 }
 }
@@ -689,16 +737,18 @@ proc translate_block(mi, off) {
         print_expr(e)
         to close
     }
-    state t_self {                     ; entry: field store, or the console exit
+    state t_self {                     ; entry: array write, field store, or the console exit
         skip_ident()                   ; past "self"
         adv()                          ; past '.'
         let foff = word[2097144]
         skip_ident()                   ; past NAME
         skip_ws()
+        to t_awrite when (cbyte() == '[')
         to t_fstore when (cbyte() == '=')
         emit_exit()
         to close
     }
+    state t_awrite { do_array_write(array_lookup(foff))  depth = depth + 1  to loop }
     state t_fstore { do_write_slot(6420000, 6430000, field_lookup(foff))  depth = depth + 1  to loop }
     state close { let j = 0  to closed }
     state closed { to fin when (j == depth)  write_byte(')')  j = j + 1  to closed }
@@ -877,11 +927,91 @@ proc collect_fields() {
         skip_ident()                   ; past NAME
         skip_ws()
         to skipb when (cbyte() == '.')  ; self.console. -> boundary, not a field
+        to skipb when (cbyte() == '[')  ; self.arr[..] -> an array, not a scalar field
         add_field(foff)
         to loop
     }
     state skipb { to loop }
     state done { return 0 }
+}
+
+proc is_data() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'd')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'a')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 't')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 'a')  return 0 }
+    state c5 { to yes when (is_idchar(byte[2097152 + o + 4]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+; parse the `data Main { ... }` declaration for array fields `NAME: [i32; N];` -> ARRAY_NAME/ACOUNT.
+; (scalar fields are discovered by the body scan; arrays need their length from the declaration.)
+proc collect_arrays() {
+    word[6000040] = 0                  ; ARRAY_CNT
+    word[2097144] = 0                  ; CUR = 0
+    state find {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to found when (is_data() == 1)
+        to skip when (is_idchar(cbyte()) == 1)
+        adv()
+        to find
+    }
+    state skip { skip_ident()  to find }
+    state found { skip_ident()  to tobrace }        ; past "data"
+    state tobrace { to atbrace when (cbyte() == '{')  adv()  to tobrace }
+    state atbrace { adv()  to floop }               ; consume '{'
+    state floop {
+        skip_ws()
+        to done when (cbyte() == '}')
+        let noff = word[2097144]
+        skip_ident()                   ; field NAME
+        skip_ws()
+        adv()                          ; consume ':'
+        skip_ws()
+        to isarr when (cbyte() == '[')
+        to fskip                       ; a scalar field -> skip to ';'
+    }
+    state isarr {
+        word[6820000 + word[6000040] * 8] = noff    ; ARRAY_NAME[ac] = noff
+        adv()                          ; consume '['
+        to arrsemi
+    }
+    state arrsemi { to atsemi when (cbyte() == ';')  adv()  to arrsemi }   ; skip "i32" to the inner ';'
+    state atsemi {
+        adv()                          ; consume inner ';'
+        skip_ws()
+        word[6840000 + word[6000040] * 8] = parse_number()    ; ACOUNT[ac] = length
+        word[6000040] = word[6000040] + 1                     ; ARRAY_CNT++
+        to fskip
+    }
+    state fskip { to fsemi when (cbyte() == ';')  adv()  to fskip }        ; skip to the field's ';'
+    state fsemi { adv()  to floop }
+    state done { return 0 }
+}
+
+; self.arr[ix] = val;  ->  emit `(let t{fresh} (setl <arr> <ix> <val>) ` and rebind the array slot.
+proc do_array_write(arr) {
+    adv()                              ; consume '['
+    let ix = parse_cmp()
+    skip_ws()
+    adv()                              ; consume ']'
+    state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
+    state eat {
+        adv()                          ; consume '='
+        skip_ws()
+        let val = parse_cmp()
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        emit("(setl ")  print_acurname(arr)  write_byte(' ')  print_expr(ix)  write_byte(' ')  print_expr(val)  write_byte(')')
+        write_byte(' ')
+        word[6440000 + arr * 8] = 1
+        word[6450000 + arr * 8] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to tosemi
+    }
+    state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
+    state esemi { adv()  return 0 }
 }
 
 proc add_field(off) {
@@ -904,12 +1034,13 @@ proc add_field(off) {
 proc emit_sig(mi) {
     let nl = word[6010800 + mi * 8]
     let nf = 0
+    let na = 0
     state chkf {
         to withf when (mi == word[6000008])
         to go
     }
-    state withf { nf = word[6000024]  to go }
-    state go { let tot = nl + nf  let x = 0  to loop }
+    state withf { nf = word[6000024]  na = word[6000040]  to go }
+    state go { let tot = nl + nf + na  let x = 0  to loop }
     state loop {
         to done when (x == tot)
         to sep when (x > 0)
@@ -920,7 +1051,11 @@ proc emit_sig(mi) {
         to fld when (x >= nl)
         write_byte('l')  emit_dec(x)  to next
     }
-    state fld { write_byte('g')  emit_dec(x - nl)  to next }
+    state fld {
+        to arr when (x >= nl + nf)
+        write_byte('g')  emit_dec(x - nl)  to next
+    }
+    state arr { write_byte('a')  emit_dec(x - nl - nf)  to next }
     state next { x = x + 1  to loop }
     state done { return 0 }
 }
@@ -945,8 +1080,27 @@ proc render_machine(mi) {
     state sdone { return 0 }
 }
 
+; emit ` (Cons 0 (Cons 0 ... Nil))` of `count` zeros — a self-array's zero initial value.
+proc emit_array_zeros(count) {
+    write_byte(' ')
+    let k = 0
+    state opens { to closes when (k == count)  emit("(Cons 0 ")  k = k + 1  to opens }
+    state closes { emit("Nil")  let j = 0  to cl }
+    state cl { to done when (j == count)  write_byte(')')  j = j + 1  to cl }
+    state done { return 0 }
+}
+
 proc render() {
-    let mi = 0
+    state h {
+        to helpers when (word[6000040] > 0)             ; entry uses arrays -> prepend nth/setl
+        to machines
+    }
+    state helpers {
+        emit("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nth t (- k 1)))))) ")
+        emit("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setl t (- k 1) v)))))) ")
+        to machines
+    }
+    state machines { let mi = 0  to mloop }
     state mloop {
         to mdone when (mi == word[6000000])             ; MACHINE_CNT
         render_machine(mi)
@@ -955,11 +1109,17 @@ proc render() {
     }
     state mdone {
         emit("(m")  emit_dec(word[6000008])  emit("_me")   ; call the entry with all slots 0
-        emit_zeros(word[6010800 + word[6000008] * 8] + word[6000024])   ; entry LCNT + FIELD_CNT
-        write_byte(')')
-        write_byte(10)
-        return 0
+        emit_zeros(word[6010800 + word[6000008] * 8] + word[6000024])   ; entry LCNT + FIELD_CNT zeros
+        let ai = 0
+        to ainit
     }
+    state ainit {
+        to adone when (ai == word[6000040])             ; ARRAY_CNT
+        emit_array_zeros(word[6840000 + ai * 8])        ; the array's zero-list of its declared length
+        ai = ai + 1
+        to ainit
+    }
+    state adone { write_byte(')')  write_byte(10)  return 0 }
 }
 
 proc main() {
@@ -976,6 +1136,7 @@ proc main() {
     }
     state pdone {
         collect_fields()
+        collect_arrays()
         render()
         return 0
     }
