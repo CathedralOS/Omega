@@ -502,6 +502,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("structs/runtime_nested_struct_value_semantics_exit", 70),
     ("structs/runtime_array_element_struct_copy_exit", 70),
     ("structs/runtime_enum_struct_payload_exit", 70),
+    ("structs/runtime_nested_field_accumulate_loop_exit", 70),
     ("errors/runtime_result_match_exit", 70),
     ("structs/runtime_struct_array_literal_exit", 70),
     ("storage/runtime_dispatch_helper_local_alias_add_exit", 181),
