@@ -4723,6 +4723,90 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     Ok(bytes)
 }
 
+pub fn runtime_machine_indexed_binary_write_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    _index_region: omega_target_operations::RuntimeStorageRegion,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    // Byte layout is identical to the frame-base binary write; only the base
+    // relocation targets the machine symbol (handled by the relocations crate).
+    // The frame-resident-index case errors in the encoder before width matters,
+    // so a single width keeps the function total.
+    runtime_frame_base_indexed_binary_write_width(
+        runtime_value_operands,
+        byte_size,
+        left,
+        operator,
+        right,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_indexed_binary_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let store_displacement = base_byte_offset + field_byte_offset;
+    let mut bytes = Vec::with_capacity(runtime_machine_indexed_binary_write_width(
+        runtime_value_operands,
+        index_region,
+        byte_size,
+        left,
+        operator,
+        right,
+    ));
+    // r14 = machine storage base + index*element (target address held across
+    // operand evaluation, which freely clobbers r15/r10/r11 but never r14). The
+    // imm64 at +2 is relocated to the MACHINE symbol (relocations crate), unlike
+    // the frame-base sibling that relocates to the frame symbol.
+    append_mov_r14_imm64(&mut bytes, 0);
+    // Load the index. Only a machine-resident index is implemented (the index is
+    // read from the machine base already in r14, matching the frame-base sibling
+    // which reads the frame-resident index from the frame base in r14). A
+    // frame-resident index (`let i = ..; self.arr[i]`) is a clean error for now.
+    match index_region {
+        omega_target_operations::RuntimeStorageRegion::Machine => {
+            append_load_index_r15d_from_r14(&mut bytes, index_offset)?;
+        }
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
+            return Err(Diagnostic::error(
+                "X86_64 MVP encoder cannot write a machine-indexed binary with a frame-resident index yet".to_string(),
+            ));
+        }
+    }
+    append_imul_r15_imm32(&mut bytes, element_scale(element_byte_size)?);
+    append_add_r14_r15(&mut bytes);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_frame_base_indexed_binary_left_operand_offset()
+    );
+    // Stash the left result across the right operand's evaluation (both accumulate
+    // in r10). r14 (target address) survives push/pop and operand evaluation.
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
+    append_push_r10(&mut bytes);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
+    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
+    append_pop_r10(&mut bytes); // restore left -> r10
+    append_runtime_binary_operation(
+        &mut bytes,
+        operator,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
+    append_store_r10_to_r14(&mut bytes, store_displacement, byte_size)?;
+    Ok(bytes)
+}
+
 pub fn runtime_storage_copy_width(
     source_offset: usize,
     target_offset: usize,
@@ -6386,6 +6470,18 @@ fn append_load_index_eax_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Re
 fn append_load_index_eax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
     bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+/// Load a 4-byte runtime index into r15, ZERO-EXTENDING into the upper 32 bits (`mov r15d`).
+/// A 64-bit load here would pull the 4 bytes ADJACENT to a 4-byte index field into the high
+/// dword, producing a garbage index and an out-of-bounds store when that neighbour is non-zero
+/// (the same class of bug fixed for the integer indexed write). Byte-count-identical to the
+/// 64-bit `append_load_r15_from_r14`, so instruction widths are unchanged.
+fn append_load_index_r15d_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x45, 0x8b, 0xbe]); // mov r15d, [r14 + disp32] (32-bit, zero-extends into r15)
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }

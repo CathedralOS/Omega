@@ -1,4 +1,6 @@
-use omega_assigned_target_operations::{SelectedInstructionKind, StateGuardOperator};
+use omega_assigned_target_operations::{
+    RuntimeStorageRegion, SelectedInstructionKind, StateGuardOperator,
+};
 use omega_machine_instructions::MachineInstructionKind;
 
 pub(super) fn selected_binary_write_kind(
@@ -68,6 +70,24 @@ pub(super) fn selected_binary_write_kind(
             *byte_size,
             *operator,
         )),
+        SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            operator,
+            ..
+        } => Some(runtime_machine_indexed_binary_write_kind(
+            *base_byte_offset,
+            *index_region,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            *operator,
+        )),
         _ => None,
     }
 }
@@ -109,4 +129,16 @@ fn runtime_frame_base_indexed_binary_write_kind(
     _operator: StateGuardOperator,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeFrameBaseIndexedBinaryWrite
+}
+
+fn runtime_machine_indexed_binary_write_kind(
+    _base_byte_offset: usize,
+    _index_region: RuntimeStorageRegion,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+    _operator: StateGuardOperator,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeMachineIndexedBinaryWrite
 }

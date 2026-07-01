@@ -303,6 +303,7 @@ fn is_guarded_effect(instruction: &LaidOutMachineInstruction) -> bool {
             | MachineInstructionKind::RuntimeFrameBaseIndexedIntegerWrite
             | MachineInstructionKind::RuntimeFrameIndexedBinaryWrite
             | MachineInstructionKind::RuntimeFrameBaseIndexedBinaryWrite
+            | MachineInstructionKind::RuntimeMachineIndexedBinaryWrite
             | MachineInstructionKind::RuntimePointeeIntegerWrite
             | MachineInstructionKind::RuntimePointeeBinaryWrite
             | MachineInstructionKind::RuntimeMachineStringWrite

@@ -57,6 +57,7 @@ pub enum MachineInstructionKind {
     WireRepeatedScalarVarintRead,
     RuntimeFrameIndexedBinaryWrite,
     RuntimeFrameBaseIndexedBinaryWrite,
+    RuntimeMachineIndexedBinaryWrite,
     RuntimeMachineStringWrite,
     RuntimeMachineBoundedBufferWrite,
     RuntimeMachineBoundedBufferSourceAppend,
