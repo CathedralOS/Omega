@@ -7046,6 +7046,34 @@ fn runtime_exclusive_range_constraint_exit_canary_runs() {
 /// error — so the program only COMPILES because the narrowing proves the bound
 /// (and runs because the value-call-result materialization bug is fixed).
 #[test]
+fn runtime_fnv1a_hash_exit_canary_runs() {
+    // FNV-1a-32 hash of [72,105,33] folded in a loop (hash = (hash ^ byte) * prime, wrapping u32),
+    // checked against the independently computed reference 844955649 -> exit 70. Proves Omega's u32
+    // wrapping XOR+multiply computes the correct hash of a real algorithm.
+    let canary = pass_canary("arithmetic/runtime_fnv1a_hash_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-fnv1a-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("FNV-1a hash canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("FNV-1a hash canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected FNV-1a to hash to the reference value (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_min_max_clamp_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_min_max_clamp_narrowing_exit");
     let build_dir =
@@ -17205,6 +17233,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_modulo_value",
     "arithmetic/runtime_modulo_div_narrowing_exit",
     "arithmetic/runtime_saturating_domain_exit",
+    "arithmetic/runtime_fnv1a_hash_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
     "arithmetic/runtime_transition_arg_guard_narrowing_exit",
     "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
