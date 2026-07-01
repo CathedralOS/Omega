@@ -63,6 +63,12 @@ diaf() {
   printf 'boundary trait Console { machine exit_process(return_code: i32); }\ndata Main { console: Console; i: i32; s: i32; }\nmachine Main::main(&mut self) {\n%s\n}\n' "$2" > "$T/p.alp"
   _check "$1" "$3"
 }
+# diac DESC MACHINES EXPECT : MACHINES is the full machine section (free machines + Main::main) — for
+# the cross-machine-call slice, where the body needs sibling `machine name(..) -> i32 { .. }` definitions.
+diac() {
+  printf 'boundary trait Console { machine exit_process(return_code: i32); }\ndata Main { console: Console; }\n%s\n' "$2" > "$T/p.alp"
+  _check "$1" "$3"
+}
 
 dia "literal"            '    self.console.exit_process(42)' 42
 dia "add"                '    self.console.exit_process(40 + 2)' 42
@@ -145,6 +151,17 @@ diaf "field+local mix"   '    let k: i32 = 3;
 diaf "field cmp + arith" '    transition 0 { _ -> setup() }
     state setup() { self.i = 20; self.s = 22; transition 0 { _ -> dn() } }
     state dn() { self.console.exit_process(self.i + self.s); }' 42
+
+# slice 4 — cross-machine calls (each reachable machine its own m{idx}_* defs; a call passes args + zeros).
+diac "call chain (nested)" 'machine addk(a: i32, b: i32) -> i32 { return a + b; }
+machine dbl(x: i32) -> i32 { return x + x; }
+machine Main::main(&mut self) { let r: i32 = dbl(addk(20, 22)); self.console.exit_process(r - 42); }' 42
+diac "recursive factorial" 'machine fact(n: i32) -> i32 { transition n < 2 { true -> one()  false -> rec() } state one() { return 1; } state rec() { return n * fact(n - 1); } }
+machine Main::main(&mut self) { self.console.exit_process(fact(5) - 78); }' 42
+diac "call inside a loop" 'machine inc(x: i32) -> i32 { return x + 1; }
+machine Main::main(&mut self) { let i: i32 = 0; let s: i32 = 0; transition 0 { _ -> lp() } state lp() { transition i < 5 { true -> bd()  false -> dn() } } state bd() { i = inc(i); s = s + i; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(s + 27); } }' 42
+diac "two-arg helper twice" 'machine amax(a: i32, b: i32) -> i32 { transition a < b { true -> hb()  false -> ha() } state ha() { return a; } state hb() { return b; } }
+machine Main::main(&mut self) { let x: i32 = amax(10, 40); let y: i32 = amax(x, 2); self.console.exit_process(y + 2); }' 42
 
 echo "eps2gamma diamond (native == Rust-free eps2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
