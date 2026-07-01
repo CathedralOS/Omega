@@ -74,5 +74,25 @@ dia "local in arith"     '    let x: i32 = 10;
     let y: i32 = x * x;
     self.console.exit_process(y - 58)' 42
 
+# slice 1 — comparisons (faithfully from interp's only two primitives eq/lt).
+dia "lt true"            '    let c: i32 = 3 < 5;
+    self.console.exit_process(c + 41)' 42
+dia "gt false"           '    let c: i32 = 3 > 5;
+    self.console.exit_process(c + 42)' 42
+dia "eq true"            '    let c: i32 = 7 == 7;
+    self.console.exit_process(c * 42)' 42
+dia "ne / eq combo"      '    let a: i32 = 4 == 4;
+    let b: i32 = 4 != 4;
+    self.console.exit_process(a * 42 + b)' 42
+dia "le boundary"        '    let a: i32 = 5 <= 5;
+    let b: i32 = 6 <= 5;
+    self.console.exit_process(a * 42 + b)' 42
+dia "ge boundary"        '    let a: i32 = 5 >= 5;
+    let b: i32 = 4 >= 5;
+    self.console.exit_process(a * 42 + b)' 42
+dia "cmp under arith"    '    let a: i32 = 10;
+    let b: i32 = (a > 5) * 30 + (a < 5) * 7 + 12;
+    self.console.exit_process(b)' 42
+
 echo "eps2gamma diamond (native == Rust-free eps2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
