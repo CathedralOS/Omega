@@ -1180,6 +1180,28 @@ def emit_cert(goal, proof):  # the full certificate: the lemma def-prelude (if a
     return "%s%s %s" % (prelude, beta_prop(goal), to_db(proof, [], tuple(_base_ib)))
 
 
+def _shift_uses(t, off):  # shift every (use i) citation in a proof term to (use i+off) -- for relocating a
+    if not isinstance(t, tuple):  # def/use lemma block to a later id range in a shared library.
+        return t
+    if t and t[0] == "use":
+        return ("use", t[1] + off)
+    return tuple(_shift_uses(x, off) for x in t)
+
+
+def emit_lib_block(goal, proof, offset):  # a SELF-CONTAINED def/use library block for banking a big derived
+    # lemma without inlining: emit its base lemmas as `(def offset+i ..)` and the lemma itself as the LAST def,
+    # all (use i) shifted by `offset`. Unlike emit_inline (which duplicates each cited lemma at every use site,
+    # exploding a reuse-heavy proof past the checker's arena), this shares the bases -- so a proof that cites
+    # add-comm 270+ times stays ~60 KB, not ~235 KB. The block is self-contained: the enclosing library only
+    # cites the final def (the lemma), never the block's internal bases, so their arrangement is private.
+    out = []
+    for i, (p, lpf) in enumerate(_used_lemmas[0]):
+        out.append("(def %d %s %s)" % (offset + i, beta_prop(p), to_db(_shift_uses(lpf, offset), [], ())))
+    lemma_id = offset + len(_used_lemmas[0])
+    out.append("(def %d %s %s)" % (lemma_id, beta_prop(goal), to_db(_shift_uses(proof, offset), [], tuple(_base_ib))))
+    return "".join(out), lemma_id
+
+
 # ---- A SECOND emission target: checker.gamma's input syntax (algebraic-data constructors, run on the gamma
 # reference interpreter). The PROVER DIAMOND runs each emitted cert through BOTH check.beta and checker.gamma
 # -- two independently-written checkers at different rungs -- so the prover's actual cert shapes (not just
@@ -1509,6 +1531,16 @@ def main():
         goal = parse(tokenize(sys.argv[2]))   # GENERATING a contract lemma library (one inlined def per lemma).
         proof = solve(goal)
         print("unprovable" if proof is None else emit_inline(goal, proof))
+        return
+    if sys.argv[1] == "--libblock":  # emit a def/use library block at an id OFFSET: "<block>\t<lemma id>". For
+        goal = parse(tokenize(sys.argv[2]))   # banking a big derived lemma that is too large to inline.
+        offset = int(sys.argv[3])
+        proof = solve(goal)
+        if proof is None:
+            print("unprovable")
+        else:
+            block, lid = emit_lib_block(goal, proof, offset)
+            print("%s\t%d" % (block, lid))
         return
     goal = parse(tokenize(sys.argv[1]))
     proof = solve(goal, int(sys.argv[2]) if len(sys.argv) > 2 else 16)
