@@ -41,18 +41,27 @@ build_beta eps2gamma.beta        "$T/e2g.exe"    || { echo "eps2gamma diamond FA
 BE=../epsilon-rs/target/debug/beta
 
 PASS=0; FAIL=0
-# dia DESC  BODY  EXPECT : BODY is the straight-line main body (lets + a final exit_process(EXPR)).
-# native exit, Rust-free eps2gamma-route exit, the Rust gamma_emit route, and EXPECT must all agree.
-dia() {
-  printf 'boundary trait Console { machine exit_process(return_code: i32); }\ndata Main { console: Console; }\nmachine Main::main(&mut self) {\n%s\n}\n' "$2" > "$T/p.alp"
+# _check DESC EXPECT : assumes $T/p.alp is written; native exit, Rust-free eps2gamma-route exit, the Rust
+# gamma_emit route, and EXPECT must all agree.
+_check() {
   EPS_ARCH=aarch64 "$BE" "$T/p.alp" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
   chmod +x "$T/p"; set +e; "$T/p"; nat=$?; set -e
   g=$("$T/e2g.exe" < "$T/p.alp" 2>/dev/null)
   if [ -z "$g" ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : eps2gamma emitted nothing"; return; fi
   set +e; printf '%s\n' "$g" | "$T/interp.exe" >/dev/null; mine=$?; set -e
   rg=$(EPS_EMIT=gamma "$BE" "$T/p.alp" 2>/dev/null); set +e; printf '%s\n' "$rg" | "$T/interp.exe" >/dev/null; rgi=$?; set -e
-  if [ "$nat" = "$mine" ] && [ "$nat" = "$3" ] && [ "$nat" = "$rgi" ]; then PASS=$((PASS+1)); else
-    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=$nat eps2gamma=$mine rustgamma=$rgi expect=$3"; fi
+  if [ "$nat" = "$mine" ] && [ "$nat" = "$2" ] && [ "$nat" = "$rgi" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=$nat eps2gamma=$mine rustgamma=$rgi expect=$2"; fi
+}
+# dia DESC BODY EXPECT : BODY is the main body; Main has no scalar fields.
+dia() {
+  printf 'boundary trait Console { machine exit_process(return_code: i32); }\ndata Main { console: Console; }\nmachine Main::main(&mut self) {\n%s\n}\n' "$2" > "$T/p.alp"
+  _check "$1" "$3"
+}
+# diaf DESC BODY EXPECT : like dia but Main also has scalar i32 fields `i` and `s` (self data slice).
+diaf() {
+  printf 'boundary trait Console { machine exit_process(return_code: i32); }\ndata Main { console: Console; i: i32; s: i32; }\nmachine Main::main(&mut self) {\n%s\n}\n' "$2" > "$T/p.alp"
+  _check "$1" "$3"
 }
 
 dia "literal"            '    self.console.exit_process(42)' 42
@@ -122,6 +131,20 @@ dia "int-pattern switch" '    let x: i32 = 2;
     state ob() { r = 7; transition 0 { _ -> dn() } }
     state tw() { r = 42; transition 0 { _ -> dn() } }
     state dn() { self.console.exit_process(r); }' 42
+
+# slice 3 — self data fields (threaded g{i} slots alongside locals, zero-initialised).
+diaf "field loop sum"    '    transition 0 { _ -> lp() }
+    state lp() { transition self.i < 5 { true -> bd()  false -> dn() } }
+    state bd() { self.i = self.i + 1; self.s = self.s + self.i; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(self.s + 27); }' 42
+diaf "field+local mix"   '    let k: i32 = 3;
+    transition 0 { _ -> lp() }
+    state lp() { transition self.i < k { true -> bd()  false -> dn() } }
+    state bd() { self.i = self.i + 1; self.s = self.s + self.i * k; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(self.s + 24); }' 42
+diaf "field cmp + arith" '    transition 0 { _ -> setup() }
+    state setup() { self.i = 20; self.s = 22; transition 0 { _ -> dn() } }
+    state dn() { self.console.exit_process(self.i + self.s); }' 42
 
 echo "eps2gamma diamond (native == Rust-free eps2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

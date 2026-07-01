@@ -43,7 +43,11 @@ Rust-free translator one at a time).
   SSA-threaded (each write ⇒ a fresh `(let t{n} …)`, tracked per-block); a transition ⇒ a nested
   `(if (eq subj pat) (target <current names>) else)`, last arm the default. Patterns: int / `true` /
   `false` / `_`.
-- **Next** — self data fields, cross-machine calls, arrays, read_byte.
+- **Slice 3** — **self data fields**: `self.f` reads and `self.f = <expr>;` writes. Each scalar i32
+  field becomes a threaded slot `g{i}`, appended to every def signature after the locals and
+  zero-initialised in the entry call — the same SSA machinery as locals. `self.console.exit_process`
+  stays the boundary terminal (distinguished from a field store by the trailing `.method`).
+- **Next** — cross-machine calls, arrays, read_byte.
 
 ## The long game
 
