@@ -7,6 +7,12 @@ pub enum BinaryOp {
     Sub,
     Mul,
     Div,
+    Rem,
+    BitAnd,
+    BitOr,
+    BitXor,
+    Shl,
+    Shr,
     Lt,
     Gt,
     Le,
@@ -35,13 +41,14 @@ pub enum Pattern {
 
 pub struct TransitionArm {
     pub pattern: Pattern,
-    pub target: usize, // index into the machine's states
+    pub target: usize,     // index into the machine's states
+    pub args: Vec<usize>,  // arg expr nodes passed to the target state's parameters (empty = none)
 }
 
 pub enum Statement {
-    Let(usize, usize),                     // local index, init expr node
+    Let(usize, usize, u8),                 // local index, init expr node, arithmetic domain: 0 Trapping (default), 1 Wrapping (no trap), 2 Saturating (clamp to i32 MIN/MAX)
     Assign(usize, usize),                  // local index, value expr node (reassignment)
-    StoreSelfField(i32, usize),            // self.<field at this byte offset> = value expr node
+    StoreSelfField(i32, usize, u8),        // self.<field at this byte offset> = value expr node; u8 = field arithmetic domain (0 trap, 1 wrap, 2 saturate)
     StoreSelfIndex(i32, i32, i32, usize, usize), // self.<array>[index] = value; (offset, count, element_bytes, index, value)
     Eval(usize),                           // evaluate an expr (a call) for effect, discard the result
     Return(usize),                         // return value expr node (yields to the caller)
@@ -49,6 +56,8 @@ pub enum Statement {
     WriteByte(usize),                      // write the low byte of the value expr node to stdout
     WriteLine(usize),                      // index into Program.strings (bytes include trailing '\n')
     Transition(usize, Vec<TransitionArm>), // subject expr node, arms (jump to a state)
+    Block(Vec<Statement>),                 // a sequence lowered in order (enum construction = tag + payload stores)
+    Assert(usize),                         // runtime contract: trap if the condition expr is 0 (false)
 }
 
 // A machine: a named, callable unit. The first `param_count` locals are its value
@@ -61,6 +70,17 @@ pub struct Machine {
     pub has_self: bool,     // has a `&mut self`/`&self` receiver => has a self-pointer slot
     pub entry: Vec<Statement>,
     pub states: Vec<Vec<Statement>>,
+    // Contract residue retained for STATIC discharge (compiler-generated proof certificates),
+    // captured before `ensures` is desugared to runtime asserts. `result_local` is the slot
+    // `result` names in a postcondition; `postconditions` are the raw cond expr nodes;
+    // `return_exprs` are the body's returned-value nodes. See discharge.rs.
+    pub result_local: Option<usize>,
+    pub postconditions: Vec<usize>,
+    pub return_exprs: Vec<usize>,
+    // Preconditions (`requires`) retained for static CALL-SITE discharge: at a call to this
+    // machine, the caller must prove these hold for the actual arguments. Each is a raw cond
+    // expr node over this machine's parameters (locals 0..param_count). See discharge.rs.
+    pub preconditions: Vec<usize>,
 }
 
 pub struct Program {

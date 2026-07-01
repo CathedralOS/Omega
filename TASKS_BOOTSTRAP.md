@@ -27,55 +27,174 @@ honest edges) lives in
 
 | Path | What it is | Status |
 | --- | --- | --- |
-| `compiler/alpha/` | **The seed**: a 21-opcode register tape VM, hand-written x64 (`.exe` + audited `.hex`). The provenance root. | DONE |
+| `compiler/alpha/` | **The seed**: a 21-opcode register tape VM. **Two independent hand-authored realizations** — x64 Windows PE (`.exe` + audited `.hex`) and arm64 macOS Mach-O (`alpha_arm64_macos` + `.s` + `.lst`). The provenance root, and the first lattice diamond (same source → byte-identical tapes on both). | DONE (x64 + arm64-macOS) |
 | `compiler/beta/` | **The assembler** (`assembler.alpha`, written in Alpha assembly) + the Beta-language docs/examples. | DONE — self-hosts byte-identically |
 | `compiler/beta-rs/` | Throwaway Rust on-ramp for the *assembler* (cold-start only). | parked |
-| `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | **ACTIVE** — slices 1–4 done |
-| `compiler/gamma/` | A v13 imperative language; compiler hand-written in Alpha asm (`gamma.alpha`). The thing Beta exists to **supersede**. | parked at v13 |
-| `compiler/epsilon*`, `compiler/alpha-rs` | Old/renamed experiment soup. | **IGNORE** |
+| `compiler/beta-lang-rs/` | Throwaway Rust on-ramp for the **Beta-language compiler** (`.beta` → Alpha asm). | slices 1–6 done; self-check passed |
+| `compiler/beta-lang/` | The Beta compiler **written in Beta** (`bc.beta`) — slice 7. | **DONE — self-hosts** (byte-for-byte fixed point) |
+| `compiler/delta/` | **The certificate checker** (`check.beta`) — the trust anchor: full intuitionistic prop logic + equality/conversion + ∀∃ + induction + `Mem`/`ProdIs`/`Perm` (three list inductive predicates). Compiled by `bc`, run on the seed. Plus a 212-proof corpus (sqrt2-irrational, infinitude-of-primes, and **the Fundamental Theorem of Arithmetic — BOTH halves: existence AND uniqueness up to permutation**), a soundness battery (no false proof accepted), a 43-theorem soundness sweep (proved by check.beta **and** computed-true in the interpreter), and **FOUR random fuzzers** that cross-check the trust anchor across *every* subsystem (`seam-fuzz` reducer, `checker-diamond-fuzz` conversion, `logic-diamond-fuzz` first-order logic, `predicate-diamond-fuzz` Mem/ProdIs/Perm). The `Perm` permutation relation that FTA uniqueness needs was added to all three checkers (`check.beta`, `checker.gamma`, `checker_typed.gamma`) and is diamond-cross-validated. | **WORKING** — also rewritten in gamma (`checker.gamma`, type-checked + diamond-tested); **no soundness-bridge THEOREM** to execution yet (the deep open problem) — but comprehensive fuzzed evidence for it |
+| `compiler/gamma/` | `gamma.alpha` = parked v13 imperative compiler. **`interp.beta`** = interpreter-first reference interpreter (functional, ADTs + pattern matching, fuel-bounded) + **`typeck.beta`** = a static type checker + **`checker.gamma`** = the Delta checker in gamma, all in Beta. | interpreter + type system done |
+| `compiler/epsilon-rs/` | The **Epsilon on-ramp** (throwaway Rust): compiles a machines / `data` / `transition` / `enum` systems language — Omega's executable surface — to x64 PE **and** arm64 Mach-O. Self-hosts (`lowermachine.alp` emits itself byte-identically). Hosts the **convergence** (`certify-*.alp` programs emit delta certificates — including over the `Perm` predicate) **and a proof-carrying contract system** (`assert`/`requires`/`ensures`, compiler-emitted static discharge, call-site composition). | **GATED** — slices 1–9 + operators/enums/state-params; 191 aarch64 tests; 132-cert convergence (arithmetic, structure, **permutation**); contract discharge (`contracts.sh` 28 verified, `discharge-soundness.sh` 21 ok: the full arithmetic-rewrite equality family + the order family incl. same-base offset gaps + implicit array-bounds with weakening (via `lt-le-trans`) + call-site composition incl. expression args `B(a+k)` — 10 increments, the clean vein mined out) |
+| `compiler/epsilon/`, `compiler/alpha-rs` | Old/renamed experiment soup (a misfiled alpha-in-alpha attempt; not the live rung). | **IGNORE** |
 | `compiler/omega-rs/` | The real Omega compiler, in Rust. Separate concern: the *producer*, not the lattice. | (other workstream) |
 
 ## Where we are RIGHT NOW
 
-**Active workstream: building Beta-the-language** — a small structured systems
-language (tiny-C / Oberon-0 shape) so we stop hand-writing compilers in assembly.
-`beta-lang-rs` compiles `.beta` → Alpha assembly; the assembler lowers it; the seed
-runs it. (It's a *throwaway Rust on-ramp* — see "on-ramp pattern" below.)
+**The lattice has a complete vertical slice, seed → checker, with no Rust in the
+runtime lineage.** One command verifies it all:
 
-Slices 1–4 done and **verified on the seed**:
+```sh
+sh compiler/verify-lattice.sh        # -> "LATTICE VERIFIED ✓"
+```
 
-1. arithmetic
-2. procedures, ≤4 params, calls (the calling convention, generated mechanically)
-3. `if`/`else`, `while`, `let` locals, assignment, comparisons → **recursion + loops**
-4. explicit memory (`byte[]` / `word[]`) → raw arrays/buffers
+It walks every rung in dependency order:
 
-8 example programs pass (`answer 42 · double 42 · calls 10 · factorial 120 · fib 55
-· sumto 55 · arrays 30 · bytes 131`). `factorial.beta`/`fib.beta` produce the same
-answers as the hand-written `.alpha` proofs in `compiler/beta/examples/`.
+- **alpha** — seed re-derives from source + conforms to `SEMANTICS.md` + diamond
+  (`verify.sh`); 256 KB tape hole; both seeds in lockstep.
+- **beta** — the assembler self-hosts byte-identically; gained a `db` data directive.
+- **Beta language** — `beta-lang-rs` (throwaway Rust on-ramp) compiles the corpus.
+- **bc** — the Beta compiler **written in Beta** (`beta-lang/bc.beta`) **self-hosts**:
+  it compiles its own source to a compiler that reproduces that compilation
+  byte-for-byte. From `bc` on, Rust is out of the lineage.
+- **delta** — the **certificate checker** (the trust anchor): `check.beta` does full
+  intuitionistic propositional logic (`-> & + ⊥`) **plus equality with the
+  conversion rule** (`2+2=4` proved by computation), and `eq.beta` does definitional
+  equality by fuel-bounded normalization. Both compiled by `bc`, run on the seed.
+- **gamma** — `interp.beta`, the interpreter-first reference interpreter (stage 1:
+  functional, fuel-bounded).
 
-**Key judgment:** Beta is now *more capable than the assembler ever was* (the
-assembler was hand-written in raw asm with none of procedures/recursion/locals/
-memory), so it is plausibly already compiler-grade. The next move is to **prove
-that**, not to pile on features.
+The lattice's thesis — *trust by checking, not pedigree* — is now a working stack.
 
 ## Roadmap (next)
 
-5. **Ergonomics:** char literals (`'a'`), plus anything small the self-check needs.
-6. **Self-check:** write something genuinely compiler-shaped *in Beta* (a tokenizer
-   or tiny expression evaluator) to confirm the language is pleasant to write a
-   compiler in.
-7. **Transcribe** the trusted Beta compiler to Alpha assembly — the *one* time we
-   write a structured-language compiler in assembly — cross-check it against
-   `beta-lang-rs` (a "diamond"), and discard the Rust on-ramp.
-8. **Rewrite gamma in Beta**, retiring `gamma.alpha` (this is the whole point:
-   never hand-write a compiler in assembly again).
-9. **Climb:** Delta (the checker / evidence rung — where trust actually starts),
-   then up.
+7. **Self-hosting Beta compiler — DONE.** Rather than hand-write the compiler in
+   assembly (the old framing), it is written *in Beta* (`compiler/beta-lang/bc.beta`)
+   and cold-started through the on-ramp — the same on-ramp-then-discard pattern the
+   assembler uses. **`bc` self-hosts:** it compiles its own source to a compiler
+   that reproduces that compilation byte-for-byte (`sh compiler/beta-lang/selfhost.sh`),
+   so from that compiler on, Rust is out of the lineage. bc implements the whole
+   language — arithmetic, locals + symbol table, `if`/`else`/`while` + comparisons,
+   procedures/params/calls/recursion, `byte[]`/`word[]` memory, char literals +
+   `read_byte`/`write_byte` + call statements, and string literals via `emit("...")`.
+   30/30 per-feature gate + the self-host fixed point. Enabled by the assembler
+   `db` data directive (#46) and growing the arm64 tape hole 32 KB → 256 KB (bc's
+   self-tape is ~45 KB; logic-dominated, not emit-dominated). The Rust on-ramp
+   (`beta-lang-rs`) is now discardable from the steady state.
+8. **Gamma — STAGE 1 DONE (interpreter-first).** Rather than grow the parked
+   imperative `gamma.alpha`, the target gamma is the *interpreter-first, functional,
+   ADT + pattern-matching* language the Delta checker is meant to be written in
+   (rungs/gamma.md). [`compiler/gamma/interp.beta`](compiler/gamma/interp.beta) is
+   the reference interpreter — *meaning is the interpreter*, fuel-bounded (totality)
+   — stage 1: a pure functional core (ints, top-level recursive functions, `if`,
+   `let`, arithmetic/comparisons; `fac 5→120`, `fib 10→55`, `gcd→12`), compiled
+   Rust-free by `bc`. 11/11 in `test-interp.sh`. Stage 2 (ADTs + pattern matching) DONE; a static type system (`typeck.beta`,
+   Int + ADTs, catches Int-vs-List etc.) DONE; the Delta checker rewritten in gamma
+   (`checker.gamma`, full parity, ~12 functions vs ~350 lines) DONE — runs on the
+   reference route and agrees with check.beta (`checker-diamond.sh`). The fully
+   type-annotated `checker_typed.gamma` (which `typeck.beta` accepts) is DONE too,
+   and is now mechanically tied to the trusted checker: `erase_types.py` type-erases
+   it and the checker diamond runs it as a THIRD oracle agreeing with `checker.gamma`
+   on ALL 83 cases (`frule_to_flat.py` rewrites the user-function proofs from the
+   wrapper rule form to the typed flat form, so even `fdisp` — the one helper where the
+   two representations diverge — is cross-checked). So "the checker is statically
+   type-safe" and "the checker is behaviorally correct" are now claims about the SAME
+   artifact, enforced every lattice run.
+9. **Delta — the checker / evidence rung (where trust actually starts): PROTOTYPE
+   DONE + GROWN.** [`compiler/delta/check.beta`](compiler/delta/check.beta) is now a
+   **full intuitionistic propositional** proof checker (`-> & + ⊥`; Curry-Howard =
+   simply-typed-lambda type checker) **plus equality with the conversion rule** —
+   `(= t1 t2)` over Peano terms, with `refl` discharged by definitional computation,
+   so `2+2=4` is proved *by reduction* and equations compose with the connectives.
+   [`eq.beta`](compiler/delta/eq.beta) is a standalone definitional-equality checker
+   (fuel-bounded normalization). Both compiled by `bc`, run on the seed; 32/32 in
+   `compiler/delta/test.sh`. Demonstrates the architecture (tiny trusted checker,
+   unbounded untrusted producer) AND the logic↔computation seam. Caught a real
+   calling-convention bug (the prologue clobbered argument 3 — the checker's first
+   3-arg `alloc`). Still a *Beta* prototype (target: a Gamma program once stage 2
+   lands) and with **no soundness bridge** to actual program execution — the deep
+   open problem. What exists is bounded *evidence* for that bridge, at the seam where
+   a checker bug is most dangerous: `semantics-diamond.sh` (definitional `=` vs the
+   interpreter's operational eval), `induction-soundness.sh` (inductive universals
+   confirmed at concrete instances), and `soundness-sweep.sh` (curated corpus
+   theorems that must be BOTH proved by check.beta AND computed true by the gamma
+   interpreter — sourced straight from `proofs/*.elab`, so widening it is one line).
+10. **Epsilon — the systems-language on-ramp + the convergence: WORKING + GATED.**
+    [`compiler/epsilon-rs/`](compiler/epsilon-rs/) compiles a machines / `data` /
+    `transition` / `enum` language (Omega's executable surface) to **both** x64 PE and
+    arm64 Mach-O, and self-hosts (`lowermachine.alp` emits itself byte-identically). Its
+    language grew well past the original slices 1–9: arithmetic/bitwise/shift operators
+    (`% & | ^ << >>`, unary `-`), tag-only **and** payload `enum`s (single- and
+    multi-field, the shape of omega's `shape_area`) with exhaustiveness checking, and
+    **state parameters**. 134/134 on the aarch64 gate. The big payoff is the
+    **convergence** (`convergence.sh`, 106 confirmed): `certify-*.alp` programs *compute*
+    a result and *emit a delta certificate* the trust anchor independently checks —
+    proof-carrying computation, the Omega idea in miniature, across the full intuitionistic
+    logic (∃ `divides`/`mod`, ∧ `safety`, ∨ `max`, ¬ `distinct`), both inductive predicates
+    (`member`=Mem, `product`=ProdIs), builtin arithmetic, AND user-defined-function
+    reduction (`sum`). A wrong computation emits a certificate delta REJECTS.
+11. **Epsilon contracts — the verification-compiler, BUILT.** What the frontier once called
+    "the open question" is now a working proof-carrying contract system (`src/discharge.rs`,
+    `contracts.sh`, `discharge-soundness.sh`). Surface: `assert` (runtime trap),
+    `requires`/`ensures` (pre/postconditions, desugared to runtime asserts at entry / every
+    return). **Static discharge** (`EPS_EMIT=contracts`): the COMPILER emits a delta certificate
+    that a contract holds for ALL inputs (a closed `∀`-proof) which the trust anchor checks at
+    BUILD time — `refl` for definitional equalities, existential witnesses for the order family
+    (`< > <= >=`, constant *and* parameter gaps), and **lemma citation** (`(use N)` against
+    `gen-contract-lib.py`) for obligations that hold only up to a banked theorem (add-zero,
+    commutativity, le-trans). Conservative (never a false cert) and cross-checked against
+    execution (`discharge-soundness.sh`: discharged contracts never trap). **Call-site
+    composition** (omega's BoundedCallArgumentObligation): a wrapper discharges a callee's
+    precondition from its own — forwarding (identical, any arity) via `(lam (hyp 0))`, and
+    weakening (caller's bound strictly stronger) via an le-trans citation. This is omega-rs's
+    entailment model — cite a proven lemma at the site terms — in miniature.
 
-## How to build & verify (repo root, Git Bash; `cargo` needed for `beta-lang-rs`)
+## The frontier (what's left)
+
+The lattice is comprehensively built from the seed through a certifying systems language **with
+a working proof-carrying contract system** (item 11). What remains:
+
+- **Richer contract composition — ESSENTIALLY MINED OUT (10 increments landed).** All on the proven
+  mechanism (cite the right banked lemma at the site terms, no new design). DONE: `<=` upper-bound
+  weakening (call-site, via le-trans); additive AND multiplicative commutativity (`result == b+a` /
+  `b*a`) and associativity (`(a+b)+c == a+(b+c)`, `(a*b)*c == a*(b*c)`); reflexive order bounds
+  (`result <= X` / `>= X` via add-zero-right); MULTIPLE postconditions per machine; **IMPLICIT
+  ARRAY-BOUNDS** (every `self.arr[i]` emits `i < len` — literal index by a ground witness, parameter
+  index by forwarding `requires i < len`); **same-base offset gaps** (`result < a+5` from `a+2`, via
+  add-assoc — the inner ground sum reduces under the stuck `(p a _)`, so no congruence lemma needed);
+  **ARRAY-BOUNDS WEAKENING** (a tighter `requires i < M`, M ≤ len, discharges `i < len` via the banked
+  `lt-le-trans` lemma — memory safety from a stronger-than-needed contract); and **EXPRESSION
+  CALL ARGS** (`B(a+k)` against `requires param >= k`, discharged conditionally on the caller's own
+  `requires a >= 0` via add-commutes). `contracts.sh` 28 verified / `discharge-soundness.sh` 21 ok.
+  GENUINELY REMAINING (each blocked, not merely undone): overflow obligations (infeasible — i32 MAX is an
+  unrepresentable unary numeral in Delta); bare-parameter gaps (`result <= a+b`, signedness-unsound — a
+  negative `b` traps the runtime while a naturals proof "accepts", so discharge refuses them); domain
+  types (`i32 in Trapping/Wrapping`); an all-accesses-must-discharge policy.
+- **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
+  research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
+  semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
+  deterministic random fuzzers cross-check the trust anchor across *every* checker subsystem, plus the
+  curated diamonds, the 43-theorem proved-and-computed sweep, and discharge-soundness:
+  - `seam-fuzz` — the REDUCER: definitional eq (`eq.beta`) vs operational eval (`interp.beta`), across
+    built-in arithmetic/lists AND user-function recursion over user-Nats and user-lists.
+  - `checker-diamond-fuzz` — equality CONVERSION across all three checkers (check.beta, checker.gamma,
+    type-erased checker_typed.gamma) on random Peano/List equations.
+  - `logic-diamond-fuzz` — PROPOSITIONAL + FIRST-ORDER logic (→/&/+/⊥ intro+elim and ∀/∃ over Pred via
+    gen/inst/wit/unpack) across all three checkers.
+  - `predicate-diamond-fuzz` — the INDUCTIVE PREDICATES (Mem / ProdIs / Perm — the FTA's foundation)
+    across all three checkers.
+
+## How to build & verify (repo root; Git Bash on Windows, plain `sh` on macOS; `cargo` needed for `beta-lang-rs`)
+
+The build scripts are **platform-aware** (`compiler/alpha/seed_env.sh` picks the
+seed + stamping per host), so the same commands work on Windows (x64 PE seed) and
+macOS arm64 (Mach-O seed, auto re-signed after stamping). On macOS the self-host
+fixed point is asserted on the program bytes, not the OS-imposed code signature.
 
 ```sh
-# beta self-hosts (byte-identical fixed point):
+# verify the WHOLE lattice in one command (seed -> assembler -> Beta -> bc -> checker):
+sh compiler/verify-lattice.sh                                  # -> "LATTICE VERIFIED ✓"
+
+# beta self-hosts (byte-identical program-byte fixed point):
 sh compiler/beta/selfhost.sh                                   # -> "self-host ✓"
 
 # gamma still rebuilds + runs from .gamma source:

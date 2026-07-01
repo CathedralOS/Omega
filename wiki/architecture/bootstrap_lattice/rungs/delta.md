@@ -2,8 +2,16 @@
 
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Gamma](gamma.md) | Next: [Epsilon](epsilon.md)
 
-> **Status: DIRECTION.** Does not exist yet. This is the rung where the whole
-> trust-by-checking architecture earns its keep: proof objects first appear here.
+> **Status: DIRECTION + a first prototype.** The target checker (a Gamma program,
+> with a real soundness bridge) does not exist yet. But a minimal **Beta prototype**
+> now runs: [`compiler/delta/check.beta`](../../../../compiler/delta/check.beta) is
+> a natural-deduction proof checker (implication + conjunction; by Curry-Howard a
+> simply-typed-lambda type checker) — compiled by the self-hosting `bc`, run on the
+> seed, accepting valid certificates and rejecting invalid ones. It demonstrates
+> the checker architecture (tiny trusted checker, unbounded untrusted producer) end
+> to end, and its hand-encoded term/type trees are the concrete pull for the Gamma
+> rung. This is the rung where the whole trust-by-checking architecture earns its
+> keep: proof objects first appear here.
 
 Delta introduces a small logical calculus and the **certificate checker** that
 validates evidence. It is the second hand-audited trust anchor in the system —
@@ -48,7 +56,16 @@ Delta checker (Gamma)
   executed by the native Alpha VM
 ```
 
-Catastrophically slow, and that does not matter — it is the reference route.
+**This route now runs end to end** (propositional fragment):
+[`compiler/gamma/checker.gamma`](../../../../compiler/gamma/checker.gamma) is the
+simply-typed-lambda checker as ~6 Gamma functions (ADTs + pattern matching),
+interpreted by [`interp.beta`](../../../../compiler/gamma/interp.beta) (the Gamma
+reference interpreter in Beta), compiled by the self-hosting `bc`, run on the seed
+— accepting valid proofs, rejecting invalid ones (`compiler/gamma/test-checker.sh`).
+The Beta version [`check.beta`](../../../../compiler/delta/check.beta) (the same
+checker hand-encoded with tagged memory nodes) is the faster path; the Gamma one is
+the small, auditable reference. Catastrophically slow, and that does not matter — it
+is the reference route.
 Later, produce a fast native delta checker and reconcile it against the slow
 reference (by proof that the fast one refines the slow one, or by per-run
 double-execution). **This reconciliation is an honest open cost** — "just certify

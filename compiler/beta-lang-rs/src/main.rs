@@ -8,8 +8,9 @@
 //
 //   SLICE 1: `proc main() { return <arith> }`.
 //   SLICE 2: procedures with parameters and calls (the calling convention).
-//   SLICE 3: `if`/`else`, `while`, `let` locals, assignment, comparisons,
-//            multi-statement bodies  ->  unlocks recursion + loops.
+//   SLICE 3: `let` locals, assignment, comparisons, CFG control flow (`state`
+//            blocks + guarded `to … when …` transitions — no if/while; loops are
+//            self-transitioning states)  ->  unlocks recursion + loops.
 //
 // Convention (see ../beta/CALLING_CONVENTION.md): control returns ride the VM's
 // hidden call/ret stack; data rides an explicit stack via r15 (sp), r14 = frame
@@ -22,12 +23,13 @@ use std::io::Read;
 enum Tok {
     Proc,
     Return,
-    If,
-    Else,
-    While,
+    State, // CFG / Omega-style control flow: a basic block
+    To,    // a transition (jump) to another state
+    When,  // a guard on a transition
     Let,
     Ident(String),
     Int(i64),
+    Str(Vec<u8>), // string literal payload (decoded bytes), only as emit("...")
     LParen,
     RParen,
     LBrace,
@@ -84,14 +86,80 @@ fn lex(src: &str) -> Vec<Tok> {
             toks.push(match &src[s..i] {
                 "proc" => Tok::Proc,
                 "return" => Tok::Return,
-                "if" => Tok::If,
-                "else" => Tok::Else,
-                "while" => Tok::While,
+                "state" => Tok::State,
+                "to" => Tok::To,
+                "when" => Tok::When,
                 "let" => Tok::Let,
                 "byte" => Tok::Byte,
                 "word" => Tok::Word,
                 w => Tok::Ident(w.to_string()),
             });
+            continue;
+        }
+        if c == b'"' {
+            // string literal: only valid as emit("..."); decoded to bytes here.
+            i += 1;
+            let mut bytes = Vec::new();
+            loop {
+                if i >= b.len() {
+                    panic!("beta-lang: unterminated string literal");
+                }
+                if b[i] == b'"' {
+                    i += 1;
+                    break;
+                }
+                if b[i] == b'\\' {
+                    i += 1;
+                    bytes.push(match b.get(i) {
+                        Some(b'n') => 10,
+                        Some(b't') => 9,
+                        Some(b'r') => 13,
+                        Some(b'0') => 0,
+                        Some(b'\\') => 92,
+                        Some(b'"') => 34,
+                        other => panic!(
+                            "beta-lang: unknown escape '\\{}'",
+                            other.map(|c| *c as char).unwrap_or('?')
+                        ),
+                    });
+                    i += 1;
+                } else {
+                    bytes.push(b[i]);
+                    i += 1;
+                }
+            }
+            toks.push(Tok::Str(bytes));
+            continue;
+        }
+        if c == b'\'' {
+            // char literal: 'x' or '\n' '\t' '\r' '\0' '\\' '\'' -> the byte value
+            i += 1;
+            if i >= b.len() {
+                panic!("beta-lang: unterminated char literal");
+            }
+            let v: i64 = if b[i] == b'\\' {
+                i += 1;
+                match b.get(i) {
+                    Some(b'n') => 10,
+                    Some(b't') => 9,
+                    Some(b'r') => 13,
+                    Some(b'0') => 0,
+                    Some(b'\\') => 92,
+                    Some(b'\'') => 39,
+                    other => panic!(
+                        "beta-lang: unknown escape '\\{}'",
+                        other.map(|c| *c as char).unwrap_or('?')
+                    ),
+                }
+            } else {
+                b[i] as i64
+            };
+            i += 1;
+            if i >= b.len() || b[i] != b'\'' {
+                panic!("beta-lang: unterminated char literal");
+            }
+            i += 1;
+            toks.push(Tok::Int(v));
             continue;
         }
         let c2 = if i + 1 < b.len() { b[i + 1] } else { 0 };
@@ -132,15 +200,18 @@ enum Node {
     Cmp(u8, usize, usize),    // 0=< 1=> 2=== 3=!= 4=<= 5=>=  (yields 0/1)
     Call(String, Vec<usize>), // callee, argument indices
     Load(u8, usize),          // width (1=byte, 8=word), address expr
+    Emit(Vec<u8>),            // emit("...") -> write each byte; no string type
 }
 
 enum Stmt {
     Let(usize, usize),                // slot, expr
     Assign(usize, usize),             // slot, expr
     Return(usize),                    // expr
-    If(usize, Vec<Stmt>, Vec<Stmt>),  // cond, then, else
-    While(usize, Vec<Stmt>),          // cond, body
+    State(String, Vec<Stmt>),         // a CFG basic block: a label + its straight-line body
+    Goto(String),                     // `to NAME`         — unconditional transition
+    GotoWhen(usize, String),          // `to NAME when E`  — guarded transition
     Store(u8, usize, usize),          // width, address, value
+    CallStmt(usize),                  // call expr evaluated for effect (result discarded)
 }
 
 struct Proc {
@@ -254,23 +325,23 @@ impl Parser {
                 self.pos += 1;
                 Stmt::Return(self.expr())
             }
-            Tok::If => {
+            Tok::State => {
+                // `state NAME { stmts }` — a basic block in CFG/Omega style.
                 self.pos += 1;
-                let cond = self.expr();
-                let then = self.block();
-                let els = if *self.peek() == Tok::Else {
-                    self.pos += 1;
-                    self.block()
-                } else {
-                    Vec::new()
-                };
-                Stmt::If(cond, then, els)
-            }
-            Tok::While => {
-                self.pos += 1;
-                let cond = self.expr();
+                let name = self.ident();
                 let body = self.block();
-                Stmt::While(cond, body)
+                Stmt::State(name, body)
+            }
+            Tok::To => {
+                // `to NAME` (unconditional) or `to NAME when COND` (guarded transition).
+                self.pos += 1;
+                let name = self.ident();
+                if *self.peek() == Tok::When {
+                    self.pos += 1;
+                    Stmt::GotoWhen(self.expr(), name)
+                } else {
+                    Stmt::Goto(name)
+                }
             }
             Tok::Byte | Tok::Word => {
                 let w = if *self.peek() == Tok::Byte { 1 } else { 8 };
@@ -283,10 +354,16 @@ impl Parser {
                 Stmt::Store(w, addr, val)
             }
             Tok::Ident(_) => {
-                let name = self.ident();
-                self.eat(Tok::Assign);
-                let e = self.expr();
-                Stmt::Assign(self.slot_of(&name), e)
+                // `f(args)` -> call for effect; `x = e` -> assignment.
+                if self.toks[self.pos + 1] == Tok::LParen {
+                    let e = self.expr(); // factor() parses the whole call
+                    Stmt::CallStmt(e)
+                } else {
+                    let name = self.ident();
+                    self.eat(Tok::Assign);
+                    let e = self.expr();
+                    Stmt::Assign(self.slot_of(&name), e)
+                }
             }
             _ => panic!("beta-lang: expected a statement"),
         }
@@ -357,6 +434,16 @@ impl Parser {
                 self.push(Node::Load(8, a))
             }
             Tok::Ident(name) => {
+                if name == "emit" {
+                    // emit("literal") — the sole place a string literal is valid.
+                    self.eat(Tok::LParen);
+                    let bytes = match self.next() {
+                        Tok::Str(b) => b,
+                        _ => panic!("beta-lang: emit(...) takes a string literal"),
+                    };
+                    self.eat(Tok::RParen);
+                    return self.push(Node::Emit(bytes));
+                }
                 if *self.peek() == Tok::LParen {
                     self.pos += 1;
                     let mut args = Vec::new();
@@ -385,6 +472,8 @@ struct Gen<'a> {
     nodes: &'a [Node],
     out: String,
     label: usize,
+    strings: Vec<Vec<u8>>, // deduped pool of emit() literals -> a `db` data section
+    cur_proc: String,      // for naming CFG state labels `<proc>__<state>`
 }
 
 impl<'a> Gen<'a> {
@@ -473,6 +562,18 @@ impl<'a> Gen<'a> {
             Node::Call(name, args) => {
                 let name = name.clone();
                 let args = args.clone();
+                // Built-in host-boundary intrinsics (the only path to Alpha read/write).
+                if name == "read_byte" {
+                    assert!(args.is_empty(), "beta-lang: read_byte() takes no arguments");
+                    self.line("read  r0"); // -> byte in r0, or -1 at EOF
+                    return;
+                }
+                if name == "write_byte" {
+                    assert!(args.len() == 1, "beta-lang: write_byte(x) takes one argument");
+                    self.expr(args[0]);
+                    self.line("write r0"); // write low byte of r0
+                    return;
+                }
                 for &a in &args {
                     self.expr(a);
                     self.push_r0(); // stage args left-to-right
@@ -490,6 +591,22 @@ impl<'a> Gen<'a> {
                 } else {
                     self.line("load  r0, r0");
                 }
+            }
+            Node::Emit(bytes) => {
+                // intern the literal in the data pool; emit addr/len + a call to
+                // the write_str helper (compact: the bytes live once in a `db`
+                // data section, ~1 tape byte/char, not an imm+write per byte).
+                let idx = match self.strings.iter().position(|s| s == bytes) {
+                    Some(i) => i,
+                    None => {
+                        self.strings.push(bytes.clone());
+                        self.strings.len() - 1
+                    }
+                };
+                let len = bytes.len();
+                self.line(&format!("imm   r0, _str{}", idx));
+                self.line(&format!("imm   r1, {}", len));
+                self.line("call  __write_str");
             }
         }
     }
@@ -515,32 +632,22 @@ impl<'a> Gen<'a> {
                 self.expr(*e);
                 self.epilogue();
             }
-            Stmt::If(cond, then, els) => {
-                let end = self.newlabel();
-                self.expr(*cond);
-                if els.is_empty() {
-                    self.line(&format!("jz    r0, {}", end));
-                    self.block(then);
-                    self.at(&end);
-                } else {
-                    let elsel = self.newlabel();
-                    self.line(&format!("jz    r0, {}", elsel));
-                    self.block(then);
-                    self.line(&format!("jmp   {}", end));
-                    self.at(&elsel);
-                    self.block(els);
-                    self.at(&end);
-                }
-            }
-            Stmt::While(cond, body) => {
-                let top = self.newlabel();
-                let end = self.newlabel();
-                self.at(&top);
-                self.expr(*cond);
-                self.line(&format!("jz    r0, {}", end));
+            Stmt::State(name, body) => {
+                // a CFG basic block: a label, then its straight-line body. Falls through
+                // to the next state unless the body transitions (`to`) or returns.
+                let lbl = format!("{}__{}", self.cur_proc, name);
+                self.at(&lbl);
                 self.block(body);
-                self.line(&format!("jmp   {}", top));
-                self.at(&end);
+            }
+            Stmt::Goto(name) => {
+                self.line(&format!("jmp   {}__{}", self.cur_proc, name));
+            }
+            Stmt::GotoWhen(cond, name) => {
+                self.expr(*cond);
+                let skip = self.newlabel();
+                self.line(&format!("jz    r0, {}", skip)); // guard false -> fall through
+                self.line(&format!("jmp   {}__{}", self.cur_proc, name));
+                self.at(&skip);
             }
             Stmt::Store(w, addr, val) => {
                 self.expr(*addr);
@@ -553,6 +660,9 @@ impl<'a> Gen<'a> {
                     self.line("store r1, r0");
                 }
             }
+            Stmt::CallStmt(e) => {
+                self.expr(*e); // evaluate for effect; result in r0 is discarded
+            }
         }
     }
     fn block(&mut self, stmts: &[Stmt]) {
@@ -562,15 +672,18 @@ impl<'a> Gen<'a> {
     }
 
     fn proc(&mut self, p: &Proc) {
+        self.cur_proc = p.name.clone();
         self.at(&p.name);
-        // prologue: push caller fp, fp = sp, allocate frame, store params
-        self.line("imm   r2, 8");
-        self.line("sub   r15, r2");
+        // prologue: push caller fp, fp = sp, allocate frame, store params.
+        // Scratch is r5, NOT r2 — args arrive live in r0..r3, and r2 (arg 3) must
+        // survive until it is stored to its frame slot below.
+        self.line("imm   r5, 8");
+        self.line("sub   r15, r5");
         self.line("store r15, r14");
         self.line("mov   r14, r15");
         if p.nslots > 0 {
-            self.line(&format!("imm   r2, {}", p.nslots * 8));
-            self.line("sub   r15, r2");
+            self.line(&format!("imm   r5, {}", p.nslots * 8));
+            self.line("sub   r15, r5");
         }
         for k in 0..p.nparams {
             self.slot_addr(5, 4, k); // r5 = &param k (scratch r4; never an arg register)
@@ -601,6 +714,8 @@ fn main() {
         nodes: &parser.nodes,
         out: String::new(),
         label: 0,
+        strings: Vec::new(),
+        cur_proc: String::new(),
     };
     g.out.push_str("; generated by beta-lang (Beta -> Alpha assembly)\n");
     g.out.push_str("        imm   r15, 1048576      ; data stack pointer (sp)\n");
@@ -609,6 +724,39 @@ fn main() {
     g.out.push_str("        halt  r0\n");
     for p in &procs {
         g.proc(p);
+    }
+    // emit() support: a leaf write_str helper + the interned string data section.
+    // Only emitted when something used emit(), so non-emitting programs are
+    // byte-identical to before.
+    if !g.strings.is_empty() {
+        g.out.push_str("__write_str:\n"); // r0 = addr, r1 = len; write len bytes from [addr]
+        g.out.push_str("__ws_loop:\n");
+        g.line("imm   r3, 0");
+        g.line("jeq   r1, r3, __ws_done");
+        g.line("loadb r2, r0");
+        g.line("write r2");
+        g.line("imm   r3, 1");
+        g.line("add   r0, r3");
+        g.line("sub   r1, r3");
+        g.line("jmp   __ws_loop");
+        g.out.push_str("__ws_done:\n");
+        g.line("ret");
+        let strings = std::mem::take(&mut g.strings);
+        for (i, s) in strings.iter().enumerate() {
+            let mut esc = String::new();
+            for &b in s {
+                match b {
+                    b'\n' => esc.push_str("\\n"),
+                    b'\t' => esc.push_str("\\t"),
+                    b'\r' => esc.push_str("\\r"),
+                    0 => esc.push_str("\\0"),
+                    b'\\' => esc.push_str("\\\\"),
+                    b'"' => esc.push_str("\\\""),
+                    _ => esc.push(b as char),
+                }
+            }
+            g.out.push_str(&format!("_str{}:\n        db \"{}\"\n", i, esc));
+        }
     }
     print!("{}", g.out);
 }

@@ -1,16 +1,55 @@
 # `compiler/alpha/` — the seed (the binary from god)
 
 Alpha is the trust root of the whole lattice: a tiny, hand-written, hand-auditable VM.
-This folder is just **a bundle of seed binaries + the hex they're built from** — nothing
-else lives here.
+This folder is just **a bundle of per-platform seed binaries + the listings they're
+built from** — nothing else lives here.
 
 ```
-alpha_x64_windows.exe    the seed binary for this platform  (audit THIS)
+alpha_x64_windows.exe    seed binary, x86-64 Windows PE   (audit THIS)
 alpha_x64_windows.hex    the annotated x64 listing it's built from  (audit AGAINST this)
+
+alpha_arm64_macos        seed binary, arm64 macOS Mach-O  (audit THIS)
+alpha_arm64_macos.s      the hand-authored arm64 source it's built from  (audit AGAINST this)
+alpha_arm64_macos.lst    a committed disassembly, to ease reading the binary against the source
+
+seed_env.sh              per-platform seed selection + tape-stamping, sourced by the build scripts
+
+SEMANTICS.md             the written small-step operational semantics — the meaning a seed is audited AGAINST
+conformance.sh           executable companion: hand-built tapes pinning every opcode + edge; any seed must pass
+verify.sh                the per-platform acceptance gate: provenance + conformance + diamond, one command
 ```
 
-To audit a seed: disassemble the `.exe` and read it against its `.hex` listing. That's
-the entire trust obligation for the platform — a few hundred instructions.
+`sh verify.sh` runs the whole local trust check for the host's seed:
+
+- **provenance** — re-derives the committed binary from its source and confirms a match
+  (arm64: `clang -arch arm64 -Wl,-no_uuid …`, reproducible modulo the OS signature; x64:
+  audit the `.exe` against its `.hex` by hand, as no committed forge ships);
+- **behavior** — `conformance.sh` (every opcode + edge realizes `SEMANTICS.md`);
+- **diamond** — `../beta/selfhost.sh` (the VM reproduces the canonical assembler bytecode).
+
+To audit a seed: disassemble the binary and read it against its listing (the `.hex` for
+x64, the `.s` + `.lst` for arm64), checking that each opcode realizes the transition in
+`SEMANTICS.md`. That's the entire trust obligation for the platform — a few hundred
+instructions. `conformance.sh` mechanically checks the runtime behavior against the spec
+(`sh conformance.sh` runs the host seed through every case).
+
+## Two independent implementations = a real diamond
+
+The x64 and arm64 seeds are **independently hand-authored** (different ISA, OS, executable
+format, and author). They are not transcriptions of each other — they are two
+realizations of the same 21-opcode small-step semantics. That independence is the whole
+point: feeding the *same source* through both VMs produces **byte-identical tapes**, so a
+disagreement would expose a bug (or a Thompson backdoor) in one of them. This is the
+"diversity is the security" property the lattice calls for, established at the seed rather
+than bolted on later. Verified: the arm64 macOS VM reproduces the x64 VM's assembler
+bytecode from `../beta/assembler.alpha` byte-for-byte (sha256 `945c8061…`), and the full
+example corpus runs to the same answers on both.
+
+macOS note: `dd`-stamping a tape into a Mach-O invalidates its code signature, and Apple
+Silicon refuses to exec an invalid one, so a stamped seed is re-signed (`codesign -f -s -`)
+by `seed_env.sh`. The signature blob is OS-imposed and non-reproducible; the bootstrap's
+byte-identical guarantee therefore lives in the program bytes (the tape), not the
+signature — which is exactly what `selfhost.sh` compares.
 
 ## Per-platform vs cross-platform
 
