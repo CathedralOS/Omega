@@ -37,6 +37,14 @@ pub(crate) struct Lowerer {
     /// `statement::hoist_indexed_operands`). `__hoist_` prefixed so the
     /// generated names cannot collide with source identifiers.
     hoist_counter: u32,
+    /// Maps a match SUBJECT syntax expression handle to the name of the single
+    /// hoisted temp for it. All arms of one enum-variant match share the same
+    /// syntax subject handle (the parser reuses it across arms), so the first
+    /// arm mints `let __hoist_N = <subject>` and the siblings reuse the name --
+    /// keeping ONE shared subject so match exhaustiveness still groups the arms
+    /// (`statement::hoist_membership_match_subject`). Keyed by the subject
+    /// syntax handle's arena index (`Handle` is not `Hash`).
+    match_subject_temps: std::collections::HashMap<u32, String>,
 }
 
 impl Lowerer {
@@ -45,7 +53,18 @@ impl Lowerer {
             symbol_resolved_trees: SymbolResolvedTrees::default(),
             sources,
             hoist_counter: 0,
+            match_subject_temps: std::collections::HashMap::new(),
         }
+    }
+
+    /// The shared hoist-temp name for a match subject syntax handle, if the first arm already
+    /// minted one; otherwise records `name` as the temp for later arms and returns None.
+    pub(crate) fn match_subject_temp(&mut self, subject_arena_index: u32) -> Option<String> {
+        self.match_subject_temps.get(&subject_arena_index).cloned()
+    }
+
+    pub(crate) fn record_match_subject_temp(&mut self, subject_arena_index: u32, name: String) {
+        self.match_subject_temps.insert(subject_arena_index, name);
     }
 
     pub(crate) fn next_hoist_name(&mut self) -> String {

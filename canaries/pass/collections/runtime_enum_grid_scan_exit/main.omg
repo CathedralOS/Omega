@@ -1,10 +1,12 @@
-// Scanning an array of enums (a tile grid) by runtime index, the sound way: read each cell into a
-// local/field FIRST, then match the local. A DIRECT `transition self.grid[self.i] { ... }` with a
-// runtime index silently takes the first arm (the parked indexed-guard miscompile); reading into
-// `self.c` and matching that resolves correctly. This is the grid-cell / cellular-automaton
-// iteration pattern.
-//
-// grid = [Wall, Door, Floor, Door, Wall] -> 2 Doors. Exits 70 iff the scan counts 2.
+// Scanning an array of enums (a tile grid) by runtime index and matching each cell DIRECTLY:
+// `transition self.grid[self.i] { Cell::Wall -> .. }` -- no local bind. A direct runtime-indexed
+// enum-array match subject USED to silently take the first arm (the indexed-guard-subject
+// miscompile), so this required reading into `self.c` first. It is now fixed at the frontend: the
+// per-arm `When(grid[i] is Variant)` guards share one syntax subject handle, so the lowering hoists
+// that subject into a SINGLE `let __hoist = self.grid[self.i]` (keyed on the shared handle) that all
+// arms test -- exhaustiveness still groups the arms, and the compare reads the right element. This
+// locks the direct form. grid = [Wall, Door, Floor, Door, Wall] -> 2 Doors. Exits 70 iff the scan
+// counts 2. Differential (native must match the interpreter).
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
@@ -20,7 +22,6 @@ data Main {
     grid: [Cell; 5];
     i: u32 in Wrapping;
     doors: i32 in Wrapping;
-    c: Cell;
 }
 
 machine Main::main(&mut self) {
@@ -40,8 +41,8 @@ machine Main::main(&mut self) {
         }
     }
     state read(&mut self) {
-        self.c = self.grid[self.i];
-        transition self.c {
+        // Direct runtime-indexed enum-array MATCH subject -- no local bind.
+        transition self.grid[self.i] {
             Cell::Door -> count()
             Cell::Wall -> next()
             Cell::Floor -> next()
