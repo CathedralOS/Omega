@@ -813,6 +813,14 @@ def _try_natind(sat, goal):  # prove (All P) by Peano INDUCTION: base P(0) + ste
 # universal strict-order irreflexivity, ∀a. a<a -> ⊥ (desugared), proven on demand and cited by the
 # order-cycle rule below. Built via parse so its de Bruijn form matches exactly what the search produces.
 _IRREFL = parse(tokenize("(All (-> (Lt (v 0) (v 0)) (bot)))"))
+_CANCEL0 = parse(tokenize("(All (All (-> (= (p (v 1) (v 0)) (v 1)) (= (v 0) z))))"))   # a+m=a -> m=0
+_POSIT  = parse(tokenize("(All (All (-> (= (p (v 1) (v 0)) z) (= (v 1) z))))"))          # a+b=0 -> a=0 (positivity)
+
+
+def _add_base(p):  # an additive-equality fact `(= (p A K) B)` -> (A, K, B); else None
+    if p[0] == "=" and p[1][0] == "p":
+        return (p[1][1], p[1][2], p[2])
+    return None
 
 
 def _strict_base(p):  # if p is a strict-Lt fact `(= (p A (s K)) B)` (what unpacking `A < B` yields), return
@@ -1032,6 +1040,35 @@ def _rules(sat, goal):
                         irr = prove([], _IRREFL)   # irreflexivity is CLOSED -- prove from a clean context so the
                         if irr is not None:        # cycle facts here don't re-trigger this rule (non-termination)
                             return ("app", ("inst", irr, base), pf_lt)
+    # le-ANTISYMMETRY: goal a=b with an additive cycle a+k=b, b+j=a (a<=b and b<=a) in context. Derive a=b via
+    #   a+(k+j)=a [chain, both-orient add-assoc] -> k+j=0 [CANCEL0] -> k=0 [positivity]; then a=b closes by the
+    #   existing rewrite (b->a+k, k->0, add-0). Forward orchestration; every cert built by a recursive prove().
+    #   Fires only on a genuine cycle (cheap otherwise) and once (the k=0 guard blocks re-entry -> terminates).
+    if (goal[0] == "=" and _induction_on[0]
+            and goal[1][0] == "eig" and goal[2][0] == "eig"):   # a=b with BARE eigenvar sides -- the antisym
+        for p1, _ in sat:                                        # shape; fuzz/sum-witness `=` goals have compound
+            f1 = _add_base(p1)                                   # sides, so the expensive cycle search is skipped
+            if f1 is None or f1[0] == f1[2]:
+                continue
+            A, K, B = f1
+            if set([A, B]) != set([goal[1], goal[2]]) or has(sat, ("=", K, ("z",))) is not None:
+                continue
+            for p2, _ in sat:
+                f2 = _add_base(p2)
+                if f2 is not None and f2[0] == B and f2[2] == A:
+                    sbo = _both_orient[0]; _both_orient[0] = True
+                    cyc = prove(sat, ("=", ("p", A, ("p", K, f2[1])), A))   # a+(k+j)=a
+                    _both_orient[0] = sbo
+                    if cyc is None:
+                        continue
+                    cpf, ppf = prove([], _CANCEL0), prove([], _POSIT)
+                    if cpf is None or ppf is None:
+                        continue
+                    kj0 = ("app", ("inst", ("inst", cpf, A), ("p", K, f2[1])), cyc)   # k+j=0
+                    k0 = ("app", ("inst", ("inst", ppf, K), f2[1]), kj0)              # k=0
+                    body = prove(sat + [(("=", K, ("z",)), k0)], goal)
+                    if body is not None:
+                        return body
     # sinj: successor injectivity -- a hypothesis (s a = s b) yields the NEW fact (a = b). The children are
     # the normal forms' successors' arguments (what the kernel's sinj returns). Decreasing successor depth +
     # the new-fact guard terminate the chain (so 2=3 collapses 2=3 -> 1=2 -> 0=1 -> disj -> bot).

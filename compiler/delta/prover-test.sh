@@ -184,6 +184,10 @@ ok "(All (All (-> (Le (v 1) (v 0)) (Le (s (v 1)) (s (v 0))))))" # a<=b -> s a <=
 # rule in prover.py. The goal-directed rules alone can't reach it (combining two order facts is forward).
 ok "(All (All (-> (Lt (v 1) (v 0)) (-> (Lt (v 0) (v 1)) (bot)))))"  # a<b -> b<a -> bot  (strict order ASYMMETRIC)
 no "(All (All (-> (Lt (v 1) (v 0)) (-> (Lt (v 1) (v 0)) (bot)))))"  # a<b -> a<b -> bot is FALSE (no cycle, just a<b)
+# ANTISYMMETRY (a<=b & b<=a -> a=b) -- the partial-order axiom. Forward orchestration on the two <= witnesses:
+# the additive cycle a+(k+j)=a gives k+j=0 (CANCEL0), hence k=0 (positivity), hence b=a+k=a+0=a. See the
+# le-antisymmetry rule in prover.py; needs CANCEL0 (the natind-first fix above) + positivity, both proven.
+ok "(All (All (-> (Le (v 1) (v 0)) (-> (Le (v 0) (v 1)) (= (v 1) (v 0))))))"  # a<=b -> b<=a -> a=b  (ANTISYMMETRIC)
 no "(All (-> (Lt z (v 0)) (bot)))"                            # 0 < a -> bot is FALSE (a=1)
 no "(All (-> (Le (v 0) z) (Lt (v 0) z)))"                     # a<=0 does NOT give a<0 (a=0)
 # STRICT mult-mono needs a POSITIVITY guard (a<b => a*c<b*c is FALSE at c=0). With 0<c it discharges via the
