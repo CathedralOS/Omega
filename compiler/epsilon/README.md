@@ -81,6 +81,12 @@ Rust-free translator one at a time).
   every method) and threaded as extra params. A void method returns its self-state **bundle** (`0` / the
   sole slot / right-nested `Pair`s); a call `self.m(a);` becomes `(let nss <call> rest)` (1 slot) or
   `(match <call> ((Pair a0 r0) … rest))` (N slots), rebinding the self-slots to fresh names.
+- **Slice 9** — **value-returning self-methods**: `machine Main::m(&mut self, p) -> i32` returns
+  `(Pair <result> <self bundle>)`; the statement-form call `x = self.m(a);` / `self.f = self.m(a);`
+  unbundles it, binding the target to the result and rebinding the self-slots. The target binding happens
+  **after** the self-slot rebinds — if the target is itself a self-field, the slot rebind would otherwise
+  clobber the result. This is *ahead of* the Rust `gamma_emit.rs` (which returns `None` on value-position
+  `SelfCall`), so these programs are checked native-vs-Rust-free only.
 
 **With slice 8, epsilon's meaning is fully Rust-free** — every language feature (arithmetic, comparisons,
 state machines, self fields/arrays, cross-machine calls + recursion, stdin, stdout, self-methods) is

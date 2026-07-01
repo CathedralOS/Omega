@@ -741,6 +741,72 @@ proc emit_scall(callee) {
     }
 }
 
+; <target> = self.m(args);  — a VALUE-RETURNING method call. The method returns (Pair result <selfbundle>);
+; unbundle it, binding the target slot (kindb/valb/idx) to the result and rebinding the self-slots to fresh
+; names. CUR at '('. Returns the number of let/match groups opened (closed by the block).
+proc emit_vcall(callee, kindb, valb, idx) {
+    adv()                              ; consume '('
+    let ch = parse_args()
+    skip_ws()
+    adv()                              ; consume ')'
+    state tsemi { to eatsemi when (cbyte() == ';')  adv()  to tsemi }
+    state eatsemi {
+        adv()                          ; consume ';'
+        let ns = self_slot_count()
+        to vmany when (ns > 0)
+        to vone
+    }
+    state vone {                       ; no self-state threaded: the method returns just the value
+        let f0 = word[6000016]
+        word[6000016] = word[6000016] + 1
+        emit("(let t")  emit_dec(f0)  write_byte(' ')
+        emit_call_expr(callee, ch)
+        write_byte(' ')
+        word[kindb + idx * 8] = 1
+        word[valb + idx * 8] = f0
+        return 1
+    }
+    state vmany {                      ; tuple = (Pair result <selfbundle>): ns+1 components, ns matches
+        let rr = word[6000016]         ; component 0: the result -> the target slot
+        let sbase = word[6000016] + 1  ; components 1..ns: the self slots
+        word[6000016] = word[6000016] + 1 + ns
+        let qbase = word[6000016]      ; intermediate tails q0..q_{ns-2}
+        word[6000016] = word[6000016] + ns - 1
+        emit("(match ")
+        emit_call_expr(callee, ch)
+        emit(" ((Pair t")  emit_dec(rr)  write_byte(' ')
+        to vsingle when (ns == 1)
+        emit("t")  emit_dec(qbase)  emit(") ")
+        let i = 0
+        to vmarm
+    }
+    state vsingle {                    ; ns==1: (match <call> ((Pair r s0) rest))
+        emit("t")  emit_dec(sbase)  emit(") ")
+        set_self_slot(0, sbase)
+        to vbind
+    }
+    state vmarm {                      ; match k over q_k: (Pair s_k q_{k+1}); the last binds two slots
+        to vmlast when (i == ns - 2)
+        emit("(match t")  emit_dec(qbase + i)  emit(" ((Pair t")  emit_dec(sbase + i)  emit(" t")  emit_dec(qbase + i + 1)  emit(") ")
+        set_self_slot(i, sbase + i)
+        i = i + 1
+        to vmarm
+    }
+    state vmlast {
+        emit("(match t")  emit_dec(qbase + i)  emit(" ((Pair t")  emit_dec(sbase + i)  emit(" t")  emit_dec(sbase + i + 1)  emit(") ")
+        set_self_slot(ns - 2, sbase + ns - 2)
+        set_self_slot(ns - 1, sbase + ns - 1)
+        to vbind
+    }
+    state vbind {                      ; bind the TARGET slot to the result LAST — if the target is itself
+        word[kindb + idx * 8] = 1      ; a self-field (self.w = self.m(...)), the self-slot rebinds above
+        word[valb + idx * 8] = rr      ; would otherwise CLOBBER the result with the threaded-through slot.
+        to vfin when (ns == 1)
+        return 2 * ns
+    }
+    state vfin { return 2 }
+}
+
 proc emit_zeros(n) {
     let k = 0
     state loop { to done when (k == n)  emit(" 0")  k = k + 1  to loop }
@@ -902,6 +968,22 @@ proc do_write_slot(kindb, valb, idx) {
         adv()
         skip_ws()
         to rbyte when (is_read_byte() == 1)
+        to vself when (is_self() == 1)
+        to normal
+    }
+    state vself {                      ; `self.NAME(` -> a value-returning method call; else an ordinary
+        let sav = word[2097144]        ; expression (self.f / self.arr[i]) -> rewind and parse normally
+        skip_ident()                   ; past "self"
+        adv()                          ; past '.'
+        let moff = word[2097144]
+        skip_ident()                   ; past NAME
+        skip_ws()
+        to vcall when (cbyte() == '(')
+        word[2097144] = sav
+        to normal
+    }
+    state vcall { return emit_vcall(lookup_machine(moff), kindb, valb, idx) }
+    state normal {
         let node = parse_cmp()
         emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
         print_expr(node)
@@ -1048,11 +1130,25 @@ proc translate_block(mi, off) {
     state t_trans { emit_transition()  to close }
     state t_bwbyte { depth = depth + emit_write_byte()  to loop }
     state t_bwline { depth = depth + emit_write_line()  to loop }
-    state t_return {                   ; free machine: `return <expr>;` -> the value
+    state t_return {                   ; `return <expr>;` -> the value (a METHOD pairs it with its self-state)
         skip_ident()                   ; past "return"
         skip_ws()
         let e = parse_cmp()
+        to t_retm when (word[6010200 + word[6000032] * 8] == 2)   ; M_KIND[CUR_MI] == 2 (method)
         print_expr(e)
+        to close
+    }
+    state t_retm {                     ; a value-returning METHOD: (Pair <result> <self bundle>)
+        to t_retmb when (self_slot_count() > 0)
+        print_expr(e)                  ; no self-state to thread -> just the value
+        to close
+    }
+    state t_retmb {
+        emit("(Pair ")
+        print_expr(e)
+        write_byte(' ')
+        emit_bundle()
+        write_byte(')')
         to close
     }
     state t_self {                     ; entry: array write, field store, or a self.console.METHOD
