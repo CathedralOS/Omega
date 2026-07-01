@@ -590,8 +590,7 @@ fn entry_constant_init_range(
             continue; // a back edge -- not an entry
         }
         saw_entry = true;
-        let predecessor = find_state(states, edge.source)?;
-        let init = state_constant_init(program, predecessor, counter)?;
+        let init = counter_entry_init(program, states, edges, loop_states, edge.source, counter)?;
         min_init = Some(min_init.map_or(init, |current| current.min(init)));
         max_init = Some(max_init.map_or(init, |current| current.max(init)));
     }
@@ -602,30 +601,82 @@ fn entry_constant_init_range(
     Some((min_init?, max_init?))
 }
 
-/// The constant value the predecessor state assigns to `counter`, when its LAST
-/// assignment to `counter` is `self.counter = <integer literal>`.
-fn state_constant_init(
+/// A state's net effect on `counter`, for the entry-init back-walk.
+enum InitProbe {
+    /// The state's last effect sets `counter` to this constant integer literal.
+    Constant(i64),
+    /// The state sets `counter` to a non-constant, or makes a call / bare expression that
+    /// may clobber it through `&mut self` -- the init is not a clean constant here.
+    Unknown,
+    /// The state does not touch `counter`; the walk may continue back through it.
+    Untouched,
+}
+
+/// The constant `counter` holds at the loop head's entry along the chain ending at `start` (an
+/// entry-edge source). Walks back through single-predecessor, counter-untouched states until the
+/// constant init is found. `None` if any state on the chain sets `counter` to a non-constant or
+/// may clobber it, the chain branches (more than one distinct predecessor) or reaches a loop
+/// state, or no init is found. Strictly extends the old immediate-predecessor check: a
+/// predecessor that DOES set the counter is classified exactly as before; only the previously
+/// dead "predecessor does not set it" case now walks further back.
+fn counter_entry_init(
+    program: &omega_typed_trees::TypedTrees,
+    states: &[State],
+    edges: &[Edge],
+    loop_states: &[SymbolHandle],
+    start: SymbolHandle,
+    counter: SymbolHandle,
+) -> Option<i64> {
+    let mut visited: Vec<SymbolHandle> = Vec::new();
+    let mut current = start;
+    loop {
+        let state = find_state(states, current)?;
+        match probe_state_init(program, state, counter) {
+            InitProbe::Constant(value) => return Some(value),
+            InitProbe::Unknown => return None,
+            InitProbe::Untouched => {}
+        }
+        if visited.contains(&current) {
+            return None; // a cycle with no init
+        }
+        visited.push(current);
+        // Continue only to a single distinct predecessor that lies outside the loop.
+        let mut sources: Vec<SymbolHandle> = Vec::new();
+        for edge in edges.iter().filter(|edge| edge.target == current) {
+            if !sources.contains(&edge.source) {
+                sources.push(edge.source);
+            }
+        }
+        match sources.as_slice() {
+            [single] if !loop_states.contains(single) => current = *single,
+            _ => return None,
+        }
+    }
+}
+
+/// Classify a state's net effect on `counter` (last write wins), for `counter_entry_init`.
+fn probe_state_init(
     program: &omega_typed_trees::TypedTrees,
     state: &State,
     counter: SymbolHandle,
-) -> Option<i64> {
-    let mut init = None;
+) -> InitProbe {
+    let mut probe = InitProbe::Untouched;
     for statement in program.statement_table.statements(state.statement_nodes) {
         match statement {
             StatementNode::Assignment(assignment) => {
                 if assignment_counter_field(program, assignment) != Some(counter) {
                     continue;
                 }
-                match program.expression_table.expression(assignment.value) {
-                    ExpressionNode::Integer(value) => init = Some(*value),
-                    _ => init = None,
-                }
+                probe = match program.expression_table.expression(assignment.value) {
+                    ExpressionNode::Integer(value) => InitProbe::Constant(*value),
+                    _ => InitProbe::Unknown,
+                };
             }
-            StatementNode::Call(_) | StatementNode::Expression(_) => init = None,
+            StatementNode::Call(_) | StatementNode::Expression(_) => probe = InitProbe::Unknown,
             _ => {}
         }
     }
-    init
+    probe
 }
 
 /// The display name of `counter` as it appears as an index (`self.i`), sourced
