@@ -127,5 +127,46 @@ set +e; "$T/pgapneg"; got=$?; set -e
 if [ "$got" -gt 128 ]; then PASS=$((PASS + 1)); echo "  ok   param-gap negative b traps at the requires assert (exit $got)";
 else FAIL=$((FAIL + 1)); echo "  FAIL param-gap negative b did NOT trap (exit $got) -- the entry guard is missing"; fi
 
+# 5. RANGE-TYPE soundness: a `i: i32 in lo..hi` parameter desugars to entry asserts (lo <= i, i < hi) that
+# ENFORCE the bounded type -- the same facts the value-domain static discharge assumes (`self.arr[i]` array
+# bounds and `self.arr[i+j]` interval propagation are proved FROM these param types). So the discharge is sound
+# only if the type is really enforced: in-range args must never trap, and an out-of-range arg (EITHER bound) must
+# trap at the entry assert, not silently pass -- which would make the type, and every access proved from it, unsound.
+cat > "$T/rng.alp" <<'EOF'
+boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; }
+data Main { console: Console; }
+machine rcheck(i: i32 in 0..16, j: i32 in 3..8) -> i32 { return i + j; }
+machine Main::main(&mut self) {
+    let n: i32 = read_byte();       // 0..255
+    let i: i32 = n % 16;            // 0..15 -> in 0..16
+    let j: i32 = (n % 5) + 3;       // 3..7  -> in 3..8
+    let r: i32 = rcheck(i, j);      // both in range -> no entry-assert trap
+    self.console.exit_process(42)
+}
+EOF
+EPS_ARCH=aarch64 ./target/debug/beta "$T/rng.alp" "$T/rng" >/dev/null 2>"$T/e" \
+  || { echo "discharge-soundness FAIL — compiling range-type driver"; sed 's/^/    /' "$T/e"; exit 1; }
+for n in 0 1 15 16 42 100 200 255; do
+  set +e; printf "\\$(printf '%03o' "$n")" | "$T/rng"; got=$?; set -e
+  if [ "$got" = 42 ]; then PASS=$((PASS + 1)); else
+    FAIL=$((FAIL + 1)); echo "  FAIL range-type n=$n : exit $got (an in-range arg trapped a range-type entry assert!)"; fi
+done
+# out-of-range must TRAP -- upper (i=16 !< 16) and lower (j=2 !>= 3), separately (a trap ends the process), so
+# both directions of the bounded type are enforced, not just one.
+for pair in '16, 5|upper i<16' '5, 2|lower 3<=j'; do
+  args=${pair%%|*}; desc=${pair##*|}
+  cat > "$T/rngbad.alp" <<EOF
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine rcheck(i: i32 in 0..16, j: i32 in 3..8) -> i32 { return i + j; }
+machine Main::main(&mut self) { let r: i32 = rcheck($args); self.console.exit_process(42) }
+EOF
+  EPS_ARCH=aarch64 ./target/debug/beta "$T/rngbad.alp" "$T/rngbad" >/dev/null 2>&1 \
+    || { echo "discharge-soundness FAIL — compiling range-type negative ($desc)"; exit 1; }
+  set +e; "$T/rngbad"; got=$?; set -e
+  if [ "$got" -gt 128 ]; then PASS=$((PASS + 1)); echo "  ok   range-type out-of-range traps ($desc, exit $got)";
+  else FAIL=$((FAIL + 1)); echo "  FAIL range-type out-of-range did NOT trap ($desc, exit $got) -- the type is not enforced"; fi
+done
+
 echo "discharge soundness (static proof and runtime assert agree on discharged contracts): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
