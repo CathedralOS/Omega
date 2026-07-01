@@ -154,6 +154,17 @@ ok "(All (All (All (-> (Le (v 2) (v 1)) (Le (p (v 2) (v 0)) (p (v 1) (v 0)))))))
 ok "(All (All (All (-> (Le (v 2) (v 1)) (Le (p (v 0) (v 2)) (p (v 0) (v 1)))))))"   # a<=b => c+a <= c+b
 ok "(All (All (All (-> (Le (v 2) (v 1)) (Le (m (v 2) (v 0)) (m (v 1) (v 0)))))))"   # a<=b => a*c <= b*c  (mult-mono)
 no "(All (All (All (-> (Le (m (v 2) (v 0)) (m (v 1) (v 0))) (Le (v 2) (v 1))))))"   # a*c<=b*c does NOT give a<=b (c=0)
+# CANCELLATION (the INVERSE of additive monotonicity). SOUND for + (unlike *, which has the c=0 divisor above):
+# from a+c=b+c the induction-on-c + sinj machinery peels the common addend to recover a=b -- no new rule, the
+# existing natind/sinj/sum-witness pieces compose. The strict-order sibling a<b => a+c<b+c rides the sum-witness
+# source directly. (The <=-cancellation a+c<=b+c => a<=b is NOT yet reached: its natind step needs to compose
+# succ-<=-cancel below with the induction hypothesis, which the search doesn't connect within budget -- a known,
+# documented gap, not a soundness hole.)
+ok "(All (All (All (-> (= (p (v 2) (v 0)) (p (v 1) (v 0))) (= (v 2) (v 1))))))"   # a+c=b+c => a=b  (add-cancel-right)
+ok "(All (All (All (-> (= (p (v 0) (v 2)) (p (v 0) (v 1))) (= (v 2) (v 1))))))"   # c+a=c+b => a=b  (add-cancel-left)
+ok "(All (All (All (-> (Lt (v 2) (v 1)) (Lt (p (v 2) (v 0)) (p (v 1) (v 0)))))))" # a<b => a+c<b+c  (add-strict-mono)
+ok "(All (All (-> (Le (s (v 1)) (s (v 0))) (Le (v 1) (v 0)))))"                   # s a<=s b => a<=b (succ-<=-cancel: le-cancel building block)
+no "(All (All (All (All (-> (= (p (v 3) (v 1)) (p (v 2) (v 0))) (= (v 3) (v 2)))))))"  # a+c=b+d does NOT give a=b (unequal addends)
 # STRICT mult-mono needs a POSITIVITY guard (a<b => a*c<b*c is FALSE at c=0). With 0<c it discharges via the
 # strict mult-SCALING witness w = P+K*c (from 0<c giving c=s P, a<b giving b=a+s K), proved by right-distrib:
 # a*c + (s(P+K*c)) = a*c + (s K)*c = (a+s K)*c = b*c. A key fix: natind-first no longer hijacks such IMPLICATION
