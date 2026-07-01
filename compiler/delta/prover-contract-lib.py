@@ -35,4 +35,18 @@ for name, lid, prop_src in LEMMAS:
     pr, pf = cert.split("\t", 1)
     out.append("(def %d %s %s)" % (lid, pr, pf))
 
+# additive-comp (∀A∀B∀x∀y. x<A -> y<B -> x+y < A+B) -- "sum of bounded is bounded", the interval-propagation
+# lemma. Its proof reuses add-comm 270+ times, so INLINING explodes past the checker's working set (~235 KB);
+# it is banked as a shared def/use BLOCK instead (emit_lib_block): bases at ids 7..12, the lemma at id 13
+# (ADD_BOUND in discharge.rs). discharge.rs cites `(use 13)` for a `self.arr[i+j]` computed-index bound.
+ADD_BOUND_PROP = "(All (All (All (All (-> (Lt (v 1) (v 3)) (-> (Lt (v 0) (v 2)) (Lt (p (v 1) (v 0)) (p (v 3) (v 2)))))))))"
+goal = prover.parse(prover.tokenize(ADD_BOUND_PROP))
+proof = prover.solve(goal)
+if proof is None:
+    sys.stderr.write("prover-contract-lib: FAILED additive-comp\n")
+    sys.exit(1)
+block, add_bound_id = prover.emit_lib_block(goal, proof, 7)
+assert add_bound_id == 13, "additive-comp id drifted: %d (discharge.rs pins ADD_BOUND=13)" % add_bound_id
+out.append(block)
+
 sys.stdout.write(" ".join(out))
