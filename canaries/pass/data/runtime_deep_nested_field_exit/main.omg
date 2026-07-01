@@ -1,0 +1,31 @@
+// Deep struct nesting: a 5-level field chain `self.l1.l2.l3.l4.v` written and read back through
+// every intermediate struct. Each level's byte offset must compose correctly for both the write and
+// the read. Two leaf fields (v, w) plus a decoy `tag` at a sibling level discriminate the offsets.
+// v + w = 30 + 40 = 70. Exits 70 iff the deep access resolves to the right storage.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data L4 { v: i32 in Wrapping; w: i32 in Wrapping; }
+data L3 { l4: L4; tag: i32 in Wrapping; }
+data L2 { l3: L3; }
+data L1 { l2: L2; }
+
+data Main {
+    console: Console;
+    l1: L1;
+    s: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.l1.l2.l3.l4.v = 30;
+    self.l1.l2.l3.l4.w = 40;
+    self.l1.l2.l3.tag = 99;
+    self.s = self.l1.l2.l3.l4.v + self.l1.l2.l3.l4.w;
+    transition self.s == 70 {
+        true -> ok()
+        _ -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(self.s); }
+}
