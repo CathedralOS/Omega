@@ -4745,6 +4745,36 @@ fn runtime_float32_array_conversion_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_call_let_combine_exit_canary_runs() {
+    // The SAFE side of the shared-result-slot boundary: a computing value-machine called twice in
+    // one state whose results are bound to locals and combined in one expression is materialized
+    // eagerly and correct (dbl(3)=6, dbl(4)=8 -> 6*100+8 == 608 -> exit 70). Guards against
+    // re-broadening the shared-value-call-slot fence into a false positive on this valid pattern.
+    let canary = pass_canary("calls/runtime_value_call_let_combine_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-vc-letcombine-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call let-combine canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call let-combine canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected two value-calls bound to locals and combined in one expression to keep distinct \
+         results (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_float_nan_comparison_exit_canary_runs() {
     // NaN comparison honors IEEE in native codegen: `!=` is true, the other five operators
     // are false. Guards on `ucomis*` must test the parity flag (a `jp` branch) or 4 of 6 take
@@ -16920,6 +16950,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_float_place_comparison_exit",
     "expressions/runtime_numeric_cast_exit",
     "calls/runtime_value_position_branching_call_exit",
+    "calls/runtime_value_call_let_combine_exit",
     "calls/runtime_value_transition_unsigned_guard_exit",
     "calls/runtime_exit_code_exit",
     "calls/value_call_sequential_result_slots_exit",
