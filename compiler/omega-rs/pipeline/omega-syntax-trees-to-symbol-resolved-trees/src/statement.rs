@@ -116,10 +116,21 @@ fn lower_statement_node(
             // the guard ROOT, which `hoist_operand_indexed_reads` leaves whole -- so match
             // exhaustiveness (which needs a single shared subject across arms) is unaffected.
             let mut hoisted = Vec::new();
-            if let TransitionGuard::When(expression) = guard
-                && guard_hoists_operands(lowerer, expression)
-            {
-                hoist_operand_indexed_reads(lowerer, expression, &mut hoisted);
+            if let TransitionGuard::When(expression) = guard {
+                if guard_hoists_operands(lowerer, expression) {
+                    hoist_operand_indexed_reads(lowerer, expression, &mut hoisted);
+                } else {
+                    // A `Membership` root is an enum-variant match arm (`grid[i] { Wall -> .. }`);
+                    // the comparison hoist above skips it (not a `Binary`). Hoist its runtime-indexed
+                    // subject into a SHARED temp so all arms of the match test one plain local.
+                    hoist_membership_match_subject(
+                        lowerer,
+                        syntax_trees,
+                        transition.guard,
+                        expression,
+                        &mut hoisted,
+                    );
+                }
             }
             hoisted.push(Statement::Transition(Transition {
                 target,
@@ -407,6 +418,102 @@ fn lower_statement_expressions(
     }
 
     Ok(span)
+}
+
+/// Hoists a runtime-indexed ENUM-VARIANT MATCH subject into a SINGLE shared temp so every arm of
+/// the match tests one plain local. A match `transition self.grid[self.i] { Cell::Wall -> .. }`
+/// lowers (in the parser) to one `When(subject is Variant)` -- an `ExpressionNode::Membership` --
+/// per arm, and every arm's Membership references the SAME syntax subject handle. Naively hoisting
+/// each arm's subject (as the comparison hoist does for `Binary` guards) would mint a DISTINCT temp
+/// per arm, and the exhaustiveness checker -- which groups the arms by a shared subject -- would then
+/// report "match does not cover Variant". Instead this keys a memo on the shared syntax subject
+/// handle: the FIRST arm mints `let __hoist_N = self.grid[self.i]` and records the name; the siblings
+/// reuse it. All arms end up testing `__hoist_N`, so exhaustiveness still groups them, and the temp
+/// is a plain local with a correct offset (a raw runtime-indexed guard subject silently reads
+/// element 0). Const-index / field / string-slice subjects are not runtime-indexed and are left
+/// untouched.
+fn hoist_membership_match_subject(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    syntax_guard: syntax::statement::TransitionGuardNode,
+    guard_expression: ExpressionHandle,
+    hoisted: &mut Vec<Statement>,
+) {
+    // The LOWERED guard must be a Membership over a runtime-indexed subject.
+    let ExpressionNode::Membership(membership) = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .expression(guard_expression)
+        .clone()
+    else {
+        return;
+    };
+    if !is_runtime_indexed_read(lowerer, membership.value) {
+        return;
+    }
+    // The SYNTAX guard carries the subject handle shared across every arm of this match.
+    let syntax::statement::TransitionGuardNode::When(syntax_expression) = syntax_guard else {
+        return;
+    };
+    let syntax::expression::ExpressionNode::Membership(syntax_membership) = syntax_trees
+        .expressions
+        .expression(syntax_expression)
+    else {
+        return;
+    };
+    let subject_key = syntax_membership.value.arena_index();
+
+    // Reuse the sibling arm's temp if the first arm already minted one; otherwise mint it here and
+    // emit the single `let __hoist_N = <subject>;` (reusing this arm's lowered indexed read as the
+    // initializer -- later arms' lowered reads are simply left orphaned).
+    let name = match lowerer.match_subject_temp(subject_key) {
+        Some(existing) => DiagnosticName::generated(existing),
+        None => {
+            let fresh = lowerer.next_hoist_name();
+            lowerer.record_match_subject_temp(subject_key, fresh.clone());
+            let name = DiagnosticName::generated(fresh);
+            hoisted.push(Statement::LocalData(LocalData {
+                symbol: SymbolHandle::invalid(),
+                name: name.clone(),
+                storage: LocalDataStorage {
+                    type_reference: TypeReference::Unit,
+                    initial_value: membership.value,
+                },
+            }));
+            name
+        }
+    };
+
+    // Rewrite this arm's Membership to test the shared temp instead of the raw indexed read.
+    let mut members = HandleSpan::empty();
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .push_name_path_member(&mut members, name);
+    let name_reference = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: false,
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+        }));
+    set_expression(
+        lowerer,
+        guard_expression,
+        ExpressionNode::Membership(TableMembershipExpression {
+            value: name_reference,
+            domain: membership.domain,
+            domain_symbol: membership.domain_symbol,
+        }),
+    );
 }
 
 /// Whether a `When` guard is a COMPARISON/boolean guard whose runtime-indexed operands should be
