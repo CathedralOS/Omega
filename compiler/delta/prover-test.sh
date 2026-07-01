@@ -188,6 +188,11 @@ no "(All (All (-> (Lt (v 1) (v 0)) (-> (Lt (v 1) (v 0)) (bot)))))"  # a<b -> a<b
 # the additive cycle a+(k+j)=a gives k+j=0 (CANCEL0), hence k=0 (positivity), hence b=a+k=a+0=a. See the
 # le-antisymmetry rule in prover.py; needs CANCEL0 (the natind-first fix above) + positivity, both proven.
 ok "(All (All (-> (Le (v 1) (v 0)) (-> (Le (v 0) (v 1)) (= (v 1) (v 0))))))"  # a<=b -> b<=a -> a=b  (ANTISYMMETRIC)
+# <=-CANCELLATION (a+c<=b+c -> a<=b) -- the last of the three fundamental order theorems. Witness m=k from the
+# <= hypothesis; body a+k=b by rearranging (a+k)+c=(a+c)+k=b+c then cancelling c (add-cancel-right). See the
+# le-cancel-right rule; a witness source the directed sum-witness can't reach (its fact's RHS is b+c, not b).
+ok "(All (All (All (-> (Le (p (v 2) (v 0)) (p (v 1) (v 0))) (Le (v 2) (v 1))))))"  # a+c<=b+c -> a<=b  (CANCELLATION)
+no "(All (All (All (-> (Le (v 2) (p (v 1) (v 0))) (Le (v 2) (v 1))))))"  # a<=b+c does NOT give a<=b (a=b+1, c=1)
 no "(All (-> (Lt z (v 0)) (bot)))"                            # 0 < a -> bot is FALSE (a=1)
 no "(All (-> (Le (v 0) z) (Lt (v 0) z)))"                     # a<=0 does NOT give a<0 (a=0)
 # STRICT mult-mono needs a POSITIVITY guard (a<b => a*c<b*c is FALSE at c=0). With 0<c it discharges via the
