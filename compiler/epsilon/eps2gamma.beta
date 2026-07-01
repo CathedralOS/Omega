@@ -8,17 +8,21 @@
 ; built alpha->beta->bc) then runs. Both halves of epsilon's meaning route are now in the
 ; Rust-free lineage.
 ;
-; SLICE 0 — straight-line integer `main`:
+; SUPPORTED SUBSET — straight-line integer `main`:
 ;   machine Main::main(&mut self) {
 ;       let a: i32 = <expr>;                 ; zero or more integer lets
 ;       ...
 ;       self.console.exit_process(<expr>)    ; terminal: the exit value
 ;   }
-; <expr> := integer arithmetic over `+ - * / %`, parens, integer literals, and previously-bound
-; locals. Locals render as gamma `l{index}` (indices, not names — gamma reserves Uppercase-leading
-; idents for constructors). The straight-line body becomes right-nested gamma lets:
+; <expr> (slice 0) := integer arithmetic over `+ - * / %`, parens, integer literals, and
+; previously-bound locals. Locals render as gamma `l{index}` (indices, not names — gamma reserves
+; Uppercase-leading idents for constructors). The straight-line body becomes right-nested gamma lets:
 ;   (let l0 <e0> (let l1 <e1> ... <terminal>))
-; Comparisons, min/max, states, calls, fields are LATER slices (this grows exactly like the
+; <expr> (slice 1) also := comparisons `< > <= >= == !=` (lowest precedence, below + -), rendered
+; faithfully from interp's only two comparison primitives eq/lt:
+;   a<b (lt a b)   a>b (lt b a)   a==b (eq a b)   a!=b (- 1 (eq a b))
+;   a<=b (+ (lt a b) (eq a b))    a>=b (+ (lt b a) (eq a b))
+; min/max, state machines, calls, fields are LATER slices (this grows exactly like the
 ; gamma_emit.rs diamond did, slice by slice).
 ;
 ; Memory (mirrors interp.beta):  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR (arena@3145728)
@@ -173,7 +177,7 @@ proc parse_term() {
     }
     state paren {
         adv()                          ; consume '('
-        let e = parse_sum()
+        let e = parse_cmp()            ; a parenthesized sub-expression may be a full comparison
         skip_ws()
         adv()                          ; consume ')'
         return e
@@ -211,6 +215,40 @@ proc parse_sum() {
     state sub { adv()  let bs = parse_product()  a = alloc(2, '-', a, bs)  to loop }
 }
 
+; comparisons — the LOWEST precedence level (below + -), left-associative, matching epsilon's parse.rs.
+; The op char stored in the BIN node distinguishes the six forms; print_expr renders each via interp's
+; only two comparison primitives (eq/lt):  < '<'   > '>'   == '='   <= 'L'   >= 'G'   != 'N'.
+proc parse_cmp() {
+    let a = parse_sum()
+    state loop {
+        skip_ws()
+        let c = cbyte()
+        to lt when (c == '<')
+        to gt when (c == '>')
+        to eqx when (c == '=')
+        to nex when (c == '!')
+        return a
+    }
+    state lt {
+        adv()                          ; consume '<'
+        to le when (cbyte() == '=')
+        let bl = parse_sum()           ; plain '<'
+        a = alloc(2, '<', a, bl)
+        to loop
+    }
+    state le  { adv()  let ble = parse_sum()  a = alloc(2, 'L', a, ble)  to loop }   ; '<='
+    state gt {
+        adv()                          ; consume '>'
+        to ge when (cbyte() == '=')
+        let bg = parse_sum()           ; plain '>'
+        a = alloc(2, '>', a, bg)
+        to loop
+    }
+    state ge  { adv()  let bge = parse_sum()  a = alloc(2, 'G', a, bge)  to loop }   ; '>='
+    state eqx { adv()  adv()  let beq = parse_sum()  a = alloc(2, '=', a, beq)  to loop }   ; '=='
+    state nex { adv()  adv()  let bne = parse_sum()  a = alloc(2, 'N', a, bne)  to loop }   ; '!='
+}
+
 ; ---- statement/body parser ----
 
 ; is the token at CUR the keyword `let`?
@@ -232,7 +270,7 @@ proc parse_let() {
     state eqfound {
         adv()                          ; past '='
         skip_ws()
-        let node = parse_sum()
+        let node = parse_cmp()
         word[6200000 + word[6000000] * 8] = node         ; LETS[LCNT] = node
         word[6000000] = word[6000000] + 1                ; LCNT++
         to tosemi
@@ -244,7 +282,7 @@ proc parse_let() {
 ; the terminal is `self.console.exit_process(<expr>)` — skip to its '(' then parse the expr.
 proc parse_terminal() {
     state toopen { to open when (cbyte() == '(')  adv()  to toopen }
-    state open { adv()  word[6000008] = parse_sum()  return 0 }
+    state open { adv()  word[6000008] = parse_cmp()  return 0 }
 }
 
 proc parse_body() {
@@ -297,8 +335,16 @@ proc print_expr(node) {
     state isint { emit_dec(word[node + 8])  return 0 }
     state islocal { write_byte('l')  emit_dec(word[node + 8])  return 0 }
     state isbin {
+        let op = word[node + 8]
+        ; comparisons lower to interp's eq/lt; arithmetic (+ - * / %) prints the op char directly
+        to c_lt when (op == '<')
+        to c_gt when (op == '>')
+        to c_eq when (op == '=')
+        to c_le when (op == 'L')
+        to c_ge when (op == 'G')
+        to c_ne when (op == 'N')
         write_byte('(')
-        write_byte(word[node + 8])     ; the operator char (gamma prefix op)
+        write_byte(op)                 ; arithmetic: gamma uses the same + - * / % prefix ops
         write_byte(' ')
         print_expr(word[node + 16])
         write_byte(' ')
@@ -306,6 +352,20 @@ proc print_expr(node) {
         write_byte(')')
         return 0
     }
+    state c_lt { emit("(lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_gt { emit("(lt ")  print_expr(word[node + 24])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }   ; a>b == b<a
+    state c_eq { emit("(eq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_le {                       ; a<=b == (+ (lt a b) (eq a b))  -- mutually exclusive, so 0/1
+        emit("(+ (lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
+        emit(") (eq ")   print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
+        emit("))")  return 0
+    }
+    state c_ge {                       ; a>=b == (+ (lt b a) (eq a b))
+        emit("(+ (lt ")  print_expr(word[node + 24])  write_byte(' ')  print_expr(word[node + 16])
+        emit(") (eq ")   print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
+        emit("))")  return 0
+    }
+    state c_ne { emit("(- 1 (eq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
 }
 
 proc render() {

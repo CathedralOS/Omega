@@ -27,12 +27,17 @@ translator — `epsilon-rs/src/gamma_emit.rs` — is **Rust**, so Rust still sat
 
 ## Supported subset (grows slice by slice)
 
-**Slice 0** (current): straight-line integer `main` — a run of `let x: i32 = <expr>;` bindings and a
-final `self.console.exit_process(<expr>)`, where `<expr>` is integer arithmetic over `+ - * / %`,
-parens, integer literals, and previously-bound locals. Locals render as gamma `l{index}` (gamma
-reserves Uppercase-leading identifiers for constructors). This mirrors how the `gamma_emit.rs` diamond
-started; the subset widens with each slice (comparisons, state machines, calls, self data — the same
-features `gamma_emit.rs` already covers, ported to the Rust-free translator one at a time).
+Straight-line integer `main` — a run of `let x: i32 = <expr>;` bindings and a final
+`self.console.exit_process(<expr>)`. Locals render as gamma `l{index}` (gamma reserves
+Uppercase-leading identifiers for constructors). This mirrors how the `gamma_emit.rs` diamond started;
+the subset widens with each slice (the same features `gamma_emit.rs` already covers, ported to the
+Rust-free translator one at a time).
+
+- **Slice 0** — `<expr>` = integer arithmetic over `+ - * / %`, parens, integer literals, locals.
+- **Slice 1** — `<expr>` also = comparisons `< > <= >= == !=` (lowest precedence, below `+ -`),
+  rendered faithfully from interp's only two comparison primitives `eq`/`lt`
+  (`a<=b` ⇒ `(+ (lt a b) (eq a b))`, `a!=b` ⇒ `(- 1 (eq a b))`, etc).
+- **Next** — state machines (`transition`/`state`), self data fields, cross-machine calls.
 
 ## The long game
 
