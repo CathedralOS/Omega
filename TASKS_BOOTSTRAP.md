@@ -258,7 +258,7 @@ a working proof-carrying contract system** (item 11). What remains:
   MEMOISED on (context proposition-set, goal) and polynomial; a depth cap + node budget backstop the
   (now-infinite, eigenvar-rich) first-order space (sound-but-incomplete: too-deep yields "unprovable", never a
   crash, never a false proof). SOUND BY CONSTRUCTION (every rule is a valid kernel typing rule, so check.beta
-  accepts every proof emitted). `prover-test.sh` (820 ok): propositional tautologies (or-comm, distribution,
+  accepts every proof emitted). `prover-test.sh` (825 ok): propositional tautologies (or-comm, distribution,
   or-elim-to-common, ex-falso); first-order (forall-id, forall-elim, exists-intro, forall→exists, nested gen,
   unpack tautologies incl. ∃x.P,∀x.(P→Q) ⊢ ∃x.Q); equality (1+1=2, 2*2=4, symbolic 0+x=x, conversion axiom
   P(1+1)⊢P(2)), rewriting (symmetry, transitivity, congruence, transport across predicates/relations), AND
@@ -283,9 +283,14 @@ a working proof-carrying contract system** (item 11). What remains:
   `(def i ..)` per lemma at stable ids 0..6), replacing the hand-written `.elab` base (`gen-contract-lib.py`
   retired). `contracts.sh` runs the prover generator; every library def is kernel-validated at build alongside
   the citation — "automation discharges with zero hand-proving, the kernel checks" is LIVE (contracts.sh 30
-  verified, discharge-soundness 29 ok). Widen next: grow cancellation / strict-monotonicity laws; richer
-  obligation shapes. Long arc: SMT-class procedures emitting kernel-checkable certificates (the proof-engine
-  north star).
+  verified, discharge-soundness 29 ok). CANCELLATION + STRICT-MONOTONICITY now proven AND gated (prover-test
+  825 ok): additive cancellation both sides (`a+c=b+c ⊢ a=b`, `c+a=c+b ⊢ a=b`) via induction-on-c + sinj, and
+  the strict order sibling `a<b ⊢ a+c<b+c` via the sum-witness source — all composing EXISTING rules, no new
+  machinery. Negative controls confirm soundness (`a+c=b+d ⊬ a=b`). Remaining gap: `≤`-cancellation
+  (`a+c≤b+c ⊢ a≤b`) — the successor building block `s a≤s b ⊢ a≤b` proves, but the natind step doesn't compose
+  it with the induction hypothesis within budget (a search-reach gap, documented). Widen next: richer obligation
+  shapes; close ≤-cancel via a dedicated natind-step tactic. Long arc: SMT-class procedures emitting
+  kernel-checkable certificates (the proof-engine north star).
 - **The soundness bridge** (`provable-in-Delta ⟹ true-about-execution`) — the one genuinely
   research-grade step: the meta-theorem connecting the checker's logic to the reference interpreter's
   semantics. The theorem is not done, but its **bounded evidence is now COMPREHENSIVE** — FOUR
