@@ -40,6 +40,7 @@ step "predicate diamond — FUZZ: random Mem/ProdIs/Perm proofs, all 3 checkers"
 step "predicate soundness — FUZZ: random predicates, kernel vs operational decision" delta predicate-soundness-fuzz.sh
 step "epsilon — on-ramp compiles + RUNS its corpus"   epsilon-rs  test_aarch64.sh
 step "epsilon meaning — native exec vs gamma reference interpreter (diamond)" epsilon-rs epsilon-meaning-diamond.sh
+step "epsilon meaning (RUST-FREE) — native vs eps2gamma.beta->interp.beta (diamond)" epsilon eps2gamma-diamond.sh
 step "convergence — epsilon emits a proof; delta checks it" epsilon-rs convergence.sh
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by delta" epsilon-rs convergence-selfhost.sh
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" epsilon-rs convergence-reference.sh
