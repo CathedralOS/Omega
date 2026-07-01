@@ -169,6 +169,7 @@ no "(All (All (All (All (-> (= (p (v 3) (v 1)) (p (v 2) (v 0))) (= (v 3) (v 2)))
 # is additively indecomposable). These fall out of the desugared existentials (a<b := ∃k.a+(sk)=b) + disj/sinj:
 # a<a would need ∃k.a+(sk)=a (impossible, the successor can't vanish); a+b=0 forces both summands to 0.
 ok "(All (-> (Lt (v 0) (v 0)) (bot)))"                          # a < a -> bot   (strict order IRREFLEXIVE)
+ok "(All (-> (Lt (v 0) z) (bot)))"                             # a < 0 -> bot   (naturals non-negative; via induction on a)
 ok "(All (-> (Le (v 0) z) (= (v 0) z)))"                       # a <= 0 -> a=0  (0 is the order-minimum)
 ok "(All (All (-> (= (p (v 1) (v 0)) z) (= (v 1) z))))"        # a+b=0 -> a=0   (additive positivity, left)
 ok "(All (All (-> (= (p (v 1) (v 0)) z) (= (v 0) z))))"        # a+b=0 -> b=0   (additive positivity, right)

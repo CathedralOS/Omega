@@ -1076,8 +1076,10 @@ def _rules(sat, goal):
                     frm, to = _fill(pat, s), _fill(other, s)
                     if frm == to:
                         continue
-                    mot = abstract_prop(goal, frm)    # the goal contains `frm`; rewrite it to `to`
-                    sub = subst0(mot, to)
+                    if not _ground(frm):              # frm sits under a binder (contains a bound de Bruijn var,
+                        continue                      # e.g. the ∃-bound k in (p a (s (v 0)))) -> abstracting +
+                    mot = abstract_prop(goal, frm)    # instantiating it captures the binder and emits a cert the
+                    sub = subst0(mot, to)             # kernel rejects. Same GROUND guard the `=` rewrite has.
                     if sub == goal:
                         continue
                     pe = ("use", idx)
@@ -1110,6 +1112,8 @@ def _rules(sat, goal):
                             continue
                         frm, to = _fill(pat, s), _fill(other, s)
                         if frm == to:
+                            continue
+                        if not _ground(frm):          # no binder capture (see the library-lemma rewrite above)
                             continue
                         mot = abstract_prop(goal, frm)
                         sub = subst0(mot, to)
