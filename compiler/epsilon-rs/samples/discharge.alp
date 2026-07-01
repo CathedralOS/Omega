@@ -106,6 +106,13 @@ machine Store::get(&mut self, i: i32) -> i32 requires i < 16 { return self.vals[
 // machine only promises `i < 8`. Since 8 <= 16, lt-le-trans composes i<8 with the ground bound 8<=16
 // to discharge i<16 -- the compiler proves the access safe from a stronger-than-needed contract.
 machine Store::tight(&mut self, i: i32) -> i32 requires i < 8 { return self.vals[i]; }
+// RANGE-REFINEMENT TYPE (Omega's bounded type): `i: i32 in 0..16` desugars to preconditions i >= 0 and
+// i < 16, so the array access self.vals[i] discharges its bounds obligation FROM THE TYPE -- no explicit
+// `requires i < 16`. Memory safety comes from the parameter's type, exactly as in Omega's bounded-value model.
+machine Store::rget(&mut self, i: i32 in 0..16) -> i32 { return self.vals[i]; }
+// The range may be TIGHTER than the array size (0..8 into a 16-slot array): the type's `i < 8` composes
+// with the ground bound 8 <= 16 through lt-le-trans, exactly like the `requires i < 8` weakening above.
+machine Store::rtight(&mut self, i: i32 in 0..8) -> i32 { return self.vals[i]; }
 
 // EXPRESSION CALL ARGUMENT (a + k via commutativity): fwd_off promises `a >= 0` and calls
 // needs3(a + 3), where needs3 requires its argument >= 3. The obligation `(a+3) >= 3` is not ground
