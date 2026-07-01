@@ -26,6 +26,20 @@ struct DataFieldInfo {
     name: Vec<u8>,
     offset: i32, // byte offset within the struct
     kind: FieldKind,
+    enum_index: Option<usize>, // Some(idx) if this scalar slot holds a tag-only enum's tag
+    domain: u8,                // arithmetic domain of a scalar field: 0 Trapping, 1 Wrapping, 2 Saturating
+}
+
+// The field's domain, if `self.<field>` names a scalar field (else 0 = default Trapping).
+impl Parser<'_> {
+    fn self_field_domain(&self, field: &[u8]) -> u8 {
+        if let Some(data_type) = self.self_data_type {
+            if let Some(info) = self.data_field_maps[data_type].iter().find(|f| f.name.as_slice() == field) {
+                return info.domain;
+            }
+        }
+        0
+    }
 }
 
 fn is_scalar_type(type_name: &[u8]) -> bool {
@@ -50,6 +64,13 @@ pub struct Parser<'a> {
     data_type_names: Vec<Vec<u8>>,    // declared `data` type names
     data_type_sizes: Vec<i32>,        // byte size of each data type
     data_field_maps: Vec<Vec<DataFieldInfo>>, // fields of each data type
+    enum_names: Vec<Vec<u8>>,         // declared enum (`data X { case ... }`) names
+    enum_variant_lists: Vec<Vec<Vec<u8>>>, // per enum: variant names; the tag is the index
+    enum_variant_payload_count: Vec<Vec<usize>>, // per enum, per variant: number of i32 payload fields
+    current_arm_bindings: Vec<(Vec<u8>, usize)>, // `Variant { a, b }` payload bindings -> synth payload-read nodes
+    state_param_names: Vec<Vec<Vec<u8>>>, // per state (parallel to state_names): its param names
+    current_state_params: Vec<Vec<u8>>, // params of the state body being parsed (resolve to arg slots)
+    state_arg_base: usize,            // local index of the shared state-arg slot 0 in this machine
     local_names: Vec<Vec<u8>>,        // locals of the machine being parsed (params first)
     state_names: Vec<Vec<u8>>,        // pre-scanned state names of the machine being parsed
     self_data_type: Option<usize>,    // data type of `self` in the machine being parsed
@@ -73,6 +94,13 @@ impl<'a> Parser<'a> {
             data_type_names: Vec::new(),
             data_type_sizes: Vec::new(),
             data_field_maps: Vec::new(),
+            enum_names: Vec::new(),
+            enum_variant_lists: Vec::new(),
+            enum_variant_payload_count: Vec::new(),
+            current_arm_bindings: Vec::new(),
+            state_param_names: Vec::new(),
+            current_state_params: Vec::new(),
+            state_arg_base: 0,
             local_names: Vec::new(),
             state_names: Vec::new(),
             self_data_type: None,
@@ -122,6 +150,53 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // Resolve a nested `self.a.b.c…` path to (total byte offset, final field's arithmetic domain).
+    // Nested data is inlined, so offsets just sum; every segment but the last must be a nested-data
+    // field, and the last must be scalar. `self.a` (single segment) still goes through self_field_offset.
+    fn self_field_path(&self, path: &[Vec<u8>]) -> Result<(i32, u8), String> {
+        let mut data_type = self.self_data_type.ok_or_else(|| {
+            "alpha-onramp: `self` used in a machine with no receiver".to_string()
+        })?;
+        let mut offset = 0i32;
+        for (i, seg) in path.iter().enumerate() {
+            let info = self.data_field_maps[data_type]
+                .iter()
+                .find(|field_info| field_info.name.as_slice() == seg.as_slice())
+                .ok_or_else(|| {
+                    format!("alpha-onramp: unknown field '{}' in a self.* path", String::from_utf8_lossy(seg))
+                })?;
+            let last = i == path.len() - 1;
+            match info.kind {
+                FieldKind::Data(idx) => {
+                    if last {
+                        return Err(format!(
+                            "alpha-onramp: 'self…{}' is a nested struct, not a scalar value",
+                            String::from_utf8_lossy(seg)
+                        ));
+                    }
+                    offset += info.offset;
+                    data_type = idx;
+                }
+                FieldKind::Scalar => {
+                    if !last {
+                        return Err(format!(
+                            "alpha-onramp: 'self…{}' is scalar; cannot select a field of it",
+                            String::from_utf8_lossy(seg)
+                        ));
+                    }
+                    return Ok((offset + info.offset, info.domain));
+                }
+                _ => {
+                    return Err(format!(
+                        "alpha-onramp: 'self…{}' must be a nested-data or scalar field",
+                        String::from_utf8_lossy(seg)
+                    ));
+                }
+            }
+        }
+        Err("alpha-onramp: empty self field path".to_string())
+    }
+
     // Resolve `self.<array>` to (byte offset, element count, element bytes) for indexing.
     fn self_array_field(&self, field: &[u8]) -> Result<(i32, i32, i32), String> {
         let data_type = self.self_data_type.ok_or_else(|| {
@@ -169,6 +244,10 @@ impl<'a> Parser<'a> {
         self.expressions.len() - 1
     }
     fn find_local_index(&self, name: &[u8]) -> Option<usize> {
+        // a state's parameters resolve to the machine's shared state-arg slots (by position)
+        if let Some(position) = self.current_state_params.iter().position(|p| p.as_slice() == name) {
+            return Some(self.state_arg_base + position);
+        }
         self.local_names.iter().position(|local_name| local_name.as_slice() == name)
     }
 
@@ -244,14 +323,49 @@ impl<'a> Parser<'a> {
         let name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
         self.expect(TokenKind::LBrace)?;
         let mut fields = Vec::new();
+        let mut variants: Vec<Vec<u8>> = Vec::new();
+        let mut variant_payloads: Vec<usize> = Vec::new();
         let mut offset = 0i32;
         while self.current_kind() != TokenKind::RBrace {
             if self.current_kind() == TokenKind::Eof {
                 return Err("alpha-onramp: parse error: unterminated data body".into());
             }
+            // enum variant: `case Name;` (tag-only) or `case Name(field: i32);` (one payload,
+            // stored at the enum's offset + 8; the field name is bound at the match site).
+            if self.current_kind() == TokenKind::Ident
+                && token_text(&self.tokens[self.position], self.source) == b"case"
+            {
+                self.bump(); // case
+                let variant = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+                let mut payload_count = 0usize;
+                if self.current_kind() == TokenKind::LParen {
+                    self.bump(); // (
+                    while self.current_kind() != TokenKind::RParen {
+                        if self.current_kind() == TokenKind::Eof {
+                            return Err("alpha-onramp: parse error: unterminated payload field list".into());
+                        }
+                        self.expect(TokenKind::Ident)?; // field name (bound at the match site)
+                        self.expect(TokenKind::Colon)?;
+                        self.expect(TokenKind::Ident)?; // type (everything is i32)
+                        payload_count += 1;
+                        if self.current_kind() == TokenKind::Comma {
+                            self.bump();
+                        } else {
+                            break;
+                        }
+                    }
+                    self.expect(TokenKind::RParen)?;
+                }
+                variants.push(variant);
+                variant_payloads.push(payload_count);
+                if self.current_kind() == TokenKind::Semi || self.current_kind() == TokenKind::Comma {
+                    self.bump();
+                }
+                continue;
+            }
             let field_name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
             self.expect(TokenKind::Colon)?;
-            let (kind, size) = if self.current_kind() == TokenKind::LBracket {
+            let (kind, size, enum_index) = if self.current_kind() == TokenKind::LBracket {
                 // `[ElementType; N]` — N scalar elements of 8 bytes each
                 self.bump(); // [
                 let element = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
@@ -266,21 +380,40 @@ impl<'a> Parser<'a> {
                     .map_err(|_| "alpha-onramp: bad array length".to_string())?;
                 self.expect(TokenKind::RBracket)?;
                 let element_bytes = if element == b"u8" { 1 } else { 8 };
-                (FieldKind::Array(count, element_bytes), count * element_bytes)
+                (FieldKind::Array(count, element_bytes), count * element_bytes, None)
             } else if self.current_kind() == TokenKind::Amp {
                 return Err("alpha-onramp: ref/slice data fields are unsupported (slice 7a)".into());
             } else {
                 let type_name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
                 let kind = self.classify_field_type(&type_name)?;
-                let size = match kind {
-                    FieldKind::Scalar => 8,
-                    FieldKind::Boundary => 0,
-                    FieldKind::Data(index) => self.data_type_sizes[index],
-                    FieldKind::Array(count, element_bytes) => count * element_bytes,
+                let enum_index = self.find_enum(&type_name);
+                let size = match enum_index {
+                    // an enum field reserves a tag word (+ a payload word if the enum has payloads)
+                    Some(idx) => self.enum_size(idx),
+                    None => match kind {
+                        FieldKind::Scalar => 8,
+                        FieldKind::Boundary => 0,
+                        FieldKind::Data(index) => self.data_type_sizes[index],
+                        FieldKind::Array(count, element_bytes) => count * element_bytes,
+                    },
                 };
-                (kind, size)
+                (kind, size, enum_index)
             };
-            fields.push(DataFieldInfo { name: field_name, offset, kind });
+            // optional arithmetic domain `in Wrapping`/`in Saturating` on a scalar field
+            let mut domain: u8 = 0;
+            if self.current_kind() == TokenKind::Ident && self.current_text() == b"in" {
+                self.bump(); // in
+                if self.current_kind() == TokenKind::Ident {
+                    if self.current_text() == b"Wrapping" {
+                        domain = 1;
+                        self.bump();
+                    } else if self.current_text() == b"Saturating" {
+                        domain = 2;
+                        self.bump();
+                    }
+                }
+            }
+            fields.push(DataFieldInfo { name: field_name, offset, kind, enum_index, domain });
             offset += size;
             // skip any remaining type tokens (e.g. `in Utf8`) up to the separator
             while self.current_kind() != TokenKind::Semi
@@ -297,10 +430,113 @@ impl<'a> Parser<'a> {
             }
         }
         self.bump(); // '}'
+        if !variants.is_empty() {
+            // An enum, not a struct: its value is a tag word (the variant index), optionally
+            // followed by a single i32 payload word. Stored/matched via the tag; kept out of
+            // the data-struct tables and in the enum tables.
+            if !fields.is_empty() {
+                return Err("alpha-onramp: mixing fields and `case` variants is not yet supported".into());
+            }
+            self.enum_names.push(name);
+            self.enum_variant_lists.push(variants);
+            self.enum_variant_payload_count.push(variant_payloads);
+            return Ok(());
+        }
         self.data_type_names.push(name);
         self.data_type_sizes.push(offset);
         self.data_field_maps.push(fields);
         Ok(())
+    }
+
+    fn find_enum(&self, name: &[u8]) -> Option<usize> {
+        self.enum_names.iter().position(|enum_name| enum_name.as_slice() == name)
+    }
+
+    // byte size of an enum value: a tag word, plus one word per payload field of the
+    // widest variant (so every variant's payload fits at offset + 8, + 16, ...).
+    fn enum_size(&self, enum_index: usize) -> i32 {
+        let max = self.enum_variant_payload_count[enum_index]
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0);
+        8 + (max as i32) * 8
+    }
+
+    // If the assignment RHS is `Enum::Variant(arg)`, parse it and desugar to a Block that
+    // stores the tag at the field and the payload at field+8. Returns None (consuming nothing)
+    // if the RHS is not an enum-payload construction, so the normal expression path runs.
+    fn try_parse_enum_construction(&mut self, field: &[u8]) -> Result<Option<Statement>, String> {
+        if self.current_kind() != TokenKind::Ident {
+            return Ok(None);
+        }
+        let name = token_text(&self.tokens[self.position], self.source).to_vec();
+        let enum_index = match self.find_enum(&name) {
+            Some(index) => index,
+            None => return Ok(None),
+        };
+        // require the `Enum :: Variant (` shape; a tag-only `Enum::Variant` falls through to
+        // the expression path (which lowers it to the tag and stores it as a scalar).
+        if self.tokens[self.position + 1].kind != TokenKind::ColonColon
+            || self.tokens[self.position + 2].kind != TokenKind::Ident
+            || self.tokens[self.position + 3].kind != TokenKind::LParen
+        {
+            return Ok(None);
+        }
+        self.bump(); // Enum
+        self.bump(); // ::
+        let variant = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+        let tag = self.enum_variant_tag(enum_index, &variant).ok_or_else(|| {
+            format!(
+                "alpha-onramp: '{}' is not a variant of enum '{}'",
+                String::from_utf8_lossy(&variant),
+                String::from_utf8_lossy(&name)
+            )
+        })?;
+        let count = self.enum_variant_payload_count[enum_index][tag as usize];
+        if count == 0 {
+            return Err(format!(
+                "alpha-onramp: variant '{}' has no payload to construct",
+                String::from_utf8_lossy(&variant)
+            ));
+        }
+        self.bump(); // (
+        let mut args = Vec::new();
+        while self.current_kind() != TokenKind::RParen {
+            if self.current_kind() == TokenKind::Eof {
+                return Err("alpha-onramp: parse error: unterminated enum construction".into());
+            }
+            args.push(self.parse_expression()?);
+            if self.current_kind() == TokenKind::Comma {
+                self.bump();
+            } else {
+                break;
+            }
+        }
+        self.expect(TokenKind::RParen)?;
+        if args.len() != count {
+            return Err(format!(
+                "alpha-onramp: variant '{}' takes {} payload value(s), got {}",
+                String::from_utf8_lossy(&variant),
+                count,
+                args.len()
+            ));
+        }
+        let field_offset = self.self_field_offset(field)?;
+        let tag_node = self.add_expression(Expr::Int(tag));
+        // tag at field+0, payloads at field+8, +16, ...
+        let mut stmts = vec![Statement::StoreSelfField(field_offset, tag_node, 0)];
+        for (index, arg) in args.into_iter().enumerate() {
+            stmts.push(Statement::StoreSelfField(field_offset + 8 + (index as i32) * 8, arg, 0));
+        }
+        Ok(Some(Statement::Block(stmts)))
+    }
+
+    fn enum_variant_tag(&self, enum_index: usize, variant: &[u8]) -> Option<i32> {
+        self.enum_variant_lists[enum_index]
+            .iter()
+            .position(|candidate| candidate.as_slice() == variant)
+            .map(|index| index as i32)
     }
 
     fn classify_field_type(&self, type_name: &[u8]) -> Result<FieldKind, String> {
@@ -309,6 +545,10 @@ impl<'a> Parser<'a> {
         }
         if let Some(index) = self.find_data_type(type_name) {
             return Ok(FieldKind::Data(index));
+        }
+        if self.find_enum(type_name).is_some() {
+            // a tag-only enum field is just an 8-byte slot holding the i32 tag
+            return Ok(FieldKind::Scalar);
         }
         if is_scalar_type(type_name) {
             return Ok(FieldKind::Scalar);
@@ -362,6 +602,9 @@ impl<'a> Parser<'a> {
     fn parse_machine(&mut self) -> Result<Machine, String> {
         self.local_names.clear();
         self.state_names.clear();
+        self.state_param_names.clear();
+        self.current_state_params.clear();
+        self.state_arg_base = 0;
         self.self_data_type = None;
         self.current_machine_makes_call = false;
         self.bump(); // "machine"
@@ -415,11 +658,44 @@ impl<'a> Parser<'a> {
 
         if self.current_kind() == TokenKind::Arrow {
             self.bump();
-            while self.current_kind() != TokenKind::LBrace {
+            while self.current_kind() != TokenKind::LBrace
+                && !(self.current_kind() == TokenKind::Ident
+                    && (self.current_text() == b"requires" || self.current_text() == b"ensures"))
+            {
                 if self.current_kind() == TokenKind::Eof {
                     return Err("alpha-onramp: parse error: unterminated return type".into());
                 }
                 self.bump(); // skip the return type
+            }
+        }
+
+        // Optional `requires`/`ensures` contracts — Omega's contract syntax, in any order. A
+        // `requires <cond>` is checked at machine entry; an `ensures <cond>` (which may name the
+        // special local `result`, the returned value) is checked at every return site. Both
+        // desugar to asserts: a false condition TRAPS, exactly like an inline `assert`. This is
+        // the declarative, dynamic half of contracts — the obligation lives on the signature.
+        // (The static, proof-carrying half is the convergence's certify-*.) Preconditions range
+        // over the parameters (locals 0..param_count); postconditions also over `result`.
+        let mut preconditions = Vec::new();
+        let mut postconditions = Vec::new();
+        let mut result_index = 0usize;
+        loop {
+            if self.current_kind() == TokenKind::Ident && self.current_text() == b"requires" {
+                self.bump();
+                preconditions.push(self.parse_expression()?);
+            } else if self.current_kind() == TokenKind::Ident && self.current_text() == b"ensures" {
+                if postconditions.is_empty() {
+                    // reserve `result` (the returned value) as a local the postcondition can name
+                    result_index = self.local_names.len();
+                    self.local_names.push(b"result".to_vec());
+                }
+                self.bump();
+                postconditions.push(self.parse_expression()?);
+            } else {
+                break;
+            }
+            if self.current_kind() == TokenKind::Semi {
+                self.bump();
             }
         }
 
@@ -428,8 +704,35 @@ impl<'a> Parser<'a> {
         self.self_data_type = self_data_type;
         self.machine_self_types.push(self_data_type);
 
-        let (entry, states) = self.parse_machine_body()?;
+        let (mut entry, mut states) = self.parse_machine_body()?;
+        // Capture the body's return-value nodes BEFORE desugaring, so static discharge can
+        // form the obligation (postcondition with `result` := the returned expression).
+        let mut return_exprs = Vec::new();
+        Self::collect_return_exprs(&entry, &mut return_exprs);
+        for block in &states {
+            Self::collect_return_exprs(block, &mut return_exprs);
+        }
+        // Retain the preconditions for static call-site discharge before they are consumed.
+        let preconditions_kept = preconditions.clone();
+        // Prepend the precondition checks (in source order) so they run before the body.
+        for cond in preconditions.into_iter().rev() {
+            entry.insert(0, Statement::Assert(cond));
+        }
+        // Postconditions: check `ensures` at every return site, with `result` bound to the
+        // value being returned. Rewrite `return e` -> { result = e; assert <cond>...; return result }.
+        let result_local = if postconditions.is_empty() { None } else { Some(result_index) };
+        if !postconditions.is_empty() {
+            entry = self.rewrite_returns_with_postconditions(entry, result_index, &postconditions);
+            states = states
+                .into_iter()
+                .map(|block| self.rewrite_returns_with_postconditions(block, result_index, &postconditions))
+                .collect();
+        }
         Ok(Machine {
+            result_local,
+            postconditions,
+            return_exprs,
+            preconditions: preconditions_kept,
             param_count,
             local_count: self.local_names.len(),
             makes_call: self.current_machine_makes_call,
@@ -437,6 +740,52 @@ impl<'a> Parser<'a> {
             entry,
             states,
         })
+    }
+
+    // Collect the value-expression node of every `return` in a statement list (recursing
+    // into Blocks), for static contract discharge. Read-only; runs before desugaring.
+    fn collect_return_exprs(statements: &[Statement], out: &mut Vec<usize>) {
+        for statement in statements {
+            match statement {
+                Statement::Return(value) => out.push(*value),
+                Statement::Block(inner) => Self::collect_return_exprs(inner, out),
+                _ => {}
+            }
+        }
+    }
+
+    // Rewrite each `return e` into `{ result = e; assert <postcondition>...; return result }`,
+    // so a machine's `ensures` clauses are checked on every value it yields. Recurses into
+    // Blocks; transitions carry no nested returns. Shares the postcondition expr nodes across
+    // sites (read-only at lowering) and mints a fresh `result` read per return.
+    fn rewrite_returns_with_postconditions(
+        &mut self,
+        statements: Vec<Statement>,
+        result_index: usize,
+        postconditions: &[usize],
+    ) -> Vec<Statement> {
+        let mut out = Vec::with_capacity(statements.len());
+        for statement in statements {
+            match statement {
+                Statement::Return(value) => {
+                    let mut block = Vec::new();
+                    block.push(Statement::Assign(result_index, value));
+                    for &cond in postconditions {
+                        block.push(Statement::Assert(cond));
+                    }
+                    let result_node = self.add_expression(Expr::Local(result_index));
+                    block.push(Statement::Return(result_node));
+                    out.push(Statement::Block(block));
+                }
+                Statement::Block(inner) => {
+                    let rewritten =
+                        self.rewrite_returns_with_postconditions(inner, result_index, postconditions);
+                    out.push(Statement::Block(rewritten));
+                }
+                other => out.push(other),
+            }
+        }
+        out
     }
 
     fn skip_braced_item(&mut self) -> Result<(), String> {
@@ -478,6 +827,15 @@ impl<'a> Parser<'a> {
         self.bump(); // '{'
         self.prescan_state_names()?; // so transitions can name states declared later
 
+        // Reserve the machine's shared state-arg slots right after its params (before any
+        // body locals), so a forward-referencing transition and the state body agree on
+        // them. Machines with no state parameters reserve none — their frame is unchanged.
+        let max_state_params = self.state_param_names.iter().map(|p| p.len()).max().unwrap_or(0);
+        self.state_arg_base = self.local_names.len();
+        for slot in 0..max_state_params {
+            self.local_names.push(format!("$arg{}", slot).into_bytes());
+        }
+
         // entry statements come first, then state declarations
         let mut entry = Vec::new();
         while self.current_kind() != TokenKind::RBrace
@@ -516,6 +874,23 @@ impl<'a> Parser<'a> {
                     if self.tokens[scan_position + 1].kind == TokenKind::Ident {
                         self.state_names
                             .push(token_text(&self.tokens[scan_position + 1], self.source).to_vec());
+                        // collect this state's parameter names: each `name : type` in the
+                        // `(...)` (an Ident immediately followed by `:`); skips any `&mut self`.
+                        let mut params: Vec<Vec<u8>> = Vec::new();
+                        if self.tokens[scan_position + 2].kind == TokenKind::LParen {
+                            let mut p = scan_position + 3;
+                            while self.tokens[p].kind != TokenKind::RParen
+                                && self.tokens[p].kind != TokenKind::Eof
+                            {
+                                if self.tokens[p].kind == TokenKind::Ident
+                                    && self.tokens[p + 1].kind == TokenKind::Colon
+                                {
+                                    params.push(token_text(&self.tokens[p], self.source).to_vec());
+                                }
+                                p += 1;
+                            }
+                        }
+                        self.state_param_names.push(params);
                     }
                 }
                 _ => {}
@@ -529,13 +904,30 @@ impl<'a> Parser<'a> {
         self.bump(); // "state"
         self.expect(TokenKind::Ident)?; // name (already pre-scanned)
         self.expect(TokenKind::LParen)?;
+        let mut params: Vec<Vec<u8>> = Vec::new();
         while self.current_kind() != TokenKind::RParen {
             if self.current_kind() == TokenKind::Eof {
                 return Err("alpha-onramp: parse error: unterminated state parameter list".into());
             }
-            self.bump(); // skip params (e.g. &mut self)
+            // a parameter is `name : type` (collect the name); skip `&mut self` etc.
+            if self.current_kind() == TokenKind::Ident {
+                let name = token_text(&self.tokens[self.position], self.source).to_vec();
+                self.bump();
+                if self.current_kind() == TokenKind::Colon {
+                    self.bump(); // :
+                    self.expect(TokenKind::Ident)?; // type (ignored — everything is i32)
+                    params.push(name);
+                    if self.current_kind() == TokenKind::Comma {
+                        self.bump();
+                    }
+                }
+            } else {
+                self.bump(); // `&`, `mut`, etc.
+            }
         }
         self.expect(TokenKind::RParen)?;
+        // params resolve to this machine's shared state-arg slots while the body is parsed
+        self.current_state_params = params;
         self.expect(TokenKind::LBrace)?;
         let mut statements = Vec::new();
         while self.current_kind() != TokenKind::RBrace {
@@ -545,15 +937,37 @@ impl<'a> Parser<'a> {
             statements.push(self.parse_statement()?);
         }
         self.bump(); // '}'
+        self.current_state_params = Vec::new();
         Ok(statements)
     }
 
     fn parse_statement(&mut self) -> Result<Statement, String> {
+        // `assert <cond>;` — a runtime contract: trap (like overflow/OOB) if cond is false.
+        if self.current_kind() == TokenKind::Ident && self.current_text() == b"assert" {
+            self.bump(); // assert
+            let cond = self.parse_expression()?;
+            if self.current_kind() == TokenKind::Semi {
+                self.bump();
+            }
+            return Ok(Statement::Assert(cond));
+        }
         if self.current_kind() == TokenKind::Ident && self.current_text() == b"let" {
             self.bump(); // let
             let name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
             self.expect(TokenKind::Colon)?;
             self.expect(TokenKind::Ident)?; // type (ignored at slice 2: everything is i32)
+            // optional domain annotation `in <Domain>` (Omega's arithmetic-safety types). Only Wrapping
+            // changes codegen (omit the overflow trap); Trapping is the default, others fall through to it.
+            let mut domain: u8 = 0; // 0 Trapping (default), 1 Wrapping, 2 Saturating
+            if self.current_kind() == TokenKind::Ident && self.current_text() == b"in" {
+                self.bump(); // in
+                let dom = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+                if dom == b"Wrapping" {
+                    domain = 1;
+                } else if dom == b"Saturating" {
+                    domain = 2;
+                }
+            }
             self.expect(TokenKind::Eq)?;
             let init = self.parse_expression()?;
             if self.current_kind() == TokenKind::Semi {
@@ -567,37 +981,99 @@ impl<'a> Parser<'a> {
             }
             let local_index = self.local_names.len();
             self.local_names.push(name);
-            return Ok(Statement::Let(local_index, init));
+            return Ok(Statement::Let(local_index, init, domain));
         }
         if self.current_kind() == TokenKind::Ident && self.current_text() == b"transition" {
             self.bump(); // transition
             let subject = self.parse_expression()?;
+            // if the subject is `self.<field>`, payload bindings read from <field>+8
+            let subject_field_offset = match &self.expressions[subject] {
+                Expr::SelfField(offset) => Some(*offset),
+                _ => None,
+            };
             self.expect(TokenKind::LBrace)?;
             let mut arms = Vec::new();
             while self.current_kind() != TokenKind::RBrace {
                 if self.current_kind() == TokenKind::Eof {
                     return Err("alpha-onramp: parse error: unterminated transition".into());
                 }
-                let pattern = match self.current_kind() {
+                // a pattern, plus an optional `{ x }` payload binding (only after a variant)
+                let (pattern, binding): (Pattern, Vec<Vec<u8>>) = match self.current_kind() {
                     TokenKind::Int => {
                         let token = self.bump();
                         let text = std::str::from_utf8(token_text(&token, self.source)).unwrap();
                         let value: i64 = text
                             .parse()
                             .map_err(|_| format!("alpha-onramp: bad integer pattern '{}'", text))?;
-                        Pattern::Int(value as i32)
+                        (Pattern::Int(value as i32), Vec::new())
                     }
                     TokenKind::Ident => {
                         let token = self.bump();
                         match token_text(&token, self.source) {
-                            b"_" => Pattern::Wild,
-                            b"true" => Pattern::Int(1),
-                            b"false" => Pattern::Int(0),
+                            b"_" => (Pattern::Wild, Vec::new()),
+                            b"true" => (Pattern::Int(1), Vec::new()),
+                            b"false" => (Pattern::Int(0), Vec::new()),
                             other => {
-                                return Err(format!(
-                                    "alpha-onramp: unsupported transition pattern '{}'",
-                                    String::from_utf8_lossy(other)
-                                ))
+                                // EnumType::Variant pattern -> the variant's i32 tag,
+                                // with an optional `{ x }` binding for the payload.
+                                let other = other.to_vec();
+                                if self.current_kind() == TokenKind::ColonColon {
+                                    if let Some(enum_index) = self.find_enum(&other) {
+                                        self.bump(); // ::
+                                        let variant = token_text(
+                                            &self.expect(TokenKind::Ident)?,
+                                            self.source,
+                                        )
+                                        .to_vec();
+                                        let tag = self
+                                            .enum_variant_tag(enum_index, &variant)
+                                            .ok_or_else(|| {
+                                                format!(
+                                                    "alpha-onramp: '{}' is not a variant of enum '{}'",
+                                                    String::from_utf8_lossy(&variant),
+                                                    String::from_utf8_lossy(&other)
+                                                )
+                                            })?;
+                                        let mut bindings: Vec<Vec<u8>> = Vec::new();
+                                        if self.current_kind() == TokenKind::LBrace {
+                                            self.bump(); // {
+                                            while self.current_kind() != TokenKind::RBrace {
+                                                if self.current_kind() == TokenKind::Eof {
+                                                    return Err("alpha-onramp: parse error: unterminated payload binding".into());
+                                                }
+                                                bindings.push(
+                                                    token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec(),
+                                                );
+                                                if self.current_kind() == TokenKind::Comma {
+                                                    self.bump();
+                                                } else {
+                                                    break;
+                                                }
+                                            }
+                                            self.expect(TokenKind::RBrace)?;
+                                            let pc = self.enum_variant_payload_count[enum_index][tag as usize];
+                                            if bindings.len() != pc {
+                                                return Err(format!(
+                                                    "alpha-onramp: variant '{}' has {} payload field(s), bound {}",
+                                                    String::from_utf8_lossy(&variant),
+                                                    pc,
+                                                    bindings.len()
+                                                ));
+                                            }
+                                        }
+                                        (Pattern::Int(tag), bindings)
+                                    } else {
+                                        return Err(format!(
+                                            "alpha-onramp: unknown enum '{}' in transition pattern",
+                                            String::from_utf8_lossy(&other)
+                                        ));
+                                    }
+                                } else {
+                                    return Err(format!(
+                                        "alpha-onramp: unsupported transition pattern '{}'",
+                                        String::from_utf8_lossy(&other)
+                                    ));
+                                }
                             }
                         }
                     }
@@ -610,25 +1086,89 @@ impl<'a> Parser<'a> {
                 };
                 self.expect(TokenKind::Arrow)?;
                 let target_name = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
-                self.expect(TokenKind::LParen)?;
-                while self.current_kind() != TokenKind::RParen {
-                    if self.current_kind() == TokenKind::Eof {
-                        return Err("alpha-onramp: parse error: unterminated transition target".into());
-                    }
-                    self.bump(); // skip target args (slice 4b: parameterless states)
-                }
-                self.expect(TokenKind::RParen)?;
                 let target = self.find_state_index(&target_name).ok_or_else(|| {
                     format!(
                         "alpha-onramp: transition to unknown state '{}'",
                         String::from_utf8_lossy(&target_name)
                     )
                 })?;
-                arms.push(TransitionArm { pattern, target });
+                // a `Variant { a, b }` binding makes a,b resolve to the subject's payload
+                // fields (field+8, +16, ...) while this arm's target args are parsed
+                if !binding.is_empty() {
+                    let base = subject_field_offset.ok_or_else(|| {
+                        "alpha-onramp: a payload binding requires matching on `self.<field>`".to_string()
+                    })? + 8;
+                    let mut binds = Vec::new();
+                    for (index, name) in binding.into_iter().enumerate() {
+                        let node = self.add_expression(Expr::SelfField(base + (index as i32) * 8));
+                        binds.push((name, node));
+                    }
+                    self.current_arm_bindings = binds;
+                }
+                self.expect(TokenKind::LParen)?;
+                let mut args = Vec::new();
+                while self.current_kind() != TokenKind::RParen {
+                    if self.current_kind() == TokenKind::Eof {
+                        self.current_arm_bindings.clear();
+                        return Err("alpha-onramp: parse error: unterminated transition target".into());
+                    }
+                    args.push(self.parse_expression()?);
+                    if self.current_kind() == TokenKind::Comma {
+                        self.bump();
+                    } else {
+                        break;
+                    }
+                }
+                self.current_arm_bindings.clear();
+                self.expect(TokenKind::RParen)?;
+                let expected = self.state_param_names[target].len();
+                if args.len() != expected {
+                    return Err(format!(
+                        "alpha-onramp: state '{}' expects {} argument(s), got {}",
+                        String::from_utf8_lossy(&target_name),
+                        expected,
+                        args.len()
+                    ));
+                }
+                arms.push(TransitionArm { pattern, target, args });
             }
             self.bump(); // '}'
             if self.current_kind() == TokenKind::Semi {
                 self.bump();
+            }
+            // Exhaustiveness: a transition whose subject is `self.<enum field>` must cover
+            // every variant of that enum, or include a `_` arm. (Narrow but sound: only
+            // direct enum-field subjects are checked; other subjects are unconstrained.)
+            let subject_offset = match &self.expressions[subject] {
+                Expr::SelfField(offset) => Some(*offset),
+                _ => None,
+            };
+            if let Some(offset) = subject_offset {
+                let enum_index = self.self_data_type.and_then(|self_type| {
+                    // zero-size boundary fields can share an offset with a real slot, so
+                    // match the enum field at this offset specifically (at most one exists).
+                    self.data_field_maps[self_type]
+                        .iter()
+                        .find(|field| field.offset == offset && field.enum_index.is_some())
+                        .and_then(|field| field.enum_index)
+                });
+                if let Some(enum_index) = enum_index {
+                    let has_wild = arms.iter().any(|arm| matches!(arm.pattern, Pattern::Wild));
+                    if !has_wild {
+                        for tag in 0..self.enum_variant_lists[enum_index].len() {
+                            let covered = arms
+                                .iter()
+                                .any(|arm| matches!(arm.pattern, Pattern::Int(value) if value == tag as i32));
+                            if !covered {
+                                return Err(format!(
+                                    "alpha-onramp: non-exhaustive transition over enum '{}': missing variant '{}' (add it or a `_` arm)",
+                                    String::from_utf8_lossy(&self.enum_names[enum_index]),
+                                    String::from_utf8_lossy(&self.enum_variant_lists[enum_index][tag])
+                                ));
+                            }
+                        }
+                    }
+                }
             }
             return Ok(Statement::Transition(subject, arms));
         }
@@ -666,16 +1206,31 @@ impl<'a> Parser<'a> {
         }
         if self.current_kind() == TokenKind::Eq {
             self.bump(); // =
+            // enum payload construction: `self.f = E::V(arg)` writes the tag at f and the
+            // payload at f+8 (desugars to a Block of field stores).
+            if segments[0] == b"self" && segments.len() == 2 {
+                if let Some(block) = self.try_parse_enum_construction(&segments[1])? {
+                    if self.current_kind() == TokenKind::Semi {
+                        self.bump();
+                    }
+                    return Ok(block);
+                }
+            }
             let value = self.parse_expression()?;
             if self.current_kind() == TokenKind::Semi {
                 self.bump();
             }
             if segments[0] == b"self" {
-                if segments.len() != 2 {
-                    return Err("alpha-onramp: only `self.<field> = ...` is supported (slice 7a)".into());
+                if segments.len() < 2 {
+                    return Err("alpha-onramp: `self = ...` is not assignable".into());
                 }
-                let offset = self.self_field_offset(&segments[1])?;
-                return Ok(Statement::StoreSelfField(offset, value));
+                // single field via the scalar resolver; nested `self.a.b = ...` via the path resolver
+                let (offset, domain) = if segments.len() == 2 {
+                    (self.self_field_offset(&segments[1])?, self.self_field_domain(&segments[1]))
+                } else {
+                    self.self_field_path(&segments[1..])?
+                };
+                return Ok(Statement::StoreSelfField(offset, value, domain));
             }
             if segments.len() != 1 {
                 return Err("alpha-onramp: local field assignment is unsupported (slice 7a)".into());
@@ -743,7 +1298,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> Result<usize, String> {
-        self.parse_binary(1)
+        self.parse_binary(0)
     }
 
     // Parse `(arg, arg, ...)` after a machine name; record args in the flat
@@ -798,6 +1353,13 @@ impl<'a> Parser<'a> {
                 TokenKind::Minus => (BinaryOp::Sub, 2),
                 TokenKind::Star => (BinaryOp::Mul, 3),
                 TokenKind::Slash => (BinaryOp::Div, 3),
+                TokenKind::Percent => (BinaryOp::Rem, 3),
+                // bitwise ops share one level, looser than comparison (parens to mix & | ^)
+                TokenKind::Amp => (BinaryOp::BitAnd, 0),
+                TokenKind::Pipe => (BinaryOp::BitOr, 0),
+                TokenKind::Caret => (BinaryOp::BitXor, 0),
+                TokenKind::Shl => (BinaryOp::Shl, 0),
+                TokenKind::Shr => (BinaryOp::Shr, 0),
                 _ => break,
             };
             if precedence < min_precedence {
@@ -812,6 +1374,14 @@ impl<'a> Parser<'a> {
 
     fn parse_primary(&mut self) -> Result<usize, String> {
         match self.current_kind() {
+            TokenKind::Minus => {
+                // unary minus: -x desugars to (0 - x), reusing Sub's overflow trap (so
+                // negating INT_MIN traps). Recurse into a primary so unary binds tightest.
+                self.bump();
+                let operand = self.parse_primary()?;
+                let zero = self.add_expression(Expr::Int(0));
+                Ok(self.add_expression(Expr::Binary(BinaryOp::Sub, zero, operand)))
+            }
             TokenKind::Int => {
                 let token = self.bump();
                 let text = std::str::from_utf8(token_text(&token, self.source)).unwrap();
@@ -846,6 +1416,16 @@ impl<'a> Parser<'a> {
                         self.expect(TokenKind::RBracket)?;
                         return Ok(self.add_expression(Expr::SelfIndex(offset, count, element_bytes, index)));
                     }
+                    if self.current_kind() == TokenKind::Dot {
+                        // nested read: self.a.b.c… — walk the inlined-struct path to a flat offset
+                        let mut path = vec![field];
+                        while self.current_kind() == TokenKind::Dot {
+                            self.bump(); // .
+                            path.push(token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec());
+                        }
+                        let (offset, _domain) = self.self_field_path(&path)?;
+                        return Ok(self.add_expression(Expr::SelfField(offset)));
+                    }
                     let offset = self.self_field_offset(&field)?;
                     return Ok(self.add_expression(Expr::SelfField(offset)));
                 }
@@ -856,6 +1436,21 @@ impl<'a> Parser<'a> {
                     self.current_machine_makes_call = true;
                     return Ok(self.add_expression(Expr::ReadByte));
                 }
+                if self.current_kind() == TokenKind::ColonColon {
+                    if let Some(enum_index) = self.find_enum(&name) {
+                        self.bump(); // ::
+                        let variant = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+                        let tag = self.enum_variant_tag(enum_index, &variant).ok_or_else(|| {
+                            format!(
+                                "alpha-onramp: '{}' is not a variant of enum '{}'",
+                                String::from_utf8_lossy(&variant),
+                                String::from_utf8_lossy(&name)
+                            )
+                        })?;
+                        // tag-only enum value IS its i32 tag
+                        return Ok(self.add_expression(Expr::Int(tag)));
+                    }
+                }
                 if self.current_kind() == TokenKind::LParen {
                     return match self.find_machine_index(&name) {
                         Some(machine_index) => self.parse_call(machine_index, false),
@@ -864,6 +1459,12 @@ impl<'a> Parser<'a> {
                             String::from_utf8_lossy(&name)
                         )),
                     };
+                }
+                // `Variant { a, b }` payload bindings resolve to their synthesized payload reads
+                for (bind_name, node) in &self.current_arm_bindings {
+                    if bind_name.as_slice() == name.as_slice() {
+                        return Ok(*node);
+                    }
                 }
                 match self.find_local_index(&name) {
                     Some(local_index) => Ok(self.add_expression(Expr::Local(local_index))),

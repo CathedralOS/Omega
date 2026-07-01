@@ -282,6 +282,18 @@ fn lower_expression(
                     code.push(0x99); // cdq
                     code.extend_from_slice(&[0xF7, 0xF9]); // idiv ecx (traps on /0, INT_MIN/-1)
                 }
+                BinaryOp::Rem => {
+                    code.push(0x99); // cdq
+                    code.extend_from_slice(&[0xF7, 0xF9]); // idiv ecx (same /0 trap as Div)
+                    code.extend_from_slice(&[0x89, 0xD0]); // mov eax, edx (remainder)
+                }
+                // bitwise ops: no overflow possible, so no trap (mirror Add's ModRM)
+                BinaryOp::BitAnd => code.extend_from_slice(&[0x21, 0xC8]), // and eax, ecx
+                BinaryOp::BitOr => code.extend_from_slice(&[0x09, 0xC8]),  // or  eax, ecx
+                BinaryOp::BitXor => code.extend_from_slice(&[0x31, 0xC8]), // xor eax, ecx
+                // shifts: count in cl (rhs is in rcx); hardware masks it to 0-31.
+                BinaryOp::Shl => code.extend_from_slice(&[0xD3, 0xE0]), // shl eax, cl
+                BinaryOp::Shr => code.extend_from_slice(&[0xD3, 0xF8]), // sar eax, cl (arithmetic)
                 BinaryOp::Lt => emit_cmp_set(code, 0x9C),   // setl
                 BinaryOp::Gt => emit_cmp_set(code, 0x9F),   // setg
                 BinaryOp::Le => emit_cmp_set(code, 0x9E),   // setle
@@ -301,6 +313,7 @@ struct LoweringContext<'a> {
     written_displacement: i32,    // also the byte-count slot for read/write_byte
     io_byte_displacement: i32,    // 1-byte scratch buffer for read_byte/write_byte
     self_ptr_displacement: i32,   // frame slot holding the `self` pointer (if has_self)
+    state_arg_base: usize,        // local index of state-arg slot 0 (= param_count)
 }
 
 fn lower_statement(
@@ -312,7 +325,20 @@ fn lower_statement(
     call_fixups: &mut Vec<(u32, usize)>,
 ) {
     match statement {
-        Statement::Let(local_index, expression) => {
+        Statement::Block(statements) => {
+            for inner in statements {
+                lower_statement(inner, context, code, relocations, state_fixups, call_fixups);
+            }
+        }
+        Statement::Assert(expression) => {
+            lower_expression(*expression, context, code, relocations, call_fixups);
+            code.push(0x58); // pop rax (the condition)
+            code.extend_from_slice(&[0x85, 0xC0]); // test eax, eax
+            code.extend_from_slice(&[0x75, 0x02, 0x0F, 0x0B]); // jnz +2 ; ud2 (trap if false/zero)
+        }
+        Statement::Let(local_index, expression, _wrapping) => {
+            // x64 keeps trapping arithmetic regardless of domain (the aarch64 macOS target is the gated
+            // path for the Wrapping slice; x64 Wrapping is a follow-on).
             lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax
             emit_store_local(code, *local_index);
@@ -326,7 +352,7 @@ fn lower_statement(
             lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax (discard the result)
         }
-        Statement::StoreSelfField(offset, expression) => {
+        Statement::StoreSelfField(offset, expression, _domain) => {
             lower_expression(*expression, context, code, relocations, call_fixups);
             code.push(0x59); // pop rcx (value)
             emit_rbp_memory_operand(code, &[0x48, 0x8B], 0, context.self_ptr_displacement); // mov rax, [rbp+self]
@@ -391,20 +417,51 @@ fn lower_statement(
             lower_expression(*subject, context, code, relocations, call_fixups);
             code.push(0x58); // pop rax (subject value)
             for arm in arms {
-                match arm.pattern {
-                    Pattern::Int(value) => {
+                if arm.args.is_empty() {
+                    // argless arm — byte-identical to the pre-state-params lowering
+                    match arm.pattern {
+                        Pattern::Int(value) => {
+                            code.push(0x3D);
+                            code.extend_from_slice(&value.to_le_bytes()); // cmp eax, imm32
+                            code.extend_from_slice(&[0x0F, 0x84]); // je rel32
+                            let patch_offset = code.len() as u32;
+                            code.extend_from_slice(&[0, 0, 0, 0]);
+                            state_fixups.push((patch_offset, arm.target));
+                        }
+                        Pattern::Wild => {
+                            code.push(0xE9); // jmp rel32
+                            let patch_offset = code.len() as u32;
+                            code.extend_from_slice(&[0, 0, 0, 0]);
+                            state_fixups.push((patch_offset, arm.target));
+                        }
+                    }
+                } else {
+                    // arg-passing arm: on a match, evaluate all args (left→right onto the
+                    // stack), pop them into the shared state-arg slots, then jump. The eval
+                    // runs only on the matching (jump-away) path, so eax (the subject) is
+                    // preserved for the remaining arms' comparisons.
+                    let mut skip_patch: Option<usize> = None;
+                    if let Pattern::Int(value) = arm.pattern {
                         code.push(0x3D);
                         code.extend_from_slice(&value.to_le_bytes()); // cmp eax, imm32
-                        code.extend_from_slice(&[0x0F, 0x84]); // je rel32
-                        let patch_offset = code.len() as u32;
+                        code.extend_from_slice(&[0x0F, 0x85]);         // jne rel32 (skip)
+                        skip_patch = Some(code.len());
                         code.extend_from_slice(&[0, 0, 0, 0]);
-                        state_fixups.push((patch_offset, arm.target));
                     }
-                    Pattern::Wild => {
-                        code.push(0xE9); // jmp rel32
-                        let patch_offset = code.len() as u32;
-                        code.extend_from_slice(&[0, 0, 0, 0]);
-                        state_fixups.push((patch_offset, arm.target));
+                    for arg in &arm.args {
+                        lower_expression(*arg, context, code, relocations, call_fixups);
+                    }
+                    for i in (0..arm.args.len()).rev() {
+                        code.push(0x58); // pop rax (last-pushed arg first)
+                        emit_store_local(code, context.state_arg_base + i);
+                    }
+                    code.push(0xE9); // jmp target rel32
+                    let patch_offset = code.len() as u32;
+                    code.extend_from_slice(&[0, 0, 0, 0]);
+                    state_fixups.push((patch_offset, arm.target));
+                    if let Some(p) = skip_patch {
+                        let rel = (code.len() - (p + 4)) as i32;
+                        code[p..p + 4].copy_from_slice(&rel.to_le_bytes());
                     }
                 }
             }
@@ -444,6 +501,7 @@ fn lower_machine(
         handle_displacement: -(named_bytes + 16),
         io_byte_displacement: -(named_bytes + 24),
         self_ptr_displacement,
+        state_arg_base: machine.param_count,
     };
 
     // prologue

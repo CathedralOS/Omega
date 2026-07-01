@@ -1,17 +1,15 @@
 ; word[] memory: fill arr[i] = i*i for i in 0..5, then sum. 0+1+4+9+16 = 30.
-; The buffer lives at 2 MiB, above the 1 MiB data stack (which grows down).
+; CFG/state loops (no while). The buffer lives at 2 MiB, above the 1 MiB data stack.
 proc main() {
     let base = 2097152
     let i = 0
-    while i < 5 {
-        word[base + i * 8] = i * i
-        i = i + 1
+    state fill { to fbody when (i < 5)  to suminit }
+    state fbody { word[base + i * 8] = i * i  i = i + 1  to fill }
+    state suminit {
+        let total = 0
+        i = 0
+        to sumloop
     }
-    let total = 0
-    i = 0
-    while i < 5 {
-        total = total + word[base + i * 8]
-        i = i + 1
-    }
-    return total
+    state sumloop { to sbody when (i < 5)  return total }
+    state sbody { total = total + word[base + i * 8]  i = i + 1  to sumloop }
 }

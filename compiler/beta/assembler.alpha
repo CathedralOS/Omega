@@ -116,6 +116,11 @@ p1_loop:
         load  r4, r3
         imm   r5, 1
         jeq   r4, r5, p1_label
+        call  is_db
+        imm   r3, 524384
+        load  r4, r3
+        imm   r5, 1
+        jeq   r4, r5, p1_db    ; `db "..."` data directive
         ; opcode token
         call  parse_op
         imm   r3, 524384
@@ -159,6 +164,12 @@ p1_skip:
 p1_label:
         call  record_label
         jmp   p1_loop
+p1_db:
+        imm   r3, 524400
+        imm   r4, 0
+        store r3, r4           ; DBEMIT = 0 (pass 1: count bytes into OUT)
+        call  db_scan
+        jmp   p1_loop
 p1_done:
         ; pass 2: CUR = 0, emit
         imm   r3, 524296
@@ -175,6 +186,11 @@ p2_loop:
         load  r4, r3
         imm   r5, 1
         jeq   r4, r5, p2_loop  ; skip label defs
+        call  is_db
+        imm   r3, 524384
+        load  r4, r3
+        imm   r5, 1
+        jeq   r4, r5, p2_db    ; `db "..."` data directive
         ; opcode
         call  parse_op
         imm   r3, 524384
@@ -213,6 +229,12 @@ p2_loop:
         imm   r7, 524392
         store r7, r6
         call  emit_operand
+        jmp   p2_loop
+p2_db:
+        imm   r3, 524400
+        imm   r4, 1
+        store r3, r4           ; DBEMIT = 1 (pass 2: emit the bytes)
+        call  db_scan
         jmp   p2_loop
 p2_done:
         imm   r0, 0
@@ -680,4 +702,137 @@ eo_bloop:
         sub   r1, r4
         jmp   eo_bloop
 eo_done:
+        ret
+
+; ---------------- is_db ----------------
+; NUM = 1 if the current token (TSTART/TLEN) is the directive "db", else 0.
+is_db:
+        imm   r3, 524312
+        load  r5, r3           ; TLEN
+        imm   r6, 2
+        jeq   r5, r6, isdb_len2
+        imm   r3, 524384
+        imm   r9, 0
+        store r3, r9
+        ret
+isdb_len2:
+        imm   r3, 524304
+        load  r4, r3           ; TSTART
+        imm   r7, 1048576
+        add   r7, r4
+        loadb r8, r7           ; first char
+        imm   r6, 100          ; 'd'
+        jeq   r8, r6, isdb_c1
+        imm   r3, 524384
+        imm   r9, 0
+        store r3, r9
+        ret
+isdb_c1:
+        imm   r7, 1048576
+        add   r7, r4
+        imm   r9, 1
+        add   r7, r9
+        loadb r8, r7           ; second char
+        imm   r6, 98           ; 'b'
+        imm   r3, 524384
+        jeq   r8, r6, isdb_yes
+        imm   r9, 0
+        store r3, r9
+        ret
+isdb_yes:
+        imm   r9, 1
+        store r3, r9
+        ret
+
+; ---------------- db_scan ----------------
+; Handle a `db "..."` data directive: from CUR (just past the "db" token), find
+; the opening quote, then read bytes until the closing quote — decoding the
+; escapes \n \t \r \0 (and emitting \\ and \" literally). DBEMIT (524400) selects:
+;   0 = pass 1, add each byte to OUT (so labels after the data get right addrs);
+;   1 = pass 2, write each byte to the tape. Leaves CUR past the closing quote.
+db_scan:
+        imm   r3, 524296
+        load  r1, r3           ; r1 = CUR
+        imm   r3, 524288
+        load  r3, r3           ; r3 = SRCLEN
+ds_findq:
+        jlt   r1, r3, ds_fq_in
+        imm   r0, 9
+        halt  r0               ; malformed db: no opening quote
+ds_fq_in:
+        imm   r5, 1048576
+        add   r5, r1
+        loadb r2, r5
+        imm   r6, 34           ; '"'
+        jeq   r2, r6, ds_open
+        imm   r6, 1
+        add   r1, r6
+        jmp   ds_findq
+ds_open:
+        imm   r6, 1
+        add   r1, r6           ; past the opening quote
+ds_loop:
+        jlt   r1, r3, ds_loop_in
+        imm   r0, 9
+        halt  r0               ; unterminated db string
+ds_loop_in:
+        imm   r5, 1048576
+        add   r5, r1
+        loadb r2, r5           ; c
+        imm   r6, 34           ; '"'
+        jeq   r2, r6, ds_close
+        imm   r6, 92           ; '\'
+        jeq   r2, r6, ds_esc
+        jmp   ds_emit
+ds_esc:
+        imm   r6, 1
+        add   r1, r6           ; skip the backslash
+        imm   r5, 1048576
+        add   r5, r1
+        loadb r2, r5           ; escaped char
+        imm   r6, 110          ; 'n'
+        jeq   r2, r6, ds_e_n
+        imm   r6, 116          ; 't'
+        jeq   r2, r6, ds_e_t
+        imm   r6, 114          ; 'r'
+        jeq   r2, r6, ds_e_r
+        imm   r6, 48           ; '0'
+        jeq   r2, r6, ds_e_0
+        jmp   ds_emit          ; \\ \" or other: emit the char as-is
+ds_e_n:
+        imm   r2, 10
+        jmp   ds_emit
+ds_e_t:
+        imm   r2, 9
+        jmp   ds_emit
+ds_e_r:
+        imm   r2, 13
+        jmp   ds_emit
+ds_e_0:
+        imm   r2, 0
+        jmp   ds_emit
+ds_emit:
+        imm   r3, 524400
+        load  r7, r3           ; DBEMIT
+        imm   r6, 1
+        jeq   r7, r6, ds_write
+        imm   r3, 524328
+        load  r8, r3           ; OUT
+        imm   r6, 1
+        add   r8, r6
+        store r3, r8           ; OUT += 1
+        jmp   ds_next
+ds_write:
+        write r2
+ds_next:
+        imm   r6, 1
+        add   r1, r6           ; past this source char
+        imm   r3, 524288
+        load  r3, r3           ; reload SRCLEN (clobbered above)
+        jmp   ds_loop
+ds_close:
+        imm   r6, 1
+        add   r1, r6           ; past the closing quote
+        imm   r3, 524296
+        store r3, r1           ; CUR = r1
         ret
