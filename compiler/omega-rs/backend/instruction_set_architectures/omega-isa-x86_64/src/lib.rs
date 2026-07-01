@@ -426,7 +426,9 @@ pub fn dispatch_guard_compare_static_width(is_float: bool, byte_size: usize) -> 
     // compare is `cmp r10,r11` (3; 4 with the 0x66 prefix); float is
     // movq/movd + movq/movd + ucomisd/ucomiss.
     let load_width = if !is_float && byte_size == 2 { 8 } else { 7 };
-    10 + load_width + 10 + runtime_float_or_integer_compare_width(is_float, byte_size) + 6
+    // Floats prepend a 6-byte `jp` parity branch before the failure jcc (NaN routing).
+    let float_parity_branch = if is_float { 6 } else { 0 };
+    10 + load_width + 10 + runtime_float_or_integer_compare_width(is_float, byte_size) + 6 + float_parity_branch
 }
 
 fn runtime_float_or_integer_compare_width(is_float: bool, byte_size: usize) -> usize {
@@ -505,7 +507,7 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     // (`current.offset + byte_width - 4`, now architecture-aware in the branch-
     // distance helper). The jcc rel is measured from the field's end, 4 bytes
     // later, so the relative target is `skip_byte_distance - 4`.
-    append_failure_branch(&mut bytes, operator, skip_byte_distance - 4)?;
+    append_failure_branch(&mut bytes, operator, skip_byte_distance - 4, is_float)?;
     debug_assert_eq!(bytes.len(), dispatch_guard_compare_static_width(is_float, byte_size));
     Ok(bytes)
 }
@@ -1577,7 +1579,7 @@ pub fn encode_runtime_value_compare(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R11, right)?;
     append_cmp_r10_r11(&mut bytes, byte_size)?;
-    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4)?;
+    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, false)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_value_compare_width(runtime_value_operands, byte_size, left, right)
@@ -1596,11 +1598,14 @@ pub fn runtime_storage_compare_width(
     // 4 with the 0x66 prefix for 2-byte operands, whose loads are also 8 not 7);
     // float = movq/movd+movq/movd+ucomisd/ucomiss.
     let load_width = if !is_float && byte_size == 2 { 8 } else { 7 };
+    // Floats prepend a 6-byte `jp` parity branch before the failure jcc (NaN routing).
+    let float_parity_branch = if is_float { 6 } else { 0 };
     10 + load_width
         + 10
         + load_width
         + runtime_float_or_integer_compare_width(is_float, byte_size)
         + 6
+        + float_parity_branch
 }
 
 pub fn encode_runtime_storage_compare_bytes(
@@ -1626,7 +1631,7 @@ pub fn encode_runtime_storage_compare_bytes(
     } else {
         append_cmp_r10_r11(&mut bytes, byte_size)?;
     }
-    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4)?;
+    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, is_float)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_storage_compare_width(left_offset, right_offset, byte_size, is_float)
@@ -1657,7 +1662,7 @@ pub fn encode_runtime_storage_value_compare_bytes(
     append_load_reg_from_r15(&mut bytes, Reg64::R10, byte_offset, byte_size)?;
     append_mov_reg_imm64(&mut bytes, Reg64::R11, expected_value as u64);
     append_cmp_r10_r11(&mut bytes, byte_size)?;
-    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4)?;
+    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, false)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_storage_value_compare_width(byte_offset, byte_size)
@@ -6037,6 +6042,7 @@ fn append_failure_branch(
     bytes: &mut Vec<u8>,
     operator: StateGuardOperator,
     failure_branch_distance: isize,
+    is_float: bool,
 ) -> Result<(), Diagnostic> {
     // The guard jumps to the failure branch when the comparison is FALSE, so each
     // operator maps to its negation. Ordering uses signed (jl/jg/...) or unsigned
@@ -6058,6 +6064,23 @@ fn append_failure_branch(
             )));
         }
     };
+    // IEEE semantics for a NaN operand: every comparison is FALSE except `!=` (true).
+    // `ucomis*` reports an unordered/NaN operand by setting PF=1 (alongside ZF=CF=1),
+    // which the ZF/CF-only failure jcc above misreads as "equal". Prepend a parity
+    // branch so NaN is routed correctly. This 6-byte `jp` sits BEFORE the main jcc, so
+    // the main jcc's own rel32 is unchanged (both it and its target shift down by 6);
+    // the float width functions account for the extra 6 bytes.
+    if is_float {
+        if matches!(operator, StateGuardOperator::NotEqual) {
+            // `!=` on NaN is TRUE (guard succeeds): jump PAST the 6-byte `je` so NaN
+            // falls through to the success arm instead of taking the equal-failure jump.
+            append_jcc_rel32(bytes, 0x8a, 6)?; // jp over the je
+        } else {
+            // Every other operator is FALSE on NaN (guard fails): jump to the same
+            // failure arm as the main jcc, which now sits 6 bytes further along.
+            append_jcc_rel32(bytes, 0x8a, failure_branch_distance + 6)?; // jp to failure
+        }
+    }
     append_jcc_rel32(bytes, opcode, failure_branch_distance)
 }
 
