@@ -810,6 +810,17 @@ def _try_natind(sat, goal):  # prove (All P) by Peano INDUCTION: base P(0) + ste
     return None
 
 
+# universal strict-order irreflexivity, ∀a. a<a -> ⊥ (desugared), proven on demand and cited by the
+# order-cycle rule below. Built via parse so its de Bruijn form matches exactly what the search produces.
+_IRREFL = parse(tokenize("(All (-> (Lt (v 0) (v 0)) (bot)))"))
+
+
+def _strict_base(p):  # if p is a strict-Lt fact `(= (p A (s K)) B)` (what unpacking `A < B` yields), return
+    if (p[0] == "=" and p[1][0] == "p" and p[1][2][0] == "s"):  # (A, B); else None. A<B means ∃k. A+(s k)=B.
+        return (p[1][1], p[2])
+    return None
+
+
 def _rules(sat, goal):
     # axiom: the goal is already in (the saturation of) the context
     direct = has(sat, goal)
@@ -983,6 +994,25 @@ def _rules(sat, goal):
             a, b = nf(prop[1]), nf(prop[2])
             if (a[0] == "z" and b[0] == "s") or (a[0] == "s" and b[0] == "z"):
                 return ("disj", term) if goal == ("bot",) else ("absurd", goal, ("disj", term))
+    # ORDER-CYCLE refutation (the one bit of FORWARD order reasoning): a strict cycle in context -- two facts
+    # (p A (s _))=B and (p B (s _))=A, i.e. A<B and B<A -- is absurd. The sum-witness already CHAINS the cycle
+    # into (Lt A A) as a GOAL; the banked irreflexivity ∀a.a<a->⊥ then refutes it. Fires ONLY on a structural
+    # cycle (cheap scan, no cost when absent) and only in phase 2 (irreflexivity needs induction). This reaches
+    # lt-asymmetry -- the goal-directed rules alone can't, since combining two order facts is forward reasoning.
+    if goal == ("bot",) and _induction_on[0]:
+        for p1, _ in sat:
+            ab = _strict_base(p1)
+            if ab is None or ab[0] == ab[1]:   # skip a TRIVIAL self-cycle (A<A): a<a->⊥ is proven directly by
+                continue                        # induction (this rule would recurse into its own irreflexivity)
+            for p2, _ in sat:
+                ba = _strict_base(p2)
+                if ba is not None and ba[0] == ab[1] and ba[1] == ab[0]:   # A<B and B<A -> non-trivial cycle at A
+                    base = ab[0]
+                    pf_lt = prove(sat, ("ex", ("=", ("p", base, ("s", ("v", 0))), base)))   # (Lt base base)
+                    if pf_lt is not None:
+                        irr = prove([], _IRREFL)   # irreflexivity is CLOSED -- prove from a clean context so the
+                        if irr is not None:        # cycle facts here don't re-trigger this rule (non-termination)
+                            return ("app", ("inst", irr, base), pf_lt)
     # sinj: successor injectivity -- a hypothesis (s a = s b) yields the NEW fact (a = b). The children are
     # the normal forms' successors' arguments (what the kernel's sinj returns). Decreasing successor depth +
     # the new-fact guard terminate the chain (so 2=3 collapses 2=3 -> 1=2 -> 0=1 -> disj -> bot).

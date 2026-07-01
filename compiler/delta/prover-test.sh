@@ -177,6 +177,11 @@ ok "(All (-> (= (s (v 0)) z) (bot)))"                          # s a = 0 -> bot 
 ok "(All (Lt z (s (v 0))))"                                   # 0 < s a        (every successor is positive)
 ok "(All (-> (Lt (s (v 0)) (v 0)) (bot)))"                    # s a < a -> bot (nothing is below its predecessor)
 ok "(All (All (-> (Le (v 1) (v 0)) (Le (s (v 1)) (s (v 0))))))" # a<=b -> s a <= s b (successor MONOTONE; forward dual of succ-<=-cancel)
+# STRICT-ORDER ASYMMETRY (a<b & b<a -> bot) -- the first FORWARD order reasoning: a strict cycle in context is
+# refuted by chaining it into (Lt A A) (sum-witness) and applying the banked irreflexivity. See the order-cycle
+# rule in prover.py. The goal-directed rules alone can't reach it (combining two order facts is forward).
+ok "(All (All (-> (Lt (v 1) (v 0)) (-> (Lt (v 0) (v 1)) (bot)))))"  # a<b -> b<a -> bot  (strict order ASYMMETRIC)
+no "(All (All (-> (Lt (v 1) (v 0)) (-> (Lt (v 1) (v 0)) (bot)))))"  # a<b -> a<b -> bot is FALSE (no cycle, just a<b)
 no "(All (-> (Lt z (v 0)) (bot)))"                            # 0 < a -> bot is FALSE (a=1)
 no "(All (-> (Le (v 0) z) (Lt (v 0) z)))"                     # a<=0 does NOT give a<0 (a=0)
 # STRICT mult-mono needs a POSITIVITY guard (a<b => a*c<b*c is FALSE at c=0). With 0<c it discharges via the
