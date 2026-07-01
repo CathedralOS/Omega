@@ -88,6 +88,9 @@ pub struct Parser<'a> {
     // Bounded-STORE obligations for the machine being parsed: each `self.<range field> = value` records
     // (value node, lo, hi) so static discharge can prove `value in [lo, hi)`. See discharge_field_stores.
     store_obligations: Vec<(usize, i32, i32)>,
+    // Candidate range-typed lets: each `let x: i32 in lo..hi = init` records (local index, init node). If x is
+    // never reassigned it equals `init` throughout, so downstream `self.arr[x]` discharges through `init`.
+    local_range_candidates: Vec<(usize, usize)>,
 }
 
 impl<'a> Parser<'a> {
@@ -119,6 +122,7 @@ impl<'a> Parser<'a> {
             current_machine_makes_call: false,
             uses_host_io: false,
             store_obligations: Vec::new(),
+            local_range_candidates: Vec::new(),
         }
     }
 
@@ -643,6 +647,7 @@ impl<'a> Parser<'a> {
         self.self_data_type = None;
         self.current_machine_makes_call = false;
         self.store_obligations = Vec::new();
+        self.local_range_candidates = Vec::new();
         self.bump(); // "machine"
 
         // name path: the first segment is the receiver type for a method (`Foo::m`);
@@ -799,6 +804,18 @@ impl<'a> Parser<'a> {
                 self.store_obligations.push((ret, lo, hi));
             }
         }
+        // A range let's declared range is a sound downstream fact only if the local is never reassigned
+        // (an `x = ..` would let x escape its type). Keep only the never-reassigned candidates.
+        let mut reassigned = std::collections::HashSet::new();
+        Self::collect_assigned_locals(&entry, &mut reassigned);
+        for block in &states {
+            Self::collect_assigned_locals(block, &mut reassigned);
+        }
+        let local_inits: Vec<(usize, usize)> = self
+            .local_range_candidates
+            .drain(..)
+            .filter(|(idx, _)| !reassigned.contains(idx))
+            .collect();
         // Retain the preconditions for static call-site discharge before they are consumed.
         let preconditions_kept = preconditions.clone();
         // Prepend the precondition checks (in source order) so they run before the body.
@@ -827,7 +844,22 @@ impl<'a> Parser<'a> {
             entry,
             states,
             store_obligations: std::mem::take(&mut self.store_obligations),
+            local_inits,
         })
+    }
+
+    // Collect the indices of all locals that are ASSIGNED (`x = ..`) anywhere in a statement list, recursing
+    // into Blocks. A range let whose local appears here can't have its range trusted downstream.
+    fn collect_assigned_locals(statements: &[Statement], out: &mut std::collections::HashSet<usize>) {
+        for statement in statements {
+            match statement {
+                Statement::Assign(index, _) => {
+                    out.insert(*index);
+                }
+                Statement::Block(inner) => Self::collect_assigned_locals(inner, out),
+                _ => {}
+            }
+        }
     }
 
     // Collect the value-expression node of every `return` in a statement list (recursing
@@ -1046,14 +1078,26 @@ impl<'a> Parser<'a> {
             self.expect(TokenKind::Ident)?; // type (ignored at slice 2: everything is i32)
             // optional domain annotation `in <Domain>` (Omega's arithmetic-safety types). Only Wrapping
             // changes codegen (omit the overflow trap); Trapping is the default, others fall through to it.
+            // `in <refinement>`: `in Wrapping`/`in Saturating` (Ident) = arithmetic domain; `in lo..hi` (Int) =
+            // RANGE refinement (Omega's bounded type). A range let owes its initializer in [lo, hi) and, if the
+            // local is never reassigned, carries that range downstream (a value-domain that flows through the body).
             let mut domain: u8 = 0; // 0 Trapping (default), 1 Wrapping, 2 Saturating
+            let mut let_range: Option<(i32, i32)> = None;
             if self.current_kind() == TokenKind::Ident && self.current_text() == b"in" {
                 self.bump(); // in
-                let dom = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
-                if dom == b"Wrapping" {
-                    domain = 1;
-                } else if dom == b"Saturating" {
-                    domain = 2;
+                if self.current_kind() == TokenKind::Int {
+                    let lo = self.parse_int_token()?;
+                    self.expect(TokenKind::Dot)?;
+                    self.expect(TokenKind::Dot)?; // ..
+                    let hi = self.parse_int_token()?;
+                    let_range = Some((lo, hi));
+                } else {
+                    let dom = token_text(&self.expect(TokenKind::Ident)?, self.source).to_vec();
+                    if dom == b"Wrapping" {
+                        domain = 1;
+                    } else if dom == b"Saturating" {
+                        domain = 2;
+                    }
                 }
             }
             self.expect(TokenKind::Eq)?;
@@ -1069,6 +1113,10 @@ impl<'a> Parser<'a> {
             }
             let local_index = self.local_names.len();
             self.local_names.push(name);
+            if let Some((lo, hi)) = let_range {
+                self.store_obligations.push((init, lo, hi)); // BoundedInitializer: init in [lo, hi)
+                self.local_range_candidates.push((local_index, init)); // x == init downstream if never reassigned
+            }
             return Ok(Statement::Let(local_index, init, domain));
         }
         if self.current_kind() == TokenKind::Ident && self.current_text() == b"transition" {

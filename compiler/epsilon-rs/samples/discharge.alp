@@ -125,6 +125,11 @@ machine Cell::sparam(&mut self, p: i32 in 0..50) { self.slot = p; }
 // weakening its type's `p < 50` to `p < 100` via lt-le-trans -- so callers can RELY on the declared range.
 machine rlit() -> i32 in 0..100 { return 42; }
 machine rparam(p: i32 in 0..50) -> i32 in 0..100 { return p; }
+// RANGE-TYPED LOCAL with value-domain FLOW: a never-reassigned `let x: i32 in 0..16 = i` equals `i`
+// throughout, so `self.data[x]` discharges its array-bounds obligation `x < 16` through i's range -- the
+// computed index carries its domain. (The let's own initializer obligation `i < 16` is discharged too.)
+data Buf { data: [u8; 16]; }
+machine Buf::atidx(&mut self, i: i32 in 0..16) -> i32 { let x: i32 in 0..16 = i; return self.data[x]; }
 
 // EXPRESSION CALL ARGUMENT (a + k via commutativity): fwd_off promises `a >= 0` and calls
 // needs3(a + 3), where needs3 requires its argument >= 3. The obligation `(a+3) >= 3` is not ground
