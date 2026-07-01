@@ -79,8 +79,9 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
         &mut blockers,
     );
     if !needs_runtime_dispatch {
-        // Native inline emission shares a pure computing machine's result slot across multiple
-        // value-calls in one state; block that shape until per-call-site slots exist.
+        // Native inline emission shares a computing machine's result slot across multiple
+        // value-calls in one state when each result is stored straight to a field; block that
+        // shape until per-call-site slots exist.
         collect_shared_value_call_slot_blockers(input, &mut blockers);
     }
     collect_state_storage_blockers(input, needs_runtime_dispatch, &mut blockers);

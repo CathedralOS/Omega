@@ -214,6 +214,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     ("calls/runtime_value_position_branching_call_exit", 70),
+    ("calls/runtime_value_call_let_combine_exit", 70),
     ("calls/runtime_value_transition_unsigned_guard_exit", 70),
     ("collections/runtime_fixed_vec_round_trip_exit", 70),
     ("collections/runtime_rule90_automaton_exit", 70),
