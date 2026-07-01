@@ -4718,6 +4718,34 @@ fn runtime_float32_array_conversion_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_cast_sign_zero_extension_exit_canary_runs() {
+    // Width conversions pick the right extension (movsx vs movzx): -1 as i8 as i32 == -1
+    // (sign-extend), -1 as u8 as i32 == 255 (zero-extend), 200 as i8 as i32 == -56 (truncate +
+    // sign-extend). All chained -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_cast_sign_zero_extension_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-cast-sign-zero-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cast sign/zero extension canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cast sign/zero extension canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected sign/zero extension + truncation casts correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_bitwise_high_ops_exit_canary_runs() {
     // Bitwise ops on u32 above i32::MAX: a=0xF0F0F0F0, b=0x0F0F0F0F. XOR/AND/OR, a shift+mask
     // nibble extract, and NOT-via-XOR all chained -> exit 70.
