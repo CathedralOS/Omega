@@ -646,6 +646,13 @@ fn prove_lt_bound(node: usize, bound: i32, machine: &Machine, program: &Program)
             let body = format!("(= (p {} (s (v 0))) {})", unary(k), unary(bound));
             Some(format!("(Exists {0}) (wit {0} {1} (refl {2}))", body, unary(bound - k - 1), unary(bound)))
         }
+        // A never-reassigned range-typed let `x = init` has `x == init` throughout (value-domain FLOW), so
+        // discharge x's bound through its initializer -- e.g. `let x: i32 in 0..len = i; self.arr[x]` proves
+        // `x < len` from `i`'s range. Sound by construction: x is only dischargeable where its init is.
+        Expr::Local(i) if machine.local_inits.iter().any(|&(li, _)| li == i) => {
+            let init = machine.local_inits.iter().find(|&&(li, _)| li == i).map(|&(_, n)| n).unwrap();
+            prove_lt_bound(init, bound, machine, program)
+        }
         // PARAMETER i with a declared/typed upper bound `i < M` (from a `requires` or a range type).
         Expr::Local(i) => {
             let req = machine.preconditions.iter().find_map(|&pc| match param_order(pc, program) {

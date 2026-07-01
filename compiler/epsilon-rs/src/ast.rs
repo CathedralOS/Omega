@@ -84,6 +84,9 @@ pub struct Machine {
     // Bounded-STORE obligations from range-refined fields (`self.f = v` where `f: i32 in lo..hi`):
     // each (value node, lo, hi) owes `value in [lo, hi)`, discharged statically. See discharge.rs.
     pub store_obligations: Vec<(usize, i32, i32)>,
+    // Range-typed lets that are NEVER reassigned: (local index, initializer node). Such a local equals its
+    // initializer throughout, so `self.arr[x]` discharges by substituting `x` -> its init. See discharge.rs.
+    pub local_inits: Vec<(usize, usize)>,
 }
 
 pub struct Program {
