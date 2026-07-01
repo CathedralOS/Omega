@@ -4745,6 +4745,33 @@ fn runtime_float32_array_conversion_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_i64_signed_arithmetic_exit_canary_runs() {
+    // i64 signed arithmetic beyond i32: multiply past 2^32, signed div/mod with a negative dividend
+    // (sign follows dividend), and a 64-bit shift (1<<40). All chained -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_i64_signed_arithmetic_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-i64-signed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("i64 signed arithmetic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("i64 signed arithmetic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i64 multiply/div/mod/shift at scale to be correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_cast_sign_zero_extension_exit_canary_runs() {
     // Width conversions pick the right extension (movsx vs movzx): -1 as i8 as i32 == -1
     // (sign-extend), -1 as u8 as i32 == 255 (zero-extend), 200 as i8 as i32 == -56 (truncate +
