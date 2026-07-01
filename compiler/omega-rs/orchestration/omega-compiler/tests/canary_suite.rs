@@ -11075,6 +11075,35 @@ fn runtime_join_meet_bound_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
+    // The sound pattern for filling an array with computed values in a write-first loop: a computed
+    // value goes to a field, then the field (a machine-resident source) is copied to the runtime-
+    // indexed element -- native emission cannot yet store a computed expression straight into an
+    // indexed element. Fills [0,10,20,30,40], sums to 100, self-checks -> exit 70.
+    let canary = pass_canary("collections/runtime_computed_array_fill_via_temp_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-computed-fill-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("computed array-fill canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("computed array-fill canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a computed value written via a field temp then indexed-copied to fill correctly (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_nested_loop_fill_exit_canary_runs() {
     // Nested loops: an outer loop drives an inner write-first loop that fills a row (counter
     // reset each outer pass). Exercises the loop-invariant machinery in a nested context -- the
@@ -17075,6 +17104,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_write_first_loop_index_exit",
     "collections/runtime_loop_counter_init_hoisted_exit",
     "collections/runtime_nested_loop_fill_exit",
+    "collections/runtime_computed_array_fill_via_temp_exit",
     "core/array_core_surface",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",
