@@ -1,0 +1,37 @@
+// A value-machine returns an ENUM computed through nested runtime guards (a sign classifier),
+// bound to a local, then dispatched by a multi-arm match. All three classifications are checked
+// in one run -- classify(7)=Pos, classify(-4)=Neg, classify(0)=Zero -- so a wrong classify arm
+// or a wrong match arm takes the false path. Combines value-call enum return + multi-arm dispatch.
+// Differential: native == interp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Sign { case Neg; case Zero; case Pos; }
+data Main { console: Console; }
+machine Main::classify(&self, n: i32) -> Sign {
+    transition n > 0 {
+        true -> pos()
+        _ -> nonpos()
+    }
+    state pos(&self) -> Sign { transition { _ -> Sign::Pos } }
+    state nonpos(&self) -> Sign {
+        transition n < 0 { true -> neg() _ -> zero() }
+    }
+    state neg(&self) -> Sign { transition { _ -> Sign::Neg } }
+    state zero(&self) -> Sign { transition { _ -> Sign::Zero } }
+}
+machine Main::main(&mut self) {
+    transition { _ -> check_pos() }
+    state check_pos(&mut self) {
+        let s: Sign = self.classify(7);
+        transition s { Sign::Pos -> check_neg() Sign::Neg -> bad() Sign::Zero -> bad() }
+    }
+    state check_neg(&mut self) {
+        let s: Sign = self.classify(-4);
+        transition s { Sign::Neg -> check_zero() Sign::Pos -> bad() Sign::Zero -> bad() }
+    }
+    state check_zero(&mut self) {
+        let s: Sign = self.classify(0);
+        transition s { Sign::Zero -> ok() Sign::Pos -> bad() Sign::Neg -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

@@ -10863,6 +10863,36 @@ fn runtime_enum_struct_payload_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_enum_classify_dispatch_exit_canary_runs() {
+    // A value-machine returns an enum computed through nested runtime guards (a sign classifier),
+    // dispatched by a multi-arm match. All three classifications (Pos/Neg/Zero) are checked, so a
+    // wrong classify arm or a wrong dispatch arm takes the false path. Value-call enum return +
+    // multi-arm enum dispatch, in one program -> exit 70.
+    let canary = pass_canary("structs/runtime_enum_classify_dispatch_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-enum-classify-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("enum classify-dispatch canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("enum classify-dispatch canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected value-call enum classification + multi-arm dispatch to route all three signs (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_nested_field_accumulate_loop_exit_canary_runs() {
     // Two-level nested struct fields (`self.body.pos.x`) mutated in place across a
     // state-machine loop -- the physics/entity-update pattern (position += velocity).
@@ -17048,6 +17078,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_position_branching_call_exit",
     "calls/runtime_value_call_let_combine_exit",
     "structs/runtime_nested_field_accumulate_loop_exit",
+    "structs/runtime_enum_classify_dispatch_exit",
     "calls/runtime_value_transition_unsigned_guard_exit",
     "calls/runtime_exit_code_exit",
     "calls/value_call_sequential_result_slots_exit",
