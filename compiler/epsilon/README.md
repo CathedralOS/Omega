@@ -26,11 +26,13 @@ translator — `epsilon-rs/src/gamma_emit.rs` — is **Rust**, so Rust still sat
   (`EPS_EMIT=gamma`) — the two translators converge. Wired into `verify-lattice.sh`.
 
 - **`convergence-reference.sh`** — the payoff: the proof-carrying loop with **no Rust anywhere**. A real
-  certifier (`certify-add`, `certify-product`, `certify-member`, `certify-divides`) is translated by
-  `eps2gamma.beta`, *run* by `interp.beta` to emit a delta certificate, and that certificate is *checked*
-  by `check.beta` — all three in the alpha→beta→bc lineage. A buggy certifier's cert is rejected (the
-  negative control). Needs no cargo/clang (the Rust-free route never compiles native code). Wired into
-  `verify-lattice.sh`.
+  certifier is translated by `eps2gamma.beta`, *run* by `interp.beta` to emit a delta certificate, and that
+  certificate is *checked* by `check.beta` — all three in the alpha→beta→bc lineage. It covers diverse cert
+  kinds (equality, inductive `ProdIs`/`Mem`, existential) **and the omega safety obligations** a verifying
+  compiler emits — array bounds `i*n+j < m*n`, access conjunctions, and division-by-zero — the exact VC
+  shapes the summit rung produces, here computed and checked with zero Rust. Each has a mutated-cert
+  negative control that must be rejected. Needs no cargo/clang (the Rust-free route never compiles native
+  code). Wired into `verify-lattice.sh`.
 
 ## Supported subset (grows slice by slice)
 

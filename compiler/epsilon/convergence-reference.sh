@@ -11,9 +11,13 @@
 #   certify-add '2 3'  --(eps2gamma.beta)-->  gamma  --(interp.beta)-->  (= (p (s (s z)) ...) ...) (refl ...)
 #                                                                        --(check.beta)-->  accept
 #
+# Covers diverse cert kinds AND, crucially, the OMEGA SAFETY OBLIGATIONS a verifying compiler emits — array
+# bounds (i*n+j < m*n), access conjunctions, and division-by-zero — the exact VC shapes the summit rung
+# produces, here COMPUTED and CHECKED with zero Rust. Each has a mutated-cert negative control that must be
+# rejected, so acceptance is meaningful, not vacuous.
+#
 # Needs no cargo/clang/codesign (the Rust-free route never compiles native code) — only bc, so it runs
-# anywhere the rest of the lattice builds. A WRONG certificate is REJECTED here too (the negative control),
-# so the loop is meaningful, not vacuous. Small-number certifiers only: a large certificate's unary
+# anywhere the rest of the lattice builds. Small-number certifiers only: a large certificate's unary
 # numerals exhaust interp's arena.
 # No `set -e`: interp/check exit with the alpha VM's result byte (captured inside `v=$(…)`); judge by stdout.
 cd "$(dirname "$0")"
@@ -28,26 +32,46 @@ b ../gamma/interp.beta  "$T/interp.exe" || { echo "convergence-reference(rust-fr
 b ../delta/check.beta   "$T/check.exe"  || { echo "convergence-reference(rust-free) FAIL — build check.beta"; exit 1; }
 
 PASS=0; FAIL=0
-# ref SAMPLE "in-bytes" EXPECT : eps2gamma translates the certifier; interp.beta runs it on that stdin
-# (baked as a gamma list into the STDIN placeholder); decode the emitted certificate from interp's output
-# list; require check.beta's verdict to be EXPECT.
-ref() {
-  rev=""; for x in $2; do rev="$x $rev"; done
+# _emit SAMPLE "ascii-stdin" : eps2gamma translates the certifier; interp.beta runs it with that stdin
+# (the ASCII is turned into the gamma byte list baked into the STDIN placeholder); prints the emitted cert.
+_emit() {
+  bytes=$(printf '%s' "$2" | od -An -tu1 | tr ' ' '\n' | grep -vE '^$')
+  rev=""; for x in $bytes; do rev="$x $rev"; done
   list="Nil"; for x in $rev; do list="(Cons $x $list)"; done
-  g=$("$T/e2g.exe" < "../epsilon-rs/samples/$1.alp" 2>/dev/null | sed "s/STDIN/$list/")
-  [ -n "$g" ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no gamma emitted"; return; }
-  cert=$(printf '%s\n' "$g" | "$T/interp.exe" 2>/dev/null | grep -oE '[0-9]+' | awk '{printf "%c",$1}')
+  "$T/e2g.exe" < "../epsilon-rs/samples/$1.alp" 2>/dev/null | sed "s/STDIN/$list/" | "$T/interp.exe" 2>/dev/null \
+    | grep -oE '[0-9]+' | awk '{printf "%c",$1}'
+}
+# ref SAMPLE "ascii" EXPECT : the cert check.beta emits must be EXPECT.
+ref() {
+  cert=$(_emit "$1" "$2")
+  [ -n "$cert" ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no certificate emitted"; return; }
   v=$(printf '%s' "$cert" | "$T/check.exe")
   if [ "$v" = "$3" ]; then PASS=$((PASS+1)); else
-    FAIL=$((FAIL+1)); echo "  FAIL $1 : check.beta returned [$v], expected $3 (cert: $cert)"; fi
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : check.beta returned [$v], expected $3"; fi
+}
+# refbad SAMPLE "ascii" SED : a MUTATED (false) certificate must be REJECTED — the loop is not vacuous.
+refbad() {
+  cert=$(_emit "$1" "$2" | sed "$3")
+  v=$(printf '%s' "$cert" | "$T/check.exe")
+  if [ "$v" = "reject" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 (mutated) : expected reject, got [$v]"; fi
 }
 
 # diverse cert kinds, each COMPUTED by the Rust-free reference interpreter and ACCEPTED by the trust anchor:
-ref certify-add     "50 32 51"             accept   # '2 3'     -> equality / refl (a+b)
-ref certify-product "50 32 51 32 53"       accept   # '2 3 5'   -> inductive predicate ProdIs (list product)
-ref certify-member  "53 32 53 32 54 32 55" accept   # '5 5 6 7' -> inductive predicate Mem (list membership)
-ref certify-divides "51 32 49 50"          accept   # '3 12'    -> existential (3 divides 12)
-ref certify-wrong   "50 32 51"             reject   # NEGATIVE CONTROL: the buggy 'a+b = a+b+1' cert is rejected
+ref certify-add     "2 3"      accept   # equality / refl (a+b)
+ref certify-product "2 3 5"    accept   # inductive predicate ProdIs (list product)
+ref certify-member  "5 5 6 7"  accept   # inductive predicate Mem (list membership)
+ref certify-divides "3 12"     accept   # existential (3 divides 12)
+ref certify-wrong   "2 3"      reject   # NEGATIVE CONTROL: the buggy 'a+b = a+b+1' cert is rejected
+
+# OMEGA SAFETY OBLIGATIONS — the VC shapes a verifying compiler must discharge (array bounds, division),
+# here computed AND checked with zero Rust. Each mutated variant is rejected, so acceptance is meaningful.
+ref    certify-lt       "2 5"              accept   # a < b (ordering; the shape every bounds VC reduces to)
+ref    certify-bounds   "2 5 3 4"          accept   # a 2D array-bounds obligation  i*n+j < m*n
+ref    certify-accesses "2 5 3 4  1 3 0 2" accept   # a CONJUNCTION: every access in a sequence is in bounds
+ref    certify-safety   "b 2 5 3 4  d 7"   accept   # MIXED: array-bounds AND division-by-zero in one proof
+refbad certify-lt       "2 5"              's/(s (s (s (s (s z)))))/(s (s (s (s z))))/g'
+refbad certify-safety   "b 2 5 3 4  d 7"   's/(s (s (s (s (s (s z))))))/(s (s (s (s (s z)))))/'
 
 echo "reference-route convergence, RUST-FREE (eps2gamma.beta -> interp.beta; cert checked by check.beta): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
